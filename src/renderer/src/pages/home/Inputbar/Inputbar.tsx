@@ -912,9 +912,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')}>
-                  <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ActionIconButton>
+                  <ActionIconButton
+                    onClick={onPause}
+                    className="mr-[-2px]"
+                    icon={<CirclePause size={20} color="var(--color-error)" />}
+                  />
                 </Tooltip>
               )}
             </ToolbarMenu>

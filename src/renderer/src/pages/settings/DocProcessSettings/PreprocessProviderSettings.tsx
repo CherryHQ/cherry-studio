@@ -1,12 +1,11 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Input } from 'antd'
+import { Avatar, Divider, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
@@ -96,7 +95,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             }}>
             {t('settings.provider.api_key.label')}
             <Tooltip placement="top" title={t('settings.provider.api.key.list.open')}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+              <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
             </Tooltip>
           </SettingSubtitle>
           <Flex className="gap-2">

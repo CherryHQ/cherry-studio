@@ -138,9 +138,11 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
           ? t('common.close')
           : t('assistants.settings.reasoning_effort.label')
       }>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={currentReasoningEffort !== 'off'}>
-        {ThinkingIcon(currentReasoningEffort)}
-      </ActionIconButton>
+      <ActionIconButton
+        onPress={handleOpenQuickPanel}
+        active={currentReasoningEffort !== 'off'}
+        icon={ThinkingIcon(currentReasoningEffort)}
+      />
     </Tooltip>
   )
 }

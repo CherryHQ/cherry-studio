@@ -335,7 +335,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
   // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
-  return /deepseek-v3(?:\.1|-1-\d+)?/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
+  return /deepseek-v3(?:\.1|-1-\d+)/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
 }
 
 export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
@@ -391,7 +391,8 @@ export function isReasoningModel(model?: Model): boolean {
     isDeepSeekHybridInferenceModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
-    modelId.includes('pangu-pro-moe')
+    modelId.includes('pangu-pro-moe') ||
+    modelId.includes('seed-oss')
   ) {
     return true
   }

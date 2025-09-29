@@ -1,4 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
@@ -10,7 +11,6 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
-import { Button } from 'antd'
 import { isEmpty } from 'lodash'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import type { FC } from 'react'
@@ -53,10 +53,13 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
         </OAuthButton>
       ) : (
         <RowFlex className="gap-2.5">
-          <Button shape="round" icon={<CircleDollarSign size={16} />} onClick={() => providerCharge(provider.id)}>
+          <Button
+            radius="full"
+            startContent={<CircleDollarSign size={16} />}
+            onPress={() => providerCharge(provider.id)}>
             {t('settings.provider.charge')}
           </Button>
-          <Button shape="round" icon={<ReceiptText size={16} />} onClick={() => providerBills(provider.id)}>
+          <Button radius="full" startContent={<ReceiptText size={16} />} onPress={() => providerBills(provider.id)}>
             {t('settings.provider.bills')}
           </Button>
         </RowFlex>

@@ -144,12 +144,14 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
 const tagName = {
   reasoning: 'reasoning',
   think: 'think',
-  thought: 'thought'
+  thought: 'thought',
+  seedThink: 'seed:think'
 }
 
 function getReasoningTagName(modelId: string | undefined): string {
   if (modelId?.includes('gpt-oss')) return tagName.reasoning
   if (modelId?.includes('gemini')) return tagName.thought
+  if (modelId?.includes('seed-oss-36b')) return tagName.seedThink
   return tagName.think
 }
 

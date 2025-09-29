@@ -1,4 +1,5 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -7,7 +8,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
 import type { TableProps } from 'antd'
-import { Alert, Button, Table } from 'antd'
+import { Alert, Table } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
 import type { FC } from 'react'
@@ -247,7 +248,7 @@ const BlacklistSettings: FC = () => {
           autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
-        <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
+        <Button onPress={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
         {errFormat && (
@@ -258,10 +259,10 @@ const BlacklistSettings: FC = () => {
         <SettingTitle>
           {t('settings.tool.websearch.subscribe')}
           <Button
-            type={subscribeValid ? 'primary' : 'default'}
-            ghost={subscribeValid}
-            disabled={subscribeChecking}
-            onClick={handleAddSubscribe}>
+            color={subscribeValid ? 'primary' : 'default'}
+            variant={subscribeValid ? 'ghost' : 'solid'}
+            isDisabled={subscribeChecking}
+            onPress={handleAddSubscribe}>
             {t('settings.tool.websearch.subscribe_add')}
           </Button>
         </SettingTitle>
@@ -276,11 +277,11 @@ const BlacklistSettings: FC = () => {
           />
           <SettingRow style={{ height: 50 }}>
             <Button
-              type={subscribeValid ? 'primary' : 'default'}
-              ghost={subscribeValid}
-              disabled={subscribeChecking || selectedRowKeys.length === 0}
+              color={subscribeValid ? 'primary' : 'default'}
+              variant={subscribeValid ? 'ghost' : 'solid'}
+              isDisabled={subscribeChecking || selectedRowKeys.length === 0}
               style={{ width: 100 }}
-              onClick={updateSubscribe}>
+              onPress={updateSubscribe}>
               {subscribeChecking ? (
                 <LoadingOutlined spin />
               ) : subscribeValid ? (
@@ -289,7 +290,7 @@ const BlacklistSettings: FC = () => {
                 t('settings.tool.websearch.subscribe_update')
               )}
             </Button>
-            <Button style={{ width: 100 }} disabled={selectedRowKeys.length === 0} onClick={handleDeleteSubscribe}>
+            <Button style={{ width: 100 }} isDisabled={selectedRowKeys.length === 0} onPress={handleDeleteSubscribe}>
               {t('settings.tool.websearch.subscribe_delete')}
             </Button>
           </SettingRow>

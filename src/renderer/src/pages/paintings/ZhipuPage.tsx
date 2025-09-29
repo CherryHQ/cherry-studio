@@ -1,5 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -11,7 +12,7 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
+import { Avatar, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -342,8 +343,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+          <NavbarRight>
+            <Button
+              size="sm"
+              className="nodrag"
+              variant="light"
+              startContent={<PlusOutlined />}
+              onPress={handleAddPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>

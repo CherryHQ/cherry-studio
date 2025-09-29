@@ -1,7 +1,7 @@
 import { SyncOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import { Button } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -23,11 +23,11 @@ const UpdateAppButton: FC = () => {
     <Container>
       <UpdateButton
         className="nodrag"
-        onClick={() => window.api.showUpdateDialog()}
-        icon={<SyncOutlined />}
-        color="orange"
-        variant="outlined"
-        size="small">
+        onPress={() => window.api.showUpdateDialog()}
+        startContent={<SyncOutlined />}
+        color="warning"
+        variant="bordered"
+        size="sm">
         {t('button.update_available')}
       </UpdateButton>
     </Container>

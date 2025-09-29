@@ -269,7 +269,7 @@ export type Provider = {
 }
 
 export const SystemProviderIds = {
-  cherryin: 'cherryin',
+  // cherryin: 'cherryin',
   silicon: 'silicon',
   aihubmix: 'aihubmix',
   ocoolai: 'ocoolai',
@@ -322,7 +322,8 @@ export const SystemProviderIds = {
   voyageai: 'voyageai',
   'aws-bedrock': 'aws-bedrock',
   poe: 'poe',
-  aionly: 'aionly'
+  aionly: 'aionly',
+  longcat: 'longcat'
 } as const
 
 export type SystemProviderId = keyof typeof SystemProviderIds

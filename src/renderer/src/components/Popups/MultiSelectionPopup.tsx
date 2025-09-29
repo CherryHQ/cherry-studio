@@ -1,8 +1,7 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import type { Topic } from '@renderer/types'
-import { Button } from 'antd'
 import { Save, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,37 +37,37 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
         <ActionButtons>
           <Tooltip placement="top" title={t('common.save')}>
             <Button
-              shape="circle"
-              color="default"
-              variant="text"
-              icon={<Save size={16} />}
-              disabled={isActionDisabled}
-              onClick={() => handleAction('save')}
+              radius="full"
+              variant="light"
+              startContent={<Save size={16} />}
+              isDisabled={isActionDisabled}
+              onPress={() => handleAction('save')}
+              isIconOnly
             />
           </Tooltip>
           <Tooltip placement="top" title={t('common.copy')}>
             <Button
-              shape="circle"
-              color="default"
-              variant="text"
-              icon={<CopyIcon size={16} />}
-              disabled={isActionDisabled}
-              onClick={() => handleAction('copy')}
+              radius="full"
+              variant="light"
+              startContent={<CopyIcon size={16} />}
+              isDisabled={isActionDisabled}
+              onPress={() => handleAction('copy')}
+              isIconOnly
             />
           </Tooltip>
           <Tooltip placement="top" title={t('common.delete')}>
             <Button
-              shape="circle"
+              radius="full"
               color="danger"
-              variant="text"
-              danger
-              icon={<DeleteIcon size={16} className="lucide-custom" />}
-              onClick={() => handleAction('delete')}
+              variant="light"
+              startContent={<DeleteIcon size={16} className="lucide-custom" />}
+              onPress={() => handleAction('delete')}
+              isIconOnly
             />
           </Tooltip>
         </ActionButtons>
         <Tooltip placement="top" title={t('chat.navigation.close')}>
-          <Button shape="circle" color="default" variant="text" icon={<X size={16} />} onClick={handleClose} />
+          <Button radius="full" variant="light" startContent={<X size={16} />} onPress={handleClose} isIconOnly />
         </Tooltip>
       </ActionBar>
     </Container>

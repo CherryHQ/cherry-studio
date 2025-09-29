@@ -1,13 +1,12 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
-import { Button, Empty, Tabs, Tag } from 'antd'
+import { Empty, Tabs, Tag } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -146,10 +145,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       <HeaderContainer>
         <ModelInfo>
           <Button
-            type="text"
-            icon={<Settings size={18} color="var(--color-icon)" />}
-            onClick={() => EditKnowledgeBasePopup.show({ base })}
-            size="small"
+            variant="light"
+            startContent={<Settings size={18} color="var(--color-icon)" />}
+            isIconOnly
+            onPress={() => EditKnowledgeBasePopup.show({ base })}
+            size="sm"
           />
           <div className="model-row">
             <div className="label-column">
@@ -340,7 +340,7 @@ export const FlexAlignCenter = styled.div`
 
 export const ResponsiveButton = styled(Button)`
   @media (max-width: 1080px) {
-    .ant-btn-icon + span {
+    [data-slot="icon"] + [data-slot="label"] {
       display: none;
     }
   }

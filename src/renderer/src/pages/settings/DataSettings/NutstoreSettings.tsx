@@ -1,6 +1,5 @@
 import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
-import { RowFlex, WarnTooltip } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
@@ -20,7 +19,7 @@ import {
 import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Button, Input, Typography } from 'antd'
+import { Input, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -212,10 +211,10 @@ const NutstoreSettings: FC = () => {
         {isLogin ? (
           <RowFlex className="items-center justify-between gap-[5px]">
             <Button
-              type={nsConnected ? 'primary' : 'default'}
-              ghost={nsConnected}
-              onClick={handleCheckConnection}
-              loading={checkConnectionLoading}>
+              variant={nsConnected ? 'ghost' : 'solid'}
+              color={nsConnected ? 'primary' : 'default'}
+              onPress={handleCheckConnection}
+              isLoading={checkConnectionLoading}>
               {checkConnectionLoading ? (
                 <LoadingOutlined spin />
               ) : nsConnected ? (
@@ -224,12 +223,12 @@ const NutstoreSettings: FC = () => {
                 t('settings.data.nutstore.checkConnection.name')
               )}
             </Button>
-            <Button type="primary" danger onClick={handleLayout}>
+            <Button variant="solid" color="danger" onPress={handleLayout}>
               {t('settings.data.nutstore.logout.button')}
             </Button>
           </RowFlex>
         ) : (
-          <Button onClick={handleClickNutstoreSSO}>{t('settings.data.nutstore.login.button')}</Button>
+          <Button onPress={handleClickNutstoreSSO}>{t('settings.data.nutstore.login.button')}</Button>
         )}
       </SettingRow>
       <SettingDivider />
@@ -252,19 +251,17 @@ const NutstoreSettings: FC = () => {
                   setNutstorePath(e.target.value)
                 }}
               />
-              <Button type="default" onClick={handleClickPathChange}>
-                <FolderOutlined />
-              </Button>
+              <Button variant="solid" onPress={handleClickPathChange} startContent={<FolderOutlined />} isIconOnly />
             </RowFlex>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
             <RowFlex className="justify-between gap-[5px]">
-              <Button onClick={showBackupModal} loading={backuping}>
+              <Button onPress={showBackupModal} isLoading={backuping}>
                 {t('settings.data.nutstore.backup.button')}
               </Button>
-              <Button onClick={showBackupManager} disabled={!nutstoreToken}>
+              <Button onPress={showBackupManager} isDisabled={!nutstoreToken}>
                 {t('settings.data.nutstore.restore.button')}
               </Button>
             </RowFlex>

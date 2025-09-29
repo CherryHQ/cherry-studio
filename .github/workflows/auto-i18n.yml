@@ -2,8 +2,8 @@ name: Auto I18N
 
 env:
   API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
-  MODEL: ${{ vars.MODEL || 'deepseek/deepseek-v3.1'}}
-  BASE_URL: ${{ vars.BASE_URL || 'https://api.ppinfra.com/openai'}}
+  MODEL: ${{ vars.AUTO_I18N_MODEL || 'deepseek/deepseek-v3.1'}}
+  BASE_URL: ${{ vars.AUTO_I18N_BASE_URL || 'https://api.ppinfra.com/openai'}}
 
 on:
   pull_request:

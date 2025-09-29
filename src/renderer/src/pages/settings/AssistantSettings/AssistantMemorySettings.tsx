@@ -1,13 +1,10 @@
-import { Box } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Box, Button, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant, AssistantSettings } from '@renderer/types'
-import { Alert, Button, Card, Space, Typography } from 'antd'
+import { Alert, Card, Space, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
 import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -84,7 +81,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           />
         </Box>
         <Space>
-          <Button type="text" icon={<Settings2 size={15} />} onClick={handleNavigateToMemory} />
+          <Button variant="light" isIconOnly startContent={<Settings2 size={15} />} onPress={handleNavigateToMemory} />
           <Tooltip
             title={
               !globalMemoryEnabled
@@ -110,7 +107,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           showIcon
           style={{ marginBottom: 16 }}
           action={
-            <Button size="small" onClick={handleNavigateToMemory}>
+            <Button size="sm" onPress={handleNavigateToMemory}>
               {t('memory.go_to_memory_page')}
             </Button>
           }

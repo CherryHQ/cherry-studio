@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
@@ -6,7 +7,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { Assistant, Model } from '@renderer/types'
-import { Button, Tag } from 'antd'
+import { Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef } from 'react'
@@ -25,8 +26,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
 
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
-  const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
-    event.currentTarget.blur()
+  const onSelectModel = async () => {
     const selectedModel = await SelectModelPopup.show({ model, filter: modelFilter })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
@@ -55,7 +55,11 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const providerName = getProviderName(model)
 
   return (
-    <DropdownButton size="small" type="text" onClick={onSelectModel}>
+    <Button
+      size="sm"
+      variant="light"
+      onPress={onSelectModel}
+      className="mt-0.5 rounded-2xl border border-transparent border-solid bg-transparent px-1 py-3 text-xs shadow-none">
       <ButtonContent>
         <ModelAvatar model={model} size={20} />
         <ModelName>
@@ -64,20 +68,9 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
       </ButtonContent>
       <ChevronsUpDown size={14} color="var(--color-icon)" />
       {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
-    </DropdownButton>
+    </Button>
   )
 }
-
-const DropdownButton = styled(Button)`
-  font-size: 11px;
-  border-radius: 15px;
-  padding: 13px 5px;
-  -webkit-app-region: none;
-  box-shadow: none;
-  background-color: transparent;
-  border: 1px solid transparent;
-  margin-top: 1px;
-`
 
 const ButtonContent = styled.div`
   display: flex;

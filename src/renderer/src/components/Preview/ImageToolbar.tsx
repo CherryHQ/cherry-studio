@@ -36,9 +36,9 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
         <ImageToolButton
           tooltip={t('preview.pan_up')}
           icon={<ChevronUp size={'1rem'} />}
-          onClick={() => pan(0, -panDistance)}
+          onPress={() => pan(0, -panDistance)}
         />
-        <ImageToolButton tooltip={t('preview.dialog')} icon={<Scan size={'1rem'} />} onClick={dialog} />
+        <ImageToolButton tooltip={t('preview.dialog')} icon={<Scan size={'1rem'} />} onPress={dialog} />
       </ActionButtonRow>
 
       {/* Left, Reset, Right */}
@@ -46,13 +46,13 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
         <ImageToolButton
           tooltip={t('preview.pan_left')}
           icon={<ChevronLeft size={'1rem'} />}
-          onClick={() => pan(-panDistance, 0)}
+          onPress={() => pan(-panDistance, 0)}
         />
-        <ImageToolButton tooltip={t('preview.reset')} icon={<ResetIcon size={'1rem'} />} onClick={handleReset} />
+        <ImageToolButton tooltip={t('preview.reset')} icon={<ResetIcon size={'1rem'} />} onPress={handleReset} />
         <ImageToolButton
           tooltip={t('preview.pan_right')}
           icon={<ChevronRight size={'1rem'} />}
-          onClick={() => pan(panDistance, 0)}
+          onPress={() => pan(panDistance, 0)}
         />
       </ActionButtonRow>
 
@@ -61,17 +61,17 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
         <ImageToolButton
           tooltip={t('preview.zoom_out')}
           icon={<ZoomOut size={'1rem'} />}
-          onClick={() => zoom(-zoomDelta)}
+          onPress={() => zoom(-zoomDelta)}
         />
         <ImageToolButton
           tooltip={t('preview.pan_down')}
           icon={<ChevronDown size={'1rem'} />}
-          onClick={() => pan(0, panDistance)}
+          onPress={() => pan(0, panDistance)}
         />
         <ImageToolButton
           tooltip={t('preview.zoom_in')}
           icon={<ZoomIn size={'1rem'} />}
-          onClick={() => zoom(zoomDelta)}
+          onPress={() => zoom(zoomDelta)}
         />
       </ActionButtonRow>
     </ToolbarWrapper>

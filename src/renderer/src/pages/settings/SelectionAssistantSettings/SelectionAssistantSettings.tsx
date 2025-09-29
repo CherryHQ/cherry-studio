@@ -1,12 +1,11 @@
-import { Switch } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Radio, Row, Slider } from 'antd'
+import { Radio, Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -87,8 +86,8 @@ const SelectionAssistantSettings: FC = () => {
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
           <Button
-            type="link"
-            onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
+            variant="light"
+            onPress={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
             style={{ fontSize: 12 }}>
             {'FAQ & ' + t('settings.about.feedback.button')}
           </Button>
@@ -247,7 +246,7 @@ const SelectionAssistantSettings: FC = () => {
                     <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
                     <SettingDescription>{t('selection.settings.advanced.filter_list.description')}</SettingDescription>
                   </SettingLabel>
-                  <Button icon={<Edit2 size={14} />} onClick={() => setIsFilterListModalOpen(true)}>
+                  <Button startContent={<Edit2 size={14} />} onPress={() => setIsFilterListModalOpen(true)}>
                     {t('common.edit')}
                   </Button>
                 </SettingRow>

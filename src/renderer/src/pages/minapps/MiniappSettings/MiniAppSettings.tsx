@@ -1,11 +1,10 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { Switch } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Button, Slider } from 'antd'
+import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -80,8 +79,8 @@ const MiniAppSettings: FC = () => {
     <Container>
       <SettingTitle style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
         <ButtonWrapper>
-          <Button onClick={handleSwapMinApps}>{t('common.swap')}</Button>
-          <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
+          <Button onPress={handleSwapMinApps}>{t('common.swap')}</Button>
+          <Button onPress={handleResetMinApps}>{t('common.reset')}</Button>
         </ButtonWrapper>
       </SettingTitle>
       <BorderedContainer>

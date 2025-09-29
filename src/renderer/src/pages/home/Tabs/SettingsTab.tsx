@@ -1,5 +1,5 @@
-import { RowFlex, Selector, Switch } from '@cherrystudio/ui'
-import { HelpTooltip } from '@cherrystudio/ui'
+import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector, Switch } from '@cherrystudio/ui'
+import {  } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -20,7 +20,7 @@ import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Col, InputNumber, Row, Slider } from 'antd'
+import { Col, InputNumber, Row, Slider } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -173,28 +173,33 @@ const SettingsTab: FC<Props> = (props) => {
         extra={
           <RowFlex className="items-center gap-0.5">
             <Button
-              type="text"
-              size="small"
-              icon={<Settings2 size={16} />}
-              onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
-            />
+              variant="light"
+              size="sm"
+              isIconOnly
+              onPress={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}>
+              <Settings2 size={16} />
+            </Button>
           </RowFlex>
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
-            <SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>
               {t('chat.settings.temperature.label')}
               <HelpTooltip title={t('chat.settings.temperature.tip')} />
-            </SettingRowTitleSmall>
-            <Switch
+            </SettingRowTitleSmall> */}
+            <DescriptionSwitch
               size="sm"
               className="ml-auto"
               isSelected={enableTemperature}
               onValueChange={(enabled) => {
                 setEnableTemperature(enabled)
                 onUpdateAssistantSettings({ enableTemperature: enabled })
-              }}
-            />
+              }}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.temperature.label')}
+                <HelpTooltip title={t('chat.settings.temperature.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </Row>
           {enableTemperature ? (
             <Row align="middle" gutter={10}>
@@ -232,25 +237,19 @@ const SettingsTab: FC<Props> = (props) => {
           </Row>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
-            <Switch
+            <DescriptionSwitch
               size="sm"
               isSelected={streamOutput}
               onValueChange={(checked) => {
                 setStreamOutput(checked)
                 onUpdateAssistantSettings({ streamOutput: checked })
-              }}
-            />
+              }}>
+              <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <Row align="middle">
-              <SettingRowTitleSmall>
-                {t('chat.settings.max_tokens.label')}
-                <HelpTooltip title={t('chat.settings.max_tokens.tip')} />
-              </SettingRowTitleSmall>
-            </Row>
-            <Switch
+            <DescriptionSwitch
               size="sm"
               isSelected={enableMaxTokens}
               onValueChange={async (enabled) => {
@@ -266,8 +265,12 @@ const SettingsTab: FC<Props> = (props) => {
                 }
                 setEnableMaxTokens(enabled)
                 onUpdateAssistantSettings({ enableMaxTokens: enabled })
-              }}
-            />
+              }}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.max_tokens.label')}
+                <HelpTooltip title={t('chat.settings.max_tokens.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           {enableMaxTokens && (
             <Row align="middle" gutter={10} style={{ marginTop: 10 }}>
@@ -300,30 +303,38 @@ const SettingsTab: FC<Props> = (props) => {
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={showPrompt} onValueChange={setShowPrompt} />
+            <DescriptionSwitch size="sm" isSelected={showPrompt} onValueChange={setShowPrompt}>
+              <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall>
-            <Switch
+            {/* <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall> */}
+            <DescriptionSwitch
               size="sm"
               isSelected={messageFont === 'serif'}
-              onValueChange={(checked) => setMessageFont(checked ? 'serif' : 'system')}
-            />
+              onValueChange={(checked) => setMessageFont(checked ? 'serif' : 'system')}>
+              <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>
               {t('chat.settings.thought_auto_collapse.label')}
               <HelpTooltip title={t('chat.settings.thought_auto_collapse.tip')} />
-            </SettingRowTitleSmall>
-            <Switch size="sm" isSelected={thoughtAutoCollapse} onValueChange={setThoughtAutoCollapse} />
+            </SettingRowTitleSmall> */}
+            <DescriptionSwitch isSelected={thoughtAutoCollapse} onValueChange={setThoughtAutoCollapse}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.thought_auto_collapse.label')}
+                <HelpTooltip title={t('chat.settings.thought_auto_collapse.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={showMessageOutline} onValueChange={setShowMessageOutline} />
+            <DescriptionSwitch isSelected={showMessageOutline} onValueChange={setShowMessageOutline}>
+              <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -412,11 +423,16 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>
               {t('settings.math.single_dollar.label')}
               <HelpTooltip title={t('settings.math.single_dollar.tip')} />
-            </SettingRowTitleSmall>
-            <Switch size="sm" isSelected={mathEnableSingleDollar} onValueChange={setMathEnableSingleDollar} />
+            </SettingRowTitleSmall> */}
+            <DescriptionSwitch size="sm" isSelected={mathEnableSingleDollar} onValueChange={setMathEnableSingleDollar}>
+              <SettingRowTitleSmall>
+                {t('settings.math.single_dollar.label')}
+                <HelpTooltip title={t('settings.math.single_dollar.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
         </SettingGroup>
@@ -438,23 +454,32 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>
               {t('chat.settings.code_fancy_block.label')}
               <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
-            </SettingRowTitleSmall>
-            <Switch size="sm" isSelected={codeFancyBlock} onValueChange={setCodeFancyBlock} />
+            </SettingRowTitleSmall> */}
+            <DescriptionSwitch size="sm" isSelected={codeFancyBlock} onValueChange={setCodeFancyBlock}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_fancy_block.label')}
+                <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>
               {t('chat.settings.code_execution.title')}
               <HelpTooltip title={t('chat.settings.code_execution.tip')} />
-            </SettingRowTitleSmall>
-            <Switch
+            </SettingRowTitleSmall> */}
+            <DescriptionSwitch
               size="sm"
               isSelected={codeExecution.enabled}
-              onValueChange={(checked) => setCodeExecution({ enabled: checked })}
-            />
+              onValueChange={(checked) => setCodeExecution({ enabled: checked })}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_execution.title')}
+                <HelpTooltip title={t('chat.settings.code_execution.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           {codeExecution.enabled && (
             <>
@@ -478,75 +503,90 @@ const SettingsTab: FC<Props> = (props) => {
           )}
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall>
-            <Switch
+            {/* <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall> */}
+            <DescriptionSwitch
               size="sm"
               isSelected={codeEditor.enabled}
-              onValueChange={(checked) => setCodeEditor({ enabled: checked })}
-            />
+              onValueChange={(checked) => setCodeEditor({ enabled: checked })}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           {codeEditor.enabled && (
             <>
               <SettingDivider />
               <SettingRow style={{ paddingLeft: 8 }}>
-                <SettingRowTitleSmall>{t('chat.settings.code_editor.highlight_active_line')}</SettingRowTitleSmall>
-                <Switch
+                {/* <SettingRowTitleSmall>
+                  {t('chat.settings.code_editor.highlight_active_line')}
+                  <HelpTooltip title={t('chat.settings.code_editor.highlight_active_line.tip')} />
+                </SettingRowTitleSmall> */}
+                <DescriptionSwitch
                   size="sm"
                   isSelected={codeEditor.highlightActiveLine}
-                  onValueChange={(checked) => setCodeEditor({ highlightActiveLine: checked })}
-                />
+                  onValueChange={(checked) => setCodeEditor({ highlightActiveLine: checked })}>
+                  <SettingRowTitleSmall>
+                    {t('chat.settings.code_editor.highlight_active_line')}
+                    <HelpTooltip title={t('chat.settings.code_editor.highlight_active_line.tip')} />
+                  </SettingRowTitleSmall>
+                </DescriptionSwitch>
               </SettingRow>
               <SettingDivider />
               <SettingRow style={{ paddingLeft: 8 }}>
-                <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall>
-                <Switch
+                {/* <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall> */}
+                <DescriptionSwitch
                   size="sm"
                   isSelected={codeEditor.foldGutter}
-                  onValueChange={(checked) => setCodeEditor({ foldGutter: checked })}
-                />
+                  onValueChange={(checked) => setCodeEditor({ foldGutter: checked })}>
+                  <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall>
+                </DescriptionSwitch>
               </SettingRow>
               <SettingDivider />
               <SettingRow style={{ paddingLeft: 8 }}>
-                <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
-                <Switch
+                {/* <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall> */}
+                <DescriptionSwitch
                   size="sm"
                   isSelected={codeEditor.autocompletion}
-                  onValueChange={(checked) => setCodeEditor({ autocompletion: checked })}
-                />
+                  onValueChange={(checked) => setCodeEditor({ autocompletion: checked })}>
+                  <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
+                </DescriptionSwitch>
               </SettingRow>
               <SettingDivider />
               <SettingRow style={{ paddingLeft: 8 }}>
-                <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall>
-                <Switch
+                {/* <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall> */}
+                <DescriptionSwitch
                   size="sm"
                   isSelected={codeEditor.keymap}
-                  onValueChange={(checked) => setCodeEditor({ keymap: checked })}
-                />
+                  onValueChange={(checked) => setCodeEditor({ keymap: checked })}>
+                  <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall>
+                </DescriptionSwitch>
               </SettingRow>
             </>
           )}
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('chat.settings.show_line_numbers')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={codeShowLineNumbers} onValueChange={setCodeShowLineNumbers} />
+            <DescriptionSwitch size="sm" isSelected={codeShowLineNumbers} onValueChange={setCodeShowLineNumbers}>
+              <SettingRowTitleSmall>{t('chat.settings.show_line_numbers')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('chat.settings.code_collapsible')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={codeCollapsible} onValueChange={setCodeCollapsible} />
+            <DescriptionSwitch size="sm" isSelected={codeCollapsible} onValueChange={setCodeCollapsible}>
+              <SettingRowTitleSmall>{t('chat.settings.code_collapsible')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={codeWrappable} onValueChange={setCodeWrappable} />
+            <DescriptionSwitch size="sm" isSelected={codeWrappable} onValueChange={setCodeWrappable}>
+              <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>
-              {t('chat.settings.code_image_tools.label')}
-              <HelpTooltip title={t('chat.settings.code_image_tools.tip')} />
-            </SettingRowTitleSmall>
-            <Switch size="sm" isSelected={codeImageTools} onValueChange={setCodeImageTools} />
+            <DescriptionSwitch size="sm" isSelected={codeImageTools} onValueChange={setCodeImageTools}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_image_tools.label')}
+                <HelpTooltip title={t('chat.settings.code_image_tools.tip')} />
+              </SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
         </SettingGroup>
         <SettingDivider />
@@ -554,13 +594,18 @@ const SettingsTab: FC<Props> = (props) => {
       <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={showInputEstimatedTokens} onValueChange={setShowInputEstimatedTokens} />
+            <DescriptionSwitch
+              size="sm"
+              isSelected={showInputEstimatedTokens}
+              onValueChange={setShowInputEstimatedTokens}>
+              <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_as_file')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={pasteLongTextAsFile} onValueChange={setPasteLongTextAsFile} />
+            <DescriptionSwitch size="sm" isSelected={pasteLongTextAsFile} onValueChange={setPasteLongTextAsFile}>
+              <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_as_file')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           {pasteLongTextAsFile && (
             <>
@@ -581,41 +626,55 @@ const SettingsTab: FC<Props> = (props) => {
           )}
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.markdown_rendering_input_message')}</SettingRowTitleSmall>
-            <Switch
+            <DescriptionSwitch
               size="sm"
               isSelected={renderInputMessageAsMarkdown}
-              onValueChange={setRenderInputMessageAsMarkdown}
-            />
+              onValueChange={setRenderInputMessageAsMarkdown}>
+              <SettingRowTitleSmall>{t('settings.messages.markdown_rendering_input_message')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           {!(language || navigator.language).startsWith('en') && (
             <>
               <SettingRow>
-                <SettingRowTitleSmall>{t('settings.input.auto_translate_with_space')}</SettingRowTitleSmall>
-                <Switch size="sm" isSelected={autoTranslateWithSpace} onValueChange={setAutoTranslateWithSpace} />
+                <DescriptionSwitch
+                  size="sm"
+                  isSelected={autoTranslateWithSpace}
+                  onValueChange={setAutoTranslateWithSpace}>
+                  <SettingRowTitleSmall>{t('settings.input.auto_translate_with_space')}</SettingRowTitleSmall>
+                </DescriptionSwitch>
               </SettingRow>
               <SettingDivider />
             </>
           )}
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.input.show_translate_confirm')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={showTranslateConfirm} onValueChange={setShowTranslateConfirm} />
+            <DescriptionSwitch size="sm" isSelected={showTranslateConfirm} onValueChange={setShowTranslateConfirm}>
+              <SettingRowTitleSmall>{t('settings.input.show_translate_confirm')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={enableQuickPanelTriggers} onValueChange={setEnableQuickPanelTriggers} />
+            <DescriptionSwitch
+              size="sm"
+              isSelected={enableQuickPanelTriggers}
+              onValueChange={setEnableQuickPanelTriggers}>
+              <SettingRowTitleSmall>{t('settings.messages.input.enable_quick_triggers')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.confirm_delete_message')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={confirmDeleteMessage} onValueChange={setConfirmDeleteMessage} />
+            <DescriptionSwitch size="sm" isSelected={confirmDeleteMessage} onValueChange={setConfirmDeleteMessage}>
+              <SettingRowTitleSmall>{t('settings.messages.input.confirm_delete_message')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.confirm_regenerate_message')}</SettingRowTitleSmall>
-            <Switch size="sm" isSelected={confirmRegenerateMessage} onValueChange={setConfirmRegenerateMessage} />
+            <DescriptionSwitch
+              size="sm"
+              isSelected={confirmRegenerateMessage}
+              onValueChange={setConfirmRegenerateMessage}>
+              <SettingRowTitleSmall>{t('settings.messages.input.confirm_regenerate_message')}</SettingRowTitleSmall>
+            </DescriptionSwitch>
           </SettingRow>
           <SettingDivider />
           <SettingRow>

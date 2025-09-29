@@ -1,6 +1,7 @@
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Input } from 'antd'
+import { Input } from 'antd'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -146,16 +147,16 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
       <Flex className="items-center justify-between">
         <div>
           {showRemove && (
-            <Button size="small" danger type="text" onClick={onRemove} style={{ padding: '0 8px' }}>
+            <Button size="sm" color="danger" variant="light" onPress={onRemove} className="px-2">
               {t('richEditor.link.remove')}
             </Button>
           )}
         </div>
         <Flex className="gap-1.5">
-          <Button size="small" onClick={onCancel}>
+          <Button size="sm" onPress={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button type="primary" size="small" onClick={handleSave} disabled={!href.trim() || !text.trim()}>
+          <Button color="primary" size="sm" onPress={handleSave} isDisabled={!href.trim() || !text.trim()}>
             {t('common.save')}
           </Button>
         </Flex>

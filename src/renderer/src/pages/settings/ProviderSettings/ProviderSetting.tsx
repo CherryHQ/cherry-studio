@@ -1,8 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
-import { WarnTooltip } from '@cherrystudio/ui'
+import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -29,7 +25,7 @@ import {
   isOpenAIProvider
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Input, Select, Space } from 'antd'
+import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
@@ -262,16 +258,17 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
+              <Button variant="light" size="sm" startContent={<SquareArrowOutUpRight size={14} />} isIconOnly />
             </Link>
           )}
           {!isSystemProvider(provider) && (
             <Tooltip placement="top" title={t('settings.provider.api.options.label')}>
               <Button
-                type="text"
-                icon={<Bolt size={14} />}
-                size="small"
-                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+                variant="light"
+                startContent={<Bolt size={14} />}
+                isIconOnly
+                size="sm"
+                onPress={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
               />
             </Tooltip>
           )}
@@ -318,7 +315,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
               <Tooltip placement="top" title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
+                <Button variant="light" onPress={openApiKeyList} startContent={<Settings2 size={16} />} isIconOnly />
               </Tooltip>
             )}
           </SettingSubtitle>
@@ -333,17 +330,20 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               suffix={renderStatusIndicator()}
             />
             <Button
-              type={isApiKeyConnectable ? 'primary' : 'default'}
-              ghost={isApiKeyConnectable}
-              onClick={onCheckApi}
-              disabled={!apiHost || apiKeyConnectivity.checking}>
-              {apiKeyConnectivity.checking ? (
-                <LoadingIcon />
-              ) : apiKeyConnectivity.status === 'success' ? (
-                <Check size={16} className="lucide-custom" />
-              ) : (
-                t('settings.provider.check')
-              )}
+              color={isApiKeyConnectable ? 'primary' : undefined}
+              variant={isApiKeyConnectable ? 'ghost' : undefined}
+              onPress={onCheckApi}
+              startContent={
+                apiKeyConnectivity.checking ? (
+                  <LoadingIcon />
+                ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
+                  <Check size={16} className="lucide-custom" />
+                ) : undefined
+              }
+              isDisabled={!apiHost || apiKeyConnectivity.checking}>
+              {!apiKeyConnectivity.checking &&
+                !(apiKeyConnectivity.status === HealthStatus.SUCCESS) &&
+                t('settings.provider.check')}
             </Button>
           </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
@@ -361,9 +361,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {t('settings.provider.api_host')}
                 <Button
-                  type="text"
-                  onClick={() => CustomHeaderPopup.show({ provider })}
-                  icon={<Settings2 size={16} />}
+                  variant="light"
+                  onPress={() => CustomHeaderPopup.show({ provider })}
+                  startContent={<Settings2 size={16} />}
+                  isIconOnly
                 />
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -374,7 +375,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   onBlur={onUpdateApiHost}
                 />
                 {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-                  <Button danger onClick={onReset}>
+                  <Button color="danger" onPress={onReset}>
                     {t('settings.provider.api.url.reset')}
                   </Button>
                 )}

@@ -1,9 +1,11 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled } from '@ant-design/icons'
+import CloseCircleFilled from '@ant-design/icons/lib/icons/CloseCircleFilled'
 import { Box, RowFlex, SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import { CodeEditor } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@heroui/react'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -11,7 +13,7 @@ import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Input, Popover } from 'antd'
+import { Input } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -75,37 +77,34 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     <Container>
       <Box className="mb-2 font-bold">{t('common.name')}</Box>
       <RowFlex className="items-center gap-2">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
-          <EmojiButtonWrapper>
-            <Button
+        <EmojiDeleteButtonWrapper>
+          <Popover>
+            <PopoverTrigger>
+              <Button className="h-7 min-w-7 p-1 text-lg">{emoji}</Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <EmojiPicker onEmojiClick={handleEmojiSelect} />
+            </PopoverContent>
+          </Popover>
+          {emoji && (
+            <CloseCircleFilled
+              className="delete-icon z-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEmojiDelete()
+              }}
               style={{
-                fontSize: 18,
-                padding: '4px',
-                minWidth: '28px',
-                height: '28px'
-              }}>
-              {emoji}
-            </Button>
-            {emoji && (
-              <CloseCircleFilled
-                className="delete-icon"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleEmojiDelete()
-                }}
-                style={{
-                  display: 'none',
-                  position: 'absolute',
-                  top: '-8px',
-                  right: '-8px',
-                  fontSize: '16px',
-                  color: '#ff4d4f',
-                  cursor: 'pointer'
-                }}
-              />
-            )}
-          </EmojiButtonWrapper>
-        </Popover>
+                display: 'none',
+                position: 'absolute',
+                top: '-8px',
+                right: '-8px',
+                fontSize: '16px',
+                color: '#ff4d4f',
+                cursor: 'pointer'
+              }}
+            />
+          )}
+        </EmojiDeleteButtonWrapper>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
@@ -117,9 +116,16 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <SettingDivider />
       <RowFlex className="mb-2 items-center gap-1">
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+        <Tooltip
+          content={
+            <>
+              <h1 className="text-lg">{t('agents.add.prompt.variables.tip.title')}</h1>
+              {promptVarsContent}
+            </>
+          }
+          showArrow>
           <HelpCircle size={14} color="var(--color-text-2)" />
-        </Popover>
+        </Tooltip>
       </RowFlex>
       <TextAreaContainer>
         <RichEditorContainer>
@@ -151,9 +157,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
         <Button
-          type="primary"
-          icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
-          onClick={() => {
+          variant="solid"
+          color="primary"
+          startContent={showPreview ? <Edit size={14} /> : <Save size={14} />}
+          onPress={() => {
             const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
             if (showPreview) {
               setShowPreview(false)
@@ -180,7 +187,7 @@ const Container = styled.div`
   overflow: hidden;
 `
 
-const EmojiButtonWrapper = styled.div`
+const EmojiDeleteButtonWrapper = styled.div`
   position: relative;
   display: inline-block;
 

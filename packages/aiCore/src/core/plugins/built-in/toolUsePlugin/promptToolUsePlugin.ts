@@ -261,22 +261,39 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         return params
       }
 
-      context.mcpTools = params.tools
+      // 分离 provider-defined 和其他类型的工具
+      const providerDefinedTools: ToolSet = {}
+      const promptTools: ToolSet = {}
 
-      // 构建系统提示符
+      for (const [toolName, tool] of Object.entries(params.tools as ToolSet)) {
+        if (tool.type === 'provider-defined') {
+          // provider-defined 类型的工具保留在 tools 参数中
+          providerDefinedTools[toolName] = tool
+        } else {
+          // 其他工具转换为 prompt 模式
+          promptTools[toolName] = tool
+        }
+      }
+
+      // 只有当有非 provider-defined 工具时才保存到 context
+      if (Object.keys(promptTools).length > 0) {
+        context.mcpTools = promptTools
+      }
+
+      // 构建系统提示符（只包含非 provider-defined 工具）
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
-      const systemPrompt = buildSystemPrompt(userSystemPrompt, params.tools)
+      const systemPrompt = buildSystemPrompt(userSystemPrompt, promptTools)
       let systemMessage: string | null = systemPrompt
       if (config.createSystemMessage) {
         // 🎯 如果用户提供了自定义处理函数，使用它
         systemMessage = config.createSystemMessage(systemPrompt, params, context)
       }
 
-      // 移除 tools，改为 prompt 模式
+      // 保留 provider-defined tools，移除其他 tools
       const transformedParams = {
         ...params,
         ...(systemMessage ? { system: systemMessage } : {}),
-        tools: undefined
+        tools: Object.keys(providerDefinedTools).length > 0 ? providerDefinedTools : undefined
       }
       context.originalParams = transformedParams
       return transformedParams
@@ -285,8 +302,9 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
       let textBuffer = ''
       // let stepId = ''
 
+      // 如果没有需要 prompt 模式处理的工具，直接返回原始流
       if (!context.mcpTools) {
-        throw new Error('No tools available')
+        return new TransformStream()
       }
 
       // 从 context 中获取或初始化 usage 累加器

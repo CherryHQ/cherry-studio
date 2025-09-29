@@ -1,12 +1,11 @@
-import { Flex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import type { InputRef } from 'antd'
-import { Button, Input, List, Popconfirm, Typography } from 'antd'
+import { Input, List, Popconfirm, Typography } from 'antd'
 import { Check, Minus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useEffect, useRef, useState } from 'react'
@@ -94,79 +93,96 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
   return (
     <List.Item>
-      {isEditing ? (
-        <ItemInnerContainer style={{ gap: '10px' }}>
-          <Input.Password
-            ref={inputRef}
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onPressEnter={handleSave}
-            placeholder={t('settings.provider.api.key.new_key.placeholder')}
-            style={{ flex: 1, fontSize: '14px', marginLeft: '-10px' }}
-            spellCheck={false}
-            disabled={disabled}
-          />
-          <Flex className="items-center gap-0">
-            <Tooltip placement="top" title={t('common.save')}>
-              <Button
-                type={hasUnsavedChanges ? 'primary' : 'text'}
-                icon={<Check size={16} />}
-                onClick={handleSave}
-                disabled={disabled}
-              />
-            </Tooltip>
-            <Tooltip placement="top" title={t('common.cancel')}>
-              <Button type="text" icon={<X size={16} />} onClick={handleCancelEdit} disabled={disabled} />
-            </Tooltip>
-          </Flex>
-        </ItemInnerContainer>
-      ) : (
-        <ItemInnerContainer style={{ gap: '10px' }}>
-          <Tooltip
-            title={
-              <Typography.Text style={{ color: 'white' }} copyable={{ text: keyStatus.key }}>
-                {keyStatus.key}
-              </Typography.Text>
-            }
-            mouseEnterDelay={0.5}
-            placement="top"
-            // 确保不留下明文
-            destroyOnHidden>
-            <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
-          </Tooltip>
-
-          <Flex className="items-center gap-2.5">
-            <HealthStatusIndicator results={healthResults} loading={false} />
-
+      <ItemInnerContainer className="gap-2 px-3">
+        {isEditing ? (
+          <>
+            <Input.Password
+              ref={inputRef}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onPressEnter={handleSave}
+              placeholder={t('settings.provider.api.key.new_key.placeholder')}
+              style={{ flex: 1, fontSize: '14px' }}
+              spellCheck={false}
+              disabled={disabled}
+            />
             <Flex className="items-center gap-0">
-              {showHealthCheck && (
-                <Tooltip placement="top" title={t('settings.provider.check')} mouseLeaveDelay={0}>
+              <Tooltip title={t('common.save')}>
+                <Button
+                  color={hasUnsavedChanges ? 'primary' : 'default'}
+                  variant={hasUnsavedChanges ? 'solid' : 'light'}
+                  startContent={<Check size={16} />}
+                  onPress={handleSave}
+                  isDisabled={disabled}
+                  isIconOnly
+                />
+              </Tooltip>
+              <Tooltip title={t('common.cancel')}>
+                <Button
+                  variant="light"
+                  startContent={<X size={16} />}
+                  onPress={handleCancelEdit}
+                  isDisabled={disabled}
+                  isIconOnly
+                />
+              </Tooltip>
+            </Flex>
+          </>
+        ) : (
+          <>
+            <Tooltip
+              title={
+                <Typography.Text style={{ color: 'white' }} copyable={{ text: keyStatus.key }}>
+                  {keyStatus.key}
+                </Typography.Text>
+              }
+              mouseEnterDelay={0.5}
+              placement="top"
+              // 确保不留下明文
+              destroyOnHidden>
+              <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
+            </Tooltip>
+
+            <Flex className="items-center gap-2.5">
+              <HealthStatusIndicator results={healthResults} loading={false} />
+
+              <Flex className="items-center gap-0">
+                {showHealthCheck && (
+                  <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                    <Button
+                      variant="light"
+                      startContent={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
+                      onPress={onCheck}
+                      isDisabled={disabled}
+                      isIconOnly
+                    />
+                  </Tooltip>
+                )}
+                <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
                   <Button
-                    type="text"
-                    icon={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
-                    onClick={onCheck}
-                    disabled={disabled}
+                    variant="light"
+                    startContent={<EditIcon size={16} />}
+                    onPress={handleEdit}
+                    isDisabled={disabled}
+                    isIconOnly
                   />
                 </Tooltip>
-              )}
-              <Tooltip placement="top" title={t('common.edit')} mouseLeaveDelay={0}>
-                <Button type="text" icon={<EditIcon size={16} />} onClick={handleEdit} disabled={disabled} />
-              </Tooltip>
-              <Popconfirm
-                title={t('common.delete_confirm')}
-                onConfirm={onRemove}
-                disabled={disabled}
-                okText={t('common.confirm')}
-                cancelText={t('common.cancel')}
-                okButtonProps={{ danger: true }}>
-                <Tooltip placement="top" title={t('common.delete')} mouseLeaveDelay={0}>
-                  <Button type="text" icon={<Minus size={16} />} disabled={disabled} />
-                </Tooltip>
-              </Popconfirm>
+                <Popconfirm
+                  title={t('common.delete_confirm')}
+                  onConfirm={onRemove}
+                  disabled={disabled}
+                  okText={t('common.confirm')}
+                  cancelText={t('common.cancel')}
+                  okButtonProps={{ color: 'danger' }}>
+                  <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
+                    <Button variant="light" startContent={<Minus size={16} />} isDisabled={disabled} isIconOnly />
+                  </Tooltip>
+                </Popconfirm>
+              </Flex>
             </Flex>
-          </Flex>
-        </ItemInnerContainer>
-      )}
+          </>
+        )}
+      </ItemInnerContainer>
     </List.Item>
   )
 }

@@ -128,13 +128,7 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    🎨 界面优化：
-    - 优化了多个组件的布局和间距，提升视觉体验
-    - 改进了导航栏和标签栏的样式显示
-    - MCP 服务器卡片宽度调整为 100%，提高响应式布局效果
-    - 优化了笔记侧边栏的滚动行为
-
-    🐛 问题修复：
-    - 修复了小应用打开功能无法正常工作的问题
-    - 修复了助手更新时 ID 丢失导致更新失败的问题
-    - 确保助手更新时 ID 字段为必填项，防止数据错误
+    Optimized note-taking feature, now able to quickly rename by modifying the title
+    Fixed issue where CherryAI free model could not be used
+    Fixed issue where VertexAI proxy address could not be called normally
+    Fixed issue where built-in tools from service providers could not be called normally

@@ -1,7 +1,7 @@
 import { GithubOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
@@ -15,7 +15,7 @@ import { handleSaveData } from '@renderer/store'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Button, Progress, Radio, Row, Tag } from 'antd'
+import { Avatar, Progress, Radio, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -223,9 +223,9 @@ const AboutSettings: FC = () => {
           </Row>
           {!isPortable && (
             <CheckUpdateButton
-              onClick={onCheckUpdate}
-              loading={appUpdateState.checking}
-              disabled={appUpdateState.downloading || appUpdateState.checking}>
+              onPress={onCheckUpdate}
+              isLoading={appUpdateState.checking}
+              isDisabled={appUpdateState.downloading || appUpdateState.checking}>
               {appUpdateState.downloading
                 ? t('settings.about.downloading')
                 : appUpdateState.available
@@ -278,7 +278,7 @@ const AboutSettings: FC = () => {
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
-          <UpdateNotesWrapper>
+          <UpdateNotesWrapper className="markdown">
             <Markdown>
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
@@ -293,7 +293,7 @@ const AboutSettings: FC = () => {
             <BadgeQuestionMark size={18} />
             {t('docs.title')}
           </SettingRowTitle>
-          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
+          <Button onPress={onOpenDocs}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -301,7 +301,7 @@ const AboutSettings: FC = () => {
             <Rss size={18} />
             {t('settings.about.releases.title')}
           </SettingRowTitle>
-          <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
+          <Button onPress={showReleases}>{t('settings.about.releases.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -309,7 +309,7 @@ const AboutSettings: FC = () => {
             <Globe size={18} />
             {t('settings.about.website.title')}
           </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
+          <Button onPress={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -317,7 +317,7 @@ const AboutSettings: FC = () => {
             <GithubOutlined size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
+          <Button onPress={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
             {t('settings.about.feedback.button')}
           </Button>
         </SettingRow>
@@ -327,7 +327,7 @@ const AboutSettings: FC = () => {
             <FileCheck size={18} />
             {t('settings.about.license.title')}
           </SettingRowTitle>
-          <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
+          <Button onPress={showLicense}>{t('settings.about.license.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -335,7 +335,7 @@ const AboutSettings: FC = () => {
             <Mail size={18} />
             {t('settings.about.contact.title')}
           </SettingRowTitle>
-          <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+          <Button onPress={mailto}>{t('settings.about.contact.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -343,7 +343,7 @@ const AboutSettings: FC = () => {
             <Bug size={18} />
             {t('settings.about.debug.title')}
           </SettingRowTitle>
-          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
+          <Button onPress={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

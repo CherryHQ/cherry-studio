@@ -1,10 +1,8 @@
-import { Flex } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { CustomCollapse } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import type { Model } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
-import { Button } from 'antd'
 import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -60,17 +58,16 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           onSelectionChange: handleCollapseChange
         }}
         accordionItemProps={{
-          startContent: (
+          disableIndicatorAnimation: true,
+          indicator: (
             <Tooltip placement="top" title={t('settings.models.manage.remove_whole_group')}>
               <Button
-                type="text"
+                variant="light"
                 className="toolbar-item"
-                icon={<Minus size={14} />}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRemoveGroup()
-                }}
-                disabled={disabled}
+                startContent={<Minus size={14} />}
+                onPress={onRemoveGroup}
+                isDisabled={disabled}
+                isIconOnly
               />
             </Tooltip>
           ),

@@ -1,11 +1,11 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Slider } from 'antd'
+import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
@@ -210,19 +210,21 @@ const SelectionActionApp: FC = () => {
             title={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
             <WinButton
-              type="text"
-              icon={<Pin size={14} className={isPinned ? 'pinned' : ''} />}
-              onClick={togglePin}
+              variant="light"
+              startContent={<Pin size={14} className={isPinned ? 'pinned' : ''} />}
+              onPress={togglePin}
               className={isPinned ? 'pinned' : ''}
+              isIconOnly
             />
           </Tooltip>
           <Tooltip title={t('selection.action.window.opacity')} placement="bottom">
             <WinButton
-              type="text"
-              icon={<Droplet size={14} />}
-              onClick={() => setShowOpacitySlider(!showOpacitySlider)}
+              variant="light"
+              startContent={<Droplet size={14} />}
+              onPress={() => setShowOpacitySlider(!showOpacitySlider)}
               className={showOpacitySlider ? 'active' : ''}
               style={{ paddingBottom: '2px' }}
+              isIconOnly
             />
           </Tooltip>
           {showOpacitySlider && (
@@ -240,8 +242,14 @@ const SelectionActionApp: FC = () => {
           )}
           {!isMac && (
             <>
-              <WinButton type="text" icon={<Minus size={16} />} onClick={handleMinimize} />
-              <WinButton type="text" icon={<X size={16} />} onClick={handleClose} className="close" />
+              <WinButton variant="light" startContent={<Minus size={16} />} onPress={handleMinimize} isIconOnly />
+              <WinButton
+                variant="light"
+                startContent={<X size={16} />}
+                onPress={handleClose}
+                className="close"
+                isIconOnly
+              />
             </>
           )}
         </TitleBarButtons>

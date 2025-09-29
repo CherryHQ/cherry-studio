@@ -1,9 +1,5 @@
 import { CloseCircleFilled } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { HelpTooltip } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -12,7 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
+import { Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -117,7 +113,7 @@ const AssistantSettings: FC = () => {
       <RowFlex className="items-center gap-2">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
-            <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
+            <Button className="h-[30px] min-w-[30px] p-1 text-xl">{emoji}</Button>
             {emoji && (
               <CloseCircleFilled
                 className="delete-icon"
@@ -162,7 +158,7 @@ const AssistantSettings: FC = () => {
         }}>
         {t('settings.assistant.model_params')}
         <Tooltip placement="top" title={t('common.reset')}>
-          <Button type="text" onClick={onReset} icon={<ResetIcon size={16} />} />
+          <Button variant="light" onPress={onReset} startContent={<ResetIcon size={16} />} isIconOnly />
         </Tooltip>
       </SettingSubtitle>
       <SettingRow>

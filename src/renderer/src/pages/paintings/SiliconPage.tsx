@@ -1,7 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { ColFlex, RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
+import { Button, ColFlex, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -26,7 +24,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Button, Input, InputNumber, Radio, Select, Slider } from 'antd'
+import { Input, InputNumber, Radio, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -374,10 +372,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
             <Button
-              size="small"
+              size="sm"
               className="nodrag"
-              icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
+              startContent={<PlusOutlined />}
+              onPress={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>

@@ -1,6 +1,7 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { CodeEditor } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
@@ -12,7 +13,7 @@ import useUserTheme from '@renderer/hooks/useUserTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, ColorPicker, Segmented, Select } from 'antd'
+import { ColorPicker, Segmented, Select } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -259,15 +260,28 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
-            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} color="default" variant="text" />
-            <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} color="default" variant="text" />
             <Button
-              onClick={() => handleZoomFactor(0, true)}
-              style={{ marginLeft: 8 }}
-              icon={<ResetIcon size="14" />}
+              onPress={() => handleZoomFactor(-0.1)}
+              startContent={<Minus size="14" />}
               color="default"
-              variant="text"
+              variant="light"
+              isIconOnly
+            />
+            <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
+            <Button
+              onPress={() => handleZoomFactor(0.1)}
+              startContent={<Plus size="14" />}
+              color="default"
+              variant="light"
+              isIconOnly
+            />
+            <Button
+              onPress={() => handleZoomFactor(0, true)}
+              className="ml-2"
+              startContent={<ResetIcon size="14" />}
+              color="default"
+              variant="light"
+              isIconOnly
             />
           </ZoomButtonGroup>
         </SettingRow>
@@ -300,11 +314,12 @@ const DisplaySettings: FC = () => {
               getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
             />
             <Button
-              onClick={() => handleUserFontChange('')}
-              style={{ marginLeft: 8 }}
-              icon={<ResetIcon size="14" />}
+              onPress={() => handleUserFontChange('')}
+              className="ml-2"
+              startContent={<ResetIcon size="14" />}
               color="default"
-              variant="text"
+              variant="light"
+              isIconOnly
             />
           </SelectRow>
         </SettingRow>
@@ -332,11 +347,12 @@ const DisplaySettings: FC = () => {
               getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
             />
             <Button
-              onClick={() => handleUserCodeFontChange('')}
-              style={{ marginLeft: 8 }}
-              icon={<ResetIcon size="14" />}
+              onPress={() => handleUserCodeFontChange('')}
+              className="ml-2"
+              startContent={<ResetIcon size="14" />}
               color="default"
-              variant="text"
+              variant="light"
+              isIconOnly
             />
           </SelectRow>
         </SettingRow>
@@ -398,7 +414,7 @@ const DisplaySettings: FC = () => {
             style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{t('settings.display.sidebar.title')}</span>
             <ResetButtonWrapper>
-              <Button onClick={handleReset}>{t('common.reset')}</Button>
+              <Button onPress={handleReset}>{t('common.reset')}</Button>
             </ResetButtonWrapper>
           </SettingTitle>
           <SettingDivider />

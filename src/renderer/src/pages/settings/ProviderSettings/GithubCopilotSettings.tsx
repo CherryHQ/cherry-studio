@@ -1,9 +1,9 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Alert, Button, Input, Slider, Steps, Typography } from 'antd'
+import { Alert, Input, Slider, Steps, Typography } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -215,7 +215,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     )}
                     <span>{username || t('settings.provider.copilot.auth_success_title')}</span>
                   </div>
-                  <Button type="primary" danger size="small" loading={loading} onClick={handleLogout}>
+                  <Button color="danger" size="sm" isLoading={loading} onPress={handleLogout}>
                     {t('settings.provider.copilot.logout')}
                   </Button>
                 </div>
@@ -250,7 +250,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       readOnly
                       style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: 'bold', marginRight: 8 }}
                     />
-                    <Button icon={<CopyOutlined />} onClick={handleCopyUserCode}>
+                    <Button startContent={<CopyOutlined />} onPress={handleCopyUserCode}>
                       {t('common.copy')}
                     </Button>
                   </SettingRow>
@@ -267,7 +267,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                       <StepDesc>{t('settings.provider.copilot.step_authorize_detail')}</StepDesc>
                     </div>
                   </StepHeader>
-                  <Button type="primary" onClick={handleOpenVerificationPage} style={{ marginBottom: 8 }}>
+                  <Button color="primary" onPress={handleOpenVerificationPage} style={{ marginBottom: 8 }}>
                     {t('settings.provider.copilot.open_verification_page')}
                   </Button>
                   {verificationUri && (
@@ -291,10 +291,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                   <Tooltip
                     title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
                     <Button
-                      type="primary"
-                      loading={loading}
-                      disabled={!verificationPageOpened}
-                      onClick={handleGetToken}>
+                      color="primary"
+                      isLoading={loading}
+                      isDisabled={!verificationPageOpened}
+                      onPress={handleGetToken}>
                       {t('settings.provider.copilot.connect')}
                     </Button>
                   </Tooltip>
@@ -312,7 +312,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               message={t('settings.provider.copilot.description')}
               description={t('settings.provider.copilot.description_detail')}
               action={
-                <Button type="primary" loading={loading} onClick={handleGetDeviceCode}>
+                <Button color="primary" isLoading={loading} onPress={handleGetDeviceCode}>
                   {t('settings.provider.copilot.start_auth')}
                 </Button>
               }

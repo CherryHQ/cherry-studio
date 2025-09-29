@@ -1,5 +1,6 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -9,7 +10,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Empty, Input } from 'antd'
+import { Empty, Input } from 'antd'
 import { omit } from 'lodash'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
@@ -267,17 +268,17 @@ const AgentsPage: FC = () => {
               ) : (
                 isTopNavbar && (
                   <Button
-                    type="text"
-                    onClick={handleSearchIconClick}
-                    icon={<Search size={18} color="var(--color-icon)" />}>
+                    variant="light"
+                    onPress={handleSearchIconClick}
+                    startContent={<Search size={18} color="var(--color-icon)" />}>
                     {t('common.search')}
                   </Button>
                 )
               )}
-              <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
+              <Button variant="light" onPress={handleImportAgent} startContent={<ImportOutlined />}>
                 {t('agents.import.title')}
               </Button>
-              <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
+              <Button variant="light" onPress={handleAddAgent} startContent={<PlusOutlined />}>
                 {t('agents.add.title')}
               </Button>
             </Flex>

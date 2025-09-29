@@ -1,5 +1,5 @@
 // TODO: Refactor this component to use HeroUI
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { RootState } from '@renderer/store'
@@ -7,7 +7,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerEnabled, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Input, InputNumber, Typography } from 'antd'
+import { Input, InputNumber, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -126,7 +126,7 @@ const ApiServerSettings: FC = () => {
           <Text type="secondary">{t('apiServer.description')}</Text>
         </HeaderContent>
         {apiServerRunning && (
-          <Button type="primary" icon={<ExternalLink size={14} />} onClick={openApiDocs}>
+          <Button color="primary" startContent={<ExternalLink size={14} />} onPress={openApiDocs}>
             {t('apiServer.documentation.title')}
           </Button>
         )}
@@ -204,12 +204,18 @@ const ApiServerSettings: FC = () => {
           suffix={
             <InputButtonContainer>
               {!apiServerRunning && (
-                <RegenerateButton onClick={regenerateApiKey} disabled={apiServerRunning} type="link">
+                <Button color="primary" onPress={regenerateApiKey} isDisabled={apiServerRunning} variant="light">
                   {t('apiServer.actions.regenerate')}
-                </RegenerateButton>
+                </Button>
               )}
               <Tooltip placement="top" title={t('apiServer.fields.apiKey.copyTooltip')}>
-                <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} />
+                <Button
+                  variant="light"
+                  isIconOnly
+                  startContent={<Copy size={14} />}
+                  onPress={copyApiKey}
+                  isDisabled={!apiServerConfig.apiKey}
+                />
               </Tooltip>
             </InputButtonContainer>
           }
@@ -403,21 +409,6 @@ const InputButtonContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-`
-
-const InputButton = styled(Button)`
-  border: none;
-  padding: 0 4px;
-  background: transparent;
-`
-
-const RegenerateButton = styled(Button)`
-  padding: 0 4px;
-  font-size: 12px;
-  height: auto;
-  line-height: 1;
-  border: none;
-  background: transparent;
 `
 
 const AuthHeaderSection = styled.div`

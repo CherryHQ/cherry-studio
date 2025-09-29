@@ -22,11 +22,11 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
         isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
       }>
       <ActionIconButton
-        onClick={onEnableGenerateImage}
+        onPress={onEnableGenerateImage}
         active={assistant.enableGenerateImage}
-        disabled={!isGenerateImageModel(model)}>
-        <Image size={18} />
-      </ActionIconButton>
+        isDisabled={!isGenerateImageModel(model)}
+        icon={<Image size={18} />}
+      />
     </Tooltip>
   )
 }

@@ -1,8 +1,8 @@
-import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Space } from 'antd'
+import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,7 +103,7 @@ const SiyuanSettings: FC = () => {
               placeholder={t('settings.data.siyuan.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
+            <Button onPress={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
           </Space.Compact>
         </RowFlex>
       </SettingRow>

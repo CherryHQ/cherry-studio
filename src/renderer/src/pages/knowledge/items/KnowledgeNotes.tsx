@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -6,7 +7,6 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { isMarkdownContent, markdownToPreviewText } from '@renderer/utils/markdownConverter'
-import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -82,13 +82,11 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddNote()
-          }}
-          disabled={disabled}>
+          variant="solid"
+          color="primary"
+          startContent={<PlusIcon size={16} />}
+          onPress={handleAddNote}
+          isDisabled={disabled}>
           {t('knowledge.add_note')}
         </ResponsiveButton>
       </ItemHeader>
@@ -114,7 +112,9 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 extra: getDisplayTime(note),
                 actions: (
                   <FlexAlignCenter>
-                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditIcon size={14} />} />
+                    <Button variant="light" isIconOnly onPress={() => handleEditNote(note)}>
+                      <EditIcon size={14} />
+                    </Button>
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={note.id}
@@ -123,12 +123,9 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="note"
                       />
                     </StatusIconWrapper>
-                    <Button
-                      type="text"
-                      danger
-                      onClick={() => removeItem(note)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(note)}>
+                      <DeleteIcon size={14} className="lucide-custom" />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}

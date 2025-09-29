@@ -1,10 +1,9 @@
-import { ColFlex, Flex, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
-import { HelpTooltip } from '@cherrystudio/ui'
+import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Modal, Radio, Space } from 'antd'
+import { Modal, Radio, Space } from 'antd'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -199,7 +198,7 @@ const TranslateSettings: FC<{
             </Space>
           )}
         </div>
-        <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
+        <Button onPress={onMoreSetting}>{t('settings.moresetting.label')}</Button>
       </ColFlex>
     </Modal>
   )

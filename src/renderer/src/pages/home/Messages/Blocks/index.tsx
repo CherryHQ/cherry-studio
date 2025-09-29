@@ -3,7 +3,7 @@ import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { isMainTextBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
+import { isMainTextBlock, isMessageProcessing, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
@@ -107,6 +107,9 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
 
+  // Check if message is still processing
+  const isProcessing = isMessageProcessing(message)
+
   return (
     <AnimatePresence mode="sync">
       {groupedBlocks.map((block) => {
@@ -151,9 +154,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
         switch (block.type) {
           case MessageBlockType.UNKNOWN:
-            if (block.status === MessageBlockStatus.PROCESSING) {
-              blockComponent = <PlaceholderBlock key={block.id} block={block} />
-            }
             break
           case MessageBlockType.MAIN_TEXT:
           case MessageBlockType.CODE: {
@@ -213,6 +213,19 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           </AnimatedBlockWrapper>
         )
       })}
+      {isProcessing && (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock
+            block={{
+              id: `loading-${message.id}`,
+              messageId: message.id,
+              type: MessageBlockType.UNKNOWN,
+              status: MessageBlockStatus.PROCESSING,
+              createdAt: new Date().toISOString()
+            }}
+          />
+        </AnimatedBlockWrapper>
+      )}
     </AnimatePresence>
   )
 }

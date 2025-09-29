@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -7,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Dropdown } from 'antd'
+import { Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -117,13 +117,11 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddUrl()
-          }}
-          disabled={disabled}>
+          variant="solid"
+          color="primary"
+          startContent={<PlusIcon size={16} />}
+          onPress={handleAddUrl}
+          isDisabled={disabled}>
           {t('knowledge.add_url')}
         </ResponsiveButton>
       </ItemHeader>
@@ -177,16 +175,17 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 extra: getDisplayTime(item),
                 actions: (
                   <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    {item.uniqueId && (
+                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                        <RefreshIcon />
+                      </Button>
+                    )}
                     <StatusIconWrapper>
                       <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
                     </StatusIconWrapper>
-                    <Button
-                      type="text"
-                      danger
-                      onClick={() => removeItem(item)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
+                      <DeleteIcon size={14} className="lucide-custom" />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}

@@ -1,7 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { InfoTooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -15,7 +13,7 @@ import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
 import type { DmxapiPainting } from '@types'
-import { Avatar, Button, Input, InputNumber, Segmented, Select } from 'antd'
+import { Avatar, Input, InputNumber, Segmented, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
@@ -787,7 +785,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={createNewPainting}>
+            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={createNewPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>

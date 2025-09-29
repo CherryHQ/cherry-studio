@@ -364,23 +364,31 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               <ToolBar>
                 {showUserToggle && (
                   <Tooltip placement="bottom" title={t('button.includes_user_questions')}>
-                    <ActionIconButton onClick={userOutlinedButtonOnClick}>
-                      <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                    </ActionIconButton>
-                  </Tooltip>
+                    <ActionIconButton
+                      onPress={userOutlinedButtonOnClick}
+                      isIconOnly
+                      icon={
+                        <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                      }
+                    />                  </Tooltip>
                 )}
                 <Tooltip placement="bottom" title={t('button.case_sensitive')}>
-                  <ActionIconButton onClick={caseSensitiveButtonOnClick}>
-                    <CaseSensitive
-                      size={18}
-                      style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
-                    />
-                  </ActionIconButton>
-                </Tooltip>
+                  <ActionIconButton
+                    onPress={caseSensitiveButtonOnClick}
+                    icon={
+                      <CaseSensitive
+                        size={18}
+                        style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
+                      />
+                    }
+                  />                </Tooltip>
                 <Tooltip placement="bottom" title={t('button.whole_word')}>
-                  <ActionIconButton onClick={wholeWordButtonOnClick}>
-                    <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                  </ActionIconButton>
+                  <ActionIconButton
+                    onPress={wholeWordButtonOnClick}
+                    icon={
+                      <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                    }
+                  />
                 </Tooltip>
               </ToolBar>
             </InputWrapper>
@@ -397,15 +405,17 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               )}
             </SearchResults>
             <ToolBar>
-              <ActionIconButton onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
-                <ChevronUp size={18} />
-              </ActionIconButton>
-              <ActionIconButton onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
-                <ChevronDown size={18} />
-              </ActionIconButton>
-              <ActionIconButton onClick={closeButtonOnClick}>
-                <X size={18} />
-              </ActionIconButton>
+              <ActionIconButton
+                onPress={prevButtonOnClick}
+                isDisabled={allRanges.length === 0}
+                icon={<ChevronUp size={18} />}
+              />
+              <ActionIconButton
+                onPress={nextButtonOnClick}
+                isDisabled={allRanges.length === 0}
+                icon={<ChevronDown size={18} />}
+              />
+              <ActionIconButton onPress={closeButtonOnClick} icon={<X size={18} />} />
             </ToolBar>
           </SearchBarContainer>
         </NarrowLayout>

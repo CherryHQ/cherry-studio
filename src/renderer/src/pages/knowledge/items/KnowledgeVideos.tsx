@@ -1,5 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import VideoPopup from '@renderer/components/Popups/VideoPopup'
@@ -8,7 +8,6 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { FileTypes, isKnowledgeVideoItem } from '@renderer/types'
-import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
@@ -88,13 +87,11 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
-          type="primary"
-          icon={<Plus size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddVideo()
-          }}
-          disabled={disabled}>
+          variant="solid"
+          color="primary"
+          startContent={<Plus size={16} />}
+          onPress={handleAddVideo}
+          isDisabled={disabled}>
           {t('knowledge.add_video')}
         </ResponsiveButton>
       </ItemHeader>
@@ -142,7 +139,12 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            <Button
+                              variant="light"
+                              startContent={<RefreshIcon />}
+                              isIconOnly
+                              onPress={() => refreshItem(item)}
+                            />
                           )}
 
                           <StatusIconWrapper>
@@ -153,7 +155,13 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          <Button
+                            variant="light"
+                            color="danger"
+                            startContent={<DeleteOutlined />}
+                            isIconOnly
+                            onPress={() => removeItem(item)}
+                          />
                         </FlexAlignCenter>
                       )
                     }}

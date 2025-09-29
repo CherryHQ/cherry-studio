@@ -1,11 +1,11 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { Button, InputNumber, Space } from 'antd'
+import { InputNumber, Space } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -78,9 +78,11 @@ const InputEmbeddingDimension = ({
         <Button
           role="button"
           aria-label="Get embedding dimension"
-          disabled={disabled || loading}
-          onClick={handleFetchDimension}
-          icon={<RefreshIcon size={16} className={loading ? 'animation-rotate' : ''} />}
+          isDisabled={disabled || loading}
+          onPress={handleFetchDimension}
+          size="sm"
+          startContent={<RefreshIcon size={16} className={loading ? 'animation-rotate' : ''} />}
+          isIconOnly
         />
       </Tooltip>
     </Space.Compact>

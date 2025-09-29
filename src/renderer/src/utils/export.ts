@@ -4,10 +4,9 @@ import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
-import { createNote } from '@renderer/services/NotesService'
+import { addNote } from '@renderer/services/NotesService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import type { NotesTreeNode } from '@renderer/types/note'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
@@ -1075,18 +1074,12 @@ async function createSiyuanDoc(
  * @param content
  * @param folderPath
  */
-export const exportMessageToNotes = async (
-  title: string,
-  content: string,
-  folderPath: string
-): Promise<NotesTreeNode> => {
+export const exportMessageToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
   try {
     const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
-    const note = await createNote(title, cleanedContent, folderPath)
+    await addNote(title, cleanedContent, folderPath)
 
     window.toast.success(i18n.t('message.success.notes.export'))
-
-    return note
   } catch (error) {
     logger.error('导出到笔记失败:', error as Error)
     window.toast.error(i18n.t('message.error.notes.export'))
@@ -1100,14 +1093,12 @@ export const exportMessageToNotes = async (
  * @param folderPath
  * @returns 创建的笔记节点
  */
-export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<NotesTreeNode> => {
+export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
   try {
     const content = await topicToMarkdown(topic)
-    const note = await createNote(topic.name, content, folderPath)
+    await addNote(topic.name, content, folderPath)
 
     window.toast.success(i18n.t('message.success.notes.export'))
-
-    return note
   } catch (error) {
     logger.error('导出到笔记失败:', error as Error)
     window.toast.error(i18n.t('message.error.notes.export'))

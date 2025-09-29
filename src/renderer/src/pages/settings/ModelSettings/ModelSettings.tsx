@@ -1,5 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -9,7 +9,6 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { Button } from 'antd'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -71,7 +70,12 @@ const ModelSettings: FC = () => {
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
+          <Button
+            startContent={<Settings2 size={16} />}
+            className="ml-2"
+            onPress={DefaultAssistantSettings.show}
+            isIconOnly
+          />
         </RowFlex>
         <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
       </SettingGroup>
@@ -93,7 +97,12 @@ const ModelSettings: FC = () => {
             onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
+          <Button
+            startContent={<Settings2 size={16} />}
+            className="ml-2"
+            onPress={TopicNamingModalPopup.show}
+            isIconOnly
+          />
         </RowFlex>
         <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
       </SettingGroup>
@@ -115,13 +124,14 @@ const ModelSettings: FC = () => {
             placeholder={t('settings.models.empty')}
           />
           <Button
-            icon={<Settings2 size={16} />}
-            style={{ marginLeft: 8 }}
-            onClick={() => TranslateSettingsPopup.show()}
+            startContent={<Settings2 size={16} />}
+            isIconOnly
+            className="ml-2"
+            onPress={() => TranslateSettingsPopup.show()}
           />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
             <Tooltip placement="top" title={t('common.reset')}>
-              <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
+              <Button startContent={<RedoOutlined />} className="ml-2" onPress={onResetTranslatePrompt} isIconOnly />
             </Tooltip>
           )}
         </RowFlex>

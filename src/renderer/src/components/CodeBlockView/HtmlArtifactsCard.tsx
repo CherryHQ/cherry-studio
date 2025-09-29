@@ -1,9 +1,9 @@
 import { CodeOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button } from 'antd'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -89,20 +89,32 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
                 </TerminalContent>
               </TerminalPreview>
               <ButtonContainer>
-                <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="primary">
+                <Button startContent={<CodeOutlined />} onPress={() => setIsPopupOpen(true)} color="primary">
                   {t('chat.artifacts.button.preview')}
                 </Button>
               </ButtonContainer>
             </>
           ) : (
             <ButtonContainer>
-              <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="text" disabled={!hasContent}>
+              <Button
+                startContent={<CodeOutlined />}
+                onPress={() => setIsPopupOpen(true)}
+                variant="light"
+                isDisabled={!hasContent}>
                 {t('chat.artifacts.button.preview')}
               </Button>
-              <Button icon={<LinkIcon size={14} />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
+              <Button
+                startContent={<LinkIcon size={14} />}
+                onPress={handleOpenExternal}
+                variant="light"
+                isDisabled={!hasContent}>
                 {t('chat.artifacts.button.openExternal')}
               </Button>
-              <Button icon={<DownloadIcon size={14} />} onClick={handleDownload} type="text" disabled={!hasContent}>
+              <Button
+                startContent={<DownloadIcon size={14} />}
+                onPress={handleDownload}
+                variant="light"
+                isDisabled={!hasContent}>
                 {t('code_block.download.label')}
               </Button>
             </ButtonContainer>
