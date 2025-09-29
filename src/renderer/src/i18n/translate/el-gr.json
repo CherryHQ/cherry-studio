@@ -251,6 +251,7 @@
     "added": "προστέθηκε",
     "case_sensitive": "Διάκριση πεζών/κεφαλαίων",
     "collapse": "συμπεριλάβετε",
+    "download": "Λήψη",
     "includes_user_questions": "Περιλαμβάνει ερωτήσεις χρήστη",
     "manage": "χειριστείτε",
     "select_model": "επιλογή μοντέλου",
@@ -1825,6 +1826,57 @@
     },
     "title": "Ollama"
   },
+  "ovms": {
+    "action": {
+      "install": "Εγκατάσταση",
+      "installing": "Εγκατάσταση σε εξέλιξη",
+      "reinstall": "Επανεγκατάσταση",
+      "run": "Εκτέλεση OVMS",
+      "starting": "Εκκίνηση σε εξέλιξη",
+      "stop": "Διακοπή OVMS",
+      "stopping": "Διακοπή σε εξέλιξη"
+    },
+    "description": "<div><p>1. Λήψη μοντέλου OV.</p><p>2. Προσθήκη μοντέλου στο 'Manager'.</p><p>Υποστηρίζεται μόνο στα Windows!</p><p>Διαδρομή εγκατάστασης OVMS: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Ανατρέξτε στον <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Οδηγό Intel OVMS</a></p></div>",
+    "download": {
+      "button": "Λήψη",
+      "error": "Η επιλογή απέτυχε",
+      "model_id": {
+        "label": "Αναγνωριστικό μοντέλου:",
+        "model_id_pattern": "Το αναγνωριστικό μοντέλου πρέπει να ξεκινά με OpenVINO/",
+        "placeholder": "Απαιτείται, π.χ. OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Παρακαλώ εισάγετε το αναγνωριστικό μοντέλου"
+      },
+      "model_name": {
+        "label": "Όνομα μοντέλου:",
+        "placeholder": "Απαιτείται, π.χ. Qwen3-8B-int4-ov",
+        "required": "Παρακαλώ εισάγετε το όνομα του μοντέλου"
+      },
+      "model_source": "Πηγή μοντέλου:",
+      "model_task": "Εργασία μοντέλου:",
+      "success": "Η λήψη ολοκληρώθηκε με επιτυχία",
+      "success_desc": "Το μοντέλο \"{{modelName}}\"-\"{{modelId}}\" λήφθηκε επιτυχώς, παρακαλώ μεταβείτε στη διεπαφή διαχείρισης OVMS για να προσθέσετε το μοντέλο",
+      "tip": "Το μοντέλο κατεβαίνει, μερικές φορές χρειάζονται αρκετές ώρες. Παρακαλώ περιμένετε υπομονετικά...",
+      "title": "Λήψη μοντέλου Intel OpenVINO"
+    },
+    "failed": {
+      "install": "Η εγκατάσταση του OVMS απέτυχε:",
+      "install_code_100": "Άγνωστο σφάλμα",
+      "install_code_101": "Υποστηρίζεται μόνο σε Intel(R) Core(TM) Ultra CPU",
+      "install_code_102": "Υποστηρίζεται μόνο στα Windows",
+      "install_code_103": "Η λήψη του OVMS runtime απέτυχε",
+      "install_code_104": "Η αποσυμπίεση του OVMS runtime απέτυχε",
+      "install_code_105": "Ο καθαρισμός του OVMS runtime απέτυχε",
+      "run": "Η εκτέλεση του OVMS απέτυχε:",
+      "stop": "Η διακοπή του OVMS απέτυχε:"
+    },
+    "status": {
+      "not_installed": "Το OVMS δεν έχει εγκατασταθεί",
+      "not_running": "Το OVMS δεν εκτελείται",
+      "running": "Το OVMS εκτελείται",
+      "unknown": "Άγνωστη κατάσταση OVMS"
+    },
+    "title": "Intel OVMS"
+  },
   "paintings": {
     "aspect_ratio": "Λόγος διαστάσεων",
     "aspect_ratios": {
@@ -2056,6 +2108,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "Πλατφόρμα Ανοιχτής Μεγάλης Μοντέλου PH8",
     "poe": "Poe",

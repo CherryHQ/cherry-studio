@@ -27,6 +27,8 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
+const systemType = await window.api.system.getDeviceType()
+const cpuName = await window.api.system.getCpuName()
 
 const ProviderList: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -273,6 +275,10 @@ const ProviderList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
+    if (provider.id === 'ovms' && (systemType !== 'windows' || !cpuName.toLowerCase().includes('intel'))) {
+      return false
+    }
+
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
     const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))

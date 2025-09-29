@@ -61,6 +61,7 @@ const providerKeyMap = {
   nvidia: 'provider.nvidia',
   o3: 'provider.o3',
   ocoolai: 'provider.ocoolai',
+  ovms: 'provider.ovms',
   ollama: 'provider.ollama',
   openai: 'provider.openai',
   openrouter: 'provider.openrouter',
