@@ -147,8 +147,18 @@ class ClaudeCodeService implements AgentServiceInterface {
       resume: options.resume
     })
 
-    // Start async processing
-    this.processSDKQuery(prompt, options, aiStream, errorChunks)
+    // Start async processing on the next tick so listeners can subscribe first
+    setImmediate(() => {
+      this.processSDKQuery(prompt, options, aiStream, errorChunks).catch((error) => {
+        logger.error('Unhandled Claude Code stream error', {
+          error: error instanceof Error ? { name: error.name, message: error.message } : String(error)
+        })
+        aiStream.emit('data', {
+          type: 'error',
+          error: error instanceof Error ? error : new Error(String(error))
+        })
+      })
+    })
 
     return aiStream
   }
@@ -251,6 +261,11 @@ class ClaudeCodeService implements AgentServiceInterface {
 
       errorChunks.push(errorObj instanceof Error ? errorObj.message : String(errorObj))
       const errorMessage = errorChunks.join('\n\n')
+      logger.error('SDK query failed', {
+        duration,
+        error: errorObj instanceof Error ? { name: errorObj.name, message: errorObj.message } : String(errorObj),
+        stderr: errorChunks
+      })
       // Emit error event
       stream.emit('data', {
         type: 'error',
