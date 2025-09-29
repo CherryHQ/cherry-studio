@@ -1,9 +1,8 @@
-import { Avatar, AvatarProps, cn } from '@heroui/react'
+import { cn } from '@heroui/react'
 import Ellipsis from '@renderer/components/Ellipsis'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getAgentDefaultAvatar } from '@renderer/config/agent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { AgentEntity, AgentSessionEntity, isAgentType } from '@renderer/types'
+import { AgentEntity, AgentSessionEntity } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import React, { ReactNode } from 'react'
 import styled from 'styled-components'
@@ -30,18 +29,14 @@ export type AgentLabelProps = {
     avatar?: string
     name?: string
   }
-  avatarProps?: AvatarProps
 }
 
-export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames, avatarProps }) => {
-  const isDefault = isAgentType(agent?.configuration?.avatar)
-  const src = isDefault ? getAgentDefaultAvatar(agent.type) : undefined
-  const emoji = isDefault ? undefined : agent?.configuration?.avatar
+export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames }) => {
+  const emoji = agent?.configuration?.avatar
 
   return (
     <div className={cn('flex w-full items-center gap-2', classNames?.container)}>
-      {isDefault && <Avatar src={src} {...avatarProps} className={cn('h-6 w-6 text-lg', classNames?.avatar)} />}
-      {!isDefault && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />}
+      <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />
       <Ellipsis className={classNames?.name}>
         {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
       </Ellipsis>

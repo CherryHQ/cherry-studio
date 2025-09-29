@@ -1,5 +1,5 @@
 import { Avatar } from '@heroui/react'
-import { getAgentDefaultAvatar } from '@renderer/config/agent'
+import { getAgentTypeAvatar } from '@renderer/config/agent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
 import { GetAgentResponse } from '@renderer/types'
@@ -30,7 +30,7 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
       <SettingsItem inline>
         <SettingsTitle>{t('agent.type.label')}</SettingsTitle>
         <div className="flex items-center gap-2">
-          <Avatar src={getAgentDefaultAvatar(agent.type)} className="h-6 w-6 text-lg" />
+          <Avatar src={getAgentTypeAvatar(agent.type)} className="h-6 w-6 text-lg" />
           <span>{(agent?.name ?? agent?.type) ? getAgentTypeLabel(agent.type) : ''}</span>
         </div>
       </SettingsItem>
