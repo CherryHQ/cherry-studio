@@ -273,7 +273,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
-            <InfoTooltip title={t('notification.tip')} placement="right" iconStyle={{ cursor: 'pointer' }} />
+            <InfoTooltip content={t('notification.tip')} placement="right" iconStyle={{ cursor: 'pointer' }} />
           </SettingRowTitle>
           <Switch
             isSelected={notificationSettings.assistant}
@@ -343,7 +343,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
-            <InfoTooltip title={t('settings.developer.help')} />
+            <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
           <Switch isSelected={enableDeveloperMode} onValueChange={setEnableDeveloperMode} />
         </SettingRow>

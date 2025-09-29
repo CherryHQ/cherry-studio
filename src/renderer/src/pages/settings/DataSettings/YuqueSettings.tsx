@@ -79,7 +79,7 @@ const YuqueSettings: FC = () => {
         <SettingRowTitle>
           {t('settings.data.yuque.token')}
           <InfoTooltip
-            title={t('settings.data.yuque.help')}
+            content={t('settings.data.yuque.help')}
             placement="left"
             iconStyle={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
           />

@@ -468,7 +468,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           {readI18nContext(property, 'title')}
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
-                        {property.description && <InfoTooltip title={readI18nContext(property, 'description')} />}
+                        {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
                       </ParameterLabel>
                       <DynamicFormRender
                         schemaProperty={property}

@@ -1,4 +1,4 @@
-import type { TooltipProps } from 'src/components/base/Tooltip'
+import type { TooltipProps } from '../../base/Tooltip'
 
 export interface IconTooltipProps extends TooltipProps {
   iconColor?: string

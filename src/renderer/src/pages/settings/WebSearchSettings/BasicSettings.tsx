@@ -32,7 +32,7 @@ const BasicSettings: FC = () => {
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
                 placement="top"
-                title={t('settings.tool.websearch.search_max_result.tooltip')}
+                content={t('settings.tool.websearch.search_max_result.tooltip')}
                 iconSize={16}
                 iconColor="var(--color-icon)"
                 iconStyle={{ marginLeft: 5, cursor: 'pointer' }}

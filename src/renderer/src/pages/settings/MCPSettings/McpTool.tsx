@@ -122,7 +122,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
-            <InfoTooltip title={`ID: ${tool.id}`} iconSize={14} />
+            <InfoTooltip content={`ID: ${tool.id}`} iconSize={14} />
           </Flex>
           {tool.description && (
             <Typography.Paragraph

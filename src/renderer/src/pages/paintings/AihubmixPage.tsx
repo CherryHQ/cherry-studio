@@ -785,7 +785,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       <div key={index}>
         <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
           {t(item.title!)}
-          {item.tooltip && <InfoTooltip title={t(item.tooltip)} />}
+          {item.tooltip && <InfoTooltip content={t(item.tooltip)} />}
         </SettingTitle>
         {renderConfigForm(item)}
       </div>

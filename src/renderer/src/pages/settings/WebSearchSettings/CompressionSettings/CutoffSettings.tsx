@@ -30,7 +30,7 @@ const CutoffSettings = () => {
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <InfoTooltip
           placement="right"
-          title={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
+          content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
           iconSize={16}
           iconColor="var(--color-icon)"
           iconStyle={{ marginLeft: 5, cursor: 'pointer' }}

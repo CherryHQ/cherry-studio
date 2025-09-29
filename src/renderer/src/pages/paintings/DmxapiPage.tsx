@@ -924,7 +924,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
                 {t('paintings.seed')}
-                <InfoTooltip title={t('paintings.seed_desc_tip')} />
+                <InfoTooltip content={t('paintings.seed_desc_tip')} />
               </SettingTitle>
               <Input
                 value={painting.seed}
@@ -956,7 +956,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.auto_create_paint')}
-            <InfoTooltip title={t('paintings.auto_create_paint_tip')} />
+            <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
           <RowFlex>
             <Switch isSelected={painting.autoCreate} onValueChange={(checked) => onChangeAutoCreate(checked)} />

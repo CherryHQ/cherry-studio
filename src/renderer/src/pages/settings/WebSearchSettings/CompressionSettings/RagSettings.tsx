@@ -71,7 +71,7 @@ const RagSettings = () => {
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
           <InfoTooltip
-            title={t('knowledge.dimensions_size_tooltip')}
+            content={t('knowledge.dimensions_size_tooltip')}
             iconSize={16}
             iconColor="var(--color-icon)"
             iconStyle={{ marginLeft: 5, cursor: 'pointer' }}
@@ -105,7 +105,7 @@ const RagSettings = () => {
         <SettingRowTitle>
           {t('settings.tool.websearch.compression.rag.document_count.label')}
           <InfoTooltip
-            title={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
+            content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
             placement="top"
             iconSize={16}
             iconColor="var(--color-icon)"

@@ -5,7 +5,7 @@ import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
-import Tooltip from '../../base/Tooltip'
+import { Tooltip } from '../../base/Tooltip'
 
 interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void

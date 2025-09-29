@@ -57,7 +57,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
         <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('assistants.settings.mcp.title')}
           <InfoTooltip
-            title={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}
+            content={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}
             iconStyle={{ marginLeft: 6, fontSize: 14, color: 'var(--color-text-2)', cursor: 'help' }}
           />
         </Box>

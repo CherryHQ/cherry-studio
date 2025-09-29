@@ -84,7 +84,7 @@ const ModelSettings: FC = () => {
           <RowFlex className="items-center gap-2.5">
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
-            <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
+            <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
           </RowFlex>
         </SettingTitle>
         <RowFlex className="items-center">

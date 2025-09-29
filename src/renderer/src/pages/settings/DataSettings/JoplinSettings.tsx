@@ -87,7 +87,7 @@ const JoplinSettings: FC = () => {
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.joplin.token')}</span>
           <InfoTooltip
-            title={t('settings.data.joplin.help')}
+            content={t('settings.data.joplin.help')}
             placement="left"
             iconStyle={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
           />

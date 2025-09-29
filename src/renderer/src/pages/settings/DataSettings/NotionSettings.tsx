@@ -65,7 +65,7 @@ const NotionSettings: FC = () => {
       <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
         {t('settings.data.notion.title')}
         <InfoTooltip
-          title={t('settings.data.notion.help')}
+          content={t('settings.data.notion.help')}
           placement="right"
           iconStyle={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
         />

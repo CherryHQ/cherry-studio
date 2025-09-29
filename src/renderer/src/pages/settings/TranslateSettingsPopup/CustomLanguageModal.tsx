@@ -172,7 +172,7 @@ const Label = (label: string, help: string) => {
   return (
     <Space>
       <span>{label}</span>
-      <InfoTooltip title={help} />
+      <InfoTooltip content={help} />
     </Space>
   )
 }

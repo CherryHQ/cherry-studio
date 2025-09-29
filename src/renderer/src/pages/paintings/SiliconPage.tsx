@@ -404,7 +404,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.number_images')}
-            <InfoTooltip title={t('paintings.number_images_tip')} />
+            <InfoTooltip content={t('paintings.number_images_tip')} />
           </SettingTitle>
           <InputNumber
             min={1}
@@ -415,7 +415,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.seed')}
-            <InfoTooltip title={t('paintings.seed_tip')} />
+            <InfoTooltip content={t('paintings.seed_tip')} />
           </SettingTitle>
           <Input
             value={painting.seed}
@@ -430,7 +430,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.inference_steps')}
-            <InfoTooltip title={t('paintings.inference_steps_tip')} />
+            <InfoTooltip content={t('paintings.inference_steps_tip')} />
           </SettingTitle>
           <SliderContainer>
             <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
@@ -444,7 +444,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.guidance_scale')}
-            <InfoTooltip title={t('paintings.guidance_scale_tip')} />
+            <InfoTooltip content={t('paintings.guidance_scale_tip')} />
           </SettingTitle>
           <SliderContainer>
             <Slider
@@ -464,7 +464,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SliderContainer>
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.negative_prompt')}
-            <InfoTooltip title={t('paintings.negative_prompt_tip')} />
+            <InfoTooltip content={t('paintings.negative_prompt_tip')} />
           </SettingTitle>
           <TextArea
             value={painting.negativePrompt}
@@ -474,7 +474,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.prompt_enhancement')}
-            <InfoTooltip title={t('paintings.prompt_enhancement_tip')} />
+            <InfoTooltip content={t('paintings.prompt_enhancement_tip')} />
           </SettingTitle>
           <RowFlex>
             <Switch

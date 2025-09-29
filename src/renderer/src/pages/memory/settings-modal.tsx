@@ -170,7 +170,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                 label={
                   <Flex className="items-center gap-1">
                     {t('memory.embedding_dimensions')}
-                    <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} />
+                    <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} />
                   </Flex>
                 }
                 name="embedderDimensions"

@@ -111,7 +111,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
-            <InfoTooltip title={item.tip}></InfoTooltip>
+            <InfoTooltip content={item.tip}></InfoTooltip>
           </RowFlex>
           <Switch id={item.key} isSelected={item.checked} onValueChange={item.onChange} />
         </RowFlex>

@@ -77,7 +77,7 @@ const QuickAssistantSettings: FC = () => {
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
             <InfoTooltip
-              title={t('settings.quickAssistant.use_shortcut_to_show')}
+              content={t('settings.quickAssistant.use_shortcut_to_show')}
               placement="right"
               iconStyle={{ cursor: 'pointer' }}
             />
@@ -109,7 +109,7 @@ const QuickAssistantSettings: FC = () => {
             <RowFlex className="items-center gap-2.5">
               {t('settings.models.quick_assistant_model')}
               <InfoTooltip
-                title={t('selection.settings.user_modal.model.tooltip')}
+                content={t('selection.settings.user_modal.model.tooltip')}
                 arrow
                 iconStyle={{ cursor: 'pointer' }}
               />
