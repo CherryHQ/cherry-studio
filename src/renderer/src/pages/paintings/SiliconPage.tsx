@@ -1,4 +1,9 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
@@ -8,7 +13,6 @@ import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
 import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
@@ -16,17 +20,13 @@ import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
+import { Input, InputNumber, Radio, Select, Slider, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -134,8 +134,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -202,7 +201,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
     const AI = new AiProvider(provider)
 
     if (!painting.model) {
@@ -261,7 +260,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -303,7 +302,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     setCurrentImageIndex(0)
   }
 
-  const { autoTranslateWithSpace } = useSettings()
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
@@ -376,10 +375,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
             <Button
-              size="small"
+              size="sm"
               className="nodrag"
-              icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
+              startContent={<PlusOutlined />}
+              onPress={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -398,10 +397,10 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             style={{ display: 'flex' }}>
             {IMAGE_SIZES.map((size) => (
               <RadioButton value={size.value} key={size.value}>
-                <VStack alignItems="center">
+                <ColFlex className="items-center">
                   <ImageSizeImage src={size.icon} theme={theme} />
                   <span>{size.label}</span>
-                </VStack>
+                </ColFlex>
               </RadioButton>
             ))}
           </Radio.Group>
@@ -492,12 +491,12 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
-          <HStack>
+          <RowFlex>
             <Switch
-              checked={painting.promptEnhancement}
-              onChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
+              isSelected={painting.promptEnhancement}
+              onValueChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
             />
-          </HStack>
+          </RowFlex>
         </LeftContainer>
         <MainContainer>
           <Artboard

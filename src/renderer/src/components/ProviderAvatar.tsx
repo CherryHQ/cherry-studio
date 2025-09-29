@@ -1,8 +1,8 @@
+import { Avatar } from '@cherrystudio/ui'
 import { PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
-import { Avatar } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
 
@@ -63,7 +63,13 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
 
   if (logoSrc) {
     return (
-      <ProviderLogo draggable="false" shape="circle" src={logoSrc} className={className} style={style} size={size} />
+      <ProviderLogo
+        draggable="false"
+        radius="full"
+        src={logoSrc}
+        className={className}
+        style={{ width: size, height: size, ...style }}
+      />
     )
   }
 
@@ -72,10 +78,11 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
 
   return (
     <ProviderLogo
-      size={size}
-      shape="circle"
+      radius="full"
       className={className}
       style={{
+        width: size,
+        height: size,
         backgroundColor,
         color,
         ...style

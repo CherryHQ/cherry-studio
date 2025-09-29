@@ -1,9 +1,9 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { isGenerateImageModel } from '@renderer/config/models'
-import { Assistant, Model } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { Image } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -24,11 +24,11 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
       mouseLeaveDelay={0}
       arrow>
       <ActionIconButton
-        onClick={onEnableGenerateImage}
+        onPress={onEnableGenerateImage}
         active={assistant.enableGenerateImage}
-        disabled={!isGenerateImageModel(model)}>
-        <Image size={18} />
-      </ActionIconButton>
+        isDisabled={!isGenerateImageModel(model)}
+        icon={<Image size={18} />}
+      />
     </Tooltip>
   )
 }

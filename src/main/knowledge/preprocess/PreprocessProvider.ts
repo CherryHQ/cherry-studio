@@ -1,6 +1,6 @@
-import { FileMetadata, PreprocessProvider as Provider } from '@types'
+import type { FileMetadata, PreprocessProvider as Provider } from '@types'
 
-import BasePreprocessProvider from './BasePreprocessProvider'
+import type BasePreprocessProvider from './BasePreprocessProvider'
 import PreprocessProviderFactory from './PreprocessProviderFactory'
 
 export default class PreprocessProvider {

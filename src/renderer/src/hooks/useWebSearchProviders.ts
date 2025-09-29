@@ -11,7 +11,7 @@ import {
   updateWebSearchProvider,
   updateWebSearchProviders
 } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 export const useDefaultWebSearchProvider = () => {
   const defaultProvider = useAppSelector((state) => state.websearch.defaultProvider)

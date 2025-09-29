@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
@@ -610,8 +611,8 @@ export const resendMessageThunk =
       // Clear cached search results for the user message being resent
       // This ensures that the regenerated responses will not use stale search results
       try {
-        window.keyv.remove(`web-search-${userMessageToResend.id}`)
-        window.keyv.remove(`knowledge-search-${userMessageToResend.id}`)
+        cacheService.delete(`web-search-${userMessageToResend.id}`)
+        cacheService.delete(`knowledge-search-${userMessageToResend.id}`)
       } catch (error) {
         logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error as Error)
       }

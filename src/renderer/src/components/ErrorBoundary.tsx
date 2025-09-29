@@ -1,8 +1,9 @@
 import { Button } from '@heroui/button'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Space } from 'antd'
-import { ComponentType, ReactNode } from 'react'
-import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
+import type { ComponentType, ReactNode } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {

@@ -1,6 +1,9 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
@@ -15,7 +18,8 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
 import { isSystemProvider } from '@renderer/types'
-import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
+import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import {
   formatApiHost,
   formatApiKeys,
@@ -24,11 +28,12 @@ import {
   isOpenAIProvider
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
+import { Divider, Input, Select, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -250,28 +255,29 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
+              <Button variant="light" size="sm" startContent={<SquareArrowOutUpRight size={14} />} isIconOnly />
             </Link>
           )}
           {!isSystemProvider(provider) && (
             <Tooltip title={t('settings.provider.api.options.label')}>
               <Button
-                type="text"
-                icon={<Bolt size={14} />}
-                size="small"
-                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+                variant="light"
+                startContent={<Bolt size={14} />}
+                isIconOnly
+                size="sm"
+                onPress={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
               />
             </Tooltip>
           )}
         </Flex>
         <Switch
-          value={provider.enabled}
+          isSelected={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => {
+          onValueChange={(enabled) => {
             updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)
@@ -310,7 +316,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
+                <Button variant="light" onPress={openApiKeyList} startContent={<Settings2 size={16} />} isIconOnly />
               </Tooltip>
             )}
           </SettingSubtitle>
@@ -325,27 +331,30 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               suffix={renderStatusIndicator()}
             />
             <Button
-              type={isApiKeyConnectable ? 'primary' : 'default'}
-              ghost={isApiKeyConnectable}
-              onClick={onCheckApi}
-              disabled={!apiHost || apiKeyConnectivity.checking}>
-              {apiKeyConnectivity.checking ? (
-                <LoadingIcon />
-              ) : apiKeyConnectivity.status === 'success' ? (
-                <Check size={16} className="lucide-custom" />
-              ) : (
-                t('settings.provider.check')
-              )}
+              color={isApiKeyConnectable ? 'primary' : undefined}
+              variant={isApiKeyConnectable ? 'ghost' : undefined}
+              onPress={onCheckApi}
+              startContent={
+                apiKeyConnectivity.checking ? (
+                  <LoadingIcon />
+                ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
+                  <Check size={16} className="lucide-custom" />
+                ) : undefined
+              }
+              isDisabled={!apiHost || apiKeyConnectivity.checking}>
+              {!apiKeyConnectivity.checking &&
+                !(apiKeyConnectivity.status === HealthStatus.SUCCESS) &&
+                t('settings.provider.check')}
             </Button>
           </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-            <HStack>
+            <RowFlex>
               {apiKeyWebsite && !isDmxapi && (
                 <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                   {t('settings.provider.get_api_key')}
                 </SettingHelpLink>
               )}
-            </HStack>
+            </RowFlex>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
           {!isDmxapi && !isAnthropicOAuth() && (
@@ -353,9 +362,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {t('settings.provider.api_host')}
                 <Button
-                  type="text"
-                  onClick={() => CustomHeaderPopup.show({ provider })}
-                  icon={<Settings2 size={16} />}
+                  variant="light"
+                  onPress={() => CustomHeaderPopup.show({ provider })}
+                  startContent={<Settings2 size={16} />}
+                  isIconOnly
                 />
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -366,7 +376,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   onBlur={onUpdateApiHost}
                 />
                 {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-                  <Button danger onClick={onReset}>
+                  <Button color="danger" onPress={onReset}>
                     {t('settings.provider.api.url.reset')}
                   </Button>
                 )}

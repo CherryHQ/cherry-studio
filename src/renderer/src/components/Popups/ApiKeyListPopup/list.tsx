@@ -1,3 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,17 +8,19 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
-import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
-import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
+import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
+import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
+import { Card, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
 import { Plus } from 'lucide-react'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiProvider, UpdateApiProviderFunc } from './types'
+import type { ApiProvider, UpdateApiProviderFunc } from './types'
 
 interface ApiKeyListProps {
   provider: ApiProvider
@@ -124,7 +128,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
         )}
       </Card>
 
-      <Flex dir="row" align="center" justify="space-between" style={{ marginTop: 15 }}>
+      <Flex className="mt-[15px] flex-row items-center justify-between">
         {/* 帮助文本 */}
         <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
 
@@ -138,13 +142,14 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
                 onConfirm={removeInvalidKeys}
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
-                okButtonProps={{ danger: true }}>
+                okButtonProps={{ color: 'danger' }}>
                 <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
                   <Button
-                    type="text"
-                    icon={<DeleteIcon size={16} className="lucide-custom" />}
-                    disabled={isChecking || !!pendingNewKey}
-                    danger
+                    variant="light"
+                    startContent={<DeleteIcon size={16} className="lucide-custom" />}
+                    isDisabled={isChecking || !!pendingNewKey}
+                    color="danger"
+                    isIconOnly
                   />
                 </Tooltip>
               </Popconfirm>
@@ -152,10 +157,11 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
               {/* 批量检查 */}
               <Tooltip title={t('settings.provider.check_all_keys')} placement="top" mouseLeaveDelay={0}>
                 <Button
-                  type="text"
-                  icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}
-                  onClick={checkAllKeysConnectivity}
-                  disabled={isChecking || !!pendingNewKey}
+                  variant="light"
+                  startContent={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}
+                  onPress={checkAllKeysConnectivity}
+                  isDisabled={isChecking || !!pendingNewKey}
+                  isIconOnly
                 />
               </Tooltip>
             </Space>
@@ -164,11 +170,11 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
           {/* 添加新 key */}
           <Button
             key="add"
-            type="primary"
-            onClick={handleAddNew}
-            icon={<Plus size={16} />}
+            color="primary"
+            onPress={handleAddNew}
+            startContent={<Plus size={16} />}
             autoFocus={shouldAutoFocus()}
-            disabled={isChecking || !!pendingNewKey}>
+            isDisabled={isChecking || !!pendingNewKey}>
             {t('common.add')}
           </Button>
         </Space>

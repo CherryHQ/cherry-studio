@@ -1,3 +1,6 @@
+import { cacheService } from '@data/CacheService'
+import i18n from '@renderer/i18n'
+
 import { useProviders } from './useProvider'
 import { getStoreProviders } from './useStore'
 
@@ -23,4 +26,15 @@ export function getModel(id?: string, providerId?: string) {
       return m.id === id
     }
   })
+}
+
+export function modelGenerating() {
+  const generating = cacheService.get<boolean>('generating') ?? false
+
+  if (generating) {
+    window.toast.warning(i18n.t('message.switch.disabled'))
+    return Promise.reject()
+  }
+
+  return Promise.resolve()
 }

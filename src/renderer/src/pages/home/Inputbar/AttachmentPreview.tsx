@@ -12,14 +12,16 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
+import { ColFlex } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Flex, Image, Tooltip } from 'antd'
+import { Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -100,7 +102,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
       }}
       fresh
       title={
-        <Flex vertical gap={2} align="center">
+        <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
             <Image
               style={{ width: 80, maxHeight: 200 }}
@@ -114,7 +116,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           )}
           <span style={{ wordBreak: 'break-all' }}>{fullName}</span>
           {formatFileSize(file.size)}
-        </Flex>
+        </ColFlex>
       }>
       <FileName
         onClick={() => {

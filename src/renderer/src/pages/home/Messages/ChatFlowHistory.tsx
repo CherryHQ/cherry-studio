@@ -1,24 +1,27 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import { Avatar } from '@cherrystudio/ui'
+import { EmojiAvatar } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import type { Edge, Node, NodeTypes } from '@xyflow/react'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
-import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
-import { Avatar, Spin, Tooltip } from 'antd'
+import { Position, useEdgesState, useNodesState } from '@xyflow/react'
+import { Spin, Tooltip } from 'antd'
 import { isEqual } from 'lodash'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -75,7 +78,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         avatar = <Avatar src={data.userAvatar} alt={title} />
       }
     } else {
-      avatar = <Avatar icon={<UserOutlined />} style={{ backgroundColor: 'var(--color-info)' }} />
+      avatar = <Avatar icon={<UserOutlined />} className="bg-info" />
     }
   } else if (nodeType === 'assistant') {
     borderColor = 'var(--color-primary)'
@@ -92,11 +95,11 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         <Avatar
           src={modelLogo}
           icon={!modelLogo ? <RobotOutlined /> : undefined}
-          style={{ backgroundColor: 'var(--color-primary)' }}
+          className="bg-primary"
         />
       )
     } else {
-      avatar = <Avatar icon={<RobotOutlined />} style={{ backgroundColor: 'var(--color-primary)' }} />
+      avatar = <Avatar icon={<RobotOutlined />} className="bg-primary" />
     }
   }
 
@@ -205,7 +208,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
-  const { userName } = useSettings()
+  const [userName] = usePreference('app.user.name')
   const { settedTheme } = useTheme()
 
   const topicId = conversationId

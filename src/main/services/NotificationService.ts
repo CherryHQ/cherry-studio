@@ -1,4 +1,4 @@
-import { Notification } from '@types'
+import type { Notification } from '@types'
 import { Notification as ElectronNotification } from 'electron'
 
 import { windowService } from './WindowService'

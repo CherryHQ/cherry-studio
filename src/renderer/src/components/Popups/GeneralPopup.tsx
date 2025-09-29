@@ -1,6 +1,8 @@
 import { TopView } from '@renderer/components/TopView'
-import { Modal, ModalProps } from 'antd'
-import { ReactNode, useState } from 'react'
+import type { ModalProps } from 'antd'
+import { Modal } from 'antd'
+import type { ReactNode } from 'react'
+import { useState } from 'react'
 
 interface ShowParams extends ModalProps {
   content: ReactNode

@@ -6,16 +6,18 @@ import {
   NumberOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Button, Tooltip } from 'antd'
-import { FC, memo } from 'react'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import { Tooltip } from 'antd'
+import type { FC } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -101,7 +103,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
+      <RowFlex className="flex-1 items-center overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
@@ -132,23 +134,23 @@ const MessageGroupMenuBar: FC<Props> = ({
           />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
-      </HStack>
+      </RowFlex>
       {hasFailedMessages && (
         <Tooltip title={t('message.group.retry_failed')} mouseEnterDelay={0.6}>
           <Button
-            type="text"
-            size="small"
-            icon={<ReloadOutlined />}
-            onClick={handleRetryAll}
-            style={{ marginRight: 4 }}
+            variant="light"
+            size="sm"
+            startContent={<ReloadOutlined />}
+            onPress={handleRetryAll}
+            className="mr-1"
           />
         </Tooltip>
       )}
       <Button
-        type="text"
-        size="small"
-        icon={<DeleteOutlined style={{ color: 'var(--color-error)' }} />}
-        onClick={handleDeleteGroup}
+        variant="light"
+        size="sm"
+        startContent={<DeleteOutlined style={{ color: 'var(--color-error)' }} />}
+        onPress={handleDeleteGroup}
       />
     </GroupMenuBar>
   )

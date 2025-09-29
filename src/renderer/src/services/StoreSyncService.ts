@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { Middleware } from '@reduxjs/toolkit'
+import type { Middleware } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { StoreSyncAction } from '@types'
 

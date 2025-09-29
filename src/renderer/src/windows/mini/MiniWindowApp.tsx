@@ -1,10 +1,10 @@
 import '@renderer/databases'
 
+import { getToastUtilities } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ToastPortal } from '@renderer/components/ToastPortal'
-import { getToastUtilities } from '@renderer/components/TopView/toast'
 import { HeroUIProvider } from '@renderer/context/HeroUIProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import store, { persistor } from '@renderer/store'
 import { useEffect } from 'react'
 import { Provider } from 'react-redux'
@@ -17,7 +17,7 @@ import HomeWindow from './home/HomeWindow'
 
 // Inner component that uses the hook after Redux is initialized
 function MiniWindowContent(): React.ReactElement {
-  const { customCss } = useSettings()
+  const [customCss] = usePreference('ui.custom_css')
 
   useEffect(() => {
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement

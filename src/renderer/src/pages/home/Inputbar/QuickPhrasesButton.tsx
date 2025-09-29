@@ -8,7 +8,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
-import { QuickPhrase } from '@renderer/types'
+import type { QuickPhrase } from '@renderer/types'
 import { Input, Modal, Radio, Space, Tooltip } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
@@ -157,9 +157,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }:
   return (
     <>
       <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
-        <ActionIconButton onClick={handleOpenQuickPanel}>
-          <Zap size={18} />
-        </ActionIconButton>
+        <ActionIconButton onPress={handleOpenQuickPanel} icon={<Zap size={18} />} />
       </Tooltip>
 
       <Modal

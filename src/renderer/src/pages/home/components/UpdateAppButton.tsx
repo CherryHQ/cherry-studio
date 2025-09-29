@@ -1,21 +1,21 @@
 import { SyncOutlined } from '@ant-design/icons'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { Button } from 'antd'
-import { FC } from 'react'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
-  const { update } = useRuntime()
-  const { autoCheckUpdate } = useSettings()
+  const { appUpdateState } = useAppUpdateState()
+  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const { t } = useTranslation()
 
-  if (!update) {
+  if (!appUpdateState) {
     return null
   }
 
-  if (!update.downloaded || !autoCheckUpdate) {
+  if (!appUpdateState.downloaded || !autoCheckUpdate) {
     return null
   }
 
@@ -23,11 +23,11 @@ const UpdateAppButton: FC = () => {
     <Container>
       <UpdateButton
         className="nodrag"
-        onClick={() => window.api.showUpdateDialog()}
-        icon={<SyncOutlined />}
-        color="orange"
-        variant="outlined"
-        size="small">
+        onPress={() => window.api.showUpdateDialog()}
+        startContent={<SyncOutlined />}
+        color="warning"
+        variant="bordered"
+        size="sm">
         {t('button.update_available')}
       </UpdateButton>
     </Container>

@@ -1,6 +1,6 @@
-import { MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
-import { Chunk, ErrorChunk } from '@renderer/types/chunk'
-import {
+import type { MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
+import type { Chunk, ErrorChunk } from '@renderer/types/chunk'
+import type {
   SdkInstance,
   SdkMessageParam,
   SdkParams,
@@ -10,8 +10,8 @@ import {
   SdkToolCall
 } from '@renderer/types/sdk'
 
-import { BaseApiClient } from '../clients'
-import { CompletionsParams, CompletionsResult } from './schemas'
+import type { BaseApiClient } from '../clients'
+import type { CompletionsParams, CompletionsResult } from './schemas'
 
 /**
  * Symbol to uniquely identify middleware context objects.

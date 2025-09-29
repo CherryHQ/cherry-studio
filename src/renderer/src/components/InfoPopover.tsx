@@ -1,4 +1,5 @@
-import { Popover, PopoverProps } from 'antd'
+import type { PopoverProps } from 'antd'
+import { Popover } from 'antd'
 import { Info } from 'lucide-react'
 
 type InheritedPopoverProps = Omit<PopoverProps, 'children'>

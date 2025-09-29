@@ -10,7 +10,7 @@ import type { AiRequestContext } from '../../types'
 import { StreamEventManager } from './StreamEventManager'
 import { type TagConfig, TagExtractor } from './tagExtraction'
 import { ToolExecutor } from './ToolExecutor'
-import { PromptToolUseConfig, ToolUseResult } from './type'
+import type { PromptToolUseConfig, ToolUseResult } from './type'
 
 /**
  * 工具使用标签配置

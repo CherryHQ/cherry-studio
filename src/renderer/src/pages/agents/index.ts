@@ -1,11 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
-import { Agent } from '@renderer/types'
+import type { Agent } from '@renderer/types'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 const logger = loggerService.withContext('useSystemAgents')
 
 let _agents: Agent[] = []
@@ -24,7 +23,7 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 export function useSystemAgents() {
   const { defaultAgent } = useSettings()
   const [agents, setAgents] = useState<Agent[]>([])
-  const { resourcesPath } = useRuntime()
+  const resourcesPath = cacheService.get('resourcesPath') ?? ''
   const { agentssubscribeUrl } = store.getState().settings
   const { i18n } = useTranslation()
   const currentLanguage = i18n.language

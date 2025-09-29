@@ -1,3 +1,4 @@
+import type { Message } from '@renderer/types/newMessage'
 import {
   AssistantMessageStatus,
   type CitationMessageBlock,
@@ -6,7 +7,6 @@ import {
   type FileMessageBlock,
   type ImageMessageBlock,
   type MainTextMessageBlock,
-  Message,
   type MessageBlock,
   MessageBlockType,
   type PlaceholderMessageBlock,

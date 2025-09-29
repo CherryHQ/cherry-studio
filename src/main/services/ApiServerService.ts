@@ -1,5 +1,5 @@
 import { IpcChannel } from '@shared/IpcChannel'
-import { ApiServerConfig } from '@types'
+import type { ApiServerConfig } from '@types'
 import { ipcMain } from 'electron'
 
 import { apiServer } from '../apiServer'

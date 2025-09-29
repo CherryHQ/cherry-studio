@@ -4,7 +4,8 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
-import { FC, memo, useCallback } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface UrlContextButtonRef {
@@ -47,9 +48,7 @@ const UrlContextButton: FC<Props> = ({ assistantId }) => {
 
   return (
     <Tooltip placement="top" title={t('chat.input.url_context')} arrow>
-      <ActionIconButton onClick={handleToggle} active={assistant.enableUrlContext}>
-        <Link size={18} />
-      </ActionIconButton>
+      <ActionIconButton onPress={handleToggle} active={assistant.enableUrlContext} icon={<Link size={18} />} />
     </Tooltip>
   )
 }

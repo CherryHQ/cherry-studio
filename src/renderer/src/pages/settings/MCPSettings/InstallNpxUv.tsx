@@ -1,9 +1,11 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
-import { Center, VStack } from '@renderer/components/Layout'
+import { Center, ColFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
-import { Alert, Button } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { Alert } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -83,13 +85,13 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     const installed = isUvInstalled && isBunInstalled
     return (
       <Button
-        type="primary"
-        variant="filled"
-        shape="circle"
-        icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
+        variant="solid"
+        radius="full"
+        startContent={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
         className="nodrag"
-        color={installed ? 'green' : 'danger'}
-        onClick={() => navigate('/settings/mcp/mcp-install')}
+        color={installed ? 'success' : 'danger'}
+        onPress={() => navigate('/settings/mcp/mcp-install')}
+        isIconOnly
       />
     )
   }
@@ -111,18 +113,19 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isUvInstalled ? 'UV Installed' : `UV ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
               {!isUvInstalled && (
                 <Button
-                  type="primary"
-                  onClick={installUV}
-                  loading={isInstallingUv}
-                  disabled={isInstallingUv}
-                  size="small">
+                  variant="solid"
+                  color="primary"
+                  onPress={installUV}
+                  isLoading={isInstallingUv}
+                  isDisabled={isInstallingUv}
+                  size="sm">
                   {isInstallingUv ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -134,7 +137,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {uvPath}
               </SettingDescription>
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Alert
@@ -142,18 +145,19 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isBunInstalled ? 'Bun Installed' : `Bun ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
               {!isBunInstalled && (
                 <Button
-                  type="primary"
-                  onClick={installBun}
-                  loading={isInstallingBun}
-                  disabled={isInstallingBun}
-                  size="small">
+                  variant="solid"
+                  color="primary"
+                  onPress={installBun}
+                  isLoading={isInstallingBun}
+                  isDisabled={isInstallingBun}
+                  size="sm">
                   {isInstallingBun ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -165,11 +169,11 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {bunPath}
               </SettingDescription>
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Center>
-        <Button type="link" onClick={onHelp} icon={<QuestionCircleOutlined />}>
+        <Button variant="light" onPress={onHelp} startContent={<QuestionCircleOutlined />}>
           {t('settings.mcp.installHelp')}
         </Button>
       </Center>

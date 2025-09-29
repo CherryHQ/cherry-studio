@@ -1,13 +1,14 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import { Languages } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   text?: string
@@ -22,7 +23,8 @@ const logger = loggerService.withContext('TranslateButton')
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { targetLanguage, showTranslateConfirm } = useSettings()
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const { getLanguageByLangcode } = useTranslate()
 
   const translateConfirm = () => {
@@ -68,47 +70,18 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       title={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
       mouseLeaveDelay={0}
       arrow>
-      <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
+      <Button
+        onPress={handleTranslate}
+        isDisabled={disabled || isTranslating}
+        style={style}
+        variant="light"
+        isIconOnly
+        size="sm"
+        radius="full">
         {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
-      </ToolbarButton>
+      </Button>
     </Tooltip>
   )
 }
-
-const ToolbarButton = styled(Button)`
-  min-width: 30px;
-  height: 30px;
-  font-size: 16px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  color: var(--color-icon);
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  &.anticon,
-  &.iconfont {
-    transition: all 0.3s ease;
-    color: var(--color-icon);
-  }
-  &:hover {
-    background-color: var(--color-background-soft);
-    .anticon,
-    .iconfont {
-      color: var(--color-text-1);
-    }
-  }
-  &.active {
-    background-color: var(--color-primary) !important;
-    .anticon,
-    .iconfont {
-      color: var(--color-white-soft);
-    }
-    &:hover {
-      background-color: var(--color-primary);
-    }
-  }
-`
 
 export default TranslateButton

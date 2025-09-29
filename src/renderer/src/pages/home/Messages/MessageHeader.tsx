@@ -1,5 +1,6 @@
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -7,16 +8,18 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Avatar, Checkbox, Tooltip } from 'antd'
+import { Checkbox, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
-import { FC, memo, useCallback, useMemo } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,7 +39,8 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const { userName, sidebarIcons } = useSettings()
+  const [userName] = usePreference('app.user.name')
+  const showMinappIcon = useSidebarIconShow('minapp')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
@@ -61,7 +65,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
-  const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
@@ -83,7 +86,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       {isAssistantMessage ? (
         <Avatar
           src={avatarSource}
-          size={35}
+          className="h-[35px] w-[35px]"
           style={{
             borderRadius: '25%',
             cursor: showMinappIcon ? 'pointer' : 'default',
@@ -102,7 +105,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           ) : (
             <Avatar
               src={avatar}
-              size={35}
+              className="h-[35px] w-[35px]"
               style={{ borderRadius: '25%', cursor: 'pointer' }}
               onClick={() => UserPopup.show()}
             />
@@ -110,7 +113,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
         </>
       )}
       <UserWrap>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
@@ -119,7 +122,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}
-        </HStack>
+        </RowFlex>
         <InfoWrap className="message-header-info-wrap">
           <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
         </InfoWrap>

@@ -1,6 +1,7 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
+import { Avatar } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -8,10 +9,11 @@ import { getModelLogo } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, ModelType, objectEntries, Provider } from '@renderer/types'
+import type { Model, ModelType, Provider } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
-import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
+import { Divider, Empty, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import React, {
@@ -30,7 +32,7 @@ import styled from 'styled-components'
 import { useModelTagFilter } from './filters'
 import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
-import { FlatListItem, FlatListModel } from './types'
+import type { FlatListItem, FlatListModel } from './types'
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
@@ -110,10 +112,10 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">
+            <Flex className="items-center">
               {model.name}
               {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
-            </HStack>
+            </Flex>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -123,7 +125,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size={24}>
+          <Avatar src={getModelLogo(model.id || '')} size="xs">
             {first(model.name) || 'M'}
           </Avatar>
         ),

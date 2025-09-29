@@ -1,7 +1,8 @@
 import mcpService from '@main/services/MCPService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { CallToolRequestSchema, ListToolsRequestSchema, ListToolsResult } from '@modelcontextprotocol/sdk/types.js'
-import { MCPServer } from '@types'
+import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import type { MCPServer } from '@types'
 
 import { loggerService } from '../../services/LoggerService'
 import { reduxService } from '../../services/ReduxService'

@@ -1,5 +1,6 @@
+import { Button, type ButtonProps } from '@cherrystudio/ui'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import {
   oauthWith302AI,
   oauthWithAihubmix,
@@ -8,8 +9,7 @@ import {
   oauthWithSiliconFlow,
   oauthWithTokenFlux
 } from '@renderer/utils/oauth'
-import { Button, ButtonProps } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props extends ButtonProps {
@@ -54,7 +54,7 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
   }
 
   return (
-    <Button type="primary" onClick={onAuth} shape="round" {...buttonProps}>
+    <Button color="primary" onPress={onAuth} radius="full" {...buttonProps}>
       {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
     </Button>
   )

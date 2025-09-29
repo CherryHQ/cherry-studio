@@ -2,7 +2,8 @@ import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
-import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   isGeminiModel,
   isGPT5SeriesReasoningModel,
@@ -15,12 +16,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface WebSearchButtonRef {
@@ -210,9 +212,11 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
       title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={onClick} active={!!enableWebSearch}>
-        <WebSearchIcon pid={assistant.webSearchProviderId} />
-      </ActionIconButton>
+      <ActionIconButton
+        onPress={onClick}
+        active={!!enableWebSearch}
+        icon={<WebSearchIcon pid={assistant.webSearchProviderId} />}
+      />
     </Tooltip>
   )
 }

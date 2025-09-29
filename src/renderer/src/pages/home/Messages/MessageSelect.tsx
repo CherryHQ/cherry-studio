@@ -1,7 +1,8 @@
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { Checkbox } from 'antd'
-import { FC, ReactNode, useEffect, useRef } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 interface SelectableMessageProps {

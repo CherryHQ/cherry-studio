@@ -1,8 +1,8 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { Route, Routes, useLocation } from 'react-router'
 import { Link } from 'react-router-dom'
 import styled from 'styled-components'
@@ -26,7 +26,7 @@ const MCPSettings: FC = () => {
       {!isHome && (
         <BackButtonContainer>
           <Link to="/settings/mcp">
-            <Button type="default" icon={<ArrowLeftOutlined />} shape="circle" />
+            <Button variant="solid" startContent={<ArrowLeftOutlined />} radius="full" isIconOnly />
           </Link>
         </BackButtonContainer>
       )}

@@ -1,5 +1,5 @@
-import { Model } from '@renderer/types'
-import { ReactNode } from 'react'
+import type { Model } from '@renderer/types'
+import type { ReactNode } from 'react'
 
 /**
  * 滚动触发来源类型

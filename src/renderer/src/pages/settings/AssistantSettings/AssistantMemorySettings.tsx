@@ -1,11 +1,13 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Box } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Box } from '@renderer/components/Layout'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import { Assistant, AssistantSettings } from '@renderer/types'
-import { Alert, Button, Card, Space, Switch, Tooltip, Typography } from 'antd'
+import type { Assistant, AssistantSettings } from '@renderer/types'
+import { Alert, Card, Space, Tooltip, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
 import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -81,7 +83,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           </Tooltip>
         </Box>
         <Space>
-          <Button type="text" icon={<Settings2 size={15} />} onClick={handleNavigateToMemory} />
+          <Button variant="light" isIconOnly startContent={<Settings2 size={15} />} onPress={handleNavigateToMemory} />
           <Tooltip
             title={
               !globalMemoryEnabled
@@ -91,8 +93,8 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
                   : ''
             }>
             <Switch
-              checked={assistant.enableMemory || false}
-              onChange={handleMemoryToggle}
+              isSelected={assistant.enableMemory || false}
+              onValueChange={handleMemoryToggle}
               disabled={!isMemoryEnabled}
             />
           </Tooltip>
@@ -107,7 +109,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           showIcon
           style={{ marginBottom: 16 }}
           action={
-            <Button size="small" onClick={handleNavigateToMemory}>
+            <Button size="sm" onPress={handleNavigateToMemory}>
               {t('memory.go_to_memory_page')}
             </Button>
           }

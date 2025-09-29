@@ -2,7 +2,7 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { Tooltip } from 'antd'
 import { Eraser } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 interface Props {
   onNewContext: () => void
@@ -20,9 +20,7 @@ const NewContextButton: FC<Props> = ({ onNewContext }) => {
       title={t('chat.input.new.context', { Command: newContextShortcut })}
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={onNewContext}>
-        <Eraser size={18} />
-      </ActionIconButton>
+      <ActionIconButton onPress={onNewContext} icon={<Eraser size={18} />} />
     </Tooltip>
   )
 }

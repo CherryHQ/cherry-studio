@@ -1,12 +1,14 @@
+import { SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types'
 import { Empty } from 'antd'
-import { FC, memo, RefObject, useCallback, useMemo, useState } from 'react'
+import type { FC, RefObject } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,6 +24,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
         return settings.defaultEditMode
@@ -52,14 +55,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
+                theme={activeCmTheme}
+                fontSize={settings.fontSize}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
-                height="100%"
+                className="h-full"
                 expanded={false}
                 style={{
-                  height: '100%',
-                  fontSize: `${settings.fontSize}px`
+                  height: '100%'
                 }}
               />
             </SourceEditorWrapper>
@@ -75,14 +79,14 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
               className="notes-rich-editor"
-              isFullWidth={settings.isFullWidth}
+              isFullWidth
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
             />
           )}
         </RichEditorContainer>
         <BottomPanel>
-          <HSpaceBetweenStack width="100%" justifyContent="space-between" alignItems="center">
+          <SpaceBetweenRowFlex className="w-full items-center">
             <TokenCount>
               {t('notes.characters')}: {tokenCount}
             </TokenCount>
@@ -104,7 +108,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 ]}
               />
             </div>
-          </HSpaceBetweenStack>
+          </SpaceBetweenRowFlex>
         </BottomPanel>
       </>
     )

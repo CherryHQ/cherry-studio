@@ -7,13 +7,12 @@ import { isMac, isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
+import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeTools,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
   terminalApps,
-  TerminalConfig,
-  TerminalConfigWithCommand,
   WINDOWS_TERMINALS,
   WINDOWS_TERMINALS_WITH_COMMANDS
 } from '@shared/config/constant'
