@@ -20,7 +20,7 @@ import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC, ReactNode, useCallback } from 'react'
+import React, { FC, ReactNode, useCallback } from 'react'
 import styled from 'styled-components'
 
 import { AgentSettingsPopup } from '../settings/AgentSettings'
@@ -193,13 +193,24 @@ const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agen
 
   const infoItems: ReactNode[] = []
 
-  const InfoTag: FC<{ text: string; className?: string }> = ({ text, className }) => (
+  const InfoTag = ({
+    text,
+    className,
+    onClick
+  }: {
+    text: string
+    className?: string
+    classNames?: {}
+    onClick?: (e: React.MouseEvent) => void
+  }) => (
     <div
       className={cn(
         'rounded-medium border border-default-200 px-2 py-1 text-foreground-500 text-xs dark:text-foreground-400',
+        onClick !== undefined ? 'cursor-pointer' : undefined,
         className
       )}
-      title={text}>
+      title={text}
+      onClick={onClick}>
       <span className="block truncate">{text}</span>
     </div>
   )
@@ -207,7 +218,14 @@ const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agen
   // infoItems.push(<InfoTag key="name" text={agent.name ?? ''} className="max-w-60" />)
 
   if (firstAccessiblePath) {
-    infoItems.push(<InfoTag key="path" text={firstAccessiblePath} className="max-w-60" />)
+    infoItems.push(
+      <InfoTag
+        key="path"
+        text={firstAccessiblePath}
+        className="max-w-60 transition-colors hover:border-primary hover:text-primary"
+        onClick={() => window.api.file.openPath(firstAccessiblePath)}
+      />
+    )
   }
 
   infoItems.push(<InfoTag key="permission-mode" text={permissionModeLabel} className="max-w-50" />)
