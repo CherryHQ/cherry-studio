@@ -78,8 +78,12 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const apiConfig = await apiConfigService.get()
     const loginShellEnv = await getLoginShellEnvironment()
+    const loginShellEnvWithoutProxies = Object.fromEntries(
+      Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
+    ) as Record<string, string>
+
     const env = {
-      ...loginShellEnv,
+      ...loginShellEnvWithoutProxies,
       ANTHROPIC_API_KEY: apiConfig.apiKey,
       ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
       ELECTRON_RUN_AS_NODE: '1',
