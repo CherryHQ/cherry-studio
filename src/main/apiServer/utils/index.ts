@@ -13,7 +13,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
   try {
     // Try to get from cache first (faster)
     const cachedSupportedProviders = CacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
-    if (cachedSupportedProviders) {
+    if (cachedSupportedProviders && cachedSupportedProviders.length > 0) {
       logger.debug('Providers resolved from cache', {
         count: cachedSupportedProviders.length
       })

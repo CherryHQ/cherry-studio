@@ -104,9 +104,7 @@ const router = express
 
       logger.info('Models response ready', {
         filter,
-        total: response.total
-      })
-      logger.debug('Model IDs returned', {
+        total: response.total,
         modelIds: response.data.map((m) => m.id)
       })
 
