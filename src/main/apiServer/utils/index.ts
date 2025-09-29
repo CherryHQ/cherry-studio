@@ -7,7 +7,7 @@ const logger = loggerService.withContext('ApiServerUtils')
 
 // Cache configuration
 const PROVIDERS_CACHE_KEY = 'api-server:providers'
-const PROVIDERS_CACHE_TTL = 1 * 60 * 1000 // 1 minutes
+const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
