@@ -1,7 +1,8 @@
 // Original path: src/renderer/src/components/Preview/ImageToolButton.tsx
-import { Button } from '@cherrystudio/ui'
-import { Tooltip } from 'antd'
 import { memo } from 'react'
+
+import Button from '../../base/Button'
+import { Tooltip } from '../../base/Tooltip'
 
 interface ImageToolButtonProps {
   tooltip: string
@@ -11,7 +12,7 @@ interface ImageToolButtonProps {
 
 const ImageToolButton = ({ tooltip, icon, onPress }: ImageToolButtonProps) => {
   return (
-    <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+    <Tooltip content={tooltip} delay={500} closeDelay={0}>
       <Button radius="full" isIconOnly onPress={onPress} aria-label={tooltip}>
         {icon}
       </Button>

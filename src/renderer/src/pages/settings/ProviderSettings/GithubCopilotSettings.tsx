@@ -1,9 +1,9 @@
 import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Alert, Input, Slider, Steps, Tooltip, Typography } from 'antd'
+import { Alert, Input, Slider, Steps, Typography } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -289,7 +289,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     </div>
                   </StepHeader>
                   <Tooltip
-                    title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
+                    content={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
                     <Button
                       color="primary"
                       isLoading={loading}

@@ -1,7 +1,7 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { isGenerateImageModel } from '@renderer/config/models'
 import type { Assistant, Model } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { Image } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,12 +17,9 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
 
   return (
     <Tooltip
-      placement="top"
-      title={
+      content={
         isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
-      }
-      mouseLeaveDelay={0}
-      arrow>
+      }>
       <ActionIconButton
         onPress={onEnableGenerateImage}
         active={assistant.enableGenerateImage}

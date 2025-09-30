@@ -1,8 +1,8 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { restoreFromWebdav } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Modal, Table, Tooltip } from 'antd'
+import { Modal, Table } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -214,7 +214,7 @@ export function WebdavBackupManager({
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="topLeft" title={fileName}>
+        <Tooltip placement="top-start" content={fileName}>
           {fileName}
         </Tooltip>
       )

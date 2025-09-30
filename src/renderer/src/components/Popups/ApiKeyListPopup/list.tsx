@@ -1,5 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -11,7 +10,7 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { Card, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
+import { Card, List, Popconfirm, Space, Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -143,7 +142,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
                 okButtonProps={{ color: 'danger' }}>
-                <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
+                <Tooltip content={t('settings.provider.remove_invalid_keys')} closeDelay={0}>
                   <Button
                     variant="light"
                     startContent={<DeleteIcon size={16} className="lucide-custom" />}
@@ -155,7 +154,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
               </Popconfirm>
 
               {/* 批量检查 */}
-              <Tooltip title={t('settings.provider.check_all_keys')} placement="top" mouseLeaveDelay={0}>
+              <Tooltip content={t('settings.provider.check_all_keys')} closeDelay={0}>
                 <Button
                   variant="light"
                   startContent={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}

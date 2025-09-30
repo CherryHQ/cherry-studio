@@ -16,7 +16,8 @@ exports[`TagFilterSection > rendering > should match snapshot 1`] = `
     class="c0"
   >
     <div
-      class="box-border flex flex-wrap gap-1"
+      class="flex-wrap gap-1"
+      data-testid="flex"
     >
       <span
         class="c1"

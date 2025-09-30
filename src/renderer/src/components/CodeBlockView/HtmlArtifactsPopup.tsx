@@ -1,5 +1,5 @@
 import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
@@ -8,7 +8,7 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
-import { Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
+import { Dropdown, Modal, Splitter, Typography } from 'antd'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -126,7 +126,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               }
             ]
           }}>
-          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
+          <Tooltip content={t('html_artifacts.capture.label')} closeDelay={0}>
             <Button variant="light" startContent={<Camera size={16} />} isIconOnly className="nodrag" />
           </Tooltip>
         </Dropdown>
@@ -164,7 +164,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           }}
         />
         <ToolbarWrapper>
-          <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
+          <Tooltip content={t('code_block.edit.save.label')} closeDelay={0}>
             <ToolbarButton radius="full" size="lg" isIconOnly onPress={handleSave}>
               {saved ? (
                 <Check size={16} color="var(--color-status-success)" />

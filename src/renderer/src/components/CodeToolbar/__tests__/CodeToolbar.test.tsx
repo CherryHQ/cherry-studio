@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
       {tool.icon}
     </div>
   )),
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, title, content }) => (
+    <div data-testid="tooltip" data-title={content || title}>
       {children}
     </div>
   )),
@@ -39,11 +39,8 @@ vi.mock('../button', () => ({
   default: mocks.CodeToolButton
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: mocks.Tooltip
-}))
-
 vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: mocks.Tooltip,
   RowFlex: mocks.RowFlex
 }))
 

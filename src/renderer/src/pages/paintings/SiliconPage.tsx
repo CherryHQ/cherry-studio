@@ -1,7 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { ColFlex, RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, ColFlex, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -26,9 +24,8 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Input, InputNumber, Radio, Select, Slider, Tooltip } from 'antd'
+import { Input, InputNumber, Radio, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -407,9 +404,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.number_images')}
-            <Tooltip title={t('paintings.number_images_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.number_images_tip')} />
           </SettingTitle>
           <InputNumber
             min={1}
@@ -420,9 +415,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.seed')}
-            <Tooltip title={t('paintings.seed_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.seed_tip')} />
           </SettingTitle>
           <Input
             value={painting.seed}
@@ -437,9 +430,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.inference_steps')}
-            <Tooltip title={t('paintings.inference_steps_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.inference_steps_tip')} />
           </SettingTitle>
           <SliderContainer>
             <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
@@ -453,9 +444,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.guidance_scale')}
-            <Tooltip title={t('paintings.guidance_scale_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.guidance_scale_tip')} />
           </SettingTitle>
           <SliderContainer>
             <Slider
@@ -475,9 +464,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SliderContainer>
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.negative_prompt')}
-            <Tooltip title={t('paintings.negative_prompt_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.negative_prompt_tip')} />
           </SettingTitle>
           <TextArea
             value={painting.negativePrompt}
@@ -487,9 +474,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.prompt_enhancement')}
-            <Tooltip title={t('paintings.prompt_enhancement_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.prompt_enhancement_tip')} />
           </SettingTitle>
           <RowFlex>
             <Switch
@@ -632,19 +617,6 @@ const RadioButton = styled(Radio.Button)`
   flex: 1;
   justify-content: center;
   align-items: center;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const SliderContainer = styled.div`

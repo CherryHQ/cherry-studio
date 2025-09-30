@@ -1,3 +1,5 @@
+import { HelpTooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
@@ -29,14 +31,13 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   FolderOpen,
-  HelpCircle,
   MenuIcon,
   NotebookPen,
   PackagePlus,
@@ -266,11 +267,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         label: t('chat.topics.prompt.label'),
         key: 'topic-prompt',
         icon: <PackagePlus size={14} />,
-        extra: (
-          <Tooltip title={t('chat.topics.prompt.tips')}>
-            <HelpCircle size={14} />
-          </Tooltip>
-        ),
+        extra: <HelpTooltip content={t('chat.topics.prompt.tips')} />,
         async onClick() {
           const prompt = await PromptPopup.show({
             title: t('chat.topics.prompt.edit.title'),
@@ -575,9 +572,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
-                    title={
+                    delay={700}
+                    closeDelay={0}
+                    content={
                       <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
                         {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
                       </div>

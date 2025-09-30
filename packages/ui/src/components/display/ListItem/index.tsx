@@ -43,7 +43,7 @@ const ListItem = ({
       <div className="flex items-center gap-0.5 overflow-hidden text-xs">
         {icon && <span className="flex items-center justify-center mr-2">{icon}</span>}
         <div className="flex-1 flex flex-col overflow-hidden">
-          <Tooltip content={title} placement="top">
+          <Tooltip content={title}>
             <div className="truncate text-gray-900 dark:text-gray-100" style={titleStyle}>
               {title}
             </div>

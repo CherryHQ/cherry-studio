@@ -1,5 +1,5 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
-import { Avatar, AvatarGroup, RowFlex } from '@cherrystudio/ui'
+import { Avatar, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -8,7 +8,7 @@ import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import type { MultiModelFoldDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Segmented as AntdSegmented, Tooltip } from 'antd'
+import { Segmented as AntdSegmented } from 'antd'
 import { first } from 'lodash'
 import { motion } from 'motion/react'
 import type { FC } from 'react'
@@ -41,7 +41,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -68,14 +68,13 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   return (
     <Container>
       <Tooltip
-        title={
+        content={
           isCompact
             ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
-        placement="top"
-        mouseEnterDelay={0.5}
-        mouseLeaveDelay={0}>
+        delay={500}
+        closeDelay={0}>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
           onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>
@@ -91,7 +90,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               const isSelected = message.id === selectMessageId
 
               return (
-                <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+                <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
                   <Avatar
                     src={getModelLogo(message.model?.id || '')}
                     name={first(message.model?.name)}

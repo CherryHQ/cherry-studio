@@ -1,5 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Avatar, EmojiAvatar } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
@@ -15,7 +15,7 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Checkbox, Tooltip } from 'antd'
+import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC } from 'react'
@@ -118,7 +118,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             {username}
           </UserName>
           {isGroupContextMessage && (
-            <Tooltip title={t('chat.message.useful.tip')}>
+            <Tooltip content={t('chat.message.useful.tip')}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}

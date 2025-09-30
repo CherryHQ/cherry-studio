@@ -1,6 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -363,17 +363,17 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               />
               <ToolBar>
                 {showUserToggle && (
-                  <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
+                  <Tooltip placement="bottom" content={t('button.includes_user_questions')} delay={800}>
                     <ActionIconButton
                       onPress={userOutlinedButtonOnClick}
                       isIconOnly
                       icon={
                         <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
                       }
-                    />
+                    />{' '}
                   </Tooltip>
                 )}
-                <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
+                <Tooltip placement="bottom" content={t('button.case_sensitive')} delay={800}>
                   <ActionIconButton
                     onPress={caseSensitiveButtonOnClick}
                     icon={
@@ -382,9 +382,9 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                         style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
                       />
                     }
-                  />
+                  />{' '}
                 </Tooltip>
-                <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
+                <Tooltip placement="bottom" content={t('button.whole_word')} delay={800}>
                   <ActionIconButton
                     onPress={wholeWordButtonOnClick}
                     icon={

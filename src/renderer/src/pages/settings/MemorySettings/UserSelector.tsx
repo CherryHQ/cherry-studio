@@ -1,7 +1,5 @@
-import { Flex, RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
-import { Avatar } from '@cherrystudio/ui'
-import { Select, Tooltip } from 'antd'
+import { Avatar, Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Select } from 'antd'
 import { UserRoundPlus } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,9 +24,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
     (userId: string, userName: string) => {
       return (
         <RowFlex className="items-center gap-2.5">
-          <Avatar className="h-5 w-5 bg-primary">
-            {getUserAvatar(userId)}
-          </Avatar>
+          <Avatar className="h-5 w-5 bg-primary">{getUserAvatar(userId)}</Avatar>
           <span>{userName}</span>
         </RowFlex>
       )
@@ -55,7 +51,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   return (
     <Flex className="gap-2">
       <Select value={currentUser} onChange={onUserSwitch} style={{ width: 200 }} options={options} />
-      <Tooltip title={t('memory.add_new_user')}>
+      <Tooltip content={t('memory.add_new_user')}>
         <Button size="sm" variant="solid" onPress={onAddUser} startContent={<UserRoundPlus size={16} />} isIconOnly />
       </Tooltip>
     </Flex>

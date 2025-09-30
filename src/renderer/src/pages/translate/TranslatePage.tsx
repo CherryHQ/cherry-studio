@@ -1,6 +1,5 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -42,7 +41,7 @@ import {
   determineTargetLanguage
 } from '@renderer/utils/translate'
 import { imageExts, MB, textExts } from '@shared/config/constant'
-import { FloatButton, Popover, Tooltip, Typography } from 'antd'
+import { FloatButton, Popover, Typography } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
@@ -335,8 +334,7 @@ const TranslatePage: FC = () => {
       window.toast.error(t('translate.error.detect.unknown'))
       return
     }
-    const target = targetLanguage
-    setSourceLanguage(target)
+    setSourceLanguage(targetLanguage)
     setTargetLanguage(source)
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
@@ -718,7 +716,7 @@ const TranslatePage: FC = () => {
                 }
               ]}
             />
-            <Tooltip title={t('translate.exchange.label')} placement="bottom">
+            <Tooltip content={t('translate.exchange.label')} placement="bottom">
               <Button
                 variant="light"
                 startContent={<SwapOutlined />}
@@ -988,10 +986,9 @@ const TranslateButton = ({
   const { t } = useTranslation()
   return (
     <Tooltip
-      mouseEnterDelay={0.5}
+      delay={500}
       placement="bottom"
-      styles={{ body: { fontSize: '12px' } }}
-      title={
+      content={
         <div style={{ textAlign: 'center' }}>
           Enter: {t('translate.button.translate')}
           <br />

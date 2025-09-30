@@ -1,7 +1,5 @@
-import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
@@ -21,7 +19,7 @@ import {
 import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Input, Tooltip, Typography } from 'antd'
+import { Input, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -178,9 +176,10 @@ const NutstoreSettings: FC = () => {
       <RowFlex className="items-center gap-[5px]">
         {nutstoreSyncState.syncing && <SyncOutlined spin />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
-          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}>
-            <WarningOutlined style={{ color: 'red' }} />
-          </Tooltip>
+          <WarnTooltip
+            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
+            iconProps={{ style: { color: 'red' } }}
+          />
         )}
         {nutstoreSyncState.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>

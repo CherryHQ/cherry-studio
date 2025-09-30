@@ -1,5 +1,4 @@
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
@@ -7,7 +6,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Space, Tag, Tooltip, Typography } from 'antd'
+import { Alert, Space, Tag, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback } from 'react'
@@ -83,7 +82,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 color="danger"
                 variant="light"
                 startContent={
-                  <Tooltip title={t('error.boundary.details')}>
+                  <Tooltip content={t('error.boundary.details')}>
                     <CircleXIcon size={16} />
                   </Tooltip>
                 }
@@ -95,7 +94,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 color="danger"
                 variant="light"
                 startContent={
-                  <Tooltip title={t('common.delete')}>
+                  <Tooltip content={t('common.delete')}>
                     <DeleteIcon size={16} />
                   </Tooltip>
                 }

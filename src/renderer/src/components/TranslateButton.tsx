@@ -1,10 +1,9 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { Tooltip } from 'antd'
 import { Languages } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -66,10 +65,8 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
 
   return (
     <Tooltip
-      placement="top"
-      title={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
-      mouseLeaveDelay={0}
-      arrow>
+      content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
+      closeDelay={0}>
       <Button
         onPress={handleTranslate}
         isDisabled={disabled || isTranslating}

@@ -1,7 +1,6 @@
-import { Button } from '@cherrystudio/ui'
+import type { TooltipProps } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import type { Model } from '@renderer/types'
-import type { TooltipProps } from 'antd'
-import { Tooltip } from 'antd'
 import { useCallback, useMemo } from 'react'
 
 import ModelAvatar from './Avatar/ModelAvatar'
@@ -39,7 +38,7 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
     return button
   } else {
     return (
-      <Tooltip title={model.name} {...tooltipProps}>
+      <Tooltip content={model.name} {...tooltipProps}>
         {button}
       </Tooltip>
     )

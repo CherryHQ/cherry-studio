@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
@@ -23,7 +24,7 @@ import type { FileType, KnowledgeBase, Model } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
-import { Divider, Dropdown, Tooltip } from 'antd'
+import { Divider, Dropdown } from 'antd'
 import type { ItemType } from 'antd/es/menu/interface'
 import {
   AtSign,
@@ -354,11 +355,7 @@ const InputbarTools = ({
         key: 'new_topic',
         label: t('chat.input.new_topic', { Command: '' }),
         component: (
-          <Tooltip
-            placement="top"
-            title={t('chat.input.new_topic', { Command: newTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
+          <Tooltip content={t('chat.input.new_topic', { Command: newTopicShortcut })} closeDelay={0}>
             <ActionIconButton onPress={addNewTopic} icon={<MessageSquareDiff size={19} />} />
           </Tooltip>
         )
@@ -459,11 +456,7 @@ const InputbarTools = ({
         key: 'clear_topic',
         label: t('chat.input.clear.label', { Command: '' }),
         component: (
-          <Tooltip
-            placement="top"
-            title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
+          <Tooltip content={t('chat.input.clear.label', { Command: clearTopicShortcut })} closeDelay={0} showArrow>
             <ActionIconButton onPress={clearTopic} icon={<PaintbrushVertical size={18} />} />
           </Tooltip>
         )
@@ -472,11 +465,7 @@ const InputbarTools = ({
         key: 'toggle_expand',
         label: isExpended ? t('chat.input.collapse') : t('chat.input.expand'),
         component: (
-          <Tooltip
-            placement="top"
-            title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
-            mouseLeaveDelay={0}
-            arrow>
+          <Tooltip content={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} closeDelay={0} showArrow>
             <ActionIconButton
               onPress={onToggleExpended}
               icon={isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -655,10 +644,7 @@ const InputbarTools = ({
         </DragDropContext>
 
         {showCollapseButton && (
-          <Tooltip
-            placement="top"
-            title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
-            arrow>
+          <Tooltip content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')} showArrow>
             <ActionIconButton
               onPress={() => dispatch(setIsCollapsed(!isCollapse))}
               icon={
@@ -715,9 +701,10 @@ const ToolWrapper = styled.div`
     width 0.2s,
     margin-right 0.2s,
     opacity 0.2s;
+
   &.is-collapsed {
-    width: 0px;
-    margin-right: 0px;
+    width: 0;
+    margin-right: 0;
     overflow: hidden;
     opacity: 0;
   }

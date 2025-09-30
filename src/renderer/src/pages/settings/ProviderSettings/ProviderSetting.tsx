@@ -1,7 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -28,10 +25,10 @@ import {
   isOpenAIProvider
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Divider, Input, Select, Space, Tooltip } from 'antd'
+import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -237,9 +234,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
-        <TriangleAlert size={16} color="var(--color-status-warning)" />
-      </Tooltip>
+      <WarnTooltip
+        content={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}
+        iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+      />
     )
   }
 
@@ -263,7 +261,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             </Link>
           )}
           {!isSystemProvider(provider) && (
-            <Tooltip title={t('settings.provider.api.options.label')}>
+            <Tooltip content={t('settings.provider.api.options.label')}>
               <Button
                 variant="light"
                 startContent={<Bolt size={14} />}
@@ -315,7 +313,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
-              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
                 <Button variant="light" onPress={openApiKeyList} startContent={<Settings2 size={16} />} isIconOnly />
               </Tooltip>
             )}

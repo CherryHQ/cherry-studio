@@ -1,6 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -10,7 +8,6 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
-import { WarnTooltip } from '@renderer/components/TooltipIcons'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import {
   isEmbeddingModel,
@@ -25,7 +22,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import type { ModalProps } from 'antd'
-import { Divider, Form, Input, InputNumber, Modal, Select, Tooltip } from 'antd'
+import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -187,11 +184,11 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <TypeTitle>
           <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
-            <WarnTooltip title={t('settings.moresetting.check.warn')} />
+            <WarnTooltip content={t('settings.moresetting.check.warn')} />
           </Flex>
 
           {hasUserModified && (
-            <Tooltip title={t('common.reset')}>
+            <Tooltip content={t('common.reset')}>
               <Button
                 size="sm"
                 startContent={<RotateCcw size={14} />}

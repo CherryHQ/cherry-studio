@@ -1,8 +1,5 @@
-import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { CloseCircleFilled } from '@ant-design/icons'
+import { Button, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -11,7 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Col, Input, InputNumber, Modal, Popover, Row, Slider, Tooltip } from 'antd'
+import { Col, Input, InputNumber, Modal, Popover, Row, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -160,16 +157,17 @@ const AssistantSettings: FC = () => {
           marginTop: 0
         }}>
         {t('settings.assistant.model_params')}
-        <Tooltip title={t('common.reset')} mouseLeaveDelay={0}>
+        <Tooltip content={t('common.reset')} closeDelay={0}>
           <Button variant="light" onPress={onReset} startContent={<ResetIcon size={16} />} isIconOnly />
         </Tooltip>
       </SettingSubtitle>
       <SettingRow>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.temperature.label')}</Label>
-          <Tooltip title={t('chat.settings.temperature.tip')}>
-            <QuestionIcon />
-          </Tooltip>
+          <HelpTooltip
+            content={t('chat.settings.temperature.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
@@ -208,9 +206,10 @@ const AssistantSettings: FC = () => {
       <SettingRow>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
-          <Tooltip title={t('chat.settings.top_p.tip')}>
-            <QuestionIcon />
-          </Tooltip>
+          <HelpTooltip
+            content={t('chat.settings.top_p.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
@@ -241,9 +240,10 @@ const AssistantSettings: FC = () => {
       )}
       <Row align="middle">
         <Label>{t('chat.settings.context_count.label')}</Label>
-        <Tooltip title={t('chat.settings.context_count.tip')}>
-          <QuestionIcon />
-        </Tooltip>
+        <HelpTooltip
+          content={t('chat.settings.context_count.tip')}
+          iconProps={{ className: 'cursor-pointer text-color-text-3' }}
+        />
       </Row>
       <Row align="middle" gutter={20}>
         <Col span={19}>
@@ -271,9 +271,10 @@ const AssistantSettings: FC = () => {
       <Flex className="items-center justify-between">
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
-            <QuestionIcon />
-          </Tooltip>
+          <HelpTooltip
+            content={t('chat.settings.max_tokens.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
@@ -388,10 +389,4 @@ const Label = styled.p`
   margin: 0;
   font-size: 14px;
   margin-right: 5px;
-`
-
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 14px;
-  cursor: pointer;
-  color: var(--color-text-3);
 `

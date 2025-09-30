@@ -1,9 +1,7 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -11,7 +9,6 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { Tooltip } from 'antd'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -87,7 +84,7 @@ const ModelSettings: FC = () => {
           <RowFlex className="items-center gap-2.5">
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
-            <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
+            <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
           </RowFlex>
         </SettingTitle>
         <RowFlex className="items-center">
@@ -133,7 +130,7 @@ const ModelSettings: FC = () => {
             onPress={() => TranslateSettingsPopup.show()}
           />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip title={t('common.reset')}>
+            <Tooltip content={t('common.reset')}>
               <Button startContent={<RedoOutlined />} className="ml-2" onPress={onResetTranslatePrompt} isIconOnly />
             </Tooltip>
           )}

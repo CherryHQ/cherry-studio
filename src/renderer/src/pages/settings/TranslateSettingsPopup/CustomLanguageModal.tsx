@@ -1,7 +1,6 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
@@ -173,7 +172,7 @@ const Label = (label: string, help: string) => {
   return (
     <Space>
       <span>{label}</span>
-      <InfoTooltip title={help} />
+      <InfoTooltip content={help} />
     </Space>
   )
 }

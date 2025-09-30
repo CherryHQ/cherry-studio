@@ -1,7 +1,5 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -9,7 +7,7 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -72,9 +70,10 @@ const WebDavSettings: FC = () => {
       <RowFlex className="items-center gap-[5px]">
         {webdavSync.syncing && <SyncOutlined spin />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
-          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}>
-            <WarningOutlined style={{ color: 'red' }} />
-          </Tooltip>
+          <WarnTooltip
+            content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
+            iconProps={{ color: 'red' }}
+          />
         )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>

@@ -1,6 +1,4 @@
-import { ColFlex, RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -14,7 +12,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Spin, Tooltip } from 'antd'
+import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -115,7 +113,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             />
           </RowFlex>
           <RowFlex>
-            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+            <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0}>
               <Button
                 variant="light"
                 onPress={runHealthCheck}

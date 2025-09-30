@@ -1,5 +1,5 @@
 // TODO: Refactor this component to use HeroUI
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { RootState } from '@renderer/store'
@@ -7,7 +7,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerEnabled, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Input, InputNumber, Tooltip, Typography } from 'antd'
+import { Input, InputNumber, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -148,7 +148,7 @@ const ApiServerSettings: FC = () => {
 
         <ControlSection>
           {apiServerRunning && (
-            <Tooltip title={t('apiServer.actions.restart.tooltip')}>
+            <Tooltip content={t('apiServer.actions.restart.tooltip')}>
               <RestartButton
                 $loading={apiServerLoading}
                 onClick={apiServerLoading ? undefined : handleApiServerRestart}>
@@ -171,7 +171,7 @@ const ApiServerSettings: FC = () => {
             />
           )}
 
-          <Tooltip title={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
+          <Tooltip content={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
             {apiServerRunning ? (
               <StopButton
                 $loading={apiServerLoading}
@@ -206,7 +206,7 @@ const ApiServerSettings: FC = () => {
                   {t('apiServer.actions.regenerate')}
                 </Button>
               )}
-              <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
+              <Tooltip content={t('apiServer.fields.apiKey.copyTooltip')}>
                 <Button
                   variant="light"
                   isIconOnly

@@ -1,7 +1,4 @@
-import { QuestionCircleOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
@@ -13,7 +10,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Col, Divider, Input, InputNumber, Row, Select, Slider, Tooltip } from 'antd'
+import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -246,9 +243,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <RowFlex className="items-center">
           <Label>
             {t('chat.settings.temperature.label')}
-            <Tooltip title={t('chat.settings.temperature.tip')}>
-              <QuestionIcon />
-            </Tooltip>
+            <HelpTooltip
+              content={t('chat.settings.temperature.tip')}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            />
           </Label>
         </RowFlex>
         <Switch
@@ -295,9 +293,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
-          <Tooltip title={t('chat.settings.top_p.tip')}>
-            <QuestionIcon />
-          </Tooltip>
+          <HelpTooltip
+            content={t('chat.settings.top_p.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
         </RowFlex>
         <Switch
           isSelected={enableTopP}
@@ -344,9 +343,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={20}>
           <Label>
             {t('chat.settings.context_count.label')}{' '}
-            <Tooltip title={t('chat.settings.context_count.tip')}>
-              <QuestionIcon />
-            </Tooltip>
+            <HelpTooltip
+              content={t('chat.settings.context_count.tip')}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            />
           </Label>
         </Col>
         <Col span={4}>
@@ -384,9 +384,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
-            <QuestionIcon />
-          </Tooltip>
+          <HelpTooltip
+            content={t('chat.settings.max_tokens.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
         </RowFlex>
         <Switch
           isSelected={enableMaxTokens}
@@ -519,12 +520,6 @@ const Label = styled.p`
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-`
-
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--color-text-3);
 `
 
 const ModelSelectButton = styled(Button)`

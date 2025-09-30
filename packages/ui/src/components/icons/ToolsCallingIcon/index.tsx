@@ -14,7 +14,7 @@ interface ToolsCallingIconProps extends React.HTMLAttributes<HTMLDivElement> {
 const ToolsCallingIcon = ({ className, iconClassName, TooltipProps, ...props }: ToolsCallingIconProps) => {
   return (
     <div className={cn('flex justify-center items-center', className)} {...props}>
-      <Tooltip placement="top" {...TooltipProps}>
+      <Tooltip {...TooltipProps}>
         <Wrench className={cn('w-4 h-4 mr-1.5 text-[#00b96b]', iconClassName)} />
       </Tooltip>
     </div>

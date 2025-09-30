@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -11,7 +11,7 @@ import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@ren
 import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Tooltip, Upload } from 'antd'
+import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -193,7 +193,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
-                            <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),

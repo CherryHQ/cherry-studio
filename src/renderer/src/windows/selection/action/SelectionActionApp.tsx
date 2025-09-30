@@ -1,11 +1,11 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Slider, Tooltip } from 'antd'
+import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
@@ -207,7 +207,7 @@ const SelectionActionApp: FC = () => {
         <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
         <TitleBarButtons>
           <Tooltip
-            title={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
+            content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
             <WinButton
               variant="light"
@@ -218,9 +218,9 @@ const SelectionActionApp: FC = () => {
             />
           </Tooltip>
           <Tooltip
-            title={t('selection.action.window.opacity')}
+            content={t('selection.action.window.opacity')}
             placement="bottom"
-            {...(showOpacitySlider ? { open: false } : {})}>
+            isOpen={showOpacitySlider ? false : undefined}>
             <WinButton
               variant="light"
               startContent={<Droplet size={14} />}

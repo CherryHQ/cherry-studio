@@ -8,12 +8,12 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isDev } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MinAppType } from '@renderer/types'
-import { Tooltip } from 'antd'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useState } from 'react'
@@ -84,19 +84,19 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
     <ToolbarContainer>
       <LeftSection>
         <ButtonGroup>
-          <Tooltip title={t('minapp.popup.goBack')} placement="bottom">
+          <Tooltip content={t('minapp.popup.goBack')} placement="bottom">
             <ToolbarButton onClick={handleGoBack} $disabled={!canGoBack}>
               <ArrowLeftOutlined />
             </ToolbarButton>
           </Tooltip>
 
-          <Tooltip title={t('minapp.popup.goForward')} placement="bottom">
+          <Tooltip content={t('minapp.popup.goForward')} placement="bottom">
             <ToolbarButton onClick={handleGoForward} $disabled={!canGoForward}>
               <ArrowRightOutlined />
             </ToolbarButton>
           </Tooltip>
 
-          <Tooltip title={t('minapp.popup.refresh')} placement="bottom">
+          <Tooltip content={t('minapp.popup.refresh')} placement="bottom">
             <ToolbarButton onClick={onReload}>
               <ReloadOutlined />
             </ToolbarButton>
@@ -107,7 +107,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       <RightSection>
         <ButtonGroup>
           {canOpenExternalLink && (
-            <Tooltip title={t('minapp.popup.openExternal')} placement="bottom">
+            <Tooltip content={t('minapp.popup.openExternal')} placement="bottom">
               <ToolbarButton onClick={handleOpenLink}>
                 <ExportOutlined />
               </ToolbarButton>
@@ -116,7 +116,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
           {canPinned && (
             <Tooltip
-              title={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
+              content={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
               placement="bottom">
               <ToolbarButton onClick={handleTogglePin} $active={isPinned}>
                 <PushpinOutlined />
@@ -125,7 +125,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           )}
 
           <Tooltip
-            title={
+            content={
               minappsOpenLinkExternal
                 ? t('minapp.popup.open_link_external_on')
                 : t('minapp.popup.open_link_external_off')
@@ -137,14 +137,14 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           </Tooltip>
 
           {isDev && (
-            <Tooltip title={t('minapp.popup.devtools')} placement="bottom">
+            <Tooltip content={t('minapp.popup.devtools')} placement="bottom">
               <ToolbarButton onClick={onOpenDevTools}>
                 <CodeOutlined />
               </ToolbarButton>
             </Tooltip>
           )}
 
-          <Tooltip title={t('minapp.popup.minimize')} placement="bottom">
+          <Tooltip content={t('minapp.popup.minimize')} placement="bottom">
             <ToolbarButton onClick={handleMinimize}>
               <MinusOutlined />
             </ToolbarButton>

@@ -10,14 +10,7 @@ interface EmojiAvatarProps {
   style?: React.CSSProperties
 }
 
-const EmojiAvatar = ({
-  children,
-  size = 31,
-  fontSize,
-  onClick,
-  className,
-  style
-}: EmojiAvatarProps) => (
+const EmojiAvatar = ({ children, size = 31, fontSize, onClick, className, style }: EmojiAvatarProps) => (
   <div
     onClick={onClick}
     className={cn(

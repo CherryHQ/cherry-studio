@@ -1,11 +1,11 @@
 import { Switch } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
-import { Slider, Tooltip } from 'antd'
+import { Slider } from 'antd'
 import { t } from 'i18next'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
@@ -30,9 +30,10 @@ const BasicSettings: FC = () => {
           <SettingRowTitle style={{ minWidth: 120 }}>
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
-              <Tooltip title={t('settings.tool.websearch.search_max_result.tooltip')} placement="top">
-                <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-              </Tooltip>
+              <InfoTooltip
+                content={t('settings.tool.websearch.search_max_result.tooltip')}
+                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
+              />
             )}
           </SettingRowTitle>
           <Slider

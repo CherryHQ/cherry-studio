@@ -1,12 +1,11 @@
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import type { InputRef } from 'antd'
-import { Input, List, Popconfirm, Tooltip, Typography } from 'antd'
+import { Input, List, Popconfirm, Typography } from 'antd'
 import { Check, Minus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useEffect, useRef, useState } from 'react'
@@ -108,7 +107,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
               disabled={disabled}
             />
             <Flex className="items-center gap-0">
-              <Tooltip title={t('common.save')}>
+              <Tooltip content={t('common.save')}>
                 <Button
                   color={hasUnsavedChanges ? 'primary' : 'default'}
                   variant={hasUnsavedChanges ? 'solid' : 'light'}
@@ -118,7 +117,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   isIconOnly
                 />
               </Tooltip>
-              <Tooltip title={t('common.cancel')}>
+              <Tooltip content={t('common.cancel')}>
                 <Button
                   variant="light"
                   startContent={<X size={16} />}
@@ -132,15 +131,12 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
         ) : (
           <>
             <Tooltip
-              title={
+              content={
                 <Typography.Text style={{ color: 'white' }} copyable={{ text: keyStatus.key }}>
                   {keyStatus.key}
                 </Typography.Text>
               }
-              mouseEnterDelay={0.5}
-              placement="top"
-              // 确保不留下明文
-              destroyOnHidden>
+              delay={500}>
               <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
             </Tooltip>
 
@@ -149,7 +145,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
               <Flex className="items-center gap-0">
                 {showHealthCheck && (
-                  <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                  <Tooltip content={t('settings.provider.check')} closeDelay={0}>
                     <Button
                       variant="light"
                       startContent={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
@@ -159,7 +155,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                     />
                   </Tooltip>
                 )}
-                <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
+                <Tooltip content={t('common.edit')} closeDelay={0}>
                   <Button
                     variant="light"
                     startContent={<EditIcon size={16} />}
@@ -175,7 +171,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   okText={t('common.confirm')}
                   cancelText={t('common.cancel')}
                   okButtonProps={{ color: 'danger' }}>
-                  <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
+                  <Tooltip content={t('common.delete')} closeDelay={0}>
                     <Button variant="light" startContent={<Minus size={16} />} isDisabled={disabled} isIconOnly />
                   </Tooltip>
                 </Popconfirm>

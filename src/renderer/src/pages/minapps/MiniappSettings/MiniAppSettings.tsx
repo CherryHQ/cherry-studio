@@ -1,11 +1,10 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Slider, Tooltip } from 'antd'
+import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,7 +107,7 @@ const MiniAppSettings: FC = () => {
         </SettingLabelGroup>
         <CacheSettingControls>
           <SliderWithResetContainer>
-            <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
+            <Tooltip content={t('settings.miniapps.reset_tooltip')}>
               <ResetButton onClick={handleResetCacheLimit}>
                 <UndoOutlined />
               </ResetButton>

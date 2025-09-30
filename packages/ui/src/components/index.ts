@@ -15,6 +15,7 @@ export { ErrorTag, InfoTag, StatusTag, SuccessTag, WarnTag } from './base/Status
 export { DescriptionSwitch, Switch } from './base/Switch'
 export { default as TextBadge } from './base/TextBadge'
 export { getToastUtilities, type ToastUtilities } from './base/Toast'
+export { Tooltip, type TooltipProps } from './base/Tooltip'
 
 // Display Components
 export { default as Ellipsis } from './display/Ellipsis'
@@ -80,15 +81,12 @@ export { DraggableList, useDraggableReorder } from './interactive/DraggableList'
 export type { EditableNumberProps } from './interactive/EditableNumber'
 // EditableNumber
 export { default as EditableNumber } from './interactive/EditableNumber'
-export { default as HelpTooltip } from './interactive/HelpTooltip'
+// Tooltip variants
+export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './interactive/IconTooltips'
 // ImageToolButton
 export { default as ImageToolButton } from './interactive/ImageToolButton'
-// InfoTooltip
-export { default as InfoTooltip } from './interactive/InfoTooltip'
 // Sortable
 export { Sortable } from './interactive/Sortable'
-// WarnTooltip
-export { default as WarnTooltip } from './interactive/WarnTooltip'
 
 // Composite Components (复合组件)
 // 暂无复合组件

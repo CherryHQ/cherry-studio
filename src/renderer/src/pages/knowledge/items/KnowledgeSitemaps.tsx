@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -8,7 +8,6 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -112,7 +111,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               fileInfo={{
                 name: (
                   <ClickableSpan>
-                    <Tooltip title={item.content as string}>
+                    <Tooltip content={item.content as string}>
                       <Ellipsis>
                         <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                           {item.content as string}

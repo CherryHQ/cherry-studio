@@ -1,11 +1,11 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { InputNumber, Space, Tooltip } from 'antd'
+import { InputNumber, Space } from 'antd'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -74,7 +74,7 @@ const InputEmbeddingDimension = ({
         onChange={onChange}
         disabled={disabled}
       />
-      <Tooltip title={t('knowledge.dimensions_auto_set')}>
+      <Tooltip content={t('knowledge.dimensions_auto_set')}>
         <Button
           role="button"
           aria-label="Get embedding dimension"
