@@ -49,8 +49,22 @@ export {
 export { default as SvgSpinners180Ring } from './icons/SvgSpinners180Ring'
 export { default as ToolsCallingIcon } from './icons/ToolsCallingIcon'
 
-// Interactive Components
+/* Interactive Components */
+
+// Selector / SearchableSelector
 export { default as Selector } from './base/Selector'
+export { default as SearchableSelector } from './base/Selector/SearchableSelector'
+export type {
+  MultipleSearchableSelectorProps,
+  MultipleSelectorProps,
+  SearchableSelectorItem,
+  SearchableSelectorProps,
+  SelectorItem,
+  SelectorProps,
+  SingleSearchableSelectorProps,
+  SingleSelectorProps
+} from './base/Selector/types'
+// CodeEditor
 export {
   default as CodeEditor,
   type CodeEditorHandles,
@@ -59,12 +73,19 @@ export {
   getCmThemeByName,
   getCmThemeNames
 } from './interactive/CodeEditor'
+// CollapsibleSearchBar
 export { default as CollapsibleSearchBar } from './interactive/CollapsibleSearchBar'
+// DraggableList
 export { DraggableList, useDraggableReorder } from './interactive/DraggableList'
+// EditableNumber
 export type { EditableNumberProps } from './interactive/EditableNumber'
+// EditableNumber
 export { default as EditableNumber } from './interactive/EditableNumber'
+// Tooltip variants
 export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './interactive/IconTooltips'
+// ImageToolButton
 export { default as ImageToolButton } from './interactive/ImageToolButton'
+// Sortable
 export { Sortable } from './interactive/Sortable'
 
 // Composite Components (复合组件)

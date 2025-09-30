@@ -13,9 +13,13 @@ interface Props {
 }
 
 const ModelAvatar: FC<Props> = ({ model, size, className, ...props }) => {
-  const classNames = cn('flex items-center justify-center', `h-[${size}px] w-[${size}px]`, `${className || ''}`)
   return (
-    <Avatar src={getModelLogo(model?.id || '')} {...props} className={classNames}>
+    <Avatar
+      src={getModelLogo(model?.id || '')}
+      radius="lg"
+      className={cn('flex items-center justify-center', `${className || ''}`)}
+      style={{ width: size, height: size }}
+      {...props}>
       {first(model?.name)}
     </Avatar>
   )

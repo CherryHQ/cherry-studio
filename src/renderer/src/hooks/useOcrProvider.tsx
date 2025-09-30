@@ -72,11 +72,11 @@ export const useOcrProviders = () => {
     if (isBuiltinOcrProvider(p)) {
       switch (p.id) {
         case 'tesseract':
-          return <Avatar className={`h-[${size}px] w-[${size}px]`} src={TesseractLogo} />
+          return <Avatar src={TesseractLogo} style={{ width: size, height: size }} />
         case 'system':
           return <MonitorIcon size={size} />
         case 'paddleocr':
-          return <Avatar className={`h-[${size}px] w-[${size}px]`} src={PaddleocrLogo} />
+          return <Avatar src={PaddleocrLogo} style={{ width: size, height: size }} />
       }
     }
     return <FileQuestionMarkIcon size={size} />

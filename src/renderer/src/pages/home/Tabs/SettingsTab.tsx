@@ -1,4 +1,4 @@
-import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector } from '@cherrystudio/ui'
+import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector, type SelectorItem } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -17,7 +17,7 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { MultiModelMessageStyle, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Col, InputNumber, Row, Slider } from 'antd'
 import { Settings2 } from 'lucide-react'
@@ -99,6 +99,63 @@ const SettingsTab: FC<Props> = (props) => {
   const { translateLanguages } = useTranslate()
 
   const { t } = useTranslation()
+
+  const messageStyleItems = useMemo<SelectorItem<'plain' | 'bubble'>[]>(
+    () => [
+      { value: 'plain', label: t('message.message.style.plain') },
+      { value: 'bubble', label: t('message.message.style.bubble') }
+    ],
+    [t]
+  )
+
+  const multiModelMessageStyleItems = useMemo<SelectorItem<MultiModelMessageStyle>[]>(
+    () => [
+      { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
+      { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
+      { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
+      { value: 'grid', label: t('message.message.multi_model_style.grid') }
+    ],
+    [t]
+  )
+
+  const messageNavigationItems = useMemo<SelectorItem<'none' | 'buttons' | 'anchor'>[]>(
+    () => [
+      { value: 'none', label: t('settings.messages.navigation.none') },
+      { value: 'buttons', label: t('settings.messages.navigation.buttons') },
+      { value: 'anchor', label: t('settings.messages.navigation.anchor') }
+    ],
+    [t]
+  )
+
+  const mathEngineItems = useMemo<SelectorItem<MathEngine>[]>(
+    () => [
+      { value: 'KaTeX', label: 'KaTeX' },
+      { value: 'MathJax', label: 'MathJax' },
+      { value: 'none', label: t('settings.math.engine.none') }
+    ],
+    [t]
+  )
+
+  const codeStyleItems = useMemo<SelectorItem<CodeStyleVarious>[]>(
+    () => themeNames.map((theme) => ({ value: theme, label: theme })),
+    [themeNames]
+  )
+
+  const targetLanguageItems = useMemo<SelectorItem<string>[]>(
+    () => translateLanguages.map((item) => ({ value: item.langCode, label: item.emoji + ' ' + item.label() })),
+    [translateLanguages]
+  )
+
+  const sendMessageShortcutItems = useMemo<SelectorItem<SendMessageShortcut>[]>(
+    () => [
+      { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
+      { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
+      { value: 'Alt+Enter', label: getSendMessageShortcutLabel('Alt+Enter') },
+      { value: 'Command+Enter', label: getSendMessageShortcutLabel('Command+Enter') },
+      { value: 'Shift+Enter', label: getSendMessageShortcutLabel('Shift+Enter') }
+    ],
+    []
+  )
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
     updateAssistantSettings(settings)
@@ -341,12 +398,10 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('message.message.style.label')}
-              selectedKeys={[messageStyle]}
-              onSelectionChange={(value) => setMessageStyle(value[0] as 'plain' | 'bubble')}
-              items={[
-                { value: 'plain', label: t('message.message.style.plain') },
-                { value: 'bubble', label: t('message.message.style.bubble') }
-              ]}
+              selectionMode="single"
+              selectedKeys={messageStyle}
+              onSelectionChange={(value) => setMessageStyle(value)}
+              items={messageStyleItems}
             />
           </SettingRow>
           <SettingDivider />
@@ -355,14 +410,10 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('message.message.multi_model_style.label')}
-              selectedKeys={[multiModelMessageStyle]}
-              onSelectionChange={(value) => setMultiModelMessageStyle(value[0])}
-              items={[
-                { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
-                { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
-                { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
-                { value: 'grid', label: t('message.message.multi_model_style.grid') }
-              ]}
+              selectionMode="single"
+              selectedKeys={multiModelMessageStyle}
+              onSelectionChange={(value) => setMultiModelMessageStyle(value)}
+              items={multiModelMessageStyleItems}
             />
           </SettingRow>
           <SettingDivider />
@@ -371,13 +422,10 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('settings.messages.navigation.label')}
-              selectedKeys={[messageNavigation]}
-              onSelectionChange={(value) => setMessageNavigation(value[0] as 'none' | 'buttons' | 'anchor')}
-              items={[
-                { value: 'none', label: t('settings.messages.navigation.none') },
-                { value: 'buttons', label: t('settings.messages.navigation.buttons') },
-                { value: 'anchor', label: t('settings.messages.navigation.anchor') }
-              ]}
+              selectionMode="single"
+              selectedKeys={messageNavigation}
+              onSelectionChange={(value) => setMessageNavigation(value)}
+              items={messageNavigationItems}
             />
           </SettingRow>
           <SettingDivider />
@@ -411,13 +459,10 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('settings.math.engine.label')}
-              selectedKeys={[mathEngine]}
-              onSelectionChange={(value) => setMathEngine(value[0] as MathEngine)}
-              items={[
-                { value: 'KaTeX', label: 'KaTeX' },
-                { value: 'MathJax', label: 'MathJax' },
-                { value: 'none', label: t('settings.math.engine.none') }
-              ]}
+              selectionMode="single"
+              selectedKeys={mathEngine}
+              onSelectionChange={(value) => setMathEngine(value)}
+              items={mathEngineItems}
             />
           </SettingRow>
           <SettingDivider />
@@ -443,12 +488,10 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('message.message.code_style')}
-              selectedKeys={[codeStyle]}
-              onSelectionChange={(value) => onCodeStyleChange(value[0] as CodeStyleVarious)}
-              items={themeNames.map((theme) => ({
-                value: theme,
-                label: theme
-              }))}
+              selectionMode="single"
+              selectedKeys={codeStyle}
+              onSelectionChange={(value) => onCodeStyleChange(value)}
+              items={codeStyleItems}
             />
           </SettingRow>
           <SettingDivider />
@@ -681,12 +724,11 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('settings.input.target_language.label')}
-              selectedKeys={[targetLanguage]}
-              onSelectionChange={(value) => setTargetLanguage(value[0])}
+              selectionMode="single"
+              selectedKeys={targetLanguage}
+              onSelectionChange={(value) => setTargetLanguage(value)}
               placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
-              items={translateLanguages.map((item) => {
-                return { value: item.langCode, label: item.emoji + ' ' + item.label() }
-              })}
+              items={targetLanguageItems}
             />
           </SettingRow>
           <SettingDivider />
@@ -695,15 +737,10 @@ const SettingsTab: FC<Props> = (props) => {
             <Selector
               size="sm"
               label={t('settings.messages.input.send_shortcuts')}
-              selectedKeys={[sendMessageShortcut]}
-              onSelectionChange={(value) => setSendMessageShortcut(value[0] as SendMessageShortcut)}
-              items={[
-                { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
-                { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
-                { value: 'Alt+Enter', label: getSendMessageShortcutLabel('Alt+Enter') },
-                { value: 'Command+Enter', label: getSendMessageShortcutLabel('Command+Enter') },
-                { value: 'Shift+Enter', label: getSendMessageShortcutLabel('Shift+Enter') }
-              ]}
+              selectionMode="single"
+              selectedKeys={sendMessageShortcut}
+              onSelectionChange={(value) => setSendMessageShortcut(value)}
+              items={sendMessageShortcutItems}
             />
           </SettingRow>
         </SettingGroup>
