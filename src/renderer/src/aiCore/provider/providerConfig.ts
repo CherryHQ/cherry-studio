@@ -18,7 +18,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { cloneDeep, isEmpty } from 'lodash'
+import { cloneDeep, trim } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
 import { getAiSdkProviderId } from './factory'
@@ -120,7 +120,7 @@ export function providerToAiSdkConfig(
 
   // 构建基础配置
   const baseConfig = {
-    baseURL: actualProvider.apiHost,
+    baseURL: trim(actualProvider.apiHost),
     apiKey: getRotatedApiKey(actualProvider)
   }
   // 处理OpenAI模式
@@ -195,7 +195,10 @@ export function providerToAiSdkConfig(
     } else if (baseConfig.baseURL.endsWith('/v1')) {
       baseConfig.baseURL = baseConfig.baseURL.slice(0, -3)
     }
-    baseConfig.baseURL = isEmpty(baseConfig.baseURL) ? '' : baseConfig.baseURL
+
+    if (baseConfig.baseURL && !baseConfig.baseURL.includes('publishers/google')) {
+      baseConfig.baseURL = `${baseConfig.baseURL}/v1/projects/${project}/locations/${location}/publishers/google`
+    }
   }
 
   // 如果AI SDK支持该provider，使用原生配置

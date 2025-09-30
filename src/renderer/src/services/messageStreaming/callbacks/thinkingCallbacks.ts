@@ -15,7 +15,7 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
 
   // 内部维护的状态
   let thinkingBlockId: string | null = null
-  let _thinking_millsec = 0
+  let thinking_millsec_now: number = 0
 
   return {
     onThinkingStart: async () => {
@@ -24,27 +24,27 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
           type: MessageBlockType.THINKING,
           content: '',
           status: MessageBlockStatus.STREAMING,
-          thinking_millsec: _thinking_millsec
+          thinking_millsec: 0
         }
         thinkingBlockId = blockManager.initialPlaceholderBlockId!
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
       } else if (!thinkingBlockId) {
         const newBlock = createThinkingBlock(assistantMsgId, '', {
           status: MessageBlockStatus.STREAMING,
-          thinking_millsec: _thinking_millsec
+          thinking_millsec: 0
         })
         thinkingBlockId = newBlock.id
         await blockManager.handleBlockTransition(newBlock, MessageBlockType.THINKING)
       }
+      thinking_millsec_now = performance.now()
     },
 
-    onThinkingChunk: async (text: string, thinking_millsec?: number) => {
-      _thinking_millsec = thinking_millsec || 0
+    onThinkingChunk: async (text: string) => {
       if (thinkingBlockId) {
         const blockChanges: Partial<MessageBlock> = {
           content: text,
-          status: MessageBlockStatus.STREAMING,
-          thinking_millsec: _thinking_millsec
+          status: MessageBlockStatus.STREAMING
+          // thinking_millsec: performance.now() - thinking_millsec_now
         }
         blockManager.smartBlockUpdate(thinkingBlockId, blockChanges, MessageBlockType.THINKING)
       }
@@ -52,14 +52,15 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
 
     onThinkingComplete: (finalText: string) => {
       if (thinkingBlockId) {
+        const now = performance.now()
         const changes: Partial<MessageBlock> = {
           content: finalText,
           status: MessageBlockStatus.SUCCESS,
-          thinking_millsec: _thinking_millsec
+          thinking_millsec: now - thinking_millsec_now
         }
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
         thinkingBlockId = null
-        _thinking_millsec = 0
+        thinking_millsec_now = 0
       } else {
         logger.warn(
           `[onThinkingComplete] Received thinking.complete but last block was not THINKING (was ${blockManager.lastBlockType}) or lastBlockId is null.`

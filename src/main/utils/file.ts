@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -264,11 +265,12 @@ export async function scanDir(dirPath: string, depth = 0, basePath?: string): Pr
 
     if (entry.isDirectory() && options.includeDirectories) {
       const stats = await fs.promises.stat(entryPath)
+      const externalDirPath = entryPath.replace(/\\/g, '/')
       const dirTreeNode: NotesTreeNode = {
-        id: uuidv4(),
+        id: createHash('sha1').update(externalDirPath).digest('hex'),
         name: entry.name,
         treePath: treePath,
-        externalPath: entryPath,
+        externalPath: externalDirPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
         type: 'folder',
@@ -299,11 +301,12 @@ export async function scanDir(dirPath: string, depth = 0, basePath?: string): Pr
         ? `/${dirRelativePath.replace(/\\/g, '/')}/${nameWithoutExt}`
         : `/${nameWithoutExt}`
 
+      const externalFilePath = entryPath.replace(/\\/g, '/')
       const fileTreeNode: NotesTreeNode = {
-        id: uuidv4(),
+        id: createHash('sha1').update(externalFilePath).digest('hex'),
         name: name,
         treePath: fileTreePath,
-        externalPath: entryPath,
+        externalPath: externalFilePath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
         type: 'file'
