@@ -6,7 +6,7 @@ import type {
   ListOptions
 } from '@types'
 import { TextStreamPart } from 'ai'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, not } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
@@ -276,7 +276,7 @@ export class SessionMessageService extends BaseService {
       const result = await this.database
         .select({ agent_session_id: sessionMessagesTable.agent_session_id })
         .from(sessionMessagesTable)
-        .where(eq(sessionMessagesTable.session_id, sessionId))
+        .where(and(eq(sessionMessagesTable.session_id, sessionId), not(eq(sessionMessagesTable.agent_session_id, ''))))
         .orderBy(desc(sessionMessagesTable.created_at))
         .limit(1)
 

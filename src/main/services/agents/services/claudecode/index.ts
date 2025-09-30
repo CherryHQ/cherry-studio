@@ -211,6 +211,11 @@ class ClaudeCodeService implements AgentServiceInterface {
             message,
             event: JSON.stringify(message.event)
           })
+        } else {
+          logger.silly('Claude response', {
+            message,
+            event: JSON.stringify(message)
+          })
         }
 
         // Transform SDKMessage to UIMessageChunks

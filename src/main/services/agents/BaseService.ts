@@ -59,16 +59,23 @@ export abstract class BaseService {
     }
     if (ids && ids.length > 0) {
       for (const id of ids) {
-        const server = await mcpApiService.getServerInfo(id)
-        if (server) {
-          server.tools.forEach((tool: MCPTool) => {
-            tools.push({
-              id: `mcp_${id}_${tool.name}`,
-              name: tool.name,
-              type: 'mcp',
-              description: tool.description || '',
-              requirePermissions: true
+        try {
+          const server = await mcpApiService.getServerInfo(id)
+          if (server) {
+            server.tools.forEach((tool: MCPTool) => {
+              tools.push({
+                id: `mcp_${id}_${tool.name}`,
+                name: tool.name,
+                type: 'mcp',
+                description: tool.description || '',
+                requirePermissions: true
+              })
             })
+          }
+        } catch (error) {
+          logger.warn('Failed to list MCP tools', {
+            id,
+            error: error as Error
           })
         }
       }
