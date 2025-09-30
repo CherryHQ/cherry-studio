@@ -1,7 +1,9 @@
 import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
@@ -17,6 +19,7 @@ const SiyuanSettings: FC = () => {
   const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
   const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
 
+  const { openSmartMinapp } = useMinappPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
 
@@ -34,6 +37,15 @@ const SiyuanSettings: FC = () => {
 
   const handleRootPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSiyuanRootPath(e.target.value)
+  }
+
+  const handleSiyuanHelpClick = () => {
+    openSmartMinapp({
+      id: 'siyuan-help',
+      name: 'Siyuan Help',
+      url: 'https://docs.cherry-ai.com/advanced-basic/siyuan',
+      logo: AppLogo
+    })
   }
 
   const handleCheckConnection = async () => {
@@ -92,6 +104,7 @@ const SiyuanSettings: FC = () => {
             content={t('settings.data.siyuan.token.help')}
             placement="left"
             iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            onClick={handleSiyuanHelpClick}
           />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
