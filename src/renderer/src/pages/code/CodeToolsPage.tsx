@@ -361,62 +361,64 @@ const CodeToolsPage: FC = () => {
               />
             </SettingsItem>
 
-            <SettingsItem>
-              <div className="settings-label">
-                {t('code.model')}
-                {selectedCliTool === 'claude-code' && (
-                  <Popover
-                    content={
-                      <div style={{ width: 200 }}>
-                        <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 8
-                          }}>
-                          {getClaudeSupportedProviders(allProviders).map((provider) => {
-                            return (
-                              <Link
-                                key={provider.id}
-                                style={{
-                                  color: 'var(--color-text)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4
-                                }}
-                                to={`/settings/provider?id=${provider.id}`}>
-                                <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
-                                {getProviderLabel(provider.id)}
-                                <ArrowUpRight size={14} />
-                              </Link>
-                            )
-                          })}
+            {selectedCliTool !== codeTools.githubCopilotCli && (
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('code.model')}
+                  {selectedCliTool === 'claude-code' && (
+                    <Popover
+                      content={
+                        <div style={{ width: 200 }}>
+                          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 8
+                            }}>
+                            {getClaudeSupportedProviders(allProviders).map((provider) => {
+                              return (
+                                <Link
+                                  key={provider.id}
+                                  style={{
+                                    color: 'var(--color-text)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4
+                                  }}
+                                  to={`/settings/provider?id=${provider.id}`}>
+                                  <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
+                                  {getProviderLabel(provider.id)}
+                                  <ArrowUpRight size={14} />
+                                </Link>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    }
-                    trigger="hover"
-                    placement="right">
-                    <HelpCircle
-                      size={14}
-                      style={{
-                        color: 'var(--color-text-3)',
-                        cursor: 'pointer'
-                      }}
-                    />
-                  </Popover>
-                )}
-              </div>
-              <ModelSelector
-                providers={availableProviders}
-                predicate={modelPredicate}
-                style={{ width: '100%' }}
-                placeholder={t('code.model_placeholder')}
-                value={selectedModel ? getModelUniqId(selectedModel) : undefined}
-                onChange={handleModelChange}
-                allowClear
-              />
-            </SettingsItem>
+                      }
+                      trigger="hover"
+                      placement="right">
+                      <HelpCircle
+                        size={14}
+                        style={{
+                          color: 'var(--color-text-3)',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    </Popover>
+                  )}
+                </div>
+                <ModelSelector
+                  providers={availableProviders}
+                  predicate={modelPredicate}
+                  style={{ width: '100%' }}
+                  placeholder={t('code.model_placeholder')}
+                  value={selectedModel ? getModelUniqId(selectedModel) : undefined}
+                  onChange={handleModelChange}
+                  allowClear
+                />
+              </SettingsItem>
+            )}
 
             <SettingsItem>
               <div className="settings-label">{t('code.working_directory')}</div>
