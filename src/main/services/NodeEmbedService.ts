@@ -2,12 +2,18 @@ import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, ipcMain } from 'electron'
 import { ChildProcess, spawn, spawnSync } from 'node:child_process'
+import net from 'node:net'
 import fse from 'fs-extra'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import StreamZip from 'node-stream-zip'
 
+import { getFilesDir } from '../utils/file'
+import storeSyncService from './StoreSyncService'
+
 const logger = loggerService.withContext('NodeEmbedService')
+
+// No default logo here. Leave empty to use renderer's default ApplicationLogo for custom minapps.
 
 export type NodeEmbedStatus = {
   running: boolean
@@ -26,6 +32,39 @@ export type InstalledNodeApp = {
   dir: string
   entry: string // relative to dir
   createdAt: number
+  args?: string[]
+  env?: Record<string, string>
+  healthCheck?: HealthCheckConfig
+  ui?: UiConfig
+}
+
+type HealthCheckConfig = {
+  type?: 'http' | 'tcp'
+  // http options
+  url?: string // full URL, takes precedence
+  path?: string // used with portFromEnv
+  portFromEnv?: string // env var name that holds the port, e.g. "PORT"
+  timeoutMs?: number // per-attempt timeout
+  intervalMs?: number // interval between attempts
+  retries?: number // number of attempts
+}
+
+type UiConfig = {
+  url?: string
+  path?: string
+  portFromEnv?: string
+  name?: string
+  logo?: string
+}
+
+type CherryNodeAppManifest = {
+  name?: string
+  version?: string
+  entry?: string
+  args?: string[]
+  env?: Record<string, string>
+  healthCheck?: HealthCheckConfig
+  ui?: UiConfig
 }
 
 function toBool(value: any, defaultValue = false): boolean {
@@ -139,21 +178,34 @@ export class NodeEmbedService {
   private getAppsDir(): string {
     return path.join(this.getRoot(), 'apps')
   }
-  private getManifestPath(dir: string): string {
+  // App-provided manifest inside the bundle
+  private getAppManifestPath(dir: string): string {
     return path.join(dir, 'cherry-node.json')
+  }
+  // Installed metadata manifest managed by Cherry Studio
+  private getInstallManifestPath(dir: string): string {
+    return path.join(dir, 'cherry-node.install.json')
   }
   private async ensureDirs() {
     await fse.ensureDir(this.getAppsDir())
   }
-  private async detectEntry(dir: string): Promise<{ entry: string; name: string; version?: string }> {
+  private async detectEntry(dir: string): Promise<{ entry: string; name: string; version?: string; args?: string[]; env?: Record<string, string>; healthCheck?: HealthCheckConfig; ui?: UiConfig }> {
     // 1) custom manifest
-    const custom = this.getManifestPath(dir)
+    const custom = this.getAppManifestPath(dir)
     if (await fse.pathExists(custom)) {
-      const data = await fse.readJSON(custom).catch(() => null)
+      const data = (await fse.readJSON(custom).catch(() => null)) as CherryNodeAppManifest | null
       if (data?.entry) {
         const abs = path.isAbsolute(data.entry) ? data.entry : path.join(dir, data.entry)
         if (await fse.pathExists(abs)) {
-          return { entry: abs, name: data.name || path.basename(dir), version: data.version }
+          return {
+            entry: abs,
+            name: data.name || path.basename(dir),
+            version: data.version,
+            args: data.args,
+            env: data.env,
+            healthCheck: data.healthCheck,
+            ui: data.ui
+          }
         }
       }
     }
@@ -235,7 +287,10 @@ export class NodeEmbedService {
   private generateId(prefix = 'app'): string {
     return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`
   }
-  async installFromZip(zipPath: string, override?: { entry?: string; name?: string }): Promise<InstalledNodeApp> {
+  async installFromZip(
+    zipPath: string,
+    override?: { entry?: string; name?: string; version?: string; args?: string[]; env?: Record<string, string>; healthCheck?: HealthCheckConfig; ui?: UiConfig }
+  ): Promise<InstalledNodeApp> {
     await this.ensureDirs()
     const appId = this.generateId()
     const destDir = path.join(this.getAppsDir(), appId)
@@ -268,17 +323,42 @@ export class NodeEmbedService {
       }
     }
     if (!info) {
-      throw new Error('Cannot detect entry file. Provide cherry-node.json with {"entry":"..."}.')
+      throw new Error('Cannot detect entry file. Provide cherry-node.json with {"entry":"..."} or specify an entry path during installation.')
     }
+    // Merge env from detected manifest and override
+    const mergedEnv: Record<string, string> = { ...(info.env || {}), ...(override?.env || {}) }
+    // Pre-allocate a port at install-time if we can infer the env key and no value set
+    try {
+      const portKey = override?.ui?.portFromEnv || info.ui?.portFromEnv || override?.healthCheck?.portFromEnv || info.healthCheck?.portFromEnv
+      if (portKey && !mergedEnv[portKey]) {
+        const p = await this.findFreePort()
+        mergedEnv[portKey] = String(p)
+        logger.info(`Allocated install-time port ${p} for ${override?.name || info.name} via env ${portKey}`)
+      }
+    } catch (e) {
+      logger.warn('Install-time port allocation failed:', e as Error)
+    }
+
     const manifest: InstalledNodeApp = {
       id: appId,
       name: override?.name || info.name,
-      version: info.version,
+      version: override?.version || info.version,
       dir: destDir,
       entry: path.relative(destDir, info.entry),
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      args: override?.args || info.args,
+      env: mergedEnv,
+      healthCheck: override?.healthCheck || info.healthCheck,
+      ui: override?.ui || info.ui
     }
-    await fse.writeJSON(this.getManifestPath(destDir), manifest, { spaces: 2 })
+    // Write installed manifest to separate file
+    await fse.writeJSON(this.getInstallManifestPath(destDir), manifest, { spaces: 2 })
+    // Auto-register mini app on install (upload)
+    try {
+      await this.autoRegisterMiniApp(manifest, manifest.env || {})
+    } catch (e) {
+      logger.warn(`Auto-register mini app failed during install for ${manifest.name}:`, e as Error)
+    }
     return manifest
   }
   async listInstalled(): Promise<InstalledNodeApp[]> {
@@ -288,30 +368,100 @@ export class NodeEmbedService {
     const result: InstalledNodeApp[] = []
     for (const id of sub) {
       const dir = path.join(appsDir, id)
-      const manifest = this.getManifestPath(dir)
-      if (await fse.pathExists(manifest)) {
-        const m = await fse.readJSON(manifest).catch(() => null)
-        if (m?.id && m?.entry) result.push({ ...m, dir })
+      const installManifest = this.getInstallManifestPath(dir)
+      let m: InstalledNodeApp | null = null
+      if (await fse.pathExists(installManifest)) {
+        m = (await fse.readJSON(installManifest).catch(() => null)) as InstalledNodeApp | null
+      } else {
+        // backward compatibility: read old combined manifest if present
+        const legacy = this.getAppManifestPath(dir)
+        if (await fse.pathExists(legacy)) {
+          const j = (await fse.readJSON(legacy).catch(() => null)) as any
+          if (j?.id && j?.entry) {
+            m = { ...j, dir } as InstalledNodeApp
+          }
+        }
       }
+      if (m?.id && m?.entry) result.push({ ...m, dir })
     }
     return result
   }
   async remove(appId: string): Promise<void> {
     if (this.runningInstalledApp?.id === appId) throw new Error('App is running; stop first.')
     await this.ensureDirs()
-    await fse.remove(path.join(this.getAppsDir(), appId))
+    const dir = path.join(this.getAppsDir(), appId)
+    // try auto-unregister before removing files
+    try {
+      const manifestPath = this.getInstallManifestPath(dir)
+      if (await fse.pathExists(manifestPath)) {
+        const m = (await fse.readJSON(manifestPath).catch(() => null)) as InstalledNodeApp | null
+        if (m) await this.autoUnregisterMiniApp(m)
+      }
+    } catch (e) {
+      logger.warn(`Failed to auto-unregister mini app for ${appId} during removal`, e as Error)
+    }
+    await fse.remove(dir)
   }
+  private async findFreePort(): Promise<number> {
+    return await new Promise<number>((resolve, reject) => {
+      const server = net.createServer()
+      server.on('error', reject)
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address()
+        if (address && typeof address === 'object') {
+          const port = address.port
+          server.close(() => resolve(port))
+        } else {
+          server.close(() => reject(new Error('Failed to acquire a free port')))
+        }
+      })
+    })
+  }
+
   private async spawnInstalled(app: InstalledNodeApp, env?: Record<string, string>) {
     const entryAbs = path.isAbsolute(app.entry) ? app.entry : path.join(app.dir, app.entry)
+    const mergedEnv: Record<string, string> = { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...(app.env || {}), ...(env || {}) }
+
+    // Allocate port if requested by healthCheck and not provided
+    const hc = app.healthCheck
+    if (hc?.type === 'http' && hc.portFromEnv) {
+      const key = hc.portFromEnv
+      if (!mergedEnv[key]) {
+        try {
+          const p = await this.findFreePort()
+          mergedEnv[key] = String(p)
+          logger.info(`Allocated port ${p} for ${app.name} via env ${key}`)
+        } catch (e) {
+          logger.warn(`Failed to allocate port for ${app.name}:`, e as Error)
+        }
+      }
+    }
+
+    const nodeArgs = [entryAbs, ...(app.args || [])]
     logger.info(`Starting Node app ${app.name} (${app.id}) -> ${entryAbs}`)
-    const child = spawn(process.execPath, [entryAbs], {
+    const child = spawn(process.execPath, nodeArgs, {
       cwd: app.dir,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...env },
+      env: mergedEnv,
       stdio: ['ignore', 'pipe', 'pipe']
     })
     this.child = child
     this.runningInstalledApp = app
-    child.stdout?.on('data', (d) => logger.info(`[${app.name}] ${d.toString().trimEnd()}`))
+    let miniAppUrlRegistered = false
+    child.stdout?.on('data', (d) => {
+      const text = d.toString()
+      logger.info(`[${app.name}] ${text.trimEnd()}`)
+      if (miniAppUrlRegistered) return
+      // Try to extract a local URL like http://localhost:3000 or http://127.0.0.1:3001
+      const m = text.match(/https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):([0-9]{2,5})(\/[\w\-./?=&%]*)?/i)
+      if (m) {
+        const host = m[1].toLowerCase() === '0.0.0.0' ? '127.0.0.1' : m[1].toLowerCase() === 'localhost' ? '127.0.0.1' : m[1]
+        const port = m[2]
+        const pathSuffix = m[3] && m[3].length > 0 ? m[3] : '/'
+        const url = `http://${host}:${port}${pathSuffix.startsWith('/') ? pathSuffix : `/${pathSuffix}`}`
+        this.upsertMiniAppEntry(app, url).catch((e) => logger.warn(`Mini app upsert failed from logs for ${app.name}:`, e as Error))
+        miniAppUrlRegistered = true
+      }
+    })
     child.stderr?.on('data', (d) => logger.warn(`[${app.name}] ${d.toString().trimEnd()}`))
     child.on('exit', (code, signal) => {
       logger.info(`Node app exited (${app.id}) code=${code} signal=${signal}`)
@@ -319,6 +469,269 @@ export class NodeEmbedService {
       this.runningInstalledApp = undefined
     })
     child.on('error', (err) => logger.error('Node app process error:', err))
+
+    // fire-and-forget health check only
+    this.performHealthCheck(app, mergedEnv).catch((e) => logger.warn(`Health check error for ${app.name}:`, e as Error))
+
+    // Ensure existing mini app URL is updated if it was a placeholder or changed
+    this.updateMiniAppUrlIfExists(app, mergedEnv).catch((e) => logger.warn(`Update mini app url failed for ${app.name}:`, e as Error))
+  }
+
+  private async performHealthCheck(app: InstalledNodeApp, envObj: Record<string, string>) {
+    const hc = app.healthCheck
+    if (!hc) return
+    const type = hc.type || 'http'
+    const timeoutMs = hc.timeoutMs ?? 3000
+    const intervalMs = hc.intervalMs ?? 500
+    const retries = hc.retries ?? 10
+
+    const url = (() => {
+      if (hc.url) return hc.url
+      if (type === 'http' && hc.path && hc.portFromEnv) {
+        const port = envObj[hc.portFromEnv]
+        if (port) return `http://127.0.0.1:${port}${hc.path.startsWith('/') ? hc.path : `/${hc.path}`}`
+      }
+      return undefined
+    })()
+
+    if (type === 'http' && url) {
+      logger.info(`Health check (http) for ${app.name}: ${url}`)
+      for (let i = 0; i < retries; i++) {
+        try {
+          const controller = new AbortController()
+          const to = setTimeout(() => controller.abort(), timeoutMs)
+          const res = await fetch(url, { signal: controller.signal })
+          clearTimeout(to)
+          if (res.ok) {
+            logger.info(`Health check passed for ${app.name}`)
+            return
+          }
+        } catch {}
+        await new Promise((r) => setTimeout(r, intervalMs))
+      }
+      logger.warn(`Health check did not pass for ${app.name} after ${retries} attempts`)
+    }
+  }
+
+  private async autoRegisterMiniApp(app: InstalledNodeApp, envObj: Record<string, string>): Promise<void> {
+    const id = `node-embed-${app.id}`
+
+    const buildUrl = (): string | undefined => {
+      const ui = app.ui
+      if (ui?.url) return ui.url
+      const getPortFromEnv = (key?: string) => (key ? envObj[key] : undefined)
+      const pickPort = () => getPortFromEnv(ui?.portFromEnv) || getPortFromEnv(app.healthCheck?.portFromEnv) || envObj['PORT']
+      const port = pickPort()
+      if (!port) return undefined
+      const p = ui?.path || '/'
+      return `http://127.0.0.1:${port}${p.startsWith('/') ? p : `/${p}`}`
+    }
+
+    const url = buildUrl()
+    if (!url) {
+      logger.info(`No UI url detected for ${app.name}, skip mini app registration`)
+      return
+    }
+
+    const name = app.ui?.name || app.name || 'Embedded App'
+    const usedLogo = app.ui?.logo || ''
+
+    const filePath = path.join(getFilesDir(), 'custom-minapps.json')
+    let list: any[] = []
+    try {
+      if (await fse.pathExists(filePath)) {
+        const text = await fse.readFile(filePath, 'utf8')
+        list = JSON.parse(text)
+      } else {
+        await fse.ensureDir(path.dirname(filePath))
+        list = []
+      }
+    } catch (e) {
+      logger.warn('Failed to read custom-minapps.json, will recreate', e as Error)
+      list = []
+    }
+
+    const existingIndex = list.findIndex((x) => x && x.id === id)
+    const now = new Date().toISOString()
+    const item = {
+      id,
+      name,
+      url,
+      logo: usedLogo,
+      type: 'Custom',
+      addTime: now
+    }
+
+    let changed = false
+    if (existingIndex >= 0) {
+      const prev = list[existingIndex]
+      // update if url/name/logo changed
+      if (prev.url !== url || prev.name !== name || prev.logo !== usedLogo) {
+        list[existingIndex] = { ...prev, ...item }
+        changed = true
+      }
+    } else {
+      list.push(item)
+      changed = true
+      // broadcast add to current window(s)
+      try {
+        storeSyncService.syncToRenderer('minApps/addMinApp', item)
+        // also try commonly used case-sensitive action name
+        storeSyncService.syncToRenderer('minapps/addMinApp', item)
+      } catch (e) {
+        logger.warn('Failed to broadcast mini app add action', e as Error)
+      }
+    }
+
+    if (changed) {
+      try {
+        await fse.writeFile(filePath, JSON.stringify(list, null, 2), 'utf8')
+        logger.info(`Updated custom-minapps.json with ${id}`)
+      } catch (e) {
+        logger.warn('Failed to write custom-minapps.json', e as Error)
+      }
+    }
+  }
+
+  private async updateMiniAppUrlIfExists(app: InstalledNodeApp, envObj: Record<string, string>): Promise<void> {
+    const id = `node-embed-${app.id}`
+    const filePath = path.join(getFilesDir(), 'custom-minapps.json')
+    if (!(await fse.pathExists(filePath))) return
+
+    let list: any[]
+    try {
+      list = JSON.parse(await fse.readFile(filePath, 'utf8'))
+    } catch {
+      return
+    }
+    const idx = Array.isArray(list) ? list.findIndex((x) => x && x.id === id) : -1
+    if (idx < 0) return
+
+    const buildUrl = (): string | undefined => {
+      const ui = app.ui
+      if (ui?.url) return ui.url
+      const getPortFromEnv = (key?: string) => (key ? envObj[key] : undefined)
+      const pickPort = () => getPortFromEnv(ui?.portFromEnv) || getPortFromEnv(app.healthCheck?.portFromEnv) || envObj['PORT']
+      const port = pickPort()
+      if (!port) return undefined
+      const p = ui?.path || '/'
+      return `http://127.0.0.1:${port}${p.startsWith('/') ? p : `/${p}`}`
+    }
+
+    const url = buildUrl()
+    if (!url) return
+
+    const prev = list[idx]
+    if (prev.url !== url) {
+      list[idx] = { ...prev, url }
+      try {
+        await fse.writeFile(filePath, JSON.stringify(list, null, 2), 'utf8')
+        logger.info(`Updated mini app url for ${app.name} -> ${url}`)
+        // broadcast a minimal update (reuse add action for simplicity in UI)
+        try {
+          storeSyncService.syncToRenderer('minApps/addMinApp', list[idx])
+          storeSyncService.syncToRenderer('minapps/addMinApp', list[idx])
+        } catch {}
+      } catch (e) {
+        logger.warn('Failed to persist updated mini app url', e as Error)
+      }
+    }
+  }
+
+  private async readMiniAppList(filePath: string): Promise<any[]> {
+    try {
+      if (await fse.pathExists(filePath)) {
+        const text = await fse.readFile(filePath, 'utf8')
+        const list = JSON.parse(text)
+        return Array.isArray(list) ? list : []
+      }
+    } catch {}
+    return []
+  }
+
+  private async writeMiniAppList(filePath: string, list: any[]): Promise<void> {
+    await fse.ensureDir(path.dirname(filePath))
+    await fse.writeFile(filePath, JSON.stringify(list, null, 2), 'utf8')
+  }
+
+  private async upsertMiniAppEntry(app: InstalledNodeApp, url: string): Promise<void> {
+    const id = `node-embed-${app.id}`
+    const name = app.ui?.name || app.name || 'Embedded App'
+    const logo = app.ui?.logo || ''
+    // normalize host 0.0.0.0/localhost to 127.0.0.1
+    try {
+      const u = new URL(url)
+      if (u.hostname === '0.0.0.0' || u.hostname === 'localhost') u.hostname = '127.0.0.1'
+      if (!u.pathname) u.pathname = '/'
+      url = u.toString()
+    } catch {}
+
+    const filePath = path.join(getFilesDir(), 'custom-minapps.json')
+    const list = await this.readMiniAppList(filePath)
+    const now = new Date().toISOString()
+    const idx = list.findIndex((x) => x && x.id === id)
+    const item = { id, name, url, logo, type: 'Custom', addTime: now }
+    let changed = false
+    if (idx >= 0) {
+      const prev = list[idx]
+      if (prev.url !== url || prev.name !== name || prev.logo !== logo) {
+        list[idx] = { ...prev, ...item }
+        changed = true
+      }
+    } else {
+      list.push(item)
+      changed = true
+    }
+
+    if (changed) {
+      try {
+        await this.writeMiniAppList(filePath, list)
+        logger.info(`Mini app upserted: ${name} -> ${url}`)
+        try {
+          storeSyncService.syncToRenderer('minApps/addMinApp', item)
+          storeSyncService.syncToRenderer('minapps/addMinApp', item)
+        } catch {}
+      } catch (e) {
+        logger.warn('Failed to persist mini app list on upsert', e as Error)
+      }
+    }
+  }
+
+  private async autoUnregisterMiniApp(app: InstalledNodeApp): Promise<void> {
+    const id = `node-embed-${app.id}`
+    const filePath = path.join(getFilesDir(), 'custom-minapps.json')
+
+    let list: any[] = []
+    try {
+      if (await fse.pathExists(filePath)) {
+        const text = await fse.readFile(filePath, 'utf8')
+        list = JSON.parse(text)
+      }
+    } catch (e) {
+      // If file is corrupted/non-json, treat as empty and rewrite
+      list = []
+    }
+
+    const newList = Array.isArray(list) ? list.filter((x) => !(x && x.id === id)) : []
+    const changed = JSON.stringify(list) !== JSON.stringify(newList)
+
+    if (changed) {
+      try {
+        await fse.ensureDir(path.dirname(filePath))
+        await fse.writeFile(filePath, JSON.stringify(newList, null, 2), 'utf8')
+        logger.info(`Removed ${id} from custom-minapps.json`)
+      } catch (e) {
+        logger.warn('Failed to update custom-minapps.json on unregister', e as Error)
+      }
+    }
+
+    // Broadcast removal to renderer stores (if reducer exists)
+    try {
+      storeSyncService.syncToRenderer('minApps/removeMinApp', id)
+      storeSyncService.syncToRenderer('minapps/removeMinApp', id)
+    } catch (e) {
+      logger.warn('Failed to broadcast mini app remove action', e as Error)
+    }
   }
   async startInstalled(appId: string, env?: Record<string, string>) {
     const apps = await this.listInstalled()
@@ -332,7 +745,13 @@ export class NodeEmbedService {
   }
 
   registerIpcHandlers() {
-    ipcMain.handle(IpcChannel.NodeEmbed_Install as any, async (_evt, zipPath: string, override?: { entry?: string; name?: string }) => {
+    ipcMain.handle(
+      IpcChannel.NodeEmbed_Install as any,
+      async (
+        _evt,
+        zipPath: string,
+        override?: { entry?: string; name?: string; version?: string; args?: string[]; env?: Record<string, string>; healthCheck?: HealthCheckConfig; ui?: UiConfig }
+      ) => {
       try {
         const app = await this.installFromZip(zipPath, override)
         return { success: true, app }
@@ -340,7 +759,8 @@ export class NodeEmbedService {
         logger.error('Install failed:', e)
         return { success: false, error: e?.message || 'unknown' }
       }
-    })
+    }
+    )
     ipcMain.handle(IpcChannel.NodeEmbed_List as any, async () => {
       try {
         const apps = await this.listInstalled()
