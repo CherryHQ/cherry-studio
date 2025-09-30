@@ -1,6 +1,8 @@
 import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
@@ -11,6 +13,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { openSmartMinapp } = useMinappPopup()
 
   const [yuqueToken, setYuqueToken] = usePreference('data.integration.yuque.token')
   const [yuqueUrl, setYuqueUrl] = usePreference('data.integration.yuque.url')
@@ -59,6 +62,15 @@ const YuqueSettings: FC = () => {
     window.toast.success(t('settings.data.yuque.check.success'))
   }
 
+  const handleYuqueHelpClick = () => {
+    openSmartMinapp({
+      id: 'yuque-help',
+      name: 'Yuque Help',
+      url: 'https://www.yuque.com/settings/tokens',
+      logo: AppLogo
+    })
+  }
+
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.yuque.title')}</SettingTitle>
@@ -84,6 +96,7 @@ const YuqueSettings: FC = () => {
             iconProps={{
               className: 'text-text-2 cursor-pointer ml-1'
             }}
+            onClick={handleYuqueHelpClick}
           />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
