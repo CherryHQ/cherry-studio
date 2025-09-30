@@ -175,14 +175,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip content={t('navbar.hide_sidebar')}>
+          <Tooltip content={t('navbar.hide_sidebar')} placement="bottom">
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip content={t('navbar.show_sidebar')}>
+          <Tooltip content={t('navbar.show_sidebar')} placement="bottom">
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </NavbarIcon>
