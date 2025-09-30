@@ -134,14 +134,17 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
   return (
     <Tooltip
-     
       content={
         <TooltipContent>
           <TooltipTitle>{title}</TooltipTitle>
           <TooltipBody>{data.content}</TooltipBody>
           <TooltipFooter>{t('chat.history.click_to_navigate')}</TooltipFooter>
         </TooltipContent>
-      }>
+      }
+      classNames={{ content: 'bg-[#000000d8] text-gray-200 text-sm' }}
+      isOpen={true}
+      delay={300}
+      closeDelay={100}>
       <CustomNodeContainer
         style={{
           borderColor,

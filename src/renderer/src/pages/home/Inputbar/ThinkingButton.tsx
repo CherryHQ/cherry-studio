@@ -132,12 +132,12 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
 
   return (
     <Tooltip
-     
       content={
         isThinkingEnabled && supportedOptions.includes('off')
           ? t('common.close')
           : t('assistants.settings.reasoning_effort.label')
-      }>
+      }
+      closeDelay={0}>
       <ActionIconButton
         onPress={handleOpenQuickPanel}
         active={currentReasoningEffort !== 'off'}

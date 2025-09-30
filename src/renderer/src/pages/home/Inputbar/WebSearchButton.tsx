@@ -207,7 +207,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
   }))
 
   return (
-    <Tooltip content={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}>
+    <Tooltip content={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')} closeDelay={0}>
       <ActionIconButton
         onPress={onClick}
         active={!!enableWebSearch}

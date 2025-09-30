@@ -491,14 +491,15 @@ const MessageMenubar: FC<Props> = (props) => {
               okButtonProps={{ danger: true }}
               onConfirm={() => handleResendUserMessage()}
               onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-              <Tooltip content={t('common.regenerate')} delay={800}>
-                <ActionButton
-                  className="message-action-button"
-                  onClick={(e) => e.stopPropagation()}
-                  $softHoverBg={isBubbleStyle}>
-                  <RefreshIcon size={15} />
-                </ActionButton>
-              </Tooltip>
+              {/* FIXME: Popconfirm from antd is not compatible with Tooltip from HeroUI */}
+              {/* <Tooltip content={t('common.regenerate')} delay={800}> */}
+              <ActionButton
+                className="message-action-button"
+                onClick={(e) => e.stopPropagation()}
+                $softHoverBg={isBubbleStyle}>
+                <RefreshIcon size={15} />
+              </ActionButton>
+              {/* </Tooltip> */}
             </Popconfirm>
           ) : (
             <Tooltip content={t('common.regenerate')} delay={800}>
@@ -530,14 +531,15 @@ const MessageMenubar: FC<Props> = (props) => {
               okButtonProps={{ danger: true }}
               onConfirm={onRegenerate}
               onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-              <Tooltip content={t('common.regenerate')} delay={800}>
-                <ActionButton
-                  className="message-action-button"
-                  onClick={(e) => e.stopPropagation()}
-                  $softHoverBg={softHoverBg}>
-                  <RefreshIcon size={15} />
-                </ActionButton>
-              </Tooltip>
+              {/* FIXME: Popconfirm from antd is not compatible with Tooltip from HeroUI */}
+              {/* <Tooltip content={t('common.regenerate')} delay={800}> */}
+              <ActionButton
+                className="message-action-button"
+                onClick={(e) => e.stopPropagation()}
+                $softHoverBg={softHoverBg}>
+                <RefreshIcon size={15} />
+              </ActionButton>
+              {/* </Tooltip> */}
             </Popconfirm>
           ) : (
             <Tooltip content={t('common.regenerate')} delay={800}>

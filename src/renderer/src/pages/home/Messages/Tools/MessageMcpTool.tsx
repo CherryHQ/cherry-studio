@@ -263,7 +263,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip content={t('message.tools.autoApproveEnabled')}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')} closeDelay={0}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -275,7 +275,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             ) : (
               renderStatusIndicator(status, hasError)
             )}
-            <Tooltip content={t('common.expand')}>
+            <Tooltip content={t('common.expand')} delay={500}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => {
@@ -290,7 +290,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               </ActionButton>
             </Tooltip>
             {!isPending && (
-              <Tooltip content={t('common.copy')}>
+              <Tooltip content={t('common.copy')} delay={500}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => {

@@ -56,7 +56,10 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   )
 
   return (
-    <Tooltip content={tooltipContent}>
+    <Tooltip
+      content={tooltipContent}
+      showArrow={false}
+      className="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3">
       {children}
     </Tooltip>
   )

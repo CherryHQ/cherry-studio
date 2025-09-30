@@ -488,7 +488,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
   }))
 
   return (
-    <Tooltip content={t('settings.mcp.title')}>
+    <Tooltip content={t('settings.mcp.title')} closeDelay={0}>
       <ActionIconButton
         onPress={handleOpenQuickPanel}
         active={assistant.mcpServers && assistant.mcpServers.length > 0}
