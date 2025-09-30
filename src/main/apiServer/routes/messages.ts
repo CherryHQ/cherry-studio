@@ -1,9 +1,9 @@
 import { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
+import { Provider } from '@types'
 import express, { Request, Response } from 'express'
 
-import { Provider } from '../../../renderer/src/types/provider'
-import { MessagesService, messagesService } from '../services/messages'
+import { messagesService } from '../services/messages'
 import { getProviderById, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
@@ -11,7 +11,7 @@ const logger = loggerService.withContext('ApiServerMessagesRoutes')
 const router = express.Router()
 const providerRouter = express.Router({ mergeParams: true })
 
-// Helper functions for shared logic
+// Helper function for basic request validation
 async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
   const request: MessageCreateParams = req.body
 
@@ -31,157 +31,53 @@ async function validateRequestBody(req: Request): Promise<{ valid: boolean; erro
   return { valid: true }
 }
 
-async function handleStreamingResponse(
-  res: Response,
-  request: MessageCreateParams,
-  provider: Provider,
-  messagesService: MessagesService
-): Promise<void> {
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
-  res.setHeader('Cache-Control', 'no-cache, no-transform')
-  res.setHeader('Connection', 'keep-alive')
-  res.setHeader('X-Accel-Buffering', 'no')
-  res.flushHeaders()
-  const flushableResponse = res as Response & { flush?: () => void }
-  const flushStream = () => {
-    if (typeof flushableResponse.flush !== 'function') {
-      return
-    }
-    try {
-      flushableResponse.flush()
-    } catch (flushError: unknown) {
-      logger.warn('Failed to flush streaming response', {
-        error: flushError
-      })
-    }
-  }
-
-  try {
-    for await (const chunk of messagesService.processStreamingMessage(request, provider)) {
-      res.write(`event: ${chunk.type}\n`)
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`)
-      flushStream()
-    }
-    res.write('data: [DONE]\n\n')
-    flushStream()
-  } catch (streamError: any) {
-    logger.error('Stream error', {
-      error: streamError,
-      provider: provider.id,
-      model: request.model,
-      apiHost: provider.apiHost,
-      anthropicApiHost: provider.anthropicApiHost
-    })
-    res.write(
-      `data: ${JSON.stringify({
-        type: 'error',
-        error: {
-          type: 'api_error',
-          message: 'Stream processing error'
-        }
-      })}\n\n`
-    )
-  } finally {
-    res.end()
-  }
-}
-
-function handleErrorResponse(res: Response, error: any): Response {
-  logger.error('Message processing error', { error })
-
-  let statusCode = 500
-  let errorType = 'api_error'
-  let errorMessage = 'Internal server error'
-
-  const anthropicStatus = typeof error?.status === 'number' ? error.status : undefined
-  const anthropicError = error?.error
-
-  if (anthropicStatus) {
-    statusCode = anthropicStatus
-  }
-
-  if (anthropicError?.type) {
-    errorType = anthropicError.type
-  }
-
-  if (anthropicError?.message) {
-    errorMessage = anthropicError.message
-  } else if (error instanceof Error && error.message) {
-    errorMessage = error.message
-  }
-
-  if (!anthropicStatus && error instanceof Error) {
-    if (error.message.includes('API key') || error.message.includes('authentication')) {
-      statusCode = 401
-      errorType = 'authentication_error'
-    } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
-      statusCode = 429
-      errorType = 'rate_limit_error'
-    } else if (error.message.includes('timeout') || error.message.includes('connection')) {
-      statusCode = 502
-      errorType = 'api_error'
-    } else if (error.message.includes('validation') || error.message.includes('invalid')) {
-      statusCode = 400
-      errorType = 'invalid_request_error'
-    }
-  }
-
-  return res.status(statusCode).json({
-    type: 'error',
-    error: {
-      type: errorType,
-      message: errorMessage,
-      requestId: error?.request_id
-    }
-  })
-}
-
-async function processMessageRequest(
-  req: Request,
-  res: Response,
-  provider: Provider,
+interface HandleMessageProcessingOptions {
+  req: Request
+  res: Response
+  provider: Provider
+  request: MessageCreateParams
   modelId?: string
-): Promise<Response | void> {
+}
+
+async function handleMessageProcessing({
+  req,
+  res,
+  provider,
+  request,
+  modelId
+}: HandleMessageProcessingOptions): Promise<void> {
   try {
-    const request: MessageCreateParams = req.body
-
-    // Use provided modelId or keep original model
-    if (modelId) {
-      request.model = modelId
-    }
-
-    // Validate request
     const validation = messagesService.validateRequest(request)
     if (!validation.isValid) {
-      return res.status(400).json({
+      res.status(400).json({
         type: 'error',
         error: {
           type: 'invalid_request_error',
           message: validation.errors.join('; ')
         }
       })
-    }
-
-    logger.info('Processing anthropic messages request', {
-      provider: provider.id,
-      apiHost: provider.apiHost,
-      anthropicApiHost: provider.anthropicApiHost,
-      model: request.model,
-      stream: request.stream,
-      thinking: request.thinking
-    })
-
-    // Handle streaming
-    if (request.stream) {
-      await handleStreamingResponse(res, request, provider, messagesService)
       return
     }
 
-    // Handle non-streaming
-    const response = await messagesService.processMessage(request, provider)
-    return res.json(response)
+    const extraHeaders = messagesService.prepareHeaders(req.headers)
+    const { client, anthropicRequest } = await messagesService.processMessage({
+      provider,
+      request,
+      extraHeaders,
+      modelId
+    })
+
+    if (request.stream) {
+      await messagesService.handleStreaming(client, anthropicRequest, { response: res }, provider)
+      return
+    }
+
+    const response = await client.messages.create(anthropicRequest)
+    res.json(response)
   } catch (error: any) {
-    return handleErrorResponse(res, error)
+    logger.error('Message processing error', { error })
+    const { statusCode, errorResponse } = messagesService.transformError(error)
+    res.status(statusCode).json(errorResponse)
   }
 }
 
@@ -338,10 +234,11 @@ router.post('/', async (req: Request, res: Response) => {
     const provider = modelValidation.provider!
     const modelId = modelValidation.modelId!
 
-    // Use shared processing function
-    return await processMessageRequest(req, res, provider, modelId)
+    return handleMessageProcessing({ req, res, provider, request, modelId })
   } catch (error: any) {
-    return handleErrorResponse(res, error)
+    logger.error('Message processing error', { error })
+    const { statusCode, errorResponse } = messagesService.transformError(error)
+    return res.status(statusCode).json(errorResponse)
   }
 })
 
@@ -493,10 +390,13 @@ providerRouter.post('/', async (req: Request, res: Response) => {
       })
     }
 
-    // Use shared processing function (no modelId override needed)
-    return await processMessageRequest(req, res, provider)
+    const request: MessageCreateParams = req.body
+
+    return handleMessageProcessing({ req, res, provider, request })
   } catch (error: any) {
-    return handleErrorResponse(res, error)
+    logger.error('Message processing error', { error })
+    const { statusCode, errorResponse } = messagesService.transformError(error)
+    return res.status(statusCode).json(errorResponse)
   }
 })
 

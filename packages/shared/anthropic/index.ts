@@ -12,7 +12,18 @@ import Anthropic from '@anthropic-ai/sdk'
 import { TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import { Provider } from '@types'
+import type { ModelMessage } from 'ai'
+
 const logger = loggerService.withContext('anthropic-sdk')
+
+const defaultClaudeCodeSystemPrompt = `You are Claude Code, Anthropic's official CLI for Claude.`
+
+const defaultClaudeCodeSystem: Array<TextBlockParam> = [
+  {
+    type: 'text',
+    text: defaultClaudeCodeSystemPrompt
+  }
+]
 
 /**
  * Creates and configures an Anthropic SDK client based on the provider configuration.
@@ -44,7 +55,11 @@ const logger = loggerService.withContext('anthropic-sdk')
  * const apiKeyClient = getSdkClient(apiKeyProvider);
  * ```
  */
-export function getSdkClient(provider: Provider, oauthToken?: string | null): Anthropic {
+export function getSdkClient(
+  provider: Provider,
+  oauthToken?: string | null,
+  extraHeaders?: Record<string, string | string[]>
+): Anthropic {
   if (provider.authType === 'oauth') {
     if (!oauthToken) {
       throw new Error('OAuth token is not available')
@@ -68,7 +83,8 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
         'x-stainless-os': 'MacOS',
         'x-stainless-arch': 'arm64',
         'x-stainless-runtime': 'node',
-        'x-stainless-runtime-version': 'v22.18.0'
+        'x-stainless-runtime-version': 'v22.18.0',
+        ...extraHeaders
       }
     })
   }
@@ -87,7 +103,8 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
       defaultHeaders: {
         'anthropic-beta': 'output-128k-2025-02-19',
         'APP-Code': 'MLTG2087',
-        ...provider.extra_headers
+        ...provider.extra_headers,
+        ...extraHeaders
       }
     })
   }
@@ -118,53 +135,36 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
  * @param system - Optional user-provided system message (string or TextBlockParam array)
  * @returns Combined system message with Claude Code prompt prepended
  *
- * @example
- * ```typescript
- * // No system message
- * const result1 = buildClaudeCodeSystemMessage();
- * // Returns: "You are Claude Code, Anthropic's official CLI for Claude."
- *
- * // String system message
- * const result2 = buildClaudeCodeSystemMessage("You are a helpful assistant.");
- * // Returns: [
- * //   { type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." },
- * //   { type: 'text', text: "You are a helpful assistant." }
- * // ]
- *
- * // Array system message
- * const systemArray = [{ type: 'text', text: 'Custom instructions' }];
- * const result3 = buildClaudeCodeSystemMessage(systemArray);
- * // Returns: Array with Claude Code message prepended
  * ```
  */
-export function buildClaudeCodeSystemMessage(system?: string | Array<TextBlockParam>): string | Array<TextBlockParam> {
-  const defaultClaudeCodeSystem = `You are Claude Code, Anthropic's official CLI for Claude.`
+export function buildClaudeCodeSystemMessage(system?: string | Array<TextBlockParam>): Array<TextBlockParam> {
   if (!system) {
     return defaultClaudeCodeSystem
   }
 
   if (typeof system === 'string') {
-    if (system.trim() === defaultClaudeCodeSystem) {
-      return system
+    if (system.trim() === defaultClaudeCodeSystemPrompt || system.trim() === '') {
+      return defaultClaudeCodeSystem
+    } else {
+      return [...defaultClaudeCodeSystem, { type: 'text', text: system }]
     }
-    return [
-      {
-        type: 'text',
-        text: defaultClaudeCodeSystem
-      },
-      {
-        type: 'text',
-        text: system
-      }
-    ]
+  }
+  if (Array.isArray(system)) {
+    const firstSystem = system[0]
+    if (firstSystem.type === 'text' && firstSystem.text.trim() === defaultClaudeCodeSystemPrompt) {
+      return system
+    } else {
+      return [...defaultClaudeCodeSystem, ...system]
+    }
   }
 
-  if (system[0].text.trim() != defaultClaudeCodeSystem) {
-    system.unshift({
-      type: 'text',
-      text: defaultClaudeCodeSystem
-    })
-  }
+  return defaultClaudeCodeSystem
+}
 
-  return system
+export function buildClaudeCodeSystemModelMessage(system?: string | Array<TextBlockParam>): Array<ModelMessage> {
+  const textBlocks = buildClaudeCodeSystemMessage(system)
+  return textBlocks.map((block) => ({
+    role: 'system',
+    content: block.text
+  }))
 }

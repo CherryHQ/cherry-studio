@@ -106,7 +106,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: session.instructions ? session.instructions : { type: 'preset', preset: 'claude_code' },
+      systemPrompt: session.instructions
+        ? {
+            type: 'preset',
+            preset: 'claude_code',
+            append: session.instructions
+          }
+        : { type: 'preset', preset: 'claude_code' },
       settingSources: ['project'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
@@ -136,6 +142,8 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     if (lastAgentSessionId) {
       options.resume = lastAgentSessionId
+      // TODO: use fork session when we support branching sessions
+      // options.forkSession = true
     }
 
     logger.info('Starting Claude Code SDK query', {
