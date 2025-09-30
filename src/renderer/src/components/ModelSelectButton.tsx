@@ -1,3 +1,4 @@
+import type { TooltipProps } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import type { Model } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
@@ -10,22 +11,10 @@ type Props = {
   onSelectModel: (model: Model) => void
   modelFilter?: (model: Model) => boolean
   noTooltip?: boolean
-  tooltipPlacement?:
-    | 'top'
-    | 'bottom'
-    | 'left'
-    | 'right'
-    | 'top-start'
-    | 'top-end'
-    | 'bottom-start'
-    | 'bottom-end'
-    | 'left-start'
-    | 'left-end'
-    | 'right-start'
-    | 'right-end'
+  tooltipProps?: TooltipProps
 }
 
-const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, tooltipPlacement = 'top' }: Props) => {
+const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, tooltipProps }: Props) => {
   const onClick = useCallback(async () => {
     const selectedModel = await SelectModelPopup.show({ model, filter: modelFilter })
     if (selectedModel) {
@@ -49,7 +38,7 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
     return button
   } else {
     return (
-      <Tooltip placement={tooltipPlacement} content={model.name}>
+      <Tooltip content={model.name} {...tooltipProps}>
         {button}
       </Tooltip>
     )
