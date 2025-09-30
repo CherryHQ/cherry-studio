@@ -1,5 +1,6 @@
 import type { TooltipProps as HeroUITooltipProps } from '@heroui/react'
 import { cn, Tooltip as HeroUITooltip } from '@heroui/react'
+import React from 'react'
 
 export interface TooltipProps extends HeroUITooltipProps {}
 
@@ -12,7 +13,7 @@ export interface TooltipProps extends HeroUITooltipProps {}
  *
  * @see https://www.heroui.com/docs/components/tooltip
  */
-export const Tooltip = ({ children, classNames, showArrow, ...rest }: TooltipProps) => {
+export const Tooltip = ({ children, classNames, showArrow, className, ...rest }: TooltipProps) => {
   return (
     <HeroUITooltip
       classNames={{
@@ -21,7 +22,7 @@ export const Tooltip = ({ children, classNames, showArrow, ...rest }: TooltipPro
       }}
       showArrow={showArrow ?? true}
       {...rest}>
-      {children}
+      <div className={cn('relative z-10', className)}>{children}</div>
     </HeroUITooltip>
   )
 }
