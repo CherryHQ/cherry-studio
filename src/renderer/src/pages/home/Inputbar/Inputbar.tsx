@@ -911,7 +911,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
-                <Tooltip content={t('chat.input.pause')}>
+                <Tooltip content={t('chat.input.pause')} closeDelay={0}>
                   <ActionIconButton
                     onClick={onPause}
                     className="mr-[-2px]"
