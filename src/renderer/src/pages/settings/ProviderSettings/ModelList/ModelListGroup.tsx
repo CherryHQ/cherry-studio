@@ -60,7 +60,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         accordionItemProps={{
           disableIndicatorAnimation: true,
           indicator: (
-            <Tooltip content={t('settings.models.manage.remove_whole_group')}>
+            <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0}>
               <Button
                 as="span"
                 variant="light"

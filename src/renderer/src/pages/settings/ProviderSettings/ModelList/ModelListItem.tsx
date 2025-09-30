@@ -51,7 +51,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
       <RowFlex className="items-center gap-1.5">
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
         <RowFlex className="items-center">
-          <Tooltip content={t('models.edit')}>
+          <Tooltip content={t('models.edit')} closeDelay={0}>
             <Button
               variant="light"
               onPress={() => onEdit(model)}
@@ -60,7 +60,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
               isIconOnly
             />
           </Tooltip>
-          <Tooltip content={t('settings.models.manage.remove_model')}>
+          <Tooltip content={t('settings.models.manage.remove_model')} closeDelay={0}>
             <Button
               variant="light"
               onPress={() => onRemove(model)}

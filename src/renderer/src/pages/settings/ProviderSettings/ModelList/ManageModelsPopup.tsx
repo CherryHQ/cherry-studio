@@ -244,7 +244,6 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     return (
       <RowFlex className="gap-2">
         <Tooltip
-         
           content={
             isAllFilteredInProvider
               ? t('settings.models.manage.remove_listed')
@@ -261,7 +260,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             isDisabled={loadingModels || list.length === 0}
           />
         </Tooltip>
-        <Tooltip content={t('settings.models.manage.refetch_list')}>
+        <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
           <Button
             variant="ghost"
             startContent={<RefreshCcw size={16} />}
