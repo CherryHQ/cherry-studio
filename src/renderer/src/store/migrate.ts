@@ -2629,6 +2629,12 @@ const migrateConfig = {
           case 'aihubmix':
             provider.anthropicApiHost = 'https://aihubmix.com'
             break
+          case 'new-api':
+            provider.anthropicApiHost = 'http://localhost:3000'
+            break
+          case 'cherryai':
+            provider.anthropicApiHost = 'https://api.cherry-ai.com'
+            break
         }
       })
       return state

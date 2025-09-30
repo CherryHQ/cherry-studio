@@ -75,6 +75,7 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
   type: 'openai',
   apiKey: '',
   apiHost: 'https://api.cherry-ai.com/',
+  anthropicApiHost: 'https://api.cherry-ai.com',
   models: [glm45FlashModel, qwen38bModel],
   isSystem: true,
   enabled: true
@@ -291,6 +292,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'http://localhost:3000',
+    anthropicApiHost: 'http://localhost:3000',
     models: SYSTEM_MODELS['new-api'],
     isSystem: true,
     enabled: false
