@@ -123,6 +123,7 @@ export const SystemProviderIds = {
   ph8: 'ph8',
   openrouter: 'openrouter',
   ollama: 'ollama',
+  ovms: 'ovms',
   'new-api': 'new-api',
   lmstudio: 'lmstudio',
   anthropic: 'anthropic',

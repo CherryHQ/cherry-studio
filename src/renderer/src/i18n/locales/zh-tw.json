@@ -1178,6 +1178,9 @@
     },
     "document": "文件",
     "edit": "編輯",
+    "error": {
+      "open_path": "無法開啟路徑: {{path}}"
+    },
     "file": "檔案",
     "image": "圖片",
     "name": "名稱",

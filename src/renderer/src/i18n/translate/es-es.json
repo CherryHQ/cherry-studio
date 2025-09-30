@@ -1178,6 +1178,9 @@
     },
     "document": "Documento",
     "edit": "Editar",
+    "error": {
+      "open_path": "No se puede abrir la ruta: {{path}}"
+    },
     "file": "Archivo",
     "image": "Imagen",
     "name": "Nombre del archivo",

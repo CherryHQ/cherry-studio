@@ -1178,6 +1178,9 @@
     },
     "document": "ドキュメント",
     "edit": "編集",
+    "error": {
+      "open_path": "パスを開けません: {{path}}"
+    },
     "file": "ファイル",
     "image": "画像",
     "name": "名前",

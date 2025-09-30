@@ -104,7 +104,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       afterClose={afterClose}
       maskClosable={false}
       footer={null}
-      title={<AgentLabel agent={agent} classNames={{ name: 'text-lg font-extrabold' }} avatarProps={{ size: 'sm' }} />}
+      title={<AgentLabel agent={agent} classNames={{ name: 'text-lg font-extrabold' }} />}
       transitionName="animation-move-down"
       styles={{
         content: {

@@ -1178,6 +1178,9 @@
     },
     "document": "Documento",
     "edit": "Editar",
+    "error": {
+      "open_path": "Não foi possível abrir o caminho: {{path}}"
+    },
     "file": "Arquivo",
     "image": "Imagem",
     "name": "Nome do Arquivo",
