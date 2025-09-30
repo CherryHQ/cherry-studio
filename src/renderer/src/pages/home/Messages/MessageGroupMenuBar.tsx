@@ -106,8 +106,8 @@ const MessageGroupMenuBar: FC<Props> = ({
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
+              delay={500}
               key={layout}
-             
               content={
                 t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]
               }>

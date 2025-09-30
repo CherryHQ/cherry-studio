@@ -142,7 +142,6 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         </TooltipContent>
       }
       classNames={{ content: 'bg-[#000000d8] text-gray-200 text-sm' }}
-      isOpen={true}
       delay={300}
       closeDelay={100}>
       <CustomNodeContainer

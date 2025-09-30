@@ -242,7 +242,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
           </Tooltip>
         )}
         <Tooltip content={t('notes.settings.title')} delay={800}>
-          <TooltipTriggerWrapper>
+          <div>
             <Dropdown
               menu={{ items: menuItems.map(buildMenuItem) }}
               trigger={['click']}
@@ -252,7 +252,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
                 <MoreHorizontal size={18} />
               </NavbarIcon>
             </Dropdown>
-          </TooltipTriggerWrapper>
+          </div>
         </Tooltip>
       </NavbarRight>
     </NavbarHeader>
@@ -296,10 +296,6 @@ export const NavbarIcon = styled.div`
     background-color: var(--color-background-mute);
     color: var(--color-icon-white);
   }
-`
-
-const TooltipTriggerWrapper = styled.div`
-  display: inline-flex;
 `
 
 export const StarButton = styled.div`
