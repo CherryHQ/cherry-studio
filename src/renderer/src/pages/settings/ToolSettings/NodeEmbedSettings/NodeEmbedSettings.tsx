@@ -142,8 +142,8 @@ const NodeEmbedSettings: FC = () => {
     <div className="flex h-[calc(100vh-var(--navbar-height))] w-full flex-col gap-4 overflow-y-auto p-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-base font-semibold">内嵌 Node 服务</div>
-          <div className="text-xs text-default-500">上传编译后的 zip 安装，启动后可提供 LLM 转接/自定义 API 能力</div>
+          <div className="font-semibold text-base">内嵌 Node 服务</div>
+          <div className="text-default-500 text-xs">上传编译后的 zip 安装，启动后可提供 LLM 转接/自定义 API 能力</div>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" startContent={<Upload size={16} />} onPress={selectZipAndInstall}>
@@ -156,7 +156,7 @@ const NodeEmbedSettings: FC = () => {
       </div>
 
       <Card className="p-4">
-        <div className="mb-2 text-sm font-medium">运行环境变量 (可选)</div>
+        <div className="mb-2 font-medium text-sm">运行环境变量 (可选)</div>
         <Input
           classNames={{ inputWrapper: 'min-h-[80px]' }}
           placeholder="以逗号或换行分隔，如：PORT=8080, API_KEY=xxx"
@@ -166,10 +166,10 @@ const NodeEmbedSettings: FC = () => {
       </Card>
 
       <Card className="p-0">
-        <div className="flex items-center justify-between border-b border-divider p-4">
+        <div className="flex items-center justify-between border-divider border-b p-4">
           <div className="flex items-center gap-2">
             <div className={`h-2 w-2 rounded-full ${status.running ? 'bg-success' : 'bg-danger'}`} />
-            <div className="text-sm font-medium">
+            <div className="font-medium text-sm">
               {status.running ? '运行中' : '未运行'}
               {status.name ? ` · ${status.name}` : ''}
               {status.pid ? ` · PID ${status.pid}` : ''}
@@ -195,32 +195,41 @@ const NodeEmbedSettings: FC = () => {
 
         <div className="max-h-[50vh] overflow-y-auto p-2">
           {loading && (
-            <div className="flex items-center gap-2 p-3 text-sm text-default-500">
+            <div className="flex items-center gap-2 p-3 text-default-500 text-sm">
               <Spinner size="sm" /> 正在加载...
             </div>
           )}
           {!loading && (!apps || apps.length === 0) && (
-            <div className="p-4 text-sm text-default-500">暂无已安装的应用，点击“选择 Zip 安装”。</div>
+            <div className="p-4 text-default-500 text-sm">暂无已安装的应用，点击“选择 Zip 安装”。</div>
           )}
           {!loading && apps?.length > 0 && (
             <div className="divide-y divide-divider">
               {apps.map((app) => (
                 <div key={app.id} className="flex items-center justify-between p-3">
                   <div className="flex min-w-0 flex-col">
-                    <div className="truncate text-sm font-medium">
+                    <div className="truncate font-medium text-sm">
                       {app.name} {app.version ? `v${app.version}` : ''}
                     </div>
-                    <div className="truncate text-xs text-default-500">{app.entry}</div>
-                    <div className="truncate text-xs text-default-400">{app.id}</div>
+                    <div className="truncate text-default-500 text-xs">{app.entry}</div>
+                    <div className="truncate text-default-400 text-xs">{app.id}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button size="sm" startContent={<Play size={14} />} onPress={() => startApp(app.id)}>
                       启动
                     </Button>
-                    <Button size="sm" variant="flat" startContent={<RefreshCw size={14} />} onPress={() => restartApp(app.id)}>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      startContent={<RefreshCw size={14} />}
+                      onPress={() => restartApp(app.id)}>
                       重启
                     </Button>
-                    <Button size="sm" color="danger" variant="flat" startContent={<Trash2 size={14} />} onPress={() => removeApp(app.id)}>
+                    <Button
+                      size="sm"
+                      color="danger"
+                      variant="flat"
+                      startContent={<Trash2 size={14} />}
+                      onPress={() => removeApp(app.id)}>
                       移除
                     </Button>
                   </div>

@@ -190,9 +190,7 @@ export class NodeEmbedService {
   private async ensureDirs() {
     await fse.ensureDir(this.getAppsDir())
   }
-  private async detectEntry(
-    dir: string
-  ): Promise<{
+  private async detectEntry(dir: string): Promise<{
     entry: string
     name: string
     version?: string
