@@ -12,7 +12,13 @@ export const HelpTooltip = ({
 }: IconTooltipProps) => {
   return (
     <Tooltip {...rest}>
-      <HelpCircle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Help" />
+      <HelpCircle
+        size={iconSize}
+        color={iconColor}
+        style={{ cursor: 'help', ...iconStyle }}
+        role="img"
+        aria-label="Help"
+      />
     </Tooltip>
   )
 }
