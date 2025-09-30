@@ -13,7 +13,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$')
 
-export const GEMINI_SEARCH_REGEX = new RegExp('gemini-(?:2.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$', 'i')
+export const GEMINI_SEARCH_REGEX = new RegExp('gemini-(?:2.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$', 'i')
 
 export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-pro',
