@@ -1,11 +1,12 @@
+import { ChildProcess, spawn, spawnSync } from 'node:child_process'
+import crypto from 'node:crypto'
+import net from 'node:net'
+import path from 'node:path'
+
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, ipcMain } from 'electron'
-import { ChildProcess, spawn, spawnSync } from 'node:child_process'
-import net from 'node:net'
 import fse from 'fs-extra'
-import path from 'node:path'
-import crypto from 'node:crypto'
 import StreamZip from 'node-stream-zip'
 
 import { getFilesDir } from '../utils/file'
@@ -189,7 +190,17 @@ export class NodeEmbedService {
   private async ensureDirs() {
     await fse.ensureDir(this.getAppsDir())
   }
-  private async detectEntry(dir: string): Promise<{ entry: string; name: string; version?: string; args?: string[]; env?: Record<string, string>; healthCheck?: HealthCheckConfig; ui?: UiConfig }> {
+  private async detectEntry(
+    dir: string
+  ): Promise<{
+    entry: string
+    name: string
+    version?: string
+    args?: string[]
+    env?: Record<string, string>
+    healthCheck?: HealthCheckConfig
+    ui?: UiConfig
+  }> {
     // 1) custom manifest
     const custom = this.getAppManifestPath(dir)
     if (await fse.pathExists(custom)) {
@@ -282,21 +293,31 @@ export class NodeEmbedService {
       }
     }
 
-    throw new Error('Cannot detect entry file. Provide cherry-node.json with {"entry":"..."} or specify an entry path during installation.')
+    throw new Error(
+      'Cannot detect entry file. Provide cherry-node.json with {"entry":"..."} or specify an entry path during installation.'
+    )
   }
   private generateId(prefix = 'app'): string {
     return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`
   }
   async installFromZip(
     zipPath: string,
-    override?: { entry?: string; name?: string; version?: string; args?: string[]; env?: Record<string, string>; healthCheck?: HealthCheckConfig; ui?: UiConfig }
+    override?: {
+      entry?: string
+      name?: string
+      version?: string
+      args?: string[]
+      env?: Record<string, string>
+      healthCheck?: HealthCheckConfig
+      ui?: UiConfig
+    }
   ): Promise<InstalledNodeApp> {
     await this.ensureDirs()
     const appId = this.generateId()
     const destDir = path.join(this.getAppsDir(), appId)
     await fse.ensureDir(destDir)
     logger.info(`Installing Node app from zip: ${zipPath} -> ${destDir}`)
-    const zip = new (StreamZip as any).async({ file: zipPath }) as StreamZip.AsyncZip
+    const zip = new (StreamZip as any).async({ file: zipPath }) as any
     try {
       await zip.extract(null, destDir)
     } finally {
@@ -315,21 +336,27 @@ export class NodeEmbedService {
     }
     let info = await this.detectEntry(destDir).catch(() => null as any)
     if (!info && override?.entry) {
-      const overrideAbs = path.isAbsolute(override.entry)
-        ? override.entry
-        : path.join(destDir, override.entry)
+      const overrideAbs = path.isAbsolute(override.entry) ? override.entry : path.join(destDir, override.entry)
       if (await fse.pathExists(overrideAbs)) {
         info = { entry: overrideAbs, name: override?.name || path.basename(destDir) }
       }
     }
     if (!info) {
-      throw new Error('Cannot detect entry file. Provide cherry-node.json with {"entry":"..."} or specify an entry path during installation.')
+      throw new Error(
+        'Cannot detect entry file. Provide cherry-node.json with {"entry":"..."} or specify an entry path during installation.'
+      )
     }
     // Merge env from detected manifest and override
-    const mergedEnv: Record<string, string> = { ...(info.env || {}), ...(override?.env || {}) }
+    const mergedEnv: Record<string, string> = {}
+    if (info.env) Object.assign(mergedEnv, info.env)
+    if (override?.env) Object.assign(mergedEnv, override.env)
     // Pre-allocate a port at install-time if we can infer the env key and no value set
     try {
-      const portKey = override?.ui?.portFromEnv || info.ui?.portFromEnv || override?.healthCheck?.portFromEnv || info.healthCheck?.portFromEnv
+      const portKey =
+        override?.ui?.portFromEnv ||
+        info.ui?.portFromEnv ||
+        override?.healthCheck?.portFromEnv ||
+        info.healthCheck?.portFromEnv
       if (portKey && !mergedEnv[portKey]) {
         const p = await this.findFreePort()
         mergedEnv[portKey] = String(p)
@@ -420,7 +447,9 @@ export class NodeEmbedService {
 
   private async spawnInstalled(app: InstalledNodeApp, env?: Record<string, string>) {
     const entryAbs = path.isAbsolute(app.entry) ? app.entry : path.join(app.dir, app.entry)
-    const mergedEnv: Record<string, string> = { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...(app.env || {}), ...(env || {}) }
+    const mergedEnv: Record<string, string> = { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    if (app.env) Object.assign(mergedEnv, app.env)
+    if (env) Object.assign(mergedEnv, env)
 
     // Allocate port if requested by healthCheck and not provided
     const hc = app.healthCheck
@@ -454,11 +483,14 @@ export class NodeEmbedService {
       // Try to extract a local URL like http://localhost:3000 or http://127.0.0.1:3001
       const m = text.match(/https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0):([0-9]{2,5})(\/[\w\-./?=&%]*)?/i)
       if (m) {
-        const host = m[1].toLowerCase() === '0.0.0.0' ? '127.0.0.1' : m[1].toLowerCase() === 'localhost' ? '127.0.0.1' : m[1]
+        const host =
+          m[1].toLowerCase() === '0.0.0.0' ? '127.0.0.1' : m[1].toLowerCase() === 'localhost' ? '127.0.0.1' : m[1]
         const port = m[2]
         const pathSuffix = m[3] && m[3].length > 0 ? m[3] : '/'
         const url = `http://${host}:${port}${pathSuffix.startsWith('/') ? pathSuffix : `/${pathSuffix}`}`
-        this.upsertMiniAppEntry(app, url).catch((e) => logger.warn(`Mini app upsert failed from logs for ${app.name}:`, e as Error))
+        this.upsertMiniAppEntry(app, url).catch((e) =>
+          logger.warn(`Mini app upsert failed from logs for ${app.name}:`, e as Error)
+        )
         miniAppUrlRegistered = true
       }
     })
@@ -474,7 +506,9 @@ export class NodeEmbedService {
     this.performHealthCheck(app, mergedEnv).catch((e) => logger.warn(`Health check error for ${app.name}:`, e as Error))
 
     // Ensure existing mini app URL is updated if it was a placeholder or changed
-    this.updateMiniAppUrlIfExists(app, mergedEnv).catch((e) => logger.warn(`Update mini app url failed for ${app.name}:`, e as Error))
+    this.updateMiniAppUrlIfExists(app, mergedEnv).catch((e) =>
+      logger.warn(`Update mini app url failed for ${app.name}:`, e as Error)
+    )
   }
 
   private async performHealthCheck(app: InstalledNodeApp, envObj: Record<string, string>) {
@@ -506,7 +540,9 @@ export class NodeEmbedService {
             logger.info(`Health check passed for ${app.name}`)
             return
           }
-        } catch {}
+        } catch (e) {
+          // Ignore health probe errors and retry
+        }
         await new Promise((r) => setTimeout(r, intervalMs))
       }
       logger.warn(`Health check did not pass for ${app.name} after ${retries} attempts`)
@@ -520,7 +556,8 @@ export class NodeEmbedService {
       const ui = app.ui
       if (ui?.url) return ui.url
       const getPortFromEnv = (key?: string) => (key ? envObj[key] : undefined)
-      const pickPort = () => getPortFromEnv(ui?.portFromEnv) || getPortFromEnv(app.healthCheck?.portFromEnv) || envObj['PORT']
+      const pickPort = () =>
+        getPortFromEnv(ui?.portFromEnv) || getPortFromEnv(app.healthCheck?.portFromEnv) || envObj['PORT']
       const port = pickPort()
       if (!port) return undefined
       const p = ui?.path || '/'
@@ -601,7 +638,8 @@ export class NodeEmbedService {
     let list: any[]
     try {
       list = JSON.parse(await fse.readFile(filePath, 'utf8'))
-    } catch {
+    } catch (e) {
+      // Ignore parse error, list stays empty
       return
     }
     const idx = Array.isArray(list) ? list.findIndex((x) => x && x.id === id) : -1
@@ -611,7 +649,8 @@ export class NodeEmbedService {
       const ui = app.ui
       if (ui?.url) return ui.url
       const getPortFromEnv = (key?: string) => (key ? envObj[key] : undefined)
-      const pickPort = () => getPortFromEnv(ui?.portFromEnv) || getPortFromEnv(app.healthCheck?.portFromEnv) || envObj['PORT']
+      const pickPort = () =>
+        getPortFromEnv(ui?.portFromEnv) || getPortFromEnv(app.healthCheck?.portFromEnv) || envObj['PORT']
       const port = pickPort()
       if (!port) return undefined
       const p = ui?.path || '/'
@@ -631,7 +670,9 @@ export class NodeEmbedService {
         try {
           storeSyncService.syncToRenderer('minApps/addMinApp', list[idx])
           storeSyncService.syncToRenderer('minapps/addMinApp', list[idx])
-        } catch {}
+        } catch (e) {
+          // Ignore broadcast errors
+        }
       } catch (e) {
         logger.warn('Failed to persist updated mini app url', e as Error)
       }
@@ -645,7 +686,9 @@ export class NodeEmbedService {
         const list = JSON.parse(text)
         return Array.isArray(list) ? list : []
       }
-    } catch {}
+    } catch (e) {
+      // Ignore file read/JSON parse errors
+    }
     return []
   }
 
@@ -664,7 +707,9 @@ export class NodeEmbedService {
       if (u.hostname === '0.0.0.0' || u.hostname === 'localhost') u.hostname = '127.0.0.1'
       if (!u.pathname) u.pathname = '/'
       url = u.toString()
-    } catch {}
+    } catch (e) {
+      // Ignore URL normalization errors
+    }
 
     const filePath = path.join(getFilesDir(), 'custom-minapps.json')
     const list = await this.readMiniAppList(filePath)
@@ -690,7 +735,9 @@ export class NodeEmbedService {
         try {
           storeSyncService.syncToRenderer('minApps/addMinApp', item)
           storeSyncService.syncToRenderer('minapps/addMinApp', item)
-        } catch {}
+        } catch (e) {
+          // Ignore broadcast errors
+        }
       } catch (e) {
         logger.warn('Failed to persist mini app list on upsert', e as Error)
       }
@@ -750,16 +797,24 @@ export class NodeEmbedService {
       async (
         _evt,
         zipPath: string,
-        override?: { entry?: string; name?: string; version?: string; args?: string[]; env?: Record<string, string>; healthCheck?: HealthCheckConfig; ui?: UiConfig }
+        override?: {
+          entry?: string
+          name?: string
+          version?: string
+          args?: string[]
+          env?: Record<string, string>
+          healthCheck?: HealthCheckConfig
+          ui?: UiConfig
+        }
       ) => {
-      try {
-        const app = await this.installFromZip(zipPath, override)
-        return { success: true, app }
-      } catch (e: any) {
-        logger.error('Install failed:', e)
-        return { success: false, error: e?.message || 'unknown' }
+        try {
+          const app = await this.installFromZip(zipPath, override)
+          return { success: true, app }
+        } catch (e: any) {
+          logger.error('Install failed:', e)
+          return { success: false, error: e?.message || 'unknown' }
+        }
       }
-    }
     )
     ipcMain.handle(IpcChannel.NodeEmbed_List as any, async () => {
       try {
@@ -819,5 +874,7 @@ export const nodeEmbedService = new NodeEmbedService()
 app.on('before-quit', async () => {
   try {
     await nodeEmbedService.stop()
-  } catch {}
+  } catch (e) {
+    // Ignore errors on shutdown
+  }
 })

@@ -1,6 +1,6 @@
 import { Button, Card, Input, Spinner } from '@heroui/react'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Plus, Play, RefreshCw, Trash2, Square, Upload, FolderOpen } from 'lucide-react'
+import { Play, RefreshCw, Square, Trash2, Upload } from 'lucide-react'
 import { FC, useEffect, useMemo, useState } from 'react'
 
 type InstalledNodeApp = {
