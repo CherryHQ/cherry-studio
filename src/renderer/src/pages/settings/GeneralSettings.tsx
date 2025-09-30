@@ -273,7 +273,11 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
-            <InfoTooltip content={t('notification.tip')} placement="right" iconStyle={{ cursor: 'pointer' }} />
+            <InfoTooltip
+              content={t('notification.tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
           </SettingRowTitle>
           <Switch
             isSelected={notificationSettings.assistant}

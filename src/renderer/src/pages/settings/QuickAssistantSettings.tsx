@@ -79,7 +79,7 @@ const QuickAssistantSettings: FC = () => {
             <InfoTooltip
               content={t('settings.quickAssistant.use_shortcut_to_show')}
               placement="right"
-              iconStyle={{ cursor: 'pointer' }}
+              iconProps={{ className: 'cursor-pointer' }}
             />
           </SettingRowTitle>
           <Switch isSelected={enableQuickAssistant} onValueChange={handleEnableQuickAssistant} />
@@ -111,7 +111,7 @@ const QuickAssistantSettings: FC = () => {
               <InfoTooltip
                 content={t('selection.settings.user_modal.model.tooltip')}
                 showArrow
-                iconStyle={{ cursor: 'pointer' }}
+                iconProps={{ className: 'cursor-pointer' }}
               />
               <Spacer />
             </RowFlex>

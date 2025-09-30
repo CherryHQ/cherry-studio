@@ -66,7 +66,7 @@ const S3Settings: FC = () => {
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
             content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
-            iconColor="red"
+            iconProps={{ style: { color: 'red' } }}
           />
         )}
         {s3Sync?.lastSyncTime && (
@@ -96,7 +96,7 @@ const S3Settings: FC = () => {
         <InfoTooltip
           content={t('settings.data.s3.title.tooltip')}
           placement="right"
-          iconStyle={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
+          iconProps={{ className: 'text-color-text-2 cursor-pointer' }}
         />
       </SettingTitle>
       <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>

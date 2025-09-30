@@ -156,7 +156,7 @@ const LocalBackupSettings: React.FC = () => {
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
-            iconColor="red"
+            iconProps={{ style: { color: 'red' } }}
           />
         )}
         {localBackupSync.lastSyncTime && (

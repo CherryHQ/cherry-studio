@@ -178,7 +178,7 @@ const NutstoreSettings: FC = () => {
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
-            iconColor="red"
+            iconProps={{ style: { color: 'red' } }}
           />
         )}
         {nutstoreSyncState.lastSyncTime && (

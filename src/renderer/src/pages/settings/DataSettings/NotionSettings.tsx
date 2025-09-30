@@ -67,7 +67,7 @@ const NotionSettings: FC = () => {
         <InfoTooltip
           content={t('settings.data.notion.help')}
           placement="right"
-          iconStyle={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
+          iconProps={{ className: 'text-text-2 cursor-pointer' }}
         />
       </SettingTitle>
       <SettingDivider />

@@ -245,7 +245,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             {t('chat.settings.temperature.label')}
             <HelpTooltip
               content={t('chat.settings.temperature.tip')}
-              iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
             />
           </Label>
         </RowFlex>
@@ -295,7 +295,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('chat.settings.top_p.label')}</Label>
           <HelpTooltip
             content={t('chat.settings.top_p.tip')}
-            iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
           />
         </RowFlex>
         <Switch
@@ -345,7 +345,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             {t('chat.settings.context_count.label')}{' '}
             <HelpTooltip
               content={t('chat.settings.context_count.tip')}
-              iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
             />
           </Label>
         </Col>
@@ -386,7 +386,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <HelpTooltip
             content={t('chat.settings.max_tokens.tip')}
-            iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
           />
         </RowFlex>
         <Switch

@@ -72,9 +72,11 @@ const RagSettings = () => {
           {t('models.embedding_dimensions')}
           <InfoTooltip
             content={t('knowledge.dimensions_size_tooltip')}
-            iconSize={16}
-            iconColor="var(--color-icon)"
-            iconStyle={{ marginLeft: 5, cursor: 'pointer' }}
+            iconProps={{
+              size: 16,
+              color: 'var(--color-icon)',
+              className: 'ml-1 cursor-pointer'
+            }}
           />
         </SettingRowTitle>
         <InputEmbeddingDimension
@@ -106,10 +108,11 @@ const RagSettings = () => {
           {t('settings.tool.websearch.compression.rag.document_count.label')}
           <InfoTooltip
             content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
-           
-            iconSize={16}
-            iconColor="var(--color-icon)"
-            iconStyle={{ marginLeft: 5, cursor: 'pointer' }}
+            iconProps={{
+              size: 16,
+              color: 'var(--color-icon)',
+              className: 'ml-1 cursor-pointer'
+            }}
           />
         </SettingRowTitle>
         <div style={{ width: INPUT_BOX_WIDTH }}>

@@ -77,7 +77,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           {t('memory.title')}
           <InfoTooltip
             content={t('memory.description')}
-            iconStyle={{ marginLeft: 6, fontSize: 14, color: 'var(--color-text-2)', cursor: 'help' }}
+            iconProps={{ className: 'ml-1.5 text-sm text-color-text-2 cursor-help' }}
           />
         </Box>
         <Space>

@@ -31,9 +31,11 @@ const CutoffSettings = () => {
         <InfoTooltip
           placement="right"
           content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
-          iconSize={16}
-          iconColor="var(--color-icon)"
-          iconStyle={{ marginLeft: 5, cursor: 'pointer' }}
+          iconProps={{
+            size: 16,
+            color: 'var(--color-icon)',
+            className: 'ml-1 cursor-pointer'
+          }}
         />
       </SettingRowTitle>
       <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>

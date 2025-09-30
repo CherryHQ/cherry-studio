@@ -89,7 +89,7 @@ const JoplinSettings: FC = () => {
           <InfoTooltip
             content={t('settings.data.joplin.help')}
             placement="left"
-            iconStyle={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
+            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
           />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">

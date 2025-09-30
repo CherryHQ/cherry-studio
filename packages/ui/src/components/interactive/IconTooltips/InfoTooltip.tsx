@@ -4,15 +4,16 @@ import { Info } from 'lucide-react'
 import { Tooltip } from '../../base/Tooltip'
 import type { IconTooltipProps } from './types'
 
-export const InfoTooltip = ({
-  iconColor = 'var(--color-text-2)',
-  iconSize = 14,
-  iconStyle,
-  ...rest
-}: IconTooltipProps) => {
+export const InfoTooltip = ({ iconProps, ...rest }: IconTooltipProps) => {
   return (
     <Tooltip {...rest}>
-      <Info size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
+      <Info
+        size={iconProps?.size ?? 14}
+        color={iconProps?.color ?? 'var(--color-text-2)'}
+        role="img"
+        aria-label="Information"
+        {...iconProps}
+      />
     </Tooltip>
   )
 }

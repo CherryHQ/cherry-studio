@@ -122,7 +122,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
-            <InfoTooltip content={`ID: ${tool.id}`} iconSize={14} />
+            <InfoTooltip content={`ID: ${tool.id}`} />
           </Flex>
           {tool.description && (
             <Typography.Paragraph
@@ -167,8 +167,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               : isToolAutoApproved(tool, server)
                 ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
-          }
-         >
+          }>
           <Switch
             isSelected={isToolAutoApproved(tool, server)}
             isDisabled={!isToolEnabled(tool)}

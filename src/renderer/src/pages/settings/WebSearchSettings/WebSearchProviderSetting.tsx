@@ -92,8 +92,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     if (!provider) {
       window.toast.error({
         title: t('settings.no_provider_selected'),
-        timeout: 3000,
-        icon: <InfoTooltip iconSize={18} content="" />
+        timeout: 3000
       })
       return
     }
@@ -241,9 +240,11 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             <InfoTooltip
               placement="right"
               content={t('settings.provider.basic_auth.tip')}
-              iconSize={16}
-              iconColor="var(--color-icon)"
-              iconStyle={{ marginLeft: 5, cursor: 'pointer' }}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'ml-1 cursor-pointer'
+              }}
             />
           </SettingSubtitle>
           <Flex>

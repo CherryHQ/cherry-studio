@@ -236,8 +236,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     return (
       <WarnTooltip
         content={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}
-        iconSize={16}
-        iconColor="var(--color-status-warning)"
+        iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
       />
     )
   }

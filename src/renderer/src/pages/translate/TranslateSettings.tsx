@@ -108,9 +108,7 @@ const TranslateSettings: FC<{
             {t('translate.detect.method.label')}
             <HelpTooltip
               content={t('translate.detect.method.tip')}
-              iconSize={14}
-              iconColor="var(--color-text-3)"
-              iconStyle={{ marginLeft: 4 }}
+              iconProps={{ color: 'var(--color-text-3)', className: 'ml-1' }}
             />
           </div>
           <RowFlex className="items-center gap-[5px]">
@@ -142,8 +140,7 @@ const TranslateSettings: FC<{
                 {t('translate.settings.bidirectional')}
                 <HelpTooltip
                   content={t('translate.settings.bidirectional_tip')}
-                  iconSize={14}
-                  iconColor="var(--color-text-3)"
+                  iconProps={{ className: 'text-text-3' }}
                 />
               </RowFlex>
             </div>

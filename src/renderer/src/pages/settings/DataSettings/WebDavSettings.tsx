@@ -72,7 +72,7 @@ const WebDavSettings: FC = () => {
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
-            iconColor="red"
+            iconProps={{ color: 'red' }}
           />
         )}
         {webdavSync.lastSyncTime && (

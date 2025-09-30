@@ -58,7 +58,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
           {t('assistants.settings.mcp.title')}
           <InfoTooltip
             content={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}
-            iconStyle={{ marginLeft: 6, fontSize: 14, color: 'var(--color-text-2)', cursor: 'help' }}
+            iconProps={{ className: 'ml-1.5 text-xs text-color-text-2 cursor-help' }}
           />
         </Box>
         {allMcpServers.length > 0 && (
