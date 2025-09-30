@@ -2,7 +2,9 @@ import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
@@ -21,6 +23,8 @@ const JoplinSettings: FC = () => {
   const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setJoplinToken(e.target.value)
   }
+
+  const { openSmartMinapp } = useMinappPopup()
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setJoplinUrl(e.target.value)
@@ -65,6 +69,15 @@ const JoplinSettings: FC = () => {
     setJoplinExportReasoning(checked)
   }
 
+  const handleJoplinHelpClick = () => {
+    openSmartMinapp({
+      id: 'joplin-help',
+      name: 'Joplin Help',
+      url: 'https://joplinapp.org/help/apps/clipper',
+      logo: AppLogo
+    })
+  }
+
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.joplin.title')}</SettingTitle>
@@ -90,6 +103,7 @@ const JoplinSettings: FC = () => {
             content={t('settings.data.joplin.help')}
             placement="left"
             iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            onClick={handleJoplinHelpClick}
           />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
