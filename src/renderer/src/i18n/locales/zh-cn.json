@@ -251,6 +251,7 @@
     "added": "已添加",
     "case_sensitive": "区分大小写",
     "collapse": "收起",
+    "download": "下载",
     "includes_user_questions": "包含用户提问",
     "manage": "管理",
     "select_model": "选择模型",
@@ -1826,6 +1827,57 @@
     },
     "title": "Ollama"
   },
+  "ovms": {
+    "action": {
+      "install": "安装",
+      "installing": "正在安装",
+      "reinstall": "重装",
+      "run": "运行 OVMS",
+      "starting": "启动中",
+      "stop": "停止 OVMS",
+      "stopping": "停止中"
+    },
+    "description": "<div><p>1. 下载 OV 模型.</p><p>2. 在 'Manager' 中添加模型.</p><p>仅支持 Windows!</p><p>OVMS 安装路径: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>请参考 <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 指南</a></p></dev>",
+    "download": {
+      "button": "下载",
+      "error": "选择失败",
+      "model_id": {
+        "label": "模型 ID",
+        "model_id_pattern": "模型 ID 必须以 OpenVINO/ 开头",
+        "placeholder": "必填，例如 OpenVINO/Qwen3-8B-int4-ov",
+        "required": "请输入模型 ID"
+      },
+      "model_name": {
+        "label": "模型名称",
+        "placeholder": "必填，例如 Qwen3-8B-int4-ov",
+        "required": "请输入模型名称"
+      },
+      "model_source": "模型来源:",
+      "model_task": "模型任务:",
+      "success": "下载成功",
+      "success_desc": "模型\"{{modelName}}\"-\"{{modelId}}\"下载成功，请前往 OVMS 管理界面添加模型",
+      "tip": "模型正在下载，有时需要几个小时。请耐心等待...",
+      "title": "下载 Intel OpenVINO 模型"
+    },
+    "failed": {
+      "install": "安装 OVMS 失败:",
+      "install_code_100": "未知错误",
+      "install_code_101": "仅支持 Intel(R) Core(TM) Ultra CPU",
+      "install_code_102": "仅支持 Windows",
+      "install_code_103": "下载 OVMS runtime 失败",
+      "install_code_104": "解压 OVMS runtime 失败",
+      "install_code_105": "清理 OVMS runtime 失败",
+      "run": "运行 OVMS 失败:",
+      "stop": "停止 OVMS 失败:"
+    },
+    "status": {
+      "not_installed": "OVMS 未安装",
+      "not_running": "OVMS 未运行",
+      "running": "OVMS 正在运行",
+      "unknown": "OVMS 状态未知"
+    },
+    "title": "Intel OVMS"
+  },
   "paintings": {
     "aspect_ratio": "画幅比例",
     "aspect_ratios": {
@@ -2057,6 +2109,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型开放平台",
     "poe": "Poe",

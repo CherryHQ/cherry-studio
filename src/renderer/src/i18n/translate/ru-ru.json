@@ -251,6 +251,7 @@
     "added": "Добавлено",
     "case_sensitive": "Чувствительность к регистру",
     "collapse": "Свернуть",
+    "download": "Скачать",
     "includes_user_questions": "Включает вопросы пользователей",
     "manage": "Редактировать",
     "select_model": "Выбрать модель",
@@ -1825,6 +1826,57 @@
     },
     "title": "Ollama"
   },
+  "ovms": {
+    "action": {
+      "install": "Установить",
+      "installing": "Установка",
+      "reinstall": "Переустановить",
+      "run": "Запустить OVMS",
+      "starting": "Запуск",
+      "stop": "Остановить OVMS",
+      "stopping": "Остановка"
+    },
+    "description": "<div><p>1. Загрузите модели OV.</p><p>2. Добавьте модели в 'Менеджер'.</p><p>Поддерживается только Windows!</p><p>Путь установки OVMS: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>Пожалуйста, ознакомьтесь с <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>руководством Intel OVMS</a></p></dev>",
+    "download": {
+      "button": "Скачать",
+      "error": "Ошибка загрузки",
+      "model_id": {
+        "label": "ID модели",
+        "model_id_pattern": "ID модели должен начинаться с OpenVINO/",
+        "placeholder": "Обязательно, например: OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Пожалуйста, введите ID модели"
+      },
+      "model_name": {
+        "label": "Название модели:",
+        "placeholder": "Обязательно, например: Qwen3-8B-int4-ov",
+        "required": "Пожалуйста, введите название модели"
+      },
+      "model_source": "Источник модели:",
+      "model_task": "Задача модели:",
+      "success": "Скачивание успешно",
+      "success_desc": "Модель \"{{modelName}}\"-\"{{modelId}}\" успешно скачана, пожалуйста, перейдите в интерфейс управления OVMS, чтобы добавить модель",
+      "tip": "Модель загружается, иногда это занимает часы. Пожалуйста, будьте терпеливы...",
+      "title": "Скачать модель Intel OpenVINO"
+    },
+    "failed": {
+      "install": "Ошибка установки OVMS:",
+      "install_code_100": "Неизвестная ошибка",
+      "install_code_101": "Поддерживаются только процессоры Intel(R) Core(TM) Ultra CPU",
+      "install_code_102": "Поддерживается только Windows",
+      "install_code_103": "Ошибка загрузки среды выполнения OVMS",
+      "install_code_104": "Ошибка распаковки среды выполнения OVMS",
+      "install_code_105": "Ошибка очистки среды выполнения OVMS",
+      "run": "Ошибка запуска OVMS:",
+      "stop": "Ошибка остановки OVMS:"
+    },
+    "status": {
+      "not_installed": "OVMS не установлен",
+      "not_running": "OVMS не запущен",
+      "running": "OVMS запущен",
+      "unknown": "Статус OVMS неизвестен"
+    },
+    "title": "Intel OVMS"
+  },
   "paintings": {
     "aspect_ratio": "Пропорции изображения",
     "aspect_ratios": {
@@ -2056,6 +2108,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",

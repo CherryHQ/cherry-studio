@@ -34,6 +34,7 @@ export enum IpcChannel {
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+  App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
@@ -220,6 +221,7 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+  System_GetCpuName = 'system:getCpuName',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -329,6 +331,15 @@ export enum IpcChannel {
 
   // OCR
   OCR_ocr = 'ocr:ocr',
+
+  // OVMS
+  Ovms_AddModel = 'ovms:add-model',
+  Ovms_StopAddModel = 'ovms:stop-addmodel',
+  Ovms_GetModels = 'ovms:get-models',
+  Ovms_IsRunning = 'ovms:is-running',
+  Ovms_GetStatus = 'ovms:get-status',
+  Ovms_RunOVMS = 'ovms:run-ovms',
+  Ovms_StopOVMS = 'ovms:stop-ovms',
 
   // CherryAI
   Cherryai_GetSignature = 'cherryai:get-signature'
