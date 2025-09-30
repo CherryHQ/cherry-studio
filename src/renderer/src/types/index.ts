@@ -79,6 +79,7 @@ const ThinkModelTypes = [
   'default',
   'o',
   'gpt5',
+  'gpt5_codex',
   'grok',
   'gemini',
   'gemini_pro',

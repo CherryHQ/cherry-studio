@@ -2579,6 +2579,15 @@ const migrateConfig = {
   },
   '159': (state: RootState) => {
     try {
+      addProvider(state, 'ovms')
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '160': (state: RootState) => {
+    try {
       // @ts-ignore
       if (state?.agents?.agents) {
         // @ts-ignore
@@ -2619,11 +2628,9 @@ const migrateConfig = {
             break
           case 'aihubmix':
             provider.anthropicApiHost = 'https://aihubmix.com'
-            provider.isAnthropicModel = (m: Model) => m.id.includes('claude')
             break
         }
       })
-
       return state
     } catch (error) {
       logger.error('migrate 159 error', error as Error)
