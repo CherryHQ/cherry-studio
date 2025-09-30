@@ -13,7 +13,14 @@ export interface TooltipProps extends HeroUITooltipProps {}
  *
  * @see https://www.heroui.com/docs/components/tooltip
  */
-export const Tooltip = ({ children, classNames, showArrow, className, ...rest }: TooltipProps) => {
+export const Tooltip = ({
+  children,
+  classNames,
+  showArrow,
+  ...rest
+}: Omit<TooltipProps, 'classNames'> & {
+  classNames?: TooltipProps['classNames'] & { placeholder?: string }
+}) => {
   return (
     <HeroUITooltip
       classNames={{
@@ -22,7 +29,7 @@ export const Tooltip = ({ children, classNames, showArrow, className, ...rest }:
       }}
       showArrow={showArrow ?? true}
       {...rest}>
-      <div className={cn('relative z-10', className)}>{children}</div>
+      <div className={cn('relative z-10', classNames?.placeholder)}>{children}</div>
     </HeroUITooltip>
   )
 }
