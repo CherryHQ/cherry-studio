@@ -1,7 +1,9 @@
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Client } from '@notionhq/client'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
@@ -17,6 +19,7 @@ const NotionSettings: FC = () => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { openSmartMinapp } = useMinappPopup()
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNotionApiKey(e.target.value)
@@ -60,6 +63,15 @@ const NotionSettings: FC = () => {
     setNotionExportReasoning(checked)
   }
 
+  const handleNotionTitleClick = () => {
+    openSmartMinapp({
+      id: 'notion-help',
+      name: 'Notion Help',
+      url: 'https://docs.cherry-ai.com/advanced-basic/notion',
+      logo: AppLogo
+    })
+  }
+
   return (
     <SettingGroup theme={theme}>
       <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
@@ -68,6 +80,7 @@ const NotionSettings: FC = () => {
           content={t('settings.data.notion.help')}
           placement="right"
           iconProps={{ className: 'text-text-2 cursor-pointer' }}
+          onClick={handleNotionTitleClick}
         />
       </SettingTitle>
       <SettingDivider />
