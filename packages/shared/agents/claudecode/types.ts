@@ -1,4 +1,4 @@
-import type { SDKMessage } from '@anthropic-ai/claude-code'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 export type ClaudeCodeRawValue =

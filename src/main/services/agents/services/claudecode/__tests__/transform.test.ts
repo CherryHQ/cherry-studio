@@ -1,4 +1,4 @@
-import type { SDKMessage } from '@anthropic-ai/claude-code'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describe, expect, it } from 'vitest'
 
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from '../transform'

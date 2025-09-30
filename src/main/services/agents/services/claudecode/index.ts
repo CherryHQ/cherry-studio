@@ -2,7 +2,7 @@
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
-import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/claude-code'
+import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
@@ -27,7 +27,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
-    this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-code/cli.js')
+    this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-agent-sdk/cli.js')
     if (app.isPackaged) {
       this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
     }
@@ -106,7 +106,10 @@ class ClaudeCodeService implements AgentServiceInterface {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      appendSystemPrompt: session.instructions,
+      systemPrompt: session.instructions
+        ? session.instructions
+        : { type: 'preset', preset: 'claude_code' },
+      settingSources: ['project', ],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
