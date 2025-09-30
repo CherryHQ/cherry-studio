@@ -457,9 +457,7 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.cmd &&
                     selectedTerminal !== terminalApps.powershell &&
                     selectedTerminal !== terminalApps.windowsTerminal && (
-                      <Tooltip
-                       
-                        content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                      <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
                         <Button
                           startContent={<FolderOpen size={16} />}
                           isIconOnly

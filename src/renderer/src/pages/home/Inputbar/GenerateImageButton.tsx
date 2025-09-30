@@ -17,7 +17,6 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
 
   return (
     <Tooltip
-     
       content={
         isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
       }>

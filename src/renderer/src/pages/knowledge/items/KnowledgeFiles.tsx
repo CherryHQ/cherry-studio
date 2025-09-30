@@ -193,9 +193,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
-                            <Tooltip content={file.origin_name}>
-                              {file.origin_name}
-                            </Tooltip>
+                            <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),

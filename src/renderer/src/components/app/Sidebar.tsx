@@ -88,7 +88,10 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
-        <Tooltip placement="right" content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)} delay={800}>
+        <Tooltip
+          placement="right"
+          content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+          delay={800}>
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />

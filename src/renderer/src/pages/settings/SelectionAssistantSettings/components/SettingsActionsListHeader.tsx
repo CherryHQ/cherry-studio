@@ -28,7 +28,6 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
         </ResetButton>
       </Tooltip>
       <Tooltip
-       
         content={
           isCustomItemLimitReached
             ? t('selection.settings.actions.add_tooltip.disabled', { max: maxCustomItems })

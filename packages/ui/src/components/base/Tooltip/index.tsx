@@ -1,6 +1,5 @@
 import type { TooltipProps as HeroUITooltipProps } from '@heroui/react'
 import { cn, Tooltip as HeroUITooltip } from '@heroui/react'
-import React from 'react'
 
 export interface TooltipProps extends HeroUITooltipProps {}
 

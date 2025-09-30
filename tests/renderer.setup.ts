@@ -86,13 +86,13 @@ vi.mock('@cherrystudio/ui', () => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       return React.createElement(
-        'div', 
-        { 
-          ...props, 
+        'div',
+        {
+          ...props,
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
           'data-mouse-enter-delay': mouseEnterDelay
-        }, 
+        },
         children,
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
       )
@@ -123,12 +123,12 @@ vi.mock('@cherrystudio/ui', () => {
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
     Switch: ({ isSelected, onValueChange, ...props }) =>
-      React.createElement('input', { 
-        ...props, 
-        type: 'checkbox', 
-        checked: isSelected, 
+      React.createElement('input', {
+        ...props,
+        type: 'checkbox',
+        checked: isSelected,
         onChange: (e) => onValueChange?.(e.target.checked),
-        'data-testid': 'switch' 
+        'data-testid': 'switch'
       })
     // Add any other components that are commonly imported
   }
