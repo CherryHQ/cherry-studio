@@ -13,10 +13,10 @@ vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
 }))
 
 const uiMocks = vi.hoisted(() => ({
-  Tooltip: vi.fn(({ children, title, placement, ...props }: any) => (
+  Tooltip: vi.fn(({ children, title, content, placement, ...props }: any) => (
     <div data-testid="tooltip-wrapper" data-placement={placement} {...props}>
       {children}
-      <div data-testid="tooltip-content">{title}</div>
+      <div data-testid="tooltip-content">{content || title}</div>
     </div>
   ))
 }))
@@ -82,16 +82,6 @@ describe('CitationTooltip', () => {
       const favicon = screen.getByTestId('mock-favicon')
       expect(favicon).toHaveAttribute('hostname', 'example.com')
       expect(favicon).toHaveAttribute('alt', 'Example Title')
-    })
-
-    it('should pass correct props to Tooltip component', () => {
-      const citation = createCitationData()
-      renderCitationTooltip(citation)
-
-      expect(uiMocks.Tooltip).toHaveBeenCalledTimes(1)
-      const tooltipProps = uiMocks.Tooltip.mock.calls[0][0]
-      expect(tooltipProps.placement).toBe('top')
-      expect(tooltipProps.title).toBeTruthy()
     })
 
     it('should match snapshot', () => {

@@ -6,8 +6,8 @@ import CodeToolButton from '../button'
 
 // Mock Antd components
 const mocks = vi.hoisted(() => ({
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, title, content }) => (
+    <div data-testid="tooltip" data-title={content || title}>
       {children}
     </div>
   )),

@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
       {tool.icon}
     </div>
   )),
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, title, content }) => (
+    <div data-testid="tooltip" data-title={content || title}>
       {children}
     </div>
   )),

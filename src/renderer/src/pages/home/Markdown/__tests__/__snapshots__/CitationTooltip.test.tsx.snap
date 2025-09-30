@@ -47,7 +47,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 }
 
 <div
-  data-placement="top"
+  class="rounded-[8px] border border-[var(--color-border)] bg-[var(--color-background)] p-3"
   data-testid="tooltip-wrapper"
 >
   <span>

@@ -1,19 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import CustomTag from '../Tags/CustomTag'
 
 const COLOR = '#ff0000'
-
-vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children, title }: { children: React.ReactNode; title?: React.ReactNode }) => (
-    <div>
-      {children}
-      {title ? <span data-testid="tooltip-content">{title}</span> : null}
-    </div>
-  )
-}))
 
 describe('CustomTag', () => {
   it('should render children text', () => {

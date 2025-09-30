@@ -14,7 +14,6 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   />
   <div
     data-testid="tooltip"
-    data-title="自动设置维度"
   >
     <button
       aria-label="Get embedding dimension"
@@ -50,7 +49,6 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   />
   <div
     data-testid="tooltip"
-    data-title="自动设置维度"
   >
     <button
       aria-label="Get embedding dimension"

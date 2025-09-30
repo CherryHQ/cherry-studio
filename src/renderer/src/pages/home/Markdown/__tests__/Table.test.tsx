@@ -46,8 +46,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children, title }: any) => (
-    <div data-testid="tooltip" title={title}>
+  Tooltip: ({ children, title, content }: any) => (
+    <div data-testid="tooltip" title={content || title}>
       {children}
     </div>
   )

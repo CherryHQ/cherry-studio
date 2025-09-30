@@ -82,7 +82,21 @@ vi.mock('@cherrystudio/ui', () => {
         startContent,
         children
       ),
-    Tooltip: ({ children, title, ...props }) => React.createElement('div', { ...props, title }, children),
+    Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
+      // Support both old (title) and new (content) API
+      const tooltipText = content || title
+      return React.createElement(
+        'div', 
+        { 
+          ...props, 
+          'data-testid': 'tooltip',
+          ...(tooltipText && { 'data-title': tooltipText }),
+          'data-mouse-enter-delay': mouseEnterDelay
+        }, 
+        children,
+        tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
+      )
+    },
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
     Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),
@@ -103,7 +117,19 @@ vi.mock('@cherrystudio/ui', () => {
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children)
+      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+    Avatar: ({ children, src, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
+    EmojiAvatar: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
+    Switch: ({ isSelected, onValueChange, ...props }) =>
+      React.createElement('input', { 
+        ...props, 
+        type: 'checkbox', 
+        checked: isSelected, 
+        onChange: (e) => onValueChange?.(e.target.checked),
+        'data-testid': 'switch' 
+      })
     // Add any other components that are commonly imported
   }
 })

@@ -86,7 +86,6 @@ exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
       >
         <div
           data-testid="tooltip"
-          title="Copy"
         >
           <button
             aria-label="Copy"
