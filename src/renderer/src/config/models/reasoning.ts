@@ -23,7 +23,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   o: ['low', 'medium', 'high'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
-  grok: ['auto'] as const,
+  grok: ['low', 'high'] as const,
+  grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
   qwen: ['low', 'medium', 'high'] as const,
@@ -42,7 +43,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   o: MODEL_SUPPORTED_REASONING_EFFORT.o,
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
-  grok: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
+  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
+  grok4_fast: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
@@ -66,6 +68,8 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
     }
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
+  } else if (isGrok4FastModel(model)) {
+    thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       thinkingModelType = 'gemini'
@@ -142,11 +146,20 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  if (modelId.includes('grok-3-mini') || (modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning'))) {
+  if (modelId.includes('grok-3-mini') || isGrok4FastModel(model)) {
     return true
   }
 
   return false
+}
+
+export function isGrok4FastModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
 }
 
 export function isGrokReasoningModel(model?: Model): boolean {
