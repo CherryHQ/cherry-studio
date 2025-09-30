@@ -87,16 +87,18 @@ export const SidebarOpenedMinappTabs: FC = () => {
             const isActive = minappShow && currentMinappId === app.id
 
             return (
-              <Tooltip key={app.id} content={app.name} placement="right" delay={800}>
-                <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                  <Icon
-                    theme={theme}
-                    onClick={() => handleOnClick(app)}
-                    className={`${isActive ? 'opened-active' : ''}`}>
-                    <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                  </Icon>
-                </Dropdown>
-              </Tooltip>
+              <Dropdown
+                key={app.id}
+                menu={{ items: menuItems }}
+                trigger={['contextMenu']}
+                overlayStyle={{ zIndex: 10000 }}>
+                {/* FIXME: Antd Dropdown is not compatible with HeroUI Tooltip */}
+                {/* <Tooltip content={app.name} placement="right" delay={800}> */}
+                <Icon theme={theme} onClick={() => handleOnClick(app)} className={`${isActive ? 'opened-active' : ''}`}>
+                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+                </Icon>
+                {/* </Tooltip> */}
+              </Dropdown>
             )
           })}
         </Menus>

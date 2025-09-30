@@ -400,7 +400,8 @@ const MinappPopupContainer: React.FC = () => {
     return (
       <TitleContainer style={{ backgroundColor: backgroundColor }}>
         <Tooltip
-          placement="right"
+          placement="right-end"
+          className="max-w-100"
           content={
             <TitleTextTooltip>
               {url ?? appInfo.url} <br />

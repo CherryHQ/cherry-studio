@@ -11,8 +11,6 @@ export const Tooltip = ({ children, classNames, ...rest }: TooltipProps) => {
         content: cn('max-w-60', classNames?.content)
       }}
       showArrow={true}
-      closeDelay={0}
-      delay={500}
       {...rest}>
       {children}
     </HeroUITooltip>
