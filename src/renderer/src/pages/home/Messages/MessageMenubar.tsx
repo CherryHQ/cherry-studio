@@ -616,9 +616,8 @@ const MessageMenubar: FC<Props> = (props) => {
               onClick: (e) => e.domEvent.stopPropagation()
             }}
             trigger={['click']}
-           
             arrow>
-            <Tooltip content={t('chat.translate')} delay={800}>
+            <Tooltip content={t('chat.translate')} delay={1200}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => e.stopPropagation()}
@@ -679,7 +678,7 @@ const MessageMenubar: FC<Props> = (props) => {
             $softHoverBg={softHoverBg}>
             <Tooltip
               content={t('common.delete')}
-              delay={800}
+              delay={1000}
               isOpen={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
               <DeleteIcon size={15} />

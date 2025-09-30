@@ -135,14 +135,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </Tooltip>
           <UpdateAppButton />
           {topicPosition === 'right' && !showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
+            <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={2000}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
           {topicPosition === 'right' && showTopics && (
-            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
+            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={2000}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>

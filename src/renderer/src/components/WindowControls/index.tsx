@@ -11,6 +11,8 @@ interface WindowRestoreIconProps extends SVGProps<SVGSVGElement> {
   size?: string | number
 }
 
+const DEFAULT_DELAY = 1000
+
 export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIconProps) => (
   <svg
     width={size}
@@ -83,17 +85,20 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
-      <Tooltip placement="bottom" content={t('navbar.window.minimize')}>
+      <Tooltip placement="bottom" content={t('navbar.window.minimize')} delay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMinimize} aria-label="Minimize">
           <Minus size={14} />
         </ControlButton>
       </Tooltip>
-      <Tooltip placement="bottom" content={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}>
+      <Tooltip
+        placement="bottom"
+        content={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
+        delay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
-      <Tooltip placement="bottom" content={t('navbar.window.close')}>
+      <Tooltip placement="bottom" content={t('navbar.window.close')} delay={DEFAULT_DELAY}>
         <ControlButton $isClose onClick={handleClose} aria-label="Close">
           <X size={17} />
         </ControlButton>

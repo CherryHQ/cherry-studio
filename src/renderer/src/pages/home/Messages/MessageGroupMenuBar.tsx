@@ -137,7 +137,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </RowFlex>
       {hasFailedMessages && (
-        <Tooltip content={t('message.group.retry_failed')}>
+        <Tooltip content={t('message.group.retry_failed')} delay={600}>
           <Button
             variant="light"
             size="sm"
