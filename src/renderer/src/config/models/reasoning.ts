@@ -342,7 +342,13 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
   // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
-  return /deepseek-v3(?:\.\d+|-\d+(?:-\w+)?|-\d+\.\d+-\w+)/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
+  // Matches: "deepseek-v3" followed by ".digit" or "-digit".
+  // Optionally, this can be followed by ".alphanumeric_sequence" or "-alphanumeric_sequence"
+  // until the end of the string.
+  // Examples: deepseek-v3.1, deepseek-v3-1, deepseek-v3.1.2, deepseek-v3.1-alpha
+  // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
+  // TODO: move to utils and add test cases
+  return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
 }
 
 export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
