@@ -355,7 +355,7 @@ const InputbarTools = ({
         key: 'new_topic',
         label: t('chat.input.new_topic', { Command: '' }),
         component: (
-          <Tooltip content={t('chat.input.new_topic', { Command: newTopicShortcut })}>
+          <Tooltip content={t('chat.input.new_topic', { Command: newTopicShortcut })} closeDelay={0}>
             <ActionIconButton onPress={addNewTopic} icon={<MessageSquareDiff size={19} />} />
           </Tooltip>
         )
@@ -456,10 +456,7 @@ const InputbarTools = ({
         key: 'clear_topic',
         label: t('chat.input.clear.label', { Command: '' }),
         component: (
-          <Tooltip
-            content={t('chat.input.clear.label', { Command: clearTopicShortcut })}
-            closeDelay={0}
-            showArrow>
+          <Tooltip content={t('chat.input.clear.label', { Command: clearTopicShortcut })} closeDelay={0} showArrow>
             <ActionIconButton onPress={clearTopic} icon={<PaintbrushVertical size={18} />} />
           </Tooltip>
         )
@@ -468,10 +465,7 @@ const InputbarTools = ({
         key: 'toggle_expand',
         label: isExpended ? t('chat.input.collapse') : t('chat.input.expand'),
         component: (
-          <Tooltip
-            content={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
-            closeDelay={0}
-            showArrow>
+          <Tooltip content={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} closeDelay={0} showArrow>
             <ActionIconButton
               onPress={onToggleExpended}
               icon={isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -650,9 +644,7 @@ const InputbarTools = ({
         </DragDropContext>
 
         {showCollapseButton && (
-          <Tooltip
-            content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
-            showArrow>
+          <Tooltip content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')} showArrow>
             <ActionIconButton
               onPress={() => dispatch(setIsCollapsed(!isCollapse))}
               icon={
@@ -705,9 +697,10 @@ const HiddenTools = styled.div`
 const ToolWrapper = styled.div`
   width: 30px;
   margin-right: 6px;
-  transition: width 0.2s,
-  margin-right 0.2s,
-  opacity 0.2s;
+  transition:
+    width 0.2s,
+    margin-right 0.2s,
+    opacity 0.2s;
 
   &.is-collapsed {
     width: 0;
