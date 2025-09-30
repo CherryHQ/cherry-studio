@@ -143,7 +143,7 @@ const SelectionAssistantSettings: FC = () => {
                   </Tooltip>
                 )}
                 <Tooltip
-                 
+                  placement="top-end"
                   content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}

@@ -716,7 +716,7 @@ const TranslatePage: FC = () => {
                 }
               ]}
             />
-            <Tooltip content={t('translate.exchange.label')}>
+            <Tooltip content={t('translate.exchange.label')} placement="bottom">
               <Button
                 variant="light"
                 startContent={<SwapOutlined />}
@@ -735,7 +735,12 @@ const TranslatePage: FC = () => {
             />
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
-            <ModelSelectButton model={translateModel} onSelectModel={handleModelChange} modelFilter={modelPredicate} />
+            <ModelSelectButton
+              model={translateModel}
+              onSelectModel={handleModelChange}
+              modelFilter={modelPredicate}
+              tooltipProps={{ placement: 'bottom' }}
+            />
             <Button
               variant="light"
               startContent={<Settings2 size={18} />}
@@ -981,7 +986,8 @@ const TranslateButton = ({
   const { t } = useTranslation()
   return (
     <Tooltip
-     
+      delay={500}
+      placement="bottom"
       content={
         <div style={{ textAlign: 'center' }}>
           Enter: {t('translate.button.translate')}

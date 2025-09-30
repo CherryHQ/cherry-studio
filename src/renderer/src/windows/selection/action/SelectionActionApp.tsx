@@ -217,7 +217,10 @@ const SelectionActionApp: FC = () => {
               isIconOnly
             />
           </Tooltip>
-          <Tooltip content={t('selection.action.window.opacity')} placement="bottom">
+          <Tooltip
+            content={t('selection.action.window.opacity')}
+            placement="bottom"
+            isOpen={showOpacitySlider ? false : undefined}>
             <WinButton
               variant="light"
               startContent={<Droplet size={14} />}
