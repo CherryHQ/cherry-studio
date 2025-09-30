@@ -106,10 +106,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         logger.warn('claude stderr', { chunk })
         errorChunks.push(chunk)
       },
-      systemPrompt: session.instructions
-        ? session.instructions
-        : { type: 'preset', preset: 'claude_code' },
-      settingSources: ['project', ],
+      systemPrompt: session.instructions ? session.instructions : { type: 'preset', preset: 'claude_code' },
+      settingSources: ['project'],
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
