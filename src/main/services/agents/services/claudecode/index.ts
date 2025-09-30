@@ -84,9 +84,13 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const env = {
       ...loginShellEnvWithoutProxies,
-      ANTHROPIC_API_KEY: apiConfig.apiKey,
-      ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      // TODO: fix the proxy api server
+      // ANTHROPIC_API_KEY: apiConfig.apiKey,
+      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
+      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
+      ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
+      ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
       ANTHROPIC_MODEL: modelInfo.modelId,
       ANTHROPIC_SMALL_FAST_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
