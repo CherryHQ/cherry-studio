@@ -130,8 +130,8 @@ const Assistants: FC<AssistantsProps> = ({
               )}
             </TagsContainer>
           ))}
+          {renderAddAssistantButton}
         </div>
-        {renderAddAssistantButton}
       </>
     )
   }
