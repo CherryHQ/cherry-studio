@@ -28,6 +28,7 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import process from 'node:process'
 import { apiServerService } from './services/ApiServerService'
+import { nodeEmbedService } from './services/NodeEmbedService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -156,6 +157,18 @@ if (!app.requestSingleInstanceLock()) {
       }
     } catch (error: any) {
       logger.error('Failed to check/start API server:', error)
+    }
+
+    // Start embedded Node.js project if enabled via env
+    try {
+      const enabled = ['1', 'true', 'yes', 'on'].includes(
+        String(process.env.CHS_NODE_EMBED_ENABLED || '').toLowerCase()
+      )
+      if (enabled) {
+        await nodeEmbedService.start()
+      }
+    } catch (error: any) {
+      logger.error('Failed to start embedded Node.js project:', error)
     }
   })
 

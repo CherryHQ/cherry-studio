@@ -41,6 +41,7 @@ import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
+import { nodeEmbedService } from './services/NodeEmbedService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
   addEndMessage,
@@ -816,6 +817,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
   // API Server
   apiServerService.registerIpcHandlers()
+  // Embedded Node project
+  nodeEmbedService.registerIpcHandlers()
 
   // Anthropic OAuth
   ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())

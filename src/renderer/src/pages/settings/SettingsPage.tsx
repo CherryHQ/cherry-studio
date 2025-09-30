@@ -39,6 +39,7 @@ import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
 import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
+import { NodeEmbedSettings } from './ToolSettings/NodeEmbedSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -116,6 +117,12 @@ const SettingsPage: FC = () => {
               {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/node-embed">
+            <MenuItem className={isRoute('/settings/node-embed')}>
+              <Package size={18} />
+              内嵌 Node 服务
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/docprocess">
             <MenuItem className={isRoute('/settings/docprocess')}>
               <FileCode size={18} />
@@ -161,6 +168,7 @@ const SettingsPage: FC = () => {
             <Route path="model" element={<ModelSettings />} />
             <Route path="websearch" element={<WebSearchSettings />} />
             <Route path="api-server" element={<ApiServerSettings />} />
+            <Route path="node-embed" element={<NodeEmbedSettings />} />
             <Route path="docprocess" element={<DocProcessSettings />} />
             <Route path="quickphrase" element={<QuickPhraseSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
