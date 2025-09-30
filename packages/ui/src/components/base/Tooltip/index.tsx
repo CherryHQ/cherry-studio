@@ -3,6 +3,15 @@ import { cn, Tooltip as HeroUITooltip } from '@heroui/react'
 
 export interface TooltipProps extends HeroUITooltipProps {}
 
+/**
+ * Tooltip wrapper that applies consistent styling and arrow display.
+ * Differences from raw HeroUI Tooltip:
+ * 1. Forces showArrow={true} so the arrow is always visible.
+ * 2. Merges a default max-w-60 class into the content slot, capping width at 240px.
+ * All other HeroUI Tooltip props/behaviors remain unchanged.
+ *
+ * @see https://www.heroui.com/docs/components/tooltip
+ */
 export const Tooltip = ({ children, classNames, ...rest }: TooltipProps) => {
   return (
     <HeroUITooltip
