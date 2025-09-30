@@ -73,7 +73,7 @@ class CodeToolsService {
   public async getPackageName(cliTool: string) {
     switch (cliTool) {
       case codeTools.claudeCode:
-        return '@anthropic-ai/claude-agent-sdk'
+        return '@anthropic-ai/claude-code'
       case codeTools.geminiCli:
         return '@google/gemini-cli'
       case codeTools.openaiCodex:
