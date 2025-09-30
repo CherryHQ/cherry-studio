@@ -217,7 +217,8 @@ export enum codeTools {
   claudeCode = 'claude-code',
   geminiCli = 'gemini-cli',
   openaiCodex = 'openai-codex',
-  iFlowCli = 'iflow-cli'
+  iFlowCli = 'iflow-cli',
+  githubCopilotCli = 'github-copilot-cli'
 }
 
 export enum terminalApps {
