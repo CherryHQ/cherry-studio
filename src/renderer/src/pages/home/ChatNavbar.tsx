@@ -68,14 +68,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     <NavbarHeader className="home-navbar">
       <RowFlex className="items-center">
         {showAssistants && (
-          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')}>
+          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showAssistants && (
-          <Tooltip placement="bottom" content={t('navbar.show_sidebar')}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -98,25 +98,25 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </RowFlex>
       <RowFlex className="items-center gap-2">
         <UpdateAppButton />
-        <Tooltip placement="bottom" content={t('navbar.expand')}>
+        <Tooltip placement="bottom" content={t('navbar.expand')} delay={800}>
           <NarrowIcon onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NarrowIcon>
         </Tooltip>
-        <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')}>
+        <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')} delay={800}>
           <NavbarIcon onClick={() => SearchPopup.show()}>
             <Search size={18} />
           </NavbarIcon>
         </Tooltip>
         {topicPosition === 'right' && !showTopics && (
-          <Tooltip placement="bottom" content={t('navbar.show_sidebar')}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {topicPosition === 'right' && showTopics && (
-          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')}>
+          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelRightClose size={18} />
             </NavbarIcon>

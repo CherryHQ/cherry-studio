@@ -411,7 +411,7 @@ const MinappPopupContainer: React.FC = () => {
           <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
         </Tooltip>
         {appInfo.canOpenExternalLink && (
-          <Tooltip placement="bottom" content={t('minapp.popup.openExternal')}>
+          <Tooltip placement="bottom" content={t('minapp.popup.openExternal')} delay={800}>
             <TitleButton onClick={() => handleOpenLink(url ?? appInfo.url)}>
               <ExportOutlined />
             </TitleButton>
@@ -422,17 +422,17 @@ const MinappPopupContainer: React.FC = () => {
           className={isWin || isLinux ? 'windows' : ''}
           style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
           isTopNavbar={isTopNavbar}>
-          <Tooltip placement="bottom" content={t('minapp.popup.goBack')}>
+          <Tooltip placement="bottom" content={t('minapp.popup.goBack')} delay={800}>
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
             </TitleButton>
           </Tooltip>
-          <Tooltip placement="bottom" content={t('minapp.popup.goForward')}>
+          <Tooltip placement="bottom" content={t('minapp.popup.goForward')} delay={800}>
             <TitleButton onClick={() => handleGoForward(appInfo.id)}>
               <ArrowRightOutlined />
             </TitleButton>
           </Tooltip>
-          <Tooltip placement="bottom" content={t('minapp.popup.refresh')}>
+          <Tooltip placement="bottom" content={t('minapp.popup.refresh')} delay={800}>
             <TitleButton onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
             </TitleButton>
@@ -448,7 +448,8 @@ const MinappPopupContainer: React.FC = () => {
                     ? t('minapp.add_to_launchpad')
                     : t('minapp.add_to_sidebar')
               }
-              placement="bottom">
+              placement="bottom"
+              delay={800}>
               <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
               </TitleButton>
@@ -460,26 +461,27 @@ const MinappPopupContainer: React.FC = () => {
                 ? t('minapp.popup.open_link_external_on')
                 : t('minapp.popup.open_link_external_off')
             }
-            placement="bottom">
+            placement="bottom"
+            delay={800}>
             <TitleButton onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
               <LinkOutlined />
             </TitleButton>
           </Tooltip>
           {isDev && (
-            <Tooltip placement="bottom" content={t('minapp.popup.devtools')}>
+            <Tooltip placement="bottom" content={t('minapp.popup.devtools')} delay={800}>
               <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />
               </TitleButton>
             </Tooltip>
           )}
           {canMinimize && (
-            <Tooltip placement="bottom" content={t('minapp.popup.minimize')}>
+            <Tooltip placement="bottom" content={t('minapp.popup.minimize')} delay={800}>
               <TitleButton onClick={() => handlePopupMinimize()}>
                 <MinusOutlined />
               </TitleButton>
             </Tooltip>
           )}
-          <Tooltip placement="bottom" content={t('minapp.popup.close')}>
+          <Tooltip placement="bottom" content={t('minapp.popup.close')} delay={800}>
             <TitleButton onClick={() => handlePopupClose(appInfo.id)}>
               <CloseOutlined />
             </TitleButton>

@@ -87,7 +87,7 @@ const Footer: FC<FooterProps> = ({
         )}
       </FooterText>
       <PinButtonArea onClick={() => setIsPinned(!isPinned)} className="nodrag">
-        <Tooltip placement="left" content={t('miniwindow.tooltip.pin')}>
+        <Tooltip placement="left" content={t('miniwindow.tooltip.pin')} delay={800}>
           <Pin
             size={14}
             stroke={isPinned ? 'var(--color-primary)' : 'var(--color-text)'}

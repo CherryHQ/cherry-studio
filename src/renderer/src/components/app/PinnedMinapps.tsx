@@ -87,7 +87,7 @@ export const SidebarOpenedMinappTabs: FC = () => {
             const isActive = minappShow && currentMinappId === app.id
 
             return (
-              <Tooltip key={app.id} content={app.name} placement="right">
+              <Tooltip key={app.id} content={app.name} placement="right" delay={800}>
                 <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
                   <Icon
                     theme={theme}
@@ -127,7 +127,7 @@ export const SidebarPinnedApps: FC = () => {
         ]
         const isActive = minappShow && currentMinappId === app.id
         return (
-          <Tooltip key={app.id} content={app.name} placement="right">
+          <Tooltip key={app.id} content={app.name} placement="right" delay={800}>
             <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
               <Icon
                 theme={theme}

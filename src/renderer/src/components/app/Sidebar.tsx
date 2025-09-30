@@ -88,7 +88,7 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
-        <Tooltip placement="right" content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}>
+        <Tooltip placement="right" content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)} delay={800}>
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
@@ -99,7 +99,7 @@ const Sidebar: FC = () => {
             )}
           </Icon>
         </Tooltip>
-        <Tooltip placement="right" content={t('settings.title')}>
+        <Tooltip placement="right" content={t('settings.title')} delay={800}>
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
@@ -157,7 +157,7 @@ const MainMenus: FC = () => {
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 
     return (
-      <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)}>
+      <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)} delay={800}>
         <StyledLink
           onClick={async () => {
             hideMinappPopup()

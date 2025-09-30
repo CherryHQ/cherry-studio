@@ -82,7 +82,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                 fontSize
               }}>
               {!isThinking && (
-                <Tooltip content={t('common.copy')}>
+                <Tooltip content={t('common.copy')} delay={800}>
                   <ActionButton
                     className="message-action-button"
                     onClick={(e) => {

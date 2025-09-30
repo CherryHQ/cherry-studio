@@ -72,13 +72,13 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
       <HeaderActions>
         {!isShowStarred && !isShowSearch && (
           <>
-            <Tooltip content={t('notes.new_note')}>
+            <Tooltip content={t('notes.new_note')} delay={800}>
               <ActionButton onClick={onCreateNote}>
                 <FilePlus2 size={18} />
               </ActionButton>
             </Tooltip>
 
-            <Tooltip content={t('notes.new_folder')}>
+            <Tooltip content={t('notes.new_folder')} delay={800}>
               <ActionButton onClick={onCreateFolder}>
                 <FolderPlus size={18} />
               </ActionButton>
@@ -90,20 +90,20 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 onClick: handleSortMenuClick
               }}
               trigger={['click']}>
-              <Tooltip content={t('agents.sorting.title')}>
+              <Tooltip content={t('agents.sorting.title')} delay={800}>
                 <ActionButton>
                   <ArrowUpNarrowWide size={18} />
                 </ActionButton>
               </Tooltip>
             </Dropdown>
 
-            <Tooltip content={t('notes.show_starred')}>
+            <Tooltip content={t('notes.show_starred')} delay={800}>
               <ActionButton onClick={onToggleStarredView}>
                 <Star size={18} />
               </ActionButton>
             </Tooltip>
 
-            <Tooltip content={t('common.search')}>
+            <Tooltip content={t('common.search')} delay={800}>
               <ActionButton onClick={onToggleSearchView}>
                 <Search size={18} />
               </ActionButton>
@@ -111,7 +111,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
           </>
         )}
         {isShowStarred && (
-          <Tooltip content={t('common.back')}>
+          <Tooltip content={t('common.back')} delay={800}>
             <ActionButton onClick={onToggleStarredView}>
               <ArrowLeft size={18} />
             </ActionButton>
@@ -119,7 +119,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
         )}
         {isShowSearch && (
           <>
-            <Tooltip content={t('common.back')}>
+            <Tooltip content={t('common.back')} delay={800}>
               <ActionButton onClick={onToggleSearchView}>
                 <ArrowLeft size={18} />
               </ActionButton>
