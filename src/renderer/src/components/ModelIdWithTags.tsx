@@ -26,7 +26,8 @@ const ModelIdWithTags = ({
             {model.id}
           </Typography.Text>
         }
-       >
+        className="w-auto max-w-125"
+        delay={500}>
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
