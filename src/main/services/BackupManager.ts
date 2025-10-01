@@ -340,6 +340,21 @@ class BackupManager {
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
+      // 强制将文件系统缓存同步到磁盘，防止因竞争条件导致文件损坏。
+      try {
+        const fileDescriptor = await fs.open(backupedFilePath, 'r')
+        await fs.fsync(fileDescriptor)
+        await fs.close(fileDescriptor)
+        logger.debug(`[BackupManager] Backup file synced to disk successfully: ${backupedFilePath}`)
+      } catch (syncError) {
+        logger.error(
+          '[BackupManager] Failed to explicitly sync backup file to disk. Falling back to a brief delay.',
+          syncError as Error
+        )
+        await new Promise((res) => setTimeout(res, 500))
+      }
+
+
       logger.debug('Backup completed successfully')
       return backupedFilePath
     } catch (error) {
