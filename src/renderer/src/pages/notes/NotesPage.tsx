@@ -442,6 +442,44 @@ const NotesPage: FC = () => {
     [dispatch, getTargetFolderPath, refreshTree, updateExpandedPaths]
   )
 
+  // 在指定目录创建文件夹
+  const handleCreateFolderInTarget = useCallback(
+    async (name: string, targetPath: string) => {
+      try {
+        await addDir(name, targetPath)
+        updateExpandedPaths((prev) => addUniquePath(prev, normalizePathValue(targetPath)))
+        await refreshTree()
+      } catch (error) {
+        logger.error('Failed to create folder in target:', error as Error)
+      }
+    },
+    [refreshTree, updateExpandedPaths]
+  )
+
+  // 在指定目录创建笔记
+  const handleCreateNoteInTarget = useCallback(
+    async (name: string, targetPath: string) => {
+      try {
+        isCreatingNoteRef.current = true
+
+        const { path: notePath } = await addNote(name, '', targetPath)
+        const normalizedParent = normalizePathValue(targetPath)
+        updateExpandedPaths((prev) => addUniquePath(prev, normalizedParent))
+        dispatch(setActiveFilePath(notePath))
+        setSelectedFolderId(null)
+
+        await refreshTree()
+      } catch (error) {
+        logger.error('Failed to create note in target:', error as Error)
+      } finally {
+        setTimeout(() => {
+          isCreatingNoteRef.current = false
+        }, 500)
+      }
+    },
+    [dispatch, refreshTree, updateExpandedPaths]
+  )
+
   const handleToggleExpanded = useCallback(
     (nodeId: string) => {
       const targetNode = findNode(notesTree, nodeId)
@@ -771,6 +809,8 @@ const NotesPage: FC = () => {
                 onSelectNode={handleSelectNode}
                 onCreateFolder={handleCreateFolder}
                 onCreateNote={handleCreateNote}
+                onCreateFolderInTarget={handleCreateFolderInTarget}
+                onCreateNoteInTarget={handleCreateNoteInTarget}
                 onDeleteNode={handleDeleteNode}
                 onRenameNode={handleRenameNode}
                 onToggleExpanded={handleToggleExpanded}

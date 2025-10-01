@@ -330,3 +330,48 @@ export const purifyMarkdownImages = (markdown: string): string => {
     '$1image_url)'
   )
 }
+
+/**
+ * 从 Markdown 内容中提取标题（第一行）
+ * 
+ * 提取逻辑：
+ * 1. 如果第一行是 H1 标题（# 开头），提取标题文本
+ * 2. 否则，提取第一个非空行作为标题
+ * 3. 如果内容为空，返回 null
+ * 
+ * @param {string} markdown - Markdown 内容
+ * @returns {string | null} 提取的标题，如果无法提取则返回 null
+ * @example
+ * extractTitleFromMarkdown('# My Title\nContent here') // => 'My Title'
+ * extractTitleFromMarkdown('First line\nSecond line') // => 'First line'
+ * extractTitleFromMarkdown('') // => null
+ */
+export const extractTitleFromMarkdown = (markdown: string): string | null => {
+  if (!markdown || typeof markdown !== 'string') {
+    return null
+  }
+
+  // 按行分割并过滤空行
+  const lines = markdown.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+  
+  if (lines.length === 0) {
+    return null
+  }
+
+  const firstLine = lines[0]
+
+  // 检查是否是 H1 标题（# 开头）
+  const h1Match = firstLine.match(/^#\s+(.+)$/)
+  if (h1Match) {
+    return h1Match[1].trim()
+  }
+
+  // 否则返回第一个非空行，但限制长度避免太长
+  const maxLength = 50
+  const title = firstLine.length > maxLength 
+    ? firstLine.substring(0, maxLength) + '...' 
+    : firstLine
+  
+  return title
+}
+

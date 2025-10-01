@@ -6,10 +6,11 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNode } from '@renderer/services/NotesTreeService'
+import { extractTitleFromMarkdown } from '@renderer/utils/markdown'
 import { Dropdown, Input, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { menuItems } from './MenuConfig'
@@ -26,6 +27,24 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   const titleInputRef = useRef<any>(null)
   const { settings, updateSettings } = useNotesSettings()
   const canShowStarButton = activeNode?.type === 'file' && onToggleStar
+
+  // 从笔记内容中提取标题
+  const extractedTitle = useMemo(() => {
+    if (!activeNode || activeNode.type !== 'file') {
+      return null
+    }
+    const content = getCurrentNoteContent?.()
+    if (!content) {
+      return null
+    }
+    return extractTitleFromMarkdown(content)
+  }, [activeNode, getCurrentNoteContent])
+
+  // 获取显示的标题：优先使用提取的标题，否则使用文件名
+  const displayTitle = useMemo(() => {
+    if (!activeNode) return ''
+    return extractedTitle || activeNode.name.replace('.md', '')
+  }, [activeNode, extractedTitle])
 
   const handleToggleShowWorkspace = useCallback(() => {
     toggleShowWorkspace()
@@ -141,9 +160,9 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   // 同步标题值
   useEffect(() => {
     if (activeNode?.type === 'file') {
-      setTitleValue(activeNode.name.replace('.md', ''))
+      setTitleValue(displayTitle)
     }
-  }, [activeNode])
+  }, [activeNode, displayTitle])
 
   // 构建面包屑路径
   useEffect(() => {
@@ -158,16 +177,18 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
     const items = pathParts.map((part, index) => {
       const currentPath = '/' + pathParts.slice(0, index + 1).join('/')
       const isLastItem = index === pathParts.length - 1
+      // 对于最后一个项目（当前笔记），使用提取的标题
+      const title = isLastItem && node.type === 'file' && extractedTitle ? extractedTitle : part
       return {
         key: `path-${index}`,
-        title: part,
+        title: title,
         treePath: currentPath,
         isFolder: !isLastItem || node.type === 'folder'
       }
     })
 
     setBreadcrumbItems(items)
-  }, [activeNode, notesTree])
+  }, [activeNode, notesTree, extractedTitle])
 
   return (
     <NavbarHeader

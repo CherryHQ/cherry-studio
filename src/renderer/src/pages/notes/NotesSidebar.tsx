@@ -20,6 +20,7 @@ import {
   FileSearch,
   Folder,
   FolderOpen,
+  FolderPlus,
   Star,
   StarOff
 } from 'lucide-react'
@@ -30,6 +31,8 @@ import styled from 'styled-components'
 interface NotesSidebarProps {
   onCreateFolder: (name: string, parentId?: string) => void
   onCreateNote: (name: string, parentId?: string) => void
+  onCreateFolderInTarget: (name: string, targetPath: string) => void
+  onCreateNoteInTarget: (name: string, targetPath: string) => void
   onSelectNode: (node: NotesTreeNode) => void
   onDeleteNode: (nodeId: string) => void
   onRenameNode: (nodeId: string, newName: string) => void
@@ -198,6 +201,8 @@ const TreeNode = memo<TreeNodeProps>(
 const NotesSidebar: FC<NotesSidebarProps> = ({
   onCreateFolder,
   onCreateNote,
+  onCreateFolderInTarget,
+  onCreateNoteInTarget,
   onSelectNode,
   onDeleteNode,
   onRenameNode,
@@ -490,7 +495,32 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const getMenuItems = useCallback(
     (node: NotesTreeNode) => {
-      const baseMenuItems: MenuProps['items'] = [
+      const baseMenuItems: MenuProps['items'] = []
+      
+      // Add "New Note" and "New Folder" options for folder nodes
+      if (node.type === 'folder') {
+        baseMenuItems.push(
+          {
+            label: t('notes.new_note'),
+            key: 'new_note',
+            icon: <FilePlus size={14} />,
+            onClick: () => {
+              onCreateNoteInTarget(t('notes.untitled_note'), node.externalPath)
+            }
+          },
+          {
+            label: t('notes.new_folder'),
+            key: 'new_folder',
+            icon: <FolderPlus size={14} />,
+            onClick: () => {
+              onCreateFolderInTarget(t('notes.untitled_folder'), node.externalPath)
+            }
+          },
+          { type: 'divider' }
+        )
+      }
+
+      baseMenuItems.push(
         {
           label: t('notes.rename'),
           key: 'rename',
@@ -507,7 +537,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             window.api.openPath(node.externalPath)
           }
         }
-      ]
+      )
       if (node.type !== 'folder') {
         baseMenuItems.push(
           {
@@ -543,7 +573,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       return baseMenuItems
     },
-    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode]
+    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode, onCreateNoteInTarget, onCreateFolderInTarget]
   )
 
   const handleDropFiles = useCallback(
