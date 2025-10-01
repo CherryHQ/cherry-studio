@@ -1,5 +1,4 @@
 import express, { Request, Response } from 'express'
-import OpenAI from 'openai'
 import { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
@@ -146,23 +145,15 @@ router.post('/completions', async (req: Request, res: Response) => {
       fullModelId: request.model
     })
 
-    // Create OpenAI client
-    const client = new OpenAI({
-      baseURL: provider.apiHost,
-      apiKey: provider.apiKey
-    })
-    request.model = modelId
-
     // Handle streaming
     if (request.stream) {
-      const streamResponse = await client.chat.completions.create(request)
-
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.setHeader('Content-Type', 'text/event-stream')
       res.setHeader('Cache-Control', 'no-cache')
       res.setHeader('Connection', 'keep-alive')
+      res.setHeader('X-Accel-Buffering', 'no') // Disable buffering in nginx
 
       try {
-        for await (const chunk of streamResponse as any) {
+        for await (const chunk of chatCompletionService.processStreamingCompletion(request)) {
           res.write(`data: ${JSON.stringify(chunk)}\n\n`)
         }
         res.write('data: [DONE]\n\n')
@@ -184,7 +175,7 @@ router.post('/completions', async (req: Request, res: Response) => {
     }
 
     // Handle non-streaming
-    const response = await client.chat.completions.create(request)
+    const response = await chatCompletionService.processCompletion(request)
     return res.json(response)
   } catch (error: any) {
     logger.error('Chat completion error:', error)

@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { ChatCompletionCreateParams } from 'openai/resources'
 
+import copilotService from '../../services/CopilotService'
 import { loggerService } from '../../services/LoggerService'
 import {
   getProviderByModel,
@@ -10,8 +11,39 @@ import {
   transformModelToOpenAI,
   validateProvider
 } from '../utils'
+import { Provider } from '@types'
 
 const logger = loggerService.withContext('ChatCompletionService')
+
+/**
+ * Create OpenAI client with provider-specific configuration
+ * Handles special cases like Copilot dynamic token fetching
+ */
+async function createOpenAIClient(provider: Provider): Promise<OpenAI> {
+  let apiKey = provider.apiKey
+  const defaultHeaders: Record<string, string> = {}
+
+  // Special handling for Copilot: fetch dynamic token
+  if (provider.id === 'copilot') {
+    logger.debug('Fetching dynamic token for Copilot provider')
+    try {
+      const tokenResponse = await copilotService.getToken(null as any, undefined)
+      apiKey = tokenResponse.token
+      // Add Copilot-specific headers
+      defaultHeaders['editor-version'] = 'vscode/1.97.2'
+      defaultHeaders['copilot-vision-request'] = 'true'
+    } catch (error: any) {
+      logger.error('Failed to get Copilot token:', error)
+      throw new Error('Failed to authenticate with Copilot. Please ensure you are logged in.')
+    }
+  }
+
+  return new OpenAI({
+    baseURL: provider.apiHost,
+    apiKey: apiKey,
+    defaultHeaders: defaultHeaders
+  })
+}
 
 export interface ModelData extends OpenAICompatibleModel {
   provider_id: string
@@ -144,11 +176,8 @@ export class ChatCompletionService {
       // Extract model ID from the full model string
       const modelId = getRealProviderModel(request.model)
 
-      // Create OpenAI client for the provider
-      const client = new OpenAI({
-        baseURL: provider.apiHost,
-        apiKey: provider.apiKey
-      })
+      // Create OpenAI client (handles Copilot and other special cases)
+      const client = await createOpenAIClient(provider)
 
       // Prepare request with the actual model ID
       const providerRequest = {
@@ -202,11 +231,8 @@ export class ChatCompletionService {
       // Extract model ID from the full model string
       const modelId = getRealProviderModel(request.model)
 
-      // Create OpenAI client for the provider
-      const client = new OpenAI({
-        baseURL: provider.apiHost,
-        apiKey: provider.apiKey
-      })
+      // Create OpenAI client (handles Copilot and other special cases)
+      const client = await createOpenAIClient(provider)
 
       // Prepare streaming request
       const streamingRequest = {
