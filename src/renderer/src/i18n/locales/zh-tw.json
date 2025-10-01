@@ -1697,6 +1697,12 @@
     "provider_settings": "跳轉到服務商設置界面"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "筆記為空，無法生成名稱",
+      "failed": "生成筆記名稱失敗",
+      "label": "生成筆記名稱",
+      "success": "筆記名稱生成成功"
+    },
     "characters": "字符",
     "collapse": "收起",
     "content_placeholder": "請輸入筆記內容...",
