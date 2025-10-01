@@ -251,6 +251,68 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   }
 }
 
+export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
+  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  const resolvedAssistant = assistant || getDefaultAssistant()
+  const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    return null
+  }
+
+  const AI = new AiProviderNew(model)
+
+  // only 2000 char and no images
+  const truncatedContent = content.substring(0, 2000)
+  const purifiedContent = purifyMarkdownImages(truncatedContent)
+
+  const summaryAssistant = {
+    ...resolvedAssistant,
+    settings: {
+      ...resolvedAssistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    },
+    prompt,
+    model
+  }
+
+  const llmMessages = {
+    system: prompt,
+    prompt: purifiedContent
+  }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: false,
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false,
+    mcpTools: []
+  }
+
+  try {
+    const { getText } = await AI.completions(model.id, llmMessages, {
+      ...middlewareConfig,
+      assistant: summaryAssistant,
+      callType: 'summary'
+    })
+    const text = getText()
+    return removeSpecialCharactersForTopicName(text) || null
+  } catch (error: any) {
+    return null
+  }
+}
+
 // export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
 //   const model = getQuickModel() || assistant.model || getDefaultModel()
 //   const provider = getProviderByModel(model)

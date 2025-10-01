@@ -6,6 +6,7 @@ import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import { fetchNoteSummary } from '@renderer/services/ApiService'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -20,6 +21,7 @@ import {
   FileSearch,
   Folder,
   FolderOpen,
+  Sparkles,
   Star,
   StarOff
 } from 'lucide-react'
@@ -214,6 +216,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const [renamingNodeIds, setRenamingNodeIds] = useState<Set<string>>(new Set())
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<'before' | 'inside' | 'after'>('inside')
@@ -334,6 +337,39 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       }
     },
     [bases.length, t]
+  )
+
+  const handleAutoRename = useCallback(
+    async (note: NotesTreeNode) => {
+      if (note.type !== 'file') return
+
+      setRenamingNodeIds((prev) => new Set(prev).add(note.id))
+      try {
+        const content = await window.api.file.readExternal(note.externalPath)
+        if (!content || content.trim().length === 0) {
+          window.toast.warning(t('notes.auto_rename.empty_note'))
+          return
+        }
+
+        const summaryText = await fetchNoteSummary({ content })
+        if (summaryText) {
+          onRenameNode(note.id, summaryText)
+          window.toast.success(t('notes.auto_rename.success'))
+        } else {
+          window.toast.error(t('notes.auto_rename.failed'))
+        }
+      } catch (error) {
+        window.toast.error(t('notes.auto_rename.failed'))
+        logger.error(`Failed to auto-rename note: ${error}`)
+      } finally {
+        setRenamingNodeIds((prev) => {
+          const next = new Set(prev)
+          next.delete(note.id)
+          return next
+        })
+      }
+    },
+    [onRenameNode, t]
   )
 
   const handleDragStart = useCallback((e: React.DragEvent, node: NotesTreeNode) => {
@@ -490,7 +526,22 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const getMenuItems = useCallback(
     (node: NotesTreeNode) => {
-      const baseMenuItems: MenuProps['items'] = [
+      const baseMenuItems: MenuProps['items'] = []
+
+      // only show auto rename for file for now
+      if (node.type !== 'folder') {
+        baseMenuItems.push({
+          label: t('notes.auto_rename.label'),
+          key: 'auto-rename',
+          icon: <Sparkles size={14} />,
+          disabled: renamingNodeIds.has(node.id),
+          onClick: () => {
+            handleAutoRename(node)
+          }
+        })
+      }
+
+      baseMenuItems.push(
         {
           label: t('notes.rename'),
           key: 'rename',
@@ -507,7 +558,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             window.api.openPath(node.externalPath)
           }
         }
-      ]
+      )
       if (node.type !== 'folder') {
         baseMenuItems.push(
           {
@@ -543,7 +594,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       return baseMenuItems
     },
-    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode]
+    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode, renamingNodeIds, handleAutoRename]
   )
 
   const handleDropFiles = useCallback(

@@ -1697,6 +1697,12 @@
     "provider_settings": "Go to provider settings"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "Note is empty, cannot generate name",
+      "failed": "Failed to generate note name",
+      "label": "Generate Note Name",
+      "success": "Note name generated successfully"
+    },
     "characters": "Characters",
     "collapse": "Collapse",
     "content_placeholder": "Please enter the note content...",
