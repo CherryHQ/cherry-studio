@@ -1,7 +1,12 @@
 /* oxlint-disable no-case-declarations */
 // ExportService
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { loggerService } from '@logger'
+import { PRINT_HTML_TEMPLATE } from '@main/constant'
 import {
   AlignmentType,
   BorderStyle,
@@ -18,10 +23,11 @@ import {
   VerticalAlign,
   WidthType
 } from 'docx'
-import { dialog } from 'electron'
+import { app, BrowserWindow, dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
 import { fileStorage } from './FileStorage'
+import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
@@ -403,6 +409,118 @@ export class ExportService {
     } catch (error) {
       logger.error('Export to Word failed:', error as Error)
       throw error
+    }
+  }
+
+  public exportToPDF = async (_: Electron.IpcMainInvokeEvent, content: string, filename: string): Promise<any> => {
+    const mainWindow = windowService.getMainWindow()
+    if (!mainWindow) {
+      throw new Error('Main window not set')
+    }
+
+    try {
+      const loadCssFile = async (filename: string): Promise<string> => {
+        try {
+          let cssPath: string
+          if (app.isPackaged) {
+            cssPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'resources', 'styles', filename)
+          } else {
+            cssPath = path.join(app.getAppPath(), 'src', 'renderer', 'src', 'assets', 'styles', filename)
+          }
+          return await fs.promises.readFile(cssPath, 'utf-8')
+        } catch (error) {
+          logger.warn(`Could not load ${filename}, using fallback:`, error as Error)
+          return ''
+        }
+      }
+
+      const colorCss = await loadCssFile('color.css')
+      const fontCss = await loadCssFile('font.css')
+      const richtextCss = await loadCssFile('richtext.css')
+
+      // PDF专用样式，解决代码块溢出问题
+      const pdfSpecificCss = `
+        @media print {
+          .tiptap pre {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+
+          .tiptap pre code {
+            white-space: pre-wrap !important;
+            word-wrap: break-word !important;
+            overflow-wrap: break-word !important;
+          }
+
+          .tiptap {
+            max-width: 100% !important;
+            overflow: hidden !important;
+          }
+        }
+      `
+
+      const tempHtmlPath = path.join(os.tmpdir(), `temp_${Date.now()}.html`)
+      await fs.promises.writeFile(
+        tempHtmlPath,
+        PRINT_HTML_TEMPLATE.replace('{{filename}}', filename.replace('.pdf', ''))
+          .replace('{{colorCss}}', colorCss)
+          .replace('{{richtextCss}}', richtextCss + pdfSpecificCss)
+          .replace('{{fontCss}}', fontCss)
+          .replace('{{content}}', content)
+      )
+
+      const printWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        show: false,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      })
+
+      await printWindow.loadFile(tempHtmlPath)
+
+      // Show save dialog for PDF
+      const result = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: filename,
+        filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+      })
+
+      if (result.canceled || !result.filePath) {
+        printWindow.close()
+        await fs.promises.unlink(tempHtmlPath)
+        return { success: false, message: 'Export cancelled' }
+      }
+
+      // Generate PDF using printToPDF for vector output
+      const pdfData = await printWindow.webContents.printToPDF({
+        margins: {
+          top: 0.5,
+          bottom: 0.5,
+          left: 0.5,
+          right: 0.5
+        },
+        pageSize: 'A4',
+        printBackground: true,
+        scale: 1.0,
+        preferCSSPageSize: false,
+        landscape: false
+      })
+
+      await fs.promises.writeFile(result.filePath, pdfData)
+
+      // Clean up
+      printWindow.close()
+      await fs.promises.unlink(tempHtmlPath)
+
+      return { success: true, filePath: result.filePath }
+    } catch (error: any) {
+      logger.error('Failed to export PDF:', error)
+      return { success: false, error: error.message }
     }
   }
 }

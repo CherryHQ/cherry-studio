@@ -527,6 +527,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // export
   ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord.bind(exportService))
 
+  // PDF export
+  ipcMain.handle(IpcChannel.Export_PDF, exportService.exportToPDF.bind(exportService))
+
   // open path
   ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
     await shell.openPath(path)

@@ -46,6 +46,7 @@ import styled from 'styled-components'
 import HeaderNavbar from './HeaderNavbar'
 import NotesEditor from './NotesEditor'
 import NotesSidebar from './NotesSidebar'
+import { handleExportPDF } from './utils/exportUtils'
 
 const logger = loggerService.withContext('NotesPage')
 
@@ -751,6 +752,50 @@ const NotesPage: FC = () => {
     }
   }, [currentContent, settings.defaultEditMode])
 
+  // 处理PDF导出 - 复用MenuConfig中的导出逻辑
+  const handleExportToPDF = useCallback(
+    async (nodeId: string) => {
+      try {
+        const node = findNodeById(notesTree, nodeId)
+        if (!node || node.type !== 'file') {
+          logger.warn('Cannot export PDF: Invalid node', { nodeId })
+          return
+        }
+
+        // 如果是当前活动的笔记，直接使用当前编辑器
+        if (activeFilePath === node.externalPath && editorRef.current) {
+          const filename = node.name.endsWith('.md') ? node.name.replace('.md', '') : node.name
+          await handleExportPDF({
+            editorRef: editorRef as React.RefObject<RichEditorRef>,
+            currentContent: getCurrentNoteContent(),
+            fileName: filename
+          })
+          return
+        }
+
+        // 如果不是当前笔记，先切换到该笔记再导出
+        dispatch(setActiveFilePath(node.externalPath))
+        invalidateFileContent(node.externalPath)
+
+        // 等待内容加载后再导出
+        setTimeout(async () => {
+          if (editorRef.current) {
+            const filename = node.name.endsWith('.md') ? node.name.replace('.md', '') : node.name
+            await handleExportPDF({
+              editorRef: editorRef as React.RefObject<RichEditorRef>,
+              currentContent: editorRef.current.getMarkdown(),
+              fileName: filename
+            })
+          }
+        }, 500)
+      } catch (error) {
+        logger.error('Failed to export PDF:', error as Error)
+        window.toast.error(`导出PDF失败: ${(error as Error).message}`)
+      }
+    },
+    [findNodeById, notesTree, activeFilePath, editorRef, getCurrentNoteContent, dispatch, invalidateFileContent]
+  )
+
   return (
     <Container id="notes-page">
       <Navbar>
@@ -778,6 +823,7 @@ const NotesPage: FC = () => {
                 onMoveNode={handleMoveNode}
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
+                onExportToPDF={handleExportToPDF}
               />
             </motion.div>
           )}
@@ -785,6 +831,8 @@ const NotesPage: FC = () => {
         <EditorWrapper>
           <HeaderNavbar
             notesTree={notesTree}
+            editorRef={editorRef}
+            currentContent={currentContent}
             getCurrentNoteContent={getCurrentNoteContent}
             onToggleStar={handleToggleStar}
             onExpandPath={handleExpandPath}

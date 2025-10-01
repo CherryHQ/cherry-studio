@@ -14,6 +14,7 @@ import { Dropdown, Input, InputRef, MenuProps } from 'antd'
 import {
   ChevronDown,
   ChevronRight,
+  Download,
   Edit3,
   File,
   FilePlus,
@@ -38,6 +39,7 @@ interface NotesSidebarProps {
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void
   onSortNodes: (sortType: NotesSortType) => void
   onUploadFiles: (files: File[]) => void
+  onExportToPDF?: (nodeId: string) => void
   notesTree: NotesTreeNode[]
   selectedFolderId?: string | null
 }
@@ -206,6 +208,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onMoveNode,
   onSortNodes,
   onUploadFiles,
+  onExportToPDF,
   notesTree,
   selectedFolderId
 }) => {
@@ -334,6 +337,15 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       }
     },
     [bases.length, t]
+  )
+
+  const handleExportToPDF = useCallback(
+    (note: NotesTreeNode) => {
+      if (onExportToPDF && note.type === 'file') {
+        onExportToPDF(note.id)
+      }
+    },
+    [onExportToPDF]
   )
 
   const handleDragStart = useCallback((e: React.DragEvent, node: NotesTreeNode) => {
@@ -525,6 +537,14 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             onClick: () => {
               handleExportKnowledge(node)
             }
+          },
+          {
+            label: t('notes.exportPDF'),
+            key: 'export_pdf',
+            icon: <Download size={14} />,
+            onClick: () => {
+              handleExportToPDF(node)
+            }
           }
         )
       }
@@ -543,7 +563,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       return baseMenuItems
     },
-    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode]
+    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleExportToPDF, handleDeleteNode]
   )
 
   const handleDropFiles = useCallback(

@@ -1386,6 +1386,9 @@
         "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
         "no_content": "沒有可匯出至 Notion 的內容"
       },
+      "pdf": {
+        "export": "導出 PDF 失敗"
+      },
       "siyuan": {
         "export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
         "no_config": "未配置思源筆記 API 地址或令牌"
@@ -1487,6 +1490,9 @@
       },
       "notion": {
         "export": "成功匯出到 Notion"
+      },
+      "pdf": {
+        "export": "成功導出為 PDF"
       },
       "siyuan": {
         "export": "導出到思源筆記成功"
@@ -1708,6 +1714,7 @@
     "drop_markdown_hint": "拖拽 .md 文件或資料夾到此處導入",
     "empty": "暫無筆記",
     "expand": "展開",
+    "exportPDF": "匯出為PDF",
     "export_failed": "匯出至知識庫失敗",
     "export_knowledge": "匯出筆記至知識庫",
     "export_success": "成功匯出至知識庫",

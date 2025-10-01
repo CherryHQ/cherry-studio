@@ -13,10 +13,19 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { menuItems } from './MenuConfig'
+import { ExportContext, handleExportPDF } from './utils/exportUtils'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
-const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpandPath, onRenameNode }) => {
+const HeaderNavbar = ({
+  notesTree,
+  editorRef,
+  currentContent,
+  getCurrentNoteContent,
+  onToggleStar,
+  onExpandPath,
+  onRenameNode,
+}) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree)
   const [breadcrumbItems, setBreadcrumbItems] = useState<
@@ -90,6 +99,15 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
     [activeNode]
   )
 
+  const handleExportPDFAction = useCallback(async () => {
+    const menuContext: ExportContext = {
+      editorRef,
+      currentContent,
+      fileName: activeNode?.name || t('notes.title')
+    }
+    await handleExportPDF(menuContext)
+  }, [editorRef, currentContent, activeNode])
+
   const buildMenuItem = (item: any) => {
     if (item.type === 'divider') {
       return { type: 'divider' as const, key: item.key }
@@ -131,6 +149,8 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       onClick: () => {
         if (item.copyAction) {
           handleCopyContent()
+        } else if (item.exportPdfAction) {
+          handleExportPDFAction()
         } else if (item.action) {
           item.action(settings, updateSettings)
         }

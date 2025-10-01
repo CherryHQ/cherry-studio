@@ -11,6 +11,13 @@ electronLanguages:
   - en # for macOS
 directories:
   buildResources: build
+extraResources:
+  - from: 'src/renderer/src/assets/styles'
+    to: 'app.asar.unpacked/resources/styles'
+    filter:
+      - 'font.css'
+      - 'color.css'
+      - 'richtext.css'
 
 protocols:
   - name: Cherry Studio

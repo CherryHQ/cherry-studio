@@ -1386,6 +1386,9 @@
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
         "no_content": "There is nothing to export to Notion."
       },
+      "pdf": {
+        "export": "Failed to export to PDF"
+      },
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
@@ -1487,6 +1490,9 @@
       },
       "notion": {
         "export": "Successfully exported to Notion"
+      },
+      "pdf": {
+        "export": "Successfully exported to PDF"
       },
       "siyuan": {
         "export": "Successfully exported to Siyuan Note"
@@ -1708,6 +1714,7 @@
     "drop_markdown_hint": "Drop .md files or folders here to import",
     "empty": "No notes available yet",
     "expand": "unfold",
+    "exportPDF": "Export to PDF",
     "export_failed": "Failed to export to knowledge base",
     "export_knowledge": "Export notes to knowledge base",
     "export_success": "Successfully exported to the knowledge base",

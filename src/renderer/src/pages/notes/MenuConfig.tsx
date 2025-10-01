@@ -1,17 +1,24 @@
 import { NotesSettings } from '@renderer/store/note'
-import { Copy, MonitorSpeaker, Type } from 'lucide-react'
+import { Copy, Download, MonitorSpeaker, Type } from 'lucide-react'
 import { ReactNode } from 'react'
+
+import { ExportContext } from './utils/exportUtils'
 
 export interface MenuItem {
   key: string
   type?: 'divider' | 'component'
   labelKey: string
   icon?: React.ComponentType<any>
-  action?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => void
+  action?: (
+    settings: NotesSettings,
+    updateSettings: (newSettings: Partial<NotesSettings>) => void,
+    context?: ExportContext
+  ) => void
   children?: MenuItem[]
   isActive?: (settings: NotesSettings) => boolean
   component?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => ReactNode
   copyAction?: boolean
+  exportPdfAction?: boolean
 }
 
 export const menuItems: MenuItem[] = [
@@ -20,6 +27,12 @@ export const menuItems: MenuItem[] = [
     labelKey: 'notes.copyContent',
     icon: Copy,
     copyAction: true
+  },
+  {
+    key: 'export-pdf',
+    labelKey: 'notes.exportPDF',
+    icon: Download,
+    exportPdfAction: true
   },
   {
     key: 'divider0',
