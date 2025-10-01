@@ -52,6 +52,8 @@ interface TreeNodeProps {
   selectedFolderId?: string | null
   activeNodeId?: string
   editingNodeId: string | null
+  renamingNodeIds: Set<string>
+  newlyRenamedNodeIds: Set<string>
   draggedNodeId: string | null
   dragOverNodeId: string | null
   dragPosition: 'before' | 'inside' | 'after'
@@ -74,6 +76,8 @@ const TreeNode = memo<TreeNodeProps>(
     selectedFolderId,
     activeNodeId,
     editingNodeId,
+    renamingNodeIds,
+    newlyRenamedNodeIds,
     draggedNodeId,
     dragOverNodeId,
     dragPosition,
@@ -94,12 +98,20 @@ const TreeNode = memo<TreeNodeProps>(
       ? node.type === 'folder' && node.id === selectedFolderId
       : node.id === activeNodeId
     const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
+    const isRenaming = renamingNodeIds.has(node.id)
+    const isNewlyRenamed = newlyRenamedNodeIds.has(node.id)
     const hasChildren = node.children && node.children.length > 0
     const isDragging = draggedNodeId === node.id
     const isDragOver = dragOverNodeId === node.id
     const isDragBefore = isDragOver && dragPosition === 'before'
     const isDragInside = isDragOver && dragPosition === 'inside'
     const isDragAfter = isDragOver && dragPosition === 'after'
+
+    const getNodeNameClassName = () => {
+      if (isRenaming) return 'shimmer'
+      if (isNewlyRenamed) return 'typing'
+      return ''
+    }
 
     return (
       <div key={node.id}>
@@ -158,7 +170,7 @@ const TreeNode = memo<TreeNodeProps>(
                     size="small"
                   />
                 ) : (
-                  <NodeName>{node.name}</NodeName>
+                  <NodeName className={getNodeNameClassName()}>{node.name}</NodeName>
                 )}
               </TreeNodeContent>
             </TreeNodeContainer>
@@ -175,6 +187,8 @@ const TreeNode = memo<TreeNodeProps>(
                 selectedFolderId={selectedFolderId}
                 activeNodeId={activeNodeId}
                 editingNodeId={editingNodeId}
+                renamingNodeIds={renamingNodeIds}
+                newlyRenamedNodeIds={newlyRenamedNodeIds}
                 draggedNodeId={draggedNodeId}
                 dragOverNodeId={dragOverNodeId}
                 dragPosition={dragPosition}
@@ -217,6 +231,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const sortType = useAppSelector(selectSortType)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [renamingNodeIds, setRenamingNodeIds] = useState<Set<string>>(new Set())
+  const [newlyRenamedNodeIds, setNewlyRenamedNodeIds] = useState<Set<string>>(new Set())
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<'before' | 'inside' | 'after'>('inside')
@@ -367,6 +382,16 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           next.delete(note.id)
           return next
         })
+
+        setNewlyRenamedNodeIds((prev) => new Set(prev).add(note.id))
+
+        setTimeout(() => {
+          setNewlyRenamedNodeIds((prev) => {
+            const next = new Set(prev)
+            next.delete(note.id)
+            return next
+          })
+        }, 700)
       }
     },
     [onRenameNode, t]
@@ -731,6 +756,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         selectedFolderId={selectedFolderId}
                         activeNodeId={activeNode?.id}
                         editingNodeId={editingNodeId}
+                        renamingNodeIds={renamingNodeIds}
+                        newlyRenamedNodeIds={newlyRenamedNodeIds}
                         draggedNodeId={draggedNodeId}
                         dragOverNodeId={dragOverNodeId}
                         dragPosition={dragPosition}
@@ -775,6 +802,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       selectedFolderId={selectedFolderId}
                       activeNodeId={activeNode?.id}
                       editingNodeId={editingNodeId}
+                      renamingNodeIds={renamingNodeIds}
+                      newlyRenamedNodeIds={newlyRenamedNodeIds}
                       draggedNodeId={draggedNodeId}
                       dragOverNodeId={dragOverNodeId}
                       dragPosition={dragPosition}
@@ -797,6 +826,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       selectedFolderId={selectedFolderId}
                       activeNodeId={activeNode?.id}
                       editingNodeId={editingNodeId}
+                      renamingNodeIds={renamingNodeIds}
+                      newlyRenamedNodeIds={newlyRenamedNodeIds}
                       draggedNodeId={draggedNodeId}
                       dragOverNodeId={dragOverNodeId}
                       dragPosition={dragPosition}
@@ -984,6 +1015,44 @@ const NodeName = styled.div`
   text-overflow: ellipsis;
   font-size: 13px;
   color: var(--color-text);
+  position: relative;
+  will-change: background-position, width;
+
+  --color-shimmer-mid: var(--color-text-1);
+  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+
+  &.shimmer {
+    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
+    background-size: 200% 100%;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  &.typing {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    animation: typewriter 0.5s steps(40, end);
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes typewriter {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
 `
 
 const EditInput = styled(Input)`
