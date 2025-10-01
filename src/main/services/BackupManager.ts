@@ -354,7 +354,6 @@ class BackupManager {
         await new Promise((res) => setTimeout(res, 500))
       }
 
-
       logger.debug('Backup completed successfully')
       return backupedFilePath
     } catch (error) {
