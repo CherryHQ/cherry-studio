@@ -1,16 +1,25 @@
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
-import { useAppSelector } from '@renderer/store'
+import store, { RootState, useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
+import {
+  exportMarkdownToJoplin,
+  exportMarkdownToSiyuan,
+  exportMarkdownToYuque,
+  exportMessageToNotion
+} from '@renderer/utils/export'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Dropdown, Input, InputRef, MenuProps } from 'antd'
+import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import {
   ChevronDown,
   ChevronRight,
@@ -21,10 +30,12 @@ import {
   Folder,
   FolderOpen,
   Star,
-  StarOff
+  StarOff,
+  UploadIcon
 } from 'lucide-react'
 import { FC, memo, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 interface NotesSidebarProps {
@@ -213,6 +224,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { bases } = useKnowledgeBases()
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
+  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
@@ -525,6 +537,111 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             onClick: () => {
               handleExportKnowledge(node)
             }
+          },
+          {
+            label: t('chat.topics.export.title'),
+            key: 'export',
+            icon: <UploadIcon size={14} />,
+            children: [
+              exportMenuOptions.markdown && {
+                label: t('chat.topics.export.md.label'),
+                key: 'markdown',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+                    const markdown = `# ${node.name}\n\n${content}`
+                    const fileName = removeSpecialCharactersForFileName(node.name) + '.md'
+                    const result = await window.api.file.save(fileName, markdown)
+                    if (result) {
+                      window.toast.success(t('message.success.markdown.export.specified'))
+                    }
+                  } catch (error) {
+                    window.toast.error(t('message.error.markdown.export.specified'))
+                    logger.error('Failed to export note as markdown:', error as Error)
+                  }
+                }
+              },
+              exportMenuOptions.docx && {
+                label: t('chat.topics.export.word'),
+                key: 'word',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+                    const markdown = `# ${node.name}\n\n${content}`
+                    window.api.export.toWord(markdown, removeSpecialCharactersForFileName(node.name))
+                  } catch (error) {
+                    logger.error('Failed to export note to Word:', error as Error)
+                  }
+                }
+              },
+              exportMenuOptions.notion && {
+                label: t('chat.topics.export.notion'),
+                key: 'notion',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+                    await exportMessageToNotion(node.name, content)
+                  } catch (error) {
+                    logger.error('Failed to export note to Notion:', error as Error)
+                  }
+                }
+              },
+              exportMenuOptions.yuque && {
+                label: t('chat.topics.export.yuque'),
+                key: 'yuque',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+                    const markdown = `# ${node.name}\n\n${content}`
+                    await exportMarkdownToYuque(node.name, markdown)
+                  } catch (error) {
+                    logger.error('Failed to export note to Yuque:', error as Error)
+                  }
+                }
+              },
+              exportMenuOptions.obsidian && {
+                label: t('chat.topics.export.obsidian'),
+                key: 'obsidian',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+
+                    await ObsidianExportPopup.show({
+                      title: node.name,
+                      processingMethod: '1',
+                      rawContent: content
+                    })
+                  } catch (error) {
+                    logger.error('Failed to export note to Obsidian:', error as Error)
+                  }
+                }
+              },
+              exportMenuOptions.joplin && {
+                label: t('chat.topics.export.joplin'),
+                key: 'joplin',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+                    await exportMarkdownToJoplin(node.name, content)
+                  } catch (error) {
+                    logger.error('Failed to export note to Joplin:', error as Error)
+                  }
+                }
+              },
+              exportMenuOptions.siyuan && {
+                label: t('chat.topics.export.siyuan'),
+                key: 'siyuan',
+                onClick: async () => {
+                  try {
+                    const content = await window.api.file.readExternal(node.externalPath)
+                    const markdown = `# ${node.name}\n\n${content}`
+                    await exportMarkdownToSiyuan(node.name, markdown)
+                  } catch (error) {
+                    logger.error('Failed to export note to Siyuan:', error as Error)
+                  }
+                }
+              }
+            ].filter(Boolean) as ItemType<MenuItemType>[]
           }
         )
       }
@@ -543,7 +660,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       return baseMenuItems
     },
-    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode]
+    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode, exportMenuOptions]
   )
 
   const handleDropFiles = useCallback(
