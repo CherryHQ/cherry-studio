@@ -303,7 +303,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
     }
   }
-  console.log(rawContent);
   return (
     <Modal
       title={i18n.t('chat.topics.export.obsidian_atributes')}
