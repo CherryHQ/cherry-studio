@@ -95,8 +95,17 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 color: 'var(--color-text-3)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8
+                gap: 12
               }}>
+              {tmpViewMode === 'preview' && (
+                <Tooltip placement="top" title={t('notes.spell_check_tooltip')} mouseLeaveDelay={0} arrow>
+                  <ActionIconButton
+                    active={settings.enableSpellCheck}
+                    onClick={() => updateSettings({ enableSpellCheck: !settings.enableSpellCheck })}>
+                    <SpellCheck size={18} />
+                  </ActionIconButton>
+                </Tooltip>
+              )}
               <Selector
                 value={tmpViewMode as EditorView}
                 onChange={(value: EditorView) => setTmpViewMode(value)}
