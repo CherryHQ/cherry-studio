@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "Update time (oldest first)",
     "sort_updated_desc": "Update time (newest first)",
     "sort_z2a": "File name (Z-A)",
+    "spell_check": "Spell Check",
+    "spell_check_tooltip": "Enable/Disable spell check",
     "star": "Favorite note",
     "starred_notes": "Collected notes",
     "title": "Notes",
