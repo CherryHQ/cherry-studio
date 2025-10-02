@@ -1083,7 +1083,6 @@ export const exportTopicToNotes = async (topic: Topic, folderPath: string): Prom
   }
 }
 
-
 const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<void> => {
   const markdown = `# ${noteName}\n\n${content}`
   const fileName = removeSpecialCharactersForFileName(noteName) + '.md'
