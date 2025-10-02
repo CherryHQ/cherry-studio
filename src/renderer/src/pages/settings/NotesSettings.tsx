@@ -194,10 +194,7 @@ const NotesSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.table_auto_wrap')}</SettingRowTitle>
-          <Switch
-            checked={settings.tableAutoWrap}
-            onChange={(checked) => updateSettings({ tableAutoWrap: checked })}
-          />
+          <Switch checked={settings.tableAutoWrap} onChange={(checked) => updateSettings({ tableAutoWrap: checked })} />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.table_auto_wrap_description')}</SettingHelpText>
       </SettingGroup>
