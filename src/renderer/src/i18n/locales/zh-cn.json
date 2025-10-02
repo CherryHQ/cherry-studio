@@ -1697,6 +1697,12 @@
     "provider_settings": "跳转到服务商设置界面"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "笔记为空，无法生成名称",
+      "failed": "生成笔记名称失败",
+      "label": "生成笔记名称",
+      "success": "笔记名称生成成功"
+    },
     "characters": "字符",
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
