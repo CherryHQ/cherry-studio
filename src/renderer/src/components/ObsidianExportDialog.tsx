@@ -303,7 +303,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
     }
   }
-
+  console.log(rawContent);
   return (
     <Modal
       title={i18n.t('chat.topics.export.obsidian_atributes')}
@@ -414,9 +414,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             </Option>
           </Select>
         </Form.Item>
-        <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
-          <Switch checked={exportReasoning} onChange={setExportReasoning} />
-        </Form.Item>
+        {!rawContent && (
+          <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
+            <Switch checked={exportReasoning} onChange={setExportReasoning} />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )
