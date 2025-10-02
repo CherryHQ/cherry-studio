@@ -666,7 +666,16 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       return baseMenuItems
     },
-    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode, renamingNodeIds, handleAutoRename, exportMenuOptions]
+    [
+      t,
+      handleStartEdit,
+      onToggleStar,
+      handleExportKnowledge,
+      handleDeleteNode,
+      renamingNodeIds,
+      handleAutoRename,
+      exportMenuOptions
+    ]
   )
 
   const handleDropFiles = useCallback(
