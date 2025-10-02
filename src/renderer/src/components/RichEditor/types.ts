@@ -50,6 +50,8 @@ export interface RichEditorProps {
   fontFamily?: 'default' | 'serif'
   /** Font size in pixels */
   fontSize?: number
+  /** Enable table auto-wrap for long content in table cells */
+  tableAutoWrap?: boolean
 }
 
 export interface ToolbarItem {

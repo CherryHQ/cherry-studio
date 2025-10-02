@@ -1751,6 +1751,8 @@
         "serif_font": "Serif font",
         "show_table_of_contents": "Show Table of Contents",
         "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
+        "table_auto_wrap": "Auto-wrap Table Content",
+        "table_auto_wrap_description": "Automatically wrap long text content in table cells",
         "title": "Display Settings"
       },
       "editor": {
