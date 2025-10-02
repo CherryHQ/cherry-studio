@@ -50,6 +50,8 @@ export interface RichEditorProps {
   fontFamily?: 'default' | 'serif'
   /** Font size in pixels */
   fontSize?: number
+  /** Whether to enable spell check */
+  enableSpellCheck?: boolean
 }
 
 export interface ToolbarItem {

@@ -334,6 +334,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信してください",
       "send": "送信",
       "settings": "設定",
       "thinking": {
@@ -1696,6 +1697,12 @@
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "ノートが空です。名前を生成できません。",
+      "failed": "ノート名の生成に失敗しました",
+      "label": "ノート名の生成",
+      "success": "ノート名の生成に成功しました"
+    },
     "characters": "文字",
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
@@ -1777,6 +1784,8 @@
     "sort_updated_asc": "更新日時（古い順）",
     "sort_updated_desc": "更新日時（新しい順）",
     "sort_z2a": "ファイル名（Z-A）",
+    "spell_check": "スペルチェック",
+    "spell_check_tooltip": "スペルチェックの有効/無効",
     "star": "お気に入りのノート",
     "starred_notes": "収集したノート",
     "title": "ノート",
