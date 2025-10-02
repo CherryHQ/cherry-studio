@@ -1751,6 +1751,8 @@
         "serif_font": "襯線字體",
         "show_table_of_contents": "顯示目錄大綱",
         "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便文檔內導航",
+        "table_auto_wrap": "表格內容自動換行",
+        "table_auto_wrap_description": "表格單元格中的長文本內容自動換行",
         "title": "顯示"
       },
       "editor": {

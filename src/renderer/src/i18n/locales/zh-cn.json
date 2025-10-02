@@ -1751,6 +1751,8 @@
         "serif_font": "衬线字体",
         "show_table_of_contents": "显示目录大纲",
         "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
+        "table_auto_wrap": "表格内容自动换行",
+        "table_auto_wrap_description": "表格单元格中的长文本内容自动换行",
         "title": "显示设置"
       },
       "editor": {
