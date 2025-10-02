@@ -178,9 +178,13 @@ export function isGeminiReasoningModel(model?: Model): boolean {
   return false
 }
 
+// Gemini 支持思考模式的模型正则
+export const GEMINI_THINKING_MODEL_REGEX =
+  /gemini-(?:2\.5.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
+
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  if (modelId.includes('gemini-2.5')) {
+  if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }
