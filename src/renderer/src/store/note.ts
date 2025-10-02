@@ -12,7 +12,6 @@ export interface NotesSettings {
   defaultEditMode: Omit<EditorView, 'read'>
   showTabStatus: boolean
   showWorkspace: boolean
-  tableAutoWrap: boolean
 }
 
 export interface NoteState {
@@ -36,8 +35,7 @@ export const initialState: NoteState = {
     defaultViewMode: 'edit',
     defaultEditMode: 'preview',
     showTabStatus: true,
-    showWorkspace: true,
-    tableAutoWrap: false
+    showWorkspace: true
   },
   notesPath: '',
   sortType: 'sort_a2z',

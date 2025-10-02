@@ -191,15 +191,6 @@ const NotesSettings: FC = () => {
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.display.table_auto_wrap')}</SettingRowTitle>
-          <Switch
-            checked={settings.tableAutoWrap}
-            onChange={(checked) => updateSettings({ tableAutoWrap: checked })}
-          />
-        </SettingRow>
-        <SettingHelpText>{t('notes.settings.display.table_auto_wrap_description')}</SettingHelpText>
       </SettingGroup>
     </SettingContainer>
   )
