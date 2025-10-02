@@ -460,7 +460,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'Groq',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.groq.com/openai',
+    apiHost: 'https://api.groq.com/openai/v1',
     models: SYSTEM_MODELS.groq,
     isSystem: true,
     enabled: false
@@ -1037,7 +1037,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   groq: {
     api: {
-      url: 'https://api.groq.com/openai'
+      url: 'https://api.groq.com/openai/v1'
     },
     websites: {
       official: 'https://groq.com/',
