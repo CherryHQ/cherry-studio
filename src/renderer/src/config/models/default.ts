@@ -699,6 +699,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'GLM-4.5'
     },
     {
+      id: 'glm-4.6',
+      provider: 'zhipu',
+      name: 'GLM-4.6',
+      group: 'GLM-4.6'
+    },
+    {
       id: 'glm-4.5',
       provider: 'zhipu',
       name: 'GLM-4.5',
