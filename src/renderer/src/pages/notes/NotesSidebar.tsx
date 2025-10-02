@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
@@ -10,13 +9,7 @@ import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { RootState, useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { removeSpecialCharactersForFileName } from '@renderer/utils'
-import {
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessageToNotion
-} from '@renderer/utils/export'
+import { exportNote } from '@renderer/utils/export'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Dropdown, Input, InputRef, MenuProps } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
@@ -546,100 +539,37 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
               exportMenuOptions.markdown && {
                 label: t('chat.topics.export.md.label'),
                 key: 'markdown',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-                    const markdown = `# ${node.name}\n\n${content}`
-                    const fileName = removeSpecialCharactersForFileName(node.name) + '.md'
-                    const result = await window.api.file.save(fileName, markdown)
-                    if (result) {
-                      window.toast.success(t('message.success.markdown.export.specified'))
-                    }
-                  } catch (error) {
-                    window.toast.error(t('message.error.markdown.export.specified'))
-                    logger.error('Failed to export note as markdown:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'markdown' })
               },
               exportMenuOptions.docx && {
                 label: t('chat.topics.export.word'),
                 key: 'word',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-                    const markdown = `# ${node.name}\n\n${content}`
-                    window.api.export.toWord(markdown, removeSpecialCharactersForFileName(node.name))
-                  } catch (error) {
-                    logger.error('Failed to export note to Word:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'docx' })
               },
               exportMenuOptions.notion && {
                 label: t('chat.topics.export.notion'),
                 key: 'notion',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-                    await exportMessageToNotion(node.name, content)
-                  } catch (error) {
-                    logger.error('Failed to export note to Notion:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'notion' })
               },
               exportMenuOptions.yuque && {
                 label: t('chat.topics.export.yuque'),
                 key: 'yuque',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-                    const markdown = `# ${node.name}\n\n${content}`
-                    await exportMarkdownToYuque(node.name, markdown)
-                  } catch (error) {
-                    logger.error('Failed to export note to Yuque:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'yuque' })
               },
               exportMenuOptions.obsidian && {
                 label: t('chat.topics.export.obsidian'),
                 key: 'obsidian',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-
-                    await ObsidianExportPopup.show({
-                      title: node.name,
-                      processingMethod: '1',
-                      rawContent: content
-                    })
-                  } catch (error) {
-                    logger.error('Failed to export note to Obsidian:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'obsidian' })
               },
               exportMenuOptions.joplin && {
                 label: t('chat.topics.export.joplin'),
                 key: 'joplin',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-                    await exportMarkdownToJoplin(node.name, content)
-                  } catch (error) {
-                    logger.error('Failed to export note to Joplin:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'joplin' })
               },
               exportMenuOptions.siyuan && {
                 label: t('chat.topics.export.siyuan'),
                 key: 'siyuan',
-                onClick: async () => {
-                  try {
-                    const content = await window.api.file.readExternal(node.externalPath)
-                    const markdown = `# ${node.name}\n\n${content}`
-                    await exportMarkdownToSiyuan(node.name, markdown)
-                  } catch (error) {
-                    logger.error('Failed to export note to Siyuan:', error as Error)
-                  }
-                }
+                onClick: () => exportNote({ node, platform: 'siyuan' })
               }
             ].filter(Boolean) as ItemType<MenuItemType>[]
           }

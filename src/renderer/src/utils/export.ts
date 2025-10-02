@@ -1082,3 +1082,52 @@ export const exportTopicToNotes = async (topic: Topic, folderPath: string): Prom
     throw error
   }
 }
+
+
+const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<void> => {
+  const markdown = `# ${noteName}\n\n${content}`
+  const fileName = removeSpecialCharactersForFileName(noteName) + '.md'
+  const result = await window.api.file.save(fileName, markdown)
+  if (result) {
+    window.toast.success(i18n.t('message.success.markdown.export.specified'))
+  }
+}
+
+interface NoteExportOptions {
+  node: { name: string; externalPath: string }
+  platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'obsidian' | 'joplin' | 'siyuan'
+}
+
+export const exportNote = async ({ node, platform }: NoteExportOptions): Promise<void> => {
+  try {
+    const content = await window.api.file.readExternal(node.externalPath)
+
+    switch (platform) {
+      case 'markdown':
+        return await exportNoteAsMarkdown(node.name, content)
+      case 'docx':
+        window.api.export.toWord(`# ${node.name}\n\n${content}`, removeSpecialCharactersForFileName(node.name))
+        return
+      case 'notion':
+        await exportMessageToNotion(node.name, content)
+        return
+      case 'yuque':
+        await exportMarkdownToYuque(node.name, `# ${node.name}\n\n${content}`)
+        return
+      case 'obsidian': {
+        const { default: ObsidianExportPopup } = await import('@renderer/components/Popups/ObsidianExportPopup')
+        await ObsidianExportPopup.show({ title: node.name, processingMethod: '1', rawContent: content })
+        return
+      }
+      case 'joplin':
+        await exportMarkdownToJoplin(node.name, content)
+        return
+      case 'siyuan':
+        await exportMarkdownToSiyuan(node.name, `# ${node.name}\n\n${content}`)
+        return
+    }
+  } catch (error) {
+    logger.error(`Failed to export note to ${platform}:`, error as Error)
+    throw error
+  }
+}
