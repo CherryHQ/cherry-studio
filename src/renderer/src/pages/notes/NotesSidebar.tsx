@@ -755,6 +755,23 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     fileInput.click()
   }, [onUploadFiles])
 
+  const getEmptyAreaMenuItems = useCallback((): MenuProps['items'] => {
+    return [
+      {
+        label: t('notes.new_note'),
+        key: 'new_note',
+        icon: <FilePlus size={14} />,
+        onClick: handleCreateNote
+      },
+      {
+        label: t('notes.new_folder'),
+        key: 'new_folder',
+        icon: <Folder size={14} />,
+        onClick: handleCreateFolder
+      }
+    ]
+  }, [t, handleCreateNote, handleCreateFolder])
+
   return (
     <SidebarContainer
       onDragOver={(e) => {
@@ -784,31 +801,80 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       <NotesTreeContainer>
         {shouldUseVirtualization ? (
-          <VirtualizedTreeContainer ref={parentRef}>
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative'
-              }}>
-              {virtualizer.getVirtualItems().map((virtualItem) => {
-                const { node, depth } = flattenedNodes[virtualItem.index]
-                return (
-                  <div
-                    key={virtualItem.key}
-                    data-index={virtualItem.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      transform: `translateY(${virtualItem.start}px)`
-                    }}>
-                    <div style={{ padding: '0 8px' }}>
+          <Dropdown menu={{ items: getEmptyAreaMenuItems() }} trigger={['contextMenu']}>
+            <VirtualizedTreeContainer ref={parentRef}>
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative'
+                }}>
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const { node, depth } = flattenedNodes[virtualItem.index]
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      ref={virtualizer.measureElement}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualItem.start}px)`
+                      }}>
+                      <div style={{ padding: '0 8px' }}>
+                        <TreeNode
+                          node={node}
+                          depth={depth}
+                          selectedFolderId={selectedFolderId}
+                          activeNodeId={activeNode?.id}
+                          editingNodeId={editingNodeId}
+                          renamingNodeIds={renamingNodeIds}
+                          newlyRenamedNodeIds={newlyRenamedNodeIds}
+                          draggedNodeId={draggedNodeId}
+                          dragOverNodeId={dragOverNodeId}
+                          dragPosition={dragPosition}
+                          inPlaceEdit={inPlaceEdit}
+                          getMenuItems={getMenuItems}
+                          onSelectNode={onSelectNode}
+                          onToggleExpanded={onToggleExpanded}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          renderChildren={false}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {!isShowStarred && !isShowSearch && (
+                <DropHintNode>
+                  <TreeNodeContainer active={false} depth={0}>
+                    <TreeNodeContent>
+                      <NodeIcon>
+                        <FilePlus size={16} />
+                      </NodeIcon>
+                      <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
+                    </TreeNodeContent>
+                  </TreeNodeContainer>
+                </DropHintNode>
+              )}
+            </VirtualizedTreeContainer>
+          </Dropdown>
+        ) : (
+          <Dropdown menu={{ items: getEmptyAreaMenuItems() }} trigger={['contextMenu']}>
+            <StyledScrollbar ref={scrollbarRef}>
+              <TreeContent>
+                {isShowStarred || isShowSearch
+                  ? filteredTree.map((node) => (
                       <TreeNode
+                        key={node.id}
                         node={node}
-                        depth={depth}
+                        depth={0}
                         selectedFolderId={selectedFolderId}
                         activeNodeId={activeNode?.id}
                         editingNodeId={editingNodeId}
@@ -826,92 +892,47 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onDragEnd={handleDragEnd}
-                        renderChildren={false}
                       />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            {!isShowStarred && !isShowSearch && (
-              <DropHintNode>
-                <TreeNodeContainer active={false} depth={0}>
-                  <TreeNodeContent>
-                    <NodeIcon>
-                      <FilePlus size={16} />
-                    </NodeIcon>
-                    <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
-                  </TreeNodeContent>
-                </TreeNodeContainer>
-              </DropHintNode>
-            )}
-          </VirtualizedTreeContainer>
-        ) : (
-          <StyledScrollbar ref={scrollbarRef}>
-            <TreeContent>
-              {isShowStarred || isShowSearch
-                ? filteredTree.map((node) => (
-                    <TreeNode
-                      key={node.id}
-                      node={node}
-                      depth={0}
-                      selectedFolderId={selectedFolderId}
-                      activeNodeId={activeNode?.id}
-                      editingNodeId={editingNodeId}
-                      renamingNodeIds={renamingNodeIds}
-                      newlyRenamedNodeIds={newlyRenamedNodeIds}
-                      draggedNodeId={draggedNodeId}
-                      dragOverNodeId={dragOverNodeId}
-                      dragPosition={dragPosition}
-                      inPlaceEdit={inPlaceEdit}
-                      getMenuItems={getMenuItems}
-                      onSelectNode={onSelectNode}
-                      onToggleExpanded={onToggleExpanded}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                    />
-                  ))
-                : notesTree.map((node) => (
-                    <TreeNode
-                      key={node.id}
-                      node={node}
-                      depth={0}
-                      selectedFolderId={selectedFolderId}
-                      activeNodeId={activeNode?.id}
-                      editingNodeId={editingNodeId}
-                      renamingNodeIds={renamingNodeIds}
-                      newlyRenamedNodeIds={newlyRenamedNodeIds}
-                      draggedNodeId={draggedNodeId}
-                      dragOverNodeId={dragOverNodeId}
-                      dragPosition={dragPosition}
-                      inPlaceEdit={inPlaceEdit}
-                      getMenuItems={getMenuItems}
-                      onSelectNode={onSelectNode}
-                      onToggleExpanded={onToggleExpanded}
-                      onDragStart={handleDragStart}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onDragEnd={handleDragEnd}
-                    />
-                  ))}
-              {!isShowStarred && !isShowSearch && (
-                <DropHintNode>
-                  <TreeNodeContainer active={false} depth={0}>
-                    <TreeNodeContent>
-                      <NodeIcon>
-                        <FilePlus size={16} />
-                      </NodeIcon>
-                      <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
-                    </TreeNodeContent>
-                  </TreeNodeContainer>
-                </DropHintNode>
-              )}
-            </TreeContent>
-          </StyledScrollbar>
+                    ))
+                  : notesTree.map((node) => (
+                      <TreeNode
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        selectedFolderId={selectedFolderId}
+                        activeNodeId={activeNode?.id}
+                        editingNodeId={editingNodeId}
+                        renamingNodeIds={renamingNodeIds}
+                        newlyRenamedNodeIds={newlyRenamedNodeIds}
+                        draggedNodeId={draggedNodeId}
+                        dragOverNodeId={dragOverNodeId}
+                        dragPosition={dragPosition}
+                        inPlaceEdit={inPlaceEdit}
+                        getMenuItems={getMenuItems}
+                        onSelectNode={onSelectNode}
+                        onToggleExpanded={onToggleExpanded}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                      />
+                    ))}
+                {!isShowStarred && !isShowSearch && (
+                  <DropHintNode>
+                    <TreeNodeContainer active={false} depth={0}>
+                      <TreeNodeContent>
+                        <NodeIcon>
+                          <FilePlus size={16} />
+                        </NodeIcon>
+                        <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
+                      </TreeNodeContent>
+                    </TreeNodeContainer>
+                  </DropHintNode>
+                )}
+              </TreeContent>
+            </StyledScrollbar>
+          </Dropdown>
         )}
       </NotesTreeContainer>
 
