@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { configManager } from '@main/services/ConfigManager'
 import { app } from 'electron'
 import fs from 'fs'
 import os from 'os'
@@ -22,6 +23,9 @@ export class AppService {
   }
 
   public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
+    // Save configuration
+    configManager.setLaunchOnBoot(isLaunchOnBoot)
+
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
     if (isWin || isMac) {
