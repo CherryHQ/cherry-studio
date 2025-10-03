@@ -79,9 +79,37 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
 /**
  * 格式化provider的API Host
  */
+function formatAnthropicApiHost(host: string): string {
+  const trimmedHost = host?.trim()
+
+  if (!trimmedHost) {
+    return ''
+  }
+
+  if (trimmedHost.endsWith('/')) {
+    return trimmedHost
+  }
+
+  if (trimmedHost.endsWith('/v1')) {
+    return `${trimmedHost}/`
+  }
+
+  return formatApiHost(trimmedHost)
+}
+
 function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
-  if (formatted.type === 'gemini') {
+  if (formatted.anthropicApiHost) {
+    formatted.anthropicApiHost = formatAnthropicApiHost(formatted.anthropicApiHost)
+  }
+
+  if (formatted.type === 'anthropic') {
+    const baseHost = formatted.anthropicApiHost || formatted.apiHost
+    formatted.apiHost = formatAnthropicApiHost(baseHost)
+    if (!formatted.anthropicApiHost) {
+      formatted.anthropicApiHost = formatted.apiHost
+    }
+  } else if (formatted.type === 'gemini') {
     formatted.apiHost = formatApiHost(formatted.apiHost, 'v1beta')
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)

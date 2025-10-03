@@ -5,7 +5,7 @@ import { sortedObjectByKeys } from './sort'
 
 const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 const translateDir = path.join(__dirname, '../src/renderer/src/i18n/translate')
-const baseLocale = 'zh-cn'
+const baseLocale = process.env.BASE_LOCALE ?? 'zh-cn'
 const baseFileName = `${baseLocale}.json`
 const baseFilePath = path.join(localesDir, baseFileName)
 

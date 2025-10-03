@@ -169,8 +169,4 @@ export const generateToolEnvironment = ({
   return env
 }
 
-export const getClaudeSupportedProviders = (providers: Provider[]) => {
-  return providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id))
-}
-
 export { default } from './CodeToolsPage'

@@ -65,7 +65,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateAssistant(_assistant)
   }
 
-  const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+  const promptVarsContent = <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>
 
   return (
     <Container>
@@ -115,7 +115,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <SettingDivider />
       <HStack mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+        <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
           <HelpCircle size={14} color="var(--color-text-2)" />
         </Popover>
       </HStack>

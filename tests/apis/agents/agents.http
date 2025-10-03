@@ -1,0 +1,59 @@
+@host=http://localhost:23333
+@token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
+@agent_id=agent_1758092281575_tn9dxio9k
+
+### List Agents
+GET {{host}}/v1/agents
+Authorization: Bearer {{token}}
+
+
+### Create Agent
+POST {{host}}/v1/agents
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Claude Code",
+  "type": "claude-code",
+  "model": "anthropic:claude-sonnet-4",
+  "description": "An AI assistant specialized in code review and debugging",
+  "instructions": "You are a helpful coding assistant. Focus on writing clean, maintainable code and providing constructive feedback.",
+  "accessible_paths": [
+    "/tmp/workspace"
+  ],
+  "configuration": {
+    "permission_mode": "acceptEdits",
+    "max_turns": 5
+  }
+}
+
+### Get Agent Details
+GET {{host}}/v1/agents/{{agent_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### Delete Agent
+DELETE {{host}}/v1/agents/{{agent_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### Update Agent
+PATCH {{host}}/v1/agents/{{agent_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Claude Code",
+  "type": "claude-code",
+  "model": "anthropic:claude-sonnet-4",
+  "description": "An AI assistant specialized in code review and debugging",
+  "instructions": "You are a helpful coding assistant. Focus on writing clean, maintainable code and providing constructive feedback.",
+  "accessible_paths": [
+    "/tmp/workspace"
+  ],
+  "configuration": {
+    "permission_mode": "acceptEdits",
+    "max_turns": 5
+  }
+}
+

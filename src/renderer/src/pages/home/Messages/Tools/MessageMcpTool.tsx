@@ -60,7 +60,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 
-  const { id, tool, status, response } = toolResponse!
+  const { id, tool, status, response } = toolResponse as MCPToolResponse
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'

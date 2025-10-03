@@ -1,0 +1,31 @@
+diff --git a/sdk.mjs b/sdk.mjs
+index 461e9a2ba246778261108a682762ffcf26f7224e..44bd667d9f591969d36a105ba5eb8b478c738dd8 100644
+--- a/sdk.mjs
++++ b/sdk.mjs
+@@ -6215,7 +6215,7 @@ function createAbortController(maxListeners = DEFAULT_MAX_LISTENERS) {
+ }
+
+ // ../src/transport/ProcessTransport.ts
+-import { spawn } from "child_process";
++import { fork } from "child_process";
+ import { createInterface } from "readline";
+
+ // ../src/utils/fsOperations.ts
+@@ -6473,14 +6473,11 @@ class ProcessTransport {
+         const errorMessage = isNativeBinary(pathToClaudeCodeExecutable) ? `Claude Code native binary not found at ${pathToClaudeCodeExecutable}. Please ensure Claude Code is installed via native installer or specify a valid path with options.pathToClaudeCodeExecutable.` : `Claude Code executable not found at ${pathToClaudeCodeExecutable}. Is options.pathToClaudeCodeExecutable set?`;
+         throw new ReferenceError(errorMessage);
+       }
+-      const isNative = isNativeBinary(pathToClaudeCodeExecutable);
+-      const spawnCommand = isNative ? pathToClaudeCodeExecutable : executable;
+-      const spawnArgs = isNative ? args : [...executableArgs, pathToClaudeCodeExecutable, ...args];
+-      this.logForDebugging(isNative ? `Spawning Claude Code native binary: ${pathToClaudeCodeExecutable} ${args.join(" ")}` : `Spawning Claude Code process: ${executable} ${[...executableArgs, pathToClaudeCodeExecutable, ...args].join(" ")}`);
++      this.logForDebugging(`Forking Claude Code Node.js process: ${pathToClaudeCodeExecutable} ${args.join(" ")}`);
+       const stderrMode = env.DEBUG || stderr ? "pipe" : "ignore";
+-      this.child = spawn(spawnCommand, spawnArgs, {
++      this.child = fork(pathToClaudeCodeExecutable, args, {
+         cwd,
+-        stdio: ["pipe", "pipe", stderrMode],
++        stdio: stderrMode === "pipe" ? ["pipe", "pipe", "pipe", "ipc"] : ["pipe", "pipe", "ignore", "ipc"],
+         signal: this.abortController.signal,
+         env
+       });

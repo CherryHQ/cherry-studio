@@ -58,6 +58,7 @@ import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import {
   AtLeast,
   isSystemProvider,
+  Model,
   OpenAIServiceTiers,
   Provider,
   ProviderType,
@@ -74,6 +75,7 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
   type: 'openai',
   apiKey: '',
   apiHost: 'https://api.cherry-ai.com/',
+  anthropicApiHost: 'https://api.cherry-ai.com',
   models: [glm45FlashModel, qwen38bModel],
   isSystem: true,
   enabled: true
@@ -106,6 +108,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://aihubmix.com',
+    anthropicApiHost: 'https://aihubmix.com/anthropic',
+    isAnthropicModel: (m: Model) => m.id.includes('claude'),
     models: SYSTEM_MODELS.aihubmix,
     isSystem: true,
     enabled: false
@@ -136,6 +140,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    anthropicApiHost: 'https://open.bigmodel.cn/api/anthropic',
     models: SYSTEM_MODELS.zhipu,
     isSystem: true,
     enabled: false
@@ -146,6 +151,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.deepseek.com',
+    anthropicApiHost: 'https://api.deepseek.com/anthropic',
     models: SYSTEM_MODELS.deepseek,
     isSystem: true,
     enabled: false
@@ -286,6 +292,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'http://localhost:3000',
+    anthropicApiHost: 'http://localhost:3000',
     models: SYSTEM_MODELS['new-api'],
     isSystem: true,
     enabled: false
@@ -391,6 +398,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.moonshot.cn',
+    anthropicApiHost: 'https://api.moonshot.cn/anthropic',
     models: SYSTEM_MODELS.moonshot,
     isSystem: true,
     enabled: false
@@ -411,6 +419,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+    anthropicApiHost: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy',
     models: SYSTEM_MODELS.dashscope,
     isSystem: true,
     enabled: false
@@ -551,6 +560,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api-inference.modelscope.cn/v1/',
+    anthropicApiHost: 'https://api-inference.modelscope.cn',
     models: SYSTEM_MODELS.modelscope,
     isSystem: true,
     enabled: false

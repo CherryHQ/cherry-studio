@@ -8,6 +8,8 @@ import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { Assistant, AssistantsSortType } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
@@ -40,7 +42,7 @@ interface AssistantItemProps {
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
-  addAgent: (agent: any) => void
+  addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
@@ -52,7 +54,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   sortBy,
   onSwitch,
   onDelete,
-  addAgent,
+  addPreset,
   copyAssistant,
   handleSortByChange
 }) => {
@@ -64,6 +66,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (isActive) {
@@ -91,7 +94,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
         allTags,
         assistants,
         updateAssistants,
-        addAgent,
+        addPreset,
         copyAssistant,
         onSwitch,
         onDelete,
@@ -108,7 +111,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
       allTags,
       assistants,
       updateAssistants,
-      addAgent,
+      addPreset,
       copyAssistant,
       onSwitch,
       onDelete,
@@ -128,7 +131,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
       }
     }
     onSwitch(assistant)
-  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
+    dispatch(setActiveTopicOrSessionAction('topic'))
+  }, [clickAssistantToShowTopic, onSwitch, assistant, dispatch, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(
@@ -249,7 +253,7 @@ function getMenuItems({
   allTags,
   assistants,
   updateAssistants,
-  addAgent,
+  addPreset,
   copyAssistant,
   onSwitch,
   onDelete,
@@ -297,10 +301,10 @@ function getMenuItems({
       key: 'save-to-agent',
       icon: <Save size={14} />,
       onClick: async () => {
-        const agent = omit(assistant, ['model', 'emoji'])
-        agent.id = uuid()
-        agent.type = 'agent'
-        addAgent(agent)
+        const preset = omit(assistant, ['model', 'emoji'])
+        preset.id = uuid()
+        preset.type = 'agent'
+        addPreset(preset)
         window.toast.success(t('assistants.save.success'))
       }
     },

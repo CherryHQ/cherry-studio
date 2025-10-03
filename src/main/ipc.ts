@@ -11,11 +11,21 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, Notification, OcrProvider, Provider, Shortcut, SupportedOcrFile, ThemeMode } from '@types'
+import {
+  AgentPersistedMessage,
+  FileMetadata,
+  Notification,
+  OcrProvider,
+  Provider,
+  Shortcut,
+  SupportedOcrFile,
+  ThemeMode
+} from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
+import { agentMessageRepository } from './services/agents/database'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -201,6 +211,27 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       configManager.setTestChannel(channel)
     }
   })
+
+  ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
+    try {
+      return await agentMessageRepository.persistExchange(payload)
+    } catch (error) {
+      logger.error('Failed to persist agent session messages', error as Error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(
+    IpcChannel.AgentMessage_GetHistory,
+    async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
+      try {
+        return await agentMessageRepository.getSessionHistory(sessionId)
+      } catch (error) {
+        logger.error('Failed to get agent session history', error as Error)
+        throw error
+      }
+    }
+  )
 
   //only for mac
   if (isMac) {
@@ -498,6 +529,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StartWatcher, fileManager.startFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {

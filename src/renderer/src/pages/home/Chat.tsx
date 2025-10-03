@@ -1,3 +1,4 @@
+import { Alert } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
@@ -6,6 +7,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -16,13 +18,15 @@ import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useState } from 'react'
+import React, { FC, useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
+import AgentSessionInputbar from './Inputbar/AgentSessionInputbar'
 import Inputbar from './Inputbar/Inputbar'
+import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -44,6 +48,9 @@ const Chat: FC<Props> = (props) => {
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const { isTopNavbar } = useNavbarPosition()
   const chatMaxWidth = useChatMaxWidth()
+  const { chat } = useRuntime()
+  const { activeTopicOrSession, activeAgentId, activeSessionId } = chat
+  const { apiServer } = useSettings()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -136,6 +143,56 @@ const Chat: FC<Props> = (props) => {
     ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
     : 'calc(100vh - var(--navbar-height))'
 
+  const SessionMessages = useMemo(() => {
+    if (activeAgentId === null) {
+      return () => <div> Active Agent ID is invalid.</div>
+    }
+    const sessionId = activeSessionId[activeAgentId]
+    if (!sessionId) {
+      return () => <div> Active Session ID is invalid.</div>
+    }
+    if (!apiServer.enabled) {
+      return () => (
+        <div>
+          <Alert color="warning" title={t('agent.warning.enable_server')} />
+        </div>
+      )
+    }
+    return () => <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
+  }, [activeAgentId, activeSessionId, apiServer.enabled, t])
+
+  const SessionInputBar = useMemo(() => {
+    if (activeAgentId === null) {
+      return () => <div> Active Agent ID is invalid.</div>
+    }
+    const sessionId = activeSessionId[activeAgentId]
+    if (!sessionId) {
+      return () => <div> Active Session ID is invalid.</div>
+    }
+    return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={sessionId} />
+  }, [activeAgentId, activeSessionId])
+
+  // TODO: more info
+  const AgentInvalid = useCallback(() => {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div>
+          <Alert color="warning" title="Select an agent" />
+        </div>
+      </div>
+    )
+  }, [])
+
+  // TODO: more info
+  const SessionInvalid = useCallback(() => {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div>
+          <Alert color="warning" title="Create a session" />
+        </div>
+      </div>
+    )
+  }, [])
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       {isTopNavbar && (
@@ -156,23 +213,37 @@ const Chat: FC<Props> = (props) => {
           justify="space-between"
           style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
           <QuickPanelProvider>
-            <Messages
-              key={props.activeTopic.id}
-              assistant={assistant}
-              topic={props.activeTopic}
-              setActiveTopic={props.setActiveTopic}
-              onComponentUpdate={messagesComponentUpdateHandler}
-              onFirstUpdate={messagesComponentFirstUpdateHandler}
-            />
-            <ContentSearch
-              ref={contentSearchRef}
-              searchTarget={mainRef as React.RefObject<HTMLElement>}
-              filter={contentSearchFilter}
-              includeUser={filterIncludeUser}
-              onIncludeUserChange={userOutlinedItemClickHandler}
-            />
-            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-            <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+            {activeTopicOrSession === 'topic' && (
+              <>
+                <Messages
+                  key={props.activeTopic.id}
+                  assistant={assistant}
+                  topic={props.activeTopic}
+                  setActiveTopic={props.setActiveTopic}
+                  onComponentUpdate={messagesComponentUpdateHandler}
+                  onFirstUpdate={messagesComponentFirstUpdateHandler}
+                />
+                <ContentSearch
+                  ref={contentSearchRef}
+                  searchTarget={mainRef as React.RefObject<HTMLElement>}
+                  filter={contentSearchFilter}
+                  includeUser={filterIncludeUser}
+                  onIncludeUserChange={userOutlinedItemClickHandler}
+                />
+                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+              </>
+            )}
+            {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
+            {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId[activeAgentId] && (
+              <SessionInvalid />
+            )}
+            {activeTopicOrSession === 'session' && activeAgentId && activeSessionId[activeAgentId] && (
+              <>
+                <SessionMessages />
+                <SessionInputBar />
+              </>
+            )}
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
         </Main>

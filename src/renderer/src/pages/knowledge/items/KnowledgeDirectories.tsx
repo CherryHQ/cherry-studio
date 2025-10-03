@@ -60,7 +60,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     }
 
     const path = await window.api.file.selectFolder()
-    logger.info('Selected directory:', path)
+    logger.info('Selected directory:', { path })
     path && addDirectory(path)
   }
 
