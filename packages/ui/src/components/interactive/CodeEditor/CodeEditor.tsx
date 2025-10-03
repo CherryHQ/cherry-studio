@@ -31,6 +31,7 @@ const CodeEditor = ({
   style,
   className,
   editable = true,
+  readOnly = false,
   expanded = true,
   wrapped = true
 }: CodeEditorProps) => {
@@ -111,6 +112,7 @@ const CodeEditor = ({
       maxHeight={expanded ? undefined : maxHeight}
       minHeight={minHeight}
       editable={editable}
+      readOnly={readOnly}
       theme={theme}
       extensions={customExtensions}
       onCreateEditor={(view: EditorView) => {

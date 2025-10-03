@@ -96,6 +96,11 @@ export interface CodeEditorProps {
    */
   editable?: boolean
   /**
+   * Whether the editor is read only.
+   * @default false
+   */
+  readOnly?: boolean
+  /**
    * Whether the editor is expanded.
    * If true, the height and maxHeight props are ignored.
    * @default true
