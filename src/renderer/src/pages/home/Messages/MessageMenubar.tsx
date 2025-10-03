@@ -45,6 +45,8 @@ import dayjs from 'dayjs'
 import {
   AtSign,
   Check,
+  ChevronDown,
+  ChevronUp,
   FilePenLine,
   Languages,
   ListChecks,
@@ -74,6 +76,8 @@ interface Props {
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
   onUpdateUseful?: (msgId: string) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 const logger = loggerService.withContext('MessageMenubar')
@@ -89,7 +93,9 @@ const MessageMenubar: FC<Props> = (props) => {
     topic,
     model,
     messageContainerRef,
-    onUpdateUseful
+    onUpdateUseful,
+    isCollapsed,
+    onToggleCollapse
   } = props
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
@@ -691,6 +697,19 @@ const MessageMenubar: FC<Props> = (props) => {
               <Menu size={19} />
             </ActionButton>
           </Dropdown>
+        )}
+        {isAssistantMessage && onToggleCollapse && (
+          <Tooltip title={isCollapsed ? t('common.expand') : t('common.collapse')} mouseEnterDelay={0.8}>
+            <ActionButton
+              className="message-action-button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleCollapse()
+              }}
+              $softHoverBg={softHoverBg}>
+              {isCollapsed ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+            </ActionButton>
+          </Tooltip>
         )}
       </MenusBar>
     </>

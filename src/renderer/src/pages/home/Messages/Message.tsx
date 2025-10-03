@@ -16,7 +16,7 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { Divider } from 'antd'
-import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useRef } from 'react'
+import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -74,6 +74,7 @@ const MessageItem: FC<Props> = ({
   const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
   const isEditing = editingMessageId === message.id
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
   useEffect(() => {
     if (isEditing && messageContainerRef.current) {
@@ -113,6 +114,10 @@ const MessageItem: FC<Props> = ({
   const handleEditCancel = useCallback(() => {
     stopEditing()
   }, [stopEditing])
+
+  const handleToggleCollapse = useCallback(() => {
+    setIsCollapsed((prev) => !prev)
+  }, [])
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
@@ -218,7 +223,8 @@ const MessageItem: FC<Props> = ({
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
-                overflowY: 'visible'
+                overflowY: 'visible',
+                display: isCollapsed ? 'none' : 'block'
               }}>
               <MessageErrorBoundary>
                 <MessageContent message={message} />
@@ -238,6 +244,8 @@ const MessageItem: FC<Props> = ({
                   messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
                   setModel={setModel}
                   onUpdateUseful={onUpdateUseful}
+                  isCollapsed={isCollapsed}
+                  onToggleCollapse={handleToggleCollapse}
                 />
               </MessageFooter>
             )}
@@ -275,11 +283,29 @@ const MessageContainer = styled.div`
   }
 `
 
-const MessageContentContainer = styled(Scrollbar)`
+const MessageContentContainer = styled(Scrollbar)<{ style?: React.CSSProperties }>`
   max-width: 100%;
   padding-left: 46px;
   margin-top: 0;
   overflow-y: auto;
+  transition: all 0.2s ease-out;
+
+  &:not([style*='display: none']) {
+    animation: slideDown 0.2s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      max-height: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      max-height: 10000px;
+      transform: translateY(0);
+    }
+  }
 `
 
 const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plain' | 'bubble' }>`
