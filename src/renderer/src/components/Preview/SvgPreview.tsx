@@ -3,20 +3,18 @@ import { memo, useCallback } from 'react'
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowTransparentContainer } from './styles'
-import { BasicPreviewHandles } from './types'
+import { BasicPreviewHandles, type BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
-
-interface SvgPreviewProps {
-  children: string
-  enableToolbar?: boolean
-  className?: string
-  ref?: React.RefObject<BasicPreviewHandles | null>
-}
 
 /**
  * 使用 Shadow DOM 渲染 SVG
  */
-const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPreviewProps) => {
+const SvgPreview = ({
+  children,
+  enableToolbar = false,
+  className,
+  ref
+}: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> } & { className?: string }) => {
   // 定义渲染函数
   const renderSvg = useCallback(async (content: string, container: HTMLDivElement) => {
     renderSvgInShadowHost(content, container)
