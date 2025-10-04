@@ -91,12 +91,12 @@ export interface CodeEditorProps {
   /** CSS class name appended to the default `code-editor` class. */
   className?: string
   /**
-   * Whether the editor is editable.
+   * Whether the editor view is editable.
    * @default true
    */
   editable?: boolean
   /**
-   * Whether the editor is read only.
+   * Set the editor state to read only but keep some user interactions, e.g., keymaps.
    * @default false
    */
   readOnly?: boolean
