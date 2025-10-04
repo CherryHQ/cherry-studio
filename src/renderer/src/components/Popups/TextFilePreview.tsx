@@ -61,6 +61,9 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
           style={{ height: '100%' }}
           value={text}
           language={extension}
+          options={{
+            keymap: true
+          }}
         />
       ) : (
         <Text>{text}</Text>
