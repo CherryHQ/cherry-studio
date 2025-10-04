@@ -1,11 +1,12 @@
 import { CopyOutlined } from '@ant-design/icons'
 import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
+import { useKnowledgeItemMetadata } from '@renderer/utils/knowledge'
 import { Tooltip, Typography } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton, MetadataContainer, ScoreTag, TagContainer } from '.'
-import { useCopyText, useKnowledgeItemMetadata } from './hooks'
+import { useCopyText } from './hooks'
 
 const { Text } = Typography
 
