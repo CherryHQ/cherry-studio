@@ -238,7 +238,7 @@
     "docx": "^9.0.2",
     "dompurify": "^3.2.6",
     "dotenv-cli": "^7.4.2",
-    "electron": "37.4.0",
+    "electron": "37.6.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
     "electron-store": "^8.2.0",
