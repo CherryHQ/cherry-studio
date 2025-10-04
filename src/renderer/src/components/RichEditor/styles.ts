@@ -6,6 +6,7 @@ export const RichEditorWrapper = styled.div<{
   $isFullWidth?: boolean
   $fontFamily?: 'default' | 'serif'
   $fontSize?: number
+  $tableAutoWrap?: boolean
 }>`
   display: flex;
   flex-direction: column;
@@ -21,6 +22,36 @@ export const RichEditorWrapper = styled.div<{
 
   ${({ $minHeight }) => $minHeight && `min-height: ${$minHeight}px;`}
   ${({ $maxHeight }) => $maxHeight && `max-height: ${$maxHeight}px;`}
+
+  ${({ $tableAutoWrap }) =>
+    $tableAutoWrap &&
+    `
+    .ProseMirror table,
+    .tiptap table {
+      table-layout: auto !important;
+    }
+
+    .ProseMirror table th,
+    .ProseMirror table td,
+    .tiptap th,
+    .tiptap td {
+      white-space: normal !important;
+      word-wrap: break-word !important;
+      word-break: break-word !important;
+      overflow-wrap: break-word !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
+
+    .ProseMirror table th > *,
+    .ProseMirror table td > *,
+    .tiptap td > *,
+    .tiptap th > * {
+      white-space: normal !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+    }
+  `}
 `
 
 export const ToolbarWrapper = styled.div`

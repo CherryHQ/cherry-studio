@@ -48,7 +48,8 @@ const RichEditor = ({
   enableContentSearch = false,
   isFullWidth = false,
   fontFamily = 'default',
-  fontSize = 16
+  fontSize = 16,
+  tableAutoWrap = false
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
   // Use the rich editor hook for complete editor management
@@ -390,6 +391,7 @@ const RichEditor = ({
       $isFullWidth={isFullWidth}
       $fontFamily={fontFamily}
       $fontSize={fontSize}
+      $tableAutoWrap={tableAutoWrap}
       onKeyDown={onKeyDownEditor}>
       {showToolbar && (
         <Toolbar
