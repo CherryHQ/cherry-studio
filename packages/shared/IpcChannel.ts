@@ -314,6 +314,15 @@ export enum IpcChannel {
   ApiServer_GetStatus = 'api-server:get-status',
   ApiServer_GetConfig = 'api-server:get-config',
 
+  // Embedded Node Project
+  NodeEmbed_Start = 'node-embed:start',
+  NodeEmbed_Stop = 'node-embed:stop',
+  NodeEmbed_Restart = 'node-embed:restart',
+  NodeEmbed_GetStatus = 'node-embed:get-status',
+  NodeEmbed_Install = 'node-embed:install',
+  NodeEmbed_List = 'node-embed:list',
+  NodeEmbed_Remove = 'node-embed:remove',
+
   // Anthropic OAuth
   Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
   Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',

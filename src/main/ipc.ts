@@ -30,6 +30,7 @@ import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
+import { nodeEmbedService } from './services/NodeEmbedService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
@@ -816,6 +817,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
   // API Server
   apiServerService.registerIpcHandlers()
+  // Embedded Node project
+  nodeEmbedService.registerIpcHandlers()
 
   // Anthropic OAuth
   ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
