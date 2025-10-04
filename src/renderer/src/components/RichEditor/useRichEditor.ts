@@ -57,6 +57,8 @@ export interface UseRichEditorOptions {
   editable?: boolean
   /** Whether to enable table of contents functionality */
   enableTableOfContents?: boolean
+  /** Whether to enable spell check */
+  enableSpellCheck?: boolean
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -126,6 +128,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     previewLength = 50,
     placeholder = '',
     editable = true,
+    enableSpellCheck = false,
     onShowTableActionMenu,
     scrollParent
   } = options
@@ -410,7 +413,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // Allow text selection even when not editable
         style: editable
           ? ''
-          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;'
+          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
+        // Set spellcheck attribute on the contenteditable element
+        spellcheck: enableSpellCheck ? 'true' : 'false'
       }
     },
     onUpdate: ({ editor }) => {
