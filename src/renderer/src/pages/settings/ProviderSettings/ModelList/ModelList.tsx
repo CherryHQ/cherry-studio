@@ -12,9 +12,9 @@ import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/Mo
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import { Model } from '@renderer/types'
-import { filterModelsByKeywords } from '@renderer/utils'
+import { filterModelsByKeywords, groupModelsCaseInsensitive } from '@renderer/utils'
 import { Button, Flex, Spin, Tooltip } from 'antd'
-import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
+import { isEmpty } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,14 +31,11 @@ const MODEL_COUNT_THRESHOLD = 10
 
 /**
  * 根据搜索文本筛选模型、分组并排序
+ * 使用大小写不敏感的分组来避免重复分组
  */
-const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
+const calculateModelGroups = (models: Model[], searchText: string, t: (key: string) => string): ModelGroups => {
   const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
-  const grouped = groupBy(filteredModels, 'group')
-  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
-    acc[key] = value
-    return acc
-  }, {})
+  return groupModelsCaseInsensitive(filteredModels, 'group', t('settings.provider.misc'))
 }
 
 /**
@@ -57,7 +54,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     if (models.length > MODEL_COUNT_THRESHOLD) {
       return null
     }
-    return calculateModelGroups(models, '')
+    return calculateModelGroups(models, '', t)
   })
 
   const { isChecking: isHealthChecking, modelStatuses, runHealthCheck } = useHealthCheck(provider, models)
@@ -71,12 +68,12 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   useEffect(() => {
     if (models.length > MODEL_COUNT_THRESHOLD) {
       startTransition(() => {
-        setDisplayedModelGroups(calculateModelGroups(models, searchText))
+        setDisplayedModelGroups(calculateModelGroups(models, searchText, t))
       })
     } else {
-      setDisplayedModelGroups(calculateModelGroups(models, searchText))
+      setDisplayedModelGroups(calculateModelGroups(models, searchText, t))
     }
-  }, [models, searchText])
+  }, [models, searchText, t])
 
   const modelCount = useMemo(() => {
     return Object.values(displayedModelGroups ?? {}).reduce((acc, group) => acc + group.length, 0)

@@ -4,7 +4,6 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
-  isAutoEnableImageGenerationModel,
   isGenerateImageModel,
   isGenerateImageModels,
   isMandatoryWebSearchModel,
@@ -12,6 +11,7 @@ import {
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
+import { isAutoEnableImageGenerationModel } from '@renderer/config/models/vision'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'

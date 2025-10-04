@@ -6,7 +6,7 @@
 import {
   isClaudeReasoningModel,
   isNotSupportTemperatureAndTopP,
-  isSupportedFlexServiceTier
+  isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
@@ -44,7 +44,7 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
  * 获取超时设置
  */
 export function getTimeout(model: Model): number {
-  if (isSupportedFlexServiceTier(model)) {
+  if (isSupportFlexServiceTierModel(model)) {
     return 15 * 1000 * 60
   }
   return defaultTimeout
