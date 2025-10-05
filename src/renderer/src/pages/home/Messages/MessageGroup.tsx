@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -334,7 +333,9 @@ const GroupContainer = styled.div`
   }
 `
 
-const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
+// Use styled.div instead of styled(Scrollbar) because Scrollbar component is designed
+// for vertical scrolling and conflicts with horizontal layout modes
+const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
   overflow-y: visible;
@@ -343,6 +344,18 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
     overflow-x: auto;
+
+    /* Custom scrollbar styling for horizontal layout */
+    &::-webkit-scrollbar {
+      height: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: var(--color-scrollbar-thumb);
+      border-radius: var(--scrollbar-thumb-radius);
+    }
+    &::-webkit-scrollbar-thumb:hover {
+      background: var(--color-scrollbar-thumb-hover);
+    }
   }
   &.fold,
   &.vertical {
