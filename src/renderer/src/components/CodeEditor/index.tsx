@@ -75,10 +75,15 @@ export interface CodeEditorProps {
   /** CSS class name appended to the default `code-editor` class. */
   className?: string
   /**
-   * Whether the editor is editable.
+   * Whether the editor view is editable.
    * @default true
    */
   editable?: boolean
+  /**
+   * Set the editor state to read only but keep some user interactions, e.g., keymaps.
+   * @default false
+   */
+  readOnly?: boolean
   /**
    * Whether the editor is expanded.
    * If true, the height and maxHeight props are ignored.
@@ -114,6 +119,7 @@ const CodeEditor = ({
   style,
   className,
   editable = true,
+  readOnly = false,
   expanded = true,
   wrapped = true
 }: CodeEditorProps) => {
@@ -189,6 +195,7 @@ const CodeEditor = ({
       maxHeight={expanded ? undefined : maxHeight}
       minHeight={minHeight}
       editable={editable}
+      readOnly={readOnly}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={customExtensions}

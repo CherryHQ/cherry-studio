@@ -1,4 +1,3 @@
-import { EditorState } from '@codemirror/state'
 import { Modal } from 'antd'
 import { useState } from 'react'
 import styled from 'styled-components'
@@ -56,12 +55,15 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
       footer={null}>
       {extension !== undefined ? (
         <Editor
+          readOnly={true}
           expanded={false}
           height="100%"
           style={{ height: '100%' }}
           value={text}
           language={extension}
-          extensions={[EditorState.readOnly.of(true)]}
+          options={{
+            keymap: true
+          }}
         />
       ) : (
         <Text>{text}</Text>
