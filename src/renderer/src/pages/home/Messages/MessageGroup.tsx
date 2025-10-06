@@ -13,6 +13,7 @@ import { Popover } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useChatMaxWidth } from '../Chat'
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
@@ -333,19 +334,22 @@ const GroupContainer = styled.div`
   }
 `
 
-// Use styled.div instead of styled(Scrollbar) because Scrollbar component is designed
-// for vertical scrolling and conflicts with horizontal layout modes
-const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
+// Scrollbar component provides auto-hide behavior for vertical scrolling (shows thumb only when scrolling).
+// For horizontal mode, we override the default overflow-y behavior to support horizontal scrolling.
+// This preserves the original UX intent: auto-hide scrollbars for vertical modes, custom for horizontal.
+const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
-  overflow-y: visible;
   gap: 16px;
+
+  /* Horizontal mode: Override Scrollbar's vertical-only behavior */
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
+    overflow-y: visible; /* Override Scrollbar's overflow-y: auto */
     overflow-x: auto;
 
-    /* Custom scrollbar styling for horizontal layout */
+    /* Custom horizontal scrollbar styling (Scrollbar component doesn't handle horizontal) */
     &::-webkit-scrollbar {
       height: 6px;
     }
@@ -357,11 +361,15 @@ const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
       background: var(--color-scrollbar-thumb-hover);
     }
   }
+
+  /* Vertical and fold modes: Use Scrollbar's default vertical auto-hide behavior */
   &.fold,
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
   }
+
+  /* Grid mode: Uses Scrollbar's vertical auto-hide behavior automatically */
   &.grid {
     grid-template-columns: repeat(
       ${({ $count, $gridColumns }) => ($count > 1 ? $gridColumns || 2 : 1)},
