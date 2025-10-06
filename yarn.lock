@@ -13328,7 +13328,7 @@ __metadata:
     docx: "npm:^9.0.2"
     dompurify: "npm:^3.2.6"
     dotenv-cli: "npm:^7.4.2"
-    electron: "npm:37.4.0"
+    electron: "npm:37.6.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-store: "npm:^8.2.0"
