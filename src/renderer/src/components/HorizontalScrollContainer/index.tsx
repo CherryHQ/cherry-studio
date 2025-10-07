@@ -1,3 +1,4 @@
+import { cn } from '@heroui/react'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -17,6 +18,10 @@ export interface HorizontalScrollContainerProps {
   dependencies?: readonly unknown[]
   scrollDistance?: number
   className?: string
+  classNames?: {
+    container?: string
+    content?: string
+  }
   gap?: string
   expandable?: boolean
 }
@@ -26,6 +31,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   dependencies = [],
   scrollDistance = 200,
   className,
+  classNames,
   gap = '8px',
   expandable = false
 }) => {
@@ -95,11 +101,16 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
   return (
     <Container
-      className={className}
+      className={cn(className, classNames?.container)}
       $expandable={expandable}
       $disableHoverButton={isScrolledToEnd}
       onClick={expandable ? handleContainerClick : undefined}>
-      <ScrollContent ref={scrollRef} $gap={gap} $isExpanded={isExpanded} $expandable={expandable}>
+      <ScrollContent
+        ref={scrollRef}
+        $gap={gap}
+        $isExpanded={isExpanded}
+        $expandable={expandable}
+        className={cn(classNames?.content)}>
         {children}
       </ScrollContent>
       {canScroll && !isExpanded && !isScrolledToEnd && (
