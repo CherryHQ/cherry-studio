@@ -526,6 +526,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
               onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
               onDoubleClick={() => {
+                if (editingTopicId === topic.id && topicEdit.isEditing) return
                 setEditingTopicId(topic.id)
                 topicEdit.startEdit(topic.name)
               }}
