@@ -359,6 +359,40 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [bases.length, t]
   )
 
+  const handleCopyAsImage = useCallback(
+    async (node: NotesTreeNode) => {
+      try {
+        if (activeNode?.id !== node.id) {
+          onSelectNode(node)
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+
+        await exportNote({ node, platform: 'copyImage' })
+      } catch (error) {
+        logger.error('Failed to copy as image:', error as Error)
+        window.toast.error(t('common.copy_failed'))
+      }
+    },
+    [activeNode, onSelectNode, t]
+  )
+
+  const handleExportAsImage = useCallback(
+    async (node: NotesTreeNode) => {
+      try {
+        if (activeNode?.id !== node.id) {
+          onSelectNode(node)
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+
+        await exportNote({ node, platform: 'exportImage' })
+      } catch (error) {
+        logger.error('Failed to export as image:', error as Error)
+        window.toast.error(t('common.copy_failed'))
+      }
+    },
+    [activeNode, onSelectNode, t]
+  )
+
   const handleAutoRename = useCallback(
     async (note: NotesTreeNode) => {
       if (note.type !== 'file') return
@@ -612,6 +646,16 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             key: 'export',
             icon: <UploadIcon size={14} />,
             children: [
+              exportMenuOptions.image && {
+                label: t('chat.topics.copy.image'),
+                key: 'copy-image',
+                onClick: () => handleCopyAsImage(node)
+              },
+              exportMenuOptions.image && {
+                label: t('chat.topics.export.image'),
+                key: 'export-image',
+                onClick: () => handleExportAsImage(node)
+              },
               exportMenuOptions.markdown && {
                 label: t('chat.topics.export.md.label'),
                 key: 'markdown',
@@ -671,6 +715,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       handleStartEdit,
       onToggleStar,
       handleExportKnowledge,
+      handleCopyAsImage,
+      handleExportAsImage,
       handleDeleteNode,
       renamingNodeIds,
       handleAutoRename,

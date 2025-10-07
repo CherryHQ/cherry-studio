@@ -9,6 +9,7 @@ import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
@@ -1092,9 +1093,56 @@ const exportNoteAsMarkdown = async (noteName: string, content: string): Promise<
   }
 }
 
+const getScrollableElement = (): HTMLElement | null => {
+  const notesPage = document.querySelector('#notes-page')
+  if (!notesPage) return null
+
+  const allDivs = notesPage.querySelectorAll('div')
+  for (const div of Array.from(allDivs)) {
+    const style = window.getComputedStyle(div)
+    if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+      if (div.querySelector('.ProseMirror')) {
+        return div as HTMLElement
+      }
+    }
+  }
+  return null
+}
+
+const exportNoteAsImageToClipboard = async (): Promise<void> => {
+  const scrollableElement = getScrollableElement()
+  if (!scrollableElement) {
+    window.toast.warning(i18n.t('notes.no_content_to_copy'))
+    return
+  }
+
+  const scrollableRef = { current: scrollableElement }
+  await captureScrollableAsBlob(scrollableRef, async (blob) => {
+    if (blob) {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      window.toast.success(i18n.t('common.copied'))
+    }
+  })
+}
+
+const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
+  const scrollableElement = getScrollableElement()
+  if (!scrollableElement) {
+    window.toast.warning(i18n.t('notes.no_content_to_copy'))
+    return
+  }
+
+  const scrollableRef = { current: scrollableElement }
+  const dataUrl = await captureScrollableAsDataURL(scrollableRef)
+  if (dataUrl) {
+    const fileName = removeSpecialCharactersForFileName(noteName)
+    await window.api.file.saveImage(fileName, dataUrl)
+  }
+}
+
 interface NoteExportOptions {
   node: { name: string; externalPath: string }
-  platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'obsidian' | 'joplin' | 'siyuan'
+  platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'obsidian' | 'joplin' | 'siyuan' | 'copyImage' | 'exportImage'
 }
 
 export const exportNote = async ({ node, platform }: NoteExportOptions): Promise<void> => {
@@ -1102,6 +1150,10 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
     const content = await window.api.file.readExternal(node.externalPath)
 
     switch (platform) {
+      case 'copyImage':
+        return await exportNoteAsImageToClipboard()
+      case 'exportImage':
+        return await exportNoteAsImageFile(node.name)
       case 'markdown':
         return await exportNoteAsMarkdown(node.name, content)
       case 'docx':
