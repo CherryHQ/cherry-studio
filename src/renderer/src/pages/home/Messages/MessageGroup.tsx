@@ -334,22 +334,16 @@ const GroupContainer = styled.div`
   }
 `
 
-// Scrollbar component provides auto-hide behavior for vertical scrolling (shows thumb only when scrolling).
-// For horizontal mode, we override the default overflow-y behavior to support horizontal scrolling.
-// This preserves the original UX intent: auto-hide scrollbars for vertical modes, custom for horizontal.
 const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
   gap: 16px;
 
-  /* Horizontal mode: Override Scrollbar's vertical-only behavior */
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
-    overflow-y: visible; /* Override Scrollbar's overflow-y: auto */
+    overflow-y: visible;
     overflow-x: auto;
-
-    /* Custom horizontal scrollbar styling (Scrollbar component doesn't handle horizontal) */
     &::-webkit-scrollbar {
       height: 6px;
     }
@@ -361,26 +355,28 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
       background: var(--color-scrollbar-thumb-hover);
     }
   }
-
-  /* Vertical and fold modes: Use Scrollbar's default vertical auto-hide behavior */
   &.fold,
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
-
-  /* Grid mode: Uses Scrollbar's vertical auto-hide behavior automatically */
   &.grid {
     grid-template-columns: repeat(
       ${({ $count, $gridColumns }) => ($count > 1 ? $gridColumns || 2 : 1)},
       minmax(0, 1fr)
     );
     grid-template-rows: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
     .grid {
       height: auto;
     }
