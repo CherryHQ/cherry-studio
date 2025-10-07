@@ -78,7 +78,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               isFullWidth={settings.isFullWidth}
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
-              tableAutoWrap={settings.tableAutoWrap}
             />
           )}
         </RichEditorContainer>
