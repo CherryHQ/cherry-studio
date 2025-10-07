@@ -88,7 +88,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext.toLocaleLowerCase())
   }
 
-  const fullName = FileManager.formatFileName(file)
+  const fullName = file.isPastedText ? file.origin_name : FileManager.formatFileName(file)
   const displayName = truncateFileName(fullName)
 
   return (
@@ -101,7 +101,23 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
       fresh
       title={
         <Flex vertical gap={2} align="center">
-          {isImage(file.ext) && (
+          {file.isPastedText && file.pastedTextContent ? (
+            <div style={{
+              maxWidth: '300px',
+              maxHeight: '150px',
+              overflow: 'hidden',
+              whiteSpace: 'pre-wrap',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              background: 'rgba(0,0,0,0.1)',
+              padding: '8px',
+              borderRadius: '4px'
+            }}>
+              {file.pastedTextContent.length > 200
+                ? file.pastedTextContent.substring(0, 200) + '...'
+                : file.pastedTextContent}
+            </div>
+          ) : isImage(file.ext) ? (
             <Image
               style={{ width: 80, maxHeight: 200 }}
               src={'file://' + FileManager.getSafePath(file)}
@@ -111,13 +127,27 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
                 onVisibleChange: setVisible
               }}
             />
-          )}
+          ) : null}
           <span style={{ wordBreak: 'break-all' }}>{fullName}</span>
           {formatFileSize(file.size)}
         </Flex>
       }>
       <FileName
         onClick={() => {
+          if (file.isPastedText && file.pastedTextContent) {
+            // 对于文本附件，直接显示文本内容
+            window.modal.info({
+              title: fullName,
+              content: (
+                <div style={{ maxHeight: '400px', overflow: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                  {file.pastedTextContent}
+                </div>
+              ),
+              width: 600,
+              centered: true
+            })
+            return
+          }
           if (isImage(file.ext)) {
             setVisible(true)
             return
@@ -143,8 +173,8 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
       {files.map((file) => (
         <CustomTag
           key={file.id}
-          icon={getFileIcon(file.ext)}
-          color="#37a5aa"
+          icon={file.isPastedText ? <FileTextFilled /> : getFileIcon(file.ext)}
+          color={file.isPastedText ? "#52c41a" : "#37a5aa"}
           closable
           onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
           <FileNameRender file={file} />

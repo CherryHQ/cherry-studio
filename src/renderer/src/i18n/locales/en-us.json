@@ -337,6 +337,11 @@
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "send": "Send",
       "settings": "Settings",
+      "text_attachment": {
+        "label": "Text Attachment",
+        "preview": "Preview text content",
+        "remove": "Remove text attachment"
+      },
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
         "label": "Thinking",
@@ -3537,8 +3542,9 @@
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / and @ triggers",
-        "paste_long_text_as_file": "Paste long text as file",
-        "paste_long_text_threshold": "Paste long text length",
+        "paste_long_text_as_file": "Show Long Pasted Text as Attachment",
+        "paste_long_text_as_file_description": "When pasted text exceeds the set character count, it will automatically be converted to an attachment displayed next to the input box, but will still be merged with the input text when sent",
+        "paste_long_text_threshold": "Long text threshold (characters)",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"

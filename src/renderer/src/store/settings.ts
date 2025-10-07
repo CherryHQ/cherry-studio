@@ -255,7 +255,7 @@ export const initialState: SettingsState = {
   pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
-  pasteLongTextThreshold: 1500,
+  pasteLongTextThreshold: 8000,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   testPlan: false,

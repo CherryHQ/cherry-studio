@@ -334,8 +334,14 @@
       "new_topic": "Новый топик {{Command}}",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Отправить",
       "settings": "Настройки",
+      "text_attachment": {
+        "label": "[to be translated]:文本附件",
+        "preview": "[to be translated]:预览文本内容",
+        "remove": "[to be translated]:移除文本附件"
+      },
       "thinking": {
         "budget_exceeds_max": "Бюджет размышления превышает максимальное количество токенов",
         "label": "Мыслим",
@@ -1696,6 +1702,12 @@
     "provider_settings": "Перейти к настройкам поставщика"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "[to be translated]:笔记为空，无法生成名称",
+      "failed": "[to be translated]:生成笔记名称失败",
+      "label": "[to be translated]:生成笔记名称",
+      "success": "[to be translated]:笔记名称生成成功"
+    },
     "characters": "Символы",
     "collapse": "Свернуть",
     "content_placeholder": "Введите содержимое заметки...",
@@ -3531,6 +3543,7 @@
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
         "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
         "paste_long_text_as_file": "Вставлять длинный текст как файл",
+        "paste_long_text_as_file_description": "[to be translated]:当粘贴文本超过设定字符数时，将自动转换为附件显示在输入框旁边，发送时仍会与输入框文本合并",
         "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",

@@ -334,8 +334,14 @@
       "new_topic": "Nouveau sujet {{Command}}",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Envoyer",
       "settings": "Paramètres",
+      "text_attachment": {
+        "label": "[to be translated]:文本附件",
+        "preview": "[to be translated]:预览文本内容",
+        "remove": "[to be translated]:移除文本附件"
+      },
       "thinking": {
         "budget_exceeds_max": "Le budget de réflexion dépasse le nombre maximum de tokens",
         "label": "Pensée",
@@ -1696,6 +1702,12 @@
     "provider_settings": "Aller aux paramètres du fournisseur"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "[to be translated]:笔记为空，无法生成名称",
+      "failed": "[to be translated]:生成笔记名称失败",
+      "label": "[to be translated]:生成笔记名称",
+      "success": "[to be translated]:笔记名称生成成功"
+    },
     "characters": "caractère",
     "collapse": "réduire",
     "content_placeholder": "Veuillez saisir le contenu de la note...",
@@ -3531,6 +3543,7 @@
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
         "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
+        "paste_long_text_as_file_description": "[to be translated]:当粘贴文本超过设定字符数时，将自动转换为附件显示在输入框旁边，发送时仍会与输入框文本合并",
         "paste_long_text_threshold": "Seuil de longueur de texte",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",

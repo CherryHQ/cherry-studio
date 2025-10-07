@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { FileMetadata } from '@renderer/types'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
 
 const logger = loggerService.withContext('PasteService')
@@ -41,17 +41,27 @@ export const handlePaste = async (
     if (clipboardText) {
       // 1. 文本粘贴
       if (pasteLongTextAsFile && pasteLongTextThreshold && clipboardText.length > pasteLongTextThreshold) {
-        // 长文本直接转文件，阻止默认粘贴
+        // 长文本转换为文本附件，阻止默认粘贴
         event.preventDefault()
 
-        const tempFilePath = await window.api.file.createTempFile('pasted_text.txt')
-        await window.api.file.write(tempFilePath, clipboardText)
-        const selectedFile = await window.api.file.get(tempFilePath)
-        if (selectedFile) {
-          setFiles((prevFiles) => [...prevFiles, selectedFile])
-          if (setText && text) setText(text) // 保持输入框内容不变
-          if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
+        // 创建文本附件对象
+        const textAttachment = {
+          id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: `pasted_text_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.txt`,
+          origin_name: `粘贴的文本 (${clipboardText.length} 字符)`,
+          path: '', // 文本附件不需要实际路径
+          size: new Blob([clipboardText]).size,
+          ext: '.txt',
+          type: FileTypes.TEXT,
+          created_at: new Date().toISOString(),
+          count: 1,
+          isPastedText: true,
+          pastedTextContent: clipboardText
         }
+
+        setFiles((prevFiles) => [...prevFiles, textAttachment])
+        if (setText && text) setText(text) // 保持输入框内容不变
+        if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         return true
       }
       // 短文本走默认粘贴行为，直接返回

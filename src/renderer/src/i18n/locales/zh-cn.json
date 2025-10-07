@@ -337,6 +337,11 @@
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "send": "发送",
       "settings": "设置",
+      "text_attachment": {
+        "label": "文本附件",
+        "preview": "预览文本内容",
+        "remove": "移除文本附件"
+      },
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
         "label": "思考",
@@ -3537,8 +3542,9 @@
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
         "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
-        "paste_long_text_as_file": "长文本粘贴为文件",
-        "paste_long_text_threshold": "长文本长度",
+        "paste_long_text_as_file": "粘贴长文本为附件",
+        "paste_long_text_as_file_description": "当粘贴文本超过设定字符数时，将自动转换为附件显示在输入框旁边，发送时仍会与输入框文本合并。",
+        "paste_long_text_threshold": "长文本阈值（字符数）",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"

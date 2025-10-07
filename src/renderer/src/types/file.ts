@@ -110,6 +110,14 @@ export interface FileMetadata {
    * 该文件的用途
    */
   purpose?: OpenAI.FilePurpose
+  /**
+   * 是否为粘贴的文本附件
+   */
+  isPastedText?: boolean
+  /**
+   * 粘贴的文本内容（仅当 isPastedText 为 true 时有效）
+   */
+  pastedTextContent?: string
 }
 
 export interface FileType extends FileMetadata {}

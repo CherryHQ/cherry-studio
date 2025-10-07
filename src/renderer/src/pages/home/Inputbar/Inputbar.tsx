@@ -243,10 +243,27 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
-      // Dispatch the sendMessage action with all options
-      const uploadedFiles = await FileManager.uploadFiles(files)
+      // 分离文本附件和普通文件
+      const textAttachments = files.filter(file => file.isPastedText)
+      const regularFiles = files.filter(file => !file.isPastedText)
 
-      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+      // 合并文本附件内容到消息文本中
+      let finalText = text
+      if (textAttachments.length > 0) {
+        const textAttachmentContents = textAttachments
+          .map(file => file.pastedTextContent)
+          .filter(content => content)
+          .join('\n\n')
+
+        if (textAttachmentContents) {
+          finalText = text ? `${text}\n\n${textAttachmentContents}` : textAttachmentContents
+        }
+      }
+
+      // Dispatch the sendMessage action with all options
+      const uploadedFiles = await FileManager.uploadFiles(regularFiles)
+
+      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: finalText }
 
       // getUserMessage()
       if (uploadedFiles) {

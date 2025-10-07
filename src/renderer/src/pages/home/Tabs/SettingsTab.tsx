@@ -12,7 +12,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
+import { SettingDivider, SettingHelpText, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
@@ -602,6 +602,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={(checked) => dispatch(setPasteLongTextAsFile(checked))}
             />
           </SettingRow>
+          <SettingHelpText>{t('settings.messages.input.paste_long_text_as_file_description')}</SettingHelpText>
           {pasteLongTextAsFile && (
             <>
               <SettingDivider />
@@ -609,11 +610,11 @@ const SettingsTab: FC<Props> = (props) => {
                 <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
                 <EditableNumber
                   size="small"
-                  min={500}
-                  max={10000}
-                  step={100}
+                  min={1000}
+                  max={20000}
+                  step={500}
                   value={pasteLongTextThreshold}
-                  onChange={(value) => dispatch(setPasteLongTextThreshold(value ?? 500))}
+                  onChange={(value) => dispatch(setPasteLongTextThreshold(value ?? 8000))}
                   style={{ width: 80 }}
                 />
               </SettingRow>
