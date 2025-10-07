@@ -9,6 +9,7 @@ interface ObsidianExportOptions {
   topic?: Topic
   message?: Message
   messages?: Message[]
+  rawContent?: string
 }
 
 export default class ObsidianExportPopup {
@@ -24,6 +25,7 @@ export default class ObsidianExportPopup {
           topic={options.topic}
           message={options.message}
           messages={options.messages}
+          rawContent={options.rawContent}
           obsidianTags={''}
           open={true}
           resolve={(v) => {
