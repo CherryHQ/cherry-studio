@@ -14331,7 +14331,7 @@ __metadata:
     dotenv-cli: "npm:^7.4.2"
     drizzle-kit: "npm:^0.31.4"
     drizzle-orm: "npm:^0.44.5"
-    electron: "npm:37.4.0"
+    electron: "npm:37.6.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-reload: "npm:^2.0.0-alpha.1"
