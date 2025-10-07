@@ -339,6 +339,7 @@
       "settings": "Paramètres",
       "text_attachment": {
         "label": "[to be translated]:文本附件",
+        "pasted_text_name": "[to be translated]:粘贴的文本 ({{count}} 字符)",
         "preview": "[to be translated]:预览文本内容",
         "remove": "[to be translated]:移除文本附件"
       },

@@ -339,6 +339,7 @@
       "settings": "Settings",
       "text_attachment": {
         "label": "Text Attachment",
+        "pasted_text_name": "Pasted Text ({{count}} characters)",
         "preview": "Preview text content",
         "remove": "Remove text attachment"
       },

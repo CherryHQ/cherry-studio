@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { FileMetadata, FileTypes } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
+import type { TFunction } from 'i18next'
 
 const logger = loggerService.withContext('PasteService')
 
@@ -33,7 +34,7 @@ export const handlePaste = async (
   pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
-  t?: (key: string) => string
+  t?: TFunction
 ): Promise<boolean> => {
   try {
     // 优先处理文本粘贴
@@ -48,7 +49,7 @@ export const handlePaste = async (
         const textAttachment = {
           id: `text_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           name: `pasted_text_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.txt`,
-          origin_name: `粘贴的文本 (${clipboardText.length} 字符)`,
+          origin_name: t ? t('chat.input.text_attachment.pasted_text_name', { count: clipboardText.length }) : 'Pasted Text',
           path: '', // 文本附件不需要实际路径
           size: new Blob([clipboardText]).size,
           ext: '.txt',
