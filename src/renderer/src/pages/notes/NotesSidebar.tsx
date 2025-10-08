@@ -1129,7 +1129,7 @@ const DragOverIndicator = styled.div`
 `
 
 const DropHintNode = styled.div`
-  margin: 8px;
+  margin: 6px 0;
   margin-bottom: 20px;
 
   ${TreeNodeContainer} {
