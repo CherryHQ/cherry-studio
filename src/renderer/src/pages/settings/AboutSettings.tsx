@@ -45,9 +45,9 @@ const AboutSettings: FC = () => {
         return
       }
 
-      if (update.downloaded && update.info) {
+      if (update.downloaded) {
         // Open update dialog directly in renderer
-        setUpdateDialogInfo(update.info)
+        setUpdateDialogInfo(update.info || null)
         onOpen()
         return
       }
