@@ -8,6 +8,7 @@ import {
   isDoubaoThinkingAutoModel,
   isGrokReasoningModel,
   isOpenAIReasoningModel,
+  isOpenRouterGrokFastModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -29,17 +30,8 @@ import { getAssistantSettings, getProviderByModel } from '@renderer/services/Ass
 import { SettingsState } from '@renderer/store/settings'
 import { Assistant, EFFORT_RATIO, isSystemProvider, Model, SystemProviderIds } from '@renderer/types'
 import { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
-import { getLowerBaseModelName } from '@renderer/utils'
 
 const logger = loggerService.withContext('reasoning')
-
-const isOpenRouterGrokFastModel = (model: Model): boolean => {
-  if (!model || model.provider !== SystemProviderIds.openrouter) {
-    return false
-  }
-  const lowerModelId = getLowerBaseModelName(model.id)
-  return lowerModelId.includes('grok-4-fast') && !lowerModelId.includes('non-reasoning')
-}
 
 // The function is only for generic provider. May extract some logics to independent provider
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {

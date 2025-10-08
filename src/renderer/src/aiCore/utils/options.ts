@@ -287,14 +287,6 @@ function buildGenericProviderOptions(
     ...reasoningParams
   }
 
-  const xaiReasoningParams = getXAIReasoningParams(assistant, model)
-  if (Object.keys(xaiReasoningParams).length > 0) {
-    providerOptions = {
-      ...providerOptions,
-      ...xaiReasoningParams
-    }
-  }
-
   if (enableWebSearch) {
     const webSearchParams = getWebSearchParams(model)
     providerOptions = {

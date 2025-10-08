@@ -2,6 +2,7 @@ import {
   Model,
   ReasoningEffortConfig,
   SystemProviderId,
+  SystemProviderIds,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
@@ -68,7 +69,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
     }
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
-  } else if (isGrok4FastModel(model)) {
+  } else if (isGrok4FastReasoningModel(model)) {
     thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -146,20 +147,39 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  if (modelId.includes('grok-3-mini') || isGrok4FastModel(model)) {
+  if (modelId.includes('grok-3-mini') || isGrok4FastReasoningModel(model)) {
     return true
   }
 
   return false
 }
 
-export function isGrok4FastModel(model?: Model): boolean {
+/**
+ * Checks if the model is Grok 4 Fast reasoning version (excludes non-reasoning variants)
+ * This function specifically identifies reasoning-enabled Grok 4 Fast models
+ */
+export function isGrok4FastReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
 
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
+}
+
+// Keep the old function name for backward compatibility, will be deprecated
+export const isGrok4FastModel = isGrok4FastReasoningModel
+
+/**
+ * Checks if the model is OpenRouter's Grok 4 Fast reasoning version
+ * This is a specific check for OpenRouter provider's Grok models
+ */
+export function isOpenRouterGrokFastModel(model: Model): boolean {
+  if (!model || model.provider !== SystemProviderIds.openrouter) {
+    return false
+  }
+  const lowerModelId = getLowerBaseModelName(model.id)
+  return lowerModelId.includes('grok-4-fast') && !lowerModelId.includes('non-reasoning')
 }
 
 export function isGrokReasoningModel(model?: Model): boolean {
