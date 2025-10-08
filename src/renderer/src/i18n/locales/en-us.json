@@ -4407,6 +4407,7 @@
   },
   "update": {
     "install": "Install",
+    "saveError": "Failed to save data before update",
     "later": "Later",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
