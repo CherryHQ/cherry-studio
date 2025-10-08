@@ -4412,7 +4412,7 @@
     "later": "Позже",
     "message": "Новая версия {{version}} готова, установить сейчас?",
     "noReleaseNotes": "Нет заметок об обновлении",
-    "saveDataError": "[to be translated]:保存数据失败，请重试",
+    "saveDataError": "Ошибка сохранения данных, повторите попытку",
     "title": "Обновление"
   },
   "warning": {

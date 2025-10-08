@@ -4412,7 +4412,7 @@
     "later": "Later",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
-    "saveDataError": "[to be translated]:保存数据失败，请重试",
+    "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
   },
   "warning": {
