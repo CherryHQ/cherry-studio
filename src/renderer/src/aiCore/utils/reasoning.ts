@@ -56,7 +56,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         return {}
       }
       // Don't disable reasoning for models that require it
-      if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model) || model.id.includes('seed-oss')) {
+      if (
+        isGrokReasoningModel(model) ||
+        isOpenAIReasoningModel(model) ||
+        isQwenAlwaysThinkModel(model) ||
+        model.id.includes('seed-oss')
+      ) {
         return {}
       }
       return { reasoning: { enabled: false, exclude: true } }
