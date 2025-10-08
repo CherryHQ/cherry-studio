@@ -274,6 +274,15 @@ const Alert = styled(AntdAlert)`
   }
 `
 
+const MarkdownContainer = styled.div`
+  & pre {
+    background: transparent !important;
+    span {
+      white-space: pre-wrap;
+    }
+  }
+`
+
 // 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
 const BuiltinError = ({ error }: { error: SerializedError }) => {
   const { t } = useTranslation()
@@ -307,27 +316,18 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
 const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
   const { highlightCode } = useCodeStyle()
-  const [plainString, setPlainString] = useState('')
   const [highlightedString, setHighlightedString] = useState('')
   const cause = error.cause
 
   useEffect(() => {
-    try {
-      setPlainString(JSON.stringify(JSON.parse(cause || '{}'), null, 2))
-    } catch {
-      setPlainString(cause || '')
-    }
-  }, [cause])
-
-  useEffect(() => {
     const highlight = async () => {
-      const result = await highlightCode(plainString, 'json')
+      const result = await highlightCode(JSON.stringify(JSON.parse(cause || '{}'), null, 2), 'json')
       setHighlightedString(result)
     }
     const timer = setTimeout(highlight, 0)
 
     return () => clearTimeout(timer)
-  }, [highlightCode, plainString])
+  }, [highlightCode, cause])
 
   return (
     <>
@@ -336,7 +336,7 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.cause')}:</ErrorDetailLabel>
           <ErrorDetailValue>
-            <pre>{highlightedString || plainString}</pre>
+            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedString }} />
           </ErrorDetailValue>
         </ErrorDetailItem>
       )}

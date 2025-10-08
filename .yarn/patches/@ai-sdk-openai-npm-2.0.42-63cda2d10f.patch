@@ -1,0 +1,44 @@
+diff --git a/dist/index.js b/dist/index.js
+index f4c12ee1a8b91abd364e47a32c4cb575532683f9..02a948cb9118ac5e454a12192cc14a5ccddb8712 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -324,7 +324,7 @@ var openaiChatLanguageModelOptions = import_v42.z.object({
+    *
+    * @default 'auto'
+    */
+-  serviceTier: import_v42.z.enum(["auto", "flex", "priority"]).optional(),
++  serviceTier: import_v42.z.enum(["auto", "flex", "priority", "default"]).optional(),
+   /**
+    * Whether to use strict JSON schema validation.
+    *
+@@ -3735,7 +3735,7 @@ var openaiResponsesProviderOptionsSchema = import_v416.z.object({
+   reasoningEffort: import_v416.z.string().nullish(),
+   reasoningSummary: import_v416.z.string().nullish(),
+   safetyIdentifier: import_v416.z.string().nullish(),
+-  serviceTier: import_v416.z.enum(["auto", "flex", "priority"]).nullish(),
++  serviceTier: import_v416.z.enum(["auto", "flex", "priority", "default"]).nullish(),
+   store: import_v416.z.boolean().nullish(),
+   strictJsonSchema: import_v416.z.boolean().nullish(),
+   textVerbosity: import_v416.z.enum(["low", "medium", "high"]).nullish(),
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 36d7e71f3bfe096e243a716a87e3c8241803d1f7..cbca03fb1beaf17eb1af9ddf2e7e8c4de40f57cc 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -313,7 +313,7 @@ var openaiChatLanguageModelOptions = z2.object({
+    *
+    * @default 'auto'
+    */
+-  serviceTier: z2.enum(["auto", "flex", "priority"]).optional(),
++  serviceTier: z2.enum(["auto", "flex", "priority", "default"]).optional(),
+   /**
+    * Whether to use strict JSON schema validation.
+    *
+@@ -3759,7 +3759,7 @@ var openaiResponsesProviderOptionsSchema = z16.object({
+   reasoningEffort: z16.string().nullish(),
+   reasoningSummary: z16.string().nullish(),
+   safetyIdentifier: z16.string().nullish(),
+-  serviceTier: z16.enum(["auto", "flex", "priority"]).nullish(),
++  serviceTier: z16.enum(["auto", "flex", "priority", "default"]).nullish(),
+   store: z16.boolean().nullish(),
+   strictJsonSchema: z16.boolean().nullish(),
+   textVerbosity: z16.enum(["low", "medium", "high"]).nullish(),
