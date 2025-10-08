@@ -117,7 +117,6 @@ const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuch
 
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   // 统一所有可能的错误字段
-  console.error('Serializing error:', error)
   const serializedError: SerializedError = {
     name: error.name ?? null,
     message: error.message ?? null,
