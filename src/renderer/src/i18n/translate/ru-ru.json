@@ -334,7 +334,7 @@
       "new_topic": "Новый топик {{Command}}",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
-      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
+      "placeholder_without_triggers": "Введите сообщение здесь, нажмите {{key}}, чтобы отправить",
       "send": "Отправить",
       "settings": "Настройки",
       "thinking": {
@@ -1698,10 +1698,10 @@
   },
   "notes": {
     "auto_rename": {
-      "empty_note": "[to be translated]:笔记为空，无法生成名称",
-      "failed": "[to be translated]:生成笔记名称失败",
-      "label": "[to be translated]:生成笔记名称",
-      "success": "[to be translated]:笔记名称生成成功"
+      "empty_note": "Заметки пусты, имя невозможно сгенерировать",
+      "failed": "Создание названия заметки не удалось",
+      "label": "Создать название заметки",
+      "success": "Имя заметки успешно создано"
     },
     "characters": "Символы",
     "collapse": "Свернуть",
@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "Время обновления (от старого к новому)",
     "sort_updated_desc": "Время обновления (от нового к старому)",
     "sort_z2a": "Имя файла (Я-А)",
+    "spell_check": "Проверка орфографии",
+    "spell_check_tooltip": "Включить/отключить проверку орфографии",
     "star": "Избранные заметки",
     "starred_notes": "Сохраненные заметки",
     "title": "заметки",

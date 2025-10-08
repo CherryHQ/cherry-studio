@@ -334,7 +334,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
-      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
+      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信してください",
       "send": "送信",
       "settings": "設定",
       "thinking": {
@@ -1698,10 +1698,10 @@
   },
   "notes": {
     "auto_rename": {
-      "empty_note": "[to be translated]:笔记为空，无法生成名称",
-      "failed": "[to be translated]:生成笔记名称失败",
-      "label": "[to be translated]:生成笔记名称",
-      "success": "[to be translated]:笔记名称生成成功"
+      "empty_note": "ノートが空です。名前を生成できません。",
+      "failed": "ノート名の生成に失敗しました",
+      "label": "ノート名の生成",
+      "success": "ノート名の生成に成功しました"
     },
     "characters": "文字",
     "collapse": "閉じる",
@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "更新日時（古い順）",
     "sort_updated_desc": "更新日時（新しい順）",
     "sort_z2a": "ファイル名（Z-A）",
+    "spell_check": "スペルチェック",
+    "spell_check_tooltip": "スペルチェックの有効/無効",
     "star": "お気に入りのノート",
     "starred_notes": "収集したノート",
     "title": "ノート",

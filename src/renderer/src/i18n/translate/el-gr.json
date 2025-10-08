@@ -334,7 +334,7 @@
       "new_topic": "Νέο θέμα {{Command}}",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
-      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
+      "placeholder_without_triggers": "Εδώ εισαγάγετε το μήνυμα, πατήστε {{key}} για αποστολή",
       "send": "Αποστολή",
       "settings": "Ρυθμίσεις",
       "thinking": {
@@ -1698,10 +1698,10 @@
   },
   "notes": {
     "auto_rename": {
-      "empty_note": "[to be translated]:笔记为空，无法生成名称",
-      "failed": "[to be translated]:生成笔记名称失败",
-      "label": "[to be translated]:生成笔记名称",
-      "success": "[to be translated]:笔记名称生成成功"
+      "empty_note": "Το σημείωμα είναι κενό, δεν μπορεί να δημιουργηθεί όνομα",
+      "failed": "Αποτυχία δημιουργίας ονόματος σημείωσης",
+      "label": "Δημιουργία ονόματος σημείωσης",
+      "success": "Η δημιουργία του ονόματος σημειώσεων ολοκληρώθηκε με επιτυχία"
     },
     "characters": "χαρακτήρας",
     "collapse": "σύμπτυξη",
@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "χρόνος ενημέρωσης (από παλιά στα νέα)",
     "sort_updated_desc": "χρόνος ενημέρωσης (από νεώτερο σε παλαιότερο)",
     "sort_z2a": "όνομα αρχείου (Z-A)",
+    "spell_check": "Έλεγχος ορθογραφίας",
+    "spell_check_tooltip": "Ενεργοποίηση/Απενεργοποίηση ελέγχου ορθογραφίας",
     "star": "Αγαπημένες σημειώσεις",
     "starred_notes": "Σημειώσεις συλλογής",
     "title": "σημειώσεις",

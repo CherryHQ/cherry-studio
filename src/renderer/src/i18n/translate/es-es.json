@@ -334,7 +334,7 @@
       "new_topic": "Nuevo tema {{Command}}",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
-      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
+      "placeholder_without_triggers": "Escriba un mensaje aquí y presione {{key}} para enviar",
       "send": "Enviar",
       "settings": "Configuración",
       "thinking": {
@@ -1698,10 +1698,10 @@
   },
   "notes": {
     "auto_rename": {
-      "empty_note": "[to be translated]:笔记为空，无法生成名称",
-      "failed": "[to be translated]:生成笔记名称失败",
-      "label": "[to be translated]:生成笔记名称",
-      "success": "[to be translated]:笔记名称生成成功"
+      "empty_note": "La nota está vacía, no se puede generar un nombre",
+      "failed": "Error al generar el nombre de la nota",
+      "label": "Generar nombre de nota",
+      "success": "Se ha generado correctamente el nombre de la nota"
     },
     "characters": "carácter",
     "collapse": "ocultar",
@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "Fecha de actualización (de más antigua a más reciente)",
     "sort_updated_desc": "Fecha de actualización (de más nuevo a más antiguo)",
     "sort_z2a": "Nombre de archivo (Z-A)",
+    "spell_check": "comprobación ortográfica",
+    "spell_check_tooltip": "Habilitar/deshabilitar revisión ortográfica",
     "star": "Notas guardadas",
     "starred_notes": "notas guardadas",
     "title": "notas",
