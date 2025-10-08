@@ -63,7 +63,6 @@ export default class AppUpdater {
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
       windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
-      this.releaseInfo = processedReleaseInfo
       logger.info('update downloaded', processedReleaseInfo)
     })
 
