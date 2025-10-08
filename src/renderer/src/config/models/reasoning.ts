@@ -301,7 +301,11 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  return modelId.startsWith('qwen3') && modelId.includes('thinking')
+  // 包括 qwen3 开头的 thinking 模型和 qwen3-vl 的 thinking 模型
+  return (
+    (modelId.startsWith('qwen3') && modelId.includes('thinking')) ||
+    (modelId.includes('qwen3-vl') && modelId.includes('thinking'))
+  )
 }
 
 // Doubao 支持思考模式的模型正则
@@ -479,6 +483,8 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   // qwen-plus-x 系列自 qwen-plus-2025-07-28 后模型最长思维链变为 81_920, qwen-plus 模型于 2025.9.16 同步变更
   'qwen3-235b-a22b-thinking-2507$': { min: 0, max: 81_920 },
   'qwen3-30b-a3b-thinking-2507$': { min: 0, max: 81_920 },
+  'qwen3-vl-235b-a22b-thinking$': { min: 0, max: 81_920 },
+  'qwen3-vl-30b-a3b-thinking$': { min: 0, max: 81_920 },
   'qwen-plus-2025-07-14$': { min: 0, max: 38_912 },
   'qwen-plus-2025-04-28$': { min: 0, max: 38_912 },
   'qwen3-1\\.7b$': { min: 0, max: 30_720 },
