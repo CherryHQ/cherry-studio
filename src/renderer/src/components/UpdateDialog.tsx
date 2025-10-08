@@ -1,7 +1,7 @@
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
 import { handleSaveData } from '@renderer/store'
-import { UpdateInfo } from 'builder-util-runtime'
+import { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import React, { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -24,8 +24,12 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, relea
   }, [isOpen, releaseInfo])
 
   const handleInstall = async () => {
-    await handleSaveData()
-    await window.api.quitAndInstall()
+    try {
+      await handleSaveData()
+      await window.api.quitAndInstall()
+    } catch (error) {
+      logger.error('Failed to save data before update', error as Error)
+    }
   }
 
   const handleClose = () => {
@@ -62,7 +66,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, relea
                     {typeof releaseNotes === 'string'
                       ? releaseNotes
                       : Array.isArray(releaseNotes)
-                        ? releaseNotes.map((note: any) => note.note).join('\n\n')
+                        ? releaseNotes.map((note: ReleaseNoteInfo) => note.note).filter(Boolean).join('\n\n')
                         : t('update.noReleaseNotes')}
                   </Markdown>
                 </div>
