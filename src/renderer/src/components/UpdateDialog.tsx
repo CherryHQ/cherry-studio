@@ -66,7 +66,10 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, relea
                     {typeof releaseNotes === 'string'
                       ? releaseNotes
                       : Array.isArray(releaseNotes)
-                        ? releaseNotes.map((note: ReleaseNoteInfo) => note.note).filter(Boolean).join('\n\n')
+                        ? releaseNotes
+                            .map((note: ReleaseNoteInfo) => note.note)
+                            .filter(Boolean)
+                            .join('\n\n')
                         : t('update.noReleaseNotes')}
                   </Markdown>
                 </div>
