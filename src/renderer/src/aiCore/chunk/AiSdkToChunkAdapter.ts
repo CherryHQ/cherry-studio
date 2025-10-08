@@ -6,6 +6,7 @@
 import { loggerService } from '@logger'
 import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { TextStreamPart, ToolSet } from 'ai'
 
@@ -340,7 +341,11 @@ export class AiSdkToChunkAdapter {
       case 'error':
         this.onChunk({
           type: ChunkType.ERROR,
-          error: chunk.error as Record<string, any>
+          error: new ProviderSpecificError({
+            message: (chunk.error as any).message || (chunk.error as any).error.message,
+            provider: 'unknown',
+            cause: chunk.error
+          })
         })
         break
 

@@ -318,6 +318,7 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   const { highlightCode } = useCodeStyle()
   const [highlightedString, setHighlightedString] = useState('')
   const cause = error.cause
+  console.log('Rendering AiSdkErrorBase with cause:', error)
 
   useEffect(() => {
     const highlight = async () => {
