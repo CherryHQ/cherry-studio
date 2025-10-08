@@ -105,7 +105,22 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
   // 不同的 provider 有不同的思考控制方式，在这里统一解决
 
-  if (isOpenRouterGrokFastModel(model)) {
+  // Handle Grok models for generic providers (including OpenRouter)
+  if (isSupportedReasoningEffortGrokModel(model)) {
+    // For OpenRouter x-ai/grok-4-fast models, use thinking reasoning instead of reasoningEffort
+    if (
+      model.provider === SystemProviderIds.openrouter &&
+      (model.id === 'x-ai/grok-4-fast:free' ||
+        (model.id.includes('grok-4-fast') && !model.id.includes('non-reasoning')))
+    ) {
+      return {
+        reasoning: {
+          enabled: true
+        }
+      }
+    }
+    // For XAI provider Grok models, pass reasoningEffort directly
+    // This will be handled by buildXAIProviderOptions
     return {}
   }
   if (isDeepSeekHybridInferenceModel(model)) {
@@ -420,6 +435,13 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
   return {}
 }
 
+/**
+ * Get XAI-specific reasoning parameters
+ * This function should only be called for XAI provider models
+ * @param assistant - The assistant configuration
+ * @param model - The model being used
+ * @returns XAI-specific reasoning parameters
+ */
 export function getXAIReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
   if (!isSupportedReasoningEffortGrokModel(model)) {
     return {}
@@ -427,23 +449,11 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Recor
 
   const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
 
-  // For OpenRouter x-ai/grok-4-fast:free model, use thinking reasoning instead of reasoningEffort
-  if (
-    model.provider === SystemProviderIds.openrouter &&
-    (model.id === 'x-ai/grok-4-fast:free' || (model.id.includes('grok-4-fast') && !model.id.includes('non-reasoning')))
-  ) {
-    if (!reasoningEffort) {
-      return {}
-    } else {
-      return {
-        reasoning: {
-          enabled: true
-        }
-      }
-    }
+  if (!reasoningEffort) {
+    return {}
   }
 
-  // For other grok models, use reasoningEffort parameter
+  // For XAI provider Grok models, use reasoningEffort parameter directly
   return {
     reasoningEffort
   }
