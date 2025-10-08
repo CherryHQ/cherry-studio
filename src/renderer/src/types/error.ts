@@ -80,7 +80,7 @@ export interface SerializedAiSdkInvalidArgumentError extends SerializedAiSdkErro
 export const isSerializedAiSdkInvalidArgumentError = (
   error: SerializedError
 ): error is SerializedAiSdkInvalidArgumentError => {
-  return isSerializedAiSdkError(error) && 'parameter' in error && 'value' in error
+  return isSerializedAiSdkError(error) && 'message' in error
 }
 
 export interface SerializedAiSdkInvalidDataContentError extends SerializedAiSdkError {
