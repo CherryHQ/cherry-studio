@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "更新时间（从旧到新）",
     "sort_updated_desc": "更新时间（从新到旧）",
     "sort_z2a": "文件名（Z-A）",
+    "spell_check": "拼写检查",
+    "spell_check_tooltip": "启用/禁用拼写检查",
     "star": "收藏笔记",
     "starred_notes": "收藏的笔记",
     "title": "笔记",

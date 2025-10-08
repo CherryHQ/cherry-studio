@@ -1784,6 +1784,8 @@
     "sort_updated_asc": "更新時間（從舊到新）",
     "sort_updated_desc": "更新時間（從新到舊）",
     "sort_z2a": "文件名（Z-A）",
+    "spell_check": "拼寫檢查",
+    "spell_check_tooltip": "啟用/禁用拼寫檢查",
     "star": "收藏筆記",
     "starred_notes": "收藏的筆記",
     "title": "筆記",

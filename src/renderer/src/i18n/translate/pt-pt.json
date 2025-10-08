@@ -334,6 +334,7 @@
       "new_topic": "Novo tópico {{Command}}",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
+      "placeholder_without_triggers": "Digite a mensagem aqui, pressione {{key}} para enviar",
       "send": "Enviar",
       "settings": "Configurações",
       "thinking": {
@@ -1696,6 +1697,12 @@
     "provider_settings": "Ir para as configurações do provedor"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "A nota está vazia, não é possível gerar um nome",
+      "failed": "Falha ao gerar o nome da nota",
+      "label": "Gerar nome da nota",
+      "success": "Nome da nota gerado com sucesso"
+    },
     "characters": "caractere",
     "collapse": "[minimizar]",
     "content_placeholder": "Introduza o conteúdo da nota...",
@@ -1777,6 +1784,8 @@
     "sort_updated_asc": "Tempo de atualização (do mais antigo para o mais recente)",
     "sort_updated_desc": "atualização de tempo (do mais novo para o mais antigo)",
     "sort_z2a": "Nome do arquivo (Z-A)",
+    "spell_check": "verificação ortográfica",
+    "spell_check_tooltip": "Ativar/Desativar verificação ortográfica",
     "star": "Notas favoritas",
     "starred_notes": "notas salvas",
     "title": "nota",
