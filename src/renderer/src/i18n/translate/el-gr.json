@@ -334,6 +334,7 @@
       "new_topic": "Νέο θέμα {{Command}}",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Αποστολή",
       "settings": "Ρυθμίσεις",
       "thinking": {
@@ -1696,6 +1697,12 @@
     "provider_settings": "Μετάβαση στις ρυθμίσεις παρόχου"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "[to be translated]:笔记为空，无法生成名称",
+      "failed": "[to be translated]:生成笔记名称失败",
+      "label": "[to be translated]:生成笔记名称",
+      "success": "[to be translated]:笔记名称生成成功"
+    },
     "characters": "χαρακτήρας",
     "collapse": "σύμπτυξη",
     "content_placeholder": "Παρακαλώ εισαγάγετε το περιεχόμενο των σημειώσεων...",
@@ -4403,6 +4410,7 @@
     "later": "Μετά",
     "message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
     "noReleaseNotes": "Χωρίς σημειώσεις",
+    "saveDataError": "[to be translated]:保存数据失败，请重试",
     "title": "Ενημέρωση"
   },
   "warning": {

@@ -4410,6 +4410,7 @@
     "later": "稍后",
     "message": "发现新版本 {{version}}，是否立即安装？",
     "noReleaseNotes": "暂无更新日志",
+    "saveDataError": "保存数据失败，请重试",
     "title": "更新提示"
   },
   "warning": {

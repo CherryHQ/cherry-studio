@@ -334,6 +334,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "送信",
       "settings": "設定",
       "thinking": {
@@ -1696,6 +1697,12 @@
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "[to be translated]:笔记为空，无法生成名称",
+      "failed": "[to be translated]:生成笔记名称失败",
+      "label": "[to be translated]:生成笔记名称",
+      "success": "[to be translated]:笔记名称生成成功"
+    },
     "characters": "文字",
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
@@ -4403,6 +4410,7 @@
     "later": "後で",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
+    "saveDataError": "[to be translated]:保存数据失败，请重试",
     "title": "更新"
   },
   "warning": {

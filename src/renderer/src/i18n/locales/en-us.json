@@ -4407,10 +4407,10 @@
   },
   "update": {
     "install": "Install",
-    "saveError": "Failed to save data before update",
     "later": "Later",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
+    "saveDataError": "[to be translated]:保存数据失败，请重试",
     "title": "Update"
   },
   "warning": {

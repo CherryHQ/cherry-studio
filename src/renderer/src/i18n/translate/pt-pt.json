@@ -334,6 +334,7 @@
       "new_topic": "Novo tópico {{Command}}",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Enviar",
       "settings": "Configurações",
       "thinking": {
@@ -1696,6 +1697,12 @@
     "provider_settings": "Ir para as configurações do provedor"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "[to be translated]:笔记为空，无法生成名称",
+      "failed": "[to be translated]:生成笔记名称失败",
+      "label": "[to be translated]:生成笔记名称",
+      "success": "[to be translated]:笔记名称生成成功"
+    },
     "characters": "caractere",
     "collapse": "[minimizar]",
     "content_placeholder": "Introduza o conteúdo da nota...",
@@ -4403,6 +4410,7 @@
     "later": "Mais tarde",
     "message": "Nova versão {{version}} disponível, deseja instalar agora?",
     "noReleaseNotes": "Sem notas de versão",
+    "saveDataError": "[to be translated]:保存数据失败，请重试",
     "title": "Atualização"
   },
   "warning": {
