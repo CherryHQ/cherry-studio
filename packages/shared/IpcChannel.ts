@@ -349,5 +349,5 @@ export enum IpcChannel {
   Ovms_StopOVMS = 'ovms:stop-ovms',
 
   // CherryAI
-  Cherryai_GetSignature = 'cherryin:get-signature'
+  Cherryai_GetSignature = 'cherryai:get-signature'
 }
