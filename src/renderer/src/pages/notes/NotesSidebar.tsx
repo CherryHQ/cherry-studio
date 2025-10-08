@@ -359,34 +359,17 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [bases.length, t]
   )
 
-  const handleCopyAsImage = useCallback(
-    async (node: NotesTreeNode) => {
+  const handleImageAction = useCallback(
+    async (node: NotesTreeNode, platform: 'copyImage' | 'exportImage') => {
       try {
         if (activeNode?.id !== node.id) {
           onSelectNode(node)
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
 
-        await exportNote({ node, platform: 'copyImage' })
+        await exportNote({ node, platform })
       } catch (error) {
-        logger.error('Failed to copy as image:', error as Error)
-        window.toast.error(t('common.copy_failed'))
-      }
-    },
-    [activeNode, onSelectNode, t]
-  )
-
-  const handleExportAsImage = useCallback(
-    async (node: NotesTreeNode) => {
-      try {
-        if (activeNode?.id !== node.id) {
-          onSelectNode(node)
-          await new Promise((resolve) => setTimeout(resolve, 500))
-        }
-
-        await exportNote({ node, platform: 'exportImage' })
-      } catch (error) {
-        logger.error('Failed to export as image:', error as Error)
+        logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
         window.toast.error(t('common.copy_failed'))
       }
     },
@@ -649,12 +632,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
               exportMenuOptions.image && {
                 label: t('chat.topics.copy.image'),
                 key: 'copy-image',
-                onClick: () => handleCopyAsImage(node)
+                onClick: () => handleImageAction(node, 'copyImage')
               },
               exportMenuOptions.image && {
                 label: t('chat.topics.export.image'),
                 key: 'export-image',
-                onClick: () => handleExportAsImage(node)
+                onClick: () => handleImageAction(node, 'exportImage')
               },
               exportMenuOptions.markdown && {
                 label: t('chat.topics.export.md.label'),
@@ -715,8 +698,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       handleStartEdit,
       onToggleStar,
       handleExportKnowledge,
-      handleCopyAsImage,
-      handleExportAsImage,
+      handleImageAction,
       handleDeleteNode,
       renamingNodeIds,
       handleAutoRename,
