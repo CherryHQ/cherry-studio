@@ -196,8 +196,10 @@ export function providerToAiSdkConfig(
       baseConfig.baseURL = baseConfig.baseURL.slice(0, -3)
     }
 
-    if (baseConfig.baseURL && !baseConfig.baseURL.includes('publishers/google')) {
-      baseConfig.baseURL = `${baseConfig.baseURL}/v1/projects/${project}/locations/${location}/publishers/google`
+    if (baseConfig.baseURL && !baseConfig.baseURL.includes('publishers/')) {
+      // Vertex AI supports multiple publishers: 'google' for Gemini, 'anthropic' for Claude
+      const publisher = aiSdkProviderId === 'google-vertex-anthropic' ? 'anthropic' : 'google'
+      baseConfig.baseURL = `${baseConfig.baseURL}/v1/projects/${project}/locations/${location}/publishers/${publisher}/models`
     }
   }
 
