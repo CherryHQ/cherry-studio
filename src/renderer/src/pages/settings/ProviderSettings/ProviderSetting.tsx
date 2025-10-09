@@ -14,7 +14,7 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
-import { isSystemProvider } from '@renderer/types'
+import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import {
   formatApiHost,
@@ -56,7 +56,21 @@ interface Props {
   providerId: string
 }
 
-const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope', 'aihubmix']
+const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
+  SystemProviderIds.deepseek,
+  SystemProviderIds.moonshot,
+  SystemProviderIds.zhipu,
+  SystemProviderIds.dashscope,
+  SystemProviderIds.modelscope,
+  SystemProviderIds.aihubmix,
+  SystemProviderIds.grok
+] as const
+type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
+
+const ANTHROPIC_COMPATIBLE_PROVIDER_ID_SET = new Set<string>(ANTHROPIC_COMPATIBLE_PROVIDER_IDS)
+const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleProviderId => {
+  return ANTHROPIC_COMPATIBLE_PROVIDER_ID_SET.has(id)
+}
 
 const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
@@ -265,7 +279,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [provider.anthropicApiHost])
 
   const canConfigureAnthropicHost = useMemo(() => {
-    return provider.type !== 'anthropic' && ANTHROPIC_COMPATIBLE_PROVIDER_IDS.includes(provider.id)
+    return (
+      provider.type !== 'anthropic' && isSystemProviderId(provider.id) && isAnthropicCompatibleProviderId(provider.id)
+    )
   }, [provider])
 
   const anthropicHostPreview = useMemo(() => {
@@ -396,7 +412,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Tooltip title={t('settings.provider.api_host_tooltip')} mouseEnterDelay={0.3}>
-                  <span>{t('settings.provider.api_host')}</span>
+                  <SubtitleLabel>{t('settings.provider.api_host')}</SubtitleLabel>
                 </Tooltip>
                 <Button
                   type="text"
@@ -440,7 +456,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       justifyContent: 'space-between'
                     }}>
                     <Tooltip title={t('settings.provider.anthropic_api_host_tooltip')} mouseEnterDelay={0.3}>
-                      <span>{t('settings.provider.anthropic_api_host')}</span>
+                      <SubtitleLabel>{t('settings.provider.anthropic_api_host')}</SubtitleLabel>
                     </Tooltip>
                   </SettingSubtitle>
                   <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -495,6 +511,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     </SettingContainer>
   )
 }
+
+const SubtitleLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  line-height: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+`
 
 const ProviderName = styled.span`
   font-size: 14px;

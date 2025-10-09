@@ -2651,7 +2651,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 159 error', error as Error)
+      logger.error('migrate 160 error', error as Error)
       return state
     }
   }
