@@ -94,6 +94,15 @@ function addProvider(state: RootState, id: string) {
   }
 }
 
+// Fix missing provider
+function fixMissingProvider(state: RootState) {
+  SYSTEM_PROVIDERS.forEach((p) => {
+    if (!state.llm.providers.find((provider) => provider.id === p.id)) {
+      state.llm.providers.push(p)
+    }
+  })
+}
+
 // add ocr provider
 function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
   if (!state.ocr.providers.find((p) => p.id === provider.id)) {
@@ -2580,6 +2589,7 @@ const migrateConfig = {
   '159': (state: RootState) => {
     try {
       addProvider(state, 'ovms')
+      fixMissingProvider(state)
       return state
     } catch (error) {
       logger.error('migrate 158 error', error as Error)
@@ -2635,6 +2645,8 @@ const migrateConfig = {
           case 'cherryai':
             provider.anthropicApiHost = 'https://api.cherry-ai.com'
             break
+          case 'grok':
+            provider.anthropicApiHost = 'https://api.x.ai'
         }
       })
       return state
