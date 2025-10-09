@@ -21,6 +21,7 @@ import { formatApiHost } from '@renderer/utils/api'
 import { cloneDeep, trim } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { COPILOT_DEFAULT_HEADERS, isCopilotResponsesModel } from './constants'
 import { getAiSdkProviderId } from './factory'
 
 const logger = loggerService.withContext('ProviderConfigProcessor')
@@ -159,6 +160,9 @@ export function providerToAiSdkConfig(
     extraOptions.mode = 'chat'
   }
 
+  const isCopilotProvider = actualProvider.id === 'copilot'
+  const copilotNeedsResponses = isCopilotProvider && isCopilotResponsesModel(model)
+
   // 添加额外headers
   if (actualProvider.extra_headers) {
     extraOptions.headers = actualProvider.extra_headers
@@ -174,11 +178,13 @@ export function providerToAiSdkConfig(
   }
 
   // copilot
-  if (actualProvider.id === 'copilot') {
+  if (isCopilotProvider) {
     extraOptions.headers = {
       ...extraOptions.headers,
-      'editor-version': 'vscode/1.104.1',
-      'copilot-vision-request': 'true'
+      ...COPILOT_DEFAULT_HEADERS
+    }
+    if (copilotNeedsResponses) {
+      extraOptions.mode = 'responses'
     }
   }
   // azure
@@ -230,6 +236,22 @@ export function providerToAiSdkConfig(
   }
 
   // 如果AI SDK支持该provider，使用原生配置
+  if (copilotNeedsResponses) {
+    // GitHub Copilot gpt-5-codex must use the OpenAI responses endpoint (see issue #10560)
+    logger.info('Routing Copilot model through OpenAI responses provider', {
+      modelId: model.id,
+      providerId: actualProvider.id
+    })
+    const options = ProviderConfigFactory.fromProvider('openai', baseConfig, {
+      ...extraOptions,
+      name: actualProvider.id
+    })
+    return {
+      providerId: 'openai',
+      options
+    }
+  }
+
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
