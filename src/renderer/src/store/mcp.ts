@@ -144,6 +144,13 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI'
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.js,
+    type: 'inMemory',
+    isActive: false,
+    provider: 'CherryAI'
   }
 ] as const
 

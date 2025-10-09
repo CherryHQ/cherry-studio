@@ -91,6 +91,9 @@ export enum IpcChannel {
   // Python
   Python_Execute = 'python:execute',
 
+  // JavaScript
+  Js_Execute = 'js:execute',
+
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
   Copilot_GetCopilotToken = 'copilot:get-copilot-token',
