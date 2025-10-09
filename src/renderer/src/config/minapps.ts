@@ -145,7 +145,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'dashscope',
     name: i18n.t('minapps.qwen'),
-    url: 'https://tongyi.aliyun.com/qianwen/',
+    url: 'https://www.tongyi.com/',
     logo: QwenModelLogo
   },
   {
