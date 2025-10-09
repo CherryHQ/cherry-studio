@@ -10,11 +10,11 @@ const logger = loggerService.withContext('UpdateDialog')
 
 interface UpdateDialogProps {
   isOpen: boolean
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
   releaseInfo: UpdateInfo | null
 }
 
-const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, releaseInfo }) => {
+const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose, releaseInfo }) => {
   const { t } = useTranslation()
   const [isInstalling, setIsInstalling] = useState(false)
 
@@ -36,16 +36,12 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, relea
     }
   }
 
-  const handleClose = () => {
-    onOpenChange(false)
-  }
-
   const releaseNotes = releaseInfo?.releaseNotes
 
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleClose}
+      onClose={onClose}
       size="2xl"
       scrollBehavior="inside"
       classNames={{
@@ -81,13 +77,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, relea
             </ModalBody>
 
             <ModalFooter>
-              <Button
-                variant="light"
-                onPress={() => {
-                  onModalClose()
-                  handleClose()
-                }}
-                isDisabled={isInstalling}>
+              <Button variant="light" onPress={onModalClose} isDisabled={isInstalling}>
                 {t('update.later')}
               </Button>
 

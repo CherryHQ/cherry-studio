@@ -12,7 +12,7 @@ const UpdateAppButton: FC = () => {
   const { update } = useRuntime()
   const { autoCheckUpdate } = useSettings()
   const { t } = useTranslation()
-  const { isOpen, onOpen, onOpenChange } = useDisclosure()
+  const { isOpen, onOpen, onClose } = useDisclosure()
 
   if (!update) {
     return null
@@ -34,7 +34,7 @@ const UpdateAppButton: FC = () => {
         {t('button.update_available')}
       </UpdateButton>
 
-      <UpdateDialog isOpen={isOpen} onOpenChange={onOpenChange} releaseInfo={update.info || null} />
+      <UpdateDialog isOpen={isOpen} onClose={onClose} releaseInfo={update.info || null} />
     </Container>
   )
 }

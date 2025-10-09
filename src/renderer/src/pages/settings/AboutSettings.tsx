@@ -31,7 +31,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const [updateDialogInfo, setUpdateDialogInfo] = useState<UpdateInfo | null>(null)
-  const { isOpen, onOpen, onOpenChange } = useDisclosure()
+  const { isOpen, onOpen, onClose } = useDisclosure()
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
@@ -349,7 +349,7 @@ const AboutSettings: FC = () => {
       </SettingGroup>
 
       {/* Update Dialog */}
-      <UpdateDialog isOpen={isOpen} onOpenChange={onOpenChange} releaseInfo={updateDialogInfo} />
+      <UpdateDialog isOpen={isOpen} onClose={onClose} releaseInfo={updateDialogInfo} />
     </SettingContainer>
   )
 }
