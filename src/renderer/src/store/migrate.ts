@@ -2654,6 +2654,15 @@ const migrateConfig = {
       logger.error('migrate 160 error', error as Error)
       return state
     }
+  },
+  '161': (state: RootState) => {
+    try {
+      addWebSearchProvider(state, 'ollama')
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
+      return state
+    }
   }
 }
 

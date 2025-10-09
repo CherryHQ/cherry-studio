@@ -1,5 +1,6 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import OllamaLogo from '@renderer/assets/images/providers/ollama.png'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
@@ -147,6 +148,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
         return ExaLogo
       case 'bocha':
         return BochaLogo
+      case 'ollama':
+        return OllamaLogo
       default:
         return undefined
     }
