@@ -174,15 +174,10 @@ export function isGrok4FastReasoningModel(model?: Model): boolean {
 }
 
 /**
- * @deprecated Use isGrok4FastReasoningModel instead for clarity
- */
-export const isGrok4FastModel = isGrok4FastReasoningModel
-
-/**
  * Checks if the model is OpenRouter's Grok 4 Fast reasoning version
  * This is a specific check for OpenRouter provider's Grok models
  */
-export function isOpenRouterGrokFastModel(model: Model): boolean {
+export function isOpenRouterGrok4FastReasoning(model: Model): boolean {
   if (!model || model.provider !== SystemProviderIds.openrouter) {
     return false
   }
