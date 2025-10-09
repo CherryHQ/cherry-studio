@@ -21,6 +21,7 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
+  MessageSquare,
   Plus,
   Save,
   Settings2,
@@ -46,6 +47,8 @@ interface AssistantItemProps {
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
+  sortByPinyinAsc?: () => void
+  sortByPinyinDesc?: () => void
 }
 
 const AssistantItem: FC<AssistantItemProps> = ({
@@ -56,7 +59,9 @@ const AssistantItem: FC<AssistantItemProps> = ({
   onDelete,
   addPreset,
   copyAssistant,
-  handleSortByChange
+  handleSortByChange,
+  sortByPinyinAsc: externalSortByPinyinAsc,
+  sortByPinyinDesc: externalSortByPinyinDesc
 }) => {
   const { t } = useTranslation()
   const { allTags } = useTags()
@@ -78,13 +83,18 @@ const AssistantItem: FC<AssistantItemProps> = ({
     setIsPending(hasPending)
   }, [isActive, assistant.topics])
 
-  const sortByPinyinAsc = useCallback(() => {
+  // Local sort functions
+  const localSortByPinyinAsc = useCallback(() => {
     updateAssistants(sortAssistantsByPinyin(assistants, true))
   }, [assistants, updateAssistants])
 
-  const sortByPinyinDesc = useCallback(() => {
+  const localSortByPinyinDesc = useCallback(() => {
     updateAssistants(sortAssistantsByPinyin(assistants, false))
   }, [assistants, updateAssistants])
+
+  // Use external sort functions if provided, otherwise use local ones
+  const sortByPinyinAsc = externalSortByPinyinAsc || localSortByPinyinAsc
+  const sortByPinyinDesc = externalSortByPinyinDesc || localSortByPinyinDesc
 
   const menuItems = useMemo(
     () =>
@@ -163,11 +173,13 @@ const AssistantItem: FC<AssistantItemProps> = ({
           )}
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
+        <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
+          {isActive ? (
             <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          </MenuButton>
-        )}
+          ) : (
+            <MessageSquare size={12} className="text-primary" />
+          )}
+        </MenuButton>
       </Container>
     </Dropdown>
   )
@@ -408,10 +420,17 @@ const AssistantNameRow = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
 `
 
 const AssistantName = styled.div`
   font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
 const MenuButton = styled.div`
