@@ -532,11 +532,7 @@
       "new_topic": "Νέο θέμα {{Command}}",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
-<<<<<<< HEAD
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
-=======
-      "placeholder_without_triggers": "Εδώ εισαγάγετε το μήνυμα, πατήστε {{key}} για αποστολή",
->>>>>>> main
       "send": "Αποστολή",
       "settings": "Ρυθμίσεις",
       "thinking": {

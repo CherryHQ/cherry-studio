@@ -532,11 +532,7 @@
       "new_topic": "Nuevo tema {{Command}}",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
-<<<<<<< HEAD
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
-=======
-      "placeholder_without_triggers": "Escriba un mensaje aquí y presione {{key}} para enviar",
->>>>>>> main
       "send": "Enviar",
       "settings": "Configuración",
       "thinking": {

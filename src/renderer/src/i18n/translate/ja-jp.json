@@ -532,11 +532,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
-<<<<<<< HEAD
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
-=======
-      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信してください",
->>>>>>> main
       "send": "送信",
       "settings": "設定",
       "thinking": {
