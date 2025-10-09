@@ -2,7 +2,6 @@ import {
   Model,
   ReasoningEffortConfig,
   SystemProviderId,
-  SystemProviderIds,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
@@ -147,7 +146,12 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  if (modelId.includes('grok-3-mini') || isGrok4FastReasoningModel(model)) {
+  const providerId = model.provider.toLowerCase()
+  if (modelId.includes('grok-3-mini')) {
+    return true
+  }
+
+  if (providerId === 'openrouter' && modelId.includes('grok-4-fast')) {
     return true
   }
 
@@ -159,7 +163,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
  * Explicitly excludes non-reasoning variants (models with 'non-reasoning' in their ID)
  *
  * Note: XAI official uses different model IDs for reasoning vs non-reasoning
- * Third-party providers like OpenRouter use the same ID with parameters to control reasoning
+ * Third-party providers like OpenRouter expose a single ID with reasoning parameters, while first-party providers require separate IDs. Only the OpenRouter variant supports toggling.
  *
  * @param model - The model to check
  * @returns true if the model is a reasoning-enabled Grok 4 Fast model
@@ -171,18 +175,6 @@ export function isGrok4FastReasoningModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
-}
-
-/**
- * Checks if the model is OpenRouter's Grok 4 Fast reasoning version
- * This is a specific check for OpenRouter provider's Grok models
- */
-export function isOpenRouterGrok4FastReasoning(model: Model): boolean {
-  if (!model || model.provider !== SystemProviderIds.openrouter) {
-    return false
-  }
-  const lowerModelId = getLowerBaseModelName(model.id)
-  return lowerModelId.includes('grok-4-fast') && !lowerModelId.includes('non-reasoning')
 }
 
 export function isGrokReasoningModel(model?: Model): boolean {

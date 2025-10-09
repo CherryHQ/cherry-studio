@@ -6,9 +6,9 @@ import {
   getThinkModelType,
   isDeepSeekHybridInferenceModel,
   isDoubaoThinkingAutoModel,
+  isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIReasoningModel,
-  isOpenRouterGrok4FastReasoning,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -48,10 +48,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (!reasoningEffort) {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
-      // Grok 4 Fast models should have reasoning enabled by default
-      if (isOpenRouterGrok4FastReasoning(model)) {
-        return { reasoning: { enabled: false } }
-      }
       // Don't disable reasoning for Gemini models that support thinking tokens
       if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
         return {}
@@ -154,7 +150,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
     // Grok 4 Fast doesn't support effort levels, always use enabled: true
-    if (isOpenRouterGrok4FastReasoning(model)) {
+    if (isGrok4FastReasoningModel(model)) {
       return {
         reasoning: {
           enabled: true // Ignore effort level, just enable reasoning
