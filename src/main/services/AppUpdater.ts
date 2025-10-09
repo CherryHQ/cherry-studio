@@ -1,17 +1,15 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
-import { locales } from '@main/utils/locales'
 import { generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
-import { app, BrowserWindow, dialog, net } from 'electron'
+import { app, net } from 'electron'
 import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
@@ -26,7 +24,6 @@ const LANG_MARKERS = {
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
-  private releaseInfo: UpdateInfo | undefined
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
 
@@ -66,7 +63,6 @@ export default class AppUpdater {
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
       const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
       windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
-      this.releaseInfo = processedReleaseInfo
       logger.info('update downloaded', processedReleaseInfo)
     })
 
@@ -247,37 +243,9 @@ export default class AppUpdater {
     }
   }
 
-  public async showUpdateDialog(mainWindow: BrowserWindow) {
-    if (!this.releaseInfo) {
-      return
-    }
-    const locale = locales[configManager.getLanguage()]
-    const { update: updateLocale } = locale.translation
-
-    let detail = this.formatReleaseNotes(this.releaseInfo.releaseNotes)
-    if (detail === '') {
-      detail = updateLocale.noReleaseNotes
-    }
-
-    dialog
-      .showMessageBox({
-        type: 'info',
-        title: updateLocale.title,
-        icon,
-        message: updateLocale.message.replace('{{version}}', this.releaseInfo.version),
-        detail,
-        buttons: [updateLocale.later, updateLocale.install],
-        defaultId: 1,
-        cancelId: 0
-      })
-      .then(({ response }) => {
-        if (response === 1) {
-          app.isQuitting = true
-          setImmediate(() => autoUpdater.quitAndInstall())
-        } else {
-          mainWindow.webContents.send(IpcChannel.UpdateDownloadedCancelled)
-        }
-      })
+  public quitAndInstall() {
+    app.isQuitting = true
+    setImmediate(() => autoUpdater.quitAndInstall())
   }
 
   /**
@@ -349,38 +317,9 @@ export default class AppUpdater {
 
     return processedInfo
   }
-
-  /**
-   * Format release notes for display
-   * @param releaseNotes - Release notes in various formats
-   * @returns Formatted string for display
-   */
-  private formatReleaseNotes(releaseNotes: string | ReleaseNoteInfo[] | null | undefined): string {
-    if (!releaseNotes) {
-      return ''
-    }
-
-    if (typeof releaseNotes === 'string') {
-      // Check if it contains multi-language markers
-      if (this.hasMultiLanguageMarkers(releaseNotes)) {
-        return this.parseMultiLangReleaseNotes(releaseNotes)
-      }
-      return releaseNotes
-    }
-
-    if (Array.isArray(releaseNotes)) {
-      return releaseNotes.map((note) => note.note).join('\n')
-    }
-
-    return ''
-  }
 }
 interface GithubReleaseInfo {
   draft: boolean
   prerelease: boolean
   tag_name: string
-}
-interface ReleaseNoteInfo {
-  readonly version: string
-  readonly note: string | null
 }

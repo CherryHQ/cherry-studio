@@ -274,46 +274,4 @@ describe('AppUpdater', () => {
       expect(result.releaseNotes).toBeNull()
     })
   })
-
-  describe('formatReleaseNotes', () => {
-    it('should format string release notes with markers', () => {
-      vi.mocked(configManager.getLanguage).mockReturnValue('en-US')
-      const notes = `<!--LANG:en-->English<!--LANG:zh-CN-->中文<!--LANG:END-->`
-
-      const result = (appUpdater as any).formatReleaseNotes(notes)
-
-      expect(result).toBe('English')
-    })
-
-    it('should format string release notes without markers', () => {
-      const notes = 'Simple notes'
-
-      const result = (appUpdater as any).formatReleaseNotes(notes)
-
-      expect(result).toBe('Simple notes')
-    })
-
-    it('should format array release notes', () => {
-      const notes = [
-        { version: '1.0.0', note: 'Note 1' },
-        { version: '1.0.1', note: 'Note 2' }
-      ]
-
-      const result = (appUpdater as any).formatReleaseNotes(notes)
-
-      expect(result).toBe('Note 1\nNote 2')
-    })
-
-    it('should handle null release notes', () => {
-      const result = (appUpdater as any).formatReleaseNotes(null)
-
-      expect(result).toBe('')
-    })
-
-    it('should handle undefined release notes', () => {
-      const result = (appUpdater as any).formatReleaseNotes(undefined)
-
-      expect(result).toBe('')
-    })
-  })
 })

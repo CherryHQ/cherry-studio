@@ -4641,6 +4641,7 @@
     "later": "後で",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
+    "saveDataError": "データの保存に失敗しました。もう一度お試しください。",
     "title": "更新"
   },
   "warning": {
