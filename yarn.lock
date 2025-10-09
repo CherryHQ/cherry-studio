@@ -191,7 +191,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:2.0.42, @ai-sdk/openai@npm:^2.0.42":
+"@ai-sdk/openai@npm:2.0.42":
   version: 2.0.42
   resolution: "@ai-sdk/openai@npm:2.0.42"
   dependencies:
@@ -200,6 +200,18 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/b1ab158aafc86735e53c4621ffe125d469bc1732c533193652768a9f66ecd4d169303ce7ca59069b7baf725da49e55bcf81210848f09f66deaf2a8335399e6d7
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch":
+  version: 2.0.42
+  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch::version=2.0.42&hash=60716d"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.10"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/522131870b9781a789971d6cb4928a19df4bb3e31d0364b8800870d2ddf97d616937345cfad4d9907483e4d121ff9d8a76354dd3d1e01b7014a994adef9a5f2b
   languageName: node
   linkType: hard
 
@@ -2370,7 +2382,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.22"
     "@ai-sdk/azure": "npm:^2.0.42"
     "@ai-sdk/deepseek": "npm:^1.0.20"
-    "@ai-sdk/openai": "npm:^2.0.42"
+    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.10"

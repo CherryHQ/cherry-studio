@@ -177,7 +177,7 @@ export function providerToAiSdkConfig(
   if (actualProvider.id === 'copilot') {
     extraOptions.headers = {
       ...extraOptions.headers,
-      'editor-version': 'vscode/1.97.2',
+      'editor-version': 'vscode/1.104.1',
       'copilot-vision-request': 'true'
     }
   }
@@ -234,6 +234,17 @@ export function providerToAiSdkConfig(
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
       providerId: aiSdkProviderId as ProviderId,
+      options
+    }
+  }
+
+  if (actualProvider.id === 'copilot' && model.name.toLowerCase().includes('gpt-5-codex')) {
+    const options = ProviderConfigFactory.fromProvider('openai', baseConfig, {
+      ...extraOptions,
+      name: actualProvider.id
+    })
+    return {
+      providerId: 'openai',
       options
     }
   }

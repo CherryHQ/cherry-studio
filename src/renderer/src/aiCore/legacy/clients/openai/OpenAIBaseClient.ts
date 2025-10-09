@@ -167,7 +167,7 @@ export abstract class OpenAIBaseClient<
         defaultHeaders: {
           ...this.defaultHeaders(),
           ...this.provider.extra_headers,
-          ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
+          ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.104.1' } : {}),
           ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
         }
       }) as TSdkInstance
