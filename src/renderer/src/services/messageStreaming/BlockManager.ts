@@ -121,7 +121,8 @@ export class BlockManager {
       newMessagesActions.upsertBlockReference({
         messageId: this.deps.assistantMsgId,
         blockId: newBlock.id,
-        status: newBlock.status
+        status: newBlock.status,
+        blockType: newBlock.type
       })
     )
 
