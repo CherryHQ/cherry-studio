@@ -468,8 +468,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                     />
                   </Space.Compact>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                    <SettingHelpText
-                      style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                    <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
                       {t('settings.provider.anthropic_api_host_preview', {
                         url: anthropicHostPreview || '—'
                       })}
