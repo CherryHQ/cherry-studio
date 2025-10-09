@@ -155,8 +155,14 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
 }
 
 /**
- * Checks if the model is Grok 4 Fast reasoning version (excludes non-reasoning variants)
- * This function specifically identifies reasoning-enabled Grok 4 Fast models
+ * Checks if the model is Grok 4 Fast reasoning version
+ * Explicitly excludes non-reasoning variants (models with 'non-reasoning' in their ID)
+ *
+ * Note: XAI official uses different model IDs for reasoning vs non-reasoning
+ * Third-party providers like OpenRouter use the same ID with parameters to control reasoning
+ *
+ * @param model - The model to check
+ * @returns true if the model is a reasoning-enabled Grok 4 Fast model
  */
 export function isGrok4FastReasoningModel(model?: Model): boolean {
   if (!model) {
@@ -167,7 +173,9 @@ export function isGrok4FastReasoningModel(model?: Model): boolean {
   return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
 }
 
-// Keep the old function name for backward compatibility, will be deprecated
+/**
+ * @deprecated Use isGrok4FastReasoningModel instead for clarity
+ */
 export const isGrok4FastModel = isGrok4FastReasoningModel
 
 /**

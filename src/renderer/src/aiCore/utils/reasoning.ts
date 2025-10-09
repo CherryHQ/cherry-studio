@@ -48,8 +48,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (!reasoningEffort) {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
+      // Grok 4 Fast models should have reasoning enabled by default
       if (isOpenRouterGrokFastModel(model)) {
-        return {}
+        return { reasoning: { enabled: true } }
       }
       // Don't disable reasoning for Gemini models that support thinking tokens
       if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -110,24 +111,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
   // 不同的 provider 有不同的思考控制方式，在这里统一解决
 
-  // Handle Grok models for generic providers (including OpenRouter)
-  if (isSupportedReasoningEffortGrokModel(model)) {
-    // For OpenRouter x-ai/grok-4-fast models, use thinking reasoning instead of reasoningEffort
-    if (
-      model.provider === SystemProviderIds.openrouter &&
-      (model.id === 'x-ai/grok-4-fast:free' ||
-        (model.id.includes('grok-4-fast') && !model.id.includes('non-reasoning')))
-    ) {
-      return {
-        reasoning: {
-          enabled: true
-        }
-      }
-    }
-    // For XAI provider Grok models, pass reasoningEffort directly
-    // This will be handled by buildXAIProviderOptions
-    return {}
-  }
   if (isDeepSeekHybridInferenceModel(model)) {
     if (isSystemProvider(provider)) {
       switch (provider.id) {
@@ -170,6 +153,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
+    // Grok 4 Fast doesn't support effort levels, always use enabled: true
+    if (isOpenRouterGrokFastModel(model)) {
+      return {
+        reasoning: {
+          enabled: true // Ignore effort level, just enable reasoning
+        }
+      }
+    }
+
+    // Other OpenRouter models that support effort levels
     if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
       return {
         reasoning: {
