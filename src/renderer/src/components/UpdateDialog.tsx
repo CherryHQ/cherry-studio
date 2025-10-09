@@ -93,8 +93,8 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onOpenChange, relea
 
               <Button
                 color="primary"
-                onPress={() => {
-                  handleInstall()
+                onPress={async () => {
+                  await handleInstall()
                   onModalClose()
                 }}
                 isLoading={isInstalling}>
