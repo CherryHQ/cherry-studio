@@ -15,7 +15,7 @@ import {
   WebSearchProviderResult,
   WebSearchStatus
 } from '@renderer/types'
-import { hasObjectKey, uuid } from '@renderer/utils'
+import { hasObjectKey, removeSpecialCharactersForFileName, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { ExtractResults } from '@renderer/utils/extract'
@@ -55,7 +55,7 @@ class WebSearchService {
     dispose: (requestState: RequestState, requestId: string) => {
       if (!requestState.searchBase) return
       window.api.knowledgeBase
-        .delete(getKnowledgeBaseParams(requestState.searchBase), requestState.searchBase.id)
+        .delete(removeSpecialCharactersForFileName(requestState.searchBase.id))
         .catch((error) => logger.warn(`Failed to cleanup search base for ${requestId}:`, error))
     }
   })
@@ -226,7 +226,7 @@ class WebSearchService {
 
     // 清理旧的知识库
     if (state.searchBase) {
-      await window.api.knowledgeBase.delete(getKnowledgeBaseParams(state.searchBase), state.searchBase.id)
+      await window.api.knowledgeBase.delete(removeSpecialCharactersForFileName(state.searchBase.id))
     }
 
     if (!config.embeddingModel) {
@@ -462,7 +462,9 @@ class WebSearchService {
 
     // 处理 summarize
     if (questions[0] === 'summarize' && links && links.length > 0) {
-      const contents = await fetchWebContents(links, undefined, undefined, { signal })
+      const contents = await fetchWebContents(links, undefined, undefined, {
+        signal
+      })
       webSearchProvider.topicId &&
         endSpan({
           topicId: webSearchProvider.topicId,
