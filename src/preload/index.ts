@@ -223,7 +223,7 @@ const api = {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (base: KnowledgeBaseParams, id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, base, id),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
     add: ({
       base,
       item,
