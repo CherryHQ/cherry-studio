@@ -148,6 +148,7 @@ class KnowledgeService {
   }
 
   private getDbPath = (id: string): string => {
+    // 消除网络搜索requestI d中的特殊字符
     return path.join(this.storageDir, sanitizeFilename(id, '_'))
   }
 

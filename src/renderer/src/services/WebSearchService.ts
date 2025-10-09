@@ -216,6 +216,7 @@ class WebSearchService {
     documentCount: number,
     requestId: string
   ): Promise<KnowledgeBase> {
+    // requestId: eg: openai-responses-openai/gpt-5-timestamp-uuid
     const baseId = `websearch-compression-${requestId}`
     const state = this.getRequestState(requestId)
 
@@ -226,6 +227,7 @@ class WebSearchService {
 
     // 清理旧的知识库
     if (state.searchBase) {
+      // 将requestId中的 '/' 映射为 '_'
       await window.api.knowledgeBase.delete(removeSpecialCharactersForFileName(state.searchBase.id))
     }
 
