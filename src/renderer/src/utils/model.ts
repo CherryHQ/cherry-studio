@@ -6,7 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { Model, ModelTag, objectKeys } from '@renderer/types'
+import { AdaptedApiModel, ApiModel, Model, ModelTag, objectKeys } from '@renderer/types'
 
 /**
  * 获取模型标签的状态
@@ -69,4 +69,14 @@ export function isFreeModel(model: Model) {
   }
 
   return (model.id + model.name).toLocaleLowerCase().includes('free')
+}
+
+export const apiModelAdapter = (model: ApiModel): AdaptedApiModel => {
+  return {
+    id: model.provider_model_id ?? model.id,
+    provider: model.provider ?? '',
+    name: model.name,
+    group: '',
+    origin: model
+  }
 }

@@ -71,3 +71,5 @@ playwright-report
 test-results
 
 YOUR_MEMORY_FILE_PATH
+
+.sessions/

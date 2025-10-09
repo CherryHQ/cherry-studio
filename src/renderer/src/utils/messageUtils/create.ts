@@ -378,6 +378,7 @@ export function resetMessage(
     role: originalMessage.role,
     topicId: originalMessage.topicId,
     assistantId: originalMessage.assistantId,
+    agentSessionId: originalMessage.agentSessionId,
     type: originalMessage.type,
     createdAt: originalMessage.createdAt, // Keep original creation timestamp
 
@@ -426,6 +427,7 @@ export const resetAssistantMessage = (
     // --- Retain Identity ---
     role: 'assistant',
     assistantId: originalMessage.assistantId,
+    agentSessionId: originalMessage.agentSessionId,
     model: originalMessage.model, // Keep the model information
     modelId: originalMessage.modelId,
 

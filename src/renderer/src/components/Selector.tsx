@@ -34,7 +34,7 @@ interface MultipleSelectorProps<V> extends BaseSelectorProps<V> {
   onChange: (value: V[]) => void
 }
 
-type SelectorProps<V> = SingleSelectorProps<V> | MultipleSelectorProps<V>
+export type SelectorProps<V> = SingleSelectorProps<V> | MultipleSelectorProps<V>
 
 const Selector = <V extends string | number>({
   options,

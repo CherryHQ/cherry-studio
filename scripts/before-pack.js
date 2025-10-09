@@ -35,6 +35,9 @@ const allX64 = {
   '@napi-rs/system-ocr-win32-x64-msvc': '1.0.2'
 }
 
+const claudeCodeVenderPath = '@anthropic-ai/claude-agent-sdk/vendor'
+const claudeCodeVenders = ['arm64-darwin', 'arm64-linux', 'x64-darwin', 'x64-linux', 'x64-win32']
+
 const platformToArch = {
   mac: 'darwin',
   windows: 'win32',
@@ -45,9 +48,6 @@ exports.default = async function (context) {
   const arch = context.arch
   const archType = arch === Arch.arm64 ? 'arm64' : 'x64'
   const platform = context.packager.platform.name
-
-  const arm64Filters = Object.keys(allArm64).map((f) => '!node_modules/' + f + '/**')
-  const x64Filters = Object.keys(allX64).map((f) => '!node_modules/' + f + '/*')
 
   const downloadPackages = async (packages) => {
     console.log('downloading packages ......')
@@ -67,25 +67,39 @@ exports.default = async function (context) {
     await Promise.all(downloadPromises)
   }
 
-  const changeFilters = async (packages, filtersToExclude, filtersToInclude) => {
-    await downloadPackages(packages)
+  const changeFilters = async (filtersToExclude, filtersToInclude) => {
     // remove filters for the target architecture (allow inclusion)
-
     let filters = context.packager.config.files[0].filter
     filters = filters.filter((filter) => !filtersToInclude.includes(filter))
+
     // add filters for other architectures (exclude them)
     filters.push(...filtersToExclude)
 
     context.packager.config.files[0].filter = filters
   }
 
-  if (arch === Arch.arm64) {
-    await changeFilters(allArm64, x64Filters, arm64Filters)
-    return
-  }
+  await downloadPackages(arch === Arch.arm64 ? allArm64 : allX64)
 
-  if (arch === Arch.x64) {
-    await changeFilters(allX64, arm64Filters, x64Filters)
-    return
+  const arm64Filters = Object.keys(allArm64).map((f) => '!node_modules/' + f + '/**')
+  const x64Filters = Object.keys(allX64).map((f) => '!node_modules/' + f + '/*')
+  const excludeClaudeCodeRipgrepFilters = claudeCodeVenders
+    .filter((f) => f !== `${archType}-${platformToArch[platform]}`)
+    .map((f) => '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + f + '/**')
+  const excludeClaudeCodeJBPlutins = ['!node_modules/' + claudeCodeVenderPath + '/' + 'claude-code-jetbrains-plugin']
+
+  const includeClaudeCodeFilters = [
+    '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + `${archType}-${platformToArch[platform]}/**`
+  ]
+
+  if (arch === Arch.arm64) {
+    await changeFilters(
+      [...x64Filters, ...excludeClaudeCodeRipgrepFilters, ...excludeClaudeCodeJBPlutins],
+      [...arm64Filters, ...includeClaudeCodeFilters]
+    )
+  } else {
+    await changeFilters(
+      [...arm64Filters, ...excludeClaudeCodeRipgrepFilters, ...excludeClaudeCodeJBPlutins],
+      [...x64Filters, ...includeClaudeCodeFilters]
+    )
   }
 }

@@ -51,9 +51,18 @@ const logger = loggerService.withContext('Migrate')
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
   if (state.minapps) {
-    state.minapps.enabled = state.minapps.enabled.map((app) => ({ ...app, logo: undefined }))
-    state.minapps.disabled = state.minapps.disabled.map((app) => ({ ...app, logo: undefined }))
-    state.minapps.pinned = state.minapps.pinned.map((app) => ({ ...app, logo: undefined }))
+    state.minapps.enabled = state.minapps.enabled.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
+    state.minapps.disabled = state.minapps.disabled.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
+    state.minapps.pinned = state.minapps.pinned.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
   }
 }
 
@@ -105,7 +114,10 @@ function updateProvider(state: RootState, id: string, provider: Partial<Provider
   if (state.llm.providers) {
     const index = state.llm.providers.findIndex((p) => p.id === id)
     if (index !== -1) {
-      state.llm.providers[index] = { ...state.llm.providers[index], ...provider }
+      state.llm.providers[index] = {
+        ...state.llm.providers[index],
+        ...provider
+      }
     }
   }
 }
@@ -553,7 +565,10 @@ const migrateConfig = {
           ...state.llm,
           providers: state.llm.providers.map((provider) => {
             if (provider.id === 'azure-openai') {
-              provider.models = provider.models.map((model) => ({ ...model, provider: 'azure-openai' }))
+              provider.models = provider.models.map((model) => ({
+                ...model,
+                provider: 'azure-openai'
+              }))
             }
             return provider
           })
@@ -575,6 +590,7 @@ const migrateConfig = {
     try {
       state.assistants.defaultAssistant.type = 'assistant'
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         agent.type = 'agent'
         // @ts-ignore eslint-disable-next-line
@@ -608,7 +624,10 @@ const migrateConfig = {
           runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)
             if (_topic) {
-              const messages = (_topic?.messages || []).map((message) => ({ ...message, assistantId: assistant.id }))
+              const messages = (_topic?.messages || []).map((message) => ({
+                ...message,
+                assistantId: assistant.id
+              }))
               db.topics.put({ ..._topic, messages }, topic.id)
             }
           })
@@ -1076,6 +1095,7 @@ const migrateConfig = {
         }
       })
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         const leadingEmoji = getLeadingEmoji(agent.name)
         if (leadingEmoji) {
@@ -1724,7 +1744,10 @@ const migrateConfig = {
             cutoffLimit: state.websearch.contentLimit
           }
         } else {
-          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+          state.websearch.compressionConfig = {
+            method: 'none',
+            cutoffUnit: 'char'
+          }
         }
 
         // @ts-ignore eslint-disable-next-line
@@ -2509,7 +2532,10 @@ const migrateConfig = {
       const cherryinProvider = state.llm.providers.find((provider) => provider.id === 'cherryin')
 
       if (cherryinProvider) {
-        updateProvider(state, 'cherryin', { apiHost: 'https://open.cherryin.ai', models: [] })
+        updateProvider(state, 'cherryin', {
+          apiHost: 'https://open.cherryin.ai',
+          models: []
+        })
       }
 
       if (state.llm.defaultModel?.provider === 'cherryin') {
@@ -2533,6 +2559,7 @@ const migrateConfig = {
         }
       })
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         // @ts-ignore model is not defined in Agent
         if (agent.model?.provider === 'cherryin') {
@@ -2565,7 +2592,66 @@ const migrateConfig = {
       fixMissingProvider(state)
       return state
     } catch (error) {
-      logger.error('migrate 159 error', error as Error)
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '160': (state: RootState) => {
+    try {
+      // @ts-ignore
+      if (state?.agents?.agents) {
+        // @ts-ignore
+        state.assistants.presets = [...state.agents.agents]
+
+        // @ts-ignore
+        delete state.agents.agents
+
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.anthropicApiHost) {
+          return
+        }
+
+        switch (provider.id) {
+          case 'deepseek':
+            provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
+            break
+          case 'moonshot':
+            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
+            break
+          case 'zhipu':
+            provider.anthropicApiHost = 'https://open.bigmodel.cn/api/anthropic'
+            break
+          case 'dashscope':
+            provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+            break
+          case 'modelscope':
+            provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
+            break
+          case 'aihubmix':
+            provider.anthropicApiHost = 'https://aihubmix.com'
+            break
+          case 'new-api':
+            provider.anthropicApiHost = 'http://localhost:3000'
+            break
+          case 'cherryai':
+            provider.anthropicApiHost = 'https://api.cherry-ai.com'
+            break
+          case 'grok':
+            provider.anthropicApiHost = 'https://api.x.ai'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 160 error', error as Error)
       return state
     }
   }

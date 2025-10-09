@@ -1,7 +1,7 @@
 import { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { Collapse } from 'antd'
 
+import { MessageAgentTools } from './MessageAgentTools'
 import { MessageKnowledgeSearchToolTitle } from './MessageKnowledgeSearch'
 import { MessageMemorySearchToolTitle } from './MessageMemorySearch'
 import { MessageWebSearchToolTitle } from './MessageWebSearch'
@@ -10,36 +10,51 @@ interface Props {
   block: ToolMessageBlock
 }
 const prefix = 'builtin_'
+const agentPrefix = 'mcp__'
+const agentTools = [
+  'Read',
+  'Task',
+  'Bash',
+  'Search',
+  'Glob',
+  'TodoWrite',
+  'WebSearch',
+  'Grep',
+  'Write',
+  'WebFetch',
+  'Edit',
+  'MultiEdit',
+  'BashOutput',
+  'NotebookEdit',
+  'ExitPlanMode'
+]
+const isAgentTool = (toolName: string) => {
+  if (agentTools.includes(toolName) || toolName.startsWith(agentPrefix)) {
+    return true
+  }
+  return false
+}
 
-const ChooseTool = (toolResponse: NormalToolResponse): { label: React.ReactNode; body: React.ReactNode } | null => {
+const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null => {
   let toolName = toolResponse.tool.name
   const toolType = toolResponse.tool.type
   if (toolName.startsWith(prefix)) {
     toolName = toolName.slice(prefix.length)
+    switch (toolName) {
+      case 'web_search':
+      case 'web_search_preview':
+        return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
+      case 'knowledge_search':
+        return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
+      case 'memory_search':
+        return <MessageMemorySearchToolTitle toolResponse={toolResponse} />
+      default:
+        return null
+    }
+  } else if (isAgentTool(toolName)) {
+    return <MessageAgentTools toolResponse={toolResponse} />
   }
-
-  switch (toolName) {
-    case 'web_search':
-    case 'web_search_preview':
-      return toolType === 'provider'
-        ? null
-        : {
-            label: <MessageWebSearchToolTitle toolResponse={toolResponse} />,
-            body: null
-          }
-    case 'knowledge_search':
-      return {
-        label: <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />,
-        body: null
-      }
-    case 'memory_search':
-      return {
-        label: <MessageMemorySearchToolTitle toolResponse={toolResponse} />,
-        body: null
-      }
-    default:
-      return null
-  }
+  return null
 }
 
 export default function MessageTool({ block }: Props) {
@@ -48,32 +63,13 @@ export default function MessageTool({ block }: Props) {
 
   if (!toolResponse) return null
 
-  const toolRenderer = ChooseTool(toolResponse)
+  const toolRenderer = ChooseTool(toolResponse as NormalToolResponse)
 
   if (!toolRenderer) return null
 
-  return toolRenderer.body ? (
-    <Collapse
-      items={[
-        {
-          key: '1',
-          label: toolRenderer.label,
-          children: toolRenderer.body,
-          showArrow: false,
-          styles: {
-            header: {
-              paddingLeft: '0'
-            }
-          }
-        }
-      ]}
-      size="small"
-      ghost
-    />
-  ) : (
-    toolRenderer.label
-  )
+  return toolRenderer
 }
+
 // const PrepareToolWrapper = styled.span`
 //   display: flex;
 //   align-items: center;
