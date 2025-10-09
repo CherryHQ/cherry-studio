@@ -1,4 +1,6 @@
 import { SyncOutlined } from '@ant-design/icons'
+import { useDisclosure } from '@heroui/react'
+import UpdateDialog from '@renderer/components/UpdateDialog'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
@@ -10,6 +12,7 @@ const UpdateAppButton: FC = () => {
   const { update } = useRuntime()
   const { autoCheckUpdate } = useSettings()
   const { t } = useTranslation()
+  const { isOpen, onOpen, onOpenChange } = useDisclosure()
 
   if (!update) {
     return null
@@ -23,13 +26,15 @@ const UpdateAppButton: FC = () => {
     <Container>
       <UpdateButton
         className="nodrag"
-        onClick={() => window.api.showUpdateDialog()}
+        onClick={onOpen}
         icon={<SyncOutlined />}
         color="orange"
         variant="outlined"
         size="small">
         {t('button.update_available')}
       </UpdateButton>
+
+      <UpdateDialog isOpen={isOpen} onOpenChange={onOpenChange} releaseInfo={update.info || null} />
     </Container>
   )
 }
