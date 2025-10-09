@@ -467,14 +467,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       onBlur={onUpdateAnthropicHost}
                     />
                   </Space.Compact>
-                  <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                  <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText
-                      style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                      style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
                       {t('settings.provider.anthropic_api_host_preview', {
                         url: anthropicHostPreview || '—'
                       })}
                     </SettingHelpText>
-                    <SettingHelpText style={{ minWidth: 'fit-content', whiteSpace: 'normal' }}>
+                    <SettingHelpText style={{ marginLeft: 6 }}>
                       {t('settings.provider.anthropic_api_host_tip')}
                     </SettingHelpText>
                   </SettingHelpTextRow>
