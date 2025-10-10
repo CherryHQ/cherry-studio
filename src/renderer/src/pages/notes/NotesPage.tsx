@@ -385,21 +385,25 @@ const NotesPage: FC = () => {
   }, [activeFilePath])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
-  const getTargetFolderPath = useCallback(() => {
-    if (selectedFolderId) {
-      const selectedNode = findNode(notesTree, selectedFolderId)
-      if (selectedNode && selectedNode.type === 'folder') {
-        return selectedNode.externalPath
+  const getTargetFolderPath = useCallback(
+    (targetFolderId?: string) => {
+      const folderId = targetFolderId || selectedFolderId
+      if (folderId) {
+        const selectedNode = findNode(notesTree, folderId)
+        if (selectedNode && selectedNode.type === 'folder') {
+          return selectedNode.externalPath
+        }
       }
-    }
-    return notesPath // 默认返回根目录
-  }, [selectedFolderId, notesTree, notesPath])
+      return notesPath // 默认返回根目录
+    },
+    [selectedFolderId, notesTree, notesPath]
+  )
 
   // 创建文件夹
   const handleCreateFolder = useCallback(
-    async (name: string) => {
+    async (name: string, targetFolderId?: string) => {
       try {
-        const targetPath = getTargetFolderPath()
+        const targetPath = getTargetFolderPath(targetFolderId)
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
@@ -415,11 +419,11 @@ const NotesPage: FC = () => {
 
   // 创建笔记
   const handleCreateNote = useCallback(
-    async (name: string) => {
+    async (name: string, targetFolderId?: string) => {
       try {
         isCreatingNoteRef.current = true
 
-        const targetPath = getTargetFolderPath()
+        const targetPath = getTargetFolderPath(targetFolderId)
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
