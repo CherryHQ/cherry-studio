@@ -1,3 +1,4 @@
+import { cn } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
@@ -7,7 +8,6 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { Bot } from 'lucide-react'
 import { FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 // const logger = loggerService.withContext('AgentItem')
 
@@ -25,7 +25,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
   return (
     <ContextMenu modal={false}>
       <ContextMenuTrigger>
-        <Container onClick={onPress} className={isActive ? 'active' : ''}>
+        <Container onClick={onPress} isActive={isActive}>
           <AssistantNameRow className="name" title={agent.name ?? agent.id}>
             <AgentNameWrapper>
               <AgentLabel agent={agent} />
@@ -68,71 +68,50 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 0 8px;
-  height: 37px;
-  position: relative;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  width: calc(var(--assistants-width) - 20px);
-  cursor: pointer;
+export const Container: React.FC<{ isActive?: boolean } & React.HTMLAttributes<HTMLDivElement>> = ({
+  className,
+  isActive,
+  ...props
+}) => (
+  <div
+    className={cn(
+      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border border-transparent px-2 hover:bg-[var(--color-list-item-hover)]',
+      isActive && 'bg-[var(--color-list-item)] shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+      className
+    )}
+    {...props}
+  />
+)
 
-  &:hover {
-    background-color: var(--color-list-item-hover);
-  }
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  }
-`
+export const AssistantNameRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-[13px] text-[var(--color-text)]', className)}
+    {...props}
+  />
+)
 
-const AssistantNameRow = styled.div`
-  color: var(--color-text);
-  font-size: 13px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-`
+export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn('min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap', className)} {...props} />
+)
 
-const AgentNameWrapper = styled.div`
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
+export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] w-[22px] flex-row items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
+      className
+    )}
+    {...props}
+  />
+)
 
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 22px;
-  height: 22px;
-  min-height: 22px;
-  border-radius: 11px;
-  position: absolute;
-  background-color: var(--color-background);
-  right: 9px;
-  top: 6px;
-  padding: 0 5px;
-  border: 0.5px solid var(--color-border);
-`
-
-const SessionCount = styled.div`
-  color: var(--color-text);
-  font-size: 10px;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-`
+export const SessionCount: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'flex flex-row items-center justify-center rounded-full text-[10px] text-[var(--color-text)]',
+      className
+    )}
+    {...props}
+  />
+)
 
 export default memo(AgentItem)

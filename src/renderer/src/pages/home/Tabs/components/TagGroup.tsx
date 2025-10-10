@@ -1,7 +1,7 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { cn } from '@heroui/react'
 import { Tooltip } from 'antd'
 import { FC, ReactNode } from 'react'
-import styled from 'styled-components'
 
 interface TagGroupProps {
   tag: string
@@ -34,40 +34,30 @@ export const TagGroup: FC<TagGroupProps> = ({ tag, isCollapsed, onToggle, showTi
   )
 }
 
-const TagsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
+const TagsContainer: FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, ...props }) => (
+  <div className={cn('flex flex-col gap-2')} {...props}>
+    {children}
+  </div>
+)
 
-const GroupTitle = styled.div`
-  color: var(--color-text-2);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  height: 24px;
-  margin: 5px 0;
-`
+const GroupTitle: FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, ...props }) => (
+  <div
+    className={cn(
+      'my-1 flex h-6 cursor-pointer flex-row items-center justify-between font-medium text-[var(--color-text-2)] text-xs'
+    )}
+    {...props}>
+    {children}
+  </div>
+)
 
-const GroupTitleName = styled.div`
-  max-width: 50%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
-  box-sizing: border-box;
-  padding: 0 4px;
-  color: var(--color-text);
-  font-size: 13px;
-  line-height: 24px;
-  margin-right: 5px;
-  display: flex;
-`
+const GroupTitleName: FC<React.HTMLAttributes<HTMLDivElement>> = ({ children, ...props }) => (
+  <div
+    className={cn('mr-1 box-border flex max-w-[50%] truncate px-1 text-[13px] text-[var(--color-text)] leading-6')}
+    {...props}>
+    {children}
+  </div>
+)
 
-const GroupTitleDivider = styled.div`
-  flex: 1;
-  border-top: 1px solid var(--color-border);
-`
+const GroupTitleDivider: FC<React.HTMLAttributes<HTMLDivElement>> = (props) => (
+  <div className={cn('flex-1 border-[var(--color-border)] border-t')} {...props} />
+)
