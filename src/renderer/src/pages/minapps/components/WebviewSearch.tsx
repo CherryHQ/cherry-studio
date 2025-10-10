@@ -99,13 +99,13 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   }, [])
 
   const openSearch = useCallback(() => {
-    if (!isWebviewReady || !webviewRef.current) {
+    if (!isWebviewReady) {
       logger.debug('Skip openSearch: webview not ready')
       return
     }
     setIsVisible(true)
     focusInput()
-  }, [focusInput, isWebviewReady, webviewRef])
+  }, [focusInput, isWebviewReady])
 
   const goToNext = useCallback(() => {
     if (!query) return
