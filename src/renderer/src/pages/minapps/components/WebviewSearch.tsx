@@ -236,6 +236,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         autoFocus
         value={query}
         onValueChange={setQuery}
+        spellCheck={false}
         placeholder={t('common.search')}
         size="sm"
         radius="sm"
