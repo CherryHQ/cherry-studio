@@ -11,7 +11,7 @@ import { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
 import { omit } from 'lodash'
-import { Search } from 'lucide-react'
+import { LayoutGrid, List, Search } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -30,6 +30,7 @@ const AssistantPresetsPage: FC = () => {
   const [activeGroup, setActiveGroup] = useState('我的')
   const [agentGroups, setAgentGroups] = useState<Record<string, AssistantPreset[]>>({})
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const systemPresets = useSystemAssistantPresets()
   const { presets: userPresets } = useAssistantPresets()
   const { isTopNavbar } = useNavbarPosition()
@@ -273,6 +274,17 @@ const AssistantPresetsPage: FC = () => {
                   </Button>
                 )
               )}
+              <Button
+                type="text"
+                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                icon={
+                  viewMode === 'grid' ? (
+                    <List size={18} color="var(--color-icon)" />
+                  ) : (
+                    <LayoutGrid size={18} color="var(--color-icon)" />
+                  )
+                }
+              />
               <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
                 {t('assistants.presets.import.title')}
               </Button>
@@ -283,7 +295,7 @@ const AssistantPresetsPage: FC = () => {
           </AgentsListHeader>
 
           {filteredPresets.length > 0 ? (
-            <AgentsList>
+            <AgentsList $viewMode={viewMode}>
               {filteredPresets.map((agent, index) => (
                 <AssistantPresetCard
                   key={agent.id || index}
@@ -291,6 +303,7 @@ const AssistantPresetsPage: FC = () => {
                   preset={agent}
                   activegroup={activeGroup}
                   getLocalizedGroupName={getLocalizedGroupName}
+                  viewMode={viewMode}
                 />
               ))}
             </AgentsList>
@@ -358,13 +371,14 @@ const AgentsListTitle = styled.div`
   gap: 8px;
 `
 
-const AgentsList = styled(Scrollbar)`
+const AgentsList = styled(Scrollbar)<{ $viewMode: 'grid' | 'list' }>`
   flex: 1;
   padding: 8px 16px 16px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  grid-auto-rows: 160px;
-  gap: 16px;
+  display: ${(props) => (props.$viewMode === 'list' ? 'flex' : 'grid')};
+  flex-direction: ${(props) => (props.$viewMode === 'list' ? 'column' : 'unset')};
+  grid-template-columns: ${(props) => (props.$viewMode === 'grid' ? 'repeat(auto-fill, minmax(300px, 1fr))' : 'unset')};
+  grid-auto-rows: ${(props) => (props.$viewMode === 'grid' ? '160px' : 'unset')};
+  gap: ${(props) => (props.$viewMode === 'list' ? '12px' : '16px')};
 `
 
 const AgentDescription = styled.div`
