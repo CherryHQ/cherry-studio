@@ -24,7 +24,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const inputRef = useRef<HTMLInputElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
-  const webview = webviewRef.current ?? null
+  const attachedWebviewRef = useRef<WebviewTag | null>(null)
 
   const focusInput = useCallback(() => {
     if (focusFrameRef.current !== null) {
@@ -45,14 +45,21 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     setActiveIndex(0)
   }, [])
 
+  const stopSearch = useCallback(() => {
+    const target = webviewRef.current ?? attachedWebviewRef.current
+    if (!target) return
+    try {
+      target.stopFindInPage('clearSelection')
+    } catch (error) {
+      logger.error('stopFindInPage failed', { error })
+    }
+  }, [webviewRef])
+
   const closeSearch = useCallback(() => {
     setIsVisible(false)
-    const target = webviewRef.current
-    if (target) {
-      target.stopFindInPage('clearSelection')
-    }
+    stopSearch()
     resetSearchState({ keepQuery: true })
-  }, [resetSearchState, webviewRef])
+  }, [resetSearchState, stopSearch])
 
   const performSearch = useCallback(
     (text: string, options?: Electron.FindInPageOptions) => {
@@ -62,7 +69,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         return
       }
       if (!text) {
-        target.stopFindInPage('clearSelection')
+        stopSearch()
         resetSearchState({ keepQuery: true })
         return
       }
@@ -70,9 +77,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         target.findInPage(text, options)
       } catch (error) {
         logger.error('findInPage failed', { error })
+        window.toast?.error(t('common.error'))
       }
     },
-    [resetSearchState, webviewRef]
+    [resetSearchState, stopSearch, t, webviewRef]
   )
 
   const handleFoundInPage = useCallback((event: Event & { result?: FoundInPageResult }) => {
@@ -109,12 +117,22 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   }, [performSearch, query])
 
   useEffect(() => {
-    if (!webview) return
-    webview.addEventListener('found-in-page', handleFoundInPage)
+    const target = webviewRef.current
+    if (!target) return
+    attachedWebviewRef.current = target
+    target.addEventListener('found-in-page', handleFoundInPage)
     return () => {
-      webview.removeEventListener('found-in-page', handleFoundInPage)
+      target.removeEventListener('found-in-page', handleFoundInPage)
+      if (attachedWebviewRef.current === target) {
+        try {
+          target.stopFindInPage('clearSelection')
+        } catch (error) {
+          logger.error('stopFindInPage failed', { error })
+        }
+        attachedWebviewRef.current = null
+      }
     }
-  }, [handleFoundInPage, webview, isWebviewReady])
+  }, [appId, handleFoundInPage, isWebviewReady, webviewRef])
 
   useEffect(() => {
     if (!isVisible) return
@@ -166,9 +184,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     if (!isWebviewReady) {
       setIsVisible(false)
       resetSearchState()
+      stopSearch()
       return
     }
-  }, [isWebviewReady, resetSearchState])
+  }, [isWebviewReady, resetSearchState, stopSearch])
 
   useEffect(() => {
     if (!appId) return
@@ -176,24 +195,18 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     lastAppIdRef.current = appId
     setIsVisible(false)
     resetSearchState()
-    const target = webviewRef.current
-    if (target) {
-      target.stopFindInPage('clearSelection')
-    }
-  }, [appId, resetSearchState, webviewRef])
+    stopSearch()
+  }, [appId, resetSearchState, stopSearch])
 
   useEffect(() => {
-    const target = webviewRef.current
     return () => {
-      if (target) {
-        target.stopFindInPage('clearSelection')
-      }
+      stopSearch()
       if (focusFrameRef.current !== null) {
         window.cancelAnimationFrame(focusFrameRef.current)
         focusFrameRef.current = null
       }
     }
-  }, [webviewRef])
+  }, [stopSearch])
 
   if (!isVisible) {
     return null
@@ -210,7 +223,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         autoFocus
         value={query}
         onValueChange={setQuery}
-        placeholder=""
+        placeholder={t('common.search')}
         size="sm"
         radius="sm"
         variant="flat"
@@ -222,7 +235,12 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
           innerWrapper: 'gap-0'
         }}
       />
-      <span className="min-w-[44px] text-center text-default-500 text-small tabular-nums" title={noResultTitle}>
+      <span
+        className="min-w-[44px] text-center text-default-500 text-small tabular-nums"
+        title={noResultTitle}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true">
         {matchLabel}
       </span>
       <div className="h-4 w-px bg-default-200" />
