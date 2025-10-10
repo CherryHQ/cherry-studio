@@ -215,15 +215,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch":
-  version: 2.0.42
-  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch::version=2.0.42&hash=60716d"
+"@ai-sdk/openai@npm:^2.0.42":
+  version: 2.0.47
+  resolution: "@ai-sdk/openai@npm:2.0.47"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.10"
+    "@ai-sdk/provider-utils": "npm:3.0.11"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/522131870b9781a789971d6cb4928a19df4bb3e31d0364b8800870d2ddf97d616937345cfad4d9907483e4d121ff9d8a76354dd3d1e01b7014a994adef9a5f2b
+  checksum: 10c0/7fabcdda707134971bcc2b285705d4595f8bf419285dbdd9266b3b0858ea11b6ac200e63dd2eeb1822f99571910093d64d4a76154a365331cf184f56452933c6
   languageName: node
   linkType: hard
 
@@ -271,6 +271,15 @@ __metadata:
   dependencies:
     json-schema: "npm:^0.4.0"
   checksum: 10c0/e50e520016c9fc0a8b5009cadd47dae2f1c81ec05c1792b9e312d7d15479f024ca8039525813a33425c884e3449019fed21043b1bfabd6a2626152ca9a388199
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider@npm:^2.1.0-beta.4":
+  version: 2.1.0-beta.5
+  resolution: "@ai-sdk/provider@npm:2.1.0-beta.5"
+  dependencies:
+    json-schema: "npm:^0.4.0"
+  checksum: 10c0/4f51813285a8e92be18ef14645b0505bb0c9d2daa0d9290cac8a3c1f87d8e2e8507b1edf1818ae2305a90723e8cd44477f55f0631407dee35912ab8fdded52ba
   languageName: node
   linkType: hard
 
@@ -2407,7 +2416,6 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.22"
     "@ai-sdk/azure": "npm:^2.0.42"
     "@ai-sdk/deepseek": "npm:^1.0.20"
-    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.10"
@@ -7707,6 +7715,18 @@ __metadata:
   version: 1.36.0
   resolution: "@opentelemetry/semantic-conventions@npm:1.36.0"
   checksum: 10c0/edc8a6fe3ec4fc0c67ba3a92b86fb3dcc78fe1eb4f19838d8013c3232b9868540a034dd25cfe0afdd5eae752c5f0e9f42272ff46da144a2d5b35c644478e1c62
+  languageName: node
+  linkType: hard
+
+"@opeoginni/github-copilot-openai-compatible@npm:0.1.18":
+  version: 0.1.18
+  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.18"
+  dependencies:
+    "@ai-sdk/openai": "npm:^2.0.42"
+    "@ai-sdk/openai-compatible": "npm:^1.0.19"
+    "@ai-sdk/provider": "npm:^2.1.0-beta.4"
+    "@ai-sdk/provider-utils": "npm:^3.0.10"
+  checksum: 10c0/31b87ed150883bbdd33a0203e45831859560fdf174f0285384fdcb1d01fc4a56ca15f31d648e8d6d3a2d4d5c6e327ddecbf422543eeefaa7e8fdd7dc2f2a3b08
   languageName: node
   linkType: hard
 
@@ -14276,6 +14296,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
+    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.18"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
     "@reduxjs/toolkit": "npm:^2.2.5"
