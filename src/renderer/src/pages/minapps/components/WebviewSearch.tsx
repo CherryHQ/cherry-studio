@@ -10,11 +10,12 @@ type FoundInPageResult = Electron.FoundInPageResult
 interface WebviewSearchProps {
   webviewRef: React.RefObject<WebviewTag | null>
   isWebviewReady: boolean
+  appId: string
 }
 
 const logger = loggerService.withContext('WebviewSearch')
 
-const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady }) => {
+const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [query, setQuery] = useState('')
@@ -22,6 +23,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady }) =
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const focusFrameRef = useRef<number | null>(null)
+  const lastAppIdRef = useRef<string>(appId)
   const webview = webviewRef.current ?? null
 
   const focusInput = useCallback(() => {
@@ -167,6 +169,18 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady }) =
       return
     }
   }, [isWebviewReady, resetSearchState])
+
+  useEffect(() => {
+    if (!appId) return
+    if (lastAppIdRef.current === appId) return
+    lastAppIdRef.current = appId
+    setIsVisible(false)
+    resetSearchState()
+    const target = webviewRef.current
+    if (target) {
+      target.stopFindInPage('clearSelection')
+    }
+  }, [appId, resetSearchState, webviewRef])
 
   useEffect(() => {
     const target = webviewRef.current

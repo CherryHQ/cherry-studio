@@ -185,7 +185,7 @@ const MinAppPage: FC = () => {
           onOpenDevTools={handleOpenDevTools}
         />
       </ToolbarWrapper>
-      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} />
+      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />
       {!isReady && (
         <LoadingMask>
           <Avatar src={app.logo} size={60} style={{ border: '1px solid var(--color-border)' }} />
