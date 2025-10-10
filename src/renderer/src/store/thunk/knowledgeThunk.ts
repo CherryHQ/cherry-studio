@@ -49,24 +49,49 @@ export const addFilesThunk = (baseId: string, files: FileMetadata[]) => (dispatc
  * 添加笔记，需要手动调用 KnowledgeQueue.checkAllBases()
  * @param baseId 知识库 ID
  * @param content 笔记内容
+ * @param metadata 源笔记元数据（可选）
  */
-export const addNoteThunk = (baseId: string, content: string) => async (dispatch: AppDispatch) => {
-  const noteId = uuidv4()
-  const note = createKnowledgeItem('note', content, { id: noteId })
+export const addNoteThunk =
+  (
+    baseId: string,
+    content: string,
+    metadata?: {
+      sourceNotePath?: string
+      sourceNoteId?: string
+      contentHash?: string
+    }
+  ) =>
+  async (dispatch: AppDispatch) => {
+    const noteId = uuidv4()
+    const note = createKnowledgeItem('note', content, {
+      id: noteId,
+      ...(metadata && {
+        sourceNotePath: metadata.sourceNotePath,
+        sourceNoteId: metadata.sourceNoteId,
+        contentHash: metadata.contentHash
+      })
+    })
 
-  if (!isKnowledgeNoteItem(note)) {
-    logger.error('Invalid note item', note)
-    throw new Error('Invalid note item')
+    if (!isKnowledgeNoteItem(note)) {
+      logger.error('Invalid note item', note)
+      throw new Error('Invalid note item')
+    }
+
+    // 存储完整笔记到数据库，出错时交给调用者处理
+    await db.knowledge_notes.add(note)
+
+    // 验证数据已成功写入数据库
+    const savedNote = await db.knowledge_notes.get(noteId)
+    if (!savedNote) {
+      logger.error('Failed to verify note was saved to database', { noteId })
+      throw new Error('Failed to save note to database')
+    }
+
+    // 在 store 中只存储引用
+    const noteRef = { ...note, content: '' } // store中不需要存储实际内容
+
+    dispatch(updateNotes({ baseId, item: noteRef }))
   }
-
-  // 存储完整笔记到数据库，出错时交给调用者处理
-  await db.knowledge_notes.add(note)
-
-  // 在 store 中只存储引用
-  const noteRef = { ...note, content: '' } // store中不需要存储实际内容
-
-  dispatch(updateNotes({ baseId, item: noteRef }))
-}
 
 /**
  * 添加一个普通的知识库项，需要手动调用 KnowledgeQueue.checkAllBases()

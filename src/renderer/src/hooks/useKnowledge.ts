@@ -65,10 +65,17 @@ export const useKnowledge = (baseId: string) => {
   }
 
   // 添加笔记
-  const addNote = async (content: string) => {
-    await dispatch(addNoteThunk(baseId, content))
-    // 确保数据库写入完成后再触发队列检查
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 100)
+  const addNote = async (
+    content: string,
+    metadata?: {
+      sourceNotePath?: string
+      sourceNoteId?: string
+      contentHash?: string
+    }
+  ) => {
+    await dispatch(addNoteThunk(baseId, content, metadata))
+    // 数据库写入已在 thunk 中验证完成，直接触发队列检查
+    KnowledgeQueue.checkAllBases()
   }
 
   // 添加URL

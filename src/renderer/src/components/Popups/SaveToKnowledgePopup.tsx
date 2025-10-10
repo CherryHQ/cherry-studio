@@ -21,6 +21,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+// 计算字符串的简单哈希值
+const simpleHash = async (str: string): Promise<string> => {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(str)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 const logger = loggerService.withContext('SaveToKnowledgePopup')
 
 const { Text } = Typography
@@ -285,8 +294,52 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           throw new Error('Note content is empty. Cannot export empty notes to knowledge base.')
         }
 
+        // 计算内容哈希
+        const contentHash = await simpleHash(content)
+
+        // 检查是否已存在相同源笔记的导出
+        const existingNotes = selectedBase.items.filter(
+          (item) =>
+            item.type === 'note' &&
+            ((item as any).sourceNoteId === note.id || (item as any).sourceNotePath === note.externalPath)
+        )
+
+        if (existingNotes.length > 0) {
+          // 检查内容是否有变化
+          const hasChanges = existingNotes.some((item) => (item as any).contentHash !== contentHash)
+
+          if (hasChanges) {
+            // 内容有变化，询问用户是否更新
+            const confirmed = await new Promise<boolean>((resolve) => {
+              window.modal.confirm({
+                title: t('notes.export_knowledge_update_title'),
+                content: t('notes.export_knowledge_update_content', { name: note.name }),
+                centered: true,
+                onOk: () => resolve(true),
+                onCancel: () => resolve(false)
+              })
+            })
+
+            if (!confirmed) {
+              setOpen(false)
+              resolve(null)
+              return
+            }
+          } else {
+            // 内容没有变化，提示已存在
+            window.toast.info(t('notes.export_knowledge_already_exists', { name: note.name }))
+            setOpen(false)
+            resolve({ success: true, savedCount: 0 })
+            return
+          }
+        }
+
         logger.debug('Note content loaded', { contentLength: content.length })
-        await addNote(content)
+        await addNote(content, {
+          sourceNotePath: note.externalPath,
+          sourceNoteId: note.id,
+          contentHash
+        })
         savedCount = 1
       } else {
         // 原有的消息或主题处理逻辑

@@ -43,6 +43,9 @@ export type KnowledgeNoteItem = KnowledgeItem & {
   type: 'note'
   content: string
   sourceUrl?: string
+  sourceNotePath?: string // 源笔记文件路径
+  sourceNoteId?: string // 源笔记 ID
+  contentHash?: string // 内容哈希，用于检测变更
 }
 
 export const isKnowledgeNoteItem = (item: KnowledgeItem): item is KnowledgeNoteItem => {
