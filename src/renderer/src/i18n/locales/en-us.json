@@ -2096,8 +2096,10 @@
       "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "Only supports Windows",
       "install_code_103": "Download OVMS runtime failed",
-      "install_code_104": "Uncompress OVMS runtime failed",
-      "install_code_105": "Clean OVMS runtime failed",
+      "install_code_104": "Failed to install OVMS runtime",
+      "install_code_105": "Failed to create ovdnd.exe",
+      "install_code_106": "Failed to create run.bat",
+      "install_code_110": "Failed to clean old OVMS runtime",
       "run": "Run OVMS failed:",
       "stop": "Stop OVMS failed:"
     },
