@@ -34,8 +34,8 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 interface NotesSidebarProps {
-  onCreateFolder: (name: string, parentId?: string) => void
-  onCreateNote: (name: string, parentId?: string) => void
+  onCreateFolder: (name: string, targetFolderId?: string) => void
+  onCreateNote: (name: string, targetFolderId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
   onDeleteNode: (nodeId: string) => void
   onRenameNode: (nodeId: string, newName: string) => void
@@ -582,6 +582,28 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         })
       }
 
+      if (node.type === 'folder') {
+        baseMenuItems.push(
+          {
+            label: t('notes.new_note'),
+            key: 'new_note',
+            icon: <FilePlus size={14} />,
+            onClick: () => {
+              onCreateNote(t('notes.untitled_note'), node.id)
+            }
+          },
+          {
+            label: t('notes.new_folder'),
+            key: 'new_folder',
+            icon: <Folder size={14} />,
+            onClick: () => {
+              onCreateFolder(t('notes.untitled_folder'), node.id)
+            }
+          },
+          { type: 'divider' }
+        )
+      }
+
       baseMenuItems.push(
         {
           label: t('notes.rename'),
@@ -685,7 +707,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       handleDeleteNode,
       renamingNodeIds,
       handleAutoRename,
-      exportMenuOptions
+      exportMenuOptions,
+      onCreateNote,
+      onCreateFolder
     ]
   )
 
