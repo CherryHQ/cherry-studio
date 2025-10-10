@@ -21,6 +21,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const [query, setQuery] = useState('')
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [currentWebview, setCurrentWebview] = useState<WebviewTag | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
@@ -63,7 +64,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
 
   const performSearch = useCallback(
     (text: string, options?: Electron.FindInPageOptions) => {
-      const target = webviewRef.current
+      const target = webviewRef.current ?? attachedWebviewRef.current
       if (!target) {
         logger.debug('Skip performSearch: webview not attached')
         return
@@ -117,12 +118,24 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   }, [performSearch, query])
 
   useEffect(() => {
-    const target = webviewRef.current
-    if (!target) return
+    const nextWebview = webviewRef.current ?? null
+    if (currentWebview === nextWebview) return
+    setCurrentWebview(nextWebview)
+  })
+
+  useEffect(() => {
+    const target = currentWebview
+    if (!target) {
+      attachedWebviewRef.current = null
+      return
+    }
+
+    const handle = handleFoundInPage
     attachedWebviewRef.current = target
-    target.addEventListener('found-in-page', handleFoundInPage)
+    target.addEventListener('found-in-page', handle)
+
     return () => {
-      target.removeEventListener('found-in-page', handleFoundInPage)
+      target.removeEventListener('found-in-page', handle)
       if (attachedWebviewRef.current === target) {
         try {
           target.stopFindInPage('clearSelection')
@@ -132,7 +145,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         attachedWebviewRef.current = null
       }
     }
-  }, [appId, handleFoundInPage, isWebviewReady, webviewRef])
+  }, [currentWebview, handleFoundInPage])
 
   useEffect(() => {
     if (!isVisible) return
@@ -146,7 +159,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
       return
     }
     performSearch(query)
-  }, [isVisible, performSearch, query])
+  }, [currentWebview, isVisible, performSearch, query])
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
