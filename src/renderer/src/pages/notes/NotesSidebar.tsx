@@ -71,6 +71,8 @@ interface TreeNodeProps {
   onDrop: (e: React.DragEvent, node: NotesTreeNode) => void
   onDragEnd: () => void
   renderChildren?: boolean // 控制是否渲染子节点
+  openDropdownKey: string | null
+  onDropdownOpenChange: (key: string | null) => void
 }
 
 const TreeNode = memo<TreeNodeProps>(
@@ -94,7 +96,9 @@ const TreeNode = memo<TreeNodeProps>(
     onDragLeave,
     onDrop,
     onDragEnd,
-    renderChildren = true
+    renderChildren = true,
+    openDropdownKey,
+    onDropdownOpenChange
   }) => {
     const { t } = useTranslation()
 
@@ -119,8 +123,12 @@ const TreeNode = memo<TreeNodeProps>(
 
     return (
       <div key={node.id}>
-        <Dropdown menu={{ items: getMenuItems(node) }} trigger={['contextMenu']}>
-          <div>
+        <Dropdown
+          menu={{ items: getMenuItems(node) }}
+          trigger={['contextMenu']}
+          open={openDropdownKey === node.id}
+          onOpenChange={(open) => onDropdownOpenChange(open ? node.id : null)}>
+          <div onContextMenu={(e) => e.stopPropagation()}>
             <TreeNodeContainer
               active={isActive}
               depth={depth}
@@ -206,6 +214,8 @@ const TreeNode = memo<TreeNodeProps>(
                 onDrop={onDrop}
                 onDragEnd={onDragEnd}
                 renderChildren={renderChildren}
+                openDropdownKey={openDropdownKey}
+                onDropdownOpenChange={onDropdownOpenChange}
               />
             ))}
           </div>
@@ -244,6 +254,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
+  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const scrollbarRef = useRef<any>(null)
 
@@ -801,7 +812,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       <NotesTreeContainer>
         {shouldUseVirtualization ? (
-          <Dropdown menu={{ items: getEmptyAreaMenuItems() }} trigger={['contextMenu']}>
+          <Dropdown
+            menu={{ items: getEmptyAreaMenuItems() }}
+            trigger={['contextMenu']}
+            open={openDropdownKey === 'empty-area'}
+            onOpenChange={(open) => setOpenDropdownKey(open ? 'empty-area' : null)}>
             <VirtualizedTreeContainer ref={parentRef}>
               <div
                 style={{
@@ -845,6 +860,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                           onDrop={handleDrop}
                           onDragEnd={handleDragEnd}
                           renderChildren={false}
+                          openDropdownKey={openDropdownKey}
+                          onDropdownOpenChange={setOpenDropdownKey}
                         />
                       </div>
                     </div>
@@ -866,7 +883,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             </VirtualizedTreeContainer>
           </Dropdown>
         ) : (
-          <Dropdown menu={{ items: getEmptyAreaMenuItems() }} trigger={['contextMenu']}>
+          <Dropdown
+            menu={{ items: getEmptyAreaMenuItems() }}
+            trigger={['contextMenu']}
+            open={openDropdownKey === 'empty-area'}
+            onOpenChange={(open) => setOpenDropdownKey(open ? 'empty-area' : null)}>
             <StyledScrollbar ref={scrollbarRef}>
               <TreeContent>
                 {isShowStarred || isShowSearch
@@ -892,6 +913,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onDragEnd={handleDragEnd}
+                        openDropdownKey={openDropdownKey}
+                        onDropdownOpenChange={setOpenDropdownKey}
                       />
                     ))
                   : notesTree.map((node) => (
@@ -916,6 +939,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onDragEnd={handleDragEnd}
+                        openDropdownKey={openDropdownKey}
+                        onDropdownOpenChange={setOpenDropdownKey}
                       />
                     ))}
                 {!isShowStarred && !isShowSearch && (
