@@ -102,6 +102,7 @@
     "@ai-sdk/amazon-bedrock": "^3.0.29",
     "@ai-sdk/google-vertex": "^3.0.33",
     "@ai-sdk/mistral": "^2.0.17",
+    "@ai-sdk/openai": "2.0.46",
     "@ai-sdk/perplexity": "^2.0.11",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
@@ -380,8 +381,7 @@
     "undici": "6.21.2",
     "vite": "npm:rolldown-vite@latest",
     "tesseract.js@npm:*": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
-    "@ai-sdk/google@npm:2.0.14": "patch:@ai-sdk/google@npm%3A2.0.14#~/.yarn/patches/@ai-sdk-google-npm-2.0.14-376d8b03cc.patch",
-    "@ai-sdk/openai@npm:2.0.42": "patch:@ai-sdk/openai@npm%3A2.0.42#~/.yarn/patches/@ai-sdk-openai-npm-2.0.42-63cda2d10f.patch"
+    "@ai-sdk/google@npm:2.0.14": "patch:@ai-sdk/google@npm%3A2.0.14#~/.yarn/patches/@ai-sdk-google-npm-2.0.14-376d8b03cc.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
