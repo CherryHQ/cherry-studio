@@ -34,7 +34,7 @@ export const TagGroup: FC<TagGroupProps> = ({ tag, isCollapsed, onToggle, showTi
   )
 }
 
-export const TagsContainer = styled.div`
+const TagsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
