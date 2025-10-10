@@ -33,6 +33,14 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     aliases: ['vertexai-anthropic']
   },
   {
+    id: 'github-copilot-openai-compatible',
+    name: 'GitHub Copilot OpenAI Compatible',
+    import: () => import('@opeoginni/github-copilot-openai-compatible'),
+    creatorFunctionName: 'createGitHubCopilotOpenAICompatible',
+    supportsImageGeneration: false,
+    aliases: ['copilot', 'github-copilot']
+  },
+  {
     id: 'bedrock',
     name: 'Amazon Bedrock',
     import: () => import('@ai-sdk/amazon-bedrock'),

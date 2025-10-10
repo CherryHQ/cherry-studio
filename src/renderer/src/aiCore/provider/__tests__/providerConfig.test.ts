@@ -68,21 +68,26 @@ describe('Copilot responses routing', () => {
     expect(isCopilotResponsesModel(createModel('custom-id', 'custom-name'))).toBe(false)
   })
 
-  it('routes gpt-5-codex through the OpenAI responses provider', () => {
+  it('configures gpt-5-codex with the Copilot provider', () => {
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-5-codex', 'GPT-5-CODEX'))
 
-    expect(config.providerId).toBe('openai')
-    expect(config.options.mode).toBe('responses')
-    expect(config.options.headers?.['editor-version']).toBe(COPILOT_EDITOR_VERSION)
+    expect(config.providerId).toBe('github-copilot-openai-compatible')
+    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
+    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(
+      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
+    )
     expect(config.options.headers?.['copilot-vision-request']).toBe('true')
   })
 
-  it('falls back to openai-compatible for other copilot models while keeping headers', () => {
+  it('uses the Copilot provider for other models and keeps headers', () => {
     const provider = createCopilotProvider()
     const config = providerToAiSdkConfig(provider, createModel('gpt-4'))
 
-    expect(config.providerId).toBe('openai-compatible')
-    expect(config.options.headers?.['editor-version']).toBe(COPILOT_DEFAULT_HEADERS['editor-version'])
+    expect(config.providerId).toBe('github-copilot-openai-compatible')
+    expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
+    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(
+      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
+    )
   })
 })
