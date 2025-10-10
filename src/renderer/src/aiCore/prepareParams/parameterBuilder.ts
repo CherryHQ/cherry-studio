@@ -23,6 +23,7 @@ import { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { replacePromptVariables } from '@renderer/utils/prompt'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -166,7 +167,7 @@ export async function buildStreamTextParams(
     params.tools = tools
   }
   if (assistant.prompt) {
-    params.system = assistant.prompt
+    params.system = await replacePromptVariables(assistant.prompt, model.name)
   }
   logger.debug('params', params)
   return {
