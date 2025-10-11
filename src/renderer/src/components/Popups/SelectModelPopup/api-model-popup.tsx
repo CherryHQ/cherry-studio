@@ -1,5 +1,5 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -105,7 +105,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">{model.name}</HStack>
+            <RowFlex className="model-name-content">{model.name}</RowFlex>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -473,6 +473,11 @@ const ModelName = styled.div`
   margin: 0 8px;
   min-width: 0;
   gap: 5px;
+
+  .model-name-content {
+    display: flex;
+    align-items: center;
+  }
 `
 
 const TagsContainer = styled.div`

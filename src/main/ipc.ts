@@ -21,7 +21,8 @@ import type {
   OcrProvider,
   Provider,
   Shortcut,
-  SupportedOcrFile} from '@types'
+  SupportedOcrFile
+} from '@types'
 import checkDiskSpace from 'check-disk-space'
 import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'

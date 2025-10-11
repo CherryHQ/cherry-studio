@@ -1,5 +1,5 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { RowFlex, Switch, Tooltip, Avatar, Button } from '@cherrystudio/ui'
+import { Avatar, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Radio, RadioGroup, useDisclosure } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'

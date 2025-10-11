@@ -1,7 +1,7 @@
 import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
 import { handleSaveData } from '@renderer/store'
-import { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
+import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
