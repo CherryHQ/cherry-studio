@@ -1,6 +1,6 @@
+import type { WebviewKeyEvent } from '@shared/config/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { WebviewKeyEvent } from '@shared/config/types'
 import type { WebviewTag } from 'electron'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
