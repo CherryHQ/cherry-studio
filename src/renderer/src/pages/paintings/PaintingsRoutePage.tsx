@@ -8,13 +8,22 @@ import { Route, Routes, useParams } from 'react-router-dom'
 import AihubmixPage from './AihubmixPage'
 import DmxapiPage from './DmxapiPage'
 import NewApiPage from './NewApiPage'
+import OvmsPage from './OvmsPage'
 import SiliconPage from './SiliconPage'
 import TokenFluxPage from './TokenFluxPage'
 import ZhipuPage from './ZhipuPage'
 
 const logger = loggerService.withContext('PaintingsRoutePage')
 
-const Options = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'new-api']
+const systemType = await window.api.system.getDeviceType()
+const cpuName = await window.api.system.getCpuName()
+
+const Options = ['zhipu', 'aihubmix', 'silicon', 'dmxapi', 'tokenflux', 'new-api', 'ovms'].filter((option) => {
+  if (option === 'ovms' && (systemType !== 'windows' || !cpuName.toLowerCase().includes('intel'))) {
+    return false
+  }
+  return true
+})
 
 const PaintingsRoutePage: FC = () => {
   const params = useParams()
@@ -37,6 +46,7 @@ const PaintingsRoutePage: FC = () => {
       <Route path="/dmxapi" element={<DmxapiPage Options={Options} />} />
       <Route path="/tokenflux" element={<TokenFluxPage Options={Options} />} />
       <Route path="/new-api" element={<NewApiPage Options={Options} />} />
+      <Route path="/ovms" element={<OvmsPage Options={Options} />} />
     </Routes>
   )
 }
