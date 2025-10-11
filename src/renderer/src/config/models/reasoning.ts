@@ -14,7 +14,7 @@ import { GEMINI_FLASH_MODEL_REGEX } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
+  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -364,7 +364,10 @@ export const isPerplexityReasoningModel = (model?: Model): boolean => {
   }
 
   const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortPerplexityModel(model) || modelId.includes('reasoning')
+  return (
+    isSupportedReasoningEffortPerplexityModel(model) ||
+    (modelId.includes('reasoning') && !modelId.includes('non-reasoning'))
+  )
 }
 
 export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean => {
