@@ -1,5 +1,5 @@
 import { Model } from '@types'
-import z from 'zod'
+import * as z from 'zod'
 
 export const ProviderTypeSchema = z.enum([
   'openai',

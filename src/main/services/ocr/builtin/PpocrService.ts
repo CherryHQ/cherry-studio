@@ -1,7 +1,7 @@
 import { loadOcrImage } from '@main/utils/ocr'
 import { ImageFileMetadata, isImageFileMetadata, OcrPpocrConfig, OcrResult, SupportedOcrFile } from '@types'
 import { net } from 'electron'
-import { z } from 'zod'
+import * as z from 'zod'
 
 import { OcrBaseService } from './OcrBaseService'
 

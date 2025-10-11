@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod'
 
 export const freshnessOptions = ['oneDay', 'oneWeek', 'oneMonth', 'oneYear', 'noLimit'] as const
 
