@@ -4641,6 +4641,7 @@
     "later": "稍後",
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
+    "saveDataError": "保存數據失敗，請重試",
     "title": "更新提示"
   },
   "warning": {

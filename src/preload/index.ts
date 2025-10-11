@@ -51,7 +51,7 @@ const api = {
   setProxy: (proxy: string | undefined, bypassRules?: string) =>
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
-  showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
+  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
@@ -223,7 +223,7 @@ const api = {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (base: KnowledgeBaseParams, id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, base, id),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
     add: ({
       base,
       item,

@@ -4641,6 +4641,7 @@
     "later": "Más tarde",
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
     "noReleaseNotes": "Sin notas de la versión",
+    "saveDataError": "Error al guardar los datos, inténtalo de nuevo",
     "title": "Actualización"
   },
   "warning": {

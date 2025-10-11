@@ -360,7 +360,7 @@ export const useKnowledgeBases = () => {
   const deleteKnowledgeBase = (baseId: string) => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
-    dispatch(deleteBase({ baseId, baseParams: getKnowledgeBaseParams(base) }))
+    dispatch(deleteBase({ baseId }))
 
     // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {
