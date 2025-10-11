@@ -163,7 +163,7 @@ export function providerToAiSdkConfig(
       headers: {
         ...COPILOT_DEFAULT_HEADERS,
         ...storedHeaders,
-        ...(actualProvider.extra_headers ?? {})
+        ...actualProvider.extra_headers
       },
       name: actualProvider.id,
       includeUsage: true
@@ -300,7 +300,7 @@ export async function prepareSpecialProviderConfig(
       config.options.apiKey = token
       config.options.headers = {
         ...headers,
-        ...(config.options.headers ?? {})
+        ...config.options.headers
       }
       break
     }
