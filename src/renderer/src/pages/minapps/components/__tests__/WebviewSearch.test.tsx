@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { WebviewKeyEvent } from '@shared/config/types'
 import type { WebviewTag } from 'electron'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,15 +11,6 @@ const translations: Record<string, string> = {
   'common.error': 'Error',
   'common.no_results': 'No results',
   'common.search': 'Search'
-}
-
-type ShortcutPayload = {
-  webviewId: number
-  key: string
-  control: boolean
-  meta: boolean
-  shift: boolean
-  alt: boolean
 }
 
 vi.mock('react-i18next', () => ({
@@ -114,8 +106,8 @@ describe('WebviewSearch', () => {
   }
   let removeFindShortcutListenerMock: ReturnType<typeof vi.fn>
   let onFindShortcutMock: ReturnType<typeof vi.fn>
-  const invokeLatestShortcut = (payload: ShortcutPayload) => {
-    const handler = onFindShortcutMock.mock.calls.at(-1)?.[0] as ((args: ShortcutPayload) => void) | undefined
+  const invokeLatestShortcut = (payload: WebviewKeyEvent) => {
+    const handler = onFindShortcutMock.mock.calls.at(-1)?.[0] as ((args: WebviewKeyEvent) => void) | undefined
     if (!handler) {
       throw new Error('Shortcut handler not registered')
     }

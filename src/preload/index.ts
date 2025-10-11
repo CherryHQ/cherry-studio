@@ -3,7 +3,7 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type { FileChangeEvent } from '@shared/config/types'
+import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
 import {
@@ -391,27 +391,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
     setSpellCheckEnabled: (webviewId: number, isEnable: boolean) =>
       ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable),
-    onFindShortcut: (
-      callback: (payload: {
-        webviewId: number
-        key: string
-        control: boolean
-        meta: boolean
-        shift: boolean
-        alt: boolean
-      }) => void
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        payload: {
-          webviewId: number
-          key: string
-          control: boolean
-          meta: boolean
-          shift: boolean
-          alt: boolean
-        }
-      ) => {
+    onFindShortcut: (callback: (payload: WebviewKeyEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: WebviewKeyEvent) => {
         callback(payload)
       }
       ipcRenderer.on(IpcChannel.Webview_SearchHotkey, listener)

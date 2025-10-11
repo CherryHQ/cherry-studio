@@ -177,7 +177,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       unsubscribe?.()
     }
-  }, [activeWebview, closeSearch, goToNext, goToPrevious, isVisible, openSearch])
+  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, openSearch])
 
   useEffect(() => {
     if (!isVisible) return
