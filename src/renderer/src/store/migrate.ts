@@ -68,6 +68,7 @@ function removeMiniAppIconsFromState(state: RootState) {
 
 function removeMiniAppFromState(state: RootState, id: string) {
   if (state.minapps) {
+    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
     state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
     state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
   }
@@ -2652,6 +2653,19 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 160 error', error as Error)
+      return state
+    }
+  },
+  '161': (state: RootState) => {
+    try {
+      removeMiniAppFromState(state, 'nm-search')
+      removeMiniAppFromState(state, 'hika')
+      removeMiniAppFromState(state, 'hugging-chat')
+      addProvider(state, 'cherryin')
+      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
       return state
     }
   }

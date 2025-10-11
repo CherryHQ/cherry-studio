@@ -121,7 +121,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     const nextWebview = webviewRef.current ?? null
     if (currentWebview === nextWebview) return
     setCurrentWebview(nextWebview)
-  })
+  }, [currentWebview, webviewRef])
 
   useEffect(() => {
     const target = currentWebview

@@ -25,7 +25,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     // Default quick assistant model
     glm45FlashModel
   ],
-  // cherryin: [],
+  cherryin: [],
   vertexai: [],
   '302ai': [
     {

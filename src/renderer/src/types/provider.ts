@@ -106,7 +106,7 @@ export type Provider = {
 }
 
 export const SystemProviderIds = {
-  // cherryin: 'cherryin',
+  cherryin: 'cherryin',
   silicon: 'silicon',
   aihubmix: 'aihubmix',
   ocoolai: 'ocoolai',
