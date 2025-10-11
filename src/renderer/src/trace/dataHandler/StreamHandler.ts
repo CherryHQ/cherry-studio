@@ -41,7 +41,7 @@ export class StreamHandler {
             this.usage.total_tokens += completionChunk.usage.total_tokens || 0
           }
           context = chunk.choices
-            .map((choice) => {
+            ?.map((choice) => {
               if (!choice.delta) {
                 return ''
               } else if ('reasoning_content' in choice.delta) {
