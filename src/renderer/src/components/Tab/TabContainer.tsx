@@ -32,6 +32,7 @@ import {
   Sparkle,
   Sun,
   Terminal,
+  Video,
   X
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -106,6 +107,8 @@ const getTabIcon = (
       return <Settings size={14} />
     case 'code':
       return <Terminal size={14} />
+    case 'video':
+      return <Video size={14} />
     default:
       return null
   }

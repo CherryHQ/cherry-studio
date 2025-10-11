@@ -2,7 +2,7 @@ import App from '@renderer/components/MinApp/MinApp'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle, Video } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -63,6 +63,12 @@ const LaunchpadPage: FC = () => {
       text: t('title.notes'),
       path: '/notes',
       bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
+    },
+    {
+      icon: <Video size={32} className="icon" />,
+      text: t('title.video'),
+      path: '/video',
+      bgColor: 'linear-gradient(135deg, #7C3AED, #A78BFA)' // Video Generation: deep purple, representing creativity and dynamic media
     }
   ]
 

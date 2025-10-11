@@ -4486,7 +4486,8 @@
     "paintings": "Paintings",
     "settings": "Settings",
     "store": "Assistant Library",
-    "translate": "Translate"
+    "translate": "Translate",
+    "video": "Video"
   },
   "trace": {
     "backList": "Back To List",
@@ -4643,6 +4644,9 @@
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
+  },
+  "video": {
+    "title": "Video"
   },
   "warning": {
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."

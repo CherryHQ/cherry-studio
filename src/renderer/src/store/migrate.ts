@@ -2654,6 +2654,19 @@ const migrateConfig = {
       logger.error('migrate 160 error', error as Error)
       return state
     }
+  },
+  '161': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        if (!state.settings.sidebarIcons.visible.includes('video')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'video']
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
+      return state
+    }
   }
 }
 
