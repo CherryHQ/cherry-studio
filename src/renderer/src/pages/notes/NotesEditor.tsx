@@ -25,7 +25,6 @@ interface NotesEditorProps {
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
-    // oxlint-disable-next-line no-unused-vars
     const { settings } = useNotesSettings()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {

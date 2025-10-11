@@ -1,5 +1,5 @@
-import { cacheService } from '@main/data/CacheService'
-import { loggerService } from '@main/services/LoggerService'
+import { cacheService } from '@data/CacheService'
+import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import type { ApiModel, Model, Provider } from '@types'
 

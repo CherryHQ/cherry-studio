@@ -292,7 +292,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
                 <Tooltip placement="top" content={t('chat.input.pause')}>
                   <ActionIconButton
                     onClick={abortAgentSession}
-                    style={{ marginRight: -2 }}
+                    className="-mr-0.5"
                     icon={<CirclePause size={20} color="var(--color-error)" />}
                   />
                 </Tooltip>

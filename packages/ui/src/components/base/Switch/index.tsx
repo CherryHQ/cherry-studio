@@ -10,6 +10,10 @@ interface CustomSwitchProps extends SwitchProps {
  * A customized Switch component based on HeroUI Switch
  * @see https://www.heroui.com/docs/components/switch#api
  * @param isLoading When true, displays a loading spinner in the switch thumb
+ * @param children
+ * @param ref
+ * @param thumbIcon
+ * @param props
  */
 const CustomizedSwitch = ({ isLoading, children, ref, thumbIcon, ...props }: CustomSwitchProps) => {
   const finalThumbIcon = isLoading ? <Spinner size="sm" /> : thumbIcon
@@ -28,8 +32,7 @@ const DescriptionSwitch = ({ children, ...props }: CustomSwitchProps) => {
       classNames={{
         base: cn(
           'inline-flex w-full max-w-md flex-row-reverse items-center hover:bg-content2',
-          'cursor-pointer justify-between gap-2 rounded-lg border-2 border-transparent py-2 pr-1',
-          'data-[selected=true]:border-primary'
+          'cursor-pointer justify-between gap-2 rounded-lg border-2 border-transparent py-2 pr-1'
         ),
         wrapper: 'p-0 h-4 overflow-visible',
         thumb: cn(

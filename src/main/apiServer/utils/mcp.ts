@@ -1,12 +1,11 @@
-import { cacheService } from '@main/data/CacheService'
+import { cacheService } from '@data/CacheService'
+import { loggerService } from "@logger"
 import mcpService from '@main/services/MCPService'
+import { reduxService } from '@main/services/ReduxService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { MCPServer } from '@types'
-
-import { loggerService } from '../../services/LoggerService'
-import { reduxService } from '../../services/ReduxService'
 
 const logger = loggerService.withContext('MCPApiService')
 

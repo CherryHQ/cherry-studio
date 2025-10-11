@@ -105,7 +105,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
         type: 'model',
         name: (
           <ModelName>
-            <RowFlex style={{ alignItems: 'center' }}>{model.name}</RowFlex>
+            <RowFlex className="model-name-content">{model.name}</RowFlex>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
@@ -473,6 +473,11 @@ const ModelName = styled.div`
   margin: 0 8px;
   min-width: 0;
   gap: 5px;
+
+  .model-name-content {
+    display: flex;
+    align-items: center;
+  }
 `
 
 const TagsContainer = styled.div`
