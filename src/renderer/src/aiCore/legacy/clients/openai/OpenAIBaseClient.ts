@@ -166,7 +166,7 @@ export abstract class OpenAIBaseClient<
         baseURL: this.getBaseURL(),
         defaultHeaders: {
           ...this.defaultHeaders(),
-          ...this.provider.extra_headers,
+          ...this.provider.extra_headers
         }
       }) as TSdkInstance
     }
