@@ -1,19 +1,21 @@
+import { Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import type { ActionItem } from '@renderer/types/selectionTypes'
-import { Col, Input, Modal, Radio, Row, Select, Space, Tooltip } from 'antd'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { Col, Input, Modal, Radio, Row, Select, Space } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface SelectionActionUserModalProps {
   isModalOpen: boolean
-  editingAction: ActionItem | null
-  onOk: (data: ActionItem) => void
+  editingAction: SelectionActionItem | null
+  onOk: (data: SelectionActionItem) => void
   onCancel: () => void
 }
 
@@ -27,8 +29,8 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   const { assistants: userPredefinedAssistants } = useAssistants()
   const { defaultAssistant } = useDefaultAssistant()
 
-  const [formData, setFormData] = useState<Partial<ActionItem>>({})
-  const [errors, setErrors] = useState<Partial<Record<keyof ActionItem, string>>>({})
+  const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
+  const [errors, setErrors] = useState<Partial<Record<keyof SelectionActionItem, string>>>({})
 
   useEffect(() => {
     if (isModalOpen) {
@@ -46,7 +48,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
   }, [isModalOpen, editingAction])
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof ActionItem, string>> = {}
+    const newErrors: Partial<Record<keyof SelectionActionItem, string>> = {}
 
     if (!formData.name?.trim()) {
       newErrors.name = t('selection.settings.user_modal.name.hint')
@@ -66,7 +68,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     }
 
     // 构建完整的 ActionItem
-    const actionItem: ActionItem = {
+    const actionItem: SelectionActionItem = {
       id: editingAction?.id || `user-${Date.now()}`,
       name: formData.name || 'USER',
       enabled: editingAction?.enabled || false,
@@ -79,7 +81,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
     onOk(actionItem)
   }
 
-  const handleInputChange = (field: keyof ActionItem, value: string) => {
+  const handleInputChange = (field: keyof SelectionActionItem, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
     if (errors[field]) {
@@ -115,7 +117,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
-                <Tooltip placement="top" title={t('selection.settings.user_modal.icon.tooltip')} arrow>
+                <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
                 <Spacer />
@@ -126,7 +128,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   style={{ fontSize: '12px', color: 'var(--color-primary)' }}>
                   {t('selection.settings.user_modal.icon.view_all')}
                 </a>
-                <Tooltip title={t('selection.settings.user_modal.icon.random')}>
+                <Tooltip content={t('selection.settings.user_modal.icon.random')}>
                   <DiceButton
                     onClick={() => {
                       const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
@@ -162,7 +164,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col flex="auto" style={{ paddingRight: '16px' }}>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
-                <Tooltip placement="top" title={t('selection.settings.user_modal.model.tooltip')} arrow>
+                <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
               </ModalSectionTitle>
@@ -214,7 +216,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
         <ModalSection>
           <ModalSectionTitle>
             <ModalSectionTitleLabel>{t('selection.settings.user_modal.prompt.label')}</ModalSectionTitleLabel>
-            <Tooltip placement="top" title={t('selection.settings.user_modal.prompt.tooltip')} arrow>
+            <Tooltip content={t('selection.settings.user_modal.prompt.tooltip')}>
               <QuestionIcon size={14} />
             </Tooltip>
             <Spacer />

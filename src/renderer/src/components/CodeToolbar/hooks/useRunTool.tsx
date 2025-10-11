@@ -1,4 +1,5 @@
-import { ActionTool, TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { CirclePlay } from 'lucide-react'
 import { useEffect } from 'react'

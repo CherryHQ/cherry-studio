@@ -7,13 +7,15 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { fetchNoteSummary } from '@renderer/services/ApiService'
-import { RootState, useAppSelector } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Dropdown, Input, InputRef, MenuProps } from 'antd'
-import { ItemType, MenuItemType } from 'antd/es/menu/interface'
+import type { InputRef, MenuProps } from 'antd'
+import { Dropdown, Input } from 'antd'
+import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import {
   ChevronDown,
   ChevronRight,
@@ -28,7 +30,8 @@ import {
   StarOff,
   UploadIcon
 } from 'lucide-react'
-import { FC, memo, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC, Ref } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'

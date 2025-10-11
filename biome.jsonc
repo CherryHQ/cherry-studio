@@ -38,6 +38,7 @@
       "!.github/**",
       "!.husky/**",
       "!.vscode/**",
+      "!.claude/**",
       "!*.yaml",
       "!*.yml",
       "!*.mjs",

@@ -3,9 +3,9 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import { AgentEntity } from '@renderer/types'
+import type { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
-import { FC, memo } from 'react'
+import { type FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // const logger = loggerService.withContext('AgentItem')

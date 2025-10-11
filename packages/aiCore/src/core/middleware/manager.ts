@@ -2,7 +2,7 @@
  * 中间件管理器
  * 专注于 AI SDK 中间件的管理，与插件系统分离
  */
-import { LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { LanguageModelV2Middleware } from '@ai-sdk/provider'
 
 /**
  * 创建中间件列表

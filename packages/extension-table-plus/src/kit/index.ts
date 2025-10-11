@@ -1,4 +1,5 @@
-import { Extension, Node } from '@tiptap/core'
+import type { Node } from '@tiptap/core'
+import { Extension } from '@tiptap/core'
 
 import type { TableCellOptions } from '../cell/index.js'
 import { TableCell } from '../cell/index.js'

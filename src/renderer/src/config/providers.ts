@@ -55,16 +55,8 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import {
-  AtLeast,
-  isSystemProvider,
-  Model,
-  OpenAIServiceTiers,
-  Provider,
-  ProviderType,
-  SystemProvider,
-  SystemProviderId
-} from '@renderer/types'
+import type { AtLeast, Model, Provider, ProviderType, SystemProvider, SystemProviderId } from '@renderer/types'
+import { isSystemProvider, OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'

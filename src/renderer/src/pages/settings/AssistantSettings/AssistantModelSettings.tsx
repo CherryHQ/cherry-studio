@@ -1,20 +1,20 @@
-import { QuestionCircleOutlined } from '@ant-design/icons'
+import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
-import { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
+import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -215,42 +215,43 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   return (
     <Container>
-      <HStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 10 }}>
+      <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
-        <HStack alignItems="center" gap={5}>
+        <RowFlex className="items-center gap-[5px]">
           <ModelSelectButton
-            icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
-            onClick={onSelectModel}>
+            startContent={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
+            onPress={onSelectModel}>
             <ModelName>{defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}</ModelName>
           </ModelSelectButton>
           {defaultModel && (
             <Button
               color="danger"
-              variant="filled"
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              onClick={() => {
+              variant="solid"
+              isIconOnly
+              startContent={<DeleteIcon size={14} className="lucide-custom" />}
+              onPress={() => {
                 setDefaultModel(undefined)
                 updateAssistant({ ...assistant, defaultModel: undefined })
               }}
-              danger
             />
           )}
-        </HStack>
-      </HStack>
+        </RowFlex>
+      </RowFlex>
       <Divider style={{ margin: '10px 0' }} />
 
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <Label>
             {t('chat.settings.temperature.label')}
-            <Tooltip title={t('chat.settings.temperature.tip')}>
-              <QuestionIcon />
-            </Tooltip>
+            <HelpTooltip
+              content={t('chat.settings.temperature.tip')}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            />
           </Label>
-        </HStack>
+        </RowFlex>
         <Switch
-          checked={enableTemperature}
-          onChange={(enabled) => {
+          isSelected={enableTemperature}
+          onValueChange={(enabled) => {
             setEnableTemperature(enabled)
             updateAssistantSettings({ enableTemperature: enabled })
           }}
@@ -290,15 +291,16 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
 
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
-          <Tooltip title={t('chat.settings.top_p.tip')}>
-            <QuestionIcon />
-          </Tooltip>
-        </HStack>
+          <HelpTooltip
+            content={t('chat.settings.top_p.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
+        </RowFlex>
         <Switch
-          checked={enableTopP}
-          onChange={(enabled) => {
+          isSelected={enableTopP}
+          onValueChange={(enabled) => {
             setEnableTopP(enabled)
             updateAssistantSettings({ enableTopP: enabled })
           }}
@@ -341,9 +343,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={20}>
           <Label>
             {t('chat.settings.context_count.label')}{' '}
-            <Tooltip title={t('chat.settings.context_count.tip')}>
-              <QuestionIcon />
-            </Tooltip>
+            <HelpTooltip
+              content={t('chat.settings.context_count.tip')}
+              iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+            />
           </Label>
         </Col>
         <Col span={4}>
@@ -379,15 +382,16 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
-            <QuestionIcon />
-          </Tooltip>
-        </HStack>
+          <HelpTooltip
+            content={t('chat.settings.max_tokens.tip')}
+            iconProps={{ className: 'cursor-pointer text-[var(--color-text-3)]' }}
+          />
+        </RowFlex>
         <Switch
-          checked={enableMaxTokens}
-          onChange={async (enabled) => {
+          isSelected={enableMaxTokens}
+          onValueChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),
@@ -429,8 +433,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.stream_output')}</Label>
         <Switch
-          checked={streamOutput}
-          onChange={(checked) => {
+          isSelected={streamOutput}
+          onValueChange={(checked) => {
             setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
           }}
@@ -455,7 +459,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.custom_parameters')}</Label>
-        <Button icon={<PlusIcon size={18} />} onClick={onAddCustomParameter}>
+        <Button startContent={<PlusIcon size={18} />} onPress={onAddCustomParameter}>
           {t('models.add_parameter')}
         </Button>
       </SettingRow>
@@ -482,20 +486,22 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Col span={10}>{renderParameterValueInput(param, index)}</Col>
           <Col span={2} style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button
+              size="sm"
               color="danger"
-              variant="filled"
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              onClick={() => onDeleteCustomParameter(index)}
+              variant="solid"
+              isIconOnly
+              startContent={<DeleteIcon size={14} className="lucide-custom" />}
+              onPress={() => onDeleteCustomParameter(index)}
             />
           </Col>
         </Row>
       ))}
       <Divider style={{ margin: '15px 0' }} />
-      <HStack justifyContent="flex-end">
-        <Button onClick={onReset} danger type="primary" icon={<ResetIcon size={16} />}>
+      <RowFlex className="justify-end">
+        <Button onPress={onReset} color="danger" variant="solid" startContent={<ResetIcon size={16} />}>
           {t('chat.settings.reset')}
         </Button>
-      </HStack>
+      </RowFlex>
     </Container>
   )
 }
@@ -514,12 +520,6 @@ const Label = styled.p`
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-`
-
-const QuestionIcon = styled(QuestionCircleOutlined)`
-  font-size: 12px;
-  cursor: pointer;
-  color: var(--color-text-3);
 `
 
 const ModelSelectButton = styled(Button)`

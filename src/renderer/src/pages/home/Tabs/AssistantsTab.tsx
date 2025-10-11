@@ -1,6 +1,7 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { Assistant } from '@renderer/types'
-import { FC, useRef } from 'react'
+import type { Assistant } from '@renderer/types'
+import type { FC } from 'react'
+import { useRef } from 'react'
 import styled from 'styled-components'
 
 import { AgentSection } from './components/AgentSection'

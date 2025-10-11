@@ -1,7 +1,7 @@
 import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import { initializeNewProviders } from './providerInitialization'

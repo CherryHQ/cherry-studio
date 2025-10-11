@@ -1,6 +1,7 @@
 // just import the themeService to ensure the theme is initialized
 import './ThemeService'
 
+import { preferenceService } from '@data/PreferenceService'
 import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
@@ -94,7 +95,7 @@ export class WindowService {
     this.setupMainWindow(this.mainWindow, mainWindowState)
 
     //preload miniWindow to resolve series of issues about miniWindow in Mac
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
     if (enableQuickAssistant && !this.miniWindow) {
       this.miniWindow = this.createMiniWindow(true)
     }
@@ -149,7 +150,7 @@ export class WindowService {
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
     if (isMaximized) {
       // 如果是从托盘启动，则需要延迟最大化，否则显示的就不是重启前的最大化窗口了
-      configManager.getLaunchToTray()
+      preferenceService.get('app.tray.on_launch')
         ? mainWindow.once('show', () => {
             mainWindow.maximize()
           })
@@ -177,7 +178,7 @@ export class WindowService {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
 
       // show window only when laucn to tray not set
-      const isLaunchToTray = configManager.getLaunchToTray()
+      const isLaunchToTray = preferenceService.get('app.tray.on_launch')
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
         app.dock?.show()
@@ -351,8 +352,8 @@ export class WindowService {
       }
 
       // 托盘及关闭行为设置
-      const isShowTray = configManager.getTray()
-      const isTrayOnClose = configManager.getTrayOnClose()
+      const isShowTray = preferenceService.get('app.tray.enabled')
+      const isTrayOnClose = preferenceService.get('app.tray.on_close')
 
       // 没有开启托盘，或者开启了托盘，但设置了直接关闭，应执行直接退出
       if (!isShowTray || (isShowTray && !isTrayOnClose)) {
@@ -453,7 +454,7 @@ export class WindowService {
     if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.isVisible()) {
       if (this.mainWindow.isFocused()) {
         // if tray is enabled, hide the main window, else do nothing
-        if (configManager.getTray()) {
+        if (preferenceService.get('app.tray.on_close')) {
           this.mainWindow.hide()
           app.dock?.hide()
         }
@@ -556,7 +557,7 @@ export class WindowService {
   }
 
   public showMiniWindow() {
-    const enableQuickAssistant = configManager.getEnableQuickAssistant()
+    const enableQuickAssistant = preferenceService.get('feature.quick_assistant.enabled')
 
     if (!enableQuickAssistant) {
       return

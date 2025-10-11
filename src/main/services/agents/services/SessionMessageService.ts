@@ -5,12 +5,12 @@ import type {
   GetAgentSessionResponse,
   ListOptions
 } from '@types'
-import { TextStreamPart } from 'ai'
+import type { TextStreamPart } from 'ai'
 import { and, desc, eq, not } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
-import { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
+import type { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')

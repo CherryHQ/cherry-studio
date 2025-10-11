@@ -1,13 +1,15 @@
+import { usePreference } from '@data/hooks/usePreference'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
-import { Tab } from '@renderer/types/chat'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Tab } from '@renderer/types/chat'
 import { classNames, uuid } from '@renderer/utils'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -37,7 +39,7 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   const { addAssistant } = useAssistants()
-  const { topicPosition } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
   const { defaultAssistant } = useDefaultAssistant()
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()

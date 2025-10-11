@@ -1,6 +1,6 @@
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { UpdateSessionForm } from '@renderer/types'
+import type { UpdateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

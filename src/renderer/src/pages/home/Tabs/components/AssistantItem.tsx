@@ -1,19 +1,21 @@
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import { Dropdown, MenuProps } from 'antd'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
 import { omit } from 'lodash'
 import {
   AlignJustify,
@@ -28,7 +30,8 @@ import {
   Tag,
   Tags
 } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -38,14 +41,14 @@ import AssistantTagsPopup from './AssistantTagsPopup'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
-  sortBy: AssistantsSortType
+  sortBy: AssistantTabSortType
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
-  handleSortByChange?: (sortType: AssistantsSortType) => void
+  handleSortByChange?: (sortType: AssistantTabSortType) => void
 }
 
 const AssistantItem: FC<AssistantItemProps> = ({
@@ -58,10 +61,13 @@ const AssistantItem: FC<AssistantItemProps> = ({
   copyAssistant,
   handleSortByChange
 }) => {
+  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
+  const [topicPosition] = usePreference('topic.position')
+
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 

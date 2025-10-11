@@ -1,5 +1,6 @@
 import { Menu } from 'antd'
-import React, { FC, useCallback, useEffect, useMemo, useRef } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface ActionMenuItem {

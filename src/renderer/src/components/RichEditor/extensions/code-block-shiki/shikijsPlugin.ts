@@ -5,7 +5,8 @@ let cachedHighlighter: HighlighterGeneric<any, any> | null = null
 import { getHighlighter, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import { findChildren } from '@tiptap/core'
 import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey, PluginView } from '@tiptap/pm/state'
+import type { PluginView } from '@tiptap/pm/state'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 const logger = loggerService.withContext('RichEditor:CodeBlockShiki')

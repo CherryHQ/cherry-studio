@@ -1,12 +1,12 @@
+import { ColFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Flex } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,7 +67,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
       window.modal.confirm({
         title: t('knowledge.migrate.confirm.title'),
         content: (
-          <Flex vertical align="self-start">
+          <ColFlex className="items-start">
             <span>{t('knowledge.migrate.confirm.content')}</span>
             <span>{t('knowledge.embedding_model')}:</span>
             <span style={{ paddingLeft: '1em' }}>{`${t('knowledge.migrate.source_model')}: ${base.model.name}`}</span>
@@ -80,7 +80,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
               style={{
                 paddingLeft: '1em'
               }}>{`${t('knowledge.migrate.target_dimensions')}: ${newBase.dimensions}`}</span>
-          </Flex>
+          </ColFlex>
         ),
         okText: t('knowledge.migrate.confirm.ok'),
         centered: true,

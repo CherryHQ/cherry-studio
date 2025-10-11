@@ -1,4 +1,4 @@
-import { ImageModelV2 } from '@ai-sdk/provider'
+import type { ImageModelV2 } from '@ai-sdk/provider'
 import { experimental_generateImage as aiGenerateImage, NoImageGeneratedError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

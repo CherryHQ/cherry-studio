@@ -1,9 +1,9 @@
 import { Avatar } from '@heroui/react'
 import { getAgentTypeAvatar } from '@renderer/config/agent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { GetAgentResponse } from '@renderer/types'
-import { FC } from 'react'
+import type { GetAgentResponse } from '@renderer/types'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AccessibleDirsSetting } from './AccessibleDirsSetting'

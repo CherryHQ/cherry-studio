@@ -1,24 +1,26 @@
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { Alert } from '@heroui/react'
 import { loggerService } from '@logger'
-import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
-import { HStack } from '@renderer/components/Layout'
+import type { ContentSearchRef } from '@renderer/components/ContentSearch'
+import { ContentSearch } from '@renderer/components/ContentSearch'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useCallback, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -43,14 +45,16 @@ interface Props {
 const Chat: FC<Props> = (props) => {
   const { assistant, updateTopic } = useAssistant(props.assistant.id)
   const { t } = useTranslation()
-  const { topicPosition, messageStyle, messageNavigation } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
+  const [messageStyle] = usePreference('chat.message.style')
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  const [apiServerEnabled] = usePreference('feature.csaas.enabled')
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const { isTopNavbar } = useNavbarPosition()
   const chatMaxWidth = useChatMaxWidth()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId, activeSessionId } = chat
-  const { apiServer } = useSettings()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -151,7 +155,7 @@ const Chat: FC<Props> = (props) => {
     if (!sessionId) {
       return () => <div> Active Session ID is invalid.</div>
     }
-    if (!apiServer.enabled) {
+    if (!apiServerEnabled) {
       return () => (
         <div>
           <Alert color="warning" title={t('agent.warning.enable_server')} />
@@ -159,7 +163,7 @@ const Chat: FC<Props> = (props) => {
       )
     }
     return () => <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
-  }, [activeAgentId, activeSessionId, apiServer.enabled, t])
+  }, [activeAgentId, activeSessionId, apiServerEnabled, t])
 
   const SessionInputBar = useMemo(() => {
     if (activeAgentId === null) {
@@ -204,13 +208,11 @@ const Chat: FC<Props> = (props) => {
           position="left"
         />
       )}
-      <HStack>
+      <RowFlex>
         <Main
           ref={mainRef}
           id="chat-main"
-          vertical
-          flex={1}
-          justify="space-between"
+          className="flex-1 justify-between"
           style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
           <QuickPanelProvider>
             {activeTopicOrSession === 'topic' && (
@@ -265,13 +267,14 @@ const Chat: FC<Props> = (props) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </HStack>
+      </RowFlex>
     </Container>
   )
 }
 
 export const useChatMaxWidth = () => {
-  const { showTopics, topicPosition } = useSettings()
+  const [showTopics] = usePreference('topic.tab.show')
+  const [topicPosition] = usePreference('topic.position')
   const { isLeftNavbar } = useNavbarPosition()
   const { showAssistants } = useShowAssistants()
   const showRightTopics = showTopics && topicPosition === 'right'
@@ -295,7 +298,7 @@ const Container = styled.div`
   }
 `
 
-const Main = styled(Flex)`
+const Main = styled(ColFlex)`
   [navbar-position='left'] & {
     height: calc(100vh - var(--navbar-height));
   }

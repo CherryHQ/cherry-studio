@@ -9,6 +9,40 @@ vi.mock('@logger', async () => {
   }
 })
 
+// Mock PreferenceService globally for main tests
+vi.mock('@main/data/PreferenceService', async () => {
+  const { MockMainPreferenceServiceExport } = await import('./__mocks__/main/PreferenceService')
+  return MockMainPreferenceServiceExport
+})
+
+// Mock DataApiService globally for main tests
+vi.mock('@main/data/DataApiService', async () => {
+  const { MockMainDataApiServiceExport } = await import('./__mocks__/main/DataApiService')
+  return MockMainDataApiServiceExport
+})
+
+// Mock CacheService globally for main tests
+vi.mock('@main/data/CacheService', async () => {
+  const { MockMainCacheServiceExport } = await import('./__mocks__/main/CacheService')
+  return MockMainCacheServiceExport
+})
+
+// Mock DbService globally for main tests (if exists)
+vi.mock('@main/data/db/DbService', async () => {
+  try {
+    const { MockDbService } = await import('./__mocks__/DbService')
+    return MockDbService
+  } catch {
+    // Return basic mock if DbService mock doesn't exist yet
+    return {
+      dbService: {
+        initialize: vi.fn(),
+        getDb: vi.fn()
+      }
+    }
+  }
+})
+
 // Mock electron modules that are commonly used in main process
 vi.mock('electron', () => ({
   app: {

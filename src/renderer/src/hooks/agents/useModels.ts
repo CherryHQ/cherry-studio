@@ -1,4 +1,4 @@
-import { ApiModel, ApiModelsFilter } from '@renderer/types'
+import type { ApiModel, ApiModelsFilter } from '@renderer/types'
 import { merge } from 'lodash'
 import { useCallback } from 'react'
 import useSWR from 'swr'

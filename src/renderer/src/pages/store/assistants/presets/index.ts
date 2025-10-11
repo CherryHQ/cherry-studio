@@ -1,11 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
-import { AssistantPreset } from '@renderer/types'
+import type { AssistantPreset } from '@renderer/types'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 const logger = loggerService.withContext('useSystemAgents')
 
 let _agents: AssistantPreset[] = []
@@ -29,7 +28,7 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 export function useSystemAssistantPresets() {
   const { defaultAgent: defaultPreset } = useSettings()
   const [presets, setPresets] = useState<AssistantPreset[]>([])
-  const { resourcesPath } = useRuntime()
+  const resourcesPath = cacheService.get('resourcesPath') ?? ''
   const { agentssubscribeUrl } = store.getState().settings
   const { i18n } = useTranslation()
   const currentLanguage = i18n.language

@@ -1,13 +1,14 @@
 import '@renderer/databases'
 
-import { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import { useMemo } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 
 import Sidebar from './components/app/Sidebar'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
-import { useNavbarPosition } from './hooks/useSettings'
+import { useNavbarPosition } from './hooks/useNavbar'
 import CodeToolsPage from './pages/code/CodeToolsPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'

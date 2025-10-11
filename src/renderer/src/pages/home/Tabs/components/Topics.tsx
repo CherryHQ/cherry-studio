@@ -1,3 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -6,17 +9,14 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import store from '@renderer/store'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
@@ -28,8 +28,9 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
-import { ItemType, MenuItemType } from 'antd/es/menu/interface'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
+import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
@@ -51,7 +52,6 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
-
 interface Props {
   assistant: Assistant
   activeTopic: Topic
@@ -64,7 +64,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
-  const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
+
+  const [showTopicTime] = usePreference('topic.tab.show_time')
+  const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
+  const [topicPosition, setTopicPosition] = usePreference('topic.position')
+
+  const [, setGenerating] = useCache('chat.generating')
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
@@ -126,11 +131,14 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
   }, [])
 
-  const onClearMessages = useCallback((topic: Topic) => {
-    // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-    store.dispatch(setGenerating(false))
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-  }, [])
+  const onClearMessages = useCallback(
+    (topic: Topic) => {
+      // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
+      setGenerating(false)
+      EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    },
+    [setGenerating]
+  )
 
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
@@ -552,9 +560,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
-                    title={
+                    delay={700}
+                    closeDelay={0}
+                    content={
                       <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
                         {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
                       </div>

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProviderResponse } from '@renderer/types'
 
 const logger = loggerService.withContext('BlacklistMatchPattern')
 

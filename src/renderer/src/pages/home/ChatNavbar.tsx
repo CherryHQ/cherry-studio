@@ -1,27 +1,27 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { modelGenerating } from '@renderer/hooks/useModel'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { setNarrowMode } from '@renderer/store/settings'
-import { ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
+import type { ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, ReactNode, useCallback } from 'react'
+import type { FC, ReactNode } from 'react'
+import React, { useCallback } from 'react'
 import styled from 'styled-components'
 
 import { AgentSettingsPopup } from '../settings/AgentSettings'
@@ -40,11 +40,13 @@ interface Props {
 }
 
 const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+  const [topicPosition] = usePreference('topic.position')
+  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
+
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { topicPosition, narrowMode } = useSettings()
+
   const { showTopics, toggleShowTopics } = useShowTopics()
-  const dispatch = useAppDispatch()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
   const sessionId = activeAgentId ? (chat.activeSessionId[activeAgentId] ?? null) : null
@@ -67,7 +69,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
-    dispatch(setNarrowMode(!narrowMode))
+    setNarrowMode(!narrowMode)
   }
 
   const onShowAssistantsDrawer = () => {
@@ -91,14 +93,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     <NavbarHeader className="home-navbar">
       <div className="flex min-w-0 flex-1 shrink items-center overflow-auto">
         {showAssistants && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showAssistants && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -150,33 +152,33 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </HorizontalScrollContainer>
         )}
       </div>
-      <HStack alignItems="center" gap={8}>
+      <RowFlex className="items-center gap-2">
         <UpdateAppButton />
-        <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+        <Tooltip placement="bottom" content={t('navbar.expand')} delay={800}>
           <NarrowIcon onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NarrowIcon>
         </Tooltip>
-        <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+        <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')} delay={800}>
           <NavbarIcon onClick={() => SearchPopup.show()}>
             <Search size={18} />
           </NavbarIcon>
         </Tooltip>
         {topicPosition === 'right' && !showTopics && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={2000}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {topicPosition === 'right' && showTopics && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={2000}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-      </HStack>
+      </RowFlex>
     </NavbarHeader>
   )
 }

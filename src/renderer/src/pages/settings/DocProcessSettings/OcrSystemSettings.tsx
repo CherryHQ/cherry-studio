@@ -1,11 +1,13 @@
 // import { loggerService } from '@logger'
+import { Flex } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { BuiltinOcrProviderIds, isOcrSystemProvider, TranslateLanguageCode } from '@renderer/types'
-import { Flex, Select } from 'antd'
+import type { TranslateLanguageCode } from '@renderer/types'
+import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
+import { Select } from 'antd'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,9 +55,9 @@ export const OcrSystemSettings = () => {
     <>
       <SettingRow>
         <SettingRowTitle>
-          <Flex align="center" gap={4}>
+          <Flex className="items-center gap-1">
             {t('settings.tool.ocr.common.langs')}
-            {isWin && <InfoTooltip title={t('settings.tool.ocr.system.win.langs_tooltip')} />}
+            {isWin && <InfoTooltip content={t('settings.tool.ocr.system.win.langs_tooltip')} />}
           </Flex>
         </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px' }}>

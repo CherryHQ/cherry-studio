@@ -10,7 +10,7 @@ import {
   setActiveTopicOrSessionAction,
   setSessionWaitingAction
 } from '@renderer/store/runtime'
-import { CreateSessionForm } from '@renderer/types'
+import type { CreateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus } from 'lucide-react'

@@ -48,7 +48,7 @@ const DEFAULT_LEVEL = isDev ? LEVEL.SILLY : LEVEL.INFO
  *   English: `docs/technical/how-to-use-logger-en.md`
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
-class LoggerService {
+export class LoggerService {
   private static instance: LoggerService
   private logger: winston.Logger
 

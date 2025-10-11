@@ -239,7 +239,7 @@ export interface ToolbarProps {
 
 // Command System Types for Slash Commands
 import type { Editor } from '@tiptap/core'
-import { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 export enum CommandCategory {
   TEXT = 'text',

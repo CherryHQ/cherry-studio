@@ -1,4 +1,4 @@
-import { ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
+import type { ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

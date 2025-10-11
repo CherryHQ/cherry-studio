@@ -1,16 +1,20 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { configManager } from '@main/services/ConfigManager'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent } from '@main/utils/systemInfo'
-import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
+import { FeedUrl } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
+import type { UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
-import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import type { AppUpdater as _AppUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
@@ -30,8 +34,8 @@ export default class AppUpdater {
   constructor() {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = configManager.getAutoUpdate()
-    autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.autoDownload = preferenceService.get('app.dist.auto_update.enabled')
+    autoUpdater.autoInstallOnAppQuit = preferenceService.get('app.dist.auto_update.enabled')
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       'User-Agent': generateUserAgent(),
@@ -145,7 +149,7 @@ export default class AppUpdater {
 
   private _getTestChannel() {
     const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = configManager.getTestChannel()
+    const savedChannel = preferenceService.get('app.dist.test_plan.channel')
 
     if (currentChannel === UpgradeChannel.LATEST) {
       return savedChannel || UpgradeChannel.RC
@@ -170,7 +174,7 @@ export default class AppUpdater {
   }
 
   private async _setFeedUrl() {
-    const testPlan = configManager.getTestPlan()
+    const testPlan = preferenceService.get('app.dist.test_plan.enabled')
     if (testPlan) {
       const channel = this._getTestChannel()
 
@@ -265,7 +269,7 @@ export default class AppUpdater {
    */
   private parseMultiLangReleaseNotes(releaseNotes: string): string {
     try {
-      const language = configManager.getLanguage()
+      const language = preferenceService.get('app.language')
       const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
 
       // Create regex patterns using constants

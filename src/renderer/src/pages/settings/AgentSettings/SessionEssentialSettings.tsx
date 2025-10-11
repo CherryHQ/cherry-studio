@@ -1,6 +1,6 @@
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { GetAgentSessionResponse } from '@renderer/types'
-import { FC } from 'react'
+import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import type { GetAgentSessionResponse } from '@renderer/types'
+import type { FC } from 'react'
 
 import { AccessibleDirsSetting } from './AccessibleDirsSetting'
 import { DescriptionSetting } from './DescriptionSetting'

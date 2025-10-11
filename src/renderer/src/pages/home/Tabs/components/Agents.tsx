@@ -6,7 +6,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
 import { Plus } from 'lucide-react'
-import { FC, useCallback, useEffect } from 'react'
+import { type FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentItem from './AgentItem'

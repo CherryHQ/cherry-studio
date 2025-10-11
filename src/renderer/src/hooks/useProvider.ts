@@ -11,7 +11,8 @@ import {
   updateProvider,
   updateProviders
 } from '@renderer/store/llm'
-import { Assistant, isSystemProvider, Model, Provider } from '@renderer/types'
+import type { Assistant, Model, Provider } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
 
 import { useDefaultModel } from './useAssistant'
 

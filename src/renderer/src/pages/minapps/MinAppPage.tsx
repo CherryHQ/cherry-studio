@@ -1,13 +1,14 @@
+import { Avatar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import TabsService from '@renderer/services/TabsService'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { Avatar } from 'antd'
-import { WebviewTag } from 'electron'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { WebviewTag } from 'electron'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
@@ -188,7 +189,7 @@ const MinAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />
       {!isReady && (
         <LoadingMask>
-          <Avatar src={app.logo} size={60} style={{ border: '1px solid var(--color-border)' }} />
+          <Avatar src={app.logo} className="h-[60px] w-[60px] border border-border" />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </LoadingMask>
       )}

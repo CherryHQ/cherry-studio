@@ -1,14 +1,15 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { Button } from '@heroui/react'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Tooltip } from 'antd'
+import type { Assistant } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import { Plus } from 'lucide-react'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { type FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -48,7 +49,7 @@ const Assistants: FC<AssistantsProps> = ({
   )
 
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
+    (sortType: AssistantTabSortType) => {
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]

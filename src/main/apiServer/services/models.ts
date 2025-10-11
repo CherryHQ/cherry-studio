@@ -1,4 +1,4 @@
-import { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
+import type { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
 import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
 

@@ -5,7 +5,7 @@
 
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
-import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
@@ -19,7 +19,7 @@ import {
 } from '@renderer/config/models'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { CherryWebSearchConfig } from '@renderer/store/websearch'
+import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'

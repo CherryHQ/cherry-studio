@@ -1,11 +1,13 @@
 import { loggerService } from '@logger'
-import { MCPTool } from '@renderer/types'
-import { ChunkType, MCPToolCreatedChunk, TextDeltaChunk } from '@renderer/types/chunk'
+import type { MCPTool } from '@renderer/types'
+import type { MCPToolCreatedChunk, TextDeltaChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { parseToolUse } from '@renderer/utils/mcp-tools'
-import { TagConfig, TagExtractor } from '@renderer/utils/tagExtraction'
+import type { TagConfig } from '@renderer/utils/tagExtraction'
+import { TagExtractor } from '@renderer/utils/tagExtraction'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'ToolUseExtractionMiddleware'
 
