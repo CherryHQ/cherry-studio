@@ -549,6 +549,7 @@ export const WebSearchProviderIds = {
   searxng: 'searxng',
   exa: 'exa',
   bocha: 'bocha',
+  ollama: 'ollama',
   'local-google': 'local-google',
   'local-bing': 'local-bing',
   'local-baidu': 'local-baidu'

@@ -7,6 +7,7 @@ import ExaProvider from './ExaProvider'
 import LocalBaiduProvider from './LocalBaiduProvider'
 import LocalBingProvider from './LocalBingProvider'
 import LocalGoogleProvider from './LocalGoogleProvider'
+import OllamaProvider from './OllamaProvider'
 import SearxngProvider from './SearxngProvider'
 import TavilyProvider from './TavilyProvider'
 import ZhipuProvider from './ZhipuProvider'
@@ -24,6 +25,8 @@ export default class WebSearchProviderFactory {
         return new SearxngProvider(provider)
       case 'exa':
         return new ExaProvider(provider)
+      case 'ollama':
+        return new OllamaProvider(provider)
       case 'local-google':
         return new LocalGoogleProvider(provider)
       case 'local-baidu':

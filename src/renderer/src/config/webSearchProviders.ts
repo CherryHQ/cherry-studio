@@ -37,6 +37,12 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
       apiKey: 'https://open.bochaai.com/overview'
     }
   },
+  ollama: {
+    websites: {
+      official: 'https://ollama.com',
+      apiKey: 'https://ollama.com/settings/keys'
+    }
+  },
   'local-google': {
     websites: {
       official: 'https://www.google.com'
@@ -84,6 +90,12 @@ export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
     id: 'bocha',
     name: 'Bocha',
     apiHost: 'https://api.bochaai.com',
+    apiKey: ''
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama Cloud',
+    apiHost: 'https://ollama.com/api',
     apiKey: ''
   },
   {
