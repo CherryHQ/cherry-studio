@@ -1,5 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import { loggerService } from "@logger"
+import { loggerService } from '@logger'
 import mcpService from '@main/services/MCPService'
 import { reduxService } from '@main/services/ReduxService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'

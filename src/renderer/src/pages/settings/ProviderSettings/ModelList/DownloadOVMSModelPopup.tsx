@@ -1,13 +1,12 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { useTimer } from '@renderer/hooks/useTimer'
 import type { Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
 import { AutoComplete, Form, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useTimer } from '../../../../hooks/useTimer'
 
 const logger = loggerService.withContext('OVMSClient')
 
@@ -234,7 +233,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="left"
         colon={false}
-        style={{ marginTop: 25 }}
+        className="mt-[25px]"
         onFinish={onFinish}
         disabled={false}>
         <Form.Item
@@ -300,7 +299,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           />
         </Form.Item>
         {loading && (
-          <Form.Item style={{ marginBottom: 16 }}>
+          <Form.Item className="mb-4">
             <Progress
               percent={Math.round(progress)}
               status={progress === 100 ? 'success' : 'active'}
@@ -311,13 +310,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               showInfo={true}
               format={(percent) => `${percent}%`}
             />
-            <div style={{ textAlign: 'center', marginTop: 8, color: '#666', fontSize: '14px' }}>
-              {t('ovms.download.tip')}
-            </div>
+            <div className="mt-2 text-center text-[#666] text-sm">{t('ovms.download.tip')}</div>
           </Form.Item>
         )}
-        <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <RowFlex style={{ justifyContent: 'flex-end', alignItems: 'center', position: 'relative' }}>
+        <Form.Item className="mb-2 text-center">
+          <RowFlex className="relative items-center justify-end">
             <Button
               color="primary"
               variant="solid"

@@ -82,14 +82,12 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
                 onChange={setInstructions}
                 height="100%"
                 expanded={false}
-                style={{
-                  height: '100%'
-                }}
+                className="h-full"
               />
             )}
           </RichEditorContainer>
         </TextAreaContainer>
-        <SpaceBetweenRowFlex style={{ width: '100%', marginTop: '10px' }}>
+        <SpaceBetweenRowFlex className="mt-2.5 w-full">
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
             variant="solid"
