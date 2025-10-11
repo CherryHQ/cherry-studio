@@ -1,4 +1,4 @@
-import { Alert, Button, Spinner } from '@heroui/react'
+import { Alert, Spinner } from '@heroui/react'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
@@ -13,10 +13,10 @@ import {
 import { CreateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus } from 'lucide-react'
 import { memo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import AddButton from './AddButton'
 import SessionItem from './SessionItem'
 
 // const logger = loggerService.withContext('SessionsTab')
@@ -115,12 +115,9 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       transition={{ duration: 0.3 }}
       className="sessions-tab flex h-full w-full flex-col p-2">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <Button
-          onPress={handleCreateSession}
-          className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
-          <Plus size={16} className="mr-1 shrink-0" />
+        <AddButton onPress={handleCreateSession} className="mb-2">
           {t('agent.session.add.title')}
-        </Button>
+        </AddButton>
       </motion.div>
       <AnimatePresence>
         {/* h-9 */}
