@@ -21,10 +21,7 @@ jobs:
       || (
         (github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment')
         && github.event.sender.type != 'Bot'
-        && (
-          github.event.pull_request == null
-          || github.event.pull_request.head.repo.fork == false
-        )
+        && github.event.pull_request.head.repo.fork == false
       )
     runs-on: ubuntu-latest
     permissions:
