@@ -14230,7 +14230,6 @@ __metadata:
     "@ai-sdk/amazon-bedrock": "npm:^3.0.29"
     "@ai-sdk/google-vertex": "npm:^3.0.33"
     "@ai-sdk/mistral": "npm:^2.0.17"
-    "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/perplexity": "npm:^2.0.11"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.1#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.1-d937b73fed.patch"
