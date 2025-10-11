@@ -1,5 +1,5 @@
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
-import CodeEditor from '@renderer/components/CodeEditor'
+import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
@@ -20,11 +20,12 @@ interface NotesEditorProps {
   currentContent: string
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
+  codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
+  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const { settings } = useNotesSettings()
@@ -59,6 +60,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
+                ref={codeEditorRef}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}

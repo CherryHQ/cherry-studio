@@ -1951,6 +1951,14 @@
     "rename": "Rename",
     "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",
+    "search": {
+      "both": "Name+Content",
+      "content": "Content",
+      "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
+      "more_matches": "more matches",
+      "searching": "Searching...",
+      "show_less": "Show less"
+    },
     "settings": {
       "data": {
         "apply": "Apply",
