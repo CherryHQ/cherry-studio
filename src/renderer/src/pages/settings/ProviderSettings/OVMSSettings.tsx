@@ -36,7 +36,9 @@ const OVMSSettings: FC = () => {
         '102': t('ovms.failed.install_code_102'),
         '103': t('ovms.failed.install_code_103'),
         '104': t('ovms.failed.install_code_104'),
-        '105': t('ovms.failed.install_code_105')
+        '105': t('ovms.failed.install_code_105'),
+        '106': t('ovms.failed.install_code_106'),
+        '110': t('ovms.failed.install_code_110')
       }
       const match = error.message.match(/code (\d+)/)
       const code = match ? match[1] : 'unknown'
@@ -135,7 +137,7 @@ const OVMSSettings: FC = () => {
                     type="primary"
                     onClick={runOvms}
                     loading={isRunningOvms}
-                    disabled={isRunningOvms}
+                    disabled={isRunningOvms || isInstallingOvms}
                     size="small">
                     {isRunningOvms ? t('ovms.action.starting') : t('ovms.action.run')}
                   </Button>

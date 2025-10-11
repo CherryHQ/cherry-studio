@@ -2096,8 +2096,10 @@
       "install_code_101": "僅支援 Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "僅支援 Windows",
       "install_code_103": "下載 OVMS runtime 失敗",
-      "install_code_104": "解壓 OVMS runtime 失敗",
-      "install_code_105": "清理 OVMS runtime 失敗",
+      "install_code_104": "安裝 OVMS runtime 失敗",
+      "install_code_105": "創建 ovdnd.exe 失敗",
+      "install_code_106": "創建 run.bat 失敗",
+      "install_code_110": "清理舊 OVMS runtime 失敗",
       "run": "執行 OVMS 失敗:",
       "stop": "停止 OVMS 失敗:"
     },
