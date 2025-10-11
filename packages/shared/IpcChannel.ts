@@ -53,6 +53,7 @@ export enum IpcChannel {
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
+  Webview_SearchHotkey = 'webview:search-hotkey',
 
   // Open
   Open_Path = 'open:path',

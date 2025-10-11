@@ -1,4 +1,6 @@
-import { session, shell, webContents } from 'electron'
+import { app, session, shell, webContents } from 'electron'
+
+import { IpcChannel } from '@shared/IpcChannel'
 
 /**
  * init the useragent of the webview session
@@ -36,3 +38,49 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
     }
   })
 }
+
+app.on('web-contents-created', (_, contents) => {
+  if (contents.getType?.() !== 'webview') {
+    return
+  }
+
+  const handleBeforeInput = (event: Electron.Event, input: Electron.Input) => {
+    if (!input) {
+      return
+    }
+
+    const key = input.key?.toLowerCase()
+    if (!key) {
+      return
+    }
+
+    const isFindShortcut = (input.control || input.meta) && key === 'f'
+    const isEscape = key === 'escape'
+    const isEnter = key === 'enter'
+
+    if (!isFindShortcut && !isEscape && !isEnter) {
+      return
+    }
+
+    event.preventDefault()
+
+    const host = contents.hostWebContents
+    if (!host || host.isDestroyed()) {
+      return
+    }
+
+    host.send(IpcChannel.Webview_SearchHotkey, {
+      webviewId: contents.id,
+      key,
+      control: Boolean(input.control),
+      meta: Boolean(input.meta),
+      shift: Boolean(input.shift),
+      alt: Boolean(input.alt)
+    })
+  }
+
+  contents.on('before-input-event', handleBeforeInput)
+  contents.once('destroyed', () => {
+    contents.removeListener('before-input-event', handleBeforeInput)
+  })
+})
