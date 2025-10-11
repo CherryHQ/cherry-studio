@@ -74,9 +74,7 @@ describe('Copilot responses routing', () => {
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
     expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_EDITOR_VERSION)
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(
-      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
-    )
+    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
     expect(config.options.headers?.['copilot-vision-request']).toBe('true')
   })
 
@@ -86,8 +84,6 @@ describe('Copilot responses routing', () => {
 
     expect(config.providerId).toBe('github-copilot-openai-compatible')
     expect(config.options.headers?.['Editor-Version']).toBe(COPILOT_DEFAULT_HEADERS['Editor-Version'])
-    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(
-      COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id']
-    )
+    expect(config.options.headers?.['Copilot-Integration-Id']).toBe(COPILOT_DEFAULT_HEADERS['Copilot-Integration-Id'])
   })
 })

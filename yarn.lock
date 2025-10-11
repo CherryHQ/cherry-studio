@@ -203,18 +203,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:2.0.46":
-  version: 2.0.46
-  resolution: "@ai-sdk/openai@npm:2.0.46"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.11"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/45974d2c1666afa7ee5762acd935250b36e9dc78f43864c880b2c343880099f1f24b1b19b804d131928e6807b95da012ceb407a9dc1432df04dc1db454e15370
-  languageName: node
-  linkType: hard
-
 "@ai-sdk/openai@npm:^2.0.42":
   version: 2.0.47
   resolution: "@ai-sdk/openai@npm:2.0.47"
@@ -2416,6 +2404,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.22"
     "@ai-sdk/azure": "npm:^2.0.42"
     "@ai-sdk/deepseek": "npm:^1.0.20"
+    "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.10"
@@ -14241,7 +14230,7 @@ __metadata:
     "@ai-sdk/amazon-bedrock": "npm:^3.0.29"
     "@ai-sdk/google-vertex": "npm:^3.0.33"
     "@ai-sdk/mistral": "npm:^2.0.17"
-    "@ai-sdk/openai": "npm:2.0.46"
+    "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/perplexity": "npm:^2.0.11"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.1#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.1-d937b73fed.patch"
