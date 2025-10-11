@@ -14,7 +14,7 @@ import { GEMINI_FLASH_MODEL_REGEX } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4)(?:-[\w-]+)?\b.*)$/i
+  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -24,6 +24,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
+  grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
   qwen: ['low', 'medium', 'high'] as const,
@@ -43,6 +44,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
+  grok4_fast: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
@@ -66,6 +68,8 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
     }
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
+  } else if (isGrok4FastReasoningModel(model)) {
+    thinkingModelType = 'grok4_fast'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
       thinkingModelType = 'gemini'
@@ -142,11 +146,35 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
+  const providerId = model.provider.toLowerCase()
   if (modelId.includes('grok-3-mini')) {
     return true
   }
 
+  if (providerId === 'openrouter' && modelId.includes('grok-4-fast')) {
+    return true
+  }
+
   return false
+}
+
+/**
+ * Checks if the model is Grok 4 Fast reasoning version
+ * Explicitly excludes non-reasoning variants (models with 'non-reasoning' in their ID)
+ *
+ * Note: XAI official uses different model IDs for reasoning vs non-reasoning
+ * Third-party providers like OpenRouter expose a single ID with reasoning parameters, while first-party providers require separate IDs. Only the OpenRouter variant supports toggling.
+ *
+ * @param model - The model to check
+ * @returns true if the model is a reasoning-enabled Grok 4 Fast model
+ */
+export function isGrok4FastReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning')
 }
 
 export function isGrokReasoningModel(model?: Model): boolean {
@@ -154,7 +182,10 @@ export function isGrokReasoningModel(model?: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  if (isSupportedReasoningEffortGrokModel(model) || modelId.includes('grok-4')) {
+  if (
+    isSupportedReasoningEffortGrokModel(model) ||
+    (modelId.includes('grok-4') && !modelId.includes('non-reasoning'))
+  ) {
     return true
   }
 
@@ -265,7 +296,11 @@ export function isQwenAlwaysThinkModel(model?: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  return modelId.startsWith('qwen3') && modelId.includes('thinking')
+  // 包括 qwen3 开头的 thinking 模型和 qwen3-vl 的 thinking 模型
+  return (
+    (modelId.startsWith('qwen3') && modelId.includes('thinking')) ||
+    (modelId.includes('qwen3-vl') && modelId.includes('thinking'))
+  )
 }
 
 // Doubao 支持思考模式的模型正则
@@ -329,7 +364,10 @@ export const isPerplexityReasoningModel = (model?: Model): boolean => {
   }
 
   const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortPerplexityModel(model) || modelId.includes('reasoning')
+  return (
+    isSupportedReasoningEffortPerplexityModel(model) ||
+    (modelId.includes('reasoning') && !modelId.includes('non-reasoning'))
+  )
 }
 
 export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean => {
@@ -443,6 +481,8 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   // qwen-plus-x 系列自 qwen-plus-2025-07-28 后模型最长思维链变为 81_920, qwen-plus 模型于 2025.9.16 同步变更
   'qwen3-235b-a22b-thinking-2507$': { min: 0, max: 81_920 },
   'qwen3-30b-a3b-thinking-2507$': { min: 0, max: 81_920 },
+  'qwen3-vl-235b-a22b-thinking$': { min: 0, max: 81_920 },
+  'qwen3-vl-30b-a3b-thinking$': { min: 0, max: 81_920 },
   'qwen-plus-2025-07-14$': { min: 0, max: 38_912 },
   'qwen-plus-2025-04-28$': { min: 0, max: 38_912 },
   'qwen3-1\\.7b$': { min: 0, max: 30_720 },
