@@ -1,11 +1,60 @@
 import 'katex/dist/katex.min.css'
 
+import { combineReducers, configureStore } from '@reduxjs/toolkit'
+import settingsReducer, { SettingsState } from '@renderer/store/settings'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { render, screen } from '@testing-library/react'
+import { render, RenderOptions, RenderResult, screen } from '@testing-library/react'
+import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Markdown from '../Markdown'
+
+interface TestRootState {
+  settings: SettingsState
+}
+
+const makeTestStore = (preloadedState?: Partial<TestRootState>) =>
+  configureStore({
+    reducer: combineReducers({
+      settings: settingsReducer
+    }),
+    preloadedState: preloadedState
+  })
+
+type TestAppStore = ReturnType<typeof makeTestStore>
+
+interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
+  initialState?: Partial<TestRootState>
+  store?: TestAppStore
+}
+
+// Custom render function with Redux Provider
+function customRender(
+  ui: React.ReactElement,
+  options: CustomRenderOptions = {}
+): RenderResult & { store: TestAppStore } {
+  const { initialState, store = options.store || makeTestStore(initialState), ...renderOptions } = options
+
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return <Provider store={store}>{children}</Provider>
+  }
+  return {
+    ...render(ui, { wrapper: Wrapper, ...renderOptions }),
+    store
+  }
+}
+
+// Test data helpers
+const createMainTextBlock = (overrides: Partial<MainTextMessageBlock> = {}): MainTextMessageBlock => ({
+  id: 'test-block-1',
+  messageId: 'test-message-1',
+  type: MessageBlockType.MAIN_TEXT,
+  status: MessageBlockStatus.SUCCESS,
+  createdAt: new Date().toISOString(),
+  content: '# Test Markdown\n\nThis is **bold** text.',
+  ...overrides
+})
 
 // Mock dependencies
 const mockUseSettings = vi.fn()
@@ -30,7 +79,8 @@ vi.mock('@renderer/services/EventService', () => ({
     EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK'
   },
   EventEmitter: {
-    emit: vi.fn()
+    emit: vi.fn(),
+    on: vi.fn()
   }
 }))
 
@@ -42,7 +92,8 @@ vi.mock('@renderer/utils', () => ({
     } catch {
       return {}
     }
-  })
+  }),
+  uuid: vi.fn(() => 'mock-uuid')
 }))
 
 vi.mock('@renderer/utils/formats', () => ({
@@ -165,21 +216,10 @@ describe('Markdown', () => {
     vi.restoreAllMocks()
   })
 
-  // Test data helpers
-  const createMainTextBlock = (overrides: Partial<MainTextMessageBlock> = {}): MainTextMessageBlock => ({
-    id: 'test-block-1',
-    messageId: 'test-message-1',
-    type: MessageBlockType.MAIN_TEXT,
-    status: MessageBlockStatus.SUCCESS,
-    createdAt: new Date().toISOString(),
-    content: '# Test Markdown\n\nThis is **bold** text.',
-    ...overrides
-  })
-
   describe('rendering', () => {
     it('should render markdown content with correct structure', () => {
       const block = createMainTextBlock({ content: 'Test content' })
-      const { container } = render(<Markdown block={block} />)
+      const { container } = customRender(<Markdown block={block} />)
 
       // Check that the outer container has the markdown class
       const markdownContainer = container.querySelector('.markdown')
@@ -194,7 +234,7 @@ describe('Markdown', () => {
     it('should handle empty content gracefully', () => {
       const block = createMainTextBlock({ content: '' })
 
-      expect(() => render(<Markdown block={block} />)).not.toThrow()
+      expect(() => customRender(<Markdown block={block} />)).not.toThrow()
 
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toBeInTheDocument()
@@ -205,7 +245,7 @@ describe('Markdown', () => {
         content: '',
         status: MessageBlockStatus.PAUSED
       })
-      render(<Markdown block={block} />)
+      customRender(<Markdown block={block} />)
 
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toHaveTextContent('Paused')
@@ -216,7 +256,7 @@ describe('Markdown', () => {
         content: 'Real content',
         status: MessageBlockStatus.PAUSED
       })
-      render(<Markdown block={block} />)
+      customRender(<Markdown block={block} />)
 
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toHaveTextContent('Real content')
@@ -224,7 +264,7 @@ describe('Markdown', () => {
     })
 
     it('should match snapshot', () => {
-      const { container } = render(<Markdown block={createMainTextBlock()} />)
+      const { container } = customRender(<Markdown block={createMainTextBlock()} />)
       expect(container.firstChild).toMatchSnapshot()
     })
   })
@@ -266,7 +306,7 @@ describe('Markdown', () => {
 
     testCases.forEach(({ name, block, expectedContent }) => {
       it(`should handle ${name} correctly`, () => {
-        render(<Markdown block={block} />)
+        customRender(<Markdown block={block} />)
 
         const markdown = screen.getByTestId('markdown-content')
         expect(markdown).toBeInTheDocument()
@@ -279,7 +319,7 @@ describe('Markdown', () => {
     it('should configure KaTeX when mathEngine is KaTeX', () => {
       mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
 
-      render(<Markdown block={createMainTextBlock()} />)
+      customRender(<Markdown block={createMainTextBlock()} />)
 
       // Component should render successfully with KaTeX configuration
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
@@ -288,7 +328,7 @@ describe('Markdown', () => {
     it('should configure MathJax when mathEngine is MathJax', () => {
       mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
 
-      render(<Markdown block={createMainTextBlock()} />)
+      customRender(<Markdown block={createMainTextBlock()} />)
 
       // Component should render successfully with MathJax configuration
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
@@ -297,7 +337,7 @@ describe('Markdown', () => {
     it('should not load math plugins when mathEngine is none', () => {
       mockUseSettings.mockReturnValue({ mathEngine: 'none', mathEnableSingleDollar: true })
 
-      render(<Markdown block={createMainTextBlock()} />)
+      customRender(<Markdown block={createMainTextBlock()} />)
 
       // Component should render successfully without math plugins
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
@@ -306,19 +346,19 @@ describe('Markdown', () => {
 
   describe('custom components', () => {
     it('should integrate Link component for citations', () => {
-      render(<Markdown block={createMainTextBlock()} />)
+      customRender(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('has-link-component')).toBeInTheDocument()
     })
 
     it('should integrate CodeBlock component', () => {
-      render(<Markdown block={createMainTextBlock()} />)
+      customRender(<Markdown block={createMainTextBlock()} />)
       expect(screen.getByTestId('has-code-component')).toBeInTheDocument()
     })
 
     it('should integrate Table component with copy functionality', () => {
       const block = createMainTextBlock({ id: 'test-block-456' })
-      render(<Markdown block={block} />)
+      customRender(<Markdown block={block} />)
 
       expect(screen.getByTestId('has-table-component')).toBeInTheDocument()
 
@@ -327,14 +367,14 @@ describe('Markdown', () => {
     })
 
     it('should integrate ImageViewer component', () => {
-      render(<Markdown block={createMainTextBlock()} />)
+      customRender(<Markdown block={createMainTextBlock()} />)
 
       expect(screen.getByTestId('has-img-component')).toBeInTheDocument()
     })
 
     it('should handle style tags with Shadow DOM', () => {
       const block = createMainTextBlock({ content: '<style>body { color: red; }</style>' })
-      render(<Markdown block={block} />)
+      customRender(<Markdown block={block} />)
 
       expect(screen.getByTestId('has-style-component')).toBeInTheDocument()
     })
@@ -346,7 +386,7 @@ describe('Markdown', () => {
         content: '# Header\n<div>HTML content</div>\n**Bold text**'
       })
 
-      expect(() => render(<Markdown block={block} />)).not.toThrow()
+      expect(() => customRender(<Markdown block={block} />)).not.toThrow()
 
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toBeInTheDocument()
@@ -360,7 +400,7 @@ describe('Markdown', () => {
         content: '<unclosed-tag>content\n# Invalid markdown **unclosed'
       })
 
-      expect(() => render(<Markdown block={block} />)).not.toThrow()
+      expect(() => customRender(<Markdown block={block} />)).not.toThrow()
 
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toBeInTheDocument()
@@ -369,23 +409,31 @@ describe('Markdown', () => {
 
   describe('component behavior', () => {
     it('should re-render when content changes', () => {
-      const { rerender } = render(<Markdown block={createMainTextBlock({ content: 'Initial' })} />)
+      const { rerender, store } = customRender(<Markdown block={createMainTextBlock({ content: 'Initial' })} />)
 
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Initial')
 
-      rerender(<Markdown block={createMainTextBlock({ content: 'Updated' })} />)
+      rerender(
+        <Provider store={store}>
+          <Markdown block={createMainTextBlock({ content: 'Updated' })} />
+        </Provider>
+      )
 
       expect(screen.getByTestId('markdown-content')).toHaveTextContent('Updated')
     })
 
     it('should re-render when math engine changes', () => {
       mockUseSettings.mockReturnValue({ mathEngine: 'KaTeX', mathEnableSingleDollar: true })
-      const { rerender } = render(<Markdown block={createMainTextBlock()} />)
+      const { rerender, store } = customRender(<Markdown block={createMainTextBlock({ content: 'Initial' })} />)
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
 
       mockUseSettings.mockReturnValue({ mathEngine: 'MathJax', mathEnableSingleDollar: true })
-      rerender(<Markdown block={createMainTextBlock()} />)
+      rerender(
+        <Provider store={store}>
+          <Markdown block={createMainTextBlock({ content: 'Updated' })} />
+        </Provider>
+      )
 
       // Should still render correctly with new math engine
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
