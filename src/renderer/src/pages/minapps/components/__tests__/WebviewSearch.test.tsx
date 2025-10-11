@@ -1,3 +1,4 @@
+import type { WebviewKeyEvent } from '@shared/config/types'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { WebviewTag } from 'electron'
@@ -36,6 +37,7 @@ const createWebviewMock = () => {
         listeners.get(type)?.delete(listener)
       }
     ),
+    getWebContentsId: vi.fn(() => 1),
     findInPage: findInPageMock as unknown as WebviewTag['findInPage'],
     stopFindInPage: stopFindInPageMock as unknown as WebviewTag['stopFindInPage']
   } as unknown as WebviewTag
@@ -102,13 +104,34 @@ describe('WebviewSearch', () => {
     info: vi.fn(),
     addToast: vi.fn()
   }
+  let removeFindShortcutListenerMock: ReturnType<typeof vi.fn>
+  let onFindShortcutMock: ReturnType<typeof vi.fn>
+  const invokeLatestShortcut = (payload: WebviewKeyEvent) => {
+    const handler = onFindShortcutMock.mock.calls.at(-1)?.[0] as ((args: WebviewKeyEvent) => void) | undefined
+    if (!handler) {
+      throw new Error('Shortcut handler not registered')
+    }
+    act(() => {
+      handler(payload)
+    })
+  }
 
   beforeEach(() => {
+    removeFindShortcutListenerMock = vi.fn()
+    onFindShortcutMock = vi.fn(() => removeFindShortcutListenerMock)
+    Object.assign(window as any, {
+      api: {
+        webview: {
+          onFindShortcut: onFindShortcutMock
+        }
+      }
+    })
     Object.assign(window, { toast: toastMock })
   })
 
   afterEach(() => {
     vi.clearAllMocks()
+    Reflect.deleteProperty(window, 'api')
   })
 
   it('opens the search overlay with keyboard shortcut', async () => {
@@ -122,6 +145,47 @@ describe('WebviewSearch', () => {
     await openSearchOverlay()
 
     expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
+  })
+
+  it('opens the search overlay when webview shortcut is forwarded', async () => {
+    const { webview } = createWebviewMock()
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+
+    await waitFor(() => {
+      expect(onFindShortcutMock).toHaveBeenCalled()
+    })
+
+    invokeLatestShortcut({ webviewId: 1, key: 'f', control: true, meta: false, shift: false, alt: false })
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
+    })
+  })
+
+  it('closes the search overlay when escape is forwarded from the webview', async () => {
+    const { webview } = createWebviewMock()
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+
+    await waitFor(() => {
+      expect(onFindShortcutMock).toHaveBeenCalled()
+    })
+    invokeLatestShortcut({ webviewId: 1, key: 'f', control: true, meta: false, shift: false, alt: false })
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(onFindShortcutMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    })
+
+    invokeLatestShortcut({ webviewId: 1, key: 'escape', control: false, meta: false, shift: false, alt: false })
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('Search')).not.toBeInTheDocument()
+    })
   })
 
   it('performs searches and navigates between results', async () => {
@@ -162,6 +226,45 @@ describe('WebviewSearch', () => {
     await user.click(previousButton)
     await waitFor(() => {
       expect(findInPageMock).toHaveBeenLastCalledWith('Cherry', { forward: false, findNext: true })
+    })
+  })
+
+  it('navigates results when enter is forwarded from the webview', async () => {
+    const { findInPageMock, webview } = createWebviewMock()
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+    const user = userEvent.setup()
+
+    render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+
+    await waitFor(() => {
+      expect(onFindShortcutMock).toHaveBeenCalled()
+    })
+    invokeLatestShortcut({ webviewId: 1, key: 'f', control: true, meta: false, shift: false, alt: false })
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
+    })
+
+    await waitFor(() => {
+      expect(onFindShortcutMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    })
+
+    const input = screen.getByRole('textbox')
+    await user.type(input, 'Cherry')
+
+    await waitFor(() => {
+      expect(findInPageMock).toHaveBeenCalledWith('Cherry', undefined)
+    })
+    findInPageMock.mockClear()
+
+    invokeLatestShortcut({ webviewId: 1, key: 'enter', control: false, meta: false, shift: false, alt: false })
+    await waitFor(() => {
+      expect(findInPageMock).toHaveBeenCalledWith('Cherry', { forward: true, findNext: true })
+    })
+
+    findInPageMock.mockClear()
+    invokeLatestShortcut({ webviewId: 1, key: 'enter', control: false, meta: false, shift: true, alt: false })
+    await waitFor(() => {
+      expect(findInPageMock).toHaveBeenCalledWith('Cherry', { forward: false, findNext: true })
     })
   })
 
@@ -219,6 +322,7 @@ describe('WebviewSearch', () => {
     unmount()
 
     expect(stopFindInPageMock).toHaveBeenCalledWith('clearSelection')
+    expect(removeFindShortcutListenerMock).toHaveBeenCalled()
   })
 
   it('ignores keyboard shortcut when webview is not ready', async () => {

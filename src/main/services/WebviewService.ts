@@ -1,4 +1,5 @@
-import { session, shell, webContents } from 'electron'
+import { IpcChannel } from '@shared/IpcChannel'
+import { app, session, shell, webContents } from 'electron'
 
 /**
  * init the useragent of the webview session
@@ -34,5 +35,63 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
     } else {
       return { action: 'allow' }
     }
+  })
+}
+
+const attachKeyboardHandler = (contents: Electron.WebContents) => {
+  if (contents.getType?.() !== 'webview') {
+    return
+  }
+
+  const handleBeforeInput = (event: Electron.Event, input: Electron.Input) => {
+    if (!input) {
+      return
+    }
+
+    const key = input.key?.toLowerCase()
+    if (!key) {
+      return
+    }
+
+    const isFindShortcut = (input.control || input.meta) && key === 'f'
+    const isEscape = key === 'escape'
+    const isEnter = key === 'enter'
+
+    if (!isFindShortcut && !isEscape && !isEnter) {
+      return
+    }
+    // Prevent default to override the guest page's native find dialog
+    // and keep shortcuts routed to our custom search overlay
+    event.preventDefault()
+
+    const host = contents.hostWebContents
+    if (!host || host.isDestroyed()) {
+      return
+    }
+
+    host.send(IpcChannel.Webview_SearchHotkey, {
+      webviewId: contents.id,
+      key,
+      control: Boolean(input.control),
+      meta: Boolean(input.meta),
+      shift: Boolean(input.shift),
+      alt: Boolean(input.alt)
+    })
+  }
+
+  contents.on('before-input-event', handleBeforeInput)
+  contents.once('destroyed', () => {
+    contents.removeListener('before-input-event', handleBeforeInput)
+  })
+}
+
+export function initWebviewHotkeys() {
+  webContents.getAllWebContents().forEach((contents) => {
+    if (contents.isDestroyed()) return
+    attachKeyboardHandler(contents)
+  })
+
+  app.on('web-contents-created', (_, contents) => {
+    attachKeyboardHandler(contents)
   })
 }
