@@ -1,6 +1,5 @@
-import { app, session, shell, webContents } from 'electron'
-
 import { IpcChannel } from '@shared/IpcChannel'
+import { app, session, shell, webContents } from 'electron'
 
 /**
  * init the useragent of the webview session
