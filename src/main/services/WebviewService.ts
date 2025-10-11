@@ -38,7 +38,7 @@ export function setOpenLinkExternal(webviewId: number, isExternal: boolean) {
   })
 }
 
-app.on('web-contents-created', (_, contents) => {
+const attachKeyboardHandler = (contents: Electron.WebContents) => {
   if (contents.getType?.() !== 'webview') {
     return
   }
@@ -60,7 +60,8 @@ app.on('web-contents-created', (_, contents) => {
     if (!isFindShortcut && !isEscape && !isEnter) {
       return
     }
-
+    // Prevent default to override the guest page's native find dialog
+    // and keep shortcuts routed to our custom search overlay
     event.preventDefault()
 
     const host = contents.hostWebContents
@@ -82,4 +83,15 @@ app.on('web-contents-created', (_, contents) => {
   contents.once('destroyed', () => {
     contents.removeListener('before-input-event', handleBeforeInput)
   })
-})
+}
+
+export function initWebviewHotkeys() {
+  webContents.getAllWebContents().forEach((contents) => {
+    if (contents.isDestroyed()) return
+    attachKeyboardHandler(contents)
+  })
+
+  app.on('web-contents-created', (_, contents) => {
+    attachKeyboardHandler(contents)
+  })
+}

@@ -145,7 +145,10 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     if (!onFindShortcut) return
 
     const webContentsId = activeWebview.getWebContentsId?.()
-    if (!webContentsId) return
+    if (!webContentsId) {
+      logger.warn('WebviewSearch: missing webContentsId', { appId })
+      return
+    }
 
     const unsubscribe = onFindShortcut(({ webviewId, key, control, meta, shift }) => {
       if (webviewId !== webContentsId) return
