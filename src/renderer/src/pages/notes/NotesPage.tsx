@@ -1,9 +1,11 @@
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   addDir,
   addNote,
@@ -51,6 +53,7 @@ const logger = loggerService.withContext('NotesPage')
 
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
+  const codeEditorRef = useRef<CodeEditorHandles>(null)
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const dispatch = useAppDispatch()
@@ -76,6 +79,7 @@ const NotesPage: FC = () => {
   const lastFilePathRef = useRef<string | undefined>(undefined)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
+  const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
@@ -365,6 +369,32 @@ const NotesPage: FC = () => {
       editor.setMarkdown(currentContent)
     }
   }, [currentContent, activeFilePath])
+
+  // Execute pending scroll after file switch
+  useEffect(() => {
+    if (!pendingScrollRef.current || !currentContent) return
+
+    const { lineNumber, lineContent } = pendingScrollRef.current
+    pendingScrollRef.current = null
+
+    // Wait for DOM to update before scrolling
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const codeEditor = codeEditorRef.current
+        const richEditor = editorRef.current
+
+        try {
+          if (codeEditor?.scrollToLine) {
+            codeEditor.scrollToLine(lineNumber, { highlight: true })
+          } else if (richEditor?.scrollToLine) {
+            richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
+          }
+        } catch (error) {
+          logger.error('Failed to execute pending scroll:', error as Error)
+        }
+      })
+    })
+  }, [activeFilePath, currentContent])
 
   // 切换文件时的清理工作
   useEffect(() => {
@@ -751,6 +781,53 @@ const NotesPage: FC = () => {
     }
   }, [currentContent, settings.defaultEditMode])
 
+  // Listen for external requests to locate a specific line in a note
+  useEffect(() => {
+    const handleLocateNoteLine = ({
+      noteId,
+      lineNumber,
+      lineContent
+    }: {
+      noteId: string
+      lineNumber: number
+      lineContent?: string
+    }) => {
+      const targetNode = findNode(notesTree, noteId)
+
+      if (!targetNode || targetNode.type !== 'file') {
+        logger.warn('Target note not found or not a file', { noteId })
+        return
+      }
+
+      const needsSwitchFile = targetNode.externalPath !== activeFilePath
+
+      if (needsSwitchFile) {
+        // switch to target note first then scroll to line
+        pendingScrollRef.current = { lineNumber, lineContent }
+        dispatch(setActiveFilePath(targetNode.externalPath))
+        invalidateFileContent(targetNode.externalPath)
+      } else {
+        const richEditor = editorRef.current
+        const codeEditor = codeEditorRef.current
+
+        try {
+          if (codeEditor?.scrollToLine) {
+            codeEditor.scrollToLine(lineNumber, { highlight: true })
+          } else if (richEditor?.scrollToLine) {
+            richEditor.scrollToLine(lineNumber, { highlight: true, lineContent })
+          }
+        } catch (error) {
+          logger.error('Failed to scroll to line:', error as Error)
+        }
+      }
+    }
+
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.LOCATE_NOTE_LINE, handleLocateNoteLine)
+    return () => {
+      unsubscribe()
+    }
+  }, [activeNode?.id, activeFilePath, notesTree, dispatch, invalidateFileContent])
+
   return (
     <Container id="notes-page">
       <Navbar>
@@ -796,6 +873,7 @@ const NotesPage: FC = () => {
             tokenCount={tokenCount}
             onMarkdownChange={handleMarkdownChange}
             editorRef={editorRef}
+            codeEditorRef={codeEditorRef}
           />
         </EditorWrapper>
       </ContentContainer>

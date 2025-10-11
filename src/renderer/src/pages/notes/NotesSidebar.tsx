@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import HighlightText from '@renderer/components/HighlightText'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -7,6 +8,8 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { fetchNoteSummary } from '@renderer/services/ApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { SearchMatch, SearchResult } from '@renderer/services/NotesSearchService'
 import { RootState, useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -23,15 +26,19 @@ import {
   FileSearch,
   Folder,
   FolderOpen,
+  Loader2,
   Sparkles,
   Star,
   StarOff,
-  UploadIcon
+  UploadIcon,
+  X
 } from 'lucide-react'
 import { FC, memo, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
+
+import { useFullTextSearch } from './hooks/useFullTextSearch'
 
 interface NotesSidebarProps {
   onCreateFolder: (name: string, parentId?: string) => void
@@ -51,7 +58,7 @@ interface NotesSidebarProps {
 const logger = loggerService.withContext('NotesSidebar')
 
 interface TreeNodeProps {
-  node: NotesTreeNode
+  node: NotesTreeNode | SearchResult
   depth: number
   selectedFolderId?: string | null
   activeNodeId?: string
@@ -71,6 +78,8 @@ interface TreeNodeProps {
   onDrop: (e: React.DragEvent, node: NotesTreeNode) => void
   onDragEnd: () => void
   renderChildren?: boolean // 控制是否渲染子节点
+  searchKeyword?: string // 搜索关键词,用于高亮
+  showMatches?: boolean // 是否显示匹配预览
 }
 
 const TreeNode = memo<TreeNodeProps>(
@@ -94,9 +103,29 @@ const TreeNode = memo<TreeNodeProps>(
     onDragLeave,
     onDrop,
     onDragEnd,
-    renderChildren = true
+    renderChildren = true,
+    searchKeyword = '',
+    showMatches = false
   }) => {
     const { t } = useTranslation()
+    const [showAllMatches, setShowAllMatches] = useState(false)
+
+    // 检查是否是搜索结果
+    const searchResult = 'matchType' in node ? (node as SearchResult) : null
+    const hasMatches = searchResult && searchResult.matches && searchResult.matches.length > 0
+
+    // 处理匹配项点击
+    const handleMatchClick = useCallback(
+      (match: SearchMatch) => {
+        // 发送定位事件
+        EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
+          noteId: node.id,
+          lineNumber: match.lineNumber,
+          lineContent: match.lineContent
+        })
+      },
+      [node]
+    )
 
     const isActive = selectedFolderId
       ? node.type === 'folder' && node.id === selectedFolderId
@@ -174,12 +203,54 @@ const TreeNode = memo<TreeNodeProps>(
                     size="small"
                   />
                 ) : (
-                  <NodeName className={getNodeNameClassName()}>{node.name}</NodeName>
+                  <NodeNameContainer>
+                    <NodeName className={getNodeNameClassName()}>
+                      {searchKeyword ? <HighlightText text={node.name} keyword={searchKeyword} /> : node.name}
+                    </NodeName>
+                    {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
+                      <MatchBadge matchType={searchResult.matchType}>
+                        {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
+                      </MatchBadge>
+                    )}
+                  </NodeNameContainer>
                 )}
               </TreeNodeContent>
             </TreeNodeContainer>
           </div>
         </Dropdown>
+
+        {showMatches && hasMatches && (
+          <SearchMatchesContainer depth={depth}>
+            {(showAllMatches ? searchResult!.matches! : searchResult!.matches!.slice(0, 3)).map((match, idx) => (
+              <MatchItem key={idx} onClick={() => handleMatchClick(match)}>
+                <MatchLineNumber>{match.lineNumber}</MatchLineNumber>
+                <MatchContext>
+                  <HighlightText text={match.context} keyword={searchKeyword} />
+                </MatchContext>
+              </MatchItem>
+            ))}
+            {searchResult!.matches!.length > 3 && (
+              <MoreMatches
+                depth={depth}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowAllMatches(!showAllMatches)
+                }}>
+                {showAllMatches ? (
+                  <>
+                    <ChevronDown size={12} style={{ marginRight: 4 }} />
+                    {t('notes.search.show_less')}
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight size={12} style={{ marginRight: 4 }} />+{searchResult!.matches!.length - 3}{' '}
+                    {t('notes.search.more_matches')}
+                  </>
+                )}
+              </MoreMatches>
+            )}
+          </SearchMatchesContainer>
+        )}
 
         {renderChildren && node.type === 'folder' && node.expanded && hasChildren && (
           <div>
@@ -246,6 +317,22 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const scrollbarRef = useRef<any>(null)
+  const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
+
+  // 全文搜索配置
+  const searchOptions = useMemo(
+    () => ({
+      debounceMs: 300,
+      maxResults: 100,
+      contextLength: 50,
+      caseSensitive: false,
+      maxFileSize: 10 * 1024 * 1024, // 10MB
+      enabled: isShowSearch
+    }),
+    [isShowSearch]
+  )
+
+  const { search, cancel, isSearching, results: searchResults, stats: searchStats } = useFullTextSearch(searchOptions)
 
   const inPlaceEdit = useInPlaceEdit({
     onSave: (newName: string) => {
@@ -503,6 +590,18 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     setIsShowSearch(!isShowSearch)
   }, [isShowSearch])
 
+  // 同步 notesTree 到 ref
+  useEffect(() => {
+    notesTreeRef.current = notesTree
+  }, [notesTree])
+
+  // 触发全文搜索
+  useEffect(() => {
+    if (isShowSearch && searchKeyword && searchKeyword.trim().length >= 2) {
+      search(notesTreeRef.current, searchKeyword.trim())
+    }
+  }, [isShowSearch, searchKeyword, search])
+
   // Flatten tree nodes for virtualization and filtering
   const flattenedNodes = useMemo(() => {
     const flattenForVirtualization = (
@@ -526,11 +625,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       let result: NotesTreeNode[] = []
 
       for (const node of nodes) {
-        if (isShowSearch && searchKeyword) {
-          if (node.type === 'file' && node.name.toLowerCase().includes(searchKeyword.toLowerCase())) {
-            result.push(node)
-          }
-        } else if (isShowStarred) {
+        if (isShowStarred) {
           if (node.type === 'file' && node.isStarred) {
             result.push(node)
           }
@@ -542,7 +637,14 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       return result
     }
 
-    if (isShowStarred || isShowSearch) {
+    if (isShowSearch) {
+      if (searchKeyword) {
+        return searchResults.map((result) => ({ node: result, depth: 0 }))
+      }
+      return [] // 搜索关键词为空
+    }
+
+    if (isShowStarred) {
       // For filtered views, return flat list without virtualization for simplicity
       const filteredNodes = flattenForFiltering(notesTree)
       return filteredNodes.map((node) => ({ node, depth: 0 }))
@@ -550,7 +652,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
     // For normal tree view, use hierarchical flattening for virtualization
     return flattenForVirtualization(notesTree)
-  }, [notesTree, isShowStarred, isShowSearch, searchKeyword])
+  }, [notesTree, isShowStarred, isShowSearch, searchKeyword, searchResults])
 
   // Use virtualization only for normal tree view with many items
   const shouldUseVirtualization = !isShowStarred && !isShowSearch && flattenedNodes.length > 100
@@ -811,6 +913,26 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       />
 
       <NotesTreeContainer>
+        {isShowSearch && isSearching && (
+          <SearchStatusBar>
+            <Loader2 size={14} className="animate-spin" />
+            <span>{t('notes.search.searching')}</span>
+            <CancelButton onClick={cancel} title={t('common.cancel')}>
+              <X size={14} />
+            </CancelButton>
+          </SearchStatusBar>
+        )}
+        {isShowSearch && !isSearching && searchKeyword && searchKeyword.trim().length >= 2 && searchStats.total > 0 && (
+          <SearchStatusBar>
+            <span>
+              {t('notes.search.found_results', {
+                count: searchStats.total,
+                nameCount: searchStats.fileNameMatches,
+                contentCount: searchStats.contentMatches + searchStats.bothMatches
+              })}
+            </span>
+          </SearchStatusBar>
+        )}
         {shouldUseVirtualization ? (
           <VirtualizedTreeContainer ref={parentRef}>
             <div
@@ -900,6 +1022,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       onDragEnd={handleDragEnd}
+                      searchKeyword={isShowSearch ? searchKeyword : ''}
+                      showMatches={isShowSearch}
                     />
                   ))
                 : notesTree.map((node) => (
@@ -1177,6 +1301,150 @@ const DropHintText = styled.div`
   color: var(--color-text-3);
   font-size: 12px;
   font-style: italic;
+`
+
+// 搜索相关样式
+const SearchStatusBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-background-soft);
+  border-bottom: 0.5px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-2);
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`
+
+const CancelButton = styled.button`
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-3);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: var(--color-background-mute);
+    color: var(--color-text);
+  }
+
+  &:active {
+    background-color: var(--color-active);
+  }
+`
+
+const NodeNameContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+`
+
+const MatchBadge = styled.span<{ matchType: string }>`
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 2px;
+  background-color: ${(props) =>
+    props.matchType === 'both' ? 'var(--color-primary-soft)' : 'var(--color-background-mute)'};
+  color: ${(props) => (props.matchType === 'both' ? 'var(--color-primary)' : 'var(--color-text-3)')};
+  font-weight: 500;
+  flex-shrink: 0;
+`
+
+const SearchMatchesContainer = styled.div<{ depth: number }>`
+  margin-left: ${(props) => props.depth * 16 + 40}px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background-color: var(--color-background-mute);
+  border-radius: 4px;
+  border-left: 2px solid var(--color-primary-soft);
+`
+
+const MatchItem = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+    transform: translateX(2px);
+  }
+
+  &:active {
+    background-color: var(--color-active);
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`
+
+const MatchLineNumber = styled.span`
+  color: var(--color-text-3);
+  font-family: monospace;
+  flex-shrink: 0;
+  width: 30px;
+`
+
+const MatchContext = styled.div`
+  color: var(--color-text-2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+`
+
+const MoreMatches = styled.div<{ depth: number }>`
+  margin-top: 4px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  font-size: 11px;
+  color: var(--color-text-3);
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--color-text-2);
+    background-color: var(--color-background-soft);
+  }
 `
 
 export default memo(NotesSidebar)

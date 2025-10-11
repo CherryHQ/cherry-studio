@@ -1951,6 +1951,14 @@
     "rename": "重命名",
     "rename_changed": "由於安全策略，文件名已從 {{original}} 更改為 {{final}}",
     "save": "儲存到筆記",
+    "search": {
+      "both": "名稱+內容",
+      "content": "內容",
+      "found_results": "找到 {{count}} 個結果 (名稱: {{nameCount}}, 內容: {{contentCount}})",
+      "more_matches": "個匹配",
+      "searching": "搜索中...",
+      "show_less": "收起"
+    },
     "settings": {
       "data": {
         "apply": "應用",
