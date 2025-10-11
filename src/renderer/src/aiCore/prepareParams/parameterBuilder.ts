@@ -160,7 +160,7 @@ export async function buildStreamTextParams(
     abortSignal: options.requestOptions?.signal,
     headers: options.requestOptions?.headers,
     providerOptions,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(20),
     maxRetries: 0
   }
   if (tools) {
