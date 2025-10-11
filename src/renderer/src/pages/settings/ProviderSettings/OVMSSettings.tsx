@@ -1,5 +1,5 @@
-import { VStack } from '@renderer/components/Layout'
-import { Alert, Button } from 'antd'
+import { Button, ColFlex } from '@cherrystudio/ui'
+import { Alert } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -109,52 +109,55 @@ const OVMSSettings: FC = () => {
         banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>{getStatusMessage()}</SettingSubtitle>
               {ovmsStatus === 'not-installed' && (
                 <Button
-                  type="primary"
-                  onClick={installOvms}
-                  loading={isInstallingOvms}
-                  disabled={isInstallingOvms}
-                  size="small">
+                  color="primary"
+                  variant="solid"
+                  onPress={installOvms}
+                  isLoading={isInstallingOvms}
+                  isDisabled={isInstallingOvms}
+                  size="sm">
                   {isInstallingOvms ? t('ovms.action.installing') : t('ovms.action.install')}
                 </Button>
               )}
               {ovmsStatus === 'not-running' && (
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Button
-                    type="primary"
-                    onClick={installOvms}
-                    loading={isInstallingOvms}
-                    disabled={isInstallingOvms || isRunningOvms}
-                    size="small">
+                    color="primary"
+                    variant="solid"
+                    onPress={installOvms}
+                    isLoading={isInstallingOvms}
+                    isDisabled={isInstallingOvms || isRunningOvms}
+                    size="sm">
                     {isInstallingOvms ? t('ovms.action.installing') : t('ovms.action.reinstall')}
                   </Button>
                   <Button
-                    type="primary"
-                    onClick={runOvms}
-                    loading={isRunningOvms}
-                    disabled={isRunningOvms}
-                    size="small">
+                    color="primary"
+                    variant="solid"
+                    onPress={runOvms}
+                    isLoading={isRunningOvms}
+                    isDisabled={isRunningOvms}
+                    size="sm">
                     {isRunningOvms ? t('ovms.action.starting') : t('ovms.action.run')}
                   </Button>
                 </div>
               )}
               {ovmsStatus === 'running' && (
                 <Button
-                  type="primary"
-                  danger
-                  onClick={stopOvms}
-                  loading={isStoppingOvms}
-                  disabled={isStoppingOvms}
-                  size="small">
+                  color="danger"
+                  variant="solid"
+                  onPress={stopOvms}
+                  isLoading={isStoppingOvms}
+                  isDisabled={isStoppingOvms}
+                  size="sm">
                   {isStoppingOvms ? t('ovms.action.stopping') : t('ovms.action.stop')}
                 </Button>
               )}
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Alert

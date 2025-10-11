@@ -1,6 +1,5 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
@@ -90,7 +89,7 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
             )}
           </RichEditorContainer>
         </TextAreaContainer>
-        <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
+        <SpaceBetweenRowFlex style={{ width: '100%', marginTop: '10px' }}>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
             variant="solid"
@@ -111,7 +110,7 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
             }}>
             {showPreview ? t('common.edit') : t('common.save')}
           </Button>
-        </HSpaceBetweenStack>
+        </SpaceBetweenRowFlex>
       </SettingsItem>
     </SettingsContainer>
   )

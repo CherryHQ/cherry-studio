@@ -1,4 +1,4 @@
-import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector, type SelectorItem } from '@cherrystudio/ui'
+import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector, type SelectorItem, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -19,7 +19,7 @@ import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { MultiModelMessageStyle, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Col, InputNumber, Row, Slider, Switch } from 'antd'
+import { Col, InputNumber, Row, Slider } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -245,10 +245,10 @@ const SettingsTab: FC<Props> = (props) => {
                 <HelpTooltip title={t('chat.settings.temperature.tip')} />
               </SettingRowTitleSmall>
               <Switch
-                size="small"
+                size="sm"
                 style={{ marginLeft: 'auto' }}
-                checked={enableTemperature}
-                onChange={(enabled) => {
+                isSelected={enableTemperature}
+                onValueChange={(enabled) => {
                   setEnableTemperature(enabled)
                   onUpdateAssistantSettings({ enableTemperature: enabled })
                 }}
@@ -292,9 +292,9 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRow>
               <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
               <Switch
-                size="small"
-                checked={streamOutput}
-                onChange={(checked) => {
+                size="sm"
+                isSelected={streamOutput}
+                onValueChange={(checked) => {
                   setStreamOutput(checked)
                   onUpdateAssistantSettings({ streamOutput: checked })
                 }}
@@ -309,9 +309,9 @@ const SettingsTab: FC<Props> = (props) => {
                 </SettingRowTitleSmall>
               </Row>
               <Switch
-                size="small"
-                checked={enableMaxTokens}
-                onChange={async (enabled) => {
+                size="sm"
+                isSelected={enableMaxTokens}
+                onValueChange={async (enabled) => {
                   if (enabled) {
                     const confirmed = await modalConfirm({
                       title: t('chat.settings.max_tokens.confirm'),

@@ -1,4 +1,4 @@
-import { CacheService } from '@main/services/CacheService'
+import { cacheService } from '@main/data/CacheService'
 import mcpService from '@main/services/MCPService'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js'
@@ -51,7 +51,7 @@ export async function getMCPServersFromRedux(): Promise<MCPServer[]> {
     logger.debug('Getting servers from Redux store')
 
     // Try to get from cache first (faster)
-    const cachedServers = CacheService.get<MCPServer[]>(MCP_SERVERS_CACHE_KEY)
+    const cachedServers = cacheService.get<MCPServer[]>(MCP_SERVERS_CACHE_KEY)
     if (cachedServers) {
       logger.debug('MCP servers resolved from cache', { count: cachedServers.length })
       return cachedServers
@@ -62,7 +62,7 @@ export async function getMCPServersFromRedux(): Promise<MCPServer[]> {
     const serverList = servers || []
 
     // Cache the results
-    CacheService.set(MCP_SERVERS_CACHE_KEY, serverList, MCP_SERVERS_CACHE_TTL)
+    cacheService.set(MCP_SERVERS_CACHE_KEY, serverList, MCP_SERVERS_CACHE_TTL)
 
     logger.debug('Fetched servers from Redux store', { count: serverList.length })
     return serverList

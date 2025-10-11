@@ -1,4 +1,4 @@
-import { SpaceBetweenRowFlex } from '@cherrystudio/ui'
+import { SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
 import CodeEditor from '@renderer/components/CodeEditor'
@@ -6,9 +6,8 @@ import RichEditor from '@renderer/components/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useAppDispatch } from '@renderer/store'
 import type { EditorView } from '@renderer/types'
-import { Empty, Tooltip } from 'antd'
+import { Empty } from 'antd'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
@@ -27,7 +26,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
     // oxlint-disable-next-line no-unused-vars
-    const dispatch = useAppDispatch()
     const { settings } = useNotesSettings()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
@@ -103,8 +101,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 gap: 12
               }}>
               {tmpViewMode === 'preview' && (
-                // oxlint-disable-next-line no-undef
-                <Tooltip placement="top" title={t('notes.spell_check_tooltip')} mouseLeaveDelay={0} arrow>
+                <Tooltip placement="top" content={t('notes.spell_check_tooltip')} delay={0}>
                   <ActionIconButton
                     active={enableSpellCheck}
                     onClick={() => {
@@ -115,7 +112,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                     icon={<SpellCheck size={18} />}>
                     <SpellCheck size={18} />
                   </ActionIconButton>
-                  {/* oxlint-disable-next-line no-undef */}
                 </Tooltip>
               )}
               <Selector

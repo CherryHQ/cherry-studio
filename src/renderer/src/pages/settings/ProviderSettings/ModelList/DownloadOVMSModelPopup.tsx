@@ -1,8 +1,9 @@
+import { Button, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import type { Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
-import { AutoComplete, Button, Flex, Form, Input, Modal, Progress, Select } from 'antd'
+import { AutoComplete, Form, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -316,16 +317,17 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           </Form.Item>
         )}
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex justify="end" align="center" style={{ position: 'relative' }}>
+          <RowFlex style={{ justifyContent: 'flex-end', alignItems: 'center', position: 'relative' }}>
             <Button
-              type="primary"
-              htmlType={loading ? 'button' : 'submit'}
-              size="middle"
-              loading={false}
-              onClick={loading ? onCancel : undefined}>
+              color="primary"
+              variant="solid"
+              type={loading ? 'button' : 'submit'}
+              size="md"
+              isLoading={false}
+              onPress={loading ? onCancel : undefined}>
               {loading ? t('common.cancel') : t('ovms.download.button')}
             </Button>
-          </Flex>
+          </RowFlex>
         </Form.Item>
       </Form>
     </Modal>
