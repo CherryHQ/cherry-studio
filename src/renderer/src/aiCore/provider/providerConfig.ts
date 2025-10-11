@@ -21,6 +21,7 @@ import { formatApiHost } from '@renderer/utils/api'
 import { cloneDeep, trim } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
 const logger = loggerService.withContext('ProviderConfigProcessor')
@@ -109,6 +110,9 @@ function formatProviderApiHost(provider: Provider): Provider {
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost
     }
+  } else if (formatted.id === 'copilot') {
+    const trimmed = trim(formatted.apiHost)
+    formatted.apiHost = trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
   } else if (formatted.type === 'gemini') {
     formatted.apiHost = formatApiHost(formatted.apiHost, 'v1beta')
   } else {
@@ -151,6 +155,26 @@ export function providerToAiSdkConfig(
     baseURL: trim(actualProvider.apiHost),
     apiKey: getRotatedApiKey(actualProvider)
   }
+
+  const isCopilotProvider = actualProvider.id === 'copilot'
+  if (isCopilotProvider) {
+    const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
+    const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
+      headers: {
+        ...COPILOT_DEFAULT_HEADERS,
+        ...storedHeaders,
+        ...actualProvider.extra_headers
+      },
+      name: actualProvider.id,
+      includeUsage: true
+    })
+
+    return {
+      providerId: 'github-copilot-openai-compatible',
+      options
+    }
+  }
+
   // 处理OpenAI模式
   const extraOptions: any = {}
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
@@ -170,15 +194,6 @@ export function providerToAiSdkConfig(
         'X-Title': 'Cherry Studio',
         'X-Api-Key': baseConfig.apiKey
       }
-    }
-  }
-
-  // copilot
-  if (actualProvider.id === 'copilot') {
-    extraOptions.headers = {
-      ...extraOptions.headers,
-      'editor-version': 'vscode/1.97.2',
-      'copilot-vision-request': 'true'
     }
   }
   // azure
@@ -229,7 +244,6 @@ export function providerToAiSdkConfig(
     }
   }
 
-  // 如果AI SDK支持该provider，使用原生配置
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
@@ -277,9 +291,17 @@ export async function prepareSpecialProviderConfig(
 ) {
   switch (provider.id) {
     case 'copilot': {
-      const defaultHeaders = store.getState().copilot.defaultHeaders
-      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      const defaultHeaders = store.getState().copilot.defaultHeaders ?? {}
+      const headers = {
+        ...COPILOT_DEFAULT_HEADERS,
+        ...defaultHeaders
+      }
+      const { token } = await window.api.copilot.getToken(headers)
       config.options.apiKey = token
+      config.options.headers = {
+        ...headers,
+        ...config.options.headers
+      }
       break
     }
     case 'cherryai': {
