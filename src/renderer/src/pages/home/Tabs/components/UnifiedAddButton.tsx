@@ -1,8 +1,10 @@
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
-import { Bot, MessageSquare, Plus } from 'lucide-react'
+import { Bot, MessageSquare } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import AddButton from './AddButton'
 
 interface UnifiedAddButtonProps {
   onCreateAssistant: () => void
@@ -24,20 +26,14 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant }) => {
   }
 
   return (
-    <div className="mb-2">
+    <div className="mb-1">
       <Popover
         isOpen={isPopoverOpen}
         onOpenChange={setIsPopoverOpen}
         placement="bottom"
-        classNames={{
-          content: 'p-0 min-w-[200px]'
-        }}>
+        classNames={{ content: 'p-0 min-w-[200px]' }}>
         <PopoverTrigger>
-          <Button
-            className="w-full justify-start bg-transparent text-foreground-500 hover:bg-[var(--color-list-item)]"
-            startContent={<Plus size={16} className="shrink-0" />}>
-            {t('common.add')}
-          </Button>
+          <AddButton>{t('chat.add.assistant.title')}</AddButton>
         </PopoverTrigger>
         <PopoverContent>
           <div className="flex w-full flex-col gap-1 p-1">

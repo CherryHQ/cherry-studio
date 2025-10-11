@@ -22,7 +22,6 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
-  MessageSquare,
   Plus,
   Save,
   Settings2,
@@ -173,13 +172,11 @@ const AssistantItem: FC<AssistantItemProps> = ({
           )}
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
-        <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-          {isActive ? (
+        {isActive && (
+          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
             <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          ) : (
-            <MessageSquare size={12} className="text-primary" />
-          )}
-        </MenuButton>
+          </MenuButton>
+        )}
       </Container>
     </Dropdown>
   )
