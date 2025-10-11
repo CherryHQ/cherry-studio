@@ -76,7 +76,7 @@ export const AccessibleDirsSetting: React.FC<AccessibleDirsSettingProps> = ({ ba
           <li
             key={path}
             className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-3 py-2">
-            <span className="truncate text-sm" title={path}>
+            <span className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm" title={path}>
               {path}
             </span>
             <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
