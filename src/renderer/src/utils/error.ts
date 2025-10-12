@@ -11,7 +11,8 @@ import {
 import { InvalidToolInputError, NoSuchToolError } from 'ai'
 import { AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
-import { z, ZodError } from 'zod'
+import * as z from 'zod'
+import { ZodError } from 'zod'
 
 import { parseJSON } from './json'
 import { safeSerialize } from './serialize'

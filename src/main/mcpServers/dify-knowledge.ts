@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
-import { z } from 'zod'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 

@@ -3,7 +3,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 使用预提取关键词的网络搜索工具
