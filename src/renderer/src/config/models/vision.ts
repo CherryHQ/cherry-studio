@@ -24,7 +24,7 @@ const visionAllowedModels = [
   'qwen2.5-vl',
   'qwen3-vl',
   'qwen2.5-omni',
-  'qwen3-omni',
+  'qwen3-omni(?:-[\\w-]+)?',
   'qvq',
   'internvl2',
   'grok-vision-beta',
