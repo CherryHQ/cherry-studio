@@ -29,7 +29,7 @@ const DescriptionSwitch = ({ children, ...props }: CustomSwitchProps) => {
         base: cn(
           'inline-flex w-full max-w-md flex-row-reverse items-center hover:bg-content2',
           'cursor-pointer justify-between gap-2 rounded-lg border-2 border-transparent py-2 pr-1',
-          'data-[selected=true]:border-primary',
+          'data-[selected=true]:border-primary'
         ),
         wrapper: 'p-0 h-4 overflow-visible',
         thumb: cn(
