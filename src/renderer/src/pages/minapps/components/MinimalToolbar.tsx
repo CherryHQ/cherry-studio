@@ -8,6 +8,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { isDev } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -21,6 +22,13 @@ import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('MinimalToolbar')
+
+// Constants for timing delays
+const WEBVIEW_CHECK_INTERVAL_MS = 100
+const NAVIGATION_UPDATE_DELAY_MS = 50
+const NAVIGATION_COMPLETE_DELAY_MS = 100
 
 interface Props {
   app: MinAppType
@@ -49,7 +57,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         setCanGoBack(webviewRef.current.canGoBack())
         setCanGoForward(webviewRef.current.canGoForward())
       } catch (error) {
-        // WebView may not be ready yet
+        logger.debug('WebView not ready for navigation state update', { appId: app.id })
         setCanGoBack(false)
         setCanGoForward(false)
       }
@@ -57,36 +65,42 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       setCanGoBack(false)
       setCanGoForward(false)
     }
-  }, [webviewRef])
+  }, [app.id, webviewRef])
 
   // Monitor webviewRef changes and update navigation state
   useEffect(() => {
     let checkInterval: NodeJS.Timeout | null = null
     let navigationListener: (() => void) | null = null
+    let listenersAttached = false
 
     const attachListeners = () => {
-      if (webviewRef.current) {
+      if (webviewRef.current && !listenersAttached) {
         // Update state immediately
         updateNavigationState()
 
         // Add navigation event listeners
         const handleNavigation = () => {
-          setTimeout(() => updateNavigationState(), 50)
+          setTimeout(() => updateNavigationState(), NAVIGATION_UPDATE_DELAY_MS)
         }
 
         webviewRef.current.addEventListener('did-navigate', handleNavigation)
         webviewRef.current.addEventListener('did-navigate-in-page', handleNavigation)
+        listenersAttached = true
+
         navigationListener = () => {
           if (webviewRef.current) {
             webviewRef.current.removeEventListener('did-navigate', handleNavigation)
             webviewRef.current.removeEventListener('did-navigate-in-page', handleNavigation)
           }
+          listenersAttached = false
         }
 
         if (checkInterval) {
           clearInterval(checkInterval)
           checkInterval = null
         }
+
+        logger.debug('Navigation listeners attached', { appId: app.id })
       }
     }
 
@@ -96,7 +110,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         if (webviewRef.current) {
           attachListeners()
         }
-      }, 100)
+      }, WEBVIEW_CHECK_INTERVAL_MS)
     } else {
       attachListeners()
     }
@@ -106,7 +120,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       if (checkInterval) clearInterval(checkInterval)
       if (navigationListener) navigationListener()
     }
-  }, [updateNavigationState, webviewRef])
+  }, [app.id, updateNavigationState, webviewRef])
 
   const handleGoBack = useCallback(() => {
     if (webviewRef.current) {
@@ -114,13 +128,13 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         if (webviewRef.current.canGoBack()) {
           webviewRef.current.goBack()
           // Delay update to ensure navigation completes
-          setTimeout(() => updateNavigationState(), 100)
+          setTimeout(() => updateNavigationState(), NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
-        // WebView not ready for navigation
+        logger.debug('WebView not ready for navigation', { appId: app.id, action: 'goBack' })
       }
     }
-  }, [webviewRef, updateNavigationState])
+  }, [app.id, webviewRef, updateNavigationState])
 
   const handleGoForward = useCallback(() => {
     if (webviewRef.current) {
@@ -128,13 +142,13 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         if (webviewRef.current.canGoForward()) {
           webviewRef.current.goForward()
           // Delay update to ensure navigation completes
-          setTimeout(() => updateNavigationState(), 100)
+          setTimeout(() => updateNavigationState(), NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
-        // WebView not ready for navigation
+        logger.debug('WebView not ready for navigation', { appId: app.id, action: 'goForward' })
       }
     }
-  }, [webviewRef, updateNavigationState])
+  }, [app.id, webviewRef, updateNavigationState])
 
   const handleMinimize = useCallback(() => {
     navigate('/apps')
