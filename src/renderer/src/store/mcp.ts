@@ -144,6 +144,19 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI'
+  },
+  {
+    id: nanoid(),
+    name: BuiltinMCPServerNames.rube,
+    type: 'streamableHttp',
+    baseUrl: 'https://rube.app/mcp',
+    reference: 'https://rube.app',
+    description: 'Connect to 500+ apps like Gmail, Slack, GitHub, and Notion through natural language commands',
+    isActive: false,
+    provider: 'Composio',
+    providerUrl: 'https://rube.app',
+    logoUrl: 'https://rube.app/favicon.ico',
+    tags: ['productivity', 'automation', 'integrations']
   }
 ] as const
 
