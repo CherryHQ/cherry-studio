@@ -2071,7 +2071,7 @@
     "description": "<div><p>1. 下載 OV 模型。</p><p>2. 在 'Manager' 中新增模型。</p><p>僅支援 Windows！</p><p>OVMS 安裝路徑: '%USERPROFILE%\\.cherrystudio\\ovms' 。</p><p>請參考 <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 指南</a></p></dev>",
     "download": {
       "button": "下載",
-      "error": "選擇失敗",
+      "error": "下載失敗",
       "model_id": {
         "label": "模型 ID",
         "model_id_pattern": "模型 ID 必須以 OpenVINO/ 開頭",
