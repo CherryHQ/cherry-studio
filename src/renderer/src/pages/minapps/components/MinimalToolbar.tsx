@@ -17,7 +17,7 @@ import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { WebviewTag } from 'electron'
-import { FC, useCallback, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -45,22 +45,94 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   // Update navigation state
   const updateNavigationState = useCallback(() => {
     if (webviewRef.current) {
-      setCanGoBack(webviewRef.current.canGoBack())
-      setCanGoForward(webviewRef.current.canGoForward())
+      try {
+        setCanGoBack(webviewRef.current.canGoBack())
+        setCanGoForward(webviewRef.current.canGoForward())
+      } catch (error) {
+        // WebView may not be ready yet
+        setCanGoBack(false)
+        setCanGoForward(false)
+      }
+    } else {
+      setCanGoBack(false)
+      setCanGoForward(false)
     }
   }, [webviewRef])
 
+  // Monitor webviewRef changes and update navigation state
+  useEffect(() => {
+    let checkInterval: NodeJS.Timeout | null = null
+    let navigationListener: (() => void) | null = null
+
+    const attachListeners = () => {
+      if (webviewRef.current) {
+        // Update state immediately
+        updateNavigationState()
+
+        // Add navigation event listeners
+        const handleNavigation = () => {
+          setTimeout(() => updateNavigationState(), 50)
+        }
+
+        webviewRef.current.addEventListener('did-navigate', handleNavigation)
+        webviewRef.current.addEventListener('did-navigate-in-page', handleNavigation)
+        navigationListener = () => {
+          if (webviewRef.current) {
+            webviewRef.current.removeEventListener('did-navigate', handleNavigation)
+            webviewRef.current.removeEventListener('did-navigate-in-page', handleNavigation)
+          }
+        }
+
+        if (checkInterval) {
+          clearInterval(checkInterval)
+          checkInterval = null
+        }
+      }
+    }
+
+    // Check for webview attachment
+    if (!webviewRef.current) {
+      checkInterval = setInterval(() => {
+        if (webviewRef.current) {
+          attachListeners()
+        }
+      }, 100)
+    } else {
+      attachListeners()
+    }
+
+    // Cleanup
+    return () => {
+      if (checkInterval) clearInterval(checkInterval)
+      if (navigationListener) navigationListener()
+    }
+  }, [updateNavigationState, webviewRef])
+
   const handleGoBack = useCallback(() => {
-    if (webviewRef.current && webviewRef.current.canGoBack()) {
-      webviewRef.current.goBack()
-      updateNavigationState()
+    if (webviewRef.current) {
+      try {
+        if (webviewRef.current.canGoBack()) {
+          webviewRef.current.goBack()
+          // Delay update to ensure navigation completes
+          setTimeout(() => updateNavigationState(), 100)
+        }
+      } catch (error) {
+        // WebView not ready for navigation
+      }
     }
   }, [webviewRef, updateNavigationState])
 
   const handleGoForward = useCallback(() => {
-    if (webviewRef.current && webviewRef.current.canGoForward()) {
-      webviewRef.current.goForward()
-      updateNavigationState()
+    if (webviewRef.current) {
+      try {
+        if (webviewRef.current.canGoForward()) {
+          webviewRef.current.goForward()
+          // Delay update to ensure navigation completes
+          setTimeout(() => updateNavigationState(), 100)
+        }
+      } catch (error) {
+        // WebView not ready for navigation
+      }
     }
   }, [webviewRef, updateNavigationState])
 
