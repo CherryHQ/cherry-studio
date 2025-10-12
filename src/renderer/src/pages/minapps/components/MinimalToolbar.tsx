@@ -18,7 +18,7 @@ import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { WebviewTag } from 'electron'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -26,7 +26,10 @@ import styled from 'styled-components'
 const logger = loggerService.withContext('MinimalToolbar')
 
 // Constants for timing delays
-const WEBVIEW_CHECK_INTERVAL_MS = 100
+const WEBVIEW_CHECK_INITIAL_MS = 100 // Initial check interval
+const WEBVIEW_CHECK_MAX_MS = 1000 // Maximum check interval (1 second)
+const WEBVIEW_CHECK_MULTIPLIER = 2 // Exponential backoff multiplier
+const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
 const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
 
@@ -50,6 +53,9 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   const isPinned = pinned.some((item) => item.id === app.id)
   const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
 
+  // Ref to track navigation update timeout
+  const navigationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Update navigation state
   const updateNavigationState = useCallback(() => {
     if (webviewRef.current) {
@@ -67,11 +73,36 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
     }
   }, [app.id, webviewRef])
 
+  // Schedule navigation state update with debouncing
+  const scheduleNavigationUpdate = useCallback(
+    (delay: number) => {
+      if (navigationUpdateTimeoutRef.current) {
+        clearTimeout(navigationUpdateTimeoutRef.current)
+      }
+      navigationUpdateTimeoutRef.current = setTimeout(() => {
+        updateNavigationState()
+        navigationUpdateTimeoutRef.current = null
+      }, delay)
+    },
+    [updateNavigationState]
+  )
+
+  // Cleanup navigation timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (navigationUpdateTimeoutRef.current) {
+        clearTimeout(navigationUpdateTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Monitor webviewRef changes and update navigation state
   useEffect(() => {
-    let checkInterval: NodeJS.Timeout | null = null
+    let checkTimeout: NodeJS.Timeout | null = null
     let navigationListener: (() => void) | null = null
     let listenersAttached = false
+    let currentInterval = WEBVIEW_CHECK_INITIAL_MS
+    let attemptCount = 0
 
     const attachListeners = () => {
       if (webviewRef.current && !listenersAttached) {
@@ -80,7 +111,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
         // Add navigation event listeners
         const handleNavigation = () => {
-          setTimeout(() => updateNavigationState(), NAVIGATION_UPDATE_DELAY_MS)
+          scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
         }
 
         webviewRef.current.addEventListener('did-navigate', handleNavigation)
@@ -95,32 +126,65 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           listenersAttached = false
         }
 
-        if (checkInterval) {
-          clearInterval(checkInterval)
-          checkInterval = null
+        if (checkTimeout) {
+          clearTimeout(checkTimeout)
+          checkTimeout = null
         }
 
-        logger.debug('Navigation listeners attached', { appId: app.id })
+        logger.debug('Navigation listeners attached', { appId: app.id, attempts: attemptCount })
+        return true
       }
+      return false
+    }
+
+    const scheduleCheck = () => {
+      checkTimeout = setTimeout(() => {
+        // Use requestAnimationFrame to avoid blocking the main thread
+        requestAnimationFrame(() => {
+          attemptCount++
+          if (!attachListeners()) {
+            // Stop checking after max attempts to prevent infinite loops
+            if (attemptCount >= WEBVIEW_CHECK_MAX_ATTEMPTS) {
+              logger.warn('WebView attachment timeout', {
+                appId: app.id,
+                attempts: attemptCount,
+                totalTimeMs: currentInterval * attemptCount
+              })
+              return
+            }
+
+            // Exponential backoff: double the interval up to the maximum
+            currentInterval = Math.min(currentInterval * WEBVIEW_CHECK_MULTIPLIER, WEBVIEW_CHECK_MAX_MS)
+
+            // Log only on first few attempts or when interval changes significantly
+            if (attemptCount <= 3 || attemptCount % 10 === 0) {
+              logger.debug('WebView not ready, scheduling next check', {
+                appId: app.id,
+                nextCheckMs: currentInterval,
+                attempt: attemptCount
+              })
+            }
+
+            scheduleCheck()
+          }
+        })
+      }, currentInterval)
     }
 
     // Check for webview attachment
     if (!webviewRef.current) {
-      checkInterval = setInterval(() => {
-        if (webviewRef.current) {
-          attachListeners()
-        }
-      }, WEBVIEW_CHECK_INTERVAL_MS)
+      scheduleCheck()
     } else {
       attachListeners()
     }
 
     // Cleanup
     return () => {
-      if (checkInterval) clearInterval(checkInterval)
+      if (checkTimeout) clearTimeout(checkTimeout)
       if (navigationListener) navigationListener()
     }
-  }, [app.id, updateNavigationState, webviewRef])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app.id, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
 
   const handleGoBack = useCallback(() => {
     if (webviewRef.current) {
@@ -128,13 +192,13 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         if (webviewRef.current.canGoBack()) {
           webviewRef.current.goBack()
           // Delay update to ensure navigation completes
-          setTimeout(() => updateNavigationState(), NAVIGATION_COMPLETE_DELAY_MS)
+          scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
         logger.debug('WebView not ready for navigation', { appId: app.id, action: 'goBack' })
       }
     }
-  }, [app.id, webviewRef, updateNavigationState])
+  }, [app.id, webviewRef, scheduleNavigationUpdate])
 
   const handleGoForward = useCallback(() => {
     if (webviewRef.current) {
@@ -142,13 +206,13 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         if (webviewRef.current.canGoForward()) {
           webviewRef.current.goForward()
           // Delay update to ensure navigation completes
-          setTimeout(() => updateNavigationState(), NAVIGATION_COMPLETE_DELAY_MS)
+          scheduleNavigationUpdate(NAVIGATION_COMPLETE_DELAY_MS)
         }
       } catch (error) {
         logger.debug('WebView not ready for navigation', { appId: app.id, action: 'goForward' })
       }
     }
-  }, [app.id, webviewRef, updateNavigationState])
+  }, [app.id, webviewRef, scheduleNavigationUpdate])
 
   const handleMinimize = useCallback(() => {
     navigate('/apps')
