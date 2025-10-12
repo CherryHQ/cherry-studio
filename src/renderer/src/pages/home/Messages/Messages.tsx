@@ -66,7 +66,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const messages = useTopicMessages(topic.id)
-  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch, resendMessage } = useMessageOperations(topic)
+  const {
+    displayCount,
+    clearTopicMessages,
+    deleteMessage,
+    createTopicBranch,
+    resendMessage
+  } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
