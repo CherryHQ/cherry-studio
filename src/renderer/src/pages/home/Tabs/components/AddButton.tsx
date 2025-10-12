@@ -12,7 +12,7 @@ const AddButton: FC<Props> = ({ children, className, ...props }) => {
       {...props}
       onPress={props.onPress}
       className={cn(
-        'h-9 w-[calc(var(--assistants-width)-20px)] justify-start rounded-full bg-transparent px-3 text-[13px] text-[var(--color-text-2)] hover:bg-[var(--color-list-item)]',
+        'h-9 w-[calc(var(--assistants-width)-20px)] justify-start rounded-lg bg-transparent px-3 text-[13px] text-[var(--color-text-2)] hover:bg-[var(--color-list-item)]',
         className
       )}
       startContent={<PlusIcon size={16} className="shrink-0" />}>
