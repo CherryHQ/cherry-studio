@@ -4247,6 +4247,7 @@
       "clear_topic": "Clear Messages",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
+      "resend_last_user_message": "Resend Last User Message",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",

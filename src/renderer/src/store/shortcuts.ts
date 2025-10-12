@@ -90,6 +90,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'resend_last_user_message',
+      shortcut: ['CommandOrControl', 'R'],
+      editable: true,
+      enabled: false,
+      system: false
+    },
+    {
       key: 'search_message_in_chat',
       shortcut: ['CommandOrControl', 'F'],
       editable: true,
