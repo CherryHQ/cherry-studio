@@ -1432,5 +1432,5 @@ export const isGeminiWebSearchProvider = (provider: Provider) => {
 }
 
 export const isNewApiProvider = (provider: Provider) => {
-  return ['new-api', 'cherryin'].includes(provider.id)
+  return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
 }
