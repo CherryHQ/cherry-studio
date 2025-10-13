@@ -45,19 +45,12 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
             </AgentNameWrapper>
           </AssistantNameRow>
           <MenuButton>
-            {isActive ? <SessionCount>{sessions.length}</SessionCount> : <Bot size={12} className="text-primary" />}
+            {isActive ? <SessionCount>{sessions.length}</SessionCount> : <Bot size={14} className="text-primary" />}
           </MenuButton>
         </Container>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem
-          key="edit"
-          onClick={async () => {
-            // onOpen()
-            await AgentSettingsPopup.show({
-              agentId: agent.id
-            })
-          }}>
+        <ContextMenuItem key="edit" onClick={() => AgentSettingsPopup.show({ agentId: agent.id })}>
           <EditIcon size={14} />
           {t('common.edit')}
         </ContextMenuItem>

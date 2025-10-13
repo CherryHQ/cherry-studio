@@ -116,8 +116,6 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       )}
 
-      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
-
       {agentsLoading && <Spinner />}
       {apiServer.enabled && agentsError && <Alert color="danger" title={t('agent.list.error.failed')} />}
 
@@ -164,6 +162,8 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           sortByPinyinDesc={sortByPinyinDesc}
         />
       )}
+
+      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
 
       {!dragging && <div style={{ minHeight: 10 }}></div>}
     </Container>

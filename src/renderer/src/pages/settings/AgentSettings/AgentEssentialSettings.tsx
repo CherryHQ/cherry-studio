@@ -18,9 +18,10 @@ import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 interface AgentEssentialSettingsProps {
   agent: GetAgentResponse | undefined | null
   update: ReturnType<typeof useUpdateAgent>['updateAgent']
+  showModelSetting?: boolean
 }
 
-const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {
+const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update, showModelSetting = true }) => {
   const { t } = useTranslation()
 
   if (!agent) return null
@@ -36,7 +37,7 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
       </SettingsItem>
       <AvatarSetting agent={agent} update={update} />
       <NameSetting base={agent} update={update} />
-      <ModelSetting base={agent} update={update} />
+      {showModelSetting && <ModelSetting base={agent} update={update} />}
       <AccessibleDirsSetting base={agent} update={update} />
       <DescriptionSetting base={agent} update={update} />
     </SettingsContainer>
