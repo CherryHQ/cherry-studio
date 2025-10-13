@@ -78,7 +78,7 @@ function findElementByLine(editorDom: HTMLElement, lineNumber: number, lineConte
 /**
  * Create fixed-position highlight overlay at element location
  */
-function createHighlightOverlay(element: HTMLElement): void {
+function createHighlightOverlay(element: HTMLElement, container: HTMLElement): void {
   try {
     // Remove previous overlay
     const previousOverlay = document.body.querySelector('.highlight-overlay')
@@ -101,9 +101,18 @@ function createHighlightOverlay(element: HTMLElement): void {
 
     document.body.appendChild(overlay)
 
+    // Update overlay position on scroll
+    const updatePosition = () => {
+      const newRect = element.getBoundingClientRect()
+      overlay.style.left = `${newRect.left}px`
+      overlay.style.top = `${newRect.top}px`
+    }
+    container.addEventListener('scroll', updatePosition)
+
     // Auto-remove after animation
     const handleAnimationEnd = () => {
       overlay.remove()
+      container.removeEventListener('scroll', updatePosition)
       overlay.removeEventListener('animationend', handleAnimationEnd)
     }
     overlay.addEventListener('animationend', handleAnimationEnd)
@@ -123,7 +132,7 @@ function scrollAndHighlight(element: HTMLElement, container: HTMLElement): void 
     clearTimeout(scrollTimeout)
     scrollTimeout = setTimeout(() => {
       container.removeEventListener('scroll', handleScroll)
-      requestAnimationFrame(() => createHighlightOverlay(element))
+      requestAnimationFrame(() => createHighlightOverlay(element, container))
     }, 150)
   }
 
@@ -136,7 +145,7 @@ function scrollAndHighlight(element: HTMLElement, container: HTMLElement): void 
       if (Math.abs(container.scrollTop - initialScrollTop) < 1) {
         container.removeEventListener('scroll', handleScroll)
         clearTimeout(scrollTimeout)
-        requestAnimationFrame(() => createHighlightOverlay(element))
+        requestAnimationFrame(() => createHighlightOverlay(element, container))
       }
     }, 200)
   }, 50)
