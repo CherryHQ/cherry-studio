@@ -542,7 +542,7 @@ const MinappPopupContainer: React.FC = () => {
       {/* 在所有小程序中显示GoogleLoginTip */}
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
-        <EmptyView>
+        <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
           <Avatar
             src={currentAppInfo?.logo}
             className="h-20 w-20"

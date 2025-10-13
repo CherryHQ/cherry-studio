@@ -1,5 +1,5 @@
 import type { Model } from '@types'
-import z from 'zod'
+import * as z from 'zod'
 
 export const ProviderTypeSchema = z.enum([
   'openai',
@@ -106,7 +106,7 @@ export type Provider = {
 }
 
 export const SystemProviderIds = {
-  // cherryin: 'cherryin',
+  cherryin: 'cherryin',
   silicon: 'silicon',
   aihubmix: 'aihubmix',
   ocoolai: 'ocoolai',

@@ -3,7 +3,7 @@ import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type { TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type { FileChangeEvent } from '@shared/config/types'
+import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   PreferenceDefaultScopeType,
@@ -395,7 +395,16 @@ const api = {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
       ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
     setSpellCheckEnabled: (webviewId: number, isEnable: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable)
+      ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable),
+    onFindShortcut: (callback: (payload: WebviewKeyEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: WebviewKeyEvent) => {
+        callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.Webview_SearchHotkey, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.Webview_SearchHotkey, listener)
+      }
+    }
   },
   storeSync: {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),

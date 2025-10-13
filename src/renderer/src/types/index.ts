@@ -62,6 +62,7 @@ export const isTranslateAssistant = (assistant: Assistant): assistant is Transla
   return (assistant.model && assistant.targetLanguage && typeof assistant.content === 'string') !== undefined
 }
 
+// use AssistantTabSortType instead
 // export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
@@ -81,6 +82,7 @@ const ThinkModelTypes = [
   'gpt5',
   'gpt5_codex',
   'grok',
+  'grok4_fast',
   'gemini',
   'gemini_pro',
   'qwen',
