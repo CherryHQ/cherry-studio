@@ -24,7 +24,7 @@ export function registerProtocolClient(app: Electron.App) {
   app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
 }
 
-export async function handleProtocolUrl(url: string) {
+export function handleProtocolUrl(url: string) {
   if (!url) return
   // Process the URL that was used to open the app
   // The url will be in the format: cherrystudio://data?param1=value1&param2=value2
@@ -35,7 +35,7 @@ export async function handleProtocolUrl(url: string) {
 
   switch (urlObj.hostname.toLowerCase()) {
     case 'mcp':
-      await handleMcpProtocolUrl(urlObj)
+      handleMcpProtocolUrl(urlObj)
       return
     case 'providers':
       handleProvidersProtocolUrl(urlObj)

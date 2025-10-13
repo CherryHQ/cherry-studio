@@ -5,7 +5,12 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
-import { buildFunctionCallToolName } from '@main/utils/mcp'
+import {
+  ALLOWED_MCP_SERVER_COMMANDS,
+  buildFunctionCallToolName,
+  isAllowedMcpCommand,
+  normalizeMcpCommand
+} from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -273,13 +278,29 @@ class McpService {
               throw new Error('Invalid server type')
             }
           } else if (server.command) {
-            let cmd = server.command
+            if (!isAllowedMcpCommand(server.command)) {
+              const allowedList = ALLOWED_MCP_SERVER_COMMANDS.join(', ')
+              const message = `Unsupported MCP server command "${server.command}". Allowed commands: ${allowedList}`
+              getServerLogger(server).error(message)
+              throw new Error(message)
+            }
+
+            let effectiveCommand = normalizeMcpCommand(server.command)
+            let cmd = server.command.trim()
 
             // For DXT servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
               const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
               if (resolvedConfig) {
-                cmd = resolvedConfig.command
+                if (!isAllowedMcpCommand(resolvedConfig.command)) {
+                  const allowedList = ALLOWED_MCP_SERVER_COMMANDS.join(', ')
+                  const message = `Unsupported MCP server command "${resolvedConfig.command}" from DXT manifest. Allowed commands: ${allowedList}`
+                  getServerLogger(server).error(message)
+                  throw new Error(message)
+                }
+
+                effectiveCommand = normalizeMcpCommand(resolvedConfig.command)
+                cmd = resolvedConfig.command.trim()
                 args = resolvedConfig.args
                 // Merge resolved environment variables with existing ones
                 server.env = {
@@ -295,7 +316,7 @@ class McpService {
               }
             }
 
-            if (server.command === 'npx') {
+            if (effectiveCommand === 'npx') {
               cmd = await getBinaryPath('bun')
               getServerLogger(server).debug(`Using command`, { command: cmd })
 
@@ -321,8 +342,8 @@ class McpService {
                   server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
-            } else if (server.command === 'uvx' || server.command === 'uv') {
-              cmd = await getBinaryPath(server.command)
+            } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
+              cmd = await getBinaryPath(effectiveCommand)
               if (server.registryUrl) {
                 server.env = {
                   ...server.env,
