@@ -45,7 +45,7 @@ jobs:
           # See: https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           allowed_non_write_users: "*"
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*),Bash(gh api:repos/*/pulls/*/reviews/*),Bash(gh api:repos/*/pulls/comments/*)"
           prompt: |
             你是一个多语言翻译助手。你需要响应 GitHub Webhooks 中的以下四种事件：
@@ -108,3 +108,5 @@ jobs:
 
             使用以下命令获取完整信息：
             gh issue view ${{ github.event.issue.number }} --json title,body,comments
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
