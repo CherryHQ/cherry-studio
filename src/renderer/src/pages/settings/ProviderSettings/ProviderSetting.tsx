@@ -1,6 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { Button, Flex, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -16,7 +14,7 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
-import { isSystemProvider } from '@renderer/types'
+import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import {
@@ -27,10 +25,10 @@ import {
   isOpenAIProvider
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Input, Select, Space, Tooltip } from 'antd'
+import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -51,6 +49,7 @@ import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
+import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
@@ -59,11 +58,28 @@ interface Props {
   providerId: string
 }
 
+const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
+  SystemProviderIds.deepseek,
+  SystemProviderIds.moonshot,
+  SystemProviderIds.zhipu,
+  SystemProviderIds.dashscope,
+  SystemProviderIds.modelscope,
+  SystemProviderIds.aihubmix,
+  SystemProviderIds.grok
+] as const
+type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
+
+const ANTHROPIC_COMPATIBLE_PROVIDER_ID_SET = new Set<string>(ANTHROPIC_COMPATIBLE_PROVIDER_IDS)
+const isAnthropicCompatibleProviderId = (id: string): id is AnthropicCompatibleProviderId => {
+  return ANTHROPIC_COMPATIBLE_PROVIDER_ID_SET.has(id)
+}
+
 const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider, models } = useProvider(providerId)
   const allProviders = useAllProviders()
   const { updateProviders } = useProviders()
   const [apiHost, setApiHost] = useState(provider.apiHost)
+  const [anthropicApiHost, setAnthropicHost] = useState<string | undefined>(provider.anthropicApiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -144,18 +160,36 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
   }
 
+  const onUpdateAnthropicHost = () => {
+    const trimmedHost = anthropicApiHost?.trim()
+
+    if (trimmedHost) {
+      updateProvider({ anthropicApiHost: trimmedHost })
+      setAnthropicHost(trimmedHost)
+    } else {
+      updateProvider({ anthropicApiHost: undefined })
+      setAnthropicHost(undefined)
+    }
+  }
   const onUpdateApiVersion = () => updateProvider({ apiVersion })
 
   const openApiKeyList = async () => {
+    if (localApiKey !== provider.apiKey) {
+      updateProvider({ apiKey: formatApiKeys(localApiKey) })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
     await ApiKeyListPopup.show({
       providerId: provider.id,
-      title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
+      title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`,
+      providerType: 'llm'
     })
   }
 
   const onCheckApi = async () => {
+    const formattedLocalKey = formatApiKeys(localApiKey)
     // 如果存在多个密钥，直接打开管理窗口
-    if (provider.apiKey.includes(',')) {
+    if (formattedLocalKey.includes(',')) {
       await openApiKeyList()
       return
     }
@@ -179,7 +213,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
     try {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: HealthStatus.NOT_CHECKED }))
-      await checkApi({ ...provider, apiHost }, model)
+      await checkApi({ ...provider, apiHost, apiKey: formattedLocalKey }, model)
 
       window.toast.success({
         timeout: 2000,
@@ -236,9 +270,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
-        <TriangleAlert size={16} color="var(--color-status-warning)" />
-      </Tooltip>
+      <WarnTooltip
+        content={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}
+        iconProps={{ size: 16, color: 'var(--color-status-warning)' }}
+      />
     )
   }
 
@@ -249,6 +284,36 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     setApiHost(provider.apiHost)
   }, [provider.apiHost, provider.id])
 
+  useEffect(() => {
+    setAnthropicHost(provider.anthropicApiHost)
+  }, [provider.anthropicApiHost])
+
+  const canConfigureAnthropicHost = useMemo(() => {
+    return (
+      provider.type !== 'anthropic' && isSystemProviderId(provider.id) && isAnthropicCompatibleProviderId(provider.id)
+    )
+  }, [provider])
+
+  const anthropicHostPreview = useMemo(() => {
+    const rawHost = (anthropicApiHost ?? provider.anthropicApiHost)?.trim()
+    if (!rawHost) {
+      return ''
+    }
+
+    if (/\/messages\/?$/.test(rawHost)) {
+      return rawHost.replace(/\/$/, '')
+    }
+
+    let normalizedHost = rawHost
+    if (/\/v\d+(?:\/)?$/i.test(normalizedHost)) {
+      normalizedHost = normalizedHost.replace(/\/$/, '')
+    } else {
+      normalizedHost = formatApiHost(normalizedHost).replace(/\/$/, '')
+    }
+
+    return `${normalizedHost}/messages`
+  }, [anthropicApiHost, provider.anthropicApiHost])
+
   const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
 
   return (
@@ -258,16 +323,17 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
+              <Button variant="light" size="sm" startContent={<SquareArrowOutUpRight size={14} />} isIconOnly />
             </Link>
           )}
           {!isSystemProvider(provider) && (
-            <Tooltip title={t('settings.provider.api.options.label')}>
+            <Tooltip content={t('settings.provider.api.options.label')}>
               <Button
-                type="text"
-                icon={<Bolt size={14} />}
-                size="small"
-                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+                variant="light"
+                startContent={<Bolt size={14} />}
+                isIconOnly
+                size="sm"
+                onPress={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
               />
             </Tooltip>
           )}
@@ -286,6 +352,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
+      {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id === 'anthropic' && (
         <>
@@ -313,8 +380,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
-              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-                <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
+              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                <Button variant="light" onPress={openApiKeyList} startContent={<Settings2 size={16} />} isIconOnly />
               </Tooltip>
             )}
           </SettingSubtitle>
@@ -329,17 +396,20 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               suffix={renderStatusIndicator()}
             />
             <Button
-              type={isApiKeyConnectable ? 'primary' : 'default'}
-              ghost={isApiKeyConnectable}
-              onClick={onCheckApi}
-              disabled={!apiHost || apiKeyConnectivity.checking}>
-              {apiKeyConnectivity.checking ? (
-                <LoadingIcon />
-              ) : apiKeyConnectivity.status === 'success' ? (
-                <Check size={16} className="lucide-custom" />
-              ) : (
-                t('settings.provider.check')
-              )}
+              color={isApiKeyConnectable ? 'primary' : undefined}
+              variant={isApiKeyConnectable ? 'ghost' : undefined}
+              onPress={onCheckApi}
+              startContent={
+                apiKeyConnectivity.checking ? (
+                  <LoadingIcon />
+                ) : apiKeyConnectivity.status === HealthStatus.SUCCESS ? (
+                  <Check size={16} className="lucide-custom" />
+                ) : undefined
+              }
+              isDisabled={!apiHost || apiKeyConnectivity.checking}>
+              {!apiKeyConnectivity.checking &&
+                !(apiKeyConnectivity.status === HealthStatus.SUCCESS) &&
+                t('settings.provider.check')}
             </Button>
           </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
@@ -355,11 +425,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           {!isDmxapi && !isAnthropicOAuth() && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                {t('settings.provider.api_host')}
+                <Tooltip content={t('settings.provider.api_host_tooltip')} delay={300}>
+                  <SubtitleLabel>{t('settings.provider.api_host')}</SubtitleLabel>
+                </Tooltip>
                 <Button
-                  type="text"
-                  onClick={() => CustomHeaderPopup.show({ provider })}
-                  icon={<Settings2 size={16} />}
+                  variant="light"
+                  onPress={() => CustomHeaderPopup.show({ provider })}
+                  startContent={<Settings2 size={16} />}
+                  isIconOnly
                 />
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
@@ -370,21 +443,56 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   onBlur={onUpdateApiHost}
                 />
                 {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-                  <Button danger onClick={onReset}>
+                  <Button color="danger" onPress={onReset}>
                     {t('settings.provider.api.url.reset')}
                   </Button>
                 )}
               </Space.Compact>
+
               {(isOpenAIProvider(provider) || isAnthropicProvider(provider)) && (
                 <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
                   <SettingHelpText
                     style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
-                    {hostPreview()}
+                    {t('settings.provider.api_host_preview', { url: hostPreview() })}
                   </SettingHelpText>
                   <SettingHelpText style={{ minWidth: 'fit-content' }}>
                     {t('settings.provider.api.url.tip')}
                   </SettingHelpText>
                 </SettingHelpTextRow>
+              )}
+
+              {canConfigureAnthropicHost && (
+                <>
+                  <SettingSubtitle
+                    style={{
+                      marginTop: 5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                    <Tooltip content={t('settings.provider.anthropic_api_host_tooltip')} delay={300}>
+                      <SubtitleLabel>{t('settings.provider.anthropic_api_host')}</SubtitleLabel>
+                    </Tooltip>
+                  </SettingSubtitle>
+                  <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                    <Input
+                      value={anthropicApiHost ?? ''}
+                      placeholder={t('settings.provider.anthropic_api_host')}
+                      onChange={(e) => setAnthropicHost(e.target.value)}
+                      onBlur={onUpdateAnthropicHost}
+                    />
+                  </Space.Compact>
+                  <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                    <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                      {t('settings.provider.anthropic_api_host_preview', {
+                        url: anthropicHostPreview || '—'
+                      })}
+                    </SettingHelpText>
+                    <SettingHelpText style={{ marginLeft: 6 }}>
+                      {t('settings.provider.anthropic_api_host_tip')}
+                    </SettingHelpText>
+                  </SettingHelpTextRow>
+                </>
               )}
             </>
           )}
@@ -417,6 +525,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     </SettingContainer>
   )
 }
+
+const SubtitleLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  line-height: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+`
 
 const ProviderName = styled.span`
   font-size: 14px;

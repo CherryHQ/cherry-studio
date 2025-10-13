@@ -1,5 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { Button, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -9,7 +8,6 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
-import { WarnTooltip } from '@renderer/components/TooltipIcons'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import {
   isEmbeddingModel,
@@ -24,7 +22,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import type { ModalProps } from 'antd'
-import { Button, Divider, Form, Input, InputNumber, Modal, Select, Tooltip } from 'antd'
+import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -186,12 +184,18 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <TypeTitle>
           <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
-            <WarnTooltip title={t('settings.moresetting.check.warn')} />
+            <WarnTooltip content={t('settings.moresetting.check.warn')} />
           </Flex>
 
           {hasUserModified && (
-            <Tooltip title={t('common.reset')}>
-              <Button size="small" icon={<RotateCcw size={14} />} onClick={handleResetTypes} type="text" />
+            <Tooltip content={t('common.reset')}>
+              <Button
+                size="sm"
+                startContent={<RotateCcw size={14} />}
+                onPress={handleResetTypes}
+                variant="light"
+                isIconOnly
+              />
             </Tooltip>
           )}
         </TypeTitle>
@@ -320,14 +324,13 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           <Flex className="relative items-center justify-between">
             <Button
               color="default"
-              variant="filled"
-              icon={showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              iconPosition="end"
-              onClick={() => setShowMoreSettings(!showMoreSettings)}
+              variant="solid"
+              endContent={showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              onPress={() => setShowMoreSettings(!showMoreSettings)}
               style={{ color: 'var(--color-text-3)' }}>
               {t('settings.moresetting.label')}
             </Button>
-            <Button type="primary" htmlType="submit" icon={<SaveIcon size={16} />}>
+            <Button color="primary" type="submit" startContent={<SaveIcon size={16} />}>
               {t('common.save')}
             </Button>
           </Flex>

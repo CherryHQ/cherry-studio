@@ -13,12 +13,13 @@ import {
   LinkOutlined
 } from '@ant-design/icons'
 import { ColFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Image, Tooltip } from 'antd'
+import { Image } from 'antd'
 import { isEmpty } from 'lodash'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -95,13 +96,10 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
 
   return (
     <Tooltip
-      styles={{
-        body: {
-          padding: 5
-        }
+      classNames={{
+        content: 'p-1'
       }}
-      fresh
-      title={
+      content={
         <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
             <Image

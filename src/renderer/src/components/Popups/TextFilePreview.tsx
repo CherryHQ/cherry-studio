@@ -61,12 +61,15 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
         <Editor
           theme={activeCmTheme}
           fontSize={fontSize - 1}
-          editable={false}
+          readOnly={true}
           expanded={false}
           height="100%"
           style={{ height: '100%' }}
           value={text}
           language={extension}
+          options={{
+            keymap: true
+          }}
         />
       ) : (
         <Text>{text}</Text>

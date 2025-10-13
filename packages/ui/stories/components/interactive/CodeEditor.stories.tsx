@@ -66,6 +66,7 @@ const meta: Meta<typeof CodeEditor> = {
     },
     fontSize: { control: { type: 'range', min: 12, max: 22, step: 1 } },
     editable: { control: 'boolean' },
+    readOnly: { control: 'boolean' },
     expanded: { control: 'boolean' },
     wrapped: { control: 'boolean' },
     height: { control: 'text' },
@@ -89,6 +90,7 @@ export const Default: Story = {
     value: `function greet(name: string) {\n  return 'Hello ' + name\n}`,
     fontSize: 16,
     editable: true,
+    readOnly: false,
     expanded: true,
     wrapped: true
   },
@@ -101,6 +103,7 @@ export const Default: Story = {
         theme={getCmThemeByName((args as any).theme || 'light')}
         fontSize={args.fontSize as number}
         editable={args.editable as boolean}
+        readOnly={args.readOnly as boolean}
         expanded={args.expanded as boolean}
         wrapped={args.wrapped as boolean}
         height={args.height as string | undefined}

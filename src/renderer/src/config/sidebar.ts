@@ -8,7 +8,7 @@ import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
  */
 // export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
 //   'assistants',
-//   'agents',
+//   'store',
 //   'paintings',
 //   'translate',
 //   'minapp',

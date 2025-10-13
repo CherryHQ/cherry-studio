@@ -1,80 +1,201 @@
 {
-  "agents": {
+  "agent": {
     "add": {
-      "button": "Adicionar ao Assistente",
-      "knowledge_base": {
-        "label": "Base de Conhecimento",
-        "placeholder": "Selecione a Base de Conhecimento"
+      "error": {
+        "failed": "Falha ao adicionar agente",
+        "invalid_agent": "Agent inválido"
       },
-      "name": {
-        "label": "Nome",
-        "placeholder": "Digite o Nome"
-      },
-      "prompt": {
-        "label": "Prompt",
-        "placeholder": "Digite o Prompt",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\tData\n{{time}}:\tHora\n{{datetime}}:\tData e hora\n{{system}}:\tSistema operativo\n{{arch}}:\tArquitetura da CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNome do modelo\n{{username}}:\tNome de utilizador",
-            "title": "Variáveis disponíveis"
-          }
-        }
-      },
-      "title": "Criar Agente Inteligente",
-      "unsaved_changes_warning": "Você tem alterações não salvas, tem certeza de que deseja fechar?"
-    },
-    "delete": {
-      "popup": {
-        "content": "Tem certeza de que deseja excluir este agente inteligente?"
+      "title": "Adicionar Agente",
+      "type": {
+        "placeholder": "Selecionar tipo de Agente"
       }
     },
+    "delete": {
+      "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
+      "error": {
+        "failed": "Falha ao excluir o agente"
+      },
+      "title": "删除代理"
+    },
     "edit": {
-      "model": {
-        "select": {
-          "title": "Selecionar Modelo"
+      "title": "Agent Editor"
+    },
+    "get": {
+      "error": {
+        "failed": "Falha ao obter o agente."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "Falha ao listar agentes."
+      }
+    },
+    "session": {
+      "accessible_paths": {
+        "add": "Adicionar diretório",
+        "duplicate": "Este diretório já está incluído.",
+        "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
+        "error": {
+          "at_least_one": "Por favor, selecione pelo menos um diretório acessível."
+        },
+        "label": "Diretórios acessíveis",
+        "select_failed": "Falha ao selecionar o diretório."
+      },
+      "add": {
+        "title": "Adicionar uma sessão"
+      },
+      "allowed_tools": {
+        "empty": "Não há ferramentas disponíveis para este agente.",
+        "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
+        "label": "Ferramentas pré-aprovadas",
+        "placeholder": "Selecionar ferramentas pré-aprovadas"
+      },
+      "create": {
+        "error": {
+          "failed": "Falha ao adicionar uma sessão"
         }
       },
-      "title": "Editar Agente Inteligente"
-    },
-    "export": {
-      "agent": "Exportar Agente"
-    },
-    "import": {
-      "button": "Importar",
-      "error": {
-        "fetch_failed": "Falha ao buscar dados da URL",
-        "invalid_format": "Formato de proxy inválido: campos obrigatórios ausentes",
-        "url_required": "Por favor, insira a URL"
+      "delete": {
+        "content": "Tem certeza de que deseja excluir esta sessão?",
+        "error": {
+          "failed": "Falha ao excluir a sessão",
+          "last": "Pelo menos uma sessão deve ser mantida"
+        },
+        "title": "Excluir sessão"
       },
-      "file_filter": "Arquivo JSON",
-      "select_file": "Selecionar arquivo",
-      "title": "Importar do exterior",
-      "type": {
-        "file": "Arquivo",
-        "url": "URL"
+      "edit": {
+        "title": "Sessão de edição"
       },
-      "url_placeholder": "Insira o URL JSON"
-    },
-    "manage": {
-      "title": "Gerenciar Agentes Inteligentes"
-    },
-    "my_agents": "Meus Agentes Inteligentes",
-    "search": {
-      "no_results": "Nenhum agente inteligente encontrado"
+      "get": {
+        "error": {
+          "failed": "Falha ao obter a sessão"
+        }
+      },
+      "label_one": "Sessão",
+      "label_other": "Sessões",
+      "update": {
+        "error": {
+          "failed": "Falha ao atualizar a sessão"
+        }
+      }
     },
     "settings": {
-      "title": "Configuração do Agente"
+      "advance": {
+        "maxTurns": {
+          "description": "Defina o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
+          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
+          "label": "Limite máximo de turnos de conversação"
+        },
+        "permissionMode": {
+          "description": "Como o agente de controle lida com situações que exigem autorização.",
+          "label": "Modo de permissão",
+          "options": {
+            "acceptEdits": "Aceitar edições automaticamente",
+            "bypassPermissions": "忽略检查 de permissão",
+            "default": "Padrão (perguntar antes de continuar)",
+            "plan": "Modo de planejamento (plano sujeito a aprovação)"
+          },
+          "placeholder": "Selecionar modo de permissão"
+        },
+        "title": "Configurações avançadas"
+      },
+      "essential": "Configurações Essenciais",
+      "prompt": "Configurações de Prompt",
+      "tooling": {
+        "mcp": {
+          "description": "Conecte servidores MCP para desbloquear ferramentas adicionais que você pode aprovar acima.",
+          "empty": "Nenhum servidor MCP detectado. Adicione um na página de configurações do MCP.",
+          "manageHint": "Precisa de configuração avançada? Visite Configurações → Servidores MCP.",
+          "toggle": "Alternar {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pré-aplica ferramentas confiáveis do sistema de arquivos para que as edições sejam executadas imediatamente.",
+            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
+            "title": "Aceitar automaticamente edições de arquivos"
+          },
+          "bypassPermissions": {
+            "behavior": "Cada ferramenta é pré-aprovada automaticamente.",
+            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
+            "title": "Ignorar verificações de permissão",
+            "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
+          },
+          "confirmChange": {
+            "description": "Alternar modos atualiza as ferramentas aprovadas automaticamente.",
+            "title": "Alterar modo de permissão?"
+          },
+          "default": {
+            "behavior": "Nenhuma ferramenta é pré-aprovada automaticamente.",
+            "description": "Verificações normais de permissão aplicam-se.",
+            "title": "Padrão (perguntar antes de continuar)"
+          },
+          "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
+          "placeholder": "Selecionar modo de permissões",
+          "plan": {
+            "behavior": "Ferramentas somente leitura. A execução está desabilitada.",
+            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
+            "title": "Modo de planejamento (em breve)"
+          },
+          "title": "Modo de permissões"
+        },
+        "preapproved": {
+          "autoBadge": "Adicionado por modo",
+          "autoDescription": "Esta ferramenta é aprovada automaticamente pelo modo de permissão atual.",
+          "empty": "Nenhuma ferramenta corresponde aos seus filtros.",
+          "mcpBadge": "Ferramenta MCP",
+          "requiresApproval": "Requer aprovação quando desativado",
+          "search": "Ferramentas de pesquisa",
+          "toggle": "Alternar {{name}}",
+          "warning": {
+            "description": "Ative apenas ferramentas em que confie. As configurações padrão do modo são destacadas automaticamente.",
+            "title": "Ferramentas pré-aprovadas são executadas sem revisão manual."
+          }
+        },
+        "review": {
+          "autoTools": "Auto: {{count}}",
+          "customTools": "Personalizado: {{count}}",
+          "helper": "As alterações são salvas automaticamente. Ajuste as etapas acima a qualquer momento para refinar as permissões.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Modo: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "Servidores MCP"
+          },
+          "permissionMode": {
+            "title": "Passo 1 · Modo de permissão"
+          },
+          "preapproved": {
+            "title": "Passo 2 · Ferramentas pré-aprovadas"
+          },
+          "review": {
+            "title": "Passo 3 · Revisão"
+          }
+        },
+        "tab": "Ferramentas e permissões"
+      },
+      "tools": {
+        "approved": "aprovado",
+        "caution": "Ferramentas pré-aprovadas ignoram a revisão humana. Ative apenas ferramentas confiáveis.",
+        "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
+        "requiresPermission": "Requer permissão quando não pré-aprovado.",
+        "tab": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas pré-aprovadas",
+        "toggle": "{{defaultValue}}"
+      }
     },
-    "sorting": {
-      "title": "Ordenação"
+    "type": {
+      "label": "Tipo de Agente",
+      "unknown": "Tipo Desconhecido"
     },
-    "tag": {
-      "agent": "Agente",
-      "default": "Padrão",
-      "new": "Novo",
-      "system": "Sistema"
+    "update": {
+      "error": {
+        "failed": "Falha ao atualizar o agente"
+      }
     },
-    "title": "Agente"
+    "warning": {
+      "enable_server": "Ativar o Servidor de API para usar agentes."
+    }
   },
   "apiServer": {
     "actions": {
@@ -154,6 +275,83 @@
     "list": {
       "showByList": "Exibição em Lista",
       "showByTags": "Exibição por Etiquetas"
+    },
+    "presets": {
+      "add": {
+        "button": "Adicionar ao assistente",
+        "knowledge_base": {
+          "label": "Base de conhecimento",
+          "placeholder": "Selecionar base de conhecimento"
+        },
+        "name": {
+          "label": "Nome",
+          "placeholder": "Inserir nome"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Inserir prompt",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\tData\n{{time}}:\tHora\n{{datetime}}:\tData e hora\n{{system}}:\tSistema operacional\n{{arch}}:\tArquitetura CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNome do modelo\n{{username}}:\tNome de utilizador",
+              "title": "Variáveis disponíveis"
+            }
+          }
+        },
+        "title": "Criar assistente",
+        "unsaved_changes_warning": "Tens alterações não guardadas. Tens a certeza de que queres fechar?"
+      },
+      "delete": {
+        "popup": {
+          "content": "Tens a certeza de que queres eliminar este assistente?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "Selecionar modelo"
+          }
+        },
+        "title": "Editar assistente"
+      },
+      "export": {
+        "agent": "Exportar assistente"
+      },
+      "import": {
+        "button": "Importar",
+        "error": {
+          "fetch_failed": "Falha ao obter dados do URL",
+          "invalid_format": "Formato de assistente inválido: campos obrigatórios em falta",
+          "url_required": "Por favor insere um URL"
+        },
+        "file_filter": "Ficheiros JSON",
+        "select_file": "Selecionar ficheiro",
+        "title": "Importar do exterior",
+        "type": {
+          "file": "Ficheiro",
+          "url": "URL"
+        },
+        "url_placeholder": "Inserir URL JSON"
+      },
+      "manage": {
+        "title": "Gerir assistentes"
+      },
+      "my_agents": "Os meus assistentes",
+      "search": {
+        "no_results": "Não foram encontrados assistentes relacionados"
+      },
+      "settings": {
+        "title": "Configuração de assistentes"
+      },
+      "sorting": {
+        "title": "Ordenar"
+      },
+      "tag": {
+        "agent": "Assistente",
+        "default": "Padrão",
+        "new": "Novo",
+        "system": "Sistema"
+      },
+      "title": "Biblioteca de assistentes"
     },
     "save": {
       "success": "Salvo com Sucesso",
@@ -251,6 +449,7 @@
     "added": "Adicionado",
     "case_sensitive": "Diferenciar maiúsculas e minúsculas",
     "collapse": "Recolher",
+    "download": "Baixar",
     "includes_user_questions": "Incluir perguntas do usuário",
     "manage": "Gerenciar",
     "select_model": "Selecionar Modelo",
@@ -333,6 +532,7 @@
       "new_topic": "Novo tópico {{Command}}",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
+      "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "send": "Enviar",
       "settings": "Configurações",
       "thinking": {
@@ -744,9 +944,14 @@
   },
   "common": {
     "add": "Adicionar",
+    "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
+    "agent_one": "Agente",
+    "agent_other": "Agentes",
     "and": "e",
     "assistant": "Agente Inteligente",
+    "assistant_one": "assistente",
+    "assistant_other": "assistente",
     "avatar": "Avatar",
     "back": "Voltar",
     "browse": "Navegar",
@@ -763,6 +968,8 @@
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
+    "delete_failed": "Falha ao excluir",
+    "delete_success": "Excluído com sucesso",
     "description": "Descrição",
     "detail": "detalhes",
     "disabled": "Desativado",
@@ -772,6 +979,10 @@
     "edit": "Editar",
     "enabled": "Ativado",
     "error": "错误",
+    "errors": {
+      "create_message": "Falha ao criar mensagem",
+      "validation": "Falha na verificação"
+    },
     "expand": "Expandir",
     "file": {
       "not_supported": "Tipo de arquivo não suportado {{type}}"
@@ -782,6 +993,7 @@
     "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
     "inspect": "Verificar",
+    "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
     "loading": "Carregando...",
@@ -793,6 +1005,11 @@
     "none": "Nenhum",
     "open": "Abrir",
     "paste": "Colar",
+    "placeholders": {
+      "select": {
+        "model": "Selecionar modelo"
+      }
+    },
     "preview": "Pré-visualização",
     "prompt": "Prompt",
     "provider": "Fornecedor",
@@ -805,6 +1022,7 @@
     "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
+    "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
     "settings": "Configurações",
@@ -819,6 +1037,9 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
+    "unknown": "Desconhecido",
+    "unnamed": "Sem nome",
+    "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",
     "you": "Você"
@@ -891,6 +1112,7 @@
     "modelType": "Tipo de modelo",
     "name": "Nome do erro",
     "no_api_key": "A chave da API não foi configurada",
+    "no_response": "Sem resposta",
     "originalError": "Erro original",
     "originalMessage": "Mensagem original",
     "parameter": "parâmetro",
@@ -956,6 +1178,9 @@
     },
     "document": "Documento",
     "edit": "Editar",
+    "error": {
+      "open_path": "Não foi possível abrir o caminho: {{path}}"
+    },
     "file": "Arquivo",
     "image": "Imagem",
     "name": "Nome do Arquivo",
@@ -1695,6 +1920,12 @@
     "provider_settings": "Ir para as configurações do provedor"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "A nota está vazia, não é possível gerar um nome",
+      "failed": "Falha ao gerar o nome da nota",
+      "label": "Gerar nome da nota",
+      "success": "Nome da nota gerado com sucesso"
+    },
     "characters": "caractere",
     "collapse": "[minimizar]",
     "content_placeholder": "Introduza o conteúdo da nota...",
@@ -1776,6 +2007,8 @@
     "sort_updated_asc": "Tempo de atualização (do mais antigo para o mais recente)",
     "sort_updated_desc": "atualização de tempo (do mais novo para o mais antigo)",
     "sort_z2a": "Nome do arquivo (Z-A)",
+    "spell_check": "verificação ortográfica",
+    "spell_check_tooltip": "Ativar/Desativar verificação ortográfica",
     "star": "Notas favoritas",
     "starred_notes": "notas salvas",
     "title": "nota",
@@ -1824,6 +2057,57 @@
       "title": "Manter tempo ativo"
     },
     "title": "Ollama"
+  },
+  "ovms": {
+    "action": {
+      "install": "Instalar",
+      "installing": "Instalando",
+      "reinstall": "Reinstalar",
+      "run": "Executar OVMS",
+      "starting": "Iniciando",
+      "stop": "Parar OVMS",
+      "stopping": "Parando"
+    },
+    "description": "<div><p>1. Baixe o modelo OV.</p><p>2. Adicione o modelo no 'Gerenciador'.</p><p>Compatível apenas com Windows!</p><p>Caminho de instalação do OVMS: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Consulte o <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Guia do Intel OVMS</a></p></dev>",
+    "download": {
+      "button": "Baixar",
+      "error": "Falha na seleção",
+      "model_id": {
+        "label": "ID do modelo:",
+        "model_id_pattern": "O ID do modelo deve começar com OpenVINO/",
+        "placeholder": "Obrigatório, por exemplo, OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Por favor, insira o ID do modelo"
+      },
+      "model_name": {
+        "label": "Nome do modelo:",
+        "placeholder": "Obrigatório, por exemplo, Qwen3-8B-int4-ov",
+        "required": "Por favor, insira o nome do modelo"
+      },
+      "model_source": "Fonte do modelo:",
+      "model_task": "Tarefa do modelo:",
+      "success": "Download concluído com sucesso",
+      "success_desc": "O modelo \"{{modelName}}\"-\"{{modelId}}\" foi baixado com sucesso, por favor vá para a interface de gerenciamento OVMS para adicionar o modelo",
+      "tip": "O modelo está sendo baixado, às vezes leva várias horas. Por favor aguarde pacientemente...",
+      "title": "Baixar modelo Intel OpenVINO"
+    },
+    "failed": {
+      "install": "Falha na instalação do OVMS:",
+      "install_code_100": "Erro desconhecido",
+      "install_code_101": "Compatível apenas com CPU Intel(R) Core(TM) Ultra",
+      "install_code_102": "Compatível apenas com Windows",
+      "install_code_103": "Falha ao baixar o tempo de execução do OVMS",
+      "install_code_104": "Falha ao descompactar o tempo de execução do OVMS",
+      "install_code_105": "Falha ao limpar o tempo de execução do OVMS",
+      "run": "Falha ao executar o OVMS:",
+      "stop": "Falha ao parar o OVMS:"
+    },
+    "status": {
+      "not_installed": "OVMS não instalado",
+      "not_running": "OVMS não está em execução",
+      "running": "OVMS em execução",
+      "unknown": "Status do OVMS desconhecido"
+    },
+    "title": "Intel OVMS"
   },
   "paintings": {
     "aspect_ratio": "Proporção da Imagem",
@@ -2056,6 +2340,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexidade",
     "ph8": "Plataforma Aberta de Grandes Modelos PH8",
     "poe": "Poe",
@@ -3733,6 +4018,10 @@
         "start_auth": "Iniciar autorização",
         "submit_code": "Concluir login"
       },
+      "anthropic_api_host": "Endereço da API Anthropic",
+      "anthropic_api_host_preview": "Pré-visualização Anthropic: {{url}}",
+      "anthropic_api_host_tip": "Preencher apenas se o fornecedor oferecer um endereço compatível com Anthropic. Terminar com / ignora o v1 adicionado automaticamente, terminar com # força o uso do endereço original.",
+      "anthropic_api_host_tooltip": "Preencher apenas quando o fornecedor fornece um endereço base compatível com Claude.",
       "api": {
         "key": {
           "check": {
@@ -3780,6 +4069,8 @@
         }
       },
       "api_host": "Endereço API",
+      "api_host_preview": "Pré-visualização: {{url}}",
+      "api_host_tooltip": "Substituir apenas quando o fornecedor necessita de um endereço compatível com OpenAI personalizado.",
       "api_key": {
         "label": "Chave API",
         "tip": "Use vírgula para separar várias chaves"
@@ -4183,7 +4474,6 @@
     }
   },
   "title": {
-    "agents": "Agentes",
     "apps": "Miniaplicativos",
     "code": "Código",
     "files": "Arquivos",
@@ -4195,6 +4485,7 @@
     "notes": "Notas",
     "paintings": "Pinturas",
     "settings": "Configurações",
+    "store": "Biblioteca de assistentes",
     "translate": "Traduzir"
   },
   "trace": {
@@ -4350,6 +4641,7 @@
     "later": "Mais tarde",
     "message": "Nova versão {{version}} disponível, deseja instalar agora?",
     "noReleaseNotes": "Sem notas de versão",
+    "saveDataError": "Falha ao salvar os dados, tente novamente",
     "title": "Atualização"
   },
   "warning": {

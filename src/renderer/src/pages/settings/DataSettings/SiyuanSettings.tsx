@@ -1,11 +1,10 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Button, Space, Tooltip } from 'antd'
+import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -101,12 +100,12 @@ const SiyuanSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.siyuan.token.label')}</span>
-          <Tooltip title={t('settings.data.siyuan.token.help')} placement="left">
-            <InfoCircleOutlined
-              style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleSiyuanHelpClick}
-            />
-          </Tooltip>
+          <InfoTooltip
+            content={t('settings.data.siyuan.token.help')}
+            placement="left"
+            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            onClick={handleSiyuanHelpClick}
+          />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
@@ -117,7 +116,7 @@ const SiyuanSettings: FC = () => {
               placeholder={t('settings.data.siyuan.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
+            <Button onPress={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
           </Space.Compact>
         </RowFlex>
       </SettingRow>

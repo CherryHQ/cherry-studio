@@ -1,4 +1,4 @@
-import { Button } from 'antd'
+import { Button } from '@cherrystudio/ui'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -22,7 +22,7 @@ const ExpandableText = ({
 
   const button = useMemo(() => {
     return (
-      <Button type="link" onClick={toggleExpand} style={{ alignSelf: 'flex-end' }}>
+      <Button variant="light" onPress={toggleExpand} className="self-end">
         {isExpanded ? t('common.collapse') : t('common.expand')}
       </Button>
     )

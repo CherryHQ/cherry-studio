@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -21,6 +21,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -59,26 +60,23 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     }
 
     const path = await window.api.file.selectFolder()
-    logger.info('Selected directory:', path)
+    logger.info('Selected directory:', { path })
     path && addDirectory(path)
   }
 
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
-          size='sm'
+        <ResponsiveButton
+          variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddDirectory()
-          }}
+          onPress={handleAddDirectory}
           isDisabled={disabled}>
           {t('knowledge.add_directory')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
-      <div className="px-4 py-5 h-[calc(100vh-135px)]">
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {directoryItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -93,9 +91,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
               fileInfo={{
                 name: (
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    <Ellipsis>
-                      {item.content as string}
-                    </Ellipsis>
+                    <Ellipsis>{item.content as string}</Ellipsis>
                   </ClickableSpan>
                 ),
                 ext: '.folder',
@@ -103,12 +99,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                 actions: (
                   <FlexAlignCenter>
                     {item.uniqueId && (
-                      <Button
-                        size='sm'
-                        isIconOnly
-                        variant="light"
-                        onClick={() => refreshItem(item)}
-                        aria-label="Refresh directory">
+                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
                         <RefreshIcon />
                       </Button>
                     )}
@@ -121,13 +112,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                         type="directory"
                       />
                     </StatusIconWrapper>
-                    <Button
-                      size='sm'
-                      isIconOnly
-                      variant="light"
-                      color="danger"
-                      onClick={() => removeItem(item)}
-                      aria-label="Delete directory">
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
                       <DeleteIcon size={14} className="lucide-custom" />
                     </Button>
                   </FlexAlignCenter>

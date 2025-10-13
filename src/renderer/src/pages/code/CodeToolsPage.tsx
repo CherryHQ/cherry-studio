@@ -1,3 +1,4 @@
+import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -13,10 +14,11 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
-import type { Model } from '@renderer/types'
+import type { EndpointType, Model } from '@renderer/types'
+import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
+import { Alert, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -29,7 +31,6 @@ import {
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
-  getClaudeSupportedProviders,
   OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
@@ -72,18 +73,47 @@ const CodeToolsPage: FC = () => {
       if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
         return false
       }
+
       if (m.provider === 'cherryai') {
         return false
       }
+
       if (selectedCliTool === codeTools.claudeCode) {
+        if (m.supported_endpoint_types) {
+          return m.supported_endpoint_types.includes('anthropic')
+        }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
+
       if (selectedCliTool === codeTools.geminiCli) {
+        if (m.supported_endpoint_types) {
+          return m.supported_endpoint_types.includes('gemini')
+        }
         return m.id.includes('gemini')
       }
+
       if (selectedCliTool === codeTools.openaiCodex) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
         return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
+
+      if (selectedCliTool === codeTools.githubCopilotCli) {
+        return false
+      }
+
+      if (selectedCliTool === codeTools.qwenCode || selectedCliTool === codeTools.iFlowCli) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        return true
+      }
+
       return true
     },
     [selectedCliTool]
@@ -173,7 +203,7 @@ const CodeToolsPage: FC = () => {
       }
     }
 
-    if (!selectedModel) {
+    if (!selectedModel && selectedCliTool !== codeTools.githubCopilotCli) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -182,6 +212,11 @@ const CodeToolsPage: FC = () => {
 
   // 准备启动环境
   const prepareLaunchEnvironment = async (): Promise<Record<string, string> | null> => {
+    if (selectedCliTool === codeTools.githubCopilotCli) {
+      const userEnv = parseEnvironmentVariables(environmentVariables)
+      return userEnv
+    }
+
     if (!selectedModel) return null
 
     const modelProvider = getProviderByModel(selectedModel)
@@ -206,7 +241,9 @@ const CodeToolsPage: FC = () => {
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
-    window.api.codeTools.run(selectedCliTool, selectedModel?.id!, currentDirectory, env, {
+    const modelId = selectedCliTool === codeTools.githubCopilotCli ? '' : selectedModel?.id!
+
+    window.api.codeTools.run(selectedCliTool, modelId, currentDirectory, env, {
       autoUpdateToLatest,
       terminal: selectedTerminal
     })
@@ -293,15 +330,20 @@ const CodeToolsPage: FC = () => {
                 banner
                 style={{ borderRadius: 'var(--list-item-border-radius)' }}
                 message={
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
                     <span>{t('code.bun_required_message')}</span>
                     <Button
-                      type="primary"
-                      size="small"
-                      icon={<Download size={14} />}
-                      onClick={handleInstallBun}
-                      loading={isInstallingBun}
-                      disabled={isInstallingBun}>
+                      color="primary"
+                      size="sm"
+                      startContent={<Download size={14} />}
+                      onPress={handleInstallBun}
+                      isLoading={isInstallingBun}
+                      isDisabled={isInstallingBun}>
                       {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
                     </Button>
                   </div>
@@ -322,46 +364,68 @@ const CodeToolsPage: FC = () => {
               />
             </SettingsItem>
 
-            <SettingsItem>
-              <div className="settings-label">
-                {t('code.model')}
-                {selectedCliTool === 'claude-code' && (
-                  <Popover
-                    content={
-                      <div style={{ width: 200 }}>
-                        <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {getClaudeSupportedProviders(allProviders).map((provider) => {
-                            return (
-                              <Link
-                                key={provider.id}
-                                style={{ color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 4 }}
-                                to={`/settings/provider?id=${provider.id}`}>
-                                <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
-                                {getProviderLabel(provider.id)}
-                                <ArrowUpRight size={14} />
-                              </Link>
-                            )
-                          })}
+            {selectedCliTool !== codeTools.githubCopilotCli && (
+              <SettingsItem>
+                <div className="settings-label">
+                  {t('code.model')}
+                  {selectedCliTool === 'claude-code' && (
+                    <Popover
+                      content={
+                        <div style={{ width: 200 }}>
+                          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 8
+                            }}>
+                            {getClaudeSupportedProviders(allProviders).map((provider) => {
+                              return (
+                                <Link
+                                  key={provider.id}
+                                  style={{
+                                    color: 'var(--color-text)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 4
+                                  }}
+                                  to={`/settings/provider?id=${provider.id}`}>
+                                  <Avatar
+                                    radius="md"
+                                    src={getProviderLogo(provider.id)}
+                                    className="h-5 w-5 rounded-md"
+                                  />
+                                  {getProviderLabel(provider.id)}
+                                  <ArrowUpRight size={14} />
+                                </Link>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    }
-                    trigger="hover"
-                    placement="right">
-                    <HelpCircle size={14} style={{ color: 'var(--color-text-3)', cursor: 'pointer' }} />
-                  </Popover>
-                )}
-              </div>
-              <ModelSelector
-                providers={availableProviders}
-                predicate={modelPredicate}
-                style={{ width: '100%' }}
-                placeholder={t('code.model_placeholder')}
-                value={selectedModel ? getModelUniqId(selectedModel) : undefined}
-                onChange={handleModelChange}
-                allowClear
-              />
-            </SettingsItem>
+                      }
+                      trigger="hover"
+                      placement="right">
+                      <HelpCircle
+                        size={14}
+                        style={{
+                          color: 'var(--color-text-3)',
+                          cursor: 'pointer'
+                        }}
+                      />
+                    </Popover>
+                  )}
+                </div>
+                <ModelSelector
+                  providers={availableProviders}
+                  predicate={modelPredicate}
+                  style={{ width: '100%' }}
+                  placeholder={t('code.model_placeholder')}
+                  value={selectedModel ? getModelUniqId(selectedModel) : undefined}
+                  onChange={handleModelChange}
+                  allowClear
+                />
+              </SettingsItem>
+            )}
 
             <SettingsItem>
               <div className="settings-label">{t('code.working_directory')}</div>
@@ -380,11 +444,27 @@ const CodeToolsPage: FC = () => {
                   options={directories.map((dir) => ({
                     value: dir,
                     label: (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{dir}</span>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                        <span
+                          style={{
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
+                          }}>
+                          {dir}
+                        </span>
                         <X
                           size={14}
-                          style={{ marginLeft: 8, cursor: 'pointer', color: '#999' }}
+                          style={{
+                            marginLeft: 8,
+                            cursor: 'pointer',
+                            color: '#999'
+                          }}
                           onClick={(e) => handleRemoveDirectory(dir, e)}
                         />
                       </div>
@@ -406,7 +486,14 @@ const CodeToolsPage: FC = () => {
                 rows={2}
                 style={{ fontFamily: 'monospace' }}
               />
-              <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>{t('code.env_vars_help')}</div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--color-text-3)',
+                  marginTop: 4
+                }}>
+                {t('code.env_vars_help')}
+              </div>
             </SettingsItem>
 
             {/* 终端选择 (macOS 和 Windows) */}
@@ -431,8 +518,12 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.cmd &&
                     selectedTerminal !== terminalApps.powershell &&
                     selectedTerminal !== terminalApps.windowsTerminal && (
-                      <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
-                        <Button icon={<FolderOpen size={16} />} onClick={() => handleSetCustomPath(selectedTerminal)} />
+                      <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                        <Button
+                          startContent={<FolderOpen size={16} />}
+                          isIconOnly
+                          onPress={() => handleSetCustomPath(selectedTerminal)}
+                        />
                       </Tooltip>
                     )}
                 </Space.Compact>
@@ -441,7 +532,12 @@ const CodeToolsPage: FC = () => {
                   selectedTerminal !== terminalApps.cmd &&
                   selectedTerminal !== terminalApps.powershell &&
                   selectedTerminal !== terminalApps.windowsTerminal && (
-                    <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: 'var(--color-text-3)',
+                        marginTop: 4
+                      }}>
                       {terminalCustomPaths[selectedTerminal]
                         ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                         : t('code.custom_path_required')}
@@ -459,13 +555,13 @@ const CodeToolsPage: FC = () => {
           </SettingsPanel>
 
           <Button
-            type="primary"
-            icon={<Terminal size={16} />}
-            size="large"
-            onClick={handleLaunch}
-            loading={isLaunching}
-            disabled={!canLaunch || !isBunInstalled}
-            block>
+            color="primary"
+            startContent={<Terminal size={16} />}
+            size="lg"
+            onPress={handleLaunch}
+            isLoading={isLaunching}
+            isDisabled={!canLaunch || !isBunInstalled}
+            fullWidth={true}>
             {isLaunching ? t('code.launching') : t('code.launch.label')}
           </Button>
         </MainContent>
@@ -527,10 +623,6 @@ const SettingsItem = styled.div`
 
 const BunInstallAlert = styled.div`
   margin-bottom: 24px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default CodeToolsPage

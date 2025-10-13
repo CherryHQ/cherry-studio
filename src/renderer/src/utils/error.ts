@@ -1,4 +1,6 @@
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { AgentServerError } from '@renderer/types'
+import { AgentServerErrorSchema } from '@renderer/types'
 import type {
   AiSdkErrorUnion,
   SerializedAiSdkError,
@@ -9,8 +11,10 @@ import type {
 import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
 import type { NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
+import { type AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
 import type { z } from 'zod'
+import { ZodError } from 'zod'
 
 import { parseJSON } from './json'
 import { safeSerialize } from './serialize'
@@ -45,6 +49,16 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 }
 
 export function formatErrorMessage(error: unknown): string {
+  if (error instanceof ZodError) {
+    return formatZodError(error)
+  }
+  if (isAxiosError(error)) {
+    return formatAxiosError(error)
+  }
+  const parseResult = AgentServerErrorSchema.safeParse(error)
+  if (parseResult.success) {
+    return formatAgentServerError(parseResult.data)
+  }
   const detailedError = getErrorDetails(error)
   delete detailedError?.headers
   delete detailedError?.stack
@@ -55,6 +69,19 @@ export function formatErrorMessage(error: unknown): string {
     .map((line) => `  ${line}`)
     .join('\n')
   return `Error Details:\n${formattedJson}`
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  } else {
+    return t('error.unknown')
+  }
+}
+
+export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
+  const msg = getErrorMessage(error)
+  return `${prefix}: ${msg}`
 }
 
 export const isAbortError = (error: any): boolean => {
@@ -286,4 +313,15 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   }
 
   return text.trim()
+}
+export const formatAgentServerError = (error: AgentServerError) =>
+  `${t('common.error')}: ${error.error.code} ${error.error.message}`
+export const formatAxiosError = (error: AxiosError) => {
+  if (!error.response) {
+    return `${t('common.error')}: ${t('error.no_response')}`
+  }
+
+  const { status, statusText } = error.response
+
+  return `${t('common.error')}: ${status} ${statusText}`
 }

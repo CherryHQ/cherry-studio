@@ -6,7 +6,7 @@ import type { FC, MouseEvent } from 'react'
 import styled from 'styled-components'
 
 import IndicatorLight from './IndicatorLight'
-import SelectModelPopup from './Popups/SelectModelPopup'
+import { SelectModelPopup } from './Popups/SelectModelPopup'
 import CustomTag from './Tags/CustomTag'
 
 interface Props {

@@ -27,9 +27,7 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
       class="settings-label"
     >
       分块大小
-      <div>
-        knowledge.chunk_size_tooltip
-      </div>
+      <div />
     </div>
     <input
       aria-label="分块大小"
@@ -47,9 +45,7 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
       class="settings-label"
     >
       分块重叠
-      <div>
-        knowledge.chunk_overlap_tooltip
-      </div>
+      <div />
     </div>
     <input
       aria-label="分块重叠"
@@ -67,9 +63,7 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
       class="settings-label"
     >
       检索相似度阈值
-      <div>
-        knowledge.threshold_tooltip
-      </div>
+      <div />
     </div>
     <input
       aria-label="检索相似度阈值"

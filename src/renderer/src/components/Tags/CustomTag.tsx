@@ -1,5 +1,5 @@
 import { CloseOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
 import type { CSSProperties, FC, MouseEventHandler } from 'react'
 import { memo, useMemo } from 'react'
 import styled from 'styled-components'
@@ -61,7 +61,7 @@ const CustomTag: FC<CustomTagProps> = ({
   )
 
   return tooltip ? (
-    <Tooltip title={tooltip} placement="top" mouseEnterDelay={0.3}>
+    <Tooltip content={tooltip} delay={300}>
       {tagContent}
     </Tooltip>
   ) : (

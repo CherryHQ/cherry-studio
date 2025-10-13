@@ -1,9 +1,10 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { ColFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { selectAllTopics } from '@renderer/store/assistants'
 import type { Topic } from '@renderer/types'
-import { Button, Divider, Empty, Segmented } from 'antd'
+import { Divider, Empty, Segmented } from 'antd'
 import dayjs from 'dayjs'
 import { groupBy, isEmpty, orderBy } from 'lodash'
 import { useState } from 'react'
@@ -40,7 +41,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
       <ListContainer {...props}>
         <ColFlex className="items-center">
           <Empty description={t('history.search.topics.empty')} />
-          <Button style={{ width: 200, marginTop: 20 }} type="primary" onClick={onSearch} icon={<SearchOutlined />}>
+          <Button className="mt-5 w-[200px]" color="primary" onPress={onSearch} startContent={<SearchOutlined />}>
             {t('history.search.messages')}
           </Button>
         </ColFlex>
@@ -75,7 +76,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
         ))}
         {keywords && (
           <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-            <Button style={{ width: 200, marginTop: 20 }} type="primary" onClick={onSearch} icon={<SearchOutlined />}>
+            <Button className="mt-5 w-[200px]" color="primary" onPress={onSearch} startContent={<SearchOutlined />}>
               {t('history.search.messages')}
             </Button>
           </div>

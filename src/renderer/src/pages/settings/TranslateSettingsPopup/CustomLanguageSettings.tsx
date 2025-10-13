@@ -1,10 +1,11 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
 import type { CustomTranslateLanguage } from '@renderer/types'
 import type { TableProps } from 'antd'
-import { Button, Popconfirm, Space, Table } from 'antd'
+import { Popconfirm, Space, Table } from 'antd'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -85,14 +86,14 @@ const CustomLanguageSettings = () => {
         render: (_, record) => {
           return (
             <Space>
-              <Button icon={<EditOutlined />} onClick={() => onClickEdit(record)}>
+              <Button startContent={<EditOutlined />} onPress={() => onClickEdit(record)}>
                 {t('common.edit')}
               </Button>
               <Popconfirm
                 title={t('settings.translate.custom.delete.title')}
                 description={t('settings.translate.custom.delete.description')}
                 onConfirm={() => onDelete(record.id)}>
-                <Button icon={<DeleteOutlined />} danger>
+                <Button startContent={<DeleteOutlined />} color="danger">
                   {t('common.delete')}
                 </Button>
               </Popconfirm>
@@ -122,9 +123,9 @@ const CustomLanguageSettings = () => {
         <RowFlex className="justify-between py-1">
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
           <Button
-            type="primary"
-            icon={<PlusOutlined size={16} />}
-            onClick={onClickAdd}
+            color="primary"
+            startContent={<PlusOutlined size={16} />}
+            onPress={onClickAdd}
             style={{ marginBottom: 5, marginTop: -5 }}>
             {t('common.add')}
           </Button>

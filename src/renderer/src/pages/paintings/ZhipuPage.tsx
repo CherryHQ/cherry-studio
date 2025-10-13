@@ -1,5 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { Avatar } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -11,7 +13,7 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
+import { InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -342,8 +344,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+          <NavbarRight>
+            <Button
+              size="sm"
+              className="nodrag"
+              variant="light"
+              startContent={<PlusOutlined />}
+              onPress={handleAddPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -361,9 +368,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.paint_course')}
               </SettingHelpLink>
               <ProviderLogo
-                shape="square"
+                radius="md"
                 src={getProviderLogo(zhipuProvider.id)}
-                size={16}
+                className="h-4 w-4"
                 style={{ marginLeft: 5 }}
               />
             </div>
@@ -372,7 +379,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <ProviderLogo radius="md" src={getProviderLogo(provider.value || '')} className="h-4 w-4" />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>

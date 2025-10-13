@@ -25,7 +25,7 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@renderer/components/TooltipIcons', () => ({
+vi.mock('@cherrystudio/ui', () => ({
   InfoTooltip: ({ title }: { title: string }) => <div>{mocks.i18n.t(title)}</div>
 }))
 
@@ -36,7 +36,10 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  TriangleAlert: () => <span>warning</span>
+  TriangleAlert: () => <span>warning</span>,
+  CheckIcon: () => <span>check</span>,
+  CircleXIcon: () => <span>error</span>,
+  AlertTriangleIcon: () => <span>alert</span>
 }))
 
 vi.mock('@heroui/react', () => ({

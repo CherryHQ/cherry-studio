@@ -2,7 +2,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -42,6 +41,7 @@ import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
 import Prompt from './Prompt'
+import { MessagesContainer, ScrollContainer } from './shared'
 
 interface MessagesProps {
   assistant: Assistant
@@ -392,27 +392,6 @@ const LoaderContainer = styled.div`
   width: 100%;
   background: var(--color-background);
   pointer-events: none;
-`
-
-const ScrollContainer = styled.div`
-  display: flex;
-  flex-direction: column-reverse;
-  padding: 10px 10px 20px;
-  .multi-select-mode & {
-    padding-bottom: 60px;
-  }
-`
-
-interface ContainerProps {
-  $right?: boolean
-}
-
-const MessagesContainer = styled(Scrollbar)<ContainerProps>`
-  display: flex;
-  flex-direction: column-reverse;
-  overflow-x: hidden;
-  z-index: 1;
-  position: relative;
 `
 
 export default Messages

@@ -101,7 +101,8 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const [showDetailModal, setShowDetailModal] = useState(false)
   const { t } = useTranslation()
 
-  const onRemoveBlock = () => {
+  const onRemoveBlock = (e: React.MouseEvent) => {
+    e.stopPropagation()
     setTimeoutTimer('onRemoveBlock', () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
   }
 

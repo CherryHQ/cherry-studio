@@ -1,5 +1,5 @@
+import { InfoTooltip } from '@cherrystudio/ui'
 import { Alert, NumberInput } from '@heroui/react'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import type { KnowledgeBase } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
@@ -23,7 +23,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.chunk_size')}
-          <InfoTooltip title={t('knowledge.chunk_size_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
         </div>
         <NumberInput
           className="w-full"
@@ -43,7 +43,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.chunk_overlap')}
-          <InfoTooltip title={t('knowledge.chunk_overlap_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
         </div>
         <NumberInput
           className="w-full"
@@ -63,7 +63,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.threshold')}
-          <InfoTooltip title={t('knowledge.threshold_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
         </div>
         <NumberInput
           className="w-full"
@@ -83,8 +83,8 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
       </SettingsItem>
 
       <Alert
-      className='p-0'
-      radius='sm'
+        className="p-0"
+        radius="sm"
         hideIconWrapper
         color="warning"
         variant="bordered"

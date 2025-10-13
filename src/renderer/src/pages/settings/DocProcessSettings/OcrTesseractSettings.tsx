@@ -1,7 +1,7 @@
 // import { loggerService } from '@logger'
 import { Flex } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -66,7 +66,7 @@ export const OcrTesseractSettings = () => {
         <SettingRowTitle>
           <Flex className="items-center gap-1">
             {t('settings.tool.ocr.common.langs')}
-            <InfoTooltip title={t('settings.tool.ocr.tesseract.langs_tooltip')} />
+            <InfoTooltip content={t('settings.tool.ocr.tesseract.langs_tooltip')} />
           </Flex>
         </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px' }}>

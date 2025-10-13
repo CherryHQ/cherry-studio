@@ -1,4 +1,5 @@
-import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
+import { Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -21,6 +22,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -113,19 +115,16 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
-          size='sm'
+        <ResponsiveButton
+          variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddUrl()
-          }}
+          onPress={handleAddUrl}
           isDisabled={disabled}>
           {t('knowledge.add_url')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
-      <div className="px-4 py-5 h-[calc(100vh-135px)]">
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {urlItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -159,14 +158,10 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           window.toast.success(t('message.copied'))
                         }
                       }}>
-                      <DropdownItem
-                        key="edit"
-                        startContent={<EditIcon size={14} />}>
+                      <DropdownItem key="edit" startContent={<EditIcon size={14} />}>
                         {t('knowledge.edit_remark')}
                       </DropdownItem>
-                      <DropdownItem
-                        key="copy"
-                        startContent={<CopyIcon size={14} />}>
+                      <DropdownItem key="copy" startContent={<CopyIcon size={14} />}>
                         {t('common.copy')}
                       </DropdownItem>
                     </DropdownMenu>
@@ -177,25 +172,14 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 actions: (
                   <FlexAlignCenter>
                     {item.uniqueId && (
-                      <Button
-                        size='sm'
-                        isIconOnly
-                        variant="light"
-                        onClick={() => refreshItem(item)}
-                        aria-label="Refresh URL">
+                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
                         <RefreshIcon />
                       </Button>
                     )}
                     <StatusIconWrapper>
                       <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
                     </StatusIconWrapper>
-                    <Button
-                      size='sm'
-                      isIconOnly
-                      variant="light"
-                      color="danger"
-                      onClick={() => removeItem(item)}
-                      aria-label="Delete URL">
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
                       <DeleteIcon size={14} className="lucide-custom" />
                     </Button>
                   </FlexAlignCenter>

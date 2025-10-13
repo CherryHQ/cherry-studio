@@ -1,7 +1,7 @@
+import { InfoTooltip } from '@cherrystudio/ui'
 import { Input, Select, SelectItem, Slider } from '@heroui/react'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -47,9 +47,9 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
         <div className="settings-label">{t('common.name')}</div>
         <Input
           data-testid="name-input"
-          size='sm'
-          type='text'
-          variant='bordered'
+          size="sm"
+          type="text"
+          variant="bordered"
           placeholder={t('common.name')}
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
@@ -59,7 +59,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('settings.tool.preprocess.title')}
-          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
+          <InfoTooltip content={t('settings.tool.preprocess.tooltip')} placement="right" />
         </div>
         <Select
           data-testid="preprocess-select"
@@ -76,12 +76,9 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
             }
             const [key] = Array.from(keys)
             handleDocPreprocessChange((key as string) || '')
-          }}
-        >
+          }}>
           {docPreprocessSelectOptions.map((option) => (
-            <SelectItem key={option.value}>
-              {option.label}
-            </SelectItem>
+            <SelectItem key={option.value}>{option.label}</SelectItem>
           ))}
         </Select>
       </SettingsItem>
@@ -89,7 +86,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('models.embedding_model')}
-          <InfoTooltip title={t('models.embedding_model_tooltip')} placement="right" />
+          <InfoTooltip content={t('models.embedding_model_tooltip')} placement="right" />
         </div>
         <ModelSelector
           providers={providers}
@@ -104,7 +101,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.dimensions')}
-          <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} placement="right" />
         </div>
         <InputEmbeddingDimension
           value={newBase.dimensions}
@@ -117,7 +114,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('models.rerank_model')}
-          <InfoTooltip title={t('models.rerank_model_tooltip')} placement="right" />
+          <InfoTooltip content={t('models.rerank_model_tooltip')} placement="right" />
         </div>
         <ModelSelector
           providers={providers}
@@ -133,7 +130,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.document_count')}
-          <InfoTooltip title={t('knowledge.document_count_help')} placement="right" />
+          <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
         </div>
         <Slider
           data-testid="document-count-slider"
@@ -150,7 +147,9 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
             { value: 50, label: '50' }
           ]}
           showTooltip={true}
-          onChange={(value) => setNewBase((prev) => ({ ...prev, documentCount: Array.isArray(value) ? value[0] : value }))}
+          onChange={(value) =>
+            setNewBase((prev) => ({ ...prev, documentCount: Array.isArray(value) ? value[0] : value }))
+          }
         />
       </SettingsItem>
     </SettingsPanel>

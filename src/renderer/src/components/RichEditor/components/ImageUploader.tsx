@@ -1,6 +1,7 @@
 import { InboxOutlined, LinkOutlined, LoadingOutlined, UploadOutlined } from '@ant-design/icons'
 import { Flex } from '@cherrystudio/ui'
-import { Button, Input, Modal, Spin, Tabs, Upload } from 'antd'
+import { Button } from '@cherrystudio/ui'
+import { Input, Modal, Spin, Tabs, Upload } from 'antd'
 
 const { Dragger } = Upload
 import type { RcFile } from 'antd/es/upload'
@@ -174,17 +175,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               prefix={<LinkOutlined style={{ color: '#999' }} />}
               style={{ flex: 1 }}
             />
-            <Button
-              onClick={() => setUrlInput('')}
-              style={{
-                border: '1px solid #dadce0',
-                borderRadius: '4px',
-                color: '#3c4043',
-                background: '#ffffff'
-              }}>
+            <Button onPress={() => setUrlInput('')} className="border border-gray-300 bg-white text-gray-700">
               {t('common.clear')}
             </Button>
-            <Button type="primary" onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
+            <Button color="primary" onPress={handleUrlSubmit} isDisabled={!urlInput.trim()}>
               {t('richEditor.imageUploader.embedImage')}
             </Button>
           </Flex>

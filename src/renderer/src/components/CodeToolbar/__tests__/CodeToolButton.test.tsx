@@ -6,8 +6,8 @@ import CodeToolButton from '../button'
 
 // Mock Antd components
 const mocks = vi.hoisted(() => ({
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, title, content }) => (
+    <div data-testid="tooltip" data-title={content || title}>
       {children}
     </div>
   )),
@@ -19,8 +19,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('antd', () => ({
-  Tooltip: mocks.Tooltip,
   Dropdown: mocks.Dropdown
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: mocks.Tooltip
 }))
 
 // Mock ToolWrapper

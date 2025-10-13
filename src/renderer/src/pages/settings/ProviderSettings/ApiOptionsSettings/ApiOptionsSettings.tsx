@@ -1,6 +1,6 @@
 import { ColFlex, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Provider } from '@renderer/types'
 import { startTransition, useCallback, useMemo } from 'react'
@@ -111,7 +111,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
-            <InfoTooltip title={item.tip}></InfoTooltip>
+            <InfoTooltip content={item.tip}></InfoTooltip>
           </RowFlex>
           <Switch id={item.key} isSelected={item.checked} onValueChange={item.onChange} />
         </RowFlex>

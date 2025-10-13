@@ -1,5 +1,6 @@
+import { Button } from '@cherrystudio/ui'
 import { isWin } from '@renderer/config/constant'
-import { Button, Form, Input, Modal } from 'antd'
+import { Form, Input, Modal } from 'antd'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,10 +50,10 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
       keyboard={true}
       destroyOnHidden
       footer={[
-        <Button key="modal-cancel" onClick={onClose}>
+        <Button key="modal-cancel" onPress={onClose}>
           {t('common.cancel')}
         </Button>,
-        <Button key="modal-save" type="primary" onClick={handleSave}>
+        <Button key="modal-save" color="primary" onPress={handleSave}>
           {t('common.save')}
         </Button>
       ]}>

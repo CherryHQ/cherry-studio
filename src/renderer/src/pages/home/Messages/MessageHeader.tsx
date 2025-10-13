@@ -1,13 +1,15 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
@@ -15,7 +17,7 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Avatar, Checkbox, Tooltip } from 'antd'
+import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC } from 'react'
@@ -41,6 +43,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
   const showMinappIcon = useSidebarIconShow('minapp')
+  const { chat } = useRuntime()
+  const { activeTopicOrSession, activeAgentId } = chat
+  const { agent } = useAgent(activeAgentId)
+  const isAgentView = activeTopicOrSession === 'session'
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
@@ -56,12 +62,16 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       return APP_NAME
     }
 
+    if (isAgentView && message.role === 'assistant') {
+      return agent?.name ?? t('common.unknown')
+    }
+
     if (message.role === 'assistant') {
       return getModelName(model) || getMessageModelId(message) || ''
     }
 
     return userName || t('common.you')
-  }, [message, model, t, userName])
+  }, [agent?.name, isAgentView, message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
@@ -86,7 +96,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       {isAssistantMessage ? (
         <Avatar
           src={avatarSource}
-          size={35}
+          className="h-[35px] w-[35px]"
           style={{
             borderRadius: '25%',
             cursor: showMinappIcon ? 'pointer' : 'default',
@@ -105,7 +115,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           ) : (
             <Avatar
               src={avatar}
-              size={35}
+              className="h-[35px] w-[35px]"
               style={{ borderRadius: '25%', cursor: 'pointer' }}
               onClick={() => UserPopup.show()}
             />
@@ -118,7 +128,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             {username}
           </UserName>
           {isGroupContextMessage && (
-            <Tooltip title={t('chat.message.useful.tip')}>
+            <Tooltip content={t('chat.message.useful.tip')}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}

@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -45,7 +46,6 @@ import {
 } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Tooltip } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { debounce, isEmpty } from 'lodash'
@@ -911,10 +911,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
-                <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ActionIconButton>
+                <Tooltip content={t('chat.input.pause')} closeDelay={0}>
+                  <ActionIconButton
+                    onClick={onPause}
+                    className="mr-[-2px]"
+                    icon={<CirclePause size={20} color="var(--color-error)" />}
+                  />
                 </Tooltip>
               )}
             </ToolbarMenu>

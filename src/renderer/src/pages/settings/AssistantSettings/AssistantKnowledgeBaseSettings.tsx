@@ -1,9 +1,10 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { Box } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { useAppSelector } from '@renderer/store'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import type { SelectProps } from 'antd'
-import { Row, Segmented, Select, Tooltip } from 'antd'
+import { Row, Segmented, Select } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -36,7 +37,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         mode="multiple"
         allowClear
         value={assistant.knowledge_bases?.map((b) => b.id)}
-        placeholder={t('agents.add.knowledge_base.placeholder')}
+        placeholder={t('assistants.presets.add.knowledge_base.placeholder')}
         menuItemSelectedIcon={<CheckOutlined />}
         options={knowledgeOptions}
         onChange={(value) => onUpdate(value)}
@@ -58,7 +59,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
               label: (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   {t('assistants.settings.knowledge_base.recognition.on')}
-                  <Tooltip title={t('assistants.settings.knowledge_base.recognition.tip')}>
+                  <Tooltip content={t('assistants.settings.knowledge_base.recognition.tip')}>
                     <QuestionIcon size={15} />
                   </Tooltip>
                 </div>

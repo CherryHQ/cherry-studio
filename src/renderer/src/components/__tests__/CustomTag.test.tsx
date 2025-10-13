@@ -28,18 +28,16 @@ describe('CustomTag', () => {
         reasoning
       </CustomTag>
     )
-    // 鼠标悬停触发 Tooltip
+    // 鼠标悬停触发 Tooltip（mock 直接渲染 tooltip 内容）
     await userEvent.hover(screen.getByText('reasoning'))
-    expect(await screen.findByText('reasoning model')).toBeInTheDocument()
+    expect(screen.getByTestId('tooltip-content')).toHaveTextContent('reasoning model')
   })
 
   it('should not render Tooltip when tooltip is not set', () => {
     render(<CustomTag color="#ff0000">no tooltip</CustomTag>)
 
     expect(screen.getByText('no tooltip')).toBeInTheDocument()
-    // 不应有 tooltip 相关内容
-    expect(document.querySelector('.ant-tooltip')).toBeNull()
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('tooltip-content')).not.toBeInTheDocument()
   })
 
   it('should not allow click when disabled', async () => {

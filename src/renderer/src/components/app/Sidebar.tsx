@@ -1,5 +1,5 @@
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -13,7 +13,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Tooltip } from 'antd'
 import {
   Code,
   FileSearch,
@@ -90,9 +89,9 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-          mouseEnterDelay={0.8}
-          placement="right">
+          placement="right"
+          content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+          delay={800}>
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
@@ -103,7 +102,7 @@ const Sidebar: FC = () => {
             )}
           </Icon>
         </Tooltip>
-        <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
+        <Tooltip placement="right" content={t('settings.title')} delay={800}>
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
@@ -134,7 +133,7 @@ const MainMenus: FC = () => {
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
-    agents: <Sparkle size={18} className="icon" />,
+    store: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
@@ -146,7 +145,7 @@ const MainMenus: FC = () => {
 
   const pathMap = {
     assistants: '/',
-    agents: '/agents',
+    store: '/store',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
     minapp: '/apps',
@@ -161,7 +160,7 @@ const MainMenus: FC = () => {
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 
     return (
-      <Tooltip key={icon} title={getSidebarIconLabel(icon)} mouseEnterDelay={0.8} placement="right">
+      <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)} delay={800}>
         <StyledLink
           onClick={async () => {
             hideMinappPopup()

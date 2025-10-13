@@ -1,10 +1,10 @@
+import type { TooltipProps } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import type { Model } from '@renderer/types'
-import type { TooltipProps } from 'antd'
-import { Button, Tooltip } from 'antd'
 import { useCallback, useMemo } from 'react'
 
 import ModelAvatar from './Avatar/ModelAvatar'
-import SelectModelPopup from './Popups/SelectModelPopup'
+import { SelectModelPopup } from './Popups/SelectModelPopup'
 
 type Props = {
   model: Model
@@ -23,14 +23,22 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
   }, [model, modelFilter, onSelectModel])
 
   const button = useMemo(() => {
-    return <Button icon={<ModelAvatar model={model} size={22} />} type="text" shape="circle" onClick={onClick} />
+    return (
+      <Button
+        startContent={<ModelAvatar model={model} size={22} />}
+        variant="light"
+        radius="full"
+        isIconOnly
+        onPress={onClick}
+      />
+    )
   }, [model, onClick])
 
   if (noTooltip) {
     return button
   } else {
     return (
-      <Tooltip title={model.name} {...tooltipProps}>
+      <Tooltip content={model.name} {...tooltipProps}>
         {button}
       </Tooltip>
     )

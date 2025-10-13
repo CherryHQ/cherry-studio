@@ -1,9 +1,9 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import type { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
-import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
@@ -144,13 +144,14 @@ const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files
 
   return (
     <Tooltip
-      placement="top"
-      title={couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')}
-      mouseLeaveDelay={0}
-      arrow>
-      <ActionIconButton onClick={openFileSelectDialog} active={files.length > 0} disabled={disabled}>
-        <Paperclip size={18} />
-      </ActionIconButton>
+      content={couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')}
+      closeDelay={0}>
+      <ActionIconButton
+        onPress={openFileSelectDialog}
+        active={files.length > 0}
+        isDisabled={disabled}
+        icon={<Paperclip size={18} />}
+      />
     </Tooltip>
   )
 }

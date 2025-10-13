@@ -128,13 +128,21 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    🎨 界面优化：
-    - 优化了多个组件的布局和间距，提升视觉体验
-    - 改进了导航栏和标签栏的样式显示
-    - MCP 服务器卡片宽度调整为 100%，提高响应式布局效果
-    - 优化了笔记侧边栏的滚动行为
+    What's New in v1.6.3
 
-    🐛 问题修复：
-    - 修复了小应用打开功能无法正常工作的问题
-    - 修复了助手更新时 ID 丢失导致更新失败的问题
-    - 确保助手更新时 ID 字段为必填项，防止数据错误
+    Features:
+    - Notes: Add spell-check control, automatic table line wrapping, export functionality, and LLM-based renaming
+    - UI: Expand topic rename clickable area, add middle-click tab closing, remove redundant scrollbars, fix message menubar overflow
+    - Editor: Add read-only extension support, make TextFilePreview read-only but copyable
+    - Models: Update support for DeepSeek v3.2, Claude 4.5, GLM 4.6, Gemini regex, and vision models
+    - Code Tools: Add GitHub Copilot CLI integration
+
+    Bug Fixes:
+    - Fix migration for missing providers
+    - Fix forked topic retaining old name after rename
+    - Restore first token latency reporting in metrics
+    - Fix UI scrollbar and overflow issues
+
+    Technical Updates:
+    - Upgrade to Electron 37.6.0
+    - Update dependencies across packages

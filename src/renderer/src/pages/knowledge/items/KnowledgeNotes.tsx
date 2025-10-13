@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -19,6 +19,7 @@ import {
   ItemContainer,
   ItemHeader,
   KnowledgeEmptyView,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -79,19 +80,16 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
-          size='sm'
+        <ResponsiveButton
+          variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddNote()
-          }}
+          onPress={handleAddNote}
           isDisabled={disabled}>
           {t('knowledge.add_note')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
-      <div className="px-4 py-5 h-[calc(100vh-135px)]">
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {noteItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -115,12 +113,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 extra: getDisplayTime(note),
                 actions: (
                   <FlexAlignCenter>
-                    <Button
-                      size='sm'
-                      isIconOnly
-                      variant="light"
-                      onClick={() => handleEditNote(note)}
-                      aria-label="Edit note">
+                    <Button variant="light" isIconOnly onPress={() => handleEditNote(note)}>
                       <EditIcon size={14} />
                     </Button>
                     <StatusIconWrapper>
@@ -131,13 +124,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="note"
                       />
                     </StatusIconWrapper>
-                    <Button
-                      size='sm'
-                      isIconOnly
-                      variant="light"
-                      color="danger"
-                      onClick={() => removeItem(note)}
-                      aria-label="Delete note">
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(note)}>
                       <DeleteIcon size={14} className="lucide-custom" />
                     </Button>
                   </FlexAlignCenter>
@@ -150,7 +137,5 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     </ItemContainer>
   )
 }
-
-
 
 export default KnowledgeNotes

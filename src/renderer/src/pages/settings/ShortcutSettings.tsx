@@ -1,6 +1,5 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
@@ -10,7 +9,7 @@ import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
 import type { InputRef } from 'antd'
-import { Button, Input, Table as AntTable, Tooltip } from 'antd'
+import { Input, Table as AntTable } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { FC } from 'react'
 import React, { useRef, useState } from 'react'
@@ -371,22 +370,22 @@ const ShortcutSettings: FC = () => {
       width: '70px',
       render: (record: Shortcut) => (
         <RowFlex className="items-center justify-end gap-2">
-          <Tooltip title={t('settings.shortcuts.reset_to_default')}>
+          <Tooltip content={t('settings.shortcuts.reset_to_default')}>
             <Button
-              icon={<UndoOutlined />}
-              size="small"
-              shape="circle"
-              onClick={() => handleResetShortcut(record)}
-              disabled={!isShortcutModified(record)}
+              startContent={<UndoOutlined />}
+              size="sm"
+              isIconOnly
+              onPress={() => handleResetShortcut(record)}
+              isDisabled={!isShortcutModified(record)}
             />
           </Tooltip>
-          <Tooltip title={t('settings.shortcuts.clear_shortcut')}>
+          <Tooltip content={t('settings.shortcuts.clear_shortcut')}>
             <Button
-              icon={<ClearOutlined />}
-              size="small"
-              shape="circle"
-              onClick={() => handleClear(record)}
-              disabled={record.shortcut.length === 0 || !record.editable}
+              startContent={<ClearOutlined />}
+              size="sm"
+              isIconOnly
+              onPress={() => handleClear(record)}
+              isDisabled={record.shortcut.length === 0 || !record.editable}
             />
           </Tooltip>
         </RowFlex>
@@ -417,7 +416,7 @@ const ShortcutSettings: FC = () => {
         />
         <SettingDivider style={{ marginBottom: 0 }} />
         <RowFlex className="justify-end p-4">
-          <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
+          <Button onPress={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
         </RowFlex>
       </SettingGroup>
     </SettingContainer>

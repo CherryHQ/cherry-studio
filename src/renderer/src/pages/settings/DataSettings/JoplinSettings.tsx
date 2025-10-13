@@ -1,11 +1,11 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Button, Space, Tooltip } from 'antd'
+import { Space } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,11 +19,12 @@ const JoplinSettings: FC = () => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { openSmartMinapp } = useMinappPopup()
 
   const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setJoplinToken(e.target.value)
   }
+
+  const { openSmartMinapp } = useMinappPopup()
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setJoplinUrl(e.target.value)
@@ -64,6 +65,10 @@ const JoplinSettings: FC = () => {
     }
   }
 
+  const handleToggleJoplinExportReasoning = (checked: boolean) => {
+    setJoplinExportReasoning(checked)
+  }
+
   const handleJoplinHelpClick = () => {
     openSmartMinapp({
       id: 'joplin-help',
@@ -71,10 +76,6 @@ const JoplinSettings: FC = () => {
       url: 'https://joplinapp.org/help/apps/clipper',
       logo: AppLogo
     })
-  }
-
-  const handleToggleJoplinExportReasoning = (checked: boolean) => {
-    setJoplinExportReasoning(checked)
   }
 
   return (
@@ -98,12 +99,12 @@ const JoplinSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.joplin.token')}</span>
-          <Tooltip title={t('settings.data.joplin.help')} placement="left">
-            <InfoCircleOutlined
-              style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleJoplinHelpClick}
-            />
-          </Tooltip>
+          <InfoTooltip
+            content={t('settings.data.joplin.help')}
+            placement="left"
+            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            onClick={handleJoplinHelpClick}
+          />
         </SettingRowTitle>
         <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
@@ -114,7 +115,7 @@ const JoplinSettings: FC = () => {
               placeholder={t('settings.data.joplin.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
+            <Button onPress={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
           </Space.Compact>
         </RowFlex>
       </SettingRow>

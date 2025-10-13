@@ -1,9 +1,9 @@
 import { Flex } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -170,7 +170,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                 label={
                   <Flex className="items-center gap-1">
                     {t('memory.embedding_dimensions')}
-                    <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} />
+                    <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} />
                   </Flex>
                 }
                 name="embedderDimensions"

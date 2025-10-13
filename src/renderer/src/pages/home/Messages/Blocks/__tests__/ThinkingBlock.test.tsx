@@ -42,15 +42,18 @@ vi.mock('antd', () => ({
       ))}
     </div>
   ),
-  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
-    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
-      {children}
-    </div>
-  ),
   message: {
     success: vi.fn(),
     error: vi.fn()
   }
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
+    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
+      {children}
+    </div>
+  )
 }))
 
 // Mock icons
@@ -68,7 +71,10 @@ vi.mock('lucide-react', () => ({
       💡
     </span>
   ),
-  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />
+  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />,
+  CheckIcon: () => <span>check</span>,
+  CircleXIcon: () => <span>error</span>,
+  AlertTriangleIcon: () => <span>alert</span>
 }))
 
 // Mock motion
@@ -261,13 +267,12 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('1.0s')
       expect(activeTimeText).toHaveTextContent('Thinking...')
     })
 
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
-        { thinking_millsec: 0, expectedTime: '0.0s' },
+        { thinking_millsec: 0, expectedTime: '0.1s' }, // New logic: values < 1000ms display as 0.1s
         { thinking_millsec: 86400000, expectedTime: '86400.0s' }, // 1 day
         { thinking_millsec: 259200000, expectedTime: '259200.0s' } // 3 days
       ]

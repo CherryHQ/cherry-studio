@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@heroui/react'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -27,6 +27,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -83,19 +84,16 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
-          size='sm'
+        <ResponsiveButton
+          variant="solid"
           color="primary"
           startContent={<Plus size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddVideo()
-          }}
+          onPress={handleAddVideo}
           isDisabled={disabled}>
           {t('knowledge.add_video')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
-      <div className="flex flex-col gap-2.5 px-4 py-5 h-[calc(100vh-135px)]">
+      <div className="flex h-[calc(100vh-135px)] flex-col gap-2.5 px-4 py-5">
         {videoItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
@@ -138,13 +136,11 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         <FlexAlignCenter>
                           {item.uniqueId && (
                             <Button
-                              size='sm'
-                              isIconOnly
                               variant="light"
-                              onClick={() => refreshItem(item)}
-                              aria-label="Refresh video">
-                              <RefreshIcon />
-                            </Button>
+                              startContent={<RefreshIcon />}
+                              isIconOnly
+                              onPress={() => refreshItem(item)}
+                            />
                           )}
 
                           <StatusIconWrapper>
@@ -156,14 +152,12 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                             />
                           </StatusIconWrapper>
                           <Button
-                            size='sm'
-                            isIconOnly
                             variant="light"
                             color="danger"
-                            onClick={() => removeItem(item)}
-                            aria-label="Delete video">
-                            <DeleteIcon size={14} className="lucide-custom" />
-                          </Button>
+                            startContent={<DeleteIcon />}
+                            isIconOnly
+                            onPress={() => removeItem(item)}
+                          />
                         </FlexAlignCenter>
                       )
                     }}

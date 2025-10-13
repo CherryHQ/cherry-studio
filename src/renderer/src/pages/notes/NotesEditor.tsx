@@ -1,12 +1,14 @@
-import { SpaceBetweenRowFlex } from '@cherrystudio/ui'
+import { SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
 import CodeEditor from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import type { EditorView } from '@renderer/types'
-import { Empty, Spin } from 'antd'
+import { Empty } from 'antd'
+import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,16 +18,15 @@ interface NotesEditorProps {
   activeNodeId?: string
   currentContent: string
   tokenCount: number
-  isLoading: boolean
   editorRef: RefObject<RichEditorRef | null>
   onMarkdownChange: (content: string) => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, isLoading, onMarkdownChange, editorRef }) => {
+  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
-    const { activeCmTheme } = useCodeStyle()
+    const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
         return settings.defaultEditMode
@@ -50,22 +51,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       )
     }
 
-    if (isLoading) {
-      return (
-        <LoadingContainer>
-          <Spin tip={t('common.loading')} />
-        </LoadingContainer>
-      )
-    }
-
     return (
       <>
         <RichEditorContainer>
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
-                theme={activeCmTheme}
-                fontSize={settings.fontSize}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
@@ -91,6 +82,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               isFullWidth
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
+              enableSpellCheck={enableSpellCheck}
             />
           )}
         </RichEditorContainer>
@@ -105,8 +97,22 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 color: 'var(--color-text-3)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8
+                gap: 12
               }}>
+              {tmpViewMode === 'preview' && (
+                <Tooltip placement="top" content={t('notes.spell_check_tooltip')} closeDelay={0}>
+                  <ActionIconButton
+                    active={enableSpellCheck}
+                    onClick={() => {
+                      const newValue = !enableSpellCheck
+                      setEnableSpellCheck(newValue)
+                      window.api.setEnableSpellCheck(newValue)
+                    }}
+                    icon={<SpellCheck size={18} />}>
+                    <SpellCheck size={18} />
+                  </ActionIconButton>
+                </Tooltip>
+              )}
               <Selector
                 value={tmpViewMode as EditorView}
                 onChange={(value: EditorView) => setTmpViewMode(value)}
@@ -125,14 +131,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 )
 
 NotesEditor.displayName = 'NotesEditor'
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-`
 
 const EmptyContainer = styled.div`
   display: flex;

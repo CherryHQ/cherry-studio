@@ -45,10 +45,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="settings.tool.preprocess.tooltip"
-      >
-        ℹ️
-      </span>
+      />
     </div>
     <select
       class="w-full"
@@ -82,10 +79,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="models.embedding_model_tooltip"
-      >
-        ℹ️
-      </span>
+      />
     </div>
     <select
       data-has-providers="true"
@@ -120,10 +114,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="knowledge.dimensions_size_tooltip"
-      >
-        ℹ️
-      </span>
+      />
     </div>
     <input
       data-model="text-embedding-3-small"
@@ -142,10 +133,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="models.rerank_model_tooltip"
-      >
-        ℹ️
-      </span>
+      />
     </div>
     <select
       data-allow-clear="true"
@@ -181,10 +169,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="knowledge.document_count_help"
-      >
-        ℹ️
-      </span>
+      />
     </div>
     <input
       class="w-full"

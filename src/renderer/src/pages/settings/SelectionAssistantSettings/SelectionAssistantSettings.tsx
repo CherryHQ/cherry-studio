@@ -1,11 +1,12 @@
-import { Switch } from '@cherrystudio/ui'
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { Radio, RadioGroup } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Radio, Row, Slider, Tooltip } from 'antd'
+import { Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -86,8 +87,8 @@ const SelectionAssistantSettings: FC = () => {
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
           <Button
-            type="link"
-            onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
+            variant="light"
+            onPress={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
             style={{ fontSize: 12 }}>
             {'FAQ & ' + t('settings.about.feedback.button')}
           </Button>
@@ -122,38 +123,38 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
                   {/* FIXME: 没有考虑Linux？ */}
-                  <Tooltip placement="top" title={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')} arrow>
+                  <Tooltip content={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')}>
                     <QuestionIcon size={14} />
                   </Tooltip>
                 </SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Radio.Group
+              <RadioGroup
+                size="sm"
+                orientation="horizontal"
                 value={triggerMode}
-                onChange={(e) => setTriggerMode(e.target.value as SelectionTriggerMode)}
-                buttonStyle="solid">
-                <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.selected_note')} arrow>
-                  <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
+                onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}>
+                <Tooltip content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
+                  <Radio value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio>
                 </Tooltip>
                 {isWin && (
-                  <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')} arrow>
-                    <Radio.Button value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio.Button>
+                  <Tooltip content={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')}>
+                    <Radio value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio>
                   </Tooltip>
                 )}
                 <Tooltip
-                  placement="topRight"
-                  title={
+                  placement="top-end"
+                  content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
                       <Link to="/settings/shortcut" style={{ color: 'var(--color-primary)' }}>
                         {t('selection.settings.toolbar.trigger_mode.shortcut_link')}
                       </Link>
                     </div>
-                  }
-                  arrow>
-                  <Radio.Button value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio.Button>
+                  }>
+                  <Radio value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio>
                 </Tooltip>
-              </Radio.Group>
+              </RadioGroup>
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -229,14 +230,15 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Radio.Group
+              <RadioGroup
+                size="sm"
+                orientation="horizontal"
                 value={filterMode ?? 'default'}
-                onChange={(e) => setFilterMode(e.target.value as SelectionFilterMode)}
-                buttonStyle="solid">
-                <Radio.Button value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio.Button>
-                <Radio.Button value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio.Button>
-                <Radio.Button value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio.Button>
-              </Radio.Group>
+                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}>
+                <Radio value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio>
+                <Radio value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio>
+                <Radio value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio>
+              </RadioGroup>
             </SettingRow>
 
             {filterMode && filterMode !== 'default' && (
@@ -247,7 +249,7 @@ const SelectionAssistantSettings: FC = () => {
                     <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
                     <SettingDescription>{t('selection.settings.advanced.filter_list.description')}</SettingDescription>
                   </SettingLabel>
-                  <Button icon={<Edit2 size={14} />} onClick={() => setIsFilterListModalOpen(true)}>
+                  <Button startContent={<Edit2 size={14} />} onPress={() => setIsFilterListModalOpen(true)}>
                     {t('common.edit')}
                   </Button>
                 </SettingRow>

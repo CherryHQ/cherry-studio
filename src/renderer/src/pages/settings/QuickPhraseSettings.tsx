@@ -1,12 +1,13 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
-import { Button, Input, Modal, Popconfirm, Space } from 'antd'
+import { Input, Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -78,7 +79,7 @@ const QuickPhraseSettings: FC = () => {
       <SettingGroup style={{ marginBottom: 0 }} theme={theme}>
         <SettingTitle>
           {t('settings.quickPhrase.title')}
-          <Button type="text" icon={<PlusIcon size={18} />} onClick={handleAdd} />
+          <Button variant="light" startContent={<PlusIcon size={18} />} onPress={handleAdd} isIconOnly />
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -100,9 +101,10 @@ const QuickPhraseSettings: FC = () => {
                       <Flex className="gap-1 opacity-60">
                         <Button
                           key="edit"
-                          type="text"
-                          icon={<EditIcon size={14} />}
-                          onClick={() => handleEdit(phrase)}
+                          variant="light"
+                          startContent={<EditIcon size={14} />}
+                          onPress={() => handleEdit(phrase)}
+                          isIconOnly
                         />
                         <Popconfirm
                           title={t('settings.quickPhrase.delete')}
@@ -113,9 +115,10 @@ const QuickPhraseSettings: FC = () => {
                           icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
                           <Button
                             key="delete"
-                            type="text"
-                            danger
-                            icon={<DeleteIcon size={14} className="lucide-custom" />}
+                            variant="light"
+                            color="danger"
+                            startContent={<DeleteIcon size={14} className="lucide-custom" />}
+                            isIconOnly
                           />
                         </Popconfirm>
                       </Flex>

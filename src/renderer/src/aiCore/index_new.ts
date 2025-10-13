@@ -14,6 +14,7 @@ import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
+import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
@@ -22,7 +23,6 @@ import type { CompletionsParams, CompletionsResult } from './legacy/middleware/s
 import type { AiSdkMiddlewareConfig } from './middleware/AiSdkMiddlewareBuilder'
 import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
-import { buildClaudeCodeSystemMessage } from './provider/config/anthropic'
 import { createAiSdkProvider } from './provider/factory'
 import {
   getActualProvider,
@@ -123,13 +123,9 @@ export default class ModernAiProvider {
     }
 
     if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      const claudeCodeSystemMessage = buildClaudeCodeSystemMessage(params.system)
+      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(params.system)
       params.system = undefined // 清除原有system，避免重复
-      if (Array.isArray(params.messages)) {
-        params.messages = [...claudeCodeSystemMessage, ...params.messages]
-      } else {
-        params.messages = claudeCodeSystemMessage
-      }
+      params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
     if (config.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {

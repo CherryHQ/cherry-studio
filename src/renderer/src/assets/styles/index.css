@@ -12,17 +12,23 @@
 @import '../fonts/country-flag-fonts/flag.css';
 
 @layer base {
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
-    /* margin: 0; */
-    font-weight: normal;
+  @layer base {
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      /* margin: 0; */
+      font-weight: normal;
+    }
+  }
+
+  .lucide:not(.lucide-custom) {
+    color: var(--color-icon);
   }
 }
 
 *:focus {
-  outline: none;
+  outline-style: none;
 }
 * {
   -webkit-tap-highlight-color: transparent;
@@ -168,10 +174,6 @@ ul {
 
 .bubble:not(.multi-select-mode) .markdown {
   display: flow-root;
-}
-
-.lucide:not(.lucide-custom) {
-  color: var(--color-icon);
 }
 
 ::highlight(search-matches) {

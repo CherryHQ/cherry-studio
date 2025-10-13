@@ -1,3 +1,4 @@
+import { Avatar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
 import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
@@ -7,7 +8,6 @@ import { useAppSelector } from '@renderer/store'
 import { addOcrProvider, removeOcrProvider, setImageOcrProviderId, updateOcrProviderConfig } from '@renderer/store/ocr'
 import type { ImageOcrProvider, OcrProvider, OcrProviderConfig } from '@renderer/types'
 import { isBuiltinOcrProvider, isBuiltinOcrProviderId, isImageOcrProvider } from '@renderer/types'
-import { Avatar } from 'antd'
 import { FileQuestionMarkIcon, MonitorIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,11 +72,11 @@ export const useOcrProviders = () => {
     if (isBuiltinOcrProvider(p)) {
       switch (p.id) {
         case 'tesseract':
-          return <Avatar size={size} src={TesseractLogo} />
+          return <Avatar src={TesseractLogo} style={{ width: size, height: size }} />
         case 'system':
           return <MonitorIcon size={size} />
         case 'paddleocr':
-          return <Avatar size={size} src={PaddleocrLogo} />
+          return <Avatar src={PaddleocrLogo} style={{ width: size, height: size }} />
       }
     }
     return <FileQuestionMarkIcon size={size} />

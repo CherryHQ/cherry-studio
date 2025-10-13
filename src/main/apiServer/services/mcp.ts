@@ -9,8 +9,7 @@ import type { Request, Response } from 'express'
 import type { IncomingMessage, ServerResponse } from 'http'
 
 import { loggerService } from '../../services/LoggerService'
-import { reduxService } from '../../services/ReduxService'
-import { getMcpServerById } from '../utils/mcp'
+import { getMcpServerById, getMCPServersFromRedux } from '../utils/mcp'
 
 const logger = loggerService.withContext('MCPApiService')
 const transports: Record<string, StreamableHTTPServerTransport> = {}
@@ -46,42 +45,18 @@ class MCPApiService extends EventEmitter {
   constructor() {
     super()
     this.initMcpServer()
-    logger.silly('MCPApiService initialized')
+    logger.debug('MCPApiService initialized')
   }
 
   private initMcpServer() {
     this.transport.onmessage = this.onMessage
   }
 
-  /**
-   * Get servers directly from Redux store
-   */
-  private async getServersFromRedux(): Promise<MCPServer[]> {
-    try {
-      logger.silly('Getting servers from Redux store')
-
-      // Try to get from cache first (faster)
-      const cachedServers = reduxService.selectSync<MCPServer[]>('state.mcp.servers')
-      if (cachedServers && Array.isArray(cachedServers)) {
-        logger.silly(`Found ${cachedServers.length} servers in Redux cache`)
-        return cachedServers
-      }
-
-      // If cache is not available, get fresh data
-      const servers = await reduxService.select<MCPServer[]>('state.mcp.servers')
-      logger.silly(`Fetched ${servers?.length || 0} servers from Redux store`)
-      return servers || []
-    } catch (error: any) {
-      logger.error('Failed to get servers from Redux:', error)
-      return []
-    }
-  }
-
   // get all activated servers
   async getAllServers(req: Request): Promise<McpServersResp> {
     try {
-      const servers = await this.getServersFromRedux()
-      logger.silly(`Returning ${servers.length} servers`)
+      const servers = await getMCPServersFromRedux()
+      logger.debug('Returning servers from Redux', { count: servers.length })
       const resp: McpServersResp = {
         servers: {}
       }
@@ -98,7 +73,7 @@ class MCPApiService extends EventEmitter {
       }
       return resp
     } catch (error: any) {
-      logger.error('Failed to get all servers:', error)
+      logger.error('Failed to get all servers', { error })
       throw new Error('Failed to retrieve servers')
     }
   }
@@ -106,87 +81,47 @@ class MCPApiService extends EventEmitter {
   // get server by id
   async getServerById(id: string): Promise<MCPServer | null> {
     try {
-      logger.silly(`getServerById called with id: ${id}`)
-      const servers = await this.getServersFromRedux()
+      logger.debug('getServerById called', { id })
+      const servers = await getMCPServersFromRedux()
       const server = servers.find((s) => s.id === id)
       if (!server) {
-        logger.warn(`Server with id ${id} not found`)
+        logger.warn('Server not found', { id })
         return null
       }
-      logger.silly(`Returning server with id ${id}`)
+      logger.debug('Returning server', { id })
       return server
     } catch (error: any) {
-      logger.error(`Failed to get server with id ${id}:`, error)
+      logger.error('Failed to get server', { id, error })
       throw new Error('Failed to retrieve server')
     }
   }
 
   async getServerInfo(id: string): Promise<any> {
     try {
-      logger.silly(`getServerInfo called with id: ${id}`)
       const server = await this.getServerById(id)
       if (!server) {
-        logger.warn(`Server with id ${id} not found`)
+        logger.warn('Server not found while fetching info', { id })
         return null
       }
-      logger.silly(`Returning server info for id ${id}`)
 
       const client = await mcpService.initClient(server)
       const tools = await client.listTools()
-
-      logger.info(`Server with id ${id} info:`, { tools: JSON.stringify(tools) })
-
-      // const [version, tools, prompts, resources] = await Promise.all([
-      //   () => {
-      //     try {
-      //       return client.getServerVersion()
-      //     } catch (error) {
-      //       logger.error(`Failed to get server version for id ${id}:`, { error: error })
-      //       return '1.0.0'
-      //     }
-      //   },
-      //   (() => {
-      //     try {
-      //       return client.listTools()
-      //     } catch (error) {
-      //       logger.error(`Failed to list tools for id ${id}:`, { error: error })
-      //       return []
-      //     }
-      //   })(),
-      //   (() => {
-      //     try {
-      //       return client.listPrompts()
-      //     } catch (error) {
-      //       logger.error(`Failed to list prompts for id ${id}:`, { error: error })
-      //       return []
-      //     }
-      //   })(),
-      //   (() => {
-      //     try {
-      //       return client.listResources()
-      //     } catch (error) {
-      //       logger.error(`Failed to list resources for id ${id}:`, { error: error })
-      //       return []
-      //     }
-      //   })()
-      // ])
-
       return {
         id: server.id,
         name: server.name,
         type: server.type,
         description: server.description,
-        tools
+        tools: tools.tools
       }
     } catch (error: any) {
-      logger.error(`Failed to get server info with id ${id}:`, error)
+      logger.error('Failed to get server info', { id, error })
       throw new Error('Failed to retrieve server info')
     }
   }
 
   async handleRequest(req: Request, res: Response, server: MCPServer) {
     const sessionId = req.headers['mcp-session-id'] as string | undefined
-    logger.silly(`Handling request for server with sessionId ${sessionId}`)
+    logger.debug('Handling MCP request', { sessionId, serverId: server.id })
     let transport: StreamableHTTPServerTransport
     if (sessionId && transports[sessionId]) {
       transport = transports[sessionId]
@@ -199,7 +134,7 @@ class MCPApiService extends EventEmitter {
       })
 
       transport.onclose = () => {
-        logger.info(`Transport for sessionId ${sessionId} closed`)
+        logger.info('Transport closed', { sessionId })
         if (transport.sessionId) {
           delete transports[transport.sessionId]
         }
@@ -234,12 +169,15 @@ class MCPApiService extends EventEmitter {
       }
     }
 
-    logger.info(`Request body`, { rawBody: req.body, messages: JSON.stringify(messages) })
+    logger.debug('Dispatching MCP request', {
+      sessionId: transport.sessionId ?? sessionId,
+      messageCount: messages.length
+    })
     await transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
   }
 
   private onMessage(message: JSONRPCMessage, extra?: MessageExtraInfo) {
-    logger.info(`Received message: ${JSON.stringify(message)}`, extra)
+    logger.debug('Received MCP message', { message, extra })
     // Handle message here
   }
 }

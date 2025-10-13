@@ -83,6 +83,7 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 
 // Import the functions to test AFTER setting up mocks
 import type { Topic } from '@renderer/types'
+import { TopicType } from '@renderer/types'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import { copyMessageAsPlainText } from '../copy'
@@ -459,7 +460,8 @@ describe('export', () => {
         assistantId: 'asst_test_formatted',
         messages: [userMsg, assistantMsg] as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
@@ -559,7 +561,8 @@ describe('export', () => {
         assistantId: 'asst_test_multi_formatted',
         messages: [msg1, msg2] as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
@@ -594,7 +597,8 @@ describe('export', () => {
         assistantId: 'asst_test',
         messages: [msgWithEmpty] as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
@@ -615,7 +619,8 @@ describe('export', () => {
         assistantId: 'asst_test',
         messages: [msgWithSpecial] as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
@@ -641,7 +646,8 @@ describe('export', () => {
         assistantId: 'asst_test',
         messages: [msg1, msg2] as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
       const { TopicManager } = await import('@renderer/hooks/useTopic')
@@ -662,7 +668,8 @@ describe('export', () => {
         assistantId: 'asst_test',
         messages: [] as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return empty array
       const { TopicManager } = await import('@renderer/hooks/useTopic')
@@ -681,7 +688,8 @@ describe('export', () => {
         assistantId: 'asst_test',
         messages: null as any,
         createdAt: '',
-        updatedAt: ''
+        updatedAt: '',
+        type: TopicType.Chat
       }
       // Mock TopicManager.getTopicMessages to return empty array for null case
       const { TopicManager } = await import('@renderer/hooks/useTopic')

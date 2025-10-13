@@ -1,11 +1,9 @@
-import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
+import { Button, ColFlex, Flex, HelpTooltip, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Modal, Radio, Space, Tooltip } from 'antd'
-import { HelpCircle } from 'lucide-react'
+import { Modal, Radio, Space } from 'antd'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,11 +106,10 @@ const TranslateSettings: FC<{
         <RowFlex className="justify-between">
           <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
             {t('translate.detect.method.label')}
-            <Tooltip title={t('translate.detect.method.tip')}>
-              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
-                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-              </span>
-            </Tooltip>
+            <HelpTooltip
+              content={t('translate.detect.method.tip')}
+              iconProps={{ color: 'var(--color-text-3)', className: 'ml-1' }}
+            />
           </div>
           <RowFlex className="items-center gap-[5px]">
             <Radio.Group
@@ -123,13 +120,13 @@ const TranslateSettings: FC<{
               onChange={(e) => {
                 setAutoDetectionMethod(e.target.value)
               }}>
-              <Tooltip title={t('translate.detect.method.auto.tip')}>
+              <Tooltip content={t('translate.detect.method.auto.tip')}>
                 <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
               </Tooltip>
-              <Tooltip title={t('translate.detect.method.algo.tip')}>
+              <Tooltip content={t('translate.detect.method.algo.tip')}>
                 <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
               </Tooltip>
-              <Tooltip title={t('translate.detect.method.llm.tip')}>
+              <Tooltip content={t('translate.detect.method.llm.tip')}>
                 <Radio.Button value="llm">LLM</Radio.Button>
               </Tooltip>
             </Radio.Group>
@@ -141,11 +138,10 @@ const TranslateSettings: FC<{
             <div style={{ fontWeight: 500 }}>
               <RowFlex className="items-center gap-[5px]">
                 {t('translate.settings.bidirectional')}
-                <Tooltip title={t('translate.settings.bidirectional_tip')}>
-                  <span style={{ display: 'flex', alignItems: 'center' }}>
-                    <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-                  </span>
-                </Tooltip>
+                <HelpTooltip
+                  content={t('translate.settings.bidirectional_tip')}
+                  iconProps={{ className: 'text-text-3' }}
+                />
               </RowFlex>
             </div>
             <Switch
@@ -199,7 +195,7 @@ const TranslateSettings: FC<{
             </Space>
           )}
         </div>
-        <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
+        <Button onPress={onMoreSetting}>{t('settings.moresetting.label')}</Button>
       </ColFlex>
     </Modal>
   )

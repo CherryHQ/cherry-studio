@@ -1,28 +1,29 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { RowFlex, Tooltip } from '@cherrystudio/ui'
 import { BreadcrumbItem, Breadcrumbs } from '@heroui/react'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
-import { findNodeByPath, findNodeInTree, updateNodeInTree } from '@renderer/services/NotesTreeService'
-import type { NotesTreeNode } from '@types'
-import { Dropdown, Tooltip } from 'antd'
+import { findNode } from '@renderer/services/NotesTreeService'
+import { Dropdown, Input } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { menuItems } from './MenuConfig'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
-const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
+const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpandPath, onRenameNode }) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree)
   const [breadcrumbItems, setBreadcrumbItems] = useState<
     Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
   >([])
+  const [titleValue, setTitleValue] = useState('')
+  const titleInputRef = useRef<any>(null)
   const { settings, updateSettings } = useNotesSettings()
   const canShowStarButton = activeNode?.type === 'file' && onToggleStar
 
@@ -52,37 +53,41 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
   }, [getCurrentNoteContent])
 
   const handleBreadcrumbClick = useCallback(
-    async (item: { treePath: string; isFolder: boolean }) => {
-      if (item.isFolder && notesTree) {
-        try {
-          // 获取从根目录到点击目录的所有路径片段
-          const pathParts = item.treePath.split('/').filter(Boolean)
-          const expandPromises: Promise<NotesTreeNode>[] = []
-
-          // 逐级展开从根到目标路径的所有文件夹
-          for (let i = 0; i < pathParts.length; i++) {
-            const currentPath = '/' + pathParts.slice(0, i + 1).join('/')
-            const folderNode = findNodeByPath(notesTree, currentPath)
-
-            if (folderNode && folderNode.type === 'folder' && !folderNode.expanded) {
-              expandPromises.push(updateNodeInTree(notesTree, folderNode.id, { expanded: true }))
-            }
-          }
-
-          // 并行执行所有展开操作
-          if (expandPromises.length > 0) {
-            await Promise.all(expandPromises)
-            logger.info('Expanded folder path from breadcrumb:', {
-              targetPath: item.treePath,
-              expandedCount: expandPromises.length
-            })
-          }
-        } catch (error) {
-          logger.error('Failed to expand folder path from breadcrumb:', error as Error)
-        }
+    (item: { treePath: string; isFolder: boolean }) => {
+      if (item.isFolder && onExpandPath) {
+        onExpandPath(item.treePath)
       }
     },
-    [notesTree]
+    [onExpandPath]
+  )
+
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitleValue(e.target.value)
+  }, [])
+
+  const handleTitleBlur = useCallback(() => {
+    if (activeNode && titleValue.trim() && titleValue.trim() !== activeNode.name.replace('.md', '')) {
+      onRenameNode?.(activeNode.id, titleValue.trim())
+    } else if (activeNode) {
+      // 如果没有更改或为空，恢复原始值
+      setTitleValue(activeNode.name.replace('.md', ''))
+    }
+  }, [activeNode, titleValue, onRenameNode])
+
+  const handleTitleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        titleInputRef.current?.blur()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        if (activeNode) {
+          setTitleValue(activeNode.name.replace('.md', ''))
+        }
+        titleInputRef.current?.blur()
+      }
+    },
+    [activeNode]
   )
 
   const buildMenuItem = (item: any) => {
@@ -133,13 +138,20 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
     }
   }
 
+  // 同步标题值
+  useEffect(() => {
+    if (activeNode?.type === 'file') {
+      setTitleValue(activeNode.name.replace('.md', ''))
+    }
+  }, [activeNode])
+
   // 构建面包屑路径
   useEffect(() => {
     if (!activeNode || !notesTree) {
       setBreadcrumbItems([])
       return
     }
-    const node = findNodeInTree(notesTree, activeNode.id)
+    const node = findNode(notesTree, activeNode.id)
     if (!node) return
 
     const pathParts = node.treePath.split('/').filter(Boolean)
@@ -163,14 +175,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('navbar.hide_sidebar')} placement="bottom" delay={800}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('navbar.show_sidebar')} placement="bottom" delay={800}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -179,22 +191,47 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       </RowFlex>
       <NavbarCenter style={{ flex: 1, minWidth: 0 }}>
         <BreadcrumbsContainer>
-          <Breadcrumbs>
-            {breadcrumbItems.map((item, index) => (
-              <BreadcrumbItem key={item.key} isCurrent={index === breadcrumbItems.length - 1}>
-                <BreadcrumbTitle
-                  onClick={() => handleBreadcrumbClick(item)}
-                  $clickable={item.isFolder && index < breadcrumbItems.length - 1}>
-                  {item.title}
-                </BreadcrumbTitle>
-              </BreadcrumbItem>
-            ))}
+          <Breadcrumbs style={{ borderRadius: 0 }}>
+            {breadcrumbItems.map((item, index) => {
+              const isLastItem = index === breadcrumbItems.length - 1
+              const isCurrentNote = isLastItem && !item.isFolder
+
+              return (
+                <BreadcrumbItem key={item.key} isCurrent={isLastItem}>
+                  {isCurrentNote ? (
+                    <TitleInputWrapper>
+                      <TitleInput
+                        ref={titleInputRef}
+                        value={titleValue}
+                        onChange={handleTitleChange}
+                        onBlur={handleTitleBlur}
+                        onKeyDown={handleTitleKeyDown}
+                        size="small"
+                        variant="borderless"
+                        style={{
+                          fontSize: 'inherit',
+                          padding: 0,
+                          height: 'auto',
+                          lineHeight: 'inherit'
+                        }}
+                      />
+                    </TitleInputWrapper>
+                  ) : (
+                    <BreadcrumbTitle
+                      onClick={() => handleBreadcrumbClick(item)}
+                      $clickable={item.isFolder && !isLastItem}>
+                      {item.title}
+                    </BreadcrumbTitle>
+                  )}
+                </BreadcrumbItem>
+              )
+            })}
           </Breadcrumbs>
         </BreadcrumbsContainer>
       </NavbarCenter>
       <NavbarRight style={{ paddingRight: 0 }}>
         {canShowStarButton && (
-          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} mouseEnterDelay={0.8}>
+          <Tooltip content={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <StarButton onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
@@ -204,16 +241,18 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
             </StarButton>
           </Tooltip>
         )}
-        <Tooltip title={t('notes.settings.title')} mouseEnterDelay={0.8}>
-          <Dropdown
-            menu={{ items: menuItems.map(buildMenuItem) }}
-            trigger={['click']}
-            placement="bottomRight"
-            destroyOnHidden={false}>
-            <NavbarIcon>
-              <MoreHorizontal size={18} />
-            </NavbarIcon>
-          </Dropdown>
+        <Tooltip content={t('notes.settings.title')} delay={800}>
+          <div>
+            <Dropdown
+              menu={{ items: menuItems.map(buildMenuItem) }}
+              trigger={['click']}
+              placement="bottomRight"
+              destroyOnHidden={false}>
+              <NavbarIcon>
+                <MoreHorizontal size={18} />
+              </NavbarIcon>
+            </Dropdown>
+          </div>
         </Tooltip>
       </NavbarRight>
     </NavbarHeader>
@@ -303,6 +342,30 @@ export const BreadcrumbsContainer = styled.div`
     align-items: center;
   }
 
+  /* 最后一个面包屑项（当前笔记）可以扩展 */
+  & li:last-child {
+    flex: 1 !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
+  /* 覆盖 HeroUI BreadcrumbItem 的样式 */
+  & li:last-child [data-slot="item"] {
+    flex: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* 更强的样式覆盖 */
+  & li:last-child * {
+    max-width: none !important;
+  }
+
+  & li:last-child > * {
+    flex: 1 !important;
+    width: 100% !important;
+  }
+
   /* 确保分隔符不会与标题重叠 */
   & li:not(:last-child)::after {
     flex-shrink: 0;
@@ -328,6 +391,66 @@ export const BreadcrumbTitle = styled.span<{ $clickable?: boolean }>`
       text-decoration: underline;
     }
   `}
+`
+
+export const TitleInputWrapper = styled.div`
+  width: 100%;
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  display: flex;
+  align-items: center;
+`
+
+export const TitleInput = styled(Input)`
+  &&& {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    color: inherit !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    font-family: inherit !important;
+    padding: 0 !important;
+    height: auto !important;
+    line-height: inherit !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    flex: 1 !important;
+
+    &:focus,
+    &:hover {
+      border: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+    }
+
+    &::placeholder {
+      color: var(--color-text-3) !important;
+    }
+
+    input {
+      border: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      color: inherit !important;
+      font-size: inherit !important;
+      font-weight: inherit !important;
+      font-family: inherit !important;
+      padding: 0 !important;
+      height: auto !important;
+      line-height: inherit !important;
+      width: 100% !important;
+
+      &:focus,
+      &:hover {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+      }
+    }
+  }
 `
 
 export default HeaderNavbar

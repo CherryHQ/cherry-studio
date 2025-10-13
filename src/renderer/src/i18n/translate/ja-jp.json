@@ -1,80 +1,201 @@
 {
-  "agents": {
+  "agent": {
     "add": {
-      "button": "アシスタントに追加",
-      "knowledge_base": {
-        "label": "ナレッジベース",
-        "placeholder": "ナレッジベースを選択"
+      "error": {
+        "failed": "エージェントの追加に失敗しました",
+        "invalid_agent": "無効なエージェント"
       },
-      "name": {
-        "label": "名前",
-        "placeholder": "名前を入力"
-      },
-      "prompt": {
-        "label": "プロンプト",
-        "placeholder": "プロンプトを入力",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名\n{{username}}:\tユーザー名",
-            "title": "利用可能な変数"
-          }
-        }
-      },
-      "title": "エージェントを作成",
-      "unsaved_changes_warning": "未保存の変更があります。続行しますか？"
-    },
-    "delete": {
-      "popup": {
-        "content": "このエージェントを削除してもよろしいですか？"
+      "title": "エージェントを追加",
+      "type": {
+        "placeholder": "エージェントタイプを選択"
       }
     },
+    "delete": {
+      "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
+      "error": {
+        "failed": "エージェントの削除に失敗しました"
+      },
+      "title": "エージェントを削除"
+    },
     "edit": {
-      "model": {
-        "select": {
-          "title": "モデルを選択"
+      "title": "編集エージェント"
+    },
+    "get": {
+      "error": {
+        "failed": "エージェントの取得に失敗しました。"
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "エージェントの一覧取得に失敗しました。"
+      }
+    },
+    "session": {
+      "accessible_paths": {
+        "add": "ディレクトリを追加",
+        "duplicate": "このディレクトリは既に含まれています。",
+        "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
+        "error": {
+          "at_least_one": "アクセス可能なディレクトリを少なくとも1つ選択してください。"
+        },
+        "label": "アクセス可能なディレクトリ",
+        "select_failed": "ディレクトリの選択に失敗しました。"
+      },
+      "add": {
+        "title": "セッションを追加"
+      },
+      "allowed_tools": {
+        "empty": "このエージェントが利用できるツールはありません。",
+        "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
+        "label": "事前承認済みツール",
+        "placeholder": "事前承認するツールを選択"
+      },
+      "create": {
+        "error": {
+          "failed": "セッションの追加に失敗しました"
         }
       },
-      "title": "エージェントを編集"
-    },
-    "export": {
-      "agent": "エージェントをエクスポート"
-    },
-    "import": {
-      "button": "インポート",
-      "error": {
-        "fetch_failed": "URLからのデータ取得に失敗しました",
-        "invalid_format": "無効なエージェント形式：必須フィールドが不足しています",
-        "url_required": "URLを入力してください"
+      "delete": {
+        "content": "このセッションを削除してもよろしいですか？",
+        "error": {
+          "failed": "セッションの削除に失敗しました",
+          "last": "少なくとも1つのセッションを維持する必要があります"
+        },
+        "title": "セッションを削除"
       },
-      "file_filter": "JSONファイル",
-      "select_file": "ファイルを選択",
-      "title": "外部からインポート",
-      "type": {
-        "file": "ファイル",
-        "url": "URL"
+      "edit": {
+        "title": "編集セッション"
       },
-      "url_placeholder": "JSON URLを入力"
-    },
-    "manage": {
-      "title": "エージェントを管理"
-    },
-    "my_agents": "マイエージェント",
-    "search": {
-      "no_results": "結果が見つかりません"
+      "get": {
+        "error": {
+          "failed": "セッションの取得に失敗しました"
+        }
+      },
+      "label_one": "セッション",
+      "label_other": "セッション",
+      "update": {
+        "error": {
+          "failed": "セッションの更新に失敗しました"
+        }
+      }
     },
     "settings": {
-      "title": "エージェント設定"
+      "advance": {
+        "maxTurns": {
+          "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
+          "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
+          "label": "会話ラウンド数の上限"
+        },
+        "permissionMode": {
+          "description": "制御エージェントが認可を必要とする場合の処理方法。",
+          "label": "権限モード",
+          "options": {
+            "acceptEdits": "自動的に編集を受け入れる",
+            "bypassPermissions": "権限チェックをスキップ",
+            "default": "デフォルト（続行する前に確認）",
+            "plan": "計画モード（承認が必要な計画）"
+          },
+          "placeholder": "権限モードを選択"
+        },
+        "title": "高級設定"
+      },
+      "essential": "必須設定",
+      "prompt": "プロンプト設定",
+      "tooling": {
+        "mcp": {
+          "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
+          "empty": "MCPサーバーが検出されませんでした。MCP設定ページから追加してください。",
+          "manageHint": "高度な設定が必要ですか？設定 → MCPサーバーにアクセスしてください。",
+          "toggle": "{{name}}を切り替え"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "信頼できるファイルシステムツールを事前に承認し、編集が即座に実行されるようにします。",
+            "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
+            "title": "ファイル編集を自動承認"
+          },
+          "bypassPermissions": {
+            "behavior": "すべてのツールは自動的に事前承認されます。",
+            "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
+            "title": "権限チェックをバイパス",
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
+          },
+          "confirmChange": {
+            "description": "モードを切り替えると、自動承認されたツールが更新されます。",
+            "title": "パーミッションモードを変更しますか？"
+          },
+          "default": {
+            "behavior": "ツールは自動的に事前承認されません。",
+            "description": "通常の権限チェックが適用されます。",
+            "title": "デフォルト（続行する前に確認）"
+          },
+          "helper": "エージェントがツール使用の承認を処理する方法を指定",
+          "placeholder": "権限モードを選択",
+          "plan": {
+            "behavior": "読み取り専用ツールのみ。実行は無効です。",
+            "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
+            "title": "計画モード（近日公開）"
+          },
+          "title": "権限モード"
+        },
+        "preapproved": {
+          "autoBadge": "モードによって追加されました",
+          "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
+          "empty": "フィルターに一致するツールはありません。",
+          "mcpBadge": "MCPツール",
+          "requiresApproval": "無効にするには承認が必要",
+          "search": "検索ツール",
+          "toggle": "{{name}}を切り替える",
+          "warning": {
+            "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
+            "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
+          }
+        },
+        "review": {
+          "autoTools": "自動: {{count}}",
+          "customTools": "カスタム: {{count}}",
+          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
+          "mcp": "MCP: {{count}}",
+          "mode": "モード: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCPサーバー"
+          },
+          "permissionMode": {
+            "title": "ステップ1・権限モード"
+          },
+          "preapproved": {
+            "title": "ステップ2・事前承認済みツール"
+          },
+          "review": {
+            "title": "ステップ3・レビュー"
+          }
+        },
+        "tab": "ツールと権限"
+      },
+      "tools": {
+        "approved": "承認済み",
+        "caution": "事前承認したツールは人によるレビューをスキップします。信頼できるツールのみ有効にしてください。",
+        "description": "人による承認なしで実行できるツールを選択します。",
+        "requiresPermission": "事前承認されていない場合は承認が必要です。",
+        "tab": "事前承認済みツール",
+        "title": "事前承認済みツール",
+        "toggle": "{{defaultValue}}"
+      }
     },
-    "sorting": {
-      "title": "並び替え"
+    "type": {
+      "label": "エージェントタイプ",
+      "unknown": "不明なタイプ"
     },
-    "tag": {
-      "agent": "エージェント",
-      "default": "デフォルト",
-      "new": "新規",
-      "system": "システム"
+    "update": {
+      "error": {
+        "failed": "エージェントの更新に失敗しました"
+      }
     },
-    "title": "エージェント"
+    "warning": {
+      "enable_server": "APIサーバーがエージェントを使用できるようにする。"
+    }
   },
   "apiServer": {
     "actions": {
@@ -154,6 +275,83 @@
     "list": {
       "showByList": "リスト表示",
       "showByTags": "タグ表示"
+    },
+    "presets": {
+      "add": {
+        "button": "アシスタントに追加",
+        "knowledge_base": {
+          "label": "ナレッジベース",
+          "placeholder": "ナレッジベースを選択"
+        },
+        "name": {
+          "label": "名前",
+          "placeholder": "名前を入力"
+        },
+        "prompt": {
+          "label": "プロンプト",
+          "placeholder": "プロンプトを入力",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名\n{{username}}:\tユーザー名",
+              "title": "利用可能な変数"
+            }
+          }
+        },
+        "title": "アシスタントを作成",
+        "unsaved_changes_warning": "未保存の変更があります。閉じてもよろしいですか？"
+      },
+      "delete": {
+        "popup": {
+          "content": "このアシスタントを削除してもよろしいですか？"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "モデルを選択"
+          }
+        },
+        "title": "アシスタントを編集"
+      },
+      "export": {
+        "agent": "アシスタントをエクスポート"
+      },
+      "import": {
+        "button": "インポート",
+        "error": {
+          "fetch_failed": "URLからのデータ取得に失敗しました",
+          "invalid_format": "無効なアシスタント形式：必須フィールドが不足しています",
+          "url_required": "URLを入力してください"
+        },
+        "file_filter": "JSONファイル",
+        "select_file": "ファイルを選択",
+        "title": "外部からインポート",
+        "type": {
+          "file": "ファイル",
+          "url": "URL"
+        },
+        "url_placeholder": "JSON URLを入力"
+      },
+      "manage": {
+        "title": "アシスタントを管理"
+      },
+      "my_agents": "マイアシスタント",
+      "search": {
+        "no_results": "関連するアシスタントが見つかりません"
+      },
+      "settings": {
+        "title": "アシスタント設定"
+      },
+      "sorting": {
+        "title": "並び替え"
+      },
+      "tag": {
+        "agent": "アシスタント",
+        "default": "デフォルト",
+        "new": "新規",
+        "system": "システム"
+      },
+      "title": "アシスタントライブラリ"
     },
     "save": {
       "success": "保存に成功しました",
@@ -251,6 +449,7 @@
     "added": "追加済み",
     "case_sensitive": "大文字と小文字の区別",
     "collapse": "折りたたむ",
+    "download": "ダウンロード",
     "includes_user_questions": "ユーザーからの質問を含む",
     "manage": "管理",
     "select_model": "モデルを選択",
@@ -333,6 +532,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "send": "送信",
       "settings": "設定",
       "thinking": {
@@ -744,9 +944,14 @@
   },
   "common": {
     "add": "追加",
+    "add_success": "追加成功",
     "advanced_settings": "詳細設定",
+    "agent_one": "エージェント",
+    "agent_other": "エージェント",
     "and": "と",
     "assistant": "アシスタント",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "アバター",
     "back": "戻る",
     "browse": "参照",
@@ -763,6 +968,8 @@
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
+    "delete_failed": "削除に失敗しました",
+    "delete_success": "削除に成功しました",
     "description": "説明",
     "detail": "詳細",
     "disabled": "無効",
@@ -772,6 +979,10 @@
     "edit": "編集",
     "enabled": "有効",
     "error": "エラー",
+    "errors": {
+      "create_message": "メッセージの作成に失敗しました",
+      "validation": "検証に失敗しました"
+    },
     "expand": "展開",
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
@@ -782,6 +993,7 @@
     "go_to_settings": "設定に移動",
     "i_know": "わかりました",
     "inspect": "検査",
+    "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
@@ -793,6 +1005,11 @@
     "none": "無",
     "open": "開く",
     "paste": "貼り付け",
+    "placeholders": {
+      "select": {
+        "model": "モデルを選択"
+      }
+    },
     "preview": "プレビュー",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
@@ -805,6 +1022,7 @@
     "saved": "保存されました",
     "search": "検索",
     "select": "選択",
+    "selected": "選択済み",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
     "settings": "設定",
@@ -819,6 +1037,9 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "unknown": "Unknown",
+    "unnamed": "無題",
+    "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
     "you": "あなた"
@@ -891,6 +1112,7 @@
     "modelType": "モデルの種類",
     "name": "エラー名",
     "no_api_key": "APIキーが設定されていません",
+    "no_response": "応答なし",
     "originalError": "元のエラー",
     "originalMessage": "元のメッセージ",
     "parameter": "パラメータ",
@@ -956,6 +1178,9 @@
     },
     "document": "ドキュメント",
     "edit": "編集",
+    "error": {
+      "open_path": "パスを開けません: {{path}}"
+    },
     "file": "ファイル",
     "image": "画像",
     "name": "名前",
@@ -1695,6 +1920,12 @@
     "provider_settings": "プロバイダー設定に移動"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "ノートが空です。名前を生成できません。",
+      "failed": "ノート名の生成に失敗しました",
+      "label": "ノート名の生成",
+      "success": "ノート名の生成に成功しました"
+    },
     "characters": "文字",
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
@@ -1776,6 +2007,8 @@
     "sort_updated_asc": "更新日時（古い順）",
     "sort_updated_desc": "更新日時（新しい順）",
     "sort_z2a": "ファイル名（Z-A）",
+    "spell_check": "スペルチェック",
+    "spell_check_tooltip": "スペルチェックの有効/無効",
     "star": "お気に入りのノート",
     "starred_notes": "収集したノート",
     "title": "ノート",
@@ -1824,6 +2057,57 @@
       "title": "保持時間"
     },
     "title": "Ollama"
+  },
+  "ovms": {
+    "action": {
+      "install": "インストール",
+      "installing": "インストール中",
+      "reinstall": "再インストール",
+      "run": "OVMSを実行",
+      "starting": "起動中",
+      "stop": "OVMSを停止",
+      "stopping": "停止中"
+    },
+    "description": "<div><p>1. OVモデルをダウンロードします。</p><p>2. 'マネージャー'でモデルを追加します。</p><p>Windowsのみサポート！</p><p>OVMSインストールパス: '%USERPROFILE%\\.cherrystudio\\ovms' 。</p><p>詳細は<a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMSガイド</a>をご参照ください。</p></dev>",
+    "download": {
+      "button": "ダウンロード",
+      "error": "ダウンロードエラー",
+      "model_id": {
+        "label": "モデルID",
+        "model_id_pattern": "モデルIDはOpenVINO/で始まる必要があります",
+        "placeholder": "必須 例: OpenVINO/Qwen3-8B-int4-ov",
+        "required": "モデルIDを入力してください"
+      },
+      "model_name": {
+        "label": "モデル名",
+        "placeholder": "必須 例: Qwen3-8B-int4-ov",
+        "required": "モデル名を入力してください"
+      },
+      "model_source": "モデルソース:",
+      "model_task": "モデルタスク:",
+      "success": "ダウンロード成功",
+      "success_desc": "モデル\"{{modelName}}\"-\"{{modelId}}\"ダウンロード成功、OVMS管理インターフェースに移動してモデルを追加してください",
+      "tip": "モデルはダウンロードされていますが、時には数時間かかります。我慢してください...",
+      "title": "Intel OpenVINOモデルをダウンロード"
+    },
+    "failed": {
+      "install": "OVMSのインストールに失敗しました:",
+      "install_code_100": "不明なエラー",
+      "install_code_101": "Intel(R) Core(TM) Ultra CPUのみサポート",
+      "install_code_102": "Windowsのみサポート",
+      "install_code_103": "OVMSランタイムのダウンロードに失敗しました",
+      "install_code_104": "OVMSランタイムの解凍に失敗しました",
+      "install_code_105": "OVMSランタイムのクリーンアップに失敗しました",
+      "run": "OVMSの実行に失敗しました:",
+      "stop": "OVMSの停止に失敗しました:"
+    },
+    "status": {
+      "not_installed": "OVMSはインストールされていません",
+      "not_running": "OVMSは実行されていません",
+      "running": "OVMSは実行中です",
+      "unknown": "OVMSのステータスが不明です"
+    },
+    "title": "Intel OVMS"
   },
   "paintings": {
     "aspect_ratio": "画幅比例",
@@ -2056,6 +2340,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3733,6 +4018,10 @@
         "start_auth": "開始承認",
         "submit_code": "ログインを完了する"
       },
+      "anthropic_api_host": "Anthropic APIアドレス",
+      "anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
+      "anthropic_api_host_tip": "サービスプロバイダーがAnthropic互換のアドレスを提供する場合のみ入力してください。/で終わる場合は自動追加されるv1を無視し、#で終わる場合は元のアドレスを強制的に使用します。",
+      "anthropic_api_host_tooltip": "サービスプロバイダーがClaude互換のベースアドレスを提供する場合のみ入力してください。",
       "api": {
         "key": {
           "check": {
@@ -3780,6 +4069,8 @@
         }
       },
       "api_host": "APIホスト",
+      "api_host_preview": "プレビュー：{{url}}",
+      "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
         "label": "APIキー",
         "tip": "複数のキーはカンマまたはスペースで区切ります"
@@ -4183,7 +4474,6 @@
     }
   },
   "title": {
-    "agents": "エージェント",
     "apps": "アプリ",
     "code": "Code",
     "files": "ファイル",
@@ -4195,6 +4485,7 @@
     "notes": "ノート",
     "paintings": "ペインティング",
     "settings": "設定",
+    "store": "アシスタントライブラリ",
     "translate": "翻訳"
   },
   "trace": {
@@ -4350,6 +4641,7 @@
     "later": "後で",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
     "noReleaseNotes": "暫無更新日誌",
+    "saveDataError": "データの保存に失敗しました。もう一度お試しください。",
     "title": "更新"
   },
   "warning": {

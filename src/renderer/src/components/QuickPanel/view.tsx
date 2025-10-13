@@ -457,7 +457,13 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
           // 面板可见且未折叠时：拦截所有 Enter 变体；
           // 纯 Enter 选择项，带修饰键仅拦截不处理
-          if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+          if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            // Don't prevent default or stop propagation - let it create a newline
+            setIsMouseOver(false)
+            break
+          }
+
+          if (e.ctrlKey || e.metaKey || e.altKey) {
             e.preventDefault()
             e.stopPropagation()
             setIsMouseOver(false)

@@ -1,5 +1,4 @@
-import { ColFlex, RowFlex } from '@cherrystudio/ui'
-import { Flex } from '@cherrystudio/ui'
+import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -9,11 +8,12 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
 import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/AddModelPopup'
+import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Spin, Tooltip } from 'antd'
+import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -94,6 +94,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     }
   }, [provider, t])
 
+  const onDownloadModel = useCallback(
+    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
+    [provider, t]
+  )
+
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
 
   return (
@@ -114,11 +119,12 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             />
           </RowFlex>
           <RowFlex>
-            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+            <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0}>
               <Button
-                type="text"
-                onClick={runHealthCheck}
-                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+                variant="light"
+                onPress={runHealthCheck}
+                startContent={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+                isIconOnly
               />
             </Tooltip>
           </RowFlex>
@@ -165,12 +171,26 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         )}
       </Flex>
       <Flex className="mt-3 gap-2.5">
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+        <Button
+          color="primary"
+          onPress={onManageModel}
+          startContent={<ListCheck fill="currentColor" size={16} />}
+          isDisabled={isHealthChecking}>
           {t('button.manage')}
         </Button>
-        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-          {t('button.add')}
-        </Button>
+        {provider.id !== 'ovms' ? (
+          <Button variant="solid" onPress={onAddModel} startContent={<Plus size={16} />} isDisabled={isHealthChecking}>
+            {t('button.add')}
+          </Button>
+        ) : (
+          <Button
+            variant="solid"
+            onPress={onDownloadModel}
+            startContent={<Plus size={16} />}
+            isDisabled={isHealthChecking}>
+            {t('button.download')}
+          </Button>
+        )}
       </Flex>
     </>
   )

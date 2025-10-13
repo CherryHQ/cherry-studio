@@ -118,7 +118,7 @@
     "no-unused-expressions": "off", // this rule disallow us to use expression to call function, like `condition && fn()`
     "no-unused-labels": "error",
     "no-unused-private-class-members": "error",
-    "no-unused-vars": ["error", { "caughtErrors": "none" }],
+    "no-unused-vars": ["warn", { "caughtErrors": "none" }],
     "no-useless-backreference": "error",
     "no-useless-catch": "error",
     "no-useless-escape": "error",

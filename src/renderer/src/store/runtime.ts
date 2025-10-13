@@ -12,10 +12,19 @@ export interface ChatState {
   isMultiSelectMode: boolean
   selectedMessageIds: string[]
   activeTopic: Topic | null
+  /** UI state. null represents no active agent */
+  activeAgentId: string | null
+  /** UI state. Map agent id to active session id.
+   *  null represents no active session  */
+  activeSessionId: Record<string, string | null>
+  /** meanwhile active Assistants or Agents */
+  activeTopicOrSession: 'topic' | 'session'
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
   newlyRenamedTopics: string[]
+  /** is a session waiting for updating/deleting. undefined and false share same semantics.  */
+  sessionWaiting: Record<string, boolean>
 }
 
 export interface WebSearchState {
@@ -49,8 +58,9 @@ export interface RuntimeState {
   // resourcesPath: string
   // update: UpdateState
   // export: ExportState
-  // chat: ChatState
+  chat: ChatState
   // websearch: WebSearchState
+  iknow: Record<string, boolean>
 }
 
 export interface ExportState {
@@ -79,16 +89,21 @@ const initialState: RuntimeState = {
   // export: {
   //   isExporting: false
   // },
-  // chat: {
-  //   isMultiSelectMode: false,
-  //   selectedMessageIds: [],
-  //   activeTopic: null,
-  //   renamingTopics: [],
-  //   newlyRenamedTopics: []
-  // },
+  chat: {
+    isMultiSelectMode: false,
+    selectedMessageIds: [],
+    activeTopic: null,
+    activeAgentId: null,
+    activeTopicOrSession: 'topic',
+    activeSessionId: {},
+    renamingTopics: [],
+    newlyRenamedTopics: [],
+    sessionWaiting: {}
+  },
   // websearch: {
   //   activeSearches: {}
-  // }
+  // },
+  iknow: {}
 }
 
 const runtimeSlice = createSlice({
@@ -145,8 +160,19 @@ const runtimeSlice = createSlice({
     //   state.chat.selectedMessageIds = action.payload
     // },
     // setActiveTopic: (state, action: PayloadAction<Topic>) => {
+    // @ts-ignore ts2589 false positive
     //   state.chat.activeTopic = action.payload
     // },
+    setActiveAgentId: (state, action: PayloadAction<string | null>) => {
+      state.chat.activeAgentId = action.payload
+    },
+    setActiveSessionIdAction: (state, action: PayloadAction<{ agentId: string; sessionId: string | null }>) => {
+      const { agentId, sessionId } = action.payload
+      state.chat.activeSessionId[agentId] = sessionId
+    },
+    setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
+      state.chat.activeTopicOrSession = action.payload
+    },
     // setRenamingTopics: (state, action: PayloadAction<string[]>) => {
     //   state.chat.renamingTopics = action.payload
     // },
@@ -164,8 +190,13 @@ const runtimeSlice = createSlice({
     //   }
     //   state.websearch.activeSearches[requestId] = status
     // },
-    setPlaceholder: (state, action: PayloadAction<Partial<RuntimeState>>) => {
-      state = { ...state, ...action.payload }
+    // setPlaceholder: (state, action: PayloadAction<Partial<RuntimeState>>) => {},
+    addIknowAction: (state, action: PayloadAction<string>) => {
+      state.iknow[action.payload] = true
+    },
+    setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
+      const { id, value } = action.payload
+      state.chat.sessionWaiting[id] = value
     }
   }
 })
@@ -184,16 +215,21 @@ export const {
   // setResourcesPath,
   // setUpdateState,
   // setExportState,
+  addIknowAction,
   // // Chat related actions
   // toggleMultiSelectMode,
   // setSelectedMessageIds,
   // setActiveTopic,
+  setActiveAgentId,
+  setActiveSessionIdAction,
+  setActiveTopicOrSessionAction,
   // setRenamingTopics,
   // setNewlyRenamedTopics,
+  setSessionWaitingAction
   // // WebSearch related actions
   // setActiveSearches,
   // setWebSearchStatus,
-  setPlaceholder
+  // setPlaceholder
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

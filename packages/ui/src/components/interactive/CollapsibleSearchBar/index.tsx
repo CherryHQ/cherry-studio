@@ -1,9 +1,11 @@
 // Original path: src/renderer/src/components/CollapsibleSearchBar.tsx
 import type { InputRef } from 'antd'
-import { Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+
+import { Tooltip } from '../../base/Tooltip'
 
 interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void
@@ -93,7 +95,7 @@ const CollapsibleSearchBar = ({
         }}
         style={{ cursor: 'pointer', display: 'flex' }}
         onClick={() => setSearchVisible(true)}>
-        <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+        <Tooltip content={tooltip} delay={500} closeDelay={0}>
           {icon}
         </Tooltip>
       </motion.div>

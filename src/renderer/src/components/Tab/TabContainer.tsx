@@ -1,5 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isMac } from '@renderer/config/constant'
@@ -16,7 +17,6 @@ import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import type { MinAppType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Tooltip } from 'antd'
 import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
@@ -87,7 +87,7 @@ const getTabIcon = (
   switch (tabId) {
     case 'home':
       return <Home size={14} />
-    case 'agents':
+    case 'store':
       return <Sparkle size={14} />
     case 'translate':
       return <Languages size={14} />
@@ -238,7 +238,17 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
             onSortEnd={onSortEnd}
             className="tabs-sortable"
             renderItem={(tab) => (
-              <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
+              <Tab
+                key={tab.id}
+                active={tab.id === activeTabId}
+                onClick={() => handleTabClick(tab)}
+                onAuxClick={(e) => {
+                  if (e.button === 1 && tab.id !== 'home') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    closeTab(tab.id)
+                  }
+                }}>
                 <TabHeader>
                   {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
                   <TabTitle>{getTabTitle(tab.id)}</TabTitle>
@@ -263,9 +273,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         </HorizontalScrollContainer>
         <RightButtonsContainer>
           <Tooltip
-            title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-            mouseEnterDelay={0.8}
-            placement="bottom">
+            placement="bottom"
+            content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+            delay={800}>
             <ThemeButton onClick={toggleTheme}>
               {settedTheme === ThemeMode.dark ? (
                 <Moon size={16} />

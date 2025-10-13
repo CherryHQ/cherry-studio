@@ -1,16 +1,18 @@
 import { Flex } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
+import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs, Tooltip } from 'antd'
+import { Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs } from 'antd'
 import {
   Check,
   ChevronDown,
@@ -48,9 +50,9 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
 
-  const toolResponse = block.metadata?.rawMcpToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 
-  const { id, tool, status, response } = toolResponse!
+  const { id, tool, status, response } = toolResponse as MCPToolResponse
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
@@ -261,7 +263,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')} closeDelay={0}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -273,7 +275,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             ) : (
               renderStatusIndicator(status, hasError)
             )}
-            <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+            <Tooltip content={t('common.expand')} delay={500}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => {
@@ -288,7 +290,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               </ActionButton>
             </Tooltip>
             {!isPending && (
-              <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+              <Tooltip content={t('common.copy')} delay={500}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => {
@@ -399,26 +401,25 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                   {isWaitingConfirmation && (
                     <Button
                       color="danger"
-                      variant="filled"
-                      size="small"
-                      onClick={() => {
+                      variant="solid"
+                      size="sm"
+                      onPress={() => {
                         handleCancelTool()
-                      }}>
-                      <CircleX size={15} className="lucide-custom" />
+                      }}
+                      startContent={<CircleX size={15} className="lucide-custom" />}>
                       {t('common.cancel')}
                     </Button>
                   )}
                   {isExecuting && toolResponse?.id ? (
                     <Button
-                      size="small"
+                      size="sm"
                       color="danger"
                       variant="solid"
                       className="abort-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
+                      onPress={() => {
                         handleAbortTool()
-                      }}>
-                      <PauseCircle size={14} className="lucide-custom" />
+                      }}
+                      startContent={<PauseCircle size={14} className="lucide-custom" />}>
                       {t('chat.input.pause')}
                     </Button>
                   ) : (

@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -22,6 +22,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -85,19 +86,16 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
-          size='sm'
+        <ResponsiveButton
+          variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddSitemap()
-          }}
+          onPress={handleAddSitemap}
           isDisabled={disabled}>
           {t('knowledge.add_sitemap')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
-      <div className="px-4 py-5 h-[calc(100vh-135px)]">
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {sitemapItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -124,12 +122,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 actions: (
                   <FlexAlignCenter>
                     {item.uniqueId && (
-                      <Button
-                        size='sm'
-                        isIconOnly
-                        variant="light"
-                        onClick={() => refreshItem(item)}
-                        aria-label="Refresh sitemap">
+                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
                         <RefreshIcon />
                       </Button>
                     )}
@@ -141,13 +134,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="sitemap"
                       />
                     </StatusIconWrapper>
-                    <Button
-                      size='sm'
-                      isIconOnly
-                      variant="light"
-                      color="danger"
-                      onClick={() => removeItem(item)}
-                      aria-label="Delete sitemap">
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
                       <DeleteIcon size={14} className="lucide-custom" />
                     </Button>
                   </FlexAlignCenter>

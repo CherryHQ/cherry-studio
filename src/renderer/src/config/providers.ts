@@ -24,9 +24,11 @@ import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
+import IntelOvmsLogo from '@renderer/assets/images/providers/intel.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
+import LongCatProviderLogo from '@renderer/assets/images/providers/longcat.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
@@ -53,7 +55,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import type { AtLeast, Provider, ProviderType, SystemProvider, SystemProviderId } from '@renderer/types'
+import type { AtLeast, Model, Provider, ProviderType, SystemProvider, SystemProviderId } from '@renderer/types'
 import { isSystemProvider, OpenAIServiceTiers } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
@@ -65,22 +67,23 @@ export const CHERRYAI_PROVIDER: SystemProvider = {
   type: 'openai',
   apiKey: '',
   apiHost: 'https://api.cherry-ai.com/',
+  anthropicApiHost: 'https://api.cherry-ai.com',
   models: [glm45FlashModel, qwen38bModel],
   isSystem: true,
   enabled: true
 }
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
-  cherryin: {
-    id: 'cherryin',
-    name: 'CherryIN',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://open.cherryin.ai',
-    models: [],
-    isSystem: true,
-    enabled: true
-  },
+  // cherryin: {
+  //   id: 'cherryin',
+  //   name: 'CherryIN',
+  //   type: 'openai',
+  //   apiKey: '',
+  //   apiHost: 'https://open.cherryin.ai',
+  //   models: [],
+  //   isSystem: true,
+  //   enabled: true
+  // },
   silicon: {
     id: 'silicon',
     name: 'Silicon',
@@ -97,7 +100,19 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://aihubmix.com',
+    anthropicApiHost: 'https://aihubmix.com/anthropic',
+    isAnthropicModel: (m: Model) => m.id.includes('claude'),
     models: SYSTEM_MODELS.aihubmix,
+    isSystem: true,
+    enabled: false
+  },
+  ovms: {
+    id: 'ovms',
+    name: 'OpenVINO Model Server',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:8000/v3/',
+    models: SYSTEM_MODELS.ovms,
     isSystem: true,
     enabled: false
   },
@@ -117,6 +132,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    anthropicApiHost: 'https://open.bigmodel.cn/api/anthropic',
     models: SYSTEM_MODELS.zhipu,
     isSystem: true,
     enabled: false
@@ -127,6 +143,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.deepseek.com',
+    anthropicApiHost: 'https://api.deepseek.com/anthropic',
     models: SYSTEM_MODELS.deepseek,
     isSystem: true,
     enabled: false
@@ -267,6 +284,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'http://localhost:3000',
+    anthropicApiHost: 'http://localhost:3000',
     models: SYSTEM_MODELS['new-api'],
     isSystem: true,
     enabled: false
@@ -372,6 +390,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.moonshot.cn',
+    anthropicApiHost: 'https://api.moonshot.cn/anthropic',
     models: SYSTEM_MODELS.moonshot,
     isSystem: true,
     enabled: false
@@ -392,6 +411,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
+    anthropicApiHost: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy',
     models: SYSTEM_MODELS.dashscope,
     isSystem: true,
     enabled: false
@@ -532,6 +552,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api-inference.modelscope.cn/v1/',
+    anthropicApiHost: 'https://api-inference.modelscope.cn',
     models: SYSTEM_MODELS.modelscope,
     isSystem: true,
     enabled: false
@@ -615,6 +636,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
     enabled: false
+  },
+  longcat: {
+    id: 'longcat',
+    name: 'LongCat',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.longcat.chat/openai',
+    models: SYSTEM_MODELS.longcat,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -631,6 +662,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   yi: ZeroOneProviderLogo,
   groq: GroqProviderLogo,
   zhipu: ZhipuProviderLogo,
+  ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
   lmstudio: LMStudioProviderLogo,
   moonshot: MoonshotProviderLogo,
@@ -677,7 +709,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
   poe: 'poe', // use svg icon component
-  aionly: AiOnlyProviderLogo
+  aionly: AiOnlyProviderLogo,
+  longcat: LongCatProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -701,17 +734,17 @@ type ProviderUrls = {
 }
 
 export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
-  cherryin: {
-    api: {
-      url: 'https://open.cherryin.ai'
-    },
-    websites: {
-      official: 'https://open.cherryin.ai',
-      apiKey: 'https://open.cherryin.ai/console/token',
-      docs: 'https://open.cherryin.ai',
-      models: 'https://open.cherryin.ai/pricing'
-    }
-  },
+  // cherryin: {
+  //   api: {
+  //     url: 'https://open.cherryin.ai'
+  //   },
+  //   websites: {
+  //     official: 'https://open.cherryin.ai',
+  //     apiKey: 'https://open.cherryin.ai/console/token',
+  //     docs: 'https://open.cherryin.ai',
+  //     models: 'https://open.cherryin.ai/pricing'
+  //   }
+  // },
   ph8: {
     api: {
       url: 'https://ph8.co'
@@ -1015,6 +1048,16 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://console.groq.com/docs/models'
     }
   },
+  ovms: {
+    api: {
+      url: 'http://localhost:8000/v3/'
+    },
+    websites: {
+      official: 'https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html',
+      docs: 'https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html',
+      models: 'https://www.modelscope.cn/organization/OpenVINO'
+    }
+  },
   ollama: {
     api: {
       url: 'http://localhost:11434'
@@ -1282,6 +1325,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://www.aiionly.com/keyApi',
       docs: 'https://www.aiionly.com/document',
       models: 'https://www.aiionly.com'
+    }
+  },
+  longcat: {
+    api: {
+      url: 'https://api.longcat.chat/openai'
+    },
+    websites: {
+      official: 'https://longcat.chat',
+      apiKey: 'https://longcat.chat/platform/api_keys',
+      docs: 'https://longcat.chat/platform/docs/zh/',
+      models: 'https://longcat.chat/platform/docs/zh/APIDocs.html'
     }
   }
 }

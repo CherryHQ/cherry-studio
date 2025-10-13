@@ -1,4 +1,5 @@
 import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
@@ -7,7 +8,7 @@ import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
-import { Button, Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
+import { Dropdown, Modal, Splitter, Typography } from 'antd'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,24 +84,24 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       <HeaderCenter>
         <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
           <ViewButton
-            size="small"
-            type={viewMode === 'split' ? 'primary' : 'default'}
-            icon={<SquareSplitHorizontal size={14} />}
-            onClick={() => setViewMode('split')}>
+            size="sm"
+            color={viewMode === 'split' ? 'primary' : 'default'}
+            startContent={<SquareSplitHorizontal size={14} />}
+            onPress={() => setViewMode('split')}>
             {t('html_artifacts.split')}
           </ViewButton>
           <ViewButton
-            size="small"
-            type={viewMode === 'code' ? 'primary' : 'default'}
-            icon={<Code size={14} />}
-            onClick={() => setViewMode('code')}>
+            size="sm"
+            color={viewMode === 'code' ? 'primary' : 'default'}
+            startContent={<Code size={14} />}
+            onPress={() => setViewMode('code')}>
             {t('html_artifacts.code')}
           </ViewButton>
           <ViewButton
-            size="small"
-            type={viewMode === 'preview' ? 'primary' : 'default'}
-            icon={<Eye size={14} />}
-            onClick={() => setViewMode('preview')}>
+            size="sm"
+            color={viewMode === 'preview' ? 'primary' : 'default'}
+            startContent={<Eye size={14} />}
+            onPress={() => setViewMode('preview')}>
             {t('html_artifacts.preview')}
           </ViewButton>
         </ViewControls>
@@ -125,17 +126,18 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               }
             ]
           }}>
-          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
-            <Button type="text" icon={<Camera size={16} />} className="nodrag" />
+          <Tooltip content={t('html_artifacts.capture.label')} closeDelay={0}>
+            <Button variant="light" startContent={<Camera size={16} />} isIconOnly className="nodrag" />
           </Tooltip>
         </Dropdown>
         <Button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          type="text"
-          icon={isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          onPress={() => setIsFullscreen(!isFullscreen)}
+          variant="light"
+          startContent={isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          isIconOnly
           className="nodrag"
         />
-        <Button onClick={onClose} type="text" icon={<X size={16} />} className="nodrag" />
+        <Button onPress={onClose} variant="light" startContent={<X size={16} />} isIconOnly className="nodrag" />
       </HeaderRight>
     </ModalHeader>
   )
@@ -162,19 +164,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           }}
         />
         <ToolbarWrapper>
-          <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
-            <ToolbarButton
-              shape="circle"
-              size="large"
-              icon={
-                saved ? (
-                  <Check size={16} color="var(--color-status-success)" />
-                ) : (
-                  <SaveIcon size={16} className="custom-lucide" />
-                )
-              }
-              onClick={handleSave}
-            />
+          <Tooltip content={t('code_block.edit.save.label')} closeDelay={0}>
+            <ToolbarButton radius="full" size="lg" isIconOnly onPress={handleSave}>
+              {saved ? (
+                <Check size={16} color="var(--color-status-success)" />
+              ) : (
+                <SaveIcon size={16} className="custom-lucide" />
+              )}
+            </ToolbarButton>
           </Tooltip>
         </ToolbarWrapper>
       </CodeSection>

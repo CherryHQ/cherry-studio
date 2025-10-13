@@ -1,6 +1,6 @@
 import type { MemorySearchToolInput, MemorySearchToolOutput } from '@renderer/aiCore/tools/MemorySearchTool'
 import Spinner from '@renderer/components/Spinner'
-import type { MCPToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
 import { ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,7 @@ import styled from 'styled-components'
 
 const { Text } = Typography
 
-export const MessageMemorySearchToolTitle = ({ toolResponse }: { toolResponse: MCPToolResponse }) => {
+export const MessageMemorySearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
   const toolInput = toolResponse.arguments as MemorySearchToolInput
   const toolOutput = toolResponse.response as MemorySearchToolOutput

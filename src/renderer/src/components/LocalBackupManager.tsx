@@ -1,7 +1,8 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { restoreFromLocal } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Modal, Table, Tooltip } from 'antd'
+import { Modal, Table } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -167,7 +168,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="topLeft" title={fileName}>
+        <Tooltip content={fileName} placement="top-start">
           {fileName}
         </Tooltip>
       )
@@ -191,18 +192,25 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       key: 'action',
       width: 160,
       render: (_: any, record: BackupFile) => (
-        <>
-          <Button type="link" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
+        <Flex>
+          <Button
+            className="inline-flex"
+            size="sm"
+            variant="light"
+            onPress={() => handleRestore(record.fileName)}
+            isDisabled={restoring || deleting}>
             {t('settings.data.local.backup.manager.restore.text')}
           </Button>
           <Button
-            type="link"
-            danger
-            onClick={() => handleDeleteSingle(record.fileName)}
-            disabled={deleting || restoring}>
+            className="inline-flex"
+            size="sm"
+            variant="light"
+            color="danger"
+            onPress={() => handleDeleteSingle(record.fileName)}
+            isDisabled={deleting || restoring}>
             {t('settings.data.local.backup.manager.delete.text')}
           </Button>
-        </>
+        </Flex>
       )
     }
   ]
@@ -222,20 +230,21 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       width={800}
       centered
       transitionName="animation-move-down"
+      classNames={{ footer: 'flex justify-end gap-1' }}
       footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
+        <Button key="refresh" startContent={<ReloadOutlined />} onPress={fetchBackupFiles} isDisabled={loading}>
           {t('settings.data.local.backup.manager.refresh')}
         </Button>,
         <Button
           key="delete"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
+          color="danger"
+          startContent={<DeleteOutlined />}
+          onPress={handleDeleteSelected}
+          isDisabled={selectedRowKeys.length === 0 || deleting}
+          isLoading={deleting}>
           {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
         </Button>,
-        <Button key="close" onClick={onClose}>
+        <Button key="close" onPress={onClose}>
           {t('common.close')}
         </Button>
       ]}>

@@ -2,9 +2,11 @@ import { usePreference } from '@data/hooks/usePreference'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
+import type { Tab } from '@renderer/types/chat'
 import { classNames, uuid } from '@renderer/utils'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -25,8 +27,6 @@ interface Props {
   style?: React.CSSProperties
 }
 
-type Tab = 'assistants' | 'topic' | 'settings'
-
 let _tab: any = ''
 
 const HomeTabs: FC<Props> = ({
@@ -39,7 +39,6 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   const { addAssistant } = useAssistants()
-  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const [topicPosition] = usePreference('topic.position')
   const { defaultAssistant } = useDefaultAssistant()
   const { toggleShowTopics } = useShowTopics()
@@ -47,6 +46,12 @@ const HomeTabs: FC<Props> = ({
 
   const { t } = useTranslation()
 
+  const { chat } = useRuntime()
+  const { activeTopicOrSession } = chat
+  const isSessionView = activeTopicOrSession === 'session'
+  const isTopicView = activeTopicOrSession === 'topic'
+
+  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
     position === 'left'
@@ -58,6 +63,7 @@ const HomeTabs: FC<Props> = ({
   }
 
   const showTab = position === 'left' && topicPosition === 'left'
+  const shouldShowSettingsTab = !isSessionView
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
@@ -89,7 +95,7 @@ const HomeTabs: FC<Props> = ({
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
+  }, [position, setTab, showTab, tab, toggleShowTopics, topicPosition])
 
   useEffect(() => {
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
@@ -99,6 +105,12 @@ const HomeTabs: FC<Props> = ({
       setTab('assistants')
     }
   }, [position, tab, topicPosition, forceToSeeAllTab])
+
+  useEffect(() => {
+    if (activeTopicOrSession === 'session' && tab === 'settings') {
+      setTab('topic')
+    }
+  }, [activeTopicOrSession, tab])
 
   return (
     <Container
@@ -110,15 +122,17 @@ const HomeTabs: FC<Props> = ({
             {t('assistants.abbr')}
           </TabItem>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
+            {isTopicView ? t('common.topics') : t('agent.session.label_other')}
           </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
+          {shouldShowSettingsTab && (
+            <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
+              {t('settings.title')}
+            </TabItem>
+          )}
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && (
+      {position === 'right' && topicPosition === 'right' && isTopicView && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
@@ -146,7 +160,7 @@ const HomeTabs: FC<Props> = ({
             position={position}
           />
         )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        {tab === 'settings' && shouldShowSettingsTab && <Settings assistant={activeAssistant} />}
       </TabContent>
     </Container>
   )

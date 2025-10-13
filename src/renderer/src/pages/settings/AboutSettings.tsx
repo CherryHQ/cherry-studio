@@ -1,20 +1,22 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { Avatar, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { Radio, RadioGroup, useDisclosure } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'
+import UpdateDialog from '@renderer/components/UpdateDialog'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 // import { useRuntime } from '@renderer/hooks/useRuntime'
 import i18n from '@renderer/i18n'
-import { handleSaveData } from '@renderer/store'
+// import { handleSaveData } from '@renderer/store'
 // import { setUpdateState as setAppUpdateState } from '@renderer/store/runtime'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Button, Progress, Radio, Row, Tag, Tooltip } from 'antd'
+import { Progress, Row, Tag } from 'antd'
+import type { UpdateInfo } from 'builder-util-runtime'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -34,6 +36,8 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
+  const [updateDialogInfo, setUpdateDialogInfo] = useState<UpdateInfo | null>(null)
+  const { isOpen, onOpen, onClose } = useDisclosure()
   const { t } = useTranslation()
   const { theme } = useTheme()
   // const dispatch = useAppDispatch()
@@ -49,8 +53,9 @@ const AboutSettings: FC = () => {
       }
 
       if (appUpdateState.downloaded) {
-        await handleSaveData()
-        window.api.showUpdateDialog()
+        // Open update dialog directly in renderer
+        setUpdateDialogInfo(appUpdateState.info || null)
+        onOpen()
         return
       }
 
@@ -207,7 +212,7 @@ const AboutSettings: FC = () => {
                   strokeColor="#67ad5b"
                 />
               )}
-              <Avatar src={AppLogo} size={80} style={{ minHeight: 80 }} />
+              <Avatar src={AppLogo} className="h-20 min-h-[80px] w-20" />
             </AvatarWrapper>
             <VersionWrapper>
               <Title>{APP_NAME}</Title>
@@ -222,9 +227,9 @@ const AboutSettings: FC = () => {
           </Row>
           {!isPortable && (
             <CheckUpdateButton
-              onClick={onCheckUpdate}
-              loading={appUpdateState.checking}
-              disabled={appUpdateState.downloading || appUpdateState.checking}>
+              onPress={onCheckUpdate}
+              isLoading={appUpdateState.checking}
+              isDisabled={appUpdateState.downloading || appUpdateState.checking}>
               {appUpdateState.downloading
                 ? t('settings.about.downloading')
                 : appUpdateState.available
@@ -243,7 +248,7 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
+              <Tooltip content={t('settings.general.test_plan.tooltip')}>
                 <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
@@ -252,17 +257,17 @@ const AboutSettings: FC = () => {
                 <SettingDivider />
                 <SettingRow>
                   <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <Radio.Group
-                    size="small"
-                    buttonStyle="solid"
+                  <RadioGroup
+                    size="sm"
+                    orientation="horizontal"
                     value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}>
+                    onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
                     {getAvailableTestChannels().map((option) => (
-                      <Tooltip key={option.value} title={option.tooltip}>
-                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                      <Tooltip key={option.value} content={option.tooltip}>
+                        <Radio value={option.value}>{option.label}</Radio>
                       </Tooltip>
                     ))}
-                  </Radio.Group>
+                  </RadioGroup>
                 </SettingRow>
               </>
             )}
@@ -277,7 +282,7 @@ const AboutSettings: FC = () => {
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
-          <UpdateNotesWrapper>
+          <UpdateNotesWrapper className="markdown">
             <Markdown>
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
@@ -292,7 +297,7 @@ const AboutSettings: FC = () => {
             <BadgeQuestionMark size={18} />
             {t('docs.title')}
           </SettingRowTitle>
-          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
+          <Button onPress={onOpenDocs}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -300,7 +305,7 @@ const AboutSettings: FC = () => {
             <Rss size={18} />
             {t('settings.about.releases.title')}
           </SettingRowTitle>
-          <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
+          <Button onPress={showReleases}>{t('settings.about.releases.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -308,7 +313,7 @@ const AboutSettings: FC = () => {
             <Globe size={18} />
             {t('settings.about.website.title')}
           </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
+          <Button onPress={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -316,7 +321,7 @@ const AboutSettings: FC = () => {
             <GithubOutlined size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
+          <Button onPress={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
             {t('settings.about.feedback.button')}
           </Button>
         </SettingRow>
@@ -326,7 +331,7 @@ const AboutSettings: FC = () => {
             <FileCheck size={18} />
             {t('settings.about.license.title')}
           </SettingRowTitle>
-          <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
+          <Button onPress={showLicense}>{t('settings.about.license.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -334,7 +339,7 @@ const AboutSettings: FC = () => {
             <Mail size={18} />
             {t('settings.about.contact.title')}
           </SettingRowTitle>
-          <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+          <Button onPress={mailto}>{t('settings.about.contact.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -342,9 +347,12 @@ const AboutSettings: FC = () => {
             <Bug size={18} />
             {t('settings.about.debug.title')}
           </SettingRowTitle>
-          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
+          <Button onPress={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
+
+      {/* Update Dialog */}
+      <UpdateDialog isOpen={isOpen} onClose={onClose} releaseInfo={updateDialogInfo} />
     </SettingContainer>
   )
 }

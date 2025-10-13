@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Avatar, Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -15,9 +16,8 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Select, Tooltip } from 'antd'
+import { Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -367,7 +367,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -380,7 +380,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
-              <ProviderLogo shape="square" src={getProviderLogo('tokenflux')} size={16} style={{ marginLeft: 5 }} />
+              <Avatar
+                radius="md"
+                src={getProviderLogo('tokenflux')}
+                className="ml-[5px] h-4 w-4 border-[0.5px] border-[var(--color-border)]"
+              />
             </SettingHelpLink>
           </ProviderTitleContainer>
 
@@ -391,7 +395,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <Avatar
+                    radius="md"
+                    src={getProviderLogo(provider.value || '')}
+                    className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
+                  />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -432,7 +440,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Select.OptGroup key={provider} label={provider}>
                 {providerModels.map((model) => (
                   <Select.Option key={model.id} value={model.id}>
-                    <Tooltip title={model.description} placement="right">
+                    <Tooltip placement="right" content={model.description}>
                       <ModelOptionContainer>
                         <ModelName>{model.name}</ModelName>
                       </ModelOptionContainer>
@@ -460,11 +468,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           {readI18nContext(property, 'title')}
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
-                        {property.description && (
-                          <Tooltip title={readI18nContext(property, 'description')}>
-                            <InfoIcon />
-                          </Tooltip>
-                        )}
+                        {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
                       </ParameterLabel>
                       <DynamicFormRender
                         schemaProperty={property}
@@ -747,23 +751,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 14px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ProviderTitleContainer = styled.div`

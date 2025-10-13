@@ -1,4 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
+import { Avatar, Button, Flex, Tooltip } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -8,8 +8,6 @@ import { isNewApiProvider } from '@renderer/config/providers'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
-import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -111,19 +109,17 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
       return (
         <Tooltip
-          destroyOnHidden
-          title={
+          content={
             isAllInProvider
               ? t('settings.models.manage.remove_whole_group')
               : t('settings.models.manage.add_whole_group')
           }
-          mouseLeaveDelay={0}
-          placement="top">
+          closeDelay={0}>
           <Button
-            type="text"
-            icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
-            onClick={(e) => {
-              e.stopPropagation()
+            variant="light"
+            startContent={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
+            isIconOnly
+            onPress={() => {
               handleGroupAction()
             }}
           />
@@ -201,14 +197,23 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
           boxShadow: 'none'
         }}
         fileInfo={{
-          icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+          icon: (
+            <Avatar src={getModelLogo(model.id)} size="sm">
+              {model?.name?.[0]?.toUpperCase()}
+            </Avatar>
+          ),
           name: <ModelIdWithTags model={model} />,
           extra: model.description && <ExpandableText text={model.description} />,
           ext: '.model',
           actions: isAdded ? (
-            <Button type="text" onClick={() => onRemoveModel(model)} icon={<Minus size={16} />} />
+            <Button
+              variant="light"
+              onPress={() => onRemoveModel(model)}
+              startContent={<Minus size={16} />}
+              isIconOnly
+            />
           ) : (
-            <Button type="text" onClick={() => onAddModel(model)} icon={<Plus size={16} />} />
+            <Button variant="light" onPress={() => onAddModel(model)} startContent={<Plus size={16} />} isIconOnly />
           )
         }}
       />

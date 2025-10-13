@@ -10,19 +10,21 @@ on:
       - main
       - develop
       - v2
+    types: [ready_for_review, synchronize, opened]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       PRCI: true
+    if: github.event.pull_request.draft == false
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v5
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 20
 

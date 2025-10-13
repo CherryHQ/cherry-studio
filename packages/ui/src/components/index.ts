@@ -1,4 +1,6 @@
 // Base Components
+export { Avatar, AvatarGroup, type AvatarProps, EmojiAvatar } from './base/Avatar'
+export { default as Button, type ButtonProps } from './base/Button'
 export { default as CopyButton } from './base/CopyButton'
 export { default as CustomCollapse } from './base/CustomCollapse'
 export { default as CustomTag } from './base/CustomTag'
@@ -10,17 +12,16 @@ export { default as IndicatorLight } from './base/IndicatorLight'
 export { default as Spinner } from './base/Spinner'
 export type { StatusTagProps, StatusType } from './base/StatusTag'
 export { ErrorTag, InfoTag, StatusTag, SuccessTag, WarnTag } from './base/StatusTag'
-export { Switch } from './base/Switch'
+export { DescriptionSwitch, Switch } from './base/Switch'
 export { default as TextBadge } from './base/TextBadge'
 export { getToastUtilities, type ToastUtilities } from './base/Toast'
+export { Tooltip, type TooltipProps } from './base/Tooltip'
 
 // Display Components
 export { default as Ellipsis } from './display/Ellipsis'
-export { default as EmojiAvatar } from './display/EmojiAvatar'
 export { default as ExpandableText } from './display/ExpandableText'
 export { default as ListItem } from './display/ListItem'
 export { default as MaxContextCount } from './display/MaxContextCount'
-export { ProviderAvatar } from './display/ProviderAvatar'
 export { default as ThinkingEffect } from './display/ThinkingEffect'
 
 // Layout Components
@@ -48,7 +49,22 @@ export {
 export { default as SvgSpinners180Ring } from './icons/SvgSpinners180Ring'
 export { default as ToolsCallingIcon } from './icons/ToolsCallingIcon'
 
-// Interactive Components
+/* Interactive Components */
+
+// Selector / SearchableSelector
+export { default as Selector } from './base/Selector'
+export { default as SearchableSelector } from './base/Selector/SearchableSelector'
+export type {
+  MultipleSearchableSelectorProps,
+  MultipleSelectorProps,
+  SearchableSelectorItem,
+  SearchableSelectorProps,
+  SelectorItem,
+  SelectorProps,
+  SingleSearchableSelectorProps,
+  SingleSelectorProps
+} from './base/Selector/types'
+// CodeEditor
 export {
   default as CodeEditor,
   type CodeEditorHandles,
@@ -57,17 +73,20 @@ export {
   getCmThemeByName,
   getCmThemeNames
 } from './interactive/CodeEditor'
+// CollapsibleSearchBar
 export { default as CollapsibleSearchBar } from './interactive/CollapsibleSearchBar'
+// DraggableList
 export { DraggableList, useDraggableReorder } from './interactive/DraggableList'
+// EditableNumber
 export type { EditableNumberProps } from './interactive/EditableNumber'
+// EditableNumber
 export { default as EditableNumber } from './interactive/EditableNumber'
-export { default as HelpTooltip } from './interactive/HelpTooltip'
+// Tooltip variants
+export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './interactive/IconTooltips'
+// ImageToolButton
 export { default as ImageToolButton } from './interactive/ImageToolButton'
-export { default as InfoPopover } from './interactive/InfoPopover'
-export { default as InfoTooltip } from './interactive/InfoTooltip'
-export { default as Selector } from './interactive/Selector'
+// Sortable
 export { Sortable } from './interactive/Sortable'
-export { default as WarnTooltip } from './interactive/WarnTooltip'
 
 // Composite Components (复合组件)
 // 暂无复合组件

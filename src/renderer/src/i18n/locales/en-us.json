@@ -1,80 +1,201 @@
 {
-  "agents": {
+  "agent": {
     "add": {
-      "button": "Add to Assistant",
-      "knowledge_base": {
-        "label": "Knowledge Base",
-        "placeholder": "Select Knowledge Base"
+      "error": {
+        "failed": "Failed to add a agent",
+        "invalid_agent": "Invalid Agent"
       },
-      "name": {
-        "label": "Name",
-        "placeholder": "Enter name"
-      },
-      "prompt": {
-        "label": "Prompt",
-        "placeholder": "Enter prompt",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name\n{{username}}:\tUsername",
-            "title": "Available variables"
-          }
-        }
-      },
-      "title": "Create Agent",
-      "unsaved_changes_warning": "You have unsaved changes. Are you sure you want to close?"
-    },
-    "delete": {
-      "popup": {
-        "content": "Are you sure you want to delete this agent?"
+      "title": "Add Agent",
+      "type": {
+        "placeholder": "Select an agent type"
       }
     },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "Select Model"
-        }
+    "delete": {
+      "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
+      "error": {
+        "failed": "Failed to delete the agent"
       },
+      "title": "Delete Agent"
+    },
+    "edit": {
       "title": "Edit Agent"
     },
-    "export": {
-      "agent": "Export Agent"
-    },
-    "import": {
-      "button": "Import",
+    "get": {
       "error": {
-        "fetch_failed": "Failed to fetch from URL",
-        "invalid_format": "Invalid agent format: missing required fields",
-        "url_required": "Please enter a URL"
-      },
-      "file_filter": "JSON Files",
-      "select_file": "Select File",
-      "title": "Import from External",
-      "type": {
-        "file": "File",
-        "url": "URL"
-      },
-      "url_placeholder": "Enter JSON URL"
+        "failed": "Failed to get the agent."
+      }
     },
-    "manage": {
-      "title": "Manage Agents"
+    "list": {
+      "error": {
+        "failed": "Failed to list agents."
+      }
     },
-    "my_agents": "My Agents",
-    "search": {
-      "no_results": "No results found"
+    "session": {
+      "accessible_paths": {
+        "add": "Add directory",
+        "duplicate": "This directory is already included.",
+        "empty": "Select at least one directory that the agent can access.",
+        "error": {
+          "at_least_one": "Please select at least one accessible directory."
+        },
+        "label": "Accessible directories",
+        "select_failed": "Failed to select directory."
+      },
+      "add": {
+        "title": "Add a session"
+      },
+      "allowed_tools": {
+        "empty": "No tools available for this agent.",
+        "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
+        "label": "Pre-approved tools",
+        "placeholder": "Select pre-approved tools"
+      },
+      "create": {
+        "error": {
+          "failed": "Failed to add a session"
+        }
+      },
+      "delete": {
+        "content": "Are you sure to delete this session?",
+        "error": {
+          "failed": "Failed to delete the session",
+          "last": "At least one session must be kept"
+        },
+        "title": "Delete session"
+      },
+      "edit": {
+        "title": "Edit session"
+      },
+      "get": {
+        "error": {
+          "failed": "Failed to get the session"
+        }
+      },
+      "label_one": "Session",
+      "label_other": "Sessions",
+      "update": {
+        "error": {
+          "failed": "Failed to update the session"
+        }
+      }
     },
     "settings": {
-      "title": "Agent Setting"
+      "advance": {
+        "maxTurns": {
+          "description": "Define how many request/response cycles the agent may complete automatically.",
+          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
+          "label": "Conversation turn limit"
+        },
+        "permissionMode": {
+          "description": "Control how the agent handles actions that require approval.",
+          "label": "Permission mode",
+          "options": {
+            "acceptEdits": "Accept edits automatically",
+            "bypassPermissions": "Bypass permission checks",
+            "default": "Default (ask before continuing)",
+            "plan": "Planning mode (requires plan approval)"
+          },
+          "placeholder": "Choose a permission behavior"
+        },
+        "title": "Advanced Settings"
+      },
+      "essential": "Essential Settings",
+      "prompt": "Prompt Settings",
+      "tooling": {
+        "mcp": {
+          "description": "Connect MCP servers to unlock additional tools you can approve above.",
+          "empty": "No MCP servers detected. Add one from the MCP settings page.",
+          "manageHint": "Need advanced configuration? Visit Settings → MCP Servers.",
+          "toggle": "Toggle {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pre-approves trusted filesystem tools so edits run immediately.",
+            "description": "File edits and filesystem operations are automatically approved.",
+            "title": "Auto-accept file edits"
+          },
+          "bypassPermissions": {
+            "behavior": "Every tool is pre-approved automatically.",
+            "description": "All permission prompts are skipped — use with caution.",
+            "title": "Bypass permission checks",
+            "warning": "Use with caution — all tools will run without asking for approval."
+          },
+          "confirmChange": {
+            "description": "Switching modes updates the automatically approved tools.",
+            "title": "Change permission mode?"
+          },
+          "default": {
+            "behavior": "Read-only tools are pre-approved automatically.",
+            "description": "Read-only tools are pre-approved; everything else still needs permission.",
+            "title": "Default (ask before continuing)"
+          },
+          "helper": "Choose how the agent handles tool approvals.",
+          "placeholder": "Select permission mode",
+          "plan": {
+            "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
+            "description": "Shares the default read-only tool set but presents a plan before execution.",
+            "title": "Planning mode"
+          },
+          "title": "Permission mode"
+        },
+        "preapproved": {
+          "autoBadge": "Added by mode",
+          "autoDescription": "This tool is auto-approved by the current permission mode.",
+          "empty": "No tools match your filters.",
+          "mcpBadge": "MCP tool",
+          "requiresApproval": "Requires approval when disabled",
+          "search": "Search tools",
+          "toggle": "Toggle {{name}}",
+          "warning": {
+            "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
+            "title": "Pre-approved tools run without manual review."
+          }
+        },
+        "review": {
+          "autoTools": "Auto: {{count}}",
+          "customTools": "Custom: {{count}}",
+          "helper": "Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Mode: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCP servers"
+          },
+          "permissionMode": {
+            "title": "Step 1 · Permission mode"
+          },
+          "preapproved": {
+            "title": "Step 2 · Pre-approved tools"
+          },
+          "review": {
+            "title": "Step 3 · Review"
+          }
+        },
+        "tab": "Tooling & permissions"
+      },
+      "tools": {
+        "approved": "approved",
+        "caution": "Pre-approved tools bypass human review. Enable only trusted tools.",
+        "description": "Choose which tools can run without manual approval.",
+        "requiresPermission": "Requires permission when not pre-approved.",
+        "tab": "Pre-approved tools",
+        "title": "Pre-approved tools",
+        "toggle": "{{defaultValue}}"
+      }
     },
-    "sorting": {
-      "title": "Sorting"
+    "type": {
+      "label": "Agent Type",
+      "unknown": "Unknown Type"
     },
-    "tag": {
-      "agent": "Agent",
-      "default": "Default",
-      "new": "New",
-      "system": "System"
+    "update": {
+      "error": {
+        "failed": "Failed to update the agent"
+      }
     },
-    "title": "Agents"
+    "warning": {
+      "enable_server": "Enable API Server to use agents."
+    }
   },
   "apiServer": {
     "actions": {
@@ -155,9 +276,86 @@
       "showByList": "List View",
       "showByTags": "Tag View"
     },
+    "presets": {
+      "add": {
+        "button": "Add to Assistant",
+        "knowledge_base": {
+          "label": "Knowledge Base",
+          "placeholder": "Select Knowledge Base"
+        },
+        "name": {
+          "label": "Name",
+          "placeholder": "Enter name"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Enter prompt",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name\n{{username}}:\tUsername",
+              "title": "Available variables"
+            }
+          }
+        },
+        "title": "Create Assistant",
+        "unsaved_changes_warning": "You have unsaved changes. Are you sure you want to close?"
+      },
+      "delete": {
+        "popup": {
+          "content": "Are you sure you want to delete this assistant?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "Select Model"
+          }
+        },
+        "title": "Edit Assistant"
+      },
+      "export": {
+        "agent": "Export Assistant"
+      },
+      "import": {
+        "button": "Import",
+        "error": {
+          "fetch_failed": "Failed to fetch from URL",
+          "invalid_format": "Invalid assistant format: missing required fields",
+          "url_required": "Please enter a URL"
+        },
+        "file_filter": "JSON Files",
+        "select_file": "Select File",
+        "title": "Import from External",
+        "type": {
+          "file": "File",
+          "url": "URL"
+        },
+        "url_placeholder": "Enter JSON URL"
+      },
+      "manage": {
+        "title": "Manage Assistants"
+      },
+      "my_agents": "My Assistants",
+      "search": {
+        "no_results": "No results found"
+      },
+      "settings": {
+        "title": "Assistant Setting"
+      },
+      "sorting": {
+        "title": "Sorting"
+      },
+      "tag": {
+        "agent": "Assistant",
+        "default": "Default",
+        "new": "New",
+        "system": "System"
+      },
+      "title": "Assistants Library"
+    },
     "save": {
       "success": "Saved successfully",
-      "title": "Save to agent"
+      "title": "Save to assistant library"
     },
     "search": "Search assistants...",
     "settings": {
@@ -251,6 +449,7 @@
     "added": "Added",
     "case_sensitive": "Case Sensitive",
     "collapse": "Collapse",
+    "download": "Download",
     "includes_user_questions": "Include Your Questions",
     "manage": "Manage",
     "select_model": "Select Model",
@@ -745,9 +944,14 @@
   },
   "common": {
     "add": "Add",
+    "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
+    "agent_one": "Agent",
+    "agent_other": "Agents",
     "and": "and",
-    "assistant": "Assistant",
+    "assistant": "Agent",
+    "assistant_one": "Assistant",
+    "assistant_other": "Assistants",
     "avatar": "Avatar",
     "back": "Back",
     "browse": "Browse",
@@ -764,6 +968,8 @@
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
+    "delete_failed": "Failed to delete",
+    "delete_success": "Deleted successfully",
     "description": "Description",
     "detail": "Detail",
     "disabled": "Disabled",
@@ -773,6 +979,10 @@
     "edit": "Edit",
     "enabled": "Enabled",
     "error": "error",
+    "errors": {
+      "create_message": "Failed to create message",
+      "validation": "Verification failed"
+    },
     "expand": "Expand",
     "file": {
       "not_supported": "Unsupported file type {{type}}"
@@ -783,6 +993,7 @@
     "go_to_settings": "Go to settings",
     "i_know": "I know",
     "inspect": "Inspect",
+    "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
     "language": "Language",
     "loading": "Loading...",
@@ -794,6 +1005,11 @@
     "none": "None",
     "open": "Open",
     "paste": "Paste",
+    "placeholders": {
+      "select": {
+        "model": "Select a model"
+      }
+    },
     "preview": "Preview",
     "prompt": "Prompt",
     "provider": "Provider",
@@ -806,6 +1022,7 @@
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
+    "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "settings": "Settings",
@@ -820,6 +1037,9 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "unknown": "Unknown",
+    "unnamed": "Unnamed",
+    "update_success": "Update successfully",
     "upload_files": "Upload file",
     "warning": "Warning",
     "you": "You"
@@ -892,6 +1112,7 @@
     "modelType": "Model Type",
     "name": "Error name",
     "no_api_key": "API key is not configured",
+    "no_response": "No response",
     "originalError": "Original Error",
     "originalMessage": "Original Message",
     "parameter": "Parameter",
@@ -957,6 +1178,9 @@
     },
     "document": "Document",
     "edit": "Edit",
+    "error": {
+      "open_path": "Failed to open path {{path}}"
+    },
     "file": "File",
     "image": "Image",
     "name": "Name",
@@ -1696,6 +1920,12 @@
     "provider_settings": "Go to provider settings"
   },
   "notes": {
+    "auto_rename": {
+      "empty_note": "Note is empty, cannot generate name",
+      "failed": "Failed to generate note name",
+      "label": "Generate Note Name",
+      "success": "Note name generated successfully"
+    },
     "characters": "Characters",
     "collapse": "Collapse",
     "content_placeholder": "Please enter the note content...",
@@ -1777,6 +2007,8 @@
     "sort_updated_asc": "Update time (oldest first)",
     "sort_updated_desc": "Update time (newest first)",
     "sort_z2a": "File name (Z-A)",
+    "spell_check": "Spell Check",
+    "spell_check_tooltip": "Enable/Disable spell check",
     "star": "Favorite note",
     "starred_notes": "Collected notes",
     "title": "Notes",
@@ -1825,6 +2057,57 @@
       "title": "Keep Alive Time"
     },
     "title": "Ollama"
+  },
+  "ovms": {
+    "action": {
+      "install": "Install",
+      "installing": "Installing",
+      "reinstall": "Re-Install",
+      "run": "Run OVMS",
+      "starting": "Starting",
+      "stop": "Stop OVMS",
+      "stopping": "Stopping"
+    },
+    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "download": {
+      "button": "Download",
+      "error": "Download Error",
+      "model_id": {
+        "label": "Model ID:",
+        "model_id_pattern": "Model ID must start with OpenVINO/",
+        "placeholder": "Required e.g. OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Please enter the model ID"
+      },
+      "model_name": {
+        "label": "Model Name:",
+        "placeholder": "Required e.g. Qwen3-8B-int4-ov",
+        "required": "Please enter the model name"
+      },
+      "model_source": "Model Source:",
+      "model_task": "Model Task:",
+      "success": "Download successful",
+      "success_desc": "Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
+      "tip": "The model is downloading, sometimes it takes hours. Please be patient...",
+      "title": "Download Intel OpenVINO Model"
+    },
+    "failed": {
+      "install": "Install OVMS failed:",
+      "install_code_100": "Unknown Error",
+      "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
+      "install_code_102": "Only supports Windows",
+      "install_code_103": "Download OVMS runtime failed",
+      "install_code_104": "Uncompress OVMS runtime failed",
+      "install_code_105": "Clean OVMS runtime failed",
+      "run": "Run OVMS failed:",
+      "stop": "Stop OVMS failed:"
+    },
+    "status": {
+      "not_installed": "OVMS is not installed",
+      "not_running": "OVMS is not running",
+      "running": "OVMS is running",
+      "unknown": "OVMS status unknown"
+    },
+    "title": "Intel OVMS"
   },
   "paintings": {
     "aspect_ratio": "Aspect Ratio",
@@ -2057,6 +2340,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -3734,6 +4018,10 @@
         "start_auth": "Start authorization",
         "submit_code": "Complete login"
       },
+      "anthropic_api_host": "Anthropic API Host",
+      "anthropic_api_host_preview": "Anthropic preview: {{url}}",
+      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores v1, ending with # forces use of input address.",
+      "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
       "api": {
         "key": {
           "check": {
@@ -3781,6 +4069,8 @@
         }
       },
       "api_host": "API Host",
+      "api_host_preview": "Preview: {{url}}",
+      "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
         "label": "API Key",
         "tip": "Multiple keys separated by commas or spaces"
@@ -4184,7 +4474,6 @@
     }
   },
   "title": {
-    "agents": "Agents",
     "apps": "Apps",
     "code": "Code",
     "files": "Files",
@@ -4196,6 +4485,7 @@
     "notes": "Notes",
     "paintings": "Paintings",
     "settings": "Settings",
+    "store": "Assistant Library",
     "translate": "Translate"
   },
   "trace": {
@@ -4351,6 +4641,7 @@
     "later": "Later",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
+    "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
   },
   "warning": {

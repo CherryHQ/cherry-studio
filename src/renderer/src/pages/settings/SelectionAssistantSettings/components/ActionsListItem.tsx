@@ -1,6 +1,6 @@
+import { Button } from '@cherrystudio/ui'
 import type { DraggableProvided } from '@hello-pangea/dnd'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { Button } from 'antd'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import { memo } from 'react'
@@ -58,10 +58,10 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   if (!item.isBuiltIn) {
     return (
       <UserActionOpSection>
-        <Button type="link" size="small" onClick={() => onEdit(item)}>
+        <Button variant="light" size="sm" onPress={() => onEdit(item)} isIconOnly>
           <Pencil size={16} className="btn-icon-edit" />
         </Button>
-        <Button type="link" size="small" danger onClick={() => onDelete(item.id)}>
+        <Button variant="light" size="sm" color="danger" onPress={() => onDelete(item.id)} isIconOnly>
           <Trash size={16} className="btn-icon-delete" />
         </Button>
       </UserActionOpSection>
@@ -71,7 +71,7 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   if (item.isBuiltIn && item.id === 'search') {
     return (
       <UserActionOpSection>
-        <Button type="link" size="small" onClick={() => onEdit(item)}>
+        <Button variant="light" size="sm" onPress={() => onEdit(item)} isIconOnly>
           <Settings2 size={16} className="btn-icon-edit" />
         </Button>
       </UserActionOpSection>

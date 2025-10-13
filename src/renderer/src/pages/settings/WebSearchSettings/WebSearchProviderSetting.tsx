@@ -1,5 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Flex, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
@@ -13,9 +13,9 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Form, Input, Space, Tooltip } from 'antd'
+import { Divider, Form, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { Info, List } from 'lucide-react'
+import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -92,8 +92,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
     if (!provider) {
       window.toast.error({
         title: t('settings.no_provider_selected'),
-        timeout: 3000,
-        icon: <Info size={18} />
+        timeout: 3000
       })
       return
     }
@@ -178,11 +177,11 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+              <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
             </Tooltip>
           </SettingSubtitle>
-          <Space.Compact style={{ width: '100%' }}>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
               placeholder={t('settings.provider.api_key.label')}
@@ -193,10 +192,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               autoFocus={apiKey === ''}
             />
             <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
+              variant={apiValid ? 'ghost' : 'solid'}
+              color={apiValid ? 'primary' : 'default'}
+              onPress={checkSearch}
+              isDisabled={apiChecking}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -205,7 +204,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 t('settings.tool.websearch.check')
               )}
             </Button>
-          </Space.Compact>
+          </Flex>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <RowFlex>
               {apiKeyWebsite && (
@@ -238,9 +237,15 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth.label')}
-            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
-              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              placement="right"
+              content={t('settings.provider.basic_auth.tip')}
+              iconProps={{
+                size: 16,
+                color: 'var(--color-icon)',
+                className: 'ml-1 cursor-pointer'
+              }}
+            />
           </SettingSubtitle>
           <Flex>
             <Form

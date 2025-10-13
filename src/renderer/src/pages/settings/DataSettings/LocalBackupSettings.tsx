@@ -1,6 +1,5 @@
-import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -10,7 +9,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
 import type { AppInfo } from '@renderer/types'
-import { Button, Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -155,9 +154,10 @@ const LocalBackupSettings: React.FC = () => {
       <RowFlex className="items-center gap-[5px]">
         {localBackupSync.syncing && <SyncOutlined spin />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
-          <Tooltip title={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}>
-            <WarningOutlined style={{ color: 'red' }} />
-          </Tooltip>
+          <WarnTooltip
+            content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
+            iconProps={{ style: { color: 'red' } }}
+          />
         )}
         {localBackupSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>
@@ -193,10 +193,14 @@ const LocalBackupSettings: React.FC = () => {
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
-          <Button icon={<FolderOpenOutlined />} onClick={handleBrowseDirectory}>
+          <Button startContent={<FolderOpenOutlined />} onPress={handleBrowseDirectory}>
             {t('common.browse')}
           </Button>
-          <Button icon={<DeleteOutlined />} onClick={handleClearDirectory} disabled={!localBackupDir} danger>
+          <Button
+            startContent={<DeleteOutlined />}
+            onPress={handleClearDirectory}
+            isDisabled={!localBackupDir}
+            color="danger">
             {t('common.clear')}
           </Button>
         </RowFlex>
@@ -205,10 +209,14 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-[5px]">
-          <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping} disabled={!localBackupDir}>
+          <Button
+            onPress={showBackupModal}
+            startContent={<SaveOutlined />}
+            isLoading={backuping}
+            isDisabled={!localBackupDir}>
             {t('settings.data.local.backup.button')}
           </Button>
-          <Button onClick={showBackupManager} icon={<FolderOpenOutlined />} disabled={!localBackupDir}>
+          <Button onPress={showBackupManager} startContent={<FolderOpenOutlined />} isDisabled={!localBackupDir}>
             {t('settings.data.local.restore.button')}
           </Button>
         </RowFlex>

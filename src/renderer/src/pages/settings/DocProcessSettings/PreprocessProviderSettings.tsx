@@ -1,11 +1,11 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
+import { Avatar, Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Input, Tooltip } from 'antd'
+import { Divider, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import type { FC } from 'react'
@@ -72,7 +72,11 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
     <>
       <SettingTitle>
         <Flex className="items-center gap-2">
-          <ProviderLogo shape="square" src={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
+          <Avatar
+            radius="md"
+            src={getPreprocessProviderLogo(preprocessProvider.id)}
+            className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
+          />
 
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
@@ -94,8 +98,8 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+              <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
             </Tooltip>
           </SettingSubtitle>
           <Flex className="gap-2">
@@ -177,9 +181,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-`
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 export default PreprocessProviderSettings

@@ -1,9 +1,10 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -28,7 +29,7 @@ const TranslatePromptSettings = () => {
         <RowFlex className="h-[30px] items-center gap-2.5">
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip title={t('common.reset')}>
+            <Tooltip content={t('common.reset')}>
               <ResetButton type="reset" onClick={onResetTranslatePrompt}>
                 <RedoOutlined size={16} />
               </ResetButton>

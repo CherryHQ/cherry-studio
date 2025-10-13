@@ -19,7 +19,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { cloneDeep, isEmpty } from 'lodash'
+import { cloneDeep, trim } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
 import { getAiSdkProviderId } from './factory'
@@ -79,9 +79,37 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
 /**
  * 格式化provider的API Host
  */
+function formatAnthropicApiHost(host: string): string {
+  const trimmedHost = host?.trim()
+
+  if (!trimmedHost) {
+    return ''
+  }
+
+  if (trimmedHost.endsWith('/')) {
+    return trimmedHost
+  }
+
+  if (trimmedHost.endsWith('/v1')) {
+    return `${trimmedHost}/`
+  }
+
+  return formatApiHost(trimmedHost)
+}
+
 function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
-  if (formatted.type === 'gemini') {
+  if (formatted.anthropicApiHost) {
+    formatted.anthropicApiHost = formatAnthropicApiHost(formatted.anthropicApiHost)
+  }
+
+  if (formatted.type === 'anthropic') {
+    const baseHost = formatted.anthropicApiHost || formatted.apiHost
+    formatted.apiHost = formatAnthropicApiHost(baseHost)
+    if (!formatted.anthropicApiHost) {
+      formatted.anthropicApiHost = formatted.apiHost
+    }
+  } else if (formatted.type === 'gemini') {
     formatted.apiHost = formatApiHost(formatted.apiHost, 'v1beta')
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)
@@ -120,7 +148,7 @@ export function providerToAiSdkConfig(
 
   // 构建基础配置
   const baseConfig = {
-    baseURL: actualProvider.apiHost,
+    baseURL: trim(actualProvider.apiHost),
     apiKey: getRotatedApiKey(actualProvider)
   }
   // 处理OpenAI模式
@@ -195,7 +223,10 @@ export function providerToAiSdkConfig(
     } else if (baseConfig.baseURL.endsWith('/v1')) {
       baseConfig.baseURL = baseConfig.baseURL.slice(0, -3)
     }
-    baseConfig.baseURL = isEmpty(baseConfig.baseURL) ? '' : baseConfig.baseURL
+
+    if (baseConfig.baseURL && !baseConfig.baseURL.includes('publishers/google')) {
+      baseConfig.baseURL = `${baseConfig.baseURL}/v1/projects/${project}/locations/${location}/publishers/google`
+    }
   }
 
   // 如果AI SDK支持该provider，使用原生配置

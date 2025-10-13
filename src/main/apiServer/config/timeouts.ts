@@ -1,0 +1,3 @@
+export const LONG_POLL_TIMEOUT_MS = 120 * 60_000 // 120 minutes
+
+export const MESSAGE_STREAM_TIMEOUT_MS = LONG_POLL_TIMEOUT_MS

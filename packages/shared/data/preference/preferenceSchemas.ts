@@ -130,7 +130,7 @@ export interface PreferenceSchemas {
     // redux/settings/fontSize
     'chat.message.font_size': number
     // redux/settings/mathEngine
-    'chat.message.math.engine': string
+    'chat.message.math.engine': PreferenceTypes.MathEngine
     // redux/settings/mathEnableSingleDollar
     'chat.message.math.single_dollar': boolean
     // redux/settings/foldDisplayMode
@@ -659,7 +659,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'ui.sidebar.icons.invisible': [],
     'ui.sidebar.icons.visible': [
       'assistants',
-      'agents',
+      'store',
       'paintings',
       'translate',
       'minapp',

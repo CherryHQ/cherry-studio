@@ -1,11 +1,11 @@
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { initWorkSpace } from '@renderer/services/NotesService'
 import type { EditorView } from '@renderer/types'
-import { Button, Input, Slider } from 'antd'
+import { Input, Slider } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -72,7 +72,6 @@ const NotesSettings: FC = () => {
       }
 
       updateNotesPath(tempPath)
-      initWorkSpace(tempPath, 'sort_a2z')
       window.toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
@@ -85,7 +84,6 @@ const NotesSettings: FC = () => {
       const info = await window.api.getAppInfo()
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
-      initWorkSpace(info.notesPath, 'sort_a2z')
       window.toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
@@ -112,19 +110,19 @@ const NotesSettings: FC = () => {
               readOnly
             />
             <Button
-              type="default"
-              icon={<FolderOpen size={16} />}
-              onClick={handleSelectWorkDirectory}
-              loading={isSelecting}
-              style={{ marginLeft: 8 }}>
+              variant="solid"
+              startContent={<FolderOpen size={16} />}
+              onPress={handleSelectWorkDirectory}
+              isLoading={isSelecting}
+              className="ml-2">
               {t('notes.settings.data.select')}
             </Button>
           </PathInputContainer>
           <ActionButtons>
-            <Button type="primary" onClick={handleApplyPath} disabled={!isPathChanged}>
+            <Button color="primary" onPress={handleApplyPath} isDisabled={!isPathChanged}>
               {t('notes.settings.data.apply')}
             </Button>
-            <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
+            <Button onPress={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
           </ActionButtons>
         </WorkDirectorySection>
         <SettingRow>

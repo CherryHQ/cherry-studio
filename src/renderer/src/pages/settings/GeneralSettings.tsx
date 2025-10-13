@@ -1,10 +1,8 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
@@ -13,7 +11,7 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -275,9 +273,11 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
-            <Tooltip title={t('notification.tip')} placement="right">
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              content={t('notification.tip')}
+              placement="right"
+              iconProps={{ className: 'cursor-pointer' }}
+            />
           </SettingRowTitle>
           <Switch
             isSelected={notificationSettings.assistant}
@@ -347,7 +347,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
-            <InfoTooltip title={t('settings.developer.help')} />
+            <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
           <Switch isSelected={enableDeveloperMode} onValueChange={setEnableDeveloperMode} />
         </SettingRow>

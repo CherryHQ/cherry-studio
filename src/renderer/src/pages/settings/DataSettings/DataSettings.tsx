@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
@@ -20,7 +21,7 @@ import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Typography } from 'antd'
+import { Progress, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -127,7 +128,7 @@ const DataSettings: FC = () => {
     },
     {
       key: 'agentssubscribe_url',
-      title: t('agents.settings.title'),
+      title: t('assistants.presets.settings.title'),
       icon: <Sparkle size={16} className="icon" />
     }
   ]
@@ -602,10 +603,10 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
                 <RowFlex className="justify-between gap-[5px]">
-                  <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
+                  <Button onPress={BackupPopup.show} startContent={<SaveIcon size={14} />}>
                     {t('settings.general.backup.button')}
                   </Button>
-                  <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
+                  <Button onPress={RestorePopup.show} startContent={<FolderOpen size={14} />}>
                     {t('settings.general.restore.button')}
                   </Button>
                 </RowFlex>
@@ -632,7 +633,7 @@ const DataSettings: FC = () => {
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
                   <RowFlex className="ml-2 gap-[5px]">
-                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                    <Button onPress={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
                   </RowFlex>
                 </PathRow>
               </SettingRow>
@@ -645,7 +646,7 @@ const DataSettings: FC = () => {
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
                   <RowFlex className="ml-2 gap-[5px]">
-                    <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                    <Button onPress={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
                     </Button>
                   </RowFlex>
@@ -655,7 +656,7 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
                 <RowFlex className="items-center gap-[5px]">
-                  <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
+                  <Button onPress={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </RowFlex>
               </SettingRow>
               <SettingDivider />
@@ -665,14 +666,14 @@ const DataSettings: FC = () => {
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
                 <RowFlex className="gap-[5px]">
-                  <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
+                  <Button onPress={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
                 </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
                 <RowFlex className="gap-[5px]">
-                  <Button onClick={reset} danger>
+                  <Button onPress={reset} color="danger">
                     {t('settings.general.reset.title')}
                   </Button>
                 </RowFlex>

@@ -12,8 +12,8 @@ vi.mock('react-i18next', () => ({
 
 // Mock ImageToolButton
 vi.mock('../ImageToolButton', () => ({
-  default: vi.fn(({ tooltip, onClick, icon }) => (
-    <button type="button" onClick={onClick} role="button" aria-label={tooltip}>
+  default: vi.fn(({ tooltip, onPress, icon }) => (
+    <button type="button" onClick={onPress} role="button" aria-label={tooltip}>
       {icon}
     </button>
   ))

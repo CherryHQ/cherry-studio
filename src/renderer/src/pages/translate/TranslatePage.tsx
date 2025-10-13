@@ -1,5 +1,5 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -41,7 +41,7 @@ import {
   determineTargetLanguage
 } from '@renderer/utils/translate'
 import { imageExts, MB, textExts } from '@shared/config/constant'
-import { Button, FloatButton, Popover, Tooltip, Typography } from 'antd'
+import { FloatButton, Popover, Typography } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
@@ -334,16 +334,9 @@ const TranslatePage: FC = () => {
       window.toast.error(t('translate.error.detect.unknown'))
       return
     }
-    const target = targetLanguage
-    setSourceLanguage(target)
+    setSourceLanguage(targetLanguage)
     setTargetLanguage(source)
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
-
-  // Clear translation content when component mounts
-  useEffect(() => {
-    setText('')
-    setTranslatedContent('')
-  }, [setText, setTranslatedContent])
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
@@ -699,10 +692,10 @@ const TranslatePage: FC = () => {
             <Button
               className="nodrag"
               color="default"
-              variant={historyDrawerVisible ? 'filled' : 'text'}
-              type="text"
-              icon={<FolderClock size={18} />}
-              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}
+              variant="light"
+              startContent={<FolderClock size={18} />}
+              isIconOnly
+              onPress={() => setHistoryDrawerVisible(!historyDrawerVisible)}
             />
             <LanguageSelect
               showSearch
@@ -723,13 +716,14 @@ const TranslatePage: FC = () => {
                 }
               ]}
             />
-            <Tooltip title={t('translate.exchange.label')} placement="bottom">
+            <Tooltip content={t('translate.exchange.label')} placement="bottom">
               <Button
-                type="text"
-                icon={<SwapOutlined />}
+                variant="light"
+                startContent={<SwapOutlined />}
+                isIconOnly
                 style={{ margin: '0 -2px' }}
-                onClick={handleExchange}
-                disabled={!couldExchange}
+                onPress={handleExchange}
+                isDisabled={!couldExchange}
               />
             </Tooltip>
             {getLanguageDisplay()}
@@ -747,7 +741,12 @@ const TranslatePage: FC = () => {
               modelFilter={modelPredicate}
               tooltipProps={{ placement: 'bottom' }}
             />
-            <Button type="text" icon={<Settings2 size={18} />} onClick={() => setSettingsVisible(true)} />
+            <Button
+              variant="light"
+              startContent={<Settings2 size={18} />}
+              isIconOnly
+              onPress={() => setSettingsVisible(true)}
+            />
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
@@ -796,12 +795,13 @@ const TranslatePage: FC = () => {
 
           <OutputContainer>
             <CopyButton
-              type="text"
-              size="small"
+              variant="light"
+              size="sm"
               className="copy-button"
-              onClick={onCopy}
-              disabled={!translatedContent}
-              icon={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
+              onPress={onCopy}
+              isDisabled={!translatedContent}
+              startContent={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
+              isIconOnly
             />
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (
@@ -986,10 +986,9 @@ const TranslateButton = ({
   const { t } = useTranslation()
   return (
     <Tooltip
-      mouseEnterDelay={0.5}
+      delay={500}
       placement="bottom"
-      styles={{ body: { fontSize: '12px' } }}
-      title={
+      content={
         <div style={{ textAlign: 'center' }}>
           Enter: {t('translate.button.translate')}
           <br />
@@ -997,12 +996,12 @@ const TranslateButton = ({
         </div>
       }>
       {!translating && (
-        <Button type="primary" onClick={onTranslate} disabled={!couldTranslate} icon={<SendOutlined />}>
+        <Button color="primary" onPress={onTranslate} isDisabled={!couldTranslate} startContent={<SendOutlined />}>
           {t('translate.button.translate')}
         </Button>
       )}
       {translating && (
-        <Button danger type="primary" onClick={onAbort} icon={<CirclePause size={14} />}>
+        <Button color="danger" onPress={onAbort} startContent={<CirclePause size={14} />}>
           {t('common.stop')}
         </Button>
       )}

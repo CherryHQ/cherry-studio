@@ -719,7 +719,10 @@ class FileStorage {
   }
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    shell.openPath(path).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+    const resolved = await shell.openPath(path)
+    if (resolved !== '') {
+      throw new Error(resolved)
+    }
   }
 
   /**
@@ -1221,6 +1224,19 @@ class FileStorage {
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
       return false
+    }
+  }
+
+  public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
+    if (!fs.existsSync(path)) {
+      const msg = `File or folder does not exist: ${path}`
+      logger.error(msg)
+      throw new Error(msg)
+    }
+    try {
+      shell.showItemInFolder(path)
+    } catch (error) {
+      logger.error('Failed to show item in folder:', error as Error)
     }
   }
 }

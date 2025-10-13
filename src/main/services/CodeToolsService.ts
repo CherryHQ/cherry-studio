@@ -30,7 +30,10 @@ interface VersionInfo {
 
 class CodeToolsService {
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
-  private terminalsCache: { terminals: TerminalConfig[]; timestamp: number } | null = null
+  private terminalsCache: {
+    terminals: TerminalConfig[]
+    timestamp: number
+  } | null = null
   private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
@@ -81,6 +84,8 @@ class CodeToolsService {
         return '@qwen-code/qwen-code'
       case codeTools.iFlowCli:
         return '@iflow-ai/iflow-cli'
+      case codeTools.githubCopilotCli:
+        return '@github/copilot'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -98,6 +103,8 @@ class CodeToolsService {
         return 'qwen'
       case codeTools.iFlowCli:
         return 'iflow'
+      case codeTools.githubCopilotCli:
+        return 'copilot'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -143,7 +150,9 @@ class CodeToolsService {
         case terminalApps.powershell:
           // Check for PowerShell in PATH
           try {
-            await execAsync('powershell -Command "Get-Host"', { timeout: 3000 })
+            await execAsync('powershell -Command "Get-Host"', {
+              timeout: 3000
+            })
             return terminal
           } catch {
             try {
@@ -383,7 +392,9 @@ class CodeToolsService {
         const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
         const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
-        const { stdout } = await execAsync(`"${executablePath}" --version`, { timeout: 10000 })
+        const { stdout } = await execAsync(`"${executablePath}" --version`, {
+          timeout: 10000
+        })
         // Extract version number from output (format may vary by tool)
         const versionMatch = stdout.trim().match(/\d+\.\d+\.\d+/)
         installedVersion = versionMatch ? versionMatch[0] : stdout.trim().split(' ')[0]
@@ -424,7 +435,10 @@ class CodeToolsService {
         logger.info(`${packageName} latest version: ${latestVersion}`)
 
         // Cache the result
-        this.versionCache.set(cacheKey, { version: latestVersion!, timestamp: now })
+        this.versionCache.set(cacheKey, {
+          version: latestVersion!,
+          timestamp: now
+        })
         logger.debug(`Cached latest version for ${packageName}`)
       } catch (error) {
         logger.warn(`Failed to get latest version for ${packageName}:`, error as Error)
@@ -665,7 +679,7 @@ class CodeToolsService {
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Combine directory change with the main command to ensure they execute in the same shell session
-        const fullCommand = `cd '${directory.replace(/'/g, "\\'")}' && clear && ${command}`
+        const fullCommand = `cd "${directory.replace(/"/g, '\\"')}" && clear && ${command}`
 
         const terminalConfig = await this.getTerminalConfig(options.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)

@@ -1,9 +1,10 @@
+import { Tooltip } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { Col, Input, Modal, Radio, Row, Select, Space, Tooltip } from 'antd'
+import { Col, Input, Modal, Radio, Row, Select, Space } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type { FC } from 'react'
@@ -116,7 +117,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
-                <Tooltip placement="top" title={t('selection.settings.user_modal.icon.tooltip')} arrow>
+                <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
                 <Spacer />
@@ -127,7 +128,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   style={{ fontSize: '12px', color: 'var(--color-primary)' }}>
                   {t('selection.settings.user_modal.icon.view_all')}
                 </a>
-                <Tooltip title={t('selection.settings.user_modal.icon.random')}>
+                <Tooltip content={t('selection.settings.user_modal.icon.random')}>
                   <DiceButton
                     onClick={() => {
                       const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
@@ -163,7 +164,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col flex="auto" style={{ paddingRight: '16px' }}>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
-                <Tooltip placement="top" title={t('selection.settings.user_modal.model.tooltip')} arrow>
+                <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
               </ModalSectionTitle>
@@ -215,7 +216,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
         <ModalSection>
           <ModalSectionTitle>
             <ModalSectionTitleLabel>{t('selection.settings.user_modal.prompt.label')}</ModalSectionTitleLabel>
-            <Tooltip placement="top" title={t('selection.settings.user_modal.prompt.tooltip')} arrow>
+            <Tooltip content={t('selection.settings.user_modal.prompt.tooltip')}>
               <QuestionIcon size={14} />
             </Tooltip>
             <Spacer />

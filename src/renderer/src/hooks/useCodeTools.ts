@@ -12,7 +12,7 @@ import {
   setSelectedTerminal
 } from '@renderer/store/codeTools'
 import type { Model } from '@renderer/types'
-import type { codeTools } from '@shared/config/constant'
+import { codeTools } from '@shared/config/constant'
 import { useCallback } from 'react'
 
 export const useCodeTools = () => {
@@ -108,7 +108,11 @@ export const useCodeTools = () => {
   const environmentVariables = codeToolsState?.environmentVariables?.[codeToolsState.selectedCliTool] || ''
 
   // 检查是否可以启动（所有必需字段都已填写）
-  const canLaunch = Boolean(codeToolsState.selectedCliTool && selectedModel && codeToolsState.currentDirectory)
+  const canLaunch = Boolean(
+    codeToolsState.selectedCliTool &&
+      codeToolsState.currentDirectory &&
+      (codeToolsState.selectedCliTool === codeTools.githubCopilotCli || selectedModel)
+  )
 
   return {
     // 状态

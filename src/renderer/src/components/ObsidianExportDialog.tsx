@@ -38,6 +38,7 @@ interface PopupContainerProps {
   message?: Message
   messages?: Message[]
   topic?: Topic
+  rawContent?: string
 }
 
 // 转换文件信息数组为树形结构
@@ -140,7 +141,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   resolve,
   message,
   messages,
-  topic
+  topic,
+  rawContent
 }) => {
   const [defaultObsidianVault, setDefaultObsidianVault] = usePreference('data.integration.obsidian.default_vault')
   const [state, setState] = useState({
@@ -229,7 +231,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       return
     }
     let markdown = ''
-    if (topic) {
+    if (rawContent) {
+      markdown = rawContent
+    } else if (topic) {
       markdown = await topicToMarkdown(topic, exportReasoning)
     } else if (messages && messages.length > 0) {
       markdown = await messagesToMarkdown(messages, exportReasoning)
@@ -299,7 +303,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
     }
   }
-
   return (
     <Modal
       title={i18n.t('chat.topics.export.obsidian_atributes')}
@@ -410,9 +413,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             </Option>
           </Select>
         </Form.Item>
-        <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
-          <Switch isSelected={exportReasoning} onValueChange={setExportReasoning} />
-        </Form.Item>
+        {!rawContent && (
+          <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
+            <Switch isSelected={exportReasoning} onValueChange={setExportReasoning} />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   )

@@ -1,9 +1,10 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { Button, Divider, Input, Modal, Popover } from 'antd'
+import { Divider, Input, Modal, Popover } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,7 +40,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   TopicNamingModalPopup.hide = onCancel
 
-  const promptVarsContent = useMemo(() => <pre>{t('agents.add.prompt.variables.tip.content')}</pre>, [t])
+  const promptVarsContent = useMemo(() => <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>, [t])
 
   return (
     <Modal
@@ -64,10 +65,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <div>
           <Flex className="mb-1 h-[30px] items-center gap-1">
             <div>{t('settings.models.topic_naming.prompt')}</div>
-            <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+            <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
-            {topicNamingPrompt && <Button icon={<ResetIcon size={14} />} onClick={handleReset} type="text" />}
+            {topicNamingPrompt && (
+              <Button startContent={<ResetIcon size={14} />} onPress={handleReset} variant="light" isIconOnly />
+            )}
           </Flex>
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 10 }}

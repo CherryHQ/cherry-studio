@@ -1,4 +1,5 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
@@ -19,7 +20,6 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useImperativeHandle, useMemo } from 'react'
@@ -207,14 +207,12 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
   }))
 
   return (
-    <Tooltip
-      placement="top"
-      title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
-      mouseLeaveDelay={0}
-      arrow>
-      <ActionIconButton onClick={onClick} active={!!enableWebSearch}>
-        <WebSearchIcon pid={assistant.webSearchProviderId} />
-      </ActionIconButton>
+    <Tooltip content={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')} closeDelay={0}>
+      <ActionIconButton
+        onPress={onClick}
+        active={!!enableWebSearch}
+        icon={<WebSearchIcon pid={assistant.webSearchProviderId} />}
+      />
     </Tooltip>
   )
 }

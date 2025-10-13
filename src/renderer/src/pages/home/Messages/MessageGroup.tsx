@@ -339,17 +339,30 @@ const GroupContainer = styled.div`
 const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
-  overflow-y: visible;
   gap: 16px;
+
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
+    overflow-y: hidden;
     overflow-x: auto;
+    &::-webkit-scrollbar {
+      height: 6px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: var(--color-scrollbar-thumb);
+      border-radius: var(--scrollbar-thumb-radius);
+    }
+    &::-webkit-scrollbar-thumb:hover {
+      background: var(--color-scrollbar-thumb-hover);
+    }
   }
   &.fold,
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   &.grid {
     grid-template-columns: repeat(
@@ -357,11 +370,15 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
       minmax(0, 1fr)
     );
     grid-template-rows: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
+    overflow-y: auto;
+    overflow-x: hidden;
     .grid {
       height: auto;
     }
@@ -387,7 +404,7 @@ interface MessageWrapperProps {
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     padding: 1px;
-    overflow-y: auto;
+    /* overflow-y: auto; */
     .message {
       height: 100%;
       border: 0.5px solid var(--color-border);
@@ -407,8 +424,9 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     }
   }
   &.grid {
+    display: block;
     height: 300px;
-    overflow-y: hidden;
+    overflow: hidden;
     border: 0.5px solid var(--color-border);
     border-radius: 10px;
     cursor: pointer;

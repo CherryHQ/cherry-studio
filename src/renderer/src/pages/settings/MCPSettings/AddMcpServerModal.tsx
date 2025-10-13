@@ -1,5 +1,6 @@
 import { UploadOutlined } from '@ant-design/icons'
 import { CodeEditor } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
@@ -11,7 +12,7 @@ import type { MCPServer } from '@renderer/types'
 import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatZodError } from '@renderer/utils/error'
-import { Button, Form, Modal, Upload } from 'antd'
+import { Form, Modal, Upload } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -358,7 +359,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               }}
               onRemove={() => setDxtFile(null)}
               fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}>
-              <Button icon={<UploadOutlined />}>{t('settings.mcp.addServer.importFrom.selectDxtFile')}</Button>
+              <Button startContent={<UploadOutlined />}>{t('settings.mcp.addServer.importFrom.selectDxtFile')}</Button>
             </Upload>
           </Form.Item>
         )}

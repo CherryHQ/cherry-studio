@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -30,6 +30,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -180,24 +181,22 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           size="sm"
+          variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddFile()
-          }}
+          onPress={handleAddFile}
           isDisabled={disabled}>
           {t('knowledge.add_file')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
 
-      <div className="flex flex-col px-4 py-5 gap-2.5">
+      <div className="flex flex-col gap-2.5 px-4 py-5">
         <div
           role="button"
           tabIndex={0}
-          className={`flex flex-col items-center justify-center gap-2 p-6 border border-dashed border-[var(--color-border)] rounded-xl text-center cursor-pointer transition-colors duration-200 ease-in-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] focus-visible:outline-offset-4 hover:bg-[var(--color-fill-tertiary)] ${
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] border-dashed p-6 text-center transition-colors duration-200 ease-in-out hover:bg-[var(--color-fill-tertiary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] focus-visible:outline-offset-4 ${
             isDraggingFiles ? 'bg-[var(--color-fill-tertiary)]' : 'bg-transparent'
           }`}
           onClick={(e) => {
@@ -215,8 +214,8 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDropEvent}>
-          <p className="font-semibold text-[var(--color-text)] m-0">{t('knowledge.drag_file')}</p>
-          <p className="text-xs text-[var(--color-text-2)] m-0">
+          <p className="m-0 font-semibold text-[var(--color-text)]">{t('knowledge.drag_file')}</p>
+          <p className="m-0 text-[var(--color-text-2)] text-xs">
             {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
           </p>
         </div>
@@ -241,9 +240,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                     fileInfo={{
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
-                          <Ellipsis>
-                            {file.origin_name}
-                          </Ellipsis>
+                          <Ellipsis>{file.origin_name}</Ellipsis>
                         </ClickableSpan>
                       ),
                       ext: file.ext,
@@ -251,12 +248,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button
-                              size="sm"
-                              isIconOnly
-                              variant="light"
-                              onClick={() => refreshItem(item)}
-                              aria-label="Refresh file">
+                            <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
                               <RefreshIcon />
                             </Button>
                           )}
@@ -280,13 +272,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button
-                            size="sm"
-                            isIconOnly
-                            variant="light"
-                            color="danger"
-                            onClick={() => removeItem(item)}
-                            aria-label="Delete file">
+                          <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
                             <DeleteIcon size={14} className="lucide-custom" />
                           </Button>
                         </FlexAlignCenter>

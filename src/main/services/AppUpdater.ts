@@ -3,28 +3,31 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { configManager } from '@main/services/ConfigManager'
 import { getIpCountry } from '@main/utils/ipService'
-import { getI18n } from '@main/utils/language'
 import { generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl } from '@shared/config/constant'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
-import type { BrowserWindow } from 'electron'
-import { app, dialog, net } from 'electron'
+import { app, net } from 'electron'
 import type { AppUpdater as _AppUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import icon from '../../../build/icon.png?asset'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
 
+// Language markers constants for multi-language release notes
+const LANG_MARKERS = {
+  EN_START: '<!--LANG:en-->',
+  ZH_CN_START: '<!--LANG:zh-CN-->',
+  END: '<!--LANG:END-->'
+} as const
+
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
-  private releaseInfo: UpdateInfo | undefined
   private cancellationToken: CancellationToken = new CancellationToken()
   private updateCheckResult: UpdateCheckResult | null = null
 
@@ -46,7 +49,8 @@ export default class AppUpdater {
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
+      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
     })
 
     // 检测到不需要更新时
@@ -61,9 +65,9 @@ export default class AppUpdater {
 
     // 当需要更新的内容下载完成后
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, releaseInfo)
-      this.releaseInfo = releaseInfo
-      logger.info('update downloaded', releaseInfo)
+      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
+      logger.info('update downloaded', processedReleaseInfo)
     })
 
     if (isWin) {
@@ -243,57 +247,83 @@ export default class AppUpdater {
     }
   }
 
-  public showUpdateDialog(mainWindow: BrowserWindow) {
-    if (!this.releaseInfo) {
-      return
-    }
-    const i18n = getI18n()
-    const { update: updateLocale } = i18n.translation
-
-    let detail = this.formatReleaseNotes(this.releaseInfo.releaseNotes)
-    if (detail === '') {
-      detail = updateLocale.noReleaseNotes
-    }
-
-    dialog
-      .showMessageBox({
-        type: 'info',
-        title: updateLocale.title,
-        icon,
-        message: updateLocale.message.replace('{{version}}', this.releaseInfo.version),
-        detail,
-        buttons: [updateLocale.later, updateLocale.install],
-        defaultId: 1,
-        cancelId: 0
-      })
-      .then(({ response }) => {
-        if (response === 1) {
-          app.isQuitting = true
-          setImmediate(() => autoUpdater.quitAndInstall())
-        } else {
-          mainWindow.webContents.send(IpcChannel.UpdateDownloadedCancelled)
-        }
-      })
+  public quitAndInstall() {
+    app.isQuitting = true
+    setImmediate(() => autoUpdater.quitAndInstall())
   }
 
-  private formatReleaseNotes(releaseNotes: string | ReleaseNoteInfo[] | null | undefined): string {
-    if (!releaseNotes) {
-      return ''
-    }
+  /**
+   * Check if release notes contain multi-language markers
+   */
+  private hasMultiLanguageMarkers(releaseNotes: string): boolean {
+    return releaseNotes.includes(LANG_MARKERS.EN_START)
+  }
 
-    if (typeof releaseNotes === 'string') {
+  /**
+   * Parse multi-language release notes and return the appropriate language version
+   * @param releaseNotes - Release notes string with language markers
+   * @returns Parsed release notes for the user's language
+   *
+   * Expected format:
+   * <!--LANG:en-->English content<!--LANG:zh-CN-->Chinese content<!--LANG:END-->
+   */
+  private parseMultiLangReleaseNotes(releaseNotes: string): string {
+    try {
+      const language = preferenceService.get('app.language')
+      const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
+
+      // Create regex patterns using constants
+      const enPattern = new RegExp(
+        `${LANG_MARKERS.EN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+      )
+      const zhPattern = new RegExp(
+        `${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
+      )
+
+      // Extract language sections
+      const enMatch = releaseNotes.match(enPattern)
+      const zhMatch = releaseNotes.match(zhPattern)
+
+      // Return appropriate language version with proper fallback
+      if (isChineseUser && zhMatch) {
+        return zhMatch[1].trim()
+      } else if (enMatch) {
+        return enMatch[1].trim()
+      } else {
+        // Clean fallback: remove all language markers
+        logger.warn('Failed to extract language-specific release notes, using cleaned fallback')
+        return releaseNotes
+          .replace(new RegExp(`${LANG_MARKERS.EN_START}|${LANG_MARKERS.ZH_CN_START}|${LANG_MARKERS.END}`, 'g'), '')
+          .trim()
+      }
+    } catch (error) {
+      logger.error('Failed to parse multi-language release notes', error as Error)
+      // Return original notes as safe fallback
       return releaseNotes
     }
+  }
 
-    return releaseNotes.map((note) => note.note).join('\n')
+  /**
+   * Process release info to handle multi-language release notes
+   * @param releaseInfo - Original release info from updater
+   * @returns Processed release info with localized release notes
+   */
+  private processReleaseInfo(releaseInfo: UpdateInfo): UpdateInfo {
+    const processedInfo = { ...releaseInfo }
+
+    // Handle multi-language release notes in string format
+    if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
+      // Check if it contains multi-language markers
+      if (this.hasMultiLanguageMarkers(releaseInfo.releaseNotes)) {
+        processedInfo.releaseNotes = this.parseMultiLangReleaseNotes(releaseInfo.releaseNotes)
+      }
+    }
+
+    return processedInfo
   }
 }
 interface GithubReleaseInfo {
   draft: boolean
   prerelease: boolean
   tag_name: string
-}
-interface ReleaseNoteInfo {
-  readonly version: string
-  readonly note: string | null
 }

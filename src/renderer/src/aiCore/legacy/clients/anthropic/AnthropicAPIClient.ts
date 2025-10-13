@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import type {
   Base64ImageSource,
   ImageBlockParam,
@@ -66,6 +66,7 @@ import {
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
 import { t } from 'i18next'
 
 import type { GenericChunk } from '../../middleware/schemas'
@@ -84,8 +85,8 @@ export class AnthropicAPIClient extends BaseApiClient<
   ToolUnion
 > {
   oauthToken: string | undefined = undefined
-  isOAuthMode: boolean = false
   sdkInstance: Anthropic | AnthropicVertex | undefined = undefined
+
   constructor(provider: Provider) {
     super(provider)
   }
@@ -94,67 +95,11 @@ export class AnthropicAPIClient extends BaseApiClient<
     if (this.sdkInstance) {
       return this.sdkInstance
     }
-
     if (this.provider.authType === 'oauth') {
-      if (!this.oauthToken) {
-        throw new Error('OAuth token is not available')
-      }
-      this.sdkInstance = new Anthropic({
-        authToken: this.oauthToken,
-        baseURL: 'https://api.anthropic.com',
-        dangerouslyAllowBrowser: true,
-        defaultHeaders: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-          'anthropic-beta': 'oauth-2025-04-20'
-          // ...this.provider.extra_headers
-        }
-      })
-    } else {
-      this.sdkInstance = new Anthropic({
-        apiKey: this.apiKey,
-        baseURL: this.getBaseURL(),
-        dangerouslyAllowBrowser: true,
-        defaultHeaders: {
-          'anthropic-beta': 'output-128k-2025-02-19',
-          ...this.provider.extra_headers
-        }
-      })
+      this.oauthToken = await window.api.anthropic_oauth.getAccessToken()
     }
-
+    this.sdkInstance = getSdkClient(this.provider, this.oauthToken)
     return this.sdkInstance
-  }
-
-  private buildClaudeCodeSystemMessage(system?: string | Array<TextBlockParam>): string | Array<TextBlockParam> {
-    const defaultClaudeCodeSystem = `You are Claude Code, Anthropic's official CLI for Claude.`
-    if (!system) {
-      return defaultClaudeCodeSystem
-    }
-
-    if (typeof system === 'string') {
-      if (system.trim() === defaultClaudeCodeSystem) {
-        return system
-      }
-      return [
-        {
-          type: 'text',
-          text: defaultClaudeCodeSystem
-        },
-        {
-          type: 'text',
-          text: system
-        }
-      ]
-    }
-
-    if (system[0].text.trim() != defaultClaudeCodeSystem) {
-      system.unshift({
-        type: 'text',
-        text: defaultClaudeCodeSystem
-      })
-    }
-
-    return system
   }
 
   override async createCompletions(
@@ -162,16 +107,13 @@ export class AnthropicAPIClient extends BaseApiClient<
     options?: Anthropic.RequestOptions
   ): Promise<AnthropicSdkRawOutput> {
     if (this.provider.authType === 'oauth') {
-      this.oauthToken = await window.api.anthropic_oauth.getAccessToken()
-      this.isOAuthMode = true
-      logger.info('[Anthropic Provider] Using OAuth token for authentication')
-      payload.system = this.buildClaudeCodeSystemMessage(payload.system)
+      payload.system = buildClaudeCodeSystemMessage(payload.system)
     }
     const sdk = (await this.getSdkInstance()) as Anthropic
     if (payload.stream) {
       return sdk.messages.stream(payload, options)
     }
-    return await sdk.messages.create(payload, options)
+    return sdk.messages.create(payload, options)
   }
 
   // @ts-ignore sdk未提供
@@ -181,14 +123,8 @@ export class AnthropicAPIClient extends BaseApiClient<
   }
 
   override async listModels(): Promise<Anthropic.ModelInfo[]> {
-    if (this.provider.authType === 'oauth') {
-      this.oauthToken = await window.api.anthropic_oauth.getAccessToken()
-      this.isOAuthMode = true
-      logger.info('[Anthropic Provider] Using OAuth token for authentication')
-    }
     const sdk = (await this.getSdkInstance()) as Anthropic
     const response = await sdk.models.list()
-
     return response.data
   }
 
