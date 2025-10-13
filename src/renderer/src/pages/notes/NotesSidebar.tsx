@@ -329,6 +329,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const scrollbarRef = useRef<any>(null)
   const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
+  const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
+  const hasSearchKeyword = trimmedSearchKeyword.length > 0
 
   // 全文搜索配置
   const searchOptions = useMemo(
@@ -343,7 +345,14 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [isShowSearch]
   )
 
-  const { search, cancel, isSearching, results: searchResults, stats: searchStats } = useFullTextSearch(searchOptions)
+  const {
+    search,
+    cancel,
+    reset,
+    isSearching,
+    results: searchResults,
+    stats: searchStats
+  } = useFullTextSearch(searchOptions)
 
   const inPlaceEdit = useInPlaceEdit({
     onSave: (newName: string) => {
@@ -608,10 +617,17 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   // 触发全文搜索
   useEffect(() => {
-    if (isShowSearch && searchKeyword && searchKeyword.trim().length >= 2) {
-      search(notesTreeRef.current, searchKeyword.trim())
+    if (!isShowSearch) {
+      reset()
+      return
     }
-  }, [isShowSearch, searchKeyword, search])
+
+    if (hasSearchKeyword) {
+      search(notesTreeRef.current, trimmedSearchKeyword)
+    } else {
+      reset()
+    }
+  }, [isShowSearch, hasSearchKeyword, trimmedSearchKeyword, search, reset])
 
   // Flatten tree nodes for virtualization and filtering
   const flattenedNodes = useMemo(() => {
@@ -649,7 +665,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     }
 
     if (isShowSearch) {
-      if (searchKeyword) {
+      if (hasSearchKeyword) {
         return searchResults.map((result) => ({ node: result, depth: 0 }))
       }
       return [] // 搜索关键词为空
@@ -663,7 +679,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
     // For normal tree view, use hierarchical flattening for virtualization
     return flattenForVirtualization(notesTree)
-  }, [notesTree, isShowStarred, isShowSearch, searchKeyword, searchResults])
+  }, [notesTree, isShowStarred, isShowSearch, hasSearchKeyword, searchResults])
 
   // Use virtualization only for normal tree view with many items
   const shouldUseVirtualization = !isShowStarred && !isShowSearch && flattenedNodes.length > 100
@@ -974,7 +990,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             </CancelButton>
           </SearchStatusBar>
         )}
-        {isShowSearch && !isSearching && searchKeyword && searchKeyword.trim().length >= 2 && searchStats.total > 0 && (
+        {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
           <SearchStatusBar>
             <span>
               {t('notes.search.found_results', {
@@ -1089,7 +1105,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         onDragEnd={handleDragEnd}
                         openDropdownKey={openDropdownKey}
                         onDropdownOpenChange={setOpenDropdownKey}
-                        searchKeyword={isShowSearch ? searchKeyword : ''}
+                        searchKeyword={isShowSearch ? trimmedSearchKeyword : ''}
                         showMatches={isShowSearch}
                       />
                     ))

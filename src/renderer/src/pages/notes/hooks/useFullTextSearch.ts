@@ -11,6 +11,7 @@ export interface UseFullTextSearchOptions extends SearchOptions {
 export interface UseFullTextSearchReturn {
   search: (nodes: NotesTreeNode[], keyword: string) => void
   cancel: () => void
+  reset: () => void
   isSearching: boolean
   results: SearchResult[]
   stats: {
@@ -63,6 +64,13 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
     }
     setIsSearching(false)
   }, [])
+
+  const reset = useCallback(() => {
+    cancel()
+    setResults([])
+    setStats({ total: 0, fileNameMatches: 0, contentMatches: 0, bothMatches: 0 })
+    setError(null)
+  }, [cancel])
 
   const performSearch = useCallback(
     async (nodes: NotesTreeNode[], keyword: string) => {
@@ -142,6 +150,7 @@ export function useFullTextSearch(options: UseFullTextSearchOptions = {}): UseFu
   return {
     search,
     cancel,
+    reset,
     isSearching,
     results,
     stats,
