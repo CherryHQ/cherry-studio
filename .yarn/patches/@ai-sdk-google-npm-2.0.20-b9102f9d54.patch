@@ -1,8 +1,8 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index b957cb824faa79cf01ba3a504f221870bd8e306a..4d71d30f655775d61537d9d8b73f6e17d41fa67e 100644
+index 69ab1599c76801dc1167551b6fa283dded123466..f0af43bba7ad1196fe05338817e65b4ebda40955 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -452,7 +452,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+@@ -477,7 +477,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
