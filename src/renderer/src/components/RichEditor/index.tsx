@@ -77,6 +77,7 @@ function findElementByLine(editorDom: HTMLElement, lineNumber: number, lineConte
 
 /**
  * Create fixed-position highlight overlay at element location
+ * with boundary detection to prevent overflow and toolbar overlap
  */
 function createHighlightOverlay(element: HTMLElement, container: HTMLElement): void {
   try {
@@ -85,6 +86,8 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
     if (previousOverlay) {
       previousOverlay.remove()
     }
+
+    const editorWrapper = container.closest('.rich-editor-wrapper')
 
     // Create overlay at element position
     const rect = element.getBoundingClientRect()
@@ -101,12 +104,38 @@ function createHighlightOverlay(element: HTMLElement, container: HTMLElement): v
 
     document.body.appendChild(overlay)
 
-    // Update overlay position on scroll
+    // Update overlay position and visibility on scroll
     const updatePosition = () => {
       const newRect = element.getBoundingClientRect()
+      const newContainerRect = container.getBoundingClientRect()
+
+      // Update position
       overlay.style.left = `${newRect.left}px`
       overlay.style.top = `${newRect.top}px`
+      overlay.style.width = `${newRect.width}px`
+      overlay.style.height = `${newRect.height}px`
+
+      // Get current toolbar bottom (it might change)
+      const currentToolbar = editorWrapper?.querySelector('[class*="ToolbarWrapper"]')
+      const currentToolbarRect = currentToolbar?.getBoundingClientRect()
+      const currentToolbarBottom = currentToolbarRect ? currentToolbarRect.bottom : newContainerRect.top
+
+      // Check if overlay is within visible bounds
+      const overlayTop = newRect.top
+      const overlayBottom = newRect.bottom
+      const visibleTop = currentToolbarBottom // Don't overlap toolbar
+      const visibleBottom = newContainerRect.bottom
+
+      // Hide overlay if any part is outside the visible container area
+      if (overlayTop < visibleTop || overlayBottom > visibleBottom) {
+        overlay.style.opacity = '0'
+        overlay.style.visibility = 'hidden'
+      } else {
+        overlay.style.opacity = '1'
+        overlay.style.visibility = 'visible'
+      }
     }
+
     container.addEventListener('scroll', updatePosition)
 
     // Auto-remove after animation
