@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
@@ -6,9 +5,7 @@ import diff from 'fast-diff'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { memo } from 'react'
 
-import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
-
-const logger = loggerService.withContext('CodeEditor')
+import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap, useScrollToLine } from './hooks'
 
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
@@ -185,65 +182,11 @@ const CodeEditor = ({
     ].flat()
   }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
-  const handleScrollToLine = useCallback((lineNumber: number, options?: { highlight?: boolean }) => {
-    if (!editorViewRef.current) return
-
-    const view = editorViewRef.current
-    const line = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines))
-
-    view.dispatch({
-      effects: EditorView.scrollIntoView(line.from, {
-        y: 'start'
-      })
-    })
-
-    // 如果需要高亮，等待滚动完成后添加动画
-    if (options?.highlight) {
-      setTimeout(() => {
-        try {
-          // 通过 domAtPos 找到目标行的 DOM 元素
-          const domAtPos = view.domAtPos(line.from)
-          let node: Node | null = domAtPos.node
-
-          // 找到最近的 HTMLElement 类型的 .cm-line 元素
-          if (node.nodeType === Node.TEXT_NODE) {
-            node = node.parentElement
-          }
-
-          // 向上查找，直到找到包含 cm-line 类的 HTMLElement
-          while (node) {
-            if (node instanceof HTMLElement && node.classList.contains('cm-line')) {
-              // 清除之前可能存在的高亮
-              const previousHighlight = view.dom.querySelector('.animation-locate-highlight')
-              if (previousHighlight) {
-                previousHighlight.classList.remove('animation-locate-highlight')
-              }
-
-              // 添加高亮动画
-              node.classList.add('animation-locate-highlight')
-
-              const handleAnimationEnd = () => {
-                if (node instanceof HTMLElement) {
-                  node.classList.remove('animation-locate-highlight')
-                  node.removeEventListener('animationend', handleAnimationEnd)
-                }
-              }
-
-              node.addEventListener('animationend', handleAnimationEnd)
-              break
-            }
-            node = node.parentElement
-          }
-        } catch (error: any) {
-          logger.error('CodeEditor scrollToLine highlight error:', error)
-        }
-      }, 200) // 等待滚动动画完成
-    }
-  }, [])
+  const scrollToLine = useScrollToLine(editorViewRef)
 
   useImperativeHandle(ref, () => ({
     save: handleSave,
-    scrollToLine: handleScrollToLine
+    scrollToLine
   }))
 
   return (
