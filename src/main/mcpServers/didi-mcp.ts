@@ -12,10 +12,7 @@
 
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema
-} from '@modelcontextprotocol/sdk/types.js'
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
 const logger = loggerService.withContext('DiDiMCPServer')
 
@@ -89,7 +86,8 @@ export class DiDiMcpServer {
                 },
                 reason: {
                   type: 'string',
-                  description: 'Cancellation reason (optional). Examples: no longer needed, waiting too long, urgent matter'
+                  description:
+                    'Cancellation reason (optional). Examples: no longer needed, waiting too long, urgent matter'
                 }
               },
               required: ['order_id']
