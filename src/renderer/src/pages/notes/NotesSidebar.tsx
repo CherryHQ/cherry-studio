@@ -150,6 +150,37 @@ const TreeNode = memo<TreeNodeProps>(
       return ''
     }
 
+    const displayName = useMemo(() => {
+      if (!searchKeyword) {
+        return node.name
+      }
+
+      const name = node.name ?? ''
+      if (!name) {
+        return name
+      }
+
+      const keyword = searchKeyword
+      const nameLower = name.toLowerCase()
+      const keywordLower = keyword.toLowerCase()
+      const matchStart = nameLower.indexOf(keywordLower)
+
+      if (matchStart === -1) {
+        return name
+      }
+
+      const matchEnd = matchStart + keyword.length
+      const beforeMatch = Math.min(2, matchStart)
+      const contextStart = matchStart - beforeMatch
+      const contextLength = 50
+      const contextEnd = Math.min(name.length, matchEnd + contextLength)
+
+      const prefix = contextStart > 0 ? '...' : ''
+      const suffix = contextEnd < name.length ? '...' : ''
+
+      return prefix + name.substring(contextStart, contextEnd) + suffix
+    }, [node.name, searchKeyword])
+
     return (
       <div key={node.id}>
         <Dropdown
@@ -213,7 +244,7 @@ const TreeNode = memo<TreeNodeProps>(
                 ) : (
                   <NodeNameContainer>
                     <NodeName className={getNodeNameClassName()}>
-                      {searchKeyword ? <HighlightText text={node.name} keyword={searchKeyword} /> : node.name}
+                      {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
                     </NodeName>
                     {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
                       <MatchBadge matchType={searchResult.matchType}>

@@ -32,17 +32,7 @@ const HighlightText: FC<HighlightTextProps> = ({ text, keyword, caseSensitive = 
           regex.lastIndex = 0 // Reset regex state
 
           if (isMatch) {
-            return (
-              <mark
-                key={index}
-                className="rounded-sm px-0.5 font-medium"
-                style={{
-                  backgroundColor: 'var(--color-primary-soft)',
-                  color: 'var(--color-primary)'
-                }}>
-                {part}
-              </mark>
-            )
+            return <mark key={index}>{part}</mark>
           }
           return <span key={index}>{part}</span>
         })}
@@ -50,7 +40,9 @@ const HighlightText: FC<HighlightTextProps> = ({ text, keyword, caseSensitive = 
     )
   }, [text, keyword, caseSensitive])
 
-  return <span className={className}>{highlightedText}</span>
+  const combinedClassName = className ? `ant-typography ${className}` : 'ant-typography'
+
+  return <span className={combinedClassName}>{highlightedText}</span>
 }
 
 export default memo(HighlightText)
