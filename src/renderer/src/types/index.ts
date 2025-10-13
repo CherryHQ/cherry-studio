@@ -78,6 +78,7 @@ export type AssistantSettingCustomParameters = {
 const ThinkModelTypes = [
   'default',
   'o',
+  'openai_deep_research',
   'gpt5',
   'gpt5_codex',
   'grok',
