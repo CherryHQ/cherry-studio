@@ -51,6 +51,7 @@ export class NewAPIClient extends MixedBaseAPIClient {
     if (!model.endpoint_type) {
       throw new Error('Model endpoint type is not defined')
     }
+    logger.debug('Getting client for model:', { modelId: model.id, endpointType: model.endpoint_type })
 
     if (model.endpoint_type === 'anthropic') {
       const client = this.clients.get('claude')
