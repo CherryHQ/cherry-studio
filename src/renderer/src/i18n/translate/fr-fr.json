@@ -4254,6 +4254,7 @@
       "new_topic": "Nouveau sujet",
       "press_shortcut": "Appuyer sur raccourci clavier",
       "rename_topic": "Renommer le sujet",
+      "resend_last_user_message": "Renvoyer le message précédent",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
       "reset_to_default": "Réinitialiser aux valeurs par défaut",

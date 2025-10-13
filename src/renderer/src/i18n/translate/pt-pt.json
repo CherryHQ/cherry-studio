@@ -4254,6 +4254,7 @@
       "new_topic": "Novo tópico",
       "press_shortcut": "Pressionar atalho",
       "rename_topic": "Renomear tópico",
+      "resend_last_user_message": "Enviar novamente a mensagem anterior",
       "reset_defaults": "Redefinir atalhos padrão",
       "reset_defaults_confirm": "Tem certeza de que deseja redefinir todos os atalhos?",
       "reset_to_default": "Redefinir para padrão",

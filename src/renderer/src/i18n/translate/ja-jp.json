@@ -4254,6 +4254,7 @@
       "new_topic": "新しいトピック",
       "press_shortcut": "ショートカットを押す",
       "rename_topic": "トピックの名前を変更",
+      "resend_last_user_message": "前のメッセージを再送信",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
       "reset_to_default": "デフォルトにリセット",

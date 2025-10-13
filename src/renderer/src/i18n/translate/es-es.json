@@ -4254,6 +4254,7 @@
       "new_topic": "Nuevo tema",
       "press_shortcut": "Presionar atajo",
       "rename_topic": "Renombrar tema",
+      "resend_last_user_message": "Reenviar el mensaje anterior",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
       "reset_to_default": "Restablecer a predeterminado",
