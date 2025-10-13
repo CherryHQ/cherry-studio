@@ -116,15 +116,21 @@ export async function searchFileContent(
         const matchStart = match.index
         const matchEnd = matchStart + match[0].length
 
-        const contextStart = Math.max(0, matchStart - contextLength)
+        // Keep context short: only 2 chars before match, more after
+        const beforeMatch = Math.min(2, matchStart)
+        const contextStart = matchStart - beforeMatch
         const contextEnd = Math.min(line.length, matchEnd + contextLength)
+
+        // Add ellipsis if context doesn't start at line beginning
+        const prefix = contextStart > 0 ? '...' : ''
+        const contextText = prefix + line.substring(contextStart, contextEnd)
 
         matches.push({
           lineNumber: i + 1,
           lineContent: line,
-          matchStart: matchStart - contextStart,
-          matchEnd: matchEnd - contextStart,
-          context: line.substring(contextStart, contextEnd)
+          matchStart: beforeMatch + prefix.length,
+          matchEnd: matchEnd - matchStart + beforeMatch + prefix.length,
+          context: contextText
         })
 
         if (matches.length >= maxMatchesPerFile) {
