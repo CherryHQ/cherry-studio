@@ -139,10 +139,6 @@ const Chat: FC<Props> = (props) => {
     firstUpdateOrNoFirstUpdateHandler()
   }
 
-  const mainHeight = isTopNavbar
-    ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
-    : 'calc(100vh - var(--navbar-height))'
-
   const SessionMessages = useMemo(() => {
     if (activeAgentId === null) {
       return () => <div> Active Agent ID is invalid.</div>
@@ -195,7 +191,7 @@ const Chat: FC<Props> = (props) => {
   }, [])
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      {isTopNavbar && (
+      {isTopNavbar ? (
         <ChatNavbar
           activeAssistant={props.assistant}
           activeTopic={props.activeTopic}
@@ -203,6 +199,16 @@ const Chat: FC<Props> = (props) => {
           setActiveAssistant={props.setActiveAssistant}
           position="left"
         />
+      ) : (
+        <HeaderWrapper $maxWidth={chatMaxWidth}>
+          <ChatNavbar
+            activeAssistant={props.assistant}
+            activeTopic={props.activeTopic}
+            setActiveTopic={props.setActiveTopic}
+            setActiveAssistant={props.setActiveAssistant}
+            position="left"
+          />
+        </HeaderWrapper>
       )}
       <HStack>
         <Main
@@ -211,7 +217,10 @@ const Chat: FC<Props> = (props) => {
           vertical
           flex={1}
           justify="space-between"
-          style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
+          style={{
+            maxWidth: chatMaxWidth,
+            height: 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
+          }}>
           <QuickPanelProvider>
             {activeTopicOrSession === 'topic' && (
               <>
@@ -294,6 +303,12 @@ const Container = styled.div`
     overflow: hidden;
   }
 `
+
+const HeaderWrapper = ({ $maxWidth, children, className = '', ...props }) => (
+  <div className={`${className}`} style={{ maxWidth: $maxWidth, marginRight: '-0.5px' }} {...props}>
+    {children}
+  </div>
+)
 
 const Main = styled(Flex)`
   [navbar-position='left'] & {

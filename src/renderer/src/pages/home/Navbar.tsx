@@ -1,8 +1,7 @@
-import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { isLinux, isWin } from '@renderer/config/constant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -13,13 +12,10 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
-import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -30,9 +26,8 @@ interface Props {
   position: 'left' | 'right'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
-  const { assistant } = useAssistant(activeAssistant.id)
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
+const HeaderNavbar: FC<Props> = () => {
+  const { toggleShowAssistants } = useShowAssistants()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
@@ -56,66 +51,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     dispatch(setNarrowMode(!narrowMode))
   }
 
-  const onShowAssistantsDrawer = () => {
-    AssistantsDrawer.show({
-      activeAssistant,
-      setActiveAssistant,
-      activeTopic,
-      setActiveTopic
-    })
-  }
-
   return (
     <Navbar className="home-navbar">
-      <AnimatePresence initial={false}>
-        {showAssistants && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'auto', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-                <NavbarIcon onClick={toggleShowAssistants}>
-                  <PanelLeftClose size={18} />
-                </NavbarIcon>
-              </Tooltip>
-            </NavbarLeft>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {!showAssistants && (
-        <NavbarLeft
-          style={{
-            justifyContent: 'flex-start',
-            borderRight: 'none',
-            paddingLeft: 0,
-            paddingRight: 10,
-            minWidth: 'auto'
-          }}>
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => toggleShowAssistants()}>
-              <PanelRightClose size={18} />
-            </NavbarIcon>
-          </Tooltip>
-          <AnimatePresence initial={false}>
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
-              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
-                <Menu size={18} />
-              </NavbarIcon>
-            </motion.div>
-          </AnimatePresence>
-        </NavbarLeft>
-      )}
-      <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
-        <SelectModelButton assistant={assistant} />
-      </HStack>
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
