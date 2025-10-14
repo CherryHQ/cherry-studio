@@ -1,27 +1,37 @@
-import { Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import Ellipsis from '@renderer/components/Ellipsis'
-import { useFiles } from '@renderer/hooks/useFiles'
-import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import FileItem from '@renderer/pages/files/FileItem'
-import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
-import FileManager from '@renderer/services/FileManager'
-import { getProviderName } from '@renderer/services/ProviderService'
-import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { isKnowledgeFileItem } from '@renderer/types'
-import { formatFileSize, uuid } from '@renderer/utils'
-import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import dayjs from 'dayjs'
-import type { FC } from 'react'
-import type { DragEvent } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Button } from "@cherrystudio/ui";
+import { loggerService } from "@logger";
+import Ellipsis from "@renderer/components/Ellipsis";
+import { useFiles } from "@renderer/hooks/useFiles";
+import { useKnowledge } from "@renderer/hooks/useKnowledge";
+import FileItem from "@renderer/pages/files/FileItem";
+import StatusIcon from "@renderer/pages/knowledge/components/StatusIcon";
+import FileManager from "@renderer/services/FileManager";
+import { getProviderName } from "@renderer/services/ProviderService";
+import type {
+  FileMetadata,
+  FileTypes,
+  KnowledgeBase,
+  KnowledgeItem,
+} from "@renderer/types";
+import { isKnowledgeFileItem } from "@renderer/types";
+import { formatFileSize, uuid } from "@renderer/utils";
+import {
+  bookExts,
+  documentExts,
+  textExts,
+  thirdPartyApplicationExts,
+} from "@shared/config/constant";
+import dayjs from "dayjs";
+import type { FC } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
-const logger = loggerService.withContext('KnowledgeFiles')
+const logger = loggerService.withContext("KnowledgeFiles");
 
-import { DeleteIcon } from '@renderer/components/Icons'
-import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { PlusIcon } from 'lucide-react'
+import { DeleteIcon } from "@renderer/components/Icons";
+import { DynamicVirtualList } from "@renderer/components/VirtualList";
+import { Upload } from "antd";
+import { PlusIcon } from "lucide-react";
 
 import {
   ClickableSpan,
@@ -31,77 +41,97 @@ import {
   KnowledgeEmptyView,
   RefreshIcon,
   ResponsiveButton,
-  StatusIconWrapper
-} from '../KnowledgeContent'
+  StatusIconWrapper,
+} from "../KnowledgeContent";
+const { Dragger } = Upload;
 
 interface KnowledgeContentProps {
-  selectedBase: KnowledgeBase
-  progressMap: Map<string, number>
-  preprocessMap: Map<string, boolean>
+  selectedBase: KnowledgeBase;
+  progressMap: Map<string, number>;
+  preprocessMap: Map<string, boolean>;
 }
 
-const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, ...textExts]
+const fileTypes = [
+  ...bookExts,
+  ...thirdPartyApplicationExts,
+  ...documentExts,
+  ...textExts,
+];
 
 const getDisplayTime = (item: KnowledgeItem) => {
-  const timestamp = item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
-  return dayjs(timestamp).format('MM-DD HH:mm')
-}
+  const timestamp =
+    item.updated_at && item.updated_at > item.created_at
+      ? item.updated_at
+      : item.created_at;
+  return dayjs(timestamp).format("MM-DD HH:mm");
+};
 
-const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
-  const { t } = useTranslation()
-  const [windowHeight, setWindowHeight] = useState(window.innerHeight)
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
-  const dragCounterRef = useRef(0)
-  const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
+const KnowledgeFiles: FC<KnowledgeContentProps> = ({
+  selectedBase,
+  progressMap,
+  preprocessMap,
+}) => {
+  const { t } = useTranslation();
+  const [windowHeight, setWindowHeight] = useState(window.innerHeight);
+  const { onSelectFile, selecting } = useFiles({ extensions: fileTypes });
 
-  const { base, fileItems, addFiles, refreshItem, removeItem, getProcessingStatus } = useKnowledge(
-    selectedBase.id || ''
-  )
+  const {
+    base,
+    fileItems,
+    addFiles,
+    refreshItem,
+    removeItem,
+    getProcessingStatus,
+  } = useKnowledge(selectedBase.id || "");
 
   useEffect(() => {
     const handleResize = () => {
-      setWindowHeight(window.innerHeight)
-    }
+      setWindowHeight(window.innerHeight);
+    };
 
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
-  const providerName = getProviderName(base?.model)
-  const disabled = !base?.version || !providerName
+  const providerName = getProviderName(base?.model);
+  const disabled = !base?.version || !providerName;
 
-  const estimateSize = useCallback(() => 75, [])
+  const estimateSize = useCallback(() => 75, []);
 
   if (!base) {
-    return null
+    return null;
   }
 
   const handleAddFile = async () => {
     if (disabled || selecting) {
-      return
+      return;
     }
-    const selectedFiles = await onSelectFile({ multipleSelections: true })
-    processFiles(selectedFiles)
-  }
+    const selectedFiles = await onSelectFile({ multipleSelections: true });
+    processFiles(selectedFiles);
+  };
 
   const handleDrop = async (files: File[]) => {
     if (disabled) {
-      return
+      return;
     }
     if (files) {
       const _files: FileMetadata[] = files
         .map((file) => {
           // 这个路径 filePath 很可能是在文件选择时的原始路径。
-          const filePath = window.api.file.getPathForFile(file)
-          let nameFromPath = filePath
-          const lastSlash = filePath.lastIndexOf('/')
-          const lastBackslash = filePath.lastIndexOf('\\')
+          const filePath = window.api.file.getPathForFile(file);
+          let nameFromPath = filePath;
+          const lastSlash = filePath.lastIndexOf("/");
+          const lastBackslash = filePath.lastIndexOf("\\");
           if (lastSlash !== -1 || lastBackslash !== -1) {
-            nameFromPath = filePath.substring(Math.max(lastSlash, lastBackslash) + 1)
+            nameFromPath = filePath.substring(
+              Math.max(lastSlash, lastBackslash) + 1,
+            );
           }
 
           // 从派生的文件名中获取扩展名
-          const extFromPath = nameFromPath.includes('.') ? `.${nameFromPath.split('.').pop()}` : ''
+          const extFromPath = nameFromPath.includes(".")
+            ? `.${nameFromPath.split(".").pop()}`
+            : "";
 
           return {
             id: uuid(),
@@ -112,71 +142,31 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             count: 1,
             origin_name: file.name, // 保存 File 对象中原始的文件名
             type: file.type as FileTypes,
-            created_at: new Date().toISOString()
-          }
+            created_at: new Date().toISOString(),
+          };
         })
-        .filter(({ ext }) => fileTypes.includes(ext))
-      processFiles(_files)
+        .filter(({ ext }) => fileTypes.includes(ext));
+      processFiles(_files);
     }
-  }
-
-  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    dragCounterRef.current += 1
-    if (!disabled) {
-      setIsDraggingFiles(true)
-    }
-  }
-
-  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
-    if (dragCounterRef.current === 0) {
-      setIsDraggingFiles(false)
-    }
-  }
-
-  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'
-  }
-
-  const handleDropEvent = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    dragCounterRef.current = 0
-    setIsDraggingFiles(false)
-
-    if (disabled) {
-      return
-    }
-
-    const files = Array.from(event.dataTransfer.files)
-    if (files.length) {
-      void handleDrop(files)
-    }
-  }
+  };
 
   const processFiles = async (files: FileMetadata[]) => {
-    logger.debug('processFiles', files)
+    logger.debug("processFiles", files);
     if (files.length > 0) {
-      const uploadedFiles = await FileManager.uploadFiles(files)
-      addFiles(uploadedFiles)
+      const uploadedFiles = await FileManager.uploadFiles(files);
+      addFiles(uploadedFiles);
     }
-  }
+  };
 
   const showPreprocessIcon = (item: KnowledgeItem) => {
     if (base.preprocessProvider && item.isPreprocessed !== false) {
-      return true
+      return true;
     }
     if (!base.preprocessProvider && item.isPreprocessed === true) {
-      return true
+      return true;
     }
-    return false
-  }
+    return false;
+  };
 
   return (
     <ItemContainer>
@@ -187,37 +177,33 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           color="primary"
           startContent={<PlusIcon size={16} />}
           onPress={handleAddFile}
-          isDisabled={disabled}>
-          {t('knowledge.add_file')}
+          isDisabled={disabled}
+        >
+          {t("knowledge.add_file")}
         </ResponsiveButton>
       </ItemHeader>
 
       <div className="flex flex-col gap-2.5 px-4 py-5">
         <div
-          role="button"
-          tabIndex={0}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] border-dashed p-6 text-center transition-colors duration-200 ease-in-out hover:bg-[var(--color-fill-tertiary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] focus-visible:outline-offset-4 ${
-            isDraggingFiles ? 'bg-[var(--color-fill-tertiary)]' : 'bg-transparent'
-          }`}
           onClick={(e) => {
-            e.stopPropagation()
-            handleAddFile()
+            e.stopPropagation();
+            handleAddFile();
           }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              event.stopPropagation()
-              handleAddFile()
-            }
-          }}
-          onDragEnter={handleDragEnter}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDropEvent}>
-          <p className="m-0 font-semibold text-[var(--color-text)]">{t('knowledge.drag_file')}</p>
-          <p className="m-0 text-[var(--color-text-2)] text-xs">
-            {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
-          </p>
+        >
+          <Dragger
+            showUploadList={false}
+            customRequest={({ file }) => handleDrop([file as File])}
+            multiple={true}
+            accept={fileTypes.join(",")}
+            openFileDialogOnClick={false}
+          >
+            <p className="ant-upload-text">{t("knowledge.drag_file")}</p>
+            <p className="ant-upload-hint">
+              {t("knowledge.file_hint", {
+                file_types: "TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...",
+              })}
+            </p>
+          </Dragger>
         </div>
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
@@ -227,19 +213,24 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             estimateSize={estimateSize}
             overscan={2}
             scrollerStyle={{ height: windowHeight - 270 }}
-            autoHideScrollbar>
+            autoHideScrollbar
+          >
             {(item) => {
               if (!isKnowledgeFileItem(item)) {
-                return null
+                return null;
               }
-              const file = item.content
+              const file = item.content;
               return (
-                <div style={{ height: '75px', paddingTop: '12px' }}>
+                <div style={{ height: "75px", paddingTop: "12px" }}>
                   <FileItem
                     key={item.id}
                     fileInfo={{
                       name: (
-                        <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
+                        <ClickableSpan
+                          onClick={() =>
+                            window.api.file.openFileWithRelativePath(file)
+                          }
+                        >
                           <Ellipsis>{file.origin_name}</Ellipsis>
                         </ClickableSpan>
                       ),
@@ -248,7 +239,11 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                            <Button
+                              variant="light"
+                              isIconOnly
+                              onPress={() => refreshItem(item)}
+                            >
                               <RefreshIcon />
                             </Button>
                           )}
@@ -259,7 +254,11 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                                 base={base}
                                 getProcessingStatus={getProcessingStatus}
                                 type="file"
-                                isPreprocessed={preprocessMap.get(item.id) || item.isPreprocessed || false}
+                                isPreprocessed={
+                                  preprocessMap.get(item.id) ||
+                                  item.isPreprocessed ||
+                                  false
+                                }
                                 progress={progressMap.get(item.id)}
                               />
                             </StatusIconWrapper>
@@ -272,21 +271,26 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
+                          <Button
+                            variant="light"
+                            color="danger"
+                            isIconOnly
+                            onPress={() => removeItem(item)}
+                          >
                             <DeleteIcon size={14} className="lucide-custom" />
                           </Button>
                         </FlexAlignCenter>
-                      )
+                      ),
                     }}
                   />
                 </div>
-              )
+              );
             }}
           </DynamicVirtualList>
         )}
       </div>
     </ItemContainer>
-  )
-}
+  );
+};
 
-export default KnowledgeFiles
+export default KnowledgeFiles;

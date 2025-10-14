@@ -120,7 +120,13 @@ vi.mock('react-i18next', () => ({
 // Mock HeroUI components used in the panel
 vi.mock('@heroui/react', () => ({
   Input: ({ value, onChange, placeholder, type = 'text', 'data-testid': dataTestId }: any) => (
-    <input data-testid={dataTestId ?? 'name-input'} value={value} onChange={onChange} placeholder={placeholder} type={type} />
+    <input
+      data-testid={dataTestId ?? 'name-input'}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      type={type}
+    />
   ),
   Select: ({ selectedKeys, onSelectionChange, children, className, placeholder, 'data-testid': dataTestId }: any) => {
     const value: string = (() => {
@@ -138,8 +144,7 @@ vi.mock('@heroui/react', () => ({
           const newValue = e.target.value
           const keys = newValue ? new Set([newValue]) : new Set()
           onSelectionChange?.(keys)
-        }}
-      >
+        }}>
         <option value="">Select option</option>
         {React.Children.map(children, (child: any) => {
           if (!child) return null
