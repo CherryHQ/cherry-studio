@@ -22,8 +22,6 @@ import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?
 import GoogleAppLogo from '@renderer/assets/images/apps/google.svg?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
-import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
-import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
@@ -32,13 +30,13 @@ import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
-import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
+import StepfunAppLogo from '@renderer/assets/images/apps/stepfun.png?url'
 import ThinkAnyLogo from '@renderer/assets/images/apps/thinkany.webp?url'
 import TiangongAiLogo from '@renderer/assets/images/apps/tiangong.png?url'
 import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
@@ -46,7 +44,6 @@ import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
-import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
 import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
@@ -145,14 +142,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'dashscope',
     name: i18n.t('minapps.qwen'),
-    url: 'https://tongyi.aliyun.com/qianwen/',
+    url: 'https://www.tongyi.com/',
     logo: QwenModelLogo
   },
   {
     id: 'stepfun',
-    name: i18n.t('minapps.yuewen'),
-    url: 'https://yuewen.cn/chats/new',
-    logo: YuewenAppLogo,
+    name: i18n.t('minapps.stepfun'),
+    url: 'https://stepfun.com',
+    logo: StepfunAppLogo,
     bodered: true
   },
   {
@@ -264,13 +261,6 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true
   },
   {
-    id: 'hugging-chat',
-    name: 'HuggingChat',
-    logo: HuggingChatLogo,
-    url: 'https://huggingface.co/chat/',
-    bodered: true
-  },
-  {
     id: 'Felo',
     name: 'Felo',
     logo: FeloAppLogo,
@@ -298,13 +288,6 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true
   },
   {
-    id: 'nm-search',
-    name: i18n.t('minapps.nami-ai-search'),
-    logo: NamiAiSearchLogo,
-    url: 'https://www.n.cn/',
-    bodered: true
-  },
-  {
     id: 'thinkany',
     name: 'ThinkAny',
     logo: ThinkAnyLogo,
@@ -313,13 +296,6 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
-  },
-  {
-    id: 'hika',
-    name: 'Hika',
-    logo: HikaLogo,
-    url: 'https://hika.fyi/',
-    bodered: true
   },
   {
     id: 'github-copilot',

@@ -231,7 +231,7 @@ const MessageItem: FC<Props> = ({
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(
-                      'items-center',
+                      'flex-1 items-center justify-between',
                       isLastMessage && messageStyle === 'plain' ? 'flex-row-reverse' : 'flex-row'
                     )
                   }}>

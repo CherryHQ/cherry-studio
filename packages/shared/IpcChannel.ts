@@ -5,8 +5,8 @@ export enum IpcChannel {
   App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
+  App_QuitAndInstall = 'app:quit-and-install',
   App_Reload = 'app:reload',
   App_Quit = 'app:quit',
   App_Info = 'app:info',
@@ -53,6 +53,7 @@ export enum IpcChannel {
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
+  Webview_SearchHotkey = 'webview:search-hotkey',
 
   // Open
   Open_Path = 'open:path',
@@ -90,6 +91,10 @@ export enum IpcChannel {
   Mcp_Progress = 'mcp:progress',
   // Python
   Python_Execute = 'python:execute',
+
+  // agent messages
+  AgentMessage_PersistExchange = 'agent-message:persist-exchange',
+  AgentMessage_GetHistory = 'agent-message:get-history',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -184,6 +189,7 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_StartWatcher = 'file:startWatcher',
   File_StopWatcher = 'file:stopWatcher',
+  File_ShowInFolder = 'file:showInFolder',
 
   // file service
   FileService_Upload = 'file-service:upload',
@@ -229,7 +235,6 @@ export enum IpcChannel {
   // events
   BackupProgress = 'backup-progress',
   ThemeUpdated = 'theme:updated',
-  UpdateDownloadedCancelled = 'update-downloaded-cancelled',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',

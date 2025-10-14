@@ -125,7 +125,21 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    Optimized note-taking feature, now able to quickly rename by modifying the title
-    Fixed issue where CherryAI free model could not be used
-    Fixed issue where VertexAI proxy address could not be called normally
-    Fixed issue where built-in tools from service providers could not be called normally
+    What's New in v1.6.3
+
+    Features:
+    - Notes: Add spell-check control, automatic table line wrapping, export functionality, and LLM-based renaming
+    - UI: Expand topic rename clickable area, add middle-click tab closing, remove redundant scrollbars, fix message menubar overflow
+    - Editor: Add read-only extension support, make TextFilePreview read-only but copyable
+    - Models: Update support for DeepSeek v3.2, Claude 4.5, GLM 4.6, Gemini regex, and vision models
+    - Code Tools: Add GitHub Copilot CLI integration
+
+    Bug Fixes:
+    - Fix migration for missing providers
+    - Fix forked topic retaining old name after rename
+    - Restore first token latency reporting in metrics
+    - Fix UI scrollbar and overflow issues
+
+    Technical Updates:
+    - Upgrade to Electron 37.6.0
+    - Update dependencies across packages

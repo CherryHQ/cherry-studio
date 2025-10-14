@@ -1,18 +1,26 @@
-import { DownOutlined, RightOutlined } from '@ant-design/icons'
-import { DraggableList } from '@renderer/components/DraggableList'
+import { Alert, Spinner } from '@heroui/react'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
+import { useAppDispatch } from '@renderer/store'
+import { addIknowAction } from '@renderer/store/runtime'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
-import { Plus } from 'lucide-react'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AssistantItem from './components/AssistantItem'
+import UnifiedAddButton from './components/UnifiedAddButton'
+import { UnifiedList } from './components/UnifiedList'
+import { UnifiedTagGroups } from './components/UnifiedTagGroups'
+import { useActiveAgent } from './hooks/useActiveAgent'
+import { useUnifiedGrouping } from './hooks/useUnifiedGrouping'
+import { useUnifiedItems } from './hooks/useUnifiedItems'
+import { useUnifiedSorting } from './hooks/useUnifiedSorting'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -20,21 +28,63 @@ interface AssistantsTabProps {
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
-const Assistants: FC<AssistantsTabProps> = ({
-  activeAssistant,
-  setActiveAssistant,
-  onCreateAssistant,
-  onCreateDefaultAssistant
-}) => {
-  const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
-  const [dragging, setDragging] = useState(false)
-  const { addAgent } = useAgents()
-  const { t } = useTranslation()
-  const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
-  const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
-  const containerRef = useRef<HTMLDivElement>(null)
 
-  const onDelete = useCallback(
+const ALERT_KEY = 'enable_api_server_to_use_agent'
+
+const AssistantsTab: FC<AssistantsTabProps> = (props) => {
+  const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
+  const containerRef = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
+  const { apiServer } = useSettings()
+  const { iknow, chat } = useRuntime()
+  const dispatch = useAppDispatch()
+
+  // Agent related hooks
+  const { agents, deleteAgent, isLoading: agentsLoading, error: agentsError } = useAgents()
+  const { activeAgentId } = chat
+  const { setActiveAgentId } = useActiveAgent()
+
+  // Assistant related hooks
+  const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
+  const { addAssistantPreset } = useAssistantPresets()
+  const { collapsedTags, toggleTagCollapse } = useTags()
+  const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
+  const [dragging, setDragging] = useState(false)
+
+  // Unified items management
+  const { unifiedItems, handleUnifiedListReorder } = useUnifiedItems({
+    agents,
+    assistants,
+    apiServerEnabled: apiServer.enabled,
+    agentsLoading,
+    agentsError,
+    updateAssistants
+  })
+
+  // Sorting
+  const { sortByPinyinAsc, sortByPinyinDesc } = useUnifiedSorting({
+    unifiedItems,
+    updateAssistants
+  })
+
+  // Grouping
+  const { groupedUnifiedItems, handleUnifiedGroupReorder } = useUnifiedGrouping({
+    unifiedItems,
+    assistants,
+    agents,
+    apiServerEnabled: apiServer.enabled,
+    agentsLoading,
+    agentsError,
+    updateAssistants
+  })
+
+  useEffect(() => {
+    if (!agentsLoading && agents.length > 0 && !activeAgentId && apiServer.enabled) {
+      setActiveAgentId(agents[0].id)
+    }
+  }, [agentsLoading, agents, activeAgentId, setActiveAgentId, apiServer.enabled])
+
+  const onDeleteAssistant = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
       if (assistant.id === activeAssistant?.id) {
@@ -53,186 +103,77 @@ const Assistants: FC<AssistantsTabProps> = ({
     [setAssistantsTabSortType]
   )
 
-  const handleGroupReorder = useCallback(
-    (tag: string, newGroupList: Assistant[]) => {
-      let insertIndex = 0
-      const newGlobal = assistants.map((a) => {
-        const tags = a.tags?.length ? a.tags : [t('assistants.tags.untagged')]
-        if (tags.includes(tag)) {
-          const replaced = newGroupList[insertIndex]
-          insertIndex += 1
-          return replaced
-        }
-        return a
-      })
-      updateAssistants(newGlobal)
-    },
-    [assistants, t, updateAssistants]
-  )
-
-  const renderAddAssistantButton = useMemo(() => {
-    return (
-      <AssistantAddItem onClick={onCreateAssistant}>
-        <AddItemWrapper>
-          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.assistant.title') }}>
-            {t('chat.add.assistant.title')}
-          </Typography.Text>
-        </AddItemWrapper>
-      </AssistantAddItem>
-    )
-  }, [onCreateAssistant, t])
-
-  if (assistantsTabSortType === 'tags') {
-    return (
-      <Container className="assistants-tab" ref={containerRef}>
-        <div style={{ marginBottom: '8px' }}>
-          {getGroupedAssistants.map((group) => (
-            <TagsContainer key={group.tag}>
-              {group.tag !== t('assistants.tags.untagged') && (
-                <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
-                  <Tooltip title={group.tag}>
-                    <GroupTitleName>
-                      {collapsedTags[group.tag] ? (
-                        <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
-                      ) : (
-                        <DownOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
-                      )}
-                      {group.tag}
-                    </GroupTitleName>
-                  </Tooltip>
-                  <GroupTitleDivider />
-                </GroupTitle>
-              )}
-              {!collapsedTags[group.tag] && (
-                <div>
-                  <DraggableList
-                    list={group.assistants}
-                    onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
-                    onDragStart={() => setDragging(true)}
-                    onDragEnd={() => setDragging(false)}>
-                    {(assistant) => (
-                      <AssistantItem
-                        key={assistant.id}
-                        assistant={assistant}
-                        isActive={assistant.id === activeAssistant.id}
-                        sortBy={assistantsTabSortType}
-                        onSwitch={setActiveAssistant}
-                        onDelete={onDelete}
-                        addAgent={addAgent}
-                        copyAssistant={copyAssistant}
-                        onCreateDefaultAssistant={onCreateDefaultAssistant}
-                        handleSortByChange={handleSortByChange}
-                      />
-                    )}
-                  </DraggableList>
-                </div>
-              )}
-            </TagsContainer>
-          ))}
-        </div>
-        {renderAddAssistantButton}
-      </Container>
-    )
-  }
-
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DraggableList
-        list={assistants}
-        onUpdate={updateAssistants}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(assistant) => (
-          <AssistantItem
-            key={assistant.id}
-            assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            sortBy={assistantsTabSortType}
-            onSwitch={setActiveAssistant}
-            onDelete={onDelete}
-            addAgent={addAgent}
-            copyAssistant={copyAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-            handleSortByChange={handleSortByChange}
-          />
-        )}
-      </DraggableList>
-      {!dragging && renderAddAssistantButton}
-      <div style={{ minHeight: 10 }}></div>
+      {!apiServer.enabled && !iknow[ALERT_KEY] && (
+        <Alert
+          color="warning"
+          title={t('agent.warning.enable_server')}
+          isClosable
+          onClose={() => {
+            dispatch(addIknowAction(ALERT_KEY))
+          }}
+        />
+      )}
+
+      {agentsLoading && <Spinner />}
+      {apiServer.enabled && agentsError && <Alert color="danger" title={t('agent.list.error.failed')} />}
+
+      {assistantsTabSortType === 'tags' ? (
+        <UnifiedTagGroups
+          groupedItems={groupedUnifiedItems}
+          activeAssistantId={activeAssistant.id}
+          activeAgentId={activeAgentId}
+          sortBy={assistantsTabSortType}
+          collapsedTags={collapsedTags}
+          onGroupReorder={handleUnifiedGroupReorder}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}
+          onToggleTagCollapse={toggleTagCollapse}
+          onAssistantSwitch={setActiveAssistant}
+          onAssistantDelete={onDeleteAssistant}
+          onAgentDelete={deleteAgent}
+          onAgentPress={setActiveAgentId}
+          addPreset={addAssistantPreset}
+          copyAssistant={copyAssistant}
+          onCreateDefaultAssistant={onCreateDefaultAssistant}
+          handleSortByChange={handleSortByChange}
+          sortByPinyinAsc={sortByPinyinAsc}
+          sortByPinyinDesc={sortByPinyinDesc}
+        />
+      ) : (
+        <UnifiedList
+          items={unifiedItems}
+          activeAssistantId={activeAssistant.id}
+          activeAgentId={activeAgentId}
+          sortBy={assistantsTabSortType}
+          onReorder={handleUnifiedListReorder}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}
+          onAssistantSwitch={setActiveAssistant}
+          onAssistantDelete={onDeleteAssistant}
+          onAgentDelete={deleteAgent}
+          onAgentPress={setActiveAgentId}
+          addPreset={addAssistantPreset}
+          copyAssistant={copyAssistant}
+          onCreateDefaultAssistant={onCreateDefaultAssistant}
+          handleSortByChange={handleSortByChange}
+          sortByPinyinAsc={sortByPinyinAsc}
+          sortByPinyinDesc={sortByPinyinDesc}
+        />
+      )}
+
+      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
+
+      {!dragging && <div style={{ minHeight: 10 }}></div>}
     </Container>
   )
 }
 
-// 样式组件
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
-  margin-top: 3px;
 `
 
-const TagsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const AssistantAddItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 7px 12px;
-  position: relative;
-  padding-right: 35px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-  }
-`
-
-const GroupTitle = styled.div`
-  color: var(--color-text-2);
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  height: 24px;
-  margin: 5px 0;
-`
-
-const GroupTitleName = styled.div`
-  max-width: 50%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  overflow: hidden;
-  box-sizing: border-box;
-  padding: 0 4px;
-  color: var(--color-text);
-  font-size: 13px;
-  line-height: 24px;
-  margin-right: 5px;
-  display: flex;
-`
-
-const GroupTitleDivider = styled.div`
-  flex: 1;
-  border-top: 1px solid var(--color-border);
-`
-
-const AddItemWrapper = styled.div`
-  color: var(--color-text-2);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
-`
-
-export default Assistants
+export default AssistantsTab

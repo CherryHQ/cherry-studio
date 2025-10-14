@@ -1,14 +1,19 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
+import { Tab } from '@renderer/types/chat'
 import { classNames, uuid } from '@renderer/utils'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AgentSettingsTab from './AgentSettingsTab'
 import Assistants from './AssistantsTab'
 import Settings from './SettingsTab'
 import Topics from './TopicsTab'
@@ -23,8 +28,6 @@ interface Props {
   style?: React.CSSProperties
 }
 
-type Tab = 'assistants' | 'topic' | 'settings'
-
 let _tab: any = ''
 
 const HomeTabs: FC<Props> = ({
@@ -37,14 +40,20 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   const { addAssistant } = useAssistants()
-  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
   const { defaultAssistant } = useDefaultAssistant()
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
-
   const { t } = useTranslation()
+  const { chat } = useRuntime()
+  const { activeTopicOrSession, activeAgentId } = chat
+  const { agent } = useAgent(activeAgentId)
+  const { updateAgent } = useUpdateAgent()
 
+  const isSessionView = activeTopicOrSession === 'session'
+  const isTopicView = activeTopicOrSession === 'topic'
+
+  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
     position === 'left'
@@ -87,7 +96,7 @@ const HomeTabs: FC<Props> = ({
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
+  }, [position, setTab, showTab, tab, toggleShowTopics, topicPosition])
 
   useEffect(() => {
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
@@ -116,7 +125,7 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && (
+      {position === 'right' && topicPosition === 'right' && isTopicView && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
@@ -144,7 +153,8 @@ const HomeTabs: FC<Props> = ({
             position={position}
           />
         )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
+        {tab === 'settings' && isSessionView && <AgentSettingsTab agent={agent} update={updateAgent} />}
       </TabContent>
     </Container>
   )
@@ -200,7 +210,7 @@ const CustomTabs = styled.div`
 
 const TabItem = styled.button<{ active: boolean }>`
   flex: 1;
-  height: 32px;
+  height: 30px;
   border: none;
   background: transparent;
   color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
@@ -225,7 +235,7 @@ const TabItem = styled.button<{ active: boolean }>`
   &::after {
     content: '';
     position: absolute;
-    bottom: -9px;
+    bottom: -8px;
     left: 50%;
     transform: translateX(-50%);
     width: ${(props) => (props.active ? '30px' : '0')};

@@ -28,7 +28,8 @@ const STATIC_PROVIDER_MAPPING: Record<string, ProviderId> = {
   gemini: 'google', // Google Gemini -> google
   'azure-openai': 'azure', // Azure OpenAI -> azure
   'openai-response': 'openai', // OpenAI Responses -> openai
-  grok: 'xai' // Grok -> xai
+  grok: 'xai', // Grok -> xai
+  copilot: 'github-copilot-openai-compatible'
 }
 
 /**

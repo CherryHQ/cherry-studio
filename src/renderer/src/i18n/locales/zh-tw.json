@@ -1,80 +1,201 @@
 {
-  "agents": {
+  "agent": {
     "add": {
-      "button": "新增到助手",
-      "knowledge_base": {
-        "label": "知識庫",
-        "placeholder": "選擇知識庫"
+      "error": {
+        "failed": "無法新增代理人",
+        "invalid_agent": "無效的 Agent"
       },
-      "name": {
-        "label": "名稱",
-        "placeholder": "輸入名稱"
-      },
-      "prompt": {
-        "label": "提示詞",
-        "placeholder": "輸入提示詞",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU 架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱",
-            "title": "可用的變數"
-          }
-        }
-      },
-      "title": "建立智慧代理人",
-      "unsaved_changes_warning": "有未保存的變更，確定要關閉嗎？"
-    },
-    "delete": {
-      "popup": {
-        "content": "確定要刪除此智慧代理人嗎？"
+      "title": "新增代理",
+      "type": {
+        "placeholder": "選擇 Agent 類型"
       }
     },
+    "delete": {
+      "content": "刪除該 Agent 將強制終止並刪除該 Agent 下的所有會話。您確定嗎？",
+      "error": {
+        "failed": "刪除代理程式失敗"
+      },
+      "title": "刪除 Agent"
+    },
     "edit": {
-      "model": {
-        "select": {
-          "title": "選擇模型"
+      "title": "編輯 Agent"
+    },
+    "get": {
+      "error": {
+        "failed": "無法取得代理程式。"
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "無法列出代理程式。"
+      }
+    },
+    "session": {
+      "accessible_paths": {
+        "add": "新增目錄",
+        "duplicate": "此目錄已包含在內。",
+        "empty": "選擇至少一個代理可以存取的目錄。",
+        "error": {
+          "at_least_one": "請至少選取一個可存取的目錄。"
+        },
+        "label": "可存取的目錄",
+        "select_failed": "無法選擇目錄。"
+      },
+      "add": {
+        "title": "新增會議"
+      },
+      "allowed_tools": {
+        "empty": "目前此代理沒有可用的工具。",
+        "helper": "選擇預先授權的工具，未選取的工具在使用時需要手動審批。",
+        "label": "預先授權工具",
+        "placeholder": "選擇預先授權的工具"
+      },
+      "create": {
+        "error": {
+          "failed": "無法新增工作階段"
         }
       },
-      "title": "編輯智慧代理人"
-    },
-    "export": {
-      "agent": "匯出智慧代理人"
-    },
-    "import": {
-      "button": "導入",
-      "error": {
-        "fetch_failed": "從 URL 獲取資料失敗",
-        "invalid_format": "無效的代理人格式：缺少必填欄位",
-        "url_required": "請輸入 URL"
+      "delete": {
+        "content": "您確定要刪除此工作階段嗎？",
+        "error": {
+          "failed": "無法刪除工作階段",
+          "last": "至少必須保留一個工作階段"
+        },
+        "title": "刪除工作階段"
       },
-      "file_filter": "JSON 檔案",
-      "select_file": "選擇檔案",
-      "title": "從外部導入",
-      "type": {
-        "file": "檔案",
-        "url": "URL"
+      "edit": {
+        "title": "編輯工作階段"
       },
-      "url_placeholder": "輸入 JSON URL"
-    },
-    "manage": {
-      "title": "管理智慧代理人"
-    },
-    "my_agents": "我的智慧代理人",
-    "search": {
-      "no_results": "沒有找到相關智慧代理人"
+      "get": {
+        "error": {
+          "failed": "無法取得工作階段"
+        }
+      },
+      "label_one": "會議",
+      "label_other": "Sessions",
+      "update": {
+        "error": {
+          "failed": "無法更新工作階段"
+        }
+      }
     },
     "settings": {
-      "title": "智慧代理人設定"
+      "advance": {
+        "maxTurns": {
+          "description": "設定代理自動執行的請求／回覆輪次数。",
+          "helper": "數值越高可自動運行越久；數值越低更容易掌控。",
+          "label": "會話輪次上限"
+        },
+        "permissionMode": {
+          "description": "控制代理在需要授權時的處理方式。",
+          "label": "權限模式",
+          "options": {
+            "acceptEdits": "自動接受編輯",
+            "bypassPermissions": "略過權限檢查",
+            "default": "預設（繼續前先詢問）",
+            "plan": "規劃模式（需核准計畫）"
+          },
+          "placeholder": "選擇權限模式"
+        },
+        "title": "進階設定"
+      },
+      "essential": "必要設定",
+      "prompt": "提示設定",
+      "tooling": {
+        "mcp": {
+          "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
+          "empty": "尚未偵測到 MCP 伺服器，請前往 MCP 設定頁新增。",
+          "manageHint": "需要進階設定？前往 設定 → MCP 伺服器。",
+          "toggle": "切換 {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "預先授權受信任的檔案系統工具，允許即時執行。",
+            "description": "檔案編輯與檔案系統操作會自動通過核准。",
+            "title": "自動接受檔案編輯"
+          },
+          "bypassPermissions": {
+            "behavior": "所有工具都會被自動預先授權。",
+            "description": "所有權限提示都會被略過，請務必謹慎使用。",
+            "title": "略過所有權限檢查",
+            "warning": "警告：所有工具都會在無核准情況下執行。"
+          },
+          "confirmChange": {
+            "description": "切換模式會更新自動預先授權的工具。",
+            "title": "確認切換權限模式？"
+          },
+          "default": {
+            "behavior": "唯讀工具會自動預先授權。",
+            "description": "唯讀工具會自動預先授權，其它操作仍需核准。",
+            "title": "預設（繼續前先詢問）"
+          },
+          "helper": "指定助手如何處理工具使用授權",
+          "placeholder": "選擇權限模式",
+          "plan": {
+            "behavior": "預設的唯讀工具會自動預先授權，但執行仍被停用。",
+            "description": "沿用預設的唯讀工具集，並會在執行前先呈現計畫。",
+            "title": "規劃模式"
+          },
+          "title": "權限模式"
+        },
+        "preapproved": {
+          "autoBadge": "模式自動添加",
+          "autoDescription": "此工具由目前的權限模式自動預先授權。",
+          "empty": "沒有符合篩選條件的工具。",
+          "mcpBadge": "MCP 工具",
+          "requiresApproval": "停用時需要人工核准",
+          "search": "搜尋工具",
+          "toggle": "切換 {{name}}",
+          "warning": {
+            "description": "僅啟用你信任的工具。模式預設值會自動標示。",
+            "title": "預先授權的工具將在無人工審查下執行。"
+          }
+        },
+        "review": {
+          "autoTools": "自動：{{count}}",
+          "customTools": "自訂：{{count}}",
+          "helper": "設定會自動儲存，可隨時回到上方步驟調整。",
+          "mcp": "MCP：{{count}}",
+          "mode": "模式：{{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCP 伺服器"
+          },
+          "permissionMode": {
+            "title": "步驟 1 · 權限模式"
+          },
+          "preapproved": {
+            "title": "步驟 2 · 預先授權工具"
+          },
+          "review": {
+            "title": "步驟 3 · 檢視"
+          }
+        },
+        "tab": "工具與權限"
+      },
+      "tools": {
+        "approved": "已授權",
+        "caution": "預先授權的工具會略過人工審查，請僅啟用可信任的工具。",
+        "description": "選擇哪些工具可在無需人工核准的情況下執行。",
+        "requiresPermission": "未預先授權時需要人工核准。",
+        "tab": "預先授權工具",
+        "title": "預先授權工具",
+        "toggle": "{{defaultValue}}"
+      }
     },
-    "sorting": {
-      "title": "排序"
+    "type": {
+      "label": "代理類型",
+      "unknown": "未知類型"
     },
-    "tag": {
-      "agent": "智慧代理人",
-      "default": "預設",
-      "new": "新增",
-      "system": "系統"
+    "update": {
+      "error": {
+        "failed": "無法更新代理程式"
+      }
     },
-    "title": "智慧代理人"
+    "warning": {
+      "enable_server": "啟用 API 伺服器以使用代理程式。"
+    }
   },
   "apiServer": {
     "actions": {
@@ -155,9 +276,86 @@
       "showByList": "列表展示",
       "showByTags": "標籤展示"
     },
+    "presets": {
+      "add": {
+        "button": "新增到助手",
+        "knowledge_base": {
+          "label": "知識庫",
+          "placeholder": "選擇知識庫"
+        },
+        "name": {
+          "label": "名稱",
+          "placeholder": "輸入名稱"
+        },
+        "prompt": {
+          "label": "提示詞",
+          "placeholder": "輸入提示詞",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU 架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱",
+              "title": "可用的變數"
+            }
+          }
+        },
+        "title": "建立助手",
+        "unsaved_changes_warning": "有未保存的變更，確定要關閉嗎？"
+      },
+      "delete": {
+        "popup": {
+          "content": "確定要刪除此助手嗎？"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "選擇模型"
+          }
+        },
+        "title": "編輯助手"
+      },
+      "export": {
+        "agent": "匯出助手"
+      },
+      "import": {
+        "button": "導入",
+        "error": {
+          "fetch_failed": "從 URL 獲取資料失敗",
+          "invalid_format": "無效的助手格式：缺少必填欄位",
+          "url_required": "請輸入 URL"
+        },
+        "file_filter": "JSON 檔案",
+        "select_file": "選擇檔案",
+        "title": "從外部導入",
+        "type": {
+          "file": "檔案",
+          "url": "URL"
+        },
+        "url_placeholder": "輸入 JSON URL"
+      },
+      "manage": {
+        "title": "管理助手"
+      },
+      "my_agents": "我的助手",
+      "search": {
+        "no_results": "沒有找到相關助手"
+      },
+      "settings": {
+        "title": "助手配置"
+      },
+      "sorting": {
+        "title": "排序"
+      },
+      "tag": {
+        "agent": "助手",
+        "default": "預設",
+        "new": "新增",
+        "system": "系統"
+      },
+      "title": "助手庫"
+    },
     "save": {
       "success": "儲存成功",
-      "title": "儲存到智慧代理人"
+      "title": "儲存到助手庫"
     },
     "search": "搜尋助手...",
     "settings": {
@@ -168,7 +366,7 @@
           "label": "調用知識庫",
           "off": "強制檢索",
           "on": "意圖識別",
-          "tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力"
+          "tip": "助手將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力"
         }
       },
       "mcp": {
@@ -746,9 +944,14 @@
   },
   "common": {
     "add": "新增",
+    "add_success": "新增成功",
     "advanced_settings": "進階設定",
+    "agent_one": "代理人",
+    "agent_other": "代理人",
     "and": "與",
     "assistant": "智慧代理人",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "頭像",
     "back": "返回",
     "browse": "瀏覽",
@@ -765,6 +968,8 @@
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
+    "delete_failed": "刪除失敗",
+    "delete_success": "刪除成功",
     "description": "描述",
     "detail": "詳情",
     "disabled": "已停用",
@@ -774,6 +979,10 @@
     "edit": "編輯",
     "enabled": "已啟用",
     "error": "錯誤",
+    "errors": {
+      "create_message": "無法建立訊息",
+      "validation": "驗證失敗"
+    },
     "expand": "展開",
     "file": {
       "not_supported": "不支持的文件類型 {{type}}"
@@ -784,6 +993,7 @@
     "go_to_settings": "前往設定",
     "i_know": "我知道了",
     "inspect": "檢查",
+    "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
     "loading": "加載中...",
@@ -795,6 +1005,11 @@
     "none": "無",
     "open": "開啟",
     "paste": "貼上",
+    "placeholders": {
+      "select": {
+        "model": "選擇模型"
+      }
+    },
     "preview": "預覽",
     "prompt": "提示詞",
     "provider": "供應商",
@@ -807,6 +1022,7 @@
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
+    "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",
     "settings": "設定",
@@ -821,6 +1037,9 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "unknown": "Unknown",
+    "unnamed": "未命名",
+    "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",
     "you": "您"
@@ -893,6 +1112,7 @@
     "modelType": "模型類型",
     "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
+    "no_response": "無回應",
     "originalError": "原錯誤",
     "originalMessage": "原消息",
     "parameter": "參數",
@@ -958,6 +1178,9 @@
     },
     "document": "文件",
     "edit": "編輯",
+    "error": {
+      "open_path": "無法開啟路徑: {{path}}"
+    },
     "file": "檔案",
     "image": "圖片",
     "name": "名稱",
@@ -1583,13 +1806,13 @@
     "nami-ai-search": "納米AI搜索",
     "qwen": "通義千問",
     "sensechat": "商量",
+    "stepfun": "階躍AI",
     "tencent-yuanbao": "騰訊元寶",
     "tiangong-ai": "天工AI",
     "wanzhi": "萬知",
     "wenxin": "文心一言",
     "wps-copilot": "WPS靈犀",
     "xiaoyi": "小藝",
-    "yuewen": "躍問",
     "zhihu": "知乎直答"
   },
   "miniwindow": {
@@ -1784,6 +2007,8 @@
     "sort_updated_asc": "更新時間（從舊到新）",
     "sort_updated_desc": "更新時間（從新到舊）",
     "sort_z2a": "文件名（Z-A）",
+    "spell_check": "拼寫檢查",
+    "spell_check_tooltip": "啟用/禁用拼寫檢查",
     "star": "收藏筆記",
     "starred_notes": "收藏的筆記",
     "title": "筆記",
@@ -3793,6 +4018,10 @@
         "start_auth": "開始授權",
         "submit_code": "完成登錄"
       },
+      "anthropic_api_host": "Anthropic API 主機地址",
+      "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
+      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
+      "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
       "api": {
         "key": {
           "check": {
@@ -3840,6 +4069,8 @@
         }
       },
       "api_host": "API 主機地址",
+      "api_host_preview": "預覽：{{url}}",
+      "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
         "label": "API 金鑰",
         "tip": "多個金鑰使用逗號或空格分隔"
@@ -4243,7 +4474,6 @@
     }
   },
   "title": {
-    "agents": "智能體",
     "apps": "小程序",
     "code": "Code",
     "files": "文件",
@@ -4255,6 +4485,7 @@
     "notes": "筆記",
     "paintings": "繪畫",
     "settings": "設定",
+    "store": "助手庫",
     "translate": "翻譯"
   },
   "trace": {
@@ -4410,6 +4641,7 @@
     "later": "稍後",
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
+    "saveDataError": "保存數據失敗，請重試",
     "title": "更新提示"
   },
   "warning": {

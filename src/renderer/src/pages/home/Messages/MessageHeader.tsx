@@ -4,9 +4,11 @@ import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
@@ -37,6 +39,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const avatar = useAvatar()
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
+  const { chat } = useRuntime()
+  const { activeTopicOrSession, activeAgentId } = chat
+  const { agent } = useAgent(activeAgentId)
+  const isAgentView = activeTopicOrSession === 'session'
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
@@ -52,12 +58,16 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       return APP_NAME
     }
 
+    if (isAgentView && message.role === 'assistant') {
+      return agent?.name ?? t('common.unknown')
+    }
+
     if (message.role === 'assistant') {
       return getModelName(model) || getMessageModelId(message) || ''
     }
 
     return userName || t('common.you')
-  }, [message, model, t, userName])
+  }, [agent?.name, isAgentView, message, model, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'

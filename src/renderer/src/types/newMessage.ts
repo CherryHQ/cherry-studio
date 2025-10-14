@@ -1,3 +1,4 @@
+import type { ProviderMetadata } from 'ai'
 import type { CompletionUsage } from 'openai/resources'
 
 import type {
@@ -204,6 +205,13 @@ export type Message = {
 
   // 跟踪Id
   traceId?: string
+
+  // Agent session identifier used to resume Claude Code runs
+  agentSessionId?: string
+
+  // raw data
+  // TODO: add this providerMetadata to MessageBlock to save raw provider data for each block
+  providerMetadata?: ProviderMetadata
 }
 
 export interface Response {

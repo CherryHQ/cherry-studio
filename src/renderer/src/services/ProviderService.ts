@@ -12,6 +12,15 @@ export function getProviderName(model?: Model) {
   return getFancyProviderName(provider)
 }
 
+export function getProviderNameById(pid: string) {
+  const provider = getStoreProviders().find((p) => p.id === pid)
+  if (provider) {
+    return getFancyProviderName(provider)
+  } else {
+    return 'Unknown Provider'
+  }
+}
+
 export function getProviderByModel(model?: Model) {
   const id = model?.provider
   const provider = getStoreProviders().find((p) => p.id === id)

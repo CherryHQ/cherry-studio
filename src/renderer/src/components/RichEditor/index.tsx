@@ -48,7 +48,8 @@ const RichEditor = ({
   enableContentSearch = false,
   isFullWidth = false,
   fontFamily = 'default',
-  fontSize = 16
+  fontSize = 16,
+  enableSpellCheck = false
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
   // Use the rich editor hook for complete editor management
@@ -71,6 +72,7 @@ const RichEditor = ({
     onBlur,
     placeholder,
     editable,
+    enableSpellCheck,
     scrollParent: () => scrollContainerRef.current,
     onShowTableActionMenu: ({ position, actions }) => {
       const iconMap: Record<string, React.ReactNode> = {

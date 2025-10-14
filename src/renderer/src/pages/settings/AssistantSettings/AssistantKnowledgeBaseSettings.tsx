@@ -37,7 +37,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         mode="multiple"
         allowClear
         value={assistant.knowledge_bases?.map((b) => b.id)}
-        placeholder={t('agents.add.knowledge_base.placeholder')}
+        placeholder={t('assistants.presets.add.knowledge_base.placeholder')}
         menuItemSelectedIcon={<CheckOutlined />}
         options={knowledgeOptions}
         onChange={(value) => onUpdate(value)}

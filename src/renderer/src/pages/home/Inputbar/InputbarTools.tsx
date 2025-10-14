@@ -218,7 +218,7 @@ const InputbarTools = ({
         }
       },
       {
-        label: t('agents.edit.model.select.title'),
+        label: t('assistants.presets.edit.model.select.title'),
         description: '',
         icon: <AtSign />,
         isMenu: true,
@@ -421,7 +421,7 @@ const InputbarTools = ({
       },
       {
         key: 'mention_models',
-        label: t('agents.edit.model.select.title'),
+        label: t('assistants.presets.edit.model.select.title'),
         component: (
           <MentionModelsButton
             ref={mentionModelsButtonRef}
