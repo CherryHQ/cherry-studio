@@ -49,21 +49,6 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const ensureWebviewReady = useCallback(
     (candidate: WebviewTag | null) => {
       if (!candidate) return null
-
-      if (candidate.isDestroyed?.()) {
-        if (attachedWebviewRef.current === candidate) {
-          attachedWebviewRef.current = null
-        }
-        logger.debug('WebviewSearch: skip destroyed webview', { appId })
-        return null
-      }
-
-      const isConnected = (candidate as unknown as { isConnected?: boolean }).isConnected
-      if (isConnected === false) {
-        logger.debug('WebviewSearch: skip disconnected webview', { appId })
-        return null
-      }
-
       try {
         const webContentsId = candidate.getWebContentsId?.()
         if (!webContentsId) {
