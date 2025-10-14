@@ -274,15 +274,6 @@ const Alert = styled(AntdAlert)`
   }
 `
 
-const MarkdownContainer = styled.div`
-  & pre {
-    background: transparent !important;
-    span {
-      white-space: pre-wrap;
-    }
-  }
-`
-
 // 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
 const BuiltinError = ({ error }: { error: SerializedError }) => {
   const { t } = useTranslation()
@@ -340,7 +331,10 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.cause')}:</ErrorDetailLabel>
           <ErrorDetailValue>
-            <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: highlightedString }} />
+            <div
+              className="markdown [&_pre]:!bg-transparent [&_pre_span]:whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{ __html: highlightedString }}
+            />
           </ErrorDetailValue>
         </ErrorDetailItem>
       )}
