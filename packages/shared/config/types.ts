@@ -22,3 +22,12 @@ export type MCPProgressEvent = {
   callId: string
   progress: number // 0-1 range
 }
+
+export type WebviewKeyEvent = {
+  webviewId: number
+  key: string
+  control: boolean
+  meta: boolean
+  shift: boolean
+  alt: boolean
+}

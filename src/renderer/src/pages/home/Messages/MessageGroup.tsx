@@ -361,8 +361,7 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
   &.grid {
     grid-template-columns: repeat(

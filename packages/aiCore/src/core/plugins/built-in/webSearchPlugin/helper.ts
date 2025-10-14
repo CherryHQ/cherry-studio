@@ -1,7 +1,7 @@
 import type { anthropic } from '@ai-sdk/anthropic'
 import type { google } from '@ai-sdk/google'
 import type { openai } from '@ai-sdk/openai'
-import type { InferToolInput, InferToolOutput } from 'ai'
+import type { InferToolInput, InferToolOutput, Tool } from 'ai'
 
 import type { ProviderOptionsMap } from '../../../options/types'
 import type { OpenRouterSearchConfig } from './openrouter'
@@ -14,6 +14,13 @@ export type OpenAISearchPreviewConfig = NonNullable<Parameters<typeof openai.too
 export type AnthropicSearchConfig = NonNullable<Parameters<typeof anthropic.tools.webSearch_20250305>[0]>
 export type GoogleSearchConfig = NonNullable<Parameters<typeof google.tools.googleSearch>[0]>
 export type XAISearchConfig = NonNullable<ProviderOptionsMap['xai']['searchParameters']>
+
+type NormalizeTool<T> = T extends Tool<infer INPUT, infer OUTPUT> ? Tool<INPUT, OUTPUT> : Tool<any, any>
+
+type AnthropicWebSearchTool = NormalizeTool<ReturnType<typeof anthropic.tools.webSearch_20250305>>
+type OpenAIWebSearchTool = NormalizeTool<ReturnType<typeof openai.tools.webSearch>>
+type OpenAIChatWebSearchTool = NormalizeTool<ReturnType<typeof openai.tools.webSearchPreview>>
+type GoogleWebSearchTool = NormalizeTool<ReturnType<typeof google.tools.googleSearch>>
 
 /**
  * 插件初始化时接收的完整配置对象
@@ -59,7 +66,7 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
 
 export type WebSearchToolOutputSchema = {
   // Anthropic 工具 - 手动定义
-  anthropic: InferToolOutput<ReturnType<typeof anthropic.tools.webSearch_20250305>>
+  anthropic: InferToolOutput<AnthropicWebSearchTool>
 
   // OpenAI 工具 - 基于实际输出
   // TODO: 上游定义不规范,是unknown
@@ -82,8 +89,8 @@ export type WebSearchToolOutputSchema = {
 }
 
 export type WebSearchToolInputSchema = {
-  anthropic: InferToolInput<ReturnType<typeof anthropic.tools.webSearch_20250305>>
-  openai: InferToolInput<ReturnType<typeof openai.tools.webSearch>>
-  google: InferToolInput<ReturnType<typeof google.tools.googleSearch>>
-  'openai-chat': InferToolInput<ReturnType<typeof openai.tools.webSearchPreview>>
+  anthropic: InferToolInput<AnthropicWebSearchTool>
+  openai: InferToolInput<OpenAIWebSearchTool>
+  google: InferToolInput<GoogleWebSearchTool>
+  'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
 }

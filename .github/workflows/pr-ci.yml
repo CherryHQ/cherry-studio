@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PRCI: true
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false || github.head_ref == 'v2'
 
     steps:
       - name: Check out Git repository

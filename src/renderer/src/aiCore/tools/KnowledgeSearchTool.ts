@@ -4,7 +4,7 @@ import type { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/ex
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import { isEmpty } from 'lodash'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 知识库搜索工具

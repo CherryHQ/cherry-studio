@@ -35,6 +35,7 @@ import { windowService } from './services/WindowService'
 import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefactorMigrateService'
 import { dataApiService } from '@data/DataApiService'
 import { cacheService } from '@data/CacheService'
+import { initWebviewHotkeys } from './services/WebviewService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -187,6 +188,7 @@ if (!app.requestSingleInstanceLock()) {
 
     /************FOR TESTING ONLY END****************/
 
+    initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 

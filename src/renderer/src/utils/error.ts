@@ -13,7 +13,7 @@ import type { NoSuchToolError } from 'ai'
 import { InvalidToolInputError } from 'ai'
 import { type AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
-import type { z } from 'zod'
+import type * as z from 'zod'
 import { ZodError } from 'zod'
 
 import { parseJSON } from './json'

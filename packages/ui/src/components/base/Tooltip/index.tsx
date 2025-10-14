@@ -28,7 +28,7 @@ export const Tooltip = ({
       }}
       showArrow={showArrow ?? true}
       {...rest}>
-      <div className={cn('relative z-10', classNames?.placeholder)}>{children}</div>
+      <div className={cn('relative z-10 inline-block', classNames?.placeholder)}>{children}</div>
     </HeroUITooltip>
   )
 }

@@ -14,7 +14,7 @@ import { createXai } from '@ai-sdk/xai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { Provider } from 'ai'
 import { customProvider } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 基础 Provider IDs

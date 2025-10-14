@@ -6,6 +6,7 @@ import {
   getThinkModelType,
   isDeepSeekHybridInferenceModel,
   isDoubaoThinkingAutoModel,
+  isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
@@ -53,7 +54,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         return {}
       }
       // Don't disable reasoning for models that require it
-      if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model) || model.id.includes('seed-oss')) {
+      if (
+        isGrokReasoningModel(model) ||
+        isOpenAIReasoningModel(model) ||
+        isQwenAlwaysThinkModel(model) ||
+        model.id.includes('seed-oss')
+      ) {
         return {}
       }
       return { reasoning: { enabled: false, exclude: true } }
@@ -101,6 +107,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // reasoningEffort有效的情况
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
   // 不同的 provider 有不同的思考控制方式，在这里统一解决
+
   if (isDeepSeekHybridInferenceModel(model)) {
     if (isSystemProvider(provider)) {
       switch (provider.id) {
@@ -143,6 +150,16 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
+    // Grok 4 Fast doesn't support effort levels, always use enabled: true
+    if (isGrok4FastReasoningModel(model)) {
+      return {
+        reasoning: {
+          enabled: true // Ignore effort level, just enable reasoning
+        }
+      }
+    }
+
+    // Other OpenRouter models that support effort levels
     if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
       return {
         reasoning: {
@@ -413,6 +430,13 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
   return {}
 }
 
+/**
+ * Get XAI-specific reasoning parameters
+ * This function should only be called for XAI provider models
+ * @param assistant - The assistant configuration
+ * @param model - The model being used
+ * @returns XAI-specific reasoning parameters
+ */
 export function getXAIReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
   if (!isSupportedReasoningEffortGrokModel(model)) {
     return {}
@@ -420,6 +444,11 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Recor
 
   const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
 
+  if (!reasoningEffort) {
+    return {}
+  }
+
+  // For XAI provider Grok models, use reasoningEffort parameter directly
   return {
     reasoningEffort
   }

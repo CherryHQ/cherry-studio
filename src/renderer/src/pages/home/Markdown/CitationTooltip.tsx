@@ -2,7 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
-import { z } from 'zod'
+import * as z from 'zod'
 
 export const CitationSchema = z.object({
   url: z.url(),

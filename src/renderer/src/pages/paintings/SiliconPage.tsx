@@ -14,6 +14,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
+import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -24,7 +25,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Input, InputNumber, Radio, Select, Slider } from 'antd'
+import { Avatar, Input, InputNumber, Radio, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -384,7 +385,16 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <Select value={providerOptions[2].value} onChange={handleProviderChange} options={providerOptions} />
+          <Select value={providerOptions[2].value} onChange={handleProviderChange}>
+            {providerOptions.map((provider) => (
+              <Select.Option value={provider.value} key={provider.value}>
+                <SelectOptionContainer>
+                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  {provider.label}
+                </SelectOptionContainer>
+              </Select.Option>
+            ))}
+          </Select>
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
@@ -631,6 +641,16 @@ const SliderContainer = styled.div`
 
 const StyledInputNumber = styled(InputNumber)`
   width: 70px;
+`
+
+const SelectOptionContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const ProviderLogo = styled(Avatar)`
+  flex-shrink: 0;
 `
 
 export default SiliconPage

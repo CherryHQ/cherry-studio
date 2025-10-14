@@ -9,8 +9,7 @@
     "packages/mcp-trace/**/*",
     "packages/aiCore/src/**/*",
     "src/main/integration/cherryai/index.js",
-    "packages/extension-table-plus/**/*",
-    "packages/ui/**/*"
+    "packages/extension-table-plus/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -30,7 +29,11 @@
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
       "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
-      "@cherrystudio/ui": ["./packages/ui/src/index.ts"]
+      "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
+      "@/components/*": ["./packages/ui/src/components/*"],
+      "@/utils/*": ["./packages/ui/src/utils/*"],
+      "@/types": ["./packages/ui/src/types/index.ts"],
+      "@/hooks/*": ["./packages/ui/src/hooks/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

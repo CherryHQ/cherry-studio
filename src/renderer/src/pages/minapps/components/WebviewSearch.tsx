@@ -22,11 +22,11 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const [query, setQuery] = useState('')
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [currentWebview, setCurrentWebview] = useState<WebviewTag | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
+  const activeWebview = webviewRef.current ?? null
 
   const focusInput = useCallback(() => {
     if (focusFrameRef.current !== null) {
@@ -119,34 +119,66 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   }, [performSearch, query])
 
   useEffect(() => {
-    const nextWebview = webviewRef.current ?? null
-    if (currentWebview === nextWebview) return
-    setCurrentWebview(nextWebview)
-  }, [webviewRef, currentWebview])
-
-  useEffect(() => {
-    const target = currentWebview
-    if (!target) {
-      attachedWebviewRef.current = null
+    attachedWebviewRef.current = activeWebview
+    if (!activeWebview) {
       return
     }
 
     const handle = handleFoundInPage
-    attachedWebviewRef.current = target
-    target.addEventListener('found-in-page', handle)
+    activeWebview.addEventListener('found-in-page', handle)
 
     return () => {
-      target.removeEventListener('found-in-page', handle)
-      if (attachedWebviewRef.current === target) {
+      activeWebview.removeEventListener('found-in-page', handle)
+      if (attachedWebviewRef.current === activeWebview) {
         try {
-          target.stopFindInPage('clearSelection')
+          activeWebview.stopFindInPage('clearSelection')
         } catch (error) {
           logger.error('stopFindInPage failed', { error })
         }
         attachedWebviewRef.current = null
       }
     }
-  }, [currentWebview, handleFoundInPage])
+  }, [activeWebview, handleFoundInPage])
+
+  useEffect(() => {
+    if (!activeWebview) return
+    const onFindShortcut = window.api?.webview?.onFindShortcut
+    if (!onFindShortcut) return
+
+    const webContentsId = activeWebview.getWebContentsId?.()
+    if (!webContentsId) {
+      logger.warn('WebviewSearch: missing webContentsId', { appId })
+      return
+    }
+
+    const unsubscribe = onFindShortcut(({ webviewId, key, control, meta, shift }) => {
+      if (webviewId !== webContentsId) return
+
+      if ((control || meta) && key === 'f') {
+        openSearch()
+        return
+      }
+
+      if (!isVisible) return
+
+      if (key === 'escape') {
+        closeSearch()
+        return
+      }
+
+      if (key === 'enter') {
+        if (shift) {
+          goToPrevious()
+        } else {
+          goToNext()
+        }
+      }
+    })
+
+    return () => {
+      unsubscribe?.()
+    }
+  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, openSearch])
 
   useEffect(() => {
     if (!isVisible) return
@@ -160,7 +192,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
       return
     }
     performSearch(query)
-  }, [currentWebview, isVisible, performSearch, query])
+  }, [activeWebview, isVisible, performSearch, query])
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
