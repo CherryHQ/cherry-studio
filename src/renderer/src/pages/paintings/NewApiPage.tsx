@@ -510,12 +510,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <ProviderSelect
-            provider={newApiProvider}
-            options={Options}
-            onChange={handleProviderChange}
-            style={{ width: '100%' }}
-          />
+          <ProviderSelect provider={newApiProvider} options={Options} onChange={handleProviderChange} />
 
           {/* 当没有可用的 Image Generation 模型时，提示用户先去新增 */}
           {modelOptions.length === 0 && (
@@ -783,16 +778,12 @@ const ProviderLogo = styled(Avatar)`
   border: 0.5px solid var(--color-border);
 `
 
-// 添加新的样式组件
 const ModeSegmentedContainer = styled.div`
   display: flex;
   justify-content: center;
   padding-top: 24px;
 `
 
-// moved into ProviderSelect component
-
-// 添加新的样式组件
 const ProviderTitleContainer = styled.div`
   display: flex;
   justify-content: space-between;

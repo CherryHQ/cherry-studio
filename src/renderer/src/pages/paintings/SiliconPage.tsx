@@ -115,7 +115,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { theme } = useTheme()
   const providers = useAllProviders()
 
-  const siliconflowProvider = providers.find((p) => p.id === 'silicon')!
+  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -155,7 +155,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
-    await checkProviderEnabled(siliconflowProvider!, t)
+    await checkProviderEnabled(siliconFlowProvider!, t)
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
@@ -374,8 +374,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <ProviderSelect provider={siliconflowProvider} options={Options} onChange={handleProviderChange} />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
+          <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
+          <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
           <Radio.Group

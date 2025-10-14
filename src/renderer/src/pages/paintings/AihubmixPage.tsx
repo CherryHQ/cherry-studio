@@ -839,7 +839,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             provider={aihubmixProvider}
             options={Options}
             onChange={handleProviderChange}
-            style={{ marginBottom: 15 }}
+            className={'mb-4'}
           />
 
           {/* 使用JSON配置渲染设置项 */}

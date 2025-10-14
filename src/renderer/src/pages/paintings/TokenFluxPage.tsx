@@ -372,12 +372,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <ProviderSelect
-            provider={tokenfluxProvider}
-            options={Options}
-            onChange={handleProviderChange}
-            style={{ width: '100%' }}
-          />
+          <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
           <SectionTitle

@@ -355,12 +355,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </div>
           </ProviderTitleContainer>
-          <ProviderSelect
-            provider={zhipuProvider}
-            options={Options}
-            onChange={handleProviderChange}
-            style={{ marginBottom: 15 }}
-          />
+          <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select
