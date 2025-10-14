@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import type { TextStreamPart, ToolSet } from 'ai'
@@ -357,7 +358,7 @@ export class AiSdkToChunkAdapter {
         this.onChunk({
           type: ChunkType.ERROR,
           error: new ProviderSpecificError({
-            message: (chunk.error as any).message || (chunk.error as any).error.message,
+            message: formatErrorMessage(chunk.error),
             provider: 'unknown',
             cause: chunk.error
           })
