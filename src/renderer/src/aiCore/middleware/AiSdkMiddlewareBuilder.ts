@@ -189,7 +189,7 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
       break
   }
 
-  // OVMS+MCP 的特定中间件
+  // OVMS+MCP's specific middleware
   if (config.provider.id === 'ovms' && config.mcpTools && config.mcpTools.length > 0) {
     builder.add({
       name: 'no-think',
