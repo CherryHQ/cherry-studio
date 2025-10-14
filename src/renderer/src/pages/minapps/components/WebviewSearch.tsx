@@ -46,15 +46,73 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     setActiveIndex(0)
   }, [])
 
-  const stopSearch = useCallback(() => {
-    const target = webviewRef.current ?? attachedWebviewRef.current
-    if (!target) return
-    try {
-      target.stopFindInPage('clearSelection')
-    } catch (error) {
-      logger.error('stopFindInPage failed', { error })
+  const ensureWebviewReady = useCallback(
+    (candidate: WebviewTag | null) => {
+      if (!candidate) return null
+
+      if (candidate.isDestroyed?.()) {
+        if (attachedWebviewRef.current === candidate) {
+          attachedWebviewRef.current = null
+        }
+        logger.debug('WebviewSearch: skip destroyed webview', { appId })
+        return null
+      }
+
+      const isConnected = (candidate as unknown as { isConnected?: boolean }).isConnected
+      if (isConnected === false) {
+        logger.debug('WebviewSearch: skip disconnected webview', { appId })
+        return null
+      }
+
+      try {
+        const webContentsId = candidate.getWebContentsId?.()
+        if (!webContentsId) {
+          logger.debug('WebviewSearch: missing webContentsId before action', { appId })
+          return null
+        }
+      } catch (error) {
+        logger.debug('WebviewSearch: getWebContentsId failed before action', { appId, error })
+        return null
+      }
+
+      return candidate
+    },
+    [appId]
+  )
+
+  const stopFindOnWebview = useCallback(
+    (webview: WebviewTag | null) => {
+      const usable = ensureWebviewReady(webview)
+      if (!usable) return false
+      try {
+        usable.stopFindInPage('clearSelection')
+        return true
+      } catch (error) {
+        logger.debug('stopFindInPage failed', { appId, error })
+        return false
+      }
+    },
+    [appId, ensureWebviewReady]
+  )
+
+  const getUsableWebview = useCallback(() => {
+    const candidates = [webviewRef.current, attachedWebviewRef.current]
+
+    for (const candidate of candidates) {
+      const usable = ensureWebviewReady(candidate)
+      if (usable) {
+        return usable
+      }
     }
-  }, [webviewRef])
+
+    return null
+  }, [ensureWebviewReady, webviewRef])
+
+  const stopSearch = useCallback(() => {
+    const target = getUsableWebview()
+    if (!target) return
+    stopFindOnWebview(target)
+  }, [getUsableWebview, stopFindOnWebview])
 
   const closeSearch = useCallback(() => {
     setIsVisible(false)
@@ -64,7 +122,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
 
   const performSearch = useCallback(
     (text: string, options?: Electron.FindInPageOptions) => {
-      const target = webviewRef.current ?? attachedWebviewRef.current
+      const target = getUsableWebview()
       if (!target) {
         logger.debug('Skip performSearch: webview not attached')
         return
@@ -81,7 +139,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         window.toast?.error(t('common.error'))
       }
     },
-    [resetSearchState, stopSearch, t, webviewRef]
+    [getUsableWebview, resetSearchState, stopSearch, t]
   )
 
   const handleFoundInPage = useCallback((event: Event & { result?: FoundInPageResult }) => {
@@ -129,22 +187,31 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       activeWebview.removeEventListener('found-in-page', handle)
       if (attachedWebviewRef.current === activeWebview) {
-        try {
-          activeWebview.stopFindInPage('clearSelection')
-        } catch (error) {
-          logger.error('stopFindInPage failed', { error })
-        }
+        stopFindOnWebview(activeWebview)
         attachedWebviewRef.current = null
       }
     }
-  }, [activeWebview, handleFoundInPage])
+  }, [activeWebview, handleFoundInPage, stopFindOnWebview])
 
   useEffect(() => {
     if (!activeWebview) return
+    if (!isWebviewReady) return
     const onFindShortcut = window.api?.webview?.onFindShortcut
     if (!onFindShortcut) return
 
-    const webContentsId = activeWebview.getWebContentsId?.()
+    if (activeWebview.isDestroyed?.()) {
+      logger.debug('WebviewSearch: webview destroyed before registering shortcuts', { appId })
+      return
+    }
+
+    let webContentsId: number | undefined
+    try {
+      webContentsId = activeWebview.getWebContentsId?.()
+    } catch (error) {
+      logger.debug('WebviewSearch: getWebContentsId failed', { appId, error })
+      return
+    }
+
     if (!webContentsId) {
       logger.warn('WebviewSearch: missing webContentsId', { appId })
       return
@@ -177,7 +244,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       unsubscribe?.()
     }
-  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, openSearch])
+  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, isWebviewReady, openSearch])
 
   useEffect(() => {
     if (!isVisible) return
