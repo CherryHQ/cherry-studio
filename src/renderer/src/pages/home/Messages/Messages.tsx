@@ -61,7 +61,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
 
-  const { addTopic } = useAssistant(assistant.id)
+  const { addTopic, updateTopic, assistant: currentAssistant } = useAssistant(assistant.id)
   const { showPrompt, messageNavigation } = useSettings()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -105,15 +105,28 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const clearTopic = useCallback(
     async (data: Topic) => {
-      if (data && data.id !== topic.id) {
-        await clearTopicMessages(data.id)
-        return
-      }
+      const targetTopic = data && data.id !== topic.id ? data : topic
+      const isCurrentTopic = targetTopic.id === topic.id
 
-      await clearTopicMessages()
-      setDisplayMessages([])
+      if (!isCurrentTopic) {
+        await clearTopicMessages(data.id)
+      } else {
+        await clearTopicMessages()
+        setDisplayMessages([])
+      }
+      if (currentAssistant?.topics.length === 1) {
+        const updatedTopic = {
+          ...targetTopic,
+          name: t('chat.default.topic.name'),
+          isNameManuallyEdited: false
+        }
+        updateTopic(updatedTopic)
+        if (isCurrentTopic) {
+          setActiveTopic(updatedTopic)
+        }
+      }
     },
-    [clearTopicMessages, topic.id]
+    [clearTopicMessages, topic, currentAssistant?.topics.length, updateTopic, setActiveTopic, t]
   )
 
   useEffect(() => {

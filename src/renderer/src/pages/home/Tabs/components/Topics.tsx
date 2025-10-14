@@ -127,26 +127,11 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     deleteTimerRef.current = setTimeout(() => setDeletingTopicId(null), 2000)
   }, [])
 
-  const onClearMessages = useCallback(
-    (topic: Topic) => {
-      // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
-      store.dispatch(setGenerating(false))
-      EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-
-      if (assistant.topics.length === 1) {
-        const updatedTopic = {
-          ...topic,
-          name: t('chat.default.topic.name'),
-          isNameManuallyEdited: false
-        }
-        updateTopic(updatedTopic)
-        if (topic.id === activeTopic.id) {
-          setActiveTopic(updatedTopic)
-        }
-      }
-    },
-    [assistant.topics.length, t, updateTopic, activeTopic.id, setActiveTopic]
-  )
+  const onClearMessages = useCallback((topic: Topic) => {
+    // window.keyv.set(EVENT_NAMES.CHAT_COMPLETION_PAUSED, true)
+    store.dispatch(setGenerating(false))
+    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+  }, [])
 
   const handleConfirmDelete = useCallback(
     async (topic: Topic, e: React.MouseEvent) => {
