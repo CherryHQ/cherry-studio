@@ -321,8 +321,12 @@ const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
 
   useEffect(() => {
     const highlight = async () => {
-      const result = await highlightCode(JSON.stringify(JSON.parse(cause || '{}'), null, 2), 'json')
-      setHighlightedString(result)
+      try {
+        const result = await highlightCode(JSON.stringify(JSON.parse(cause || '{}'), null, 2), 'json')
+        setHighlightedString(result)
+      } catch {
+        setHighlightedString(cause || '')
+      }
     }
     const timer = setTimeout(highlight, 0)
 
