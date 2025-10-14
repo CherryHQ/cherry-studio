@@ -1,7 +1,7 @@
 import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { ApiModel, Model, Provider } from '@types'
+import { ApiModel, EndpointType, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
@@ -114,6 +114,7 @@ export async function validateModelId(model: string): Promise<{
   error?: ModelValidationError
   provider?: Provider
   modelId?: string
+  modelEndpointType?: EndpointType
 }> {
   try {
     if (!model || typeof model !== 'string') {
@@ -166,7 +167,8 @@ export async function validateModelId(model: string): Promise<{
     }
 
     // Check if model exists in provider
-    const modelExists = provider.models?.some((m) => m.id === modelId)
+    const modelInProvider = provider.models?.find((m) => m.id === modelId)
+    const modelExists = !!modelInProvider
     if (!modelExists) {
       const availableModels = provider.models?.map((m) => m.id).join(', ') || 'none'
       return {
@@ -179,10 +181,13 @@ export async function validateModelId(model: string): Promise<{
       }
     }
 
+    const modelEndpointType = modelInProvider?.endpoint_type
+
     return {
       valid: true,
       provider,
-      modelId
+      modelId,
+      modelEndpointType
     }
   } catch (error: any) {
     logger.error('Error validating model ID', { error, model })

@@ -8,6 +8,7 @@ import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
+import { isEmpty } from 'lodash'
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
@@ -60,11 +61,20 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
       return aiStream
     }
-    if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
-    ) {
+
+    const validateModelInfo: (m: typeof modelInfo) => boolean = (m) => {
+      const { provider, modelEndpointType } = m
+      if (!provider) return false
+      if (isEmpty(provider.apiKey?.trim())) return false
+
+      const isAnthropicType = provider.type === 'anthropic'
+      const isAnthropicEndpoint = modelEndpointType === 'anthropic'
+      const hasValidApiHost = !isEmpty(provider.anthropicApiHost?.trim())
+
+      return !(!isAnthropicType && !isAnthropicEndpoint && !hasValidApiHost)
+    }
+
+    if (!modelInfo.provider || !validateModelInfo(modelInfo)) {
       logger.error('Anthropic provider configuration is missing', {
         modelInfo
       })
