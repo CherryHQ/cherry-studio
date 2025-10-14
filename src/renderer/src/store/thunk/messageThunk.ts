@@ -11,7 +11,7 @@ import { transformMessagesAndFetch } from '@renderer/services/OrchestrateService
 import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
-import { updateTopicUpdatedAt } from '@renderer/store/assistants'
+import { updateTopic, updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
 import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
@@ -1039,6 +1039,22 @@ export const clearTopicMessagesThunk =
       dispatch(newMessagesActions.clearTopicMessages(topicId))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
       await clearMessagesFromDBV2(topicId)
+
+      const assistants = state.assistants.assistants
+      for (const assistant of assistants) {
+        const topic = assistant.topics.find((t) => t.id === topicId)
+        if (topic) {
+          if (assistant.topics.length === 1) {
+            const updatedTopic = {
+              ...topic,
+              name: t('chat.default.topic.name'),
+              isNameManuallyEdited: false
+            }
+            dispatch(updateTopic({ assistantId: assistant.id, topic: updatedTopic }))
+          }
+          break
+        }
+      }
     } catch (error) {
       logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error as Error)
     }
