@@ -164,6 +164,61 @@ describe('WebviewSearch', () => {
     })
   })
 
+  it('skips shortcut wiring when getWebContentsId throws', async () => {
+    const { webview } = createWebviewMock()
+    const error = new Error('not ready')
+    ;(webview as any).getWebContentsId = vi.fn(() => {
+      throw error
+    })
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+
+    const getWebContentsIdMock = vi.fn(() => {
+      throw error
+    })
+    ;(webview as any).getWebContentsId = getWebContentsIdMock
+    const { rerender } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+
+    await waitFor(() => {
+      expect(getWebContentsIdMock).toHaveBeenCalled()
+    })
+    expect(onFindShortcutMock).not.toHaveBeenCalled()
+
+    ;(webview as any).getWebContentsId = vi.fn(() => 1)
+
+    rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} appId="app-1" />)
+    rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+
+    await waitFor(() => {
+      expect(onFindShortcutMock).toHaveBeenCalled()
+    })
+  })
+
+  it('does not call stopFindInPage when webview is not ready', async () => {
+    const { stopFindInPageMock, webview } = createWebviewMock()
+    const error = new Error('loading')
+    const getWebContentsIdMock = vi.fn(() => {
+      throw error
+    })
+    ;(webview as any).getWebContentsId = getWebContentsIdMock
+    const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
+
+    const { rerender, unmount } = render(<WebviewSearch webviewRef={webviewRef} isWebviewReady appId="app-1" />)
+
+    await waitFor(() => {
+      expect(getWebContentsIdMock).toHaveBeenCalled()
+    })
+
+    stopFindInPageMock.mockImplementation(() => {
+      throw new Error('should not be called')
+    })
+
+    rerender(<WebviewSearch webviewRef={webviewRef} isWebviewReady={false} appId="app-1" />)
+    expect(stopFindInPageMock).not.toHaveBeenCalled()
+
+    unmount()
+    expect(stopFindInPageMock).not.toHaveBeenCalled()
+  })
+
   it('closes the search overlay when escape is forwarded from the webview', async () => {
     const { webview } = createWebviewMock()
     const webviewRef = { current: webview } as React.RefObject<WebviewTag | null>
