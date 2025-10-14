@@ -184,11 +184,6 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     const onFindShortcut = window.api?.webview?.onFindShortcut
     if (!onFindShortcut) return
 
-    if (activeWebview.isDestroyed?.()) {
-      logger.debug('WebviewSearch: webview destroyed before registering shortcuts', { appId })
-      return
-    }
-
     let webContentsId: number | undefined
     try {
       webContentsId = activeWebview.getWebContentsId?.()
