@@ -1,3 +1,5 @@
+import { isEmpty } from 'lodash'
+
 import { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
 import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
@@ -9,10 +11,7 @@ const logger = loggerService.withContext('ModelsService')
 export type ModelsFilter = ApiModelsFilter
 
 const isAnthropicProvider = (provider: { type: string; anthropicApiHost?: string }) => {
-  return (
-    provider.type === 'anthropic' ||
-    (provider.anthropicApiHost !== undefined && provider.anthropicApiHost.trim() !== '')
-  )
+  return provider.type === 'anthropic' || !isEmpty(provider.anthropicApiHost?.trim())
 }
 
 export class ModelsService {
@@ -23,7 +22,7 @@ export class ModelsService {
       let providers = await getAvailableProviders()
 
       if (filter.providerType === 'anthropic') {
-        providers = providers.filter((p) => isAnthropicProvider(p))
+        providers = providers.filter(isAnthropicProvider)
       }
 
       const models = await listAllAvailableModels(providers)
