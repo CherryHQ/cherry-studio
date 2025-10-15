@@ -293,6 +293,83 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
 
+  const appendTxtContentToInput = useCallback(
+    async (file: FileType, event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      try {
+        let content = ''
+        let targetPath = file.path
+
+        if (!targetPath && file.id && file.ext) {
+          targetPath = FileManager.getFilePath(file)
+        }
+
+        if (!targetPath) {
+          window.toast.error(t('chat.input.file_error'))
+          return
+        }
+
+        const isTextFile = await window.api.file.isTextFile(targetPath)
+        if (!isTextFile) {
+          return
+        }
+
+        if (file.id && file.ext) {
+          try {
+            content = await window.api.file.read(file.id + file.ext, true)
+          } catch (readError) {
+            if (file.path) {
+              content = await window.api.file.readExternal(file.path, true)
+            } else {
+              throw readError
+            }
+          }
+        } else if (file.path) {
+          content = await window.api.file.readExternal(file.path, true)
+        }
+
+        const normalizedContent = typeof content === 'string' ? content : String(content ?? '')
+
+        if (!normalizedContent) {
+          window.toast.error(t('chat.input.file_error'))
+          return
+        }
+
+        try {
+          await navigator.clipboard.writeText(normalizedContent)
+        } catch (clipboardError) {
+          logger.warn('Failed to copy txt attachment content to clipboard:', clipboardError as Error)
+        }
+
+        setText((prev) => {
+          if (!prev) {
+            return normalizedContent
+          }
+
+          const needsSeparator = !prev.endsWith('\n')
+          return needsSeparator ? `${prev}\n${normalizedContent}` : prev + normalizedContent
+        })
+
+        setTimeoutTimer('appendTxtAttachment', () => {
+          const textArea = textareaRef.current?.resizableTextArea?.textArea
+          if (textArea) {
+            const end = textArea.value.length
+            textArea.focus()
+            textArea.setSelectionRange(end, end)
+          }
+
+          resizeTextArea(true)
+        }, 0)
+      } catch (error) {
+        logger.warn('Failed to append txt attachment content:', error as Error)
+        window.toast.error(t('chat.input.file_error'))
+      }
+    },
+    [resizeTextArea, setTimeoutTimer, t]
+  )
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {
@@ -831,7 +908,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
-          {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
+          {files.length > 0 && (
+            <AttachmentPreview
+              files={files}
+              setFiles={setFiles}
+              onAttachmentContextMenu={appendTxtContentToInput}
+            />
+          )}
           {selectedKnowledgeBases.length > 0 && (
             <KnowledgeBaseInput
               selectedKnowledgeBases={selectedKnowledgeBases}

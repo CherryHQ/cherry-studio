@@ -19,12 +19,13 @@ import { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useState } from 'react'
+import { FC, MouseEvent, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
   files: FileMetadata[]
   setFiles: (files: FileMetadata[]) => void
+  onAttachmentContextMenu?: (file: FileMetadata, event: MouseEvent<HTMLDivElement>) => void
 }
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
@@ -133,7 +134,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   )
 }
 
-const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
+const AttachmentPreview: FC<Props> = ({ files, setFiles, onAttachmentContextMenu }) => {
   if (isEmpty(files)) {
     return null
   }
@@ -146,7 +147,8 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
           icon={getFileIcon(file.ext)}
           color="#37a5aa"
           closable
-          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
+          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}
+          onContextMenu={(event) => onAttachmentContextMenu?.(file, event)}>
           <FileNameRender file={file} />
         </CustomTag>
       ))}
