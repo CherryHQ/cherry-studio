@@ -9,6 +9,8 @@ import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import { isNewApiProvider } from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
+  getAwsBedrockApiKey,
+  getAwsBedrockAuthType,
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
@@ -211,9 +213,15 @@ export function providerToAiSdkConfig(
 
   // bedrock
   if (aiSdkProviderId === 'bedrock') {
+    const authType = getAwsBedrockAuthType()
     extraOptions.region = getAwsBedrockRegion()
-    extraOptions.accessKeyId = getAwsBedrockAccessKeyId()
-    extraOptions.secretAccessKey = getAwsBedrockSecretAccessKey()
+
+    if (authType === 'apiKey') {
+      extraOptions.apiKey = getAwsBedrockApiKey()
+    } else {
+      extraOptions.accessKeyId = getAwsBedrockAccessKeyId()
+      extraOptions.secretAccessKey = getAwsBedrockSecretAccessKey()
+    }
   }
   // google-vertex
   if (aiSdkProviderId === 'google-vertex' || aiSdkProviderId === 'google-vertex-anthropic') {
