@@ -11,6 +11,8 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { findTokenLimit, isReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
+  getAwsBedrockApiKey,
+  getAwsBedrockAuthType,
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
@@ -81,31 +83,51 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }
 
     const region = getAwsBedrockRegion()
-    const accessKeyId = getAwsBedrockAccessKeyId()
-    const secretAccessKey = getAwsBedrockSecretAccessKey()
+    const authType = getAwsBedrockAuthType()
 
     if (!region) {
-      throw new Error('AWS region is required. Please configure AWS-Region in extra headers.')
+      throw new Error('AWS region is required. Please configure AWS region in settings.')
     }
 
-    if (!accessKeyId || !secretAccessKey) {
-      throw new Error('AWS credentials are required. Please configure AWS-Access-Key-ID and AWS-Secret-Access-Key.')
+    // Build auth configuration based on auth type
+    let auth: any
+
+    if (authType === 'iam') {
+      // IAM credentials authentication
+      const accessKeyId = getAwsBedrockAccessKeyId()
+      const secretAccessKey = getAwsBedrockSecretAccessKey()
+
+      if (!accessKeyId || !secretAccessKey) {
+        throw new Error('AWS credentials are required. Please configure Access Key ID and Secret Access Key.')
+      }
+
+      auth = {
+        credentials: {
+          accessKeyId,
+          secretAccessKey
+        }
+      }
+    } else {
+      const awsBedrockApiKey = getAwsBedrockApiKey()
+
+      if (!awsBedrockApiKey) {
+        throw new Error('AWS Bedrock API Key is required. Please configure API Key in settings.')
+      }
+
+      auth = {
+        token: { token: awsBedrockApiKey },
+        authSchemePreference: ['httpBearerAuth']
+      }
     }
 
     const client = new BedrockRuntimeClient({
       region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey
-      }
+      ...auth
     })
 
     const bedrockClient = new BedrockClient({
       region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey
-      }
+      ...auth
     })
 
     this.sdkInstance = { client, bedrockClient, region }
