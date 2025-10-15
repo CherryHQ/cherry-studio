@@ -1,4 +1,3 @@
-import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
 import { AgentEntity, Assistant } from '@renderer/types'
@@ -9,15 +8,14 @@ export type UnifiedItem = { type: 'agent'; data: AgentEntity } | { type: 'assist
 interface UseUnifiedItemsOptions {
   agents: AgentEntity[]
   assistants: Assistant[]
+  apiServerEnabled: boolean
   agentsLoading: boolean
   agentsError: Error | null
   updateAssistants: (assistants: Assistant[]) => void
 }
 
 export const useUnifiedItems = (options: UseUnifiedItemsOptions) => {
-  const { agents, assistants, agentsLoading, agentsError, updateAssistants } = options
-  const { apiServerConfig } = useApiServer()
-  const apiServerEnabled = apiServerConfig.enabled
+  const { agents, assistants, apiServerEnabled, agentsLoading, agentsError, updateAssistants } = options
   const dispatch = useAppDispatch()
   const unifiedListOrder = useAppSelector((state) => state.assistants.unifiedListOrder || [])
 

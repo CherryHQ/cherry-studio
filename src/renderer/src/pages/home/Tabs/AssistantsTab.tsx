@@ -37,6 +37,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
   const { apiServerConfig, apiServerRunning } = useApiServer()
+  const apiServerEnabled = apiServerConfig.enabled
   const { iknow, chat } = useRuntime()
   const dispatch = useAppDispatch()
 
@@ -56,6 +57,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { unifiedItems, handleUnifiedListReorder } = useUnifiedItems({
     agents,
     assistants,
+    apiServerEnabled,
     agentsLoading,
     agentsError,
     updateAssistants
@@ -72,6 +74,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     unifiedItems,
     assistants,
     agents,
+    apiServerEnabled,
     agentsLoading,
     agentsError,
     updateAssistants
