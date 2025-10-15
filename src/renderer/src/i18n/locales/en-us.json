@@ -243,7 +243,6 @@
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
       "notEnabled": "The API Server is not enabled.",
-      "notRunning": "The API Server is not running.",
       "operationFailed": "API Server operation failed: ",
       "restartError": "Failed to restart API Server: ",
       "restartFailed": "API Server restart failed: ",

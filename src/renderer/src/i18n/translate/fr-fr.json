@@ -30,6 +30,11 @@
         "failed": "Échec de la liste des agents."
       }
     },
+    "server": {
+      "error": {
+        "not_running": "Le serveur API est activé mais ne fonctionne pas correctement."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Ajouter un répertoire",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "Clé API copiée dans le presse-papiers",
       "apiKeyRegenerated": "Clé API régénérée",
+      "notEnabled": "Le serveur API n'est pas activé.",
       "operationFailed": "Opération du Serveur API échouée : ",
       "restartError": "Échec du redémarrage du Serveur API : ",
       "restartFailed": "Redémarrage du Serveur API échoué : ",
