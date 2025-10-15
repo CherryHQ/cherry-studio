@@ -1,13 +1,13 @@
 import { IpcChannel } from '@shared/IpcChannel'
-import { ipcMain } from 'electron'
-
 import {
   ApiServerConfig,
   GetApiServerStatusResult,
   RestartApiServerStatusResult,
   StartApiServerStatusResult,
   StopApiServerStatusResult
-} from '../../renderer/src/types/apiServer'
+} from '@types'
+import { ipcMain } from 'electron'
+
 import { apiServer } from '../apiServer'
 import { config } from '../apiServer/config'
 import { loggerService } from './LoggerService'

@@ -12,6 +12,7 @@ import {
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
+  GetApiServerStatusResult,
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
@@ -22,8 +23,11 @@ import {
   OcrProvider,
   OcrResult,
   Provider,
+  RestartApiServerStatusResult,
   S3Config,
   Shortcut,
+  StartApiServerStatusResult,
+  StopApiServerStatusResult,
   SupportedOcrFile,
   ThemeMode,
   WebDavConfig
@@ -31,12 +35,6 @@ import {
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { CreateDirectoryOptions } from 'webdav'
 
-import {
-  GetApiServerStatusResult,
-  RestartApiServerStatusResult,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult
-} from '../renderer/src/types/apiServer'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
