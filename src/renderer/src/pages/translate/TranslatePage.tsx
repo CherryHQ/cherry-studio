@@ -134,10 +134,14 @@ const TranslatePage: FC = () => {
   )
 
   // 控制复制行为
+  const copy = useCallback(async (text: string) => {
+    await navigator.clipboard.writeText(text)
+    setCopied(true)
+  }, [])
+
   const onCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(translatedContent)
-      setCopied(true)
+      await copy(translatedContent)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       window.toast.error(t('common.copy_failed'))
@@ -183,7 +187,7 @@ const TranslatePage: FC = () => {
           setTimeoutTimer(
             'auto-copy',
             async () => {
-              await onCopy()
+              await copy(translated)
             },
             100
           )
