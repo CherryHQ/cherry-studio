@@ -115,15 +115,21 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           onClose={() => {
             dispatch(addIknowAction(ALERT_KEY))
           }}
+          className="mb-2"
         />
       )}
 
       {agentsLoading && <Spinner />}
       {apiServerConfig.enabled && !apiServerRunning && (
-        <Alert color="danger" title={t('agent.server.error.not_running')} isClosable />
+        <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
       )}
       {apiServerConfig.enabled && apiServerRunning && agentsError && (
-        <Alert color="danger" title={t('agent.list.error.failed')} description={getErrorMessage(agentsError)} />
+        <Alert
+          color="danger"
+          title={t('agent.list.error.failed')}
+          description={getErrorMessage(agentsError)}
+          className="mb-2"
+        />
       )}
 
       {assistantsTabSortType === 'tags' ? (
