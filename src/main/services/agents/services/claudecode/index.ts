@@ -2,7 +2,14 @@
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
-import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import {
+  CanUseTool,
+  McpHttpServerConfig,
+  Options,
+  PermissionUpdate,
+  query,
+  SDKMessage
+} from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
@@ -12,6 +19,7 @@ import { isEmpty } from 'lodash'
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
 const require_ = createRequire(import.meta.url)
@@ -109,6 +117,14 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const errorChunks: string[] = []
 
+    const canUseTool = async (
+      toolName: string,
+      input: Record<string, unknown>,
+      options: { signal: AbortSignal; suggestions?: PermissionUpdate[] }
+    ) => {
+      return promptForToolApproval(toolName, input)
+    }
+
     // Build SDK options from parameters
     const options: Options = {
       abortController,
@@ -131,7 +147,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
-      allowedTools: session.allowed_tools
+      allowedTools: session.allowed_tools,
+      canUseTool: canUseTool as CanUseTool
     }
 
     if (session.accessible_paths.length > 1) {
