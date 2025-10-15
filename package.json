@@ -92,6 +92,7 @@
     "selection-hook": "^1.0.12",
     "sharp": "^0.34.3",
     "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "tesseract.js": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
     "turndown": "7.2.0"
   },
@@ -336,7 +337,6 @@
     "string-width": "^7.2.0",
     "striptags": "^3.2.0",
     "styled-components": "^6.1.11",
-    "swagger-ui-express": "^5.0.1",
     "swr": "^2.3.6",
     "tailwindcss": "^4.1.13",
     "tar": "^7.4.3",
