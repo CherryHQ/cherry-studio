@@ -8,6 +8,9 @@ const logger = loggerService.withContext('useApiServer')
 
 export const useApiServer = () => {
   const { t } = useTranslation()
+  // FIXME: We currently store two copies of the config data in both the renderer and the main processes,
+  // which carries the risk of data inconsistency. This should be modified so that the main process stores
+  // the data, and the renderer retrieves it.
   const apiServerConfig = useAppSelector((state) => state.settings.apiServer)
   const dispatch = useAppDispatch()
 
