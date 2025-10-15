@@ -31,6 +31,12 @@ import {
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { CreateDirectoryOptions } from 'webdav'
 
+import {
+  GetApiServerStatusResult,
+  RestartApiServerStatusResult,
+  StartApiServerStatusResult,
+  StopApiServerStatusResult
+} from '../renderer/src/types/apiServer'
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
@@ -496,6 +502,12 @@ const api = {
         ipcRenderer.removeListener(channel, listener)
       }
     }
+  },
+  apiServer: {
+    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
+    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
+    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
+    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
   }
 }
 
