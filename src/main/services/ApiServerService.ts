@@ -1,7 +1,13 @@
 import { IpcChannel } from '@shared/IpcChannel'
-import { ApiServerConfig } from '@types'
 import { ipcMain } from 'electron'
 
+import {
+  ApiServerConfig,
+  GetApiServerStatusResult,
+  RestartApiServerStatusResult,
+  StartApiServerStatusResult,
+  StopApiServerStatusResult
+} from '../../renderer/src/types/apiServer'
 import { apiServer } from '../apiServer'
 import { config } from '../apiServer/config'
 import { loggerService } from './LoggerService'
@@ -52,7 +58,7 @@ export class ApiServerService {
 
   registerIpcHandlers(): void {
     // API Server
-    ipcMain.handle(IpcChannel.ApiServer_Start, async () => {
+    ipcMain.handle(IpcChannel.ApiServer_Start, async (): Promise<StartApiServerStatusResult> => {
       try {
         await this.start()
         return { success: true }
@@ -61,7 +67,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Stop, async () => {
+    ipcMain.handle(IpcChannel.ApiServer_Stop, async (): Promise<StopApiServerStatusResult> => {
       try {
         await this.stop()
         return { success: true }
@@ -70,7 +76,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_Restart, async () => {
+    ipcMain.handle(IpcChannel.ApiServer_Restart, async (): Promise<RestartApiServerStatusResult> => {
       try {
         await this.restart()
         return { success: true }
@@ -79,7 +85,7 @@ export class ApiServerService {
       }
     })
 
-    ipcMain.handle(IpcChannel.ApiServer_GetStatus, async () => {
+    ipcMain.handle(IpcChannel.ApiServer_GetStatus, async (): Promise<GetApiServerStatusResult> => {
       try {
         const config = await this.getCurrentConfig()
         return {

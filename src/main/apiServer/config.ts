@@ -1,6 +1,6 @@
-import { ApiServerConfig } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
+import { ApiServerConfig } from '../../renderer/src/types/apiServer'
 import { loggerService } from '../services/LoggerService'
 import { reduxService } from '../services/ReduxService'
 
