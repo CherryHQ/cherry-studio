@@ -30,7 +30,7 @@ export const useAgents = () => {
       throw new Error(t('apiServer.messages.notEnabled'))
     }
     if (!apiServerRunning) {
-      throw new Error(t('apiServer.messages.notRunning'))
+      throw new Error(t('agent.server.error.not_running'))
     }
     const result = await client.listAgents()
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
