@@ -1,3 +1,4 @@
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAppDispatch } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
 import { AgentEntity, Assistant } from '@renderer/types'
@@ -10,14 +11,15 @@ interface UseUnifiedGroupingOptions {
   unifiedItems: UnifiedItem[]
   assistants: Assistant[]
   agents: AgentEntity[]
-  apiServerEnabled: boolean
   agentsLoading: boolean
   agentsError: Error | null
   updateAssistants: (assistants: Assistant[]) => void
 }
 
 export const useUnifiedGrouping = (options: UseUnifiedGroupingOptions) => {
-  const { unifiedItems, assistants, agents, apiServerEnabled, agentsLoading, agentsError, updateAssistants } = options
+  const { unifiedItems, assistants, agents, agentsLoading, agentsError, updateAssistants } = options
+  const { apiServerConfig } = useApiServer()
+  const apiServerEnabled = apiServerConfig.enabled
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
 

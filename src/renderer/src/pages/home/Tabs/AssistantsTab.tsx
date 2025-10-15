@@ -1,15 +1,16 @@
 import { Alert, Spinner } from '@heroui/react'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { useAppDispatch } from '@renderer/store'
 import { addIknowAction } from '@renderer/store/runtime'
 import { Assistant, AssistantsSortType } from '@renderer/types'
+import { getErrorMessage } from '@renderer/utils'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -35,7 +36,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
-  const { apiServer } = useSettings()
+  const { apiServerConfig, apiServerRunning } = useApiServer()
   const { iknow, chat } = useRuntime()
   const dispatch = useAppDispatch()
 
@@ -55,7 +56,6 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { unifiedItems, handleUnifiedListReorder } = useUnifiedItems({
     agents,
     assistants,
-    apiServerEnabled: apiServer.enabled,
     agentsLoading,
     agentsError,
     updateAssistants
@@ -72,17 +72,16 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     unifiedItems,
     assistants,
     agents,
-    apiServerEnabled: apiServer.enabled,
     agentsLoading,
     agentsError,
     updateAssistants
   })
 
   useEffect(() => {
-    if (!agentsLoading && agents.length > 0 && !activeAgentId && apiServer.enabled) {
+    if (!agentsLoading && agents.length > 0 && !activeAgentId && apiServerConfig.enabled) {
       setActiveAgentId(agents[0].id)
     }
-  }, [agentsLoading, agents, activeAgentId, setActiveAgentId, apiServer.enabled])
+  }, [agentsLoading, agents, activeAgentId, setActiveAgentId, apiServerConfig.enabled])
 
   const onDeleteAssistant = useCallback(
     (assistant: Assistant) => {
@@ -105,7 +104,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      {!apiServer.enabled && !iknow[ALERT_KEY] && (
+      {!apiServerConfig.enabled && !iknow[ALERT_KEY] && (
         <Alert
           color="warning"
           title={t('agent.warning.enable_server')}
@@ -117,7 +116,12 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
       )}
 
       {agentsLoading && <Spinner />}
-      {apiServer.enabled && agentsError && <Alert color="danger" title={t('agent.list.error.failed')} />}
+      {apiServerConfig.enabled && !apiServerRunning && (
+        <Alert color="danger" title={t('agent.server.error.not_running')} isClosable />
+      )}
+      {apiServerConfig.enabled && apiServerRunning && agentsError && (
+        <Alert color="danger" title={t('agent.list.error.failed')} description={getErrorMessage(agentsError)} />
+      )}
 
       {assistantsTabSortType === 'tags' ? (
         <UnifiedTagGroups

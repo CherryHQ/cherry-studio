@@ -11,8 +11,9 @@ export const useApiServer = () => {
   const apiServerConfig = useAppSelector((state) => state.settings.apiServer)
   const dispatch = useAppDispatch()
 
-  const [apiServerRunning, setApiServerRunning] = useState(false)
-  const [apiServerLoading, setApiServerLoading] = useState(false)
+  // Optimistic initial state.
+  const [apiServerRunning, setApiServerRunning] = useState(apiServerConfig.enabled)
+  const [apiServerLoading, setApiServerLoading] = useState(true)
 
   const setApiServerEnabled = useCallback(
     (enabled: boolean) => {
@@ -23,11 +24,14 @@ export const useApiServer = () => {
 
   // API Server functions
   const checkApiServerStatus = useCallback(async () => {
+    setApiServerLoading(true)
     try {
       const status = await window.api.apiServer.getStatus()
       setApiServerRunning(status.running)
     } catch (error: any) {
       logger.error('Failed to check API server status:', error)
+    } finally {
+      setApiServerLoading(false)
     }
   }, [])
 
