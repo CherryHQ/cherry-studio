@@ -288,13 +288,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         label: t('chat.topics.clear.title'),
         key: 'clear-messages',
         icon: <BrushCleaning size={14} />,
-        async onClick() {
-          window.modal.confirm({
-            title: t('chat.input.clear.content'),
-            centered: true,
-            onOk: () => onClearMessages(topic)
-          })
-        }
+        onClick: () => onClearMessages(topic)
       },
       {
         label: t('settings.topic.position.label'),
