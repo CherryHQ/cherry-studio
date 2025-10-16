@@ -1,5 +1,5 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -13,8 +13,8 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AgentSettingsTab from './AgentSettingsTab'
 import Assistants from './AssistantsTab'
+import SessionSettingsTab from './SessionSettingsTab'
 import Settings from './SettingsTab'
 import Topics from './TopicsTab'
 
@@ -47,7 +47,7 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeTopicOrSession } = chat
-  const agent = useActiveAgent()
+  const session = useActiveSession()
   const { updateAgent } = useUpdateAgent()
 
   const isSessionView = activeTopicOrSession === 'session'
@@ -154,7 +154,7 @@ const HomeTabs: FC<Props> = ({
           />
         )}
         {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
-        {tab === 'settings' && isSessionView && <AgentSettingsTab agent={agent} update={updateAgent} />}
+        {tab === 'settings' && isSessionView && <SessionSettingsTab session={session} update={updateAgent} />}
       </TabContent>
     </Container>
   )
