@@ -24,7 +24,7 @@ const AssistantSettings: FC = () => {
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
-  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? true)
+  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? false)
   const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
@@ -71,7 +71,7 @@ const AssistantSettings: FC = () => {
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setTopP(1)
-    setEnableTopP(true)
+    setEnableTopP(false)
     updateDefaultAssistant({
       ...defaultAssistant,
       settings: {
@@ -83,7 +83,7 @@ const AssistantSettings: FC = () => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         topP: 1,
-        enableTopP: true
+        enableTopP: false
       }
     })
   }
