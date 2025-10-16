@@ -156,7 +156,7 @@ const HomeTabs: FC<Props> = ({
         )}
         {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
         {tab === 'settings' && isSessionView && !sessionError && (
-          <Skeleton isLoaded={!isSessionLoading}>
+          <Skeleton isLoaded={!isSessionLoading} className="h-full">
             <SessionSettingsTab session={session} update={updateSession} />
           </Skeleton>
         )}
