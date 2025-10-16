@@ -5,12 +5,13 @@
 ## 迁移范围统计
 
 - **涉及文件数**：7 个文件（同一文件中可能引用多个 antd 组件）。
-- **待替换 antd 组件**（按字母排序，共 13 项）：`Divider`、`Dropdown`、`Empty`、`Input`、`InputRef`、`List`、`Menu`、`MenuProps`、`Modal`、`ModalProps`、`Progress`、`Spin`、`Tabs`、`Typography`。
+- **待替换 antd 组件**（按字母排序，共 10 项）：`Divider`、`Empty`、`Input`、`InputRef`、`List`、`Menu`、`Modal`、`ModalProps`、`Progress`、`Spin`、`Typography`。
+- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅
 
 | 文件 | antd 依赖 | 备注 |
 | --- | --- | --- |
-| `KnowledgePage.tsx` | `Dropdown`、`Empty`、`MenuProps` | 侧边栏右键菜单、空状态 |
-| `KnowledgeContent.tsx` | `Empty`、`Tabs` | 列表空视图、Tab 容器 |
+| `KnowledgePage.tsx` | `Empty` | ~~侧边栏右键菜单（已迁移至 shadcn DropdownMenu）~~、空状态 |
+| `KnowledgeContent.tsx` | `Empty` | 列表空视图 |
 | `components/KnowledgeSearchPopup.tsx` | `Modal`、`Divider`、`Input`、`InputRef`、`List`、`Spin` | 搜索弹窗（输入框、搜索结果列表、Loading） |
 | `components/KnowledgeSettings/KnowledgeBaseFormModal.tsx` | `Modal`、`Menu`、`ModalProps` | 知识库设置抽屉左侧菜单 |
 | `components/StatusIcon.tsx` | `Progress` | 处理状态的圆形进度 |
@@ -23,9 +24,9 @@
 
 | antd 组件 | HeroUI 替代建议 | 额外说明 |
 | --- | --- | --- |
-| `Dropdown` | `@heroui/react` 的 `Dropdown`, `DropdownTrigger`, `DropdownMenu` | 使用 `DropdownMenu` 的 `onAction` 异步处理代替 antd `MenuProps`；若需要右键触发，可封装自定义触发器。 |
+| ~~`Dropdown`~~ ✅ | `DropdownMenu`, `DropdownMenuTrigger`, `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuSeparator` (shadcn) | ✅ **已完成**：使用受控的 `open`/`onOpenChange` 状态管理；右键菜单通过 `onContextMenu` 事件实现；`MenuProps['items']` 转为组合式 `DropdownMenuItem` 组件；`danger: true` 改为 `variant="destructive"`；`type: 'divider'` 改为 `DropdownMenuSeparator`。参考：`KnowledgePage.tsx:102-135`。 |
 | `Empty` | 自研 `EmptyState` 组件或 HeroUI `Card` + 自定义文案 | HeroUI 暂无完全等价组件，可在 `@renderer/components` 中补一个通用空态。 |
-| `Tabs` | `Tabs`, `Tab`, `TabPanel` | HeroUI Tabs 使用受控 `selectedKey`；需要改造 `items` 数组为显式 `Tab` 节点。 |
+| ~~`Tabs`~~ ✅ | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` (shadcn) | ✅ **已完成**：使用 shadcn Tabs 组合式 API，`value`/`onValueChange` 替代 `activeKey`/`onChange`；将 antd `items` 数组转为 `TabsTrigger` + `TabsContent` 节点；下划线样式使用 Tailwind 类名实现。参考：`KnowledgeContent.tsx:159-177`。 |
 | `Modal`/`ModalProps` | `Modal`, `ModalContent`, `ModalBody`, `ModalHeader`, `ModalFooter` | HeroUI Modal 默认受控 `isOpen` + `onOpenChange`；`destroyOnHidden` 可用 `unmountOnExit` 替代。 |
 | `Input`/`InputRef` | `Input`, `InputProps` | `InputRef` 改为 `React.RefObject<HTMLInputElement>`；`allowClear` 可通过 `endContent` 自行实现。 |
 | `Divider` | `Divider` | HeroUI Divider 支持 `orientation` & `className`；注意尺寸需用 CSS 变量对齐。 |
@@ -53,6 +54,36 @@
 6. **测试与回归**：
    - 运行 `yarn build:check`；如涉及视觉变更，更新截图或设计说明。
    - 与设计/产品确认 HeroUI 组件表现符合预期。
+
+## 迁移进度跟踪
+
+### 已完成 (3/13)
+
+- [x] **Tabs** - `KnowledgeContent.tsx` (2025-01-16)
+  - 迁移到 shadcn Tabs 组合式 API
+  - 实现下划线样式，左对齐布局
+  - 移除 `StyledTabs`、`TabLabel`、`TabContent` styled-components
+
+- [x] **Dropdown** - `KnowledgePage.tsx` (2025-01-16)
+  - 迁移到 shadcn DropdownMenu 组合式 API
+  - 实现右键菜单触发（`onContextMenu` + 受控状态）
+  - 转换 `MenuProps['items']` 为 `DropdownMenuItem` 组件
+  - 删除 `getMenuItems` 函数，重构为独立的事件处理器
+
+- [x] **MenuProps** - 类型依赖已随 Dropdown 迁移移除
+
+### 待迁移 (10/13)
+
+- [ ] `Empty` - 2 处 (`KnowledgePage.tsx`, `KnowledgeContent.tsx`)
+- [ ] `Modal` - 2 处 (`KnowledgeSearchPopup.tsx`, `KnowledgeBaseFormModal.tsx`)
+- [ ] `Input` - 1 处 (`KnowledgeSearchPopup.tsx`)
+- [ ] `List` - 1 处 (`KnowledgeSearchPopup.tsx`)
+- [ ] `Spin` - 1 处 (`KnowledgeSearchPopup.tsx`)
+- [ ] `Divider` - 1 处 (`KnowledgeSearchPopup.tsx`)
+- [ ] `Menu` - 1 处 (`KnowledgeBaseFormModal.tsx`)
+- [ ] `Progress` - 1 处 (`StatusIcon.tsx`)
+- [ ] `Typography` - 3 处 (搜索结果相关组件)
+- [ ] `ModalProps` / `InputRef` - 类型依赖
 
 ## 注意事项
 

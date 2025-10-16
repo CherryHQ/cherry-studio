@@ -1,3 +1,10 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -8,8 +15,6 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import KnowledgeSearchPopup from '@renderer/pages/knowledge/components/KnowledgeSearchPopup'
 import type { KnowledgeBase } from '@renderer/types'
-import type { MenuProps } from 'antd'
-import { Dropdown, Empty } from 'antd'
 import { Book, Plus, Settings } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -25,6 +30,7 @@ const KnowledgePage: FC = () => {
   const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
   const [isDragging, setIsDragging] = useState(false)
+  const [contextMenuOpen, setContextMenuOpen] = useState<string | null>(null)
 
   const handleAddKnowledge = useCallback(async () => {
     const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
@@ -40,58 +46,38 @@ const KnowledgePage: FC = () => {
     }
   }, [])
 
+  const handleRenameKnowledge = useCallback(
+    async (base: KnowledgeBase) => {
+      const name = await PromptPopup.show({
+        title: t('knowledge.rename'),
+        message: '',
+        defaultValue: base.name || ''
+      })
+      if (name && base.name !== name) {
+        renameKnowledgeBase(base.id, name)
+      }
+    },
+    [renameKnowledgeBase, t]
+  )
+
+  const handleDeleteKnowledge = useCallback(
+    (base: KnowledgeBase) => {
+      window.modal.confirm({
+        title: t('knowledge.delete_confirm'),
+        centered: true,
+        onOk: () => {
+          setSelectedBase(undefined)
+          deleteKnowledgeBase(base.id)
+        }
+      })
+    },
+    [deleteKnowledgeBase, t]
+  )
+
   useEffect(() => {
     const hasSelectedBase = bases.find((base) => base.id === selectedBase?.id)
     !hasSelectedBase && setSelectedBase(bases[0])
   }, [bases, selectedBase])
-
-  const getMenuItems = useCallback(
-    (base: KnowledgeBase) => {
-      const menus: MenuProps['items'] = [
-        {
-          label: t('knowledge.rename'),
-          key: 'rename',
-          icon: <EditIcon size={14} />,
-          async onClick() {
-            const name = await PromptPopup.show({
-              title: t('knowledge.rename'),
-              message: '',
-              defaultValue: base.name || ''
-            })
-            if (name && base.name !== name) {
-              renameKnowledgeBase(base.id, name)
-            }
-          }
-        },
-        {
-          label: t('common.settings'),
-          key: 'settings',
-          icon: <Settings size={14} />,
-          onClick: () => handleEditKnowledgeBase(base)
-        },
-        { type: 'divider' },
-        {
-          label: t('common.delete'),
-          danger: true,
-          key: 'delete',
-          icon: <DeleteIcon size={14} className="lucide-custom" />,
-          onClick: () => {
-            window.modal.confirm({
-              title: t('knowledge.delete_confirm'),
-              centered: true,
-              onOk: () => {
-                setSelectedBase(undefined)
-                deleteKnowledgeBase(base.id)
-              }
-            })
-          }
-        }
-      ]
-
-      return menus
-    },
-    [deleteKnowledgeBase, handleEditKnowledgeBase, renameKnowledgeBase, t]
-  )
 
   useShortcut('search_message', () => {
     if (selectedBase) {
@@ -113,16 +99,40 @@ const KnowledgePage: FC = () => {
             onDragStart={() => setIsDragging(true)}
             onDragEnd={() => setIsDragging(false)}>
             {(base: KnowledgeBase) => (
-              <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
-                <div>
-                  <ListItem
-                    active={selectedBase?.id === base.id}
-                    icon={<Book size={16} />}
-                    title={base.name}
-                    onClick={() => setSelectedBase(base)}
-                  />
-                </div>
-              </Dropdown>
+              <DropdownMenu
+                key={base.id}
+                open={contextMenuOpen === base.id}
+                onOpenChange={(open) => setContextMenuOpen(open ? base.id : null)}>
+                <DropdownMenuTrigger asChild>
+                  <div
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      setContextMenuOpen(base.id)
+                    }}>
+                    <ListItem
+                      active={selectedBase?.id === base.id}
+                      icon={<Book size={16} />}
+                      title={base.name}
+                      onClick={() => setSelectedBase(base)}
+                    />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={() => handleRenameKnowledge(base)}>
+                    <EditIcon size={14} />
+                    {t('knowledge.rename')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleEditKnowledgeBase(base)}>
+                    <Settings size={14} />
+                    {t('common.settings')}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => handleDeleteKnowledge(base)}>
+                    <DeleteIcon size={14} />
+                    {t('common.delete')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </DraggableList>
           {!isDragging && (
@@ -137,7 +147,7 @@ const KnowledgePage: FC = () => {
         </KnowledgeSideNav>
         {bases.length === 0 ? (
           <MainContent>
-            <Empty description={t('knowledge.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <div className="flex-1 text-center text-gray-400">{t('knowledge.empty')}</div>
           </MainContent>
         ) : selectedBase ? (
           <KnowledgeContent selectedBase={selectedBase} />
