@@ -30,10 +30,8 @@
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
       "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
       "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
-      "@/components/*": ["./packages/ui/src/components/*"],
-      "@/utils/*": ["./packages/ui/src/utils/*"],
-      "@/types": ["./packages/ui/src/types/index.ts"],
-      "@/hooks/*": ["./packages/ui/src/hooks/*"]
+      "@cherrystudio/ui/*": ["./packages/ui/src/*"]
+
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

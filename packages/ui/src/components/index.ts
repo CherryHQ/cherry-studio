@@ -90,3 +90,10 @@ export { Sortable } from './interactive/Sortable'
 
 // Composite Components (复合组件)
 // 暂无复合组件
+
+// UI Components (shadcn)
+export * from './ui/button'
+export * from './ui/command'
+export * from './ui/dialog'
+export * from './ui/popover'
+export * from './ui/shadcn-io/dropzone'

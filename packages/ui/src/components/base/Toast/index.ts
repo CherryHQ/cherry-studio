@@ -1,6 +1,5 @@
+import type { RequireSome } from '@cherrystudio/ui/types'
 import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
-
-import type { RequireSome } from '@/types'
 
 type AddToastProps = Parameters<typeof addToast>[0]
 type ToastPropsColored = Omit<AddToastProps, 'color'>
