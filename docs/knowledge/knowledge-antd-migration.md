@@ -10,9 +10,9 @@
 - **完成节点**：`StatusIcon.tsx` 中的进度展示已切换至 HeroUI/自研组件，至此知识库页面全部 UI 组件遵循 HeroUI/shadcn 体系。
 
 ### styled-components 迁移至 Tailwind CSS
-- **进度**：1/6 文件已完成（约 16.7%）
-- **已完成**：`KnowledgePage.tsx`（6 个组件）
-- **待迁移**：5 个文件，约 20+ 个 styled 组件
+- **进度**：2/6 文件已完成（约 33.3%）
+- **已完成**：`KnowledgePage.tsx`（6 个组件）、`KnowledgeContent.tsx`（10 个组件）
+- **待迁移**：4 个文件，约 10+ 个 styled 组件
 
 ## 历史记录
 
@@ -20,6 +20,7 @@
 - 2025-01-13：`KnowledgeSearchPopup`、`KnowledgeBaseFormModal` 等弹窗、列表类组件迁移到 HeroUI。
 - 2025-01-16：`StatusIcon` 最后一个 antd 组件（Progress）完成替换，知识库页面去除 antd。
 - 2025-01-16：`KnowledgePage.tsx` 完成 styled-components 到 Tailwind CSS 迁移，移除 6 个 styled 组件。
+- 2025-01-16：`KnowledgeContent.tsx` 完成 styled-components 到 Tailwind CSS 迁移，移除 10 个 styled 组件，替换 antd 图标为 lucide-react。
 
 > 如需复核历史细节，可查阅同分支的提交描述或执行 `git log -- docs/knowledge/knowledge-antd-migration.md`。
 
@@ -30,12 +31,12 @@
 ### 已完成迁移
 
 - ✅ `KnowledgePage.tsx` - 已将 `Container`, `ContentContainer`, `KnowledgeSideNav`, `MainContent`, `AddKnowledgeItem`, `AddKnowledgeName` 等 6 个 styled 组件迁移至 Tailwind CSS
+- ✅ `KnowledgeContent.tsx` - 已将 `MainContainer`, `HeaderContainer`, `ModelInfo`, `ItemContainer`, `ItemHeader`, `StatusIconWrapper`, `RefreshIcon`, `ResponsiveButton`, `FlexAlignCenter`, `ClickableSpan` 等 10 个 styled 组件迁移至 Tailwind CSS，同时替换 antd 的 `RedoOutlined` 为 lucide-react 的 `RotateCw`
 
 ### 待迁移组件列表
 
 | 文件 | styled 组件列表 | 说明 |
 | --- | --- | --- |
-| `KnowledgeContent.tsx` | `MainContainer`, `HeaderContainer`, `ModelInfo`, `ItemContainer`, `ItemHeader`, `StatusIconWrapper`, `RefreshIcon`, `ResponsiveButton`, `FlexAlignCenter`, `ClickableSpan` | 主内容区框架、头部信息、按钮响应式样式 |
 | `components/StatusIcon.tsx` | `StatusDot` | 状态圆点与动画 |
 | `components/KnowledgeSearchItem/index.tsx` | `ResultItem`, `TagContainer`, `ScoreTag`, `CopyButton`, `MetadataContainer` | 搜索结果卡片及交互样式 |
 | `components/KnowledgeSearchItem/VideoItem.tsx` | `VideoContainer`, `ErrorContainer` | 视频预览和错误提示 |

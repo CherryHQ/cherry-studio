@@ -1,4 +1,3 @@
-import { RedoOutlined } from '@ant-design/icons'
 import { Badge, Button, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -6,11 +5,10 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import type { KnowledgeBase } from '@renderer/types'
 import { t } from 'i18next'
-import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
+import { Book, Folder, Globe, Link, Notebook, RotateCw, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
@@ -124,9 +122,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const visibleKnowledgeItems = knowledgeItems.filter((item) => item.show)
 
   return (
-    <MainContainer>
-      <HeaderContainer>
-        <ModelInfo>
+    <div className="relative flex w-full flex-col">
+      <div className="flex items-center justify-between gap-2 border-[var(--color-border)] border-b-[0.5px] px-4">
+        <div className="flex h-[45px] flex-row items-center gap-2 text-[var(--color-text-3)]">
           <Button
             variant="light"
             startContent={<Settings size={18} color="var(--color-icon)" />}
@@ -134,7 +132,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             onPress={() => EditKnowledgeBasePopup.show({ base })}
             size="sm"
           />
-          <div className="model-row">
+          <div className="flex items-start gap-2.5">
             <Badge variant="outline" className="rounded-md text-xs">
               {base.model.name}
             </Badge>
@@ -148,14 +146,14 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
             )}
           </div>
-        </ModelInfo>
+        </div>
         <RowFlex className="items-center gap-2">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
           </NavbarIcon>
         </RowFlex>
-      </HeaderContainer>
+      </div>
       <Tabs value={activeKey} onValueChange={setActiveKey} className="flex-1">
         <TabsList className="ml-4 h-auto w-auto justify-start bg-transparent p-0">
           {visibleKnowledgeItems.map((item) => (
@@ -177,7 +175,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </TabsContent>
         ))}
       </Tabs>
-    </MainContainer>
+    </div>
   )
 }
 
@@ -188,116 +186,75 @@ export const KnowledgeEmptyView = () => (
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
     <RowFlex className="items-center gap-2.5">
-      <label style={{ fontWeight: 600 }}>{label}</label>
+      <label className="font-semibold">{label}</label>
     </RowFlex>
   )
 }
 
-const MainContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  position: relative;
-`
+export const ItemContainer: FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => {
+  return <div className={`flex h-full flex-1 flex-col gap-2.5 ${className}`}>{children}</div>
+}
 
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
+export const ItemHeader: FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => {
+  return (
+    <div
+      className={`item-header absolute right-4 z-[1000] flex flex-row items-center justify-between ${className}`}
+      style={{
+        top: 'calc(var(--navbar-height) + 12px)'
+      }}>
+      {children}
+      <style>{`
+        [navbar-position='top'] .item-header {
+          top: calc(var(--navbar-height) + 10px);
+        }
+      `}</style>
+    </div>
+  )
+}
 
-const ModelInfo = styled.div`
-  display: flex;
-  color: var(--color-text-3);
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 45px;
+export const StatusIconWrapper: FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className = ''
+}) => {
+  return <div className={`flex h-9 w-9 items-center justify-center ${className}`}>{children}</div>
+}
 
-  .model-header {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
+export const RefreshIcon: FC<{ className?: string; onClick?: () => void }> = ({ className = '', onClick }) => {
+  return <RotateCw size={15} className={`text-[var(--color-text-2)] ${className}`} onClick={onClick} />
+}
 
-  .model-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-  }
+export const ClickableSpan: FC<{ children: React.ReactNode; onClick?: () => void; className?: string }> = ({
+  children,
+  onClick,
+  className = ''
+}) => {
+  return (
+    <span className={`w-0 flex-1 cursor-pointer ${className}`} onClick={onClick}>
+      {children}
+    </span>
+  )
+}
 
-  .label-column {
-    flex-shrink: 0;
-  }
+export const FlexAlignCenter: FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className = ''
+}) => {
+  return <div className={`flex items-center justify-center ${className}`}>{children}</div>
+}
 
-  .tag-column {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-  }
-
-  label {
-    color: var(--color-text-2);
-  }
-`
-
-export const ItemContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: 100%;
-  flex: 1;
-`
-
-export const ItemHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  position: absolute;
-  right: 16px;
-  z-index: 1000;
-  top: calc(var(--navbar-height) + 12px);
-  [navbar-position='top'] & {
-    top: calc(var(--navbar-height) + 10px);
-  }
-`
-
-export const StatusIconWrapper = styled.div`
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-export const RefreshIcon = styled(RedoOutlined)`
-  font-size: 15px !important;
-  color: var(--color-text-2);
-`
-
-export const ClickableSpan = styled.span`
-  cursor: pointer;
-  flex: 1;
-  width: 0;
-`
-
-export const FlexAlignCenter = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-export const ResponsiveButton = styled(Button)`
-  @media (max-width: 1080px) {
-    [data-slot="icon"] + [data-slot="label"] {
-      display: none;
-    }
-  }
-`
+export const ResponsiveButton: FC<React.ComponentProps<typeof Button>> = (props) => {
+  return (
+    <>
+      <Button {...props} className={`responsive-button ${props.className || ''}`} />
+      <style>{`
+        @media (max-width: 1080px) {
+          .responsive-button [data-slot="icon"] + [data-slot="label"] {
+            display: none;
+          }
+        }
+      `}</style>
+    </>
+  )
+}
 
 export default KnowledgeContent
