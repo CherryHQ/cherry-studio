@@ -47,8 +47,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const dispatch = useAppDispatch()
   const { chat } = useRuntime()
   const { activeTopicOrSession } = chat
-  const activeAgent = useActiveAgent()
-  const activeSession = useActiveSession()
+  const { agent: activeAgent } = useActiveAgent()
+  const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)

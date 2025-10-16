@@ -47,7 +47,7 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeTopicOrSession } = chat
-  const session = useActiveSession()
+  const { session } = useActiveSession()
   const { updateAgent } = useUpdateAgent()
 
   const isSessionView = activeTopicOrSession === 'session'
