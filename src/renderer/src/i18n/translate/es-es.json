@@ -22,7 +22,8 @@
     },
     "get": {
       "error": {
-        "failed": "No se pudo obtener el agente."
+        "failed": "No se pudo obtener el agente.",
+        "null_id": "El ID del agente es nulo."
       }
     },
     "list": {
