@@ -4073,7 +4073,7 @@
       "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
         "label": "API 金鑰",
-        "tip": "多個金鑰使用逗號或空格分隔"
+        "tip": "多個金鑰使用逗號分隔"
       },
       "api_version": "API 版本",
       "aws-bedrock": {
