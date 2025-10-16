@@ -81,10 +81,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
-      if (!activeSession) return
+      if (!activeSession || !activeAgent) return
       return updateModel(activeSession.id, model.id, { showSuccessToast: false })
     },
-    [activeSession, updateModel]
+    [activeAgent, activeSession, updateModel]
   )
 
   return (
