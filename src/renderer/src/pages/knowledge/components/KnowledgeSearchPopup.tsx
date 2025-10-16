@@ -1,9 +1,8 @@
-import { Dialog, DialogContent, Input, Separator, Spinner } from '@cherrystudio/ui'
+import { Dialog, DialogContent, Input, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
-import { List } from 'antd'
 import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -87,29 +86,36 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
             }}
           />
           {searchKeyword && (
-            <ClearButton onClick={() => setSearchKeyword('')}>
+            <ClearButton
+              onClick={() => {
+                setSearchKeyword('')
+                setResults([])
+              }}>
               <X size={14} />
             </ClearButton>
           )}
         </SearchInputContainer>
-        <Separator />
+        {/* <Separator /> */}
 
-        <ResultsContainer>
-          {loading ? (
+        {loading ? (
+          <ResultsContainer>
             <LoadingContainer>
               <Spinner text={t('message.searching')} />
             </LoadingContainer>
-          ) : (
-            <List
-              dataSource={results}
-              renderItem={(item) => (
-                <List.Item>
+          </ResultsContainer>
+        ) : searchKeyword && results.length === 0 ? (
+          <EmptyState>{t('common.no_results')}</EmptyState>
+        ) : results.length > 0 ? (
+          <ResultsContainer>
+            <ResultsList>
+              {results.map((item, index) => (
+                <ResultsListItem key={index}>
                   <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
-                </List.Item>
-              )}
-            />
-          )}
-        </ResultsContainer>
+                </ResultsListItem>
+              ))}
+            </ResultsList>
+          </ResultsContainer>
+        ) : null}
       </DialogContent>
     </Dialog>
   )
@@ -126,6 +132,28 @@ const LoadingContainer = styled.div`
   justify-content: center;
   align-items: center;
   height: 200px;
+`
+
+const EmptyState = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  color: var(--color-text-3);
+  text-align: center;
+`
+
+const ResultsList = styled.div`
+  display: flex;
+  flex-direction: column;
+`
+
+const ResultsListItem = styled.div`
+  border-bottom: 1px solid var(--color-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
 `
 
 const SearchInputContainer = styled.div`

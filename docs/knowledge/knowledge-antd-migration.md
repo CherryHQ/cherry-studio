@@ -5,14 +5,14 @@
 ## 迁移范围统计
 
 - **涉及文件数**：7 个文件（同一文件中可能引用多个 antd 组件）。
-- **待替换 antd 组件**（按字母排序，共 5 项）：`Empty`、`List`、`Menu`、`Modal`（1 处）、`ModalProps`、`Progress`、`Typography`。
-- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅、~~`Divider`~~ ✅、~~`Spin`~~ ✅、~~`Input`~~ ✅、~~`InputRef`~~ ✅、~~`Modal`~~（1 处）✅
+- **待替换 antd 组件**（按字母排序，共 4 项）：`Empty`、`Menu`、`Modal`（1 处）、`ModalProps`、`Progress`、`Typography`。
+- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅、~~`Divider`~~ ✅、~~`Spin`~~ ✅、~~`Input`~~ ✅、~~`InputRef`~~ ✅、~~`Modal`~~（1 处）✅、~~`List`~~ ✅
 
 | 文件 | antd 依赖 | 备注 |
 | --- | --- | --- |
 | `KnowledgePage.tsx` | `Empty` | ~~侧边栏右键菜单（已迁移至 shadcn DropdownMenu）~~、空状态 |
 | `KnowledgeContent.tsx` | `Empty` | 列表空视图 |
-| `components/KnowledgeSearchPopup.tsx` | `List` | 搜索结果列表、~~弹窗（已迁移至 shadcn Dialog）~~、~~分割线（已迁移至 shadcn Separator）~~、~~Loading（已迁移至 Spinner）~~、~~搜索输入框（已迁移至 shadcn Input）~~ |
+| `components/KnowledgeSearchPopup.tsx` | - | ~~全部迁移完成~~ ✅ |
 | `components/KnowledgeSettings/KnowledgeBaseFormModal.tsx` | `Modal`、`Menu`、`ModalProps` | 知识库设置抽屉左侧菜单 |
 | `components/StatusIcon.tsx` | `Progress` | 处理状态的圆形进度 |
 | `components/KnowledgeSearchItem/components.tsx` | `Typography` | 搜索结果元信息的文字样式 |
@@ -30,9 +30,9 @@
 | ~~`Modal`~~ ✅（部分）| `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogFooter` (shadcn) | ✅ **已完成（1/2 处）**：`open` 保持不变；`onCancel`/`onOk` 合并为 `onOpenChange`；`afterClose` 在 `onOpenChange` 中处理；`title` 改为 `<DialogTitle>`；`footer` 改为 `<DialogFooter>`；`closable={false}` 改为 `showCloseButton={false}`；`centered` 默认居中；`width` 用 `className="w-[700px]"` 或 `max-w-[700px]`；样式通过 `className` 覆盖。参考：`KnowledgeSearchPopup.tsx:69-114`。 |
 | `ModalProps` | - | 类型依赖，随 Modal 迁移一起移除。 |
 | ~~`Input`/`InputRef`~~ ✅ | `Input` (shadcn) | ✅ **已完成**：`InputRef` 改为 `React.RefObject<HTMLInputElement>`；`prefix` 通过包装容器实现；`allowClear` 手动实现清除按钮；`onPressEnter` 改为 `onKeyDown` 检测 Enter 键；`variant="borderless"` 使用 `className` 移除边框和阴影。参考：`KnowledgeSearchPopup.tsx:98-121`。 |
-| ~~`Divider`~~ ✅ | `Separator` (shadcn) | ✅ **已完成**：使用 `Separator` 组件，默认水平方向；通过 `className` 调整间距。参考：`KnowledgeSearchPopup.tsx:122`。 |
-| `List` | `Listbox`、`ScrollShadow` 或自建列表 | HeroUI 无 `List.Item` 结构，建议改为 `Listbox` + `ListboxItem`；若需要复杂子项，可直接渲染 `div` 列表，并配合 `ScrollShadow` 实现滚动。 |
-| ~~`Spin`~~ ✅ | `SpinnerIcon` (shadcn Spinner 别名) | ✅ **已完成**：使用 `SpinnerIcon` 组件（shadcn Spinner 以别名导出避免与 base/Spinner 冲突）；`size="large"` 替换为 `className="size-8"`（32px）。参考：`KnowledgeSearchPopup.tsx:124`。 |
+| ~~`Divider`~~ ✅ | `Separator` (shadcn) | ✅ **已完成**：使用 `Separator` 组件，默认水平方向；通过 `className` 调整间距。参考：`KnowledgeSearchPopup.tsx:94`。 |
+| ~~`List`~~ ✅ | 自建列表（div + map） | ✅ **已完成**：`dataSource` + `renderItem` 改为 `map` 直接渲染；`List.Item` 改为自定义 styled-component `ResultsListItem`，添加底部边框和 padding。参考：`KnowledgeSearchPopup.tsx:104-110`。 |
+| ~~`Spin`~~ ✅ | `Spinner` (base/Spinner) | ✅ **已完成**：迁移到 base/Spinner 组件（带文本的搜索状态指示器）；保持原有动画和文本显示效果。参考：`KnowledgeSearchPopup.tsx:99`。 |
 | `Menu` | `Tabs`（垂直模式）、`Listbox` 或 `Accordion` | 侧边菜单可改为 `Listbox`，利用 `selectedKeys` 控制选中态。 |
 | `Progress` | `CircularProgress` | `value` 接收 0-100 数字；若需要小尺寸可用 `size="sm"` 并修改 `className`。 |
 | `Typography` | `Text`, `Paragraph`, `Link` | HeroUI 文本组件支持 `as` 属性；高亮逻辑保留。 |
@@ -58,7 +58,7 @@
 
 ## 迁移进度跟踪
 
-### 已完成 (8/13)
+### 已完成 (9/13)
 
 - [x] **Tabs** - `KnowledgeContent.tsx` (2025-01-16)
   - 迁移到 shadcn Tabs 组合式 API
@@ -94,15 +94,20 @@
   - 迁移到 shadcn Dialog 组件（1/2 处完成）
   - `onCancel`/`onOk` 合并为 `onOpenChange`，在状态变化时触发 resolve
   - `closable={false}` 改为 `showCloseButton={false}`
-  - `width={700}` 改为 `className="max-w-[700px]"`
+  - `width={700}` 改为 `className="w-[700px] max-w-[90vw] sm:max-w-[700px]"`
   - `styles` 改为 `className` 实现（圆角、padding 等）
-  - 移除 `SearchIcon` styled-component，直接使用 lucide-react 图标
 
-### 待迁移 (5/13)
+- [x] **List** - `KnowledgeSearchPopup.tsx` (2025-01-16)
+  - 移除 antd List，改用原生 div + map 渲染
+  - `dataSource` + `renderItem` 模式改为直接 `results.map()`
+  - `List.Item` 改为自定义 `ResultsListItem` styled-component
+  - 添加底部边框和 padding 样式，保持视觉一致
+  - 实现条件渲染：初始状态显示空、加载中显示 Spinner、无结果显示空状态、有结果显示列表
+
+### 待迁移 (4/13)
 
 - [ ] `Empty` - 2 处 (`KnowledgePage.tsx`, `KnowledgeContent.tsx`)
 - [ ] `Modal` - 1 处 (`KnowledgeBaseFormModal.tsx`)
-- [ ] `List` - 1 处 (`KnowledgeSearchPopup.tsx`)
 - [ ] `Menu` - 1 处 (`KnowledgeBaseFormModal.tsx`)
 - [ ] `Progress` - 1 处 (`StatusIcon.tsx`)
 - [ ] `Typography` - 3 处 (搜索结果相关组件)
