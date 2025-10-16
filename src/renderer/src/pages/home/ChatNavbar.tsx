@@ -84,12 +84,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     async (model: ApiModel) => {
       if (!agent) return
 
-      // Update agent model
-      await updateModel(agent.id, model.id, { showSuccessToast: false })
+      try {
+        // Update agent model
+        await updateModel(agent.id, model.id, { showSuccessToast: false })
 
-      // Update current session model if there's an active session
-      if (sessionId && session) {
-        await updateSession({ id: sessionId, model: model.id })
+        // Update current session model if there's an active session
+        if (sessionId && session) {
+          await updateSession({ id: sessionId, model: model.id })
+        }
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
     },
     [agent, sessionId, session, updateModel, updateSession]

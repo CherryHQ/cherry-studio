@@ -36,7 +36,7 @@ export const useUpdateAgent = () => {
 
   const updateModel = useCallback(
     async (agentId: string, modelId: string, options?: UpdateAgentOptions) => {
-      updateAgent({ id: agentId, model: modelId }, options)
+      return updateAgent({ id: agentId, model: modelId }, options)
     },
     [updateAgent]
   )
