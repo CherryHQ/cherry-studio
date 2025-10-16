@@ -49,6 +49,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { activeTopicOrSession, activeAgentId } = chat
   const sessionId = activeAgentId ? (chat.activeSessionId[activeAgentId] ?? null) : null
   const { agent } = useAgent(activeAgentId)
+  const { session, updateSession } = useSession(activeAgentId || '', sessionId || '')
   const { updateModel } = useUpdateAgent()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
@@ -82,9 +83,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
       if (!agent) return
-      return updateModel(agent.id, model.id, { showSuccessToast: false })
+
+      // Update agent model
+      await updateModel(agent.id, model.id, { showSuccessToast: false })
+
+      // Update current session model if there's an active session
+      if (sessionId && session) {
+        await updateSession({ id: sessionId, model: model.id })
+      }
     },
-    [agent, updateModel]
+    [agent, sessionId, session, updateModel, updateSession]
   )
 
   return (
