@@ -23,7 +23,7 @@ export class OcrService {
     this.registry.delete(providerId)
   }
 
-  listProviderIds(): string[] {
+  public listProviderIds(): string[] {
     return Array.from(this.registry.keys())
   }
 
@@ -45,4 +45,4 @@ ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(t
 
 ocrService.register(BuiltinOcrProviderIds.paddleocr, ppocrService.ocr.bind(ppocrService))
 
-ovOcrService.isAvalid() && ocrService.register(BuiltinOcrProviderIds.ovocr, ovOcrService.ocr.bind(ovOcrService))
+ovOcrService.isAvailable() && ocrService.register(BuiltinOcrProviderIds.ovocr, ovOcrService.ocr.bind(ovOcrService))

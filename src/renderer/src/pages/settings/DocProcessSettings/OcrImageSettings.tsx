@@ -4,7 +4,7 @@ import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
 import { Select } from 'antd'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingRowTitle } from '..'
@@ -39,12 +39,26 @@ const OcrImageSettings = ({ setProvider }: Props) => {
   }
 
   const platformSupport = isMac || isWin
-  const options = useMemo(() => {
-    const platformFilter = platformSupport ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.system
-    return imageProviders.filter(platformFilter).map((p) => ({
-      value: p.id,
-      label: getOcrProviderName(p)
-    }))
+  const [options, setOptions] = useState<{ value: string; label: string }[]>([])
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      const platformFilter = platformSupport
+        ? () => true
+        : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.system
+      const validProviders = await window.api.ocr.providers()
+      const validFilter = (p: ImageOcrProvider) => validProviders.includes(p.id)
+
+      const opts = imageProviders
+        .filter(platformFilter)
+        .filter(validFilter)
+        .map((p) => ({
+          value: p.id,
+          label: getOcrProviderName(p)
+        }))
+      setOptions(opts)
+    }
+    loadOptions()
   }, [getOcrProviderName, imageProviders, platformSupport])
 
   const isSystem = imageProvider.id === BuiltinOcrProviderIds.system

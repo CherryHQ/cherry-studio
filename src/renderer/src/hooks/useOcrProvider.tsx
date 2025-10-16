@@ -21,11 +21,9 @@ import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
 const logger = loggerService.withContext('useOcrProvider')
-const validProviders = await window.api.ocr.providers()
-logger.debug(`Valid OCR providers: ${validProviders.join(', ')}`)
 
 export const useOcrProviders = () => {
-  const providers = useAppSelector((state) => state.ocr.providers).filter((p) => validProviders.includes(p.id))
+  const providers = useAppSelector((state) => state.ocr.providers)
   const imageProviders = providers.filter(isImageOcrProvider)
   const imageProviderId = useAppSelector((state) => state.ocr.imageProviderId)
   const [imageProvider, setImageProvider] = useState<ImageOcrProvider>(DEFAULT_OCR_PROVIDER.image)

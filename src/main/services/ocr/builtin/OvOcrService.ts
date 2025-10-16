@@ -19,7 +19,7 @@ export class OvOcrService extends OcrBaseService {
     super()
   }
 
-  public isAvalid(): boolean {
+  public isAvailable(): boolean {
     return (
       isWin &&
       os.cpus()[0].model.toLowerCase().includes('intel') &&
@@ -54,7 +54,7 @@ export class OvOcrService extends OcrBaseService {
         }
       }
     } else {
-      // 如果目录不存在，创建它
+      // If the directory does not exist, create it
       await fs.promises.mkdir(dirPath, { recursive: true })
     }
   }
@@ -69,10 +69,10 @@ export class OvOcrService extends OcrBaseService {
     const ovOcrPath = this.getOvOcrPath()
 
     try {
-      // 在ov-ocr目录下执行run.bat
+      // Execute run.bat in the ov-ocr directory
       await execAsync(`"${PATH_BAT_FILE}"`, {
         cwd: ovOcrPath,
-        timeout: 60000 // 60秒超时
+        timeout: 60000 // 60 second timeout
       })
     } catch (error) {
       logger.error(`Error running ovocr batch: ${error}`)
@@ -82,37 +82,33 @@ export class OvOcrService extends OcrBaseService {
 
   private async ocrImage(filePath: string, options?: OcrOvConfig): Promise<OcrResult> {
     logger.info(`OV OCR called on ${filePath} with options ${JSON.stringify(options)}`)
-    if (!isWin) {
-      logger.warn('System OCR is only supported on Windows')
-      return { text: '' }
-    }
 
     try {
-      // 2. 清空img目录和output目录
+      // 1. Clear img directory and output directory
       await this.clearDirectory(this.getImgDir())
       await this.clearDirectory(this.getOutputDir())
 
-      // 3. 把file放到img目录中
+      // 2. Copy file to img directory
       const fileName = path.basename(filePath)
       await this.copyFileToImgDir(filePath, fileName)
       logger.info(`File copied to img directory: ${fileName}`)
 
-      // 4. 运行run.bat
+      // 3. Run run.bat
       logger.info('Running OV OCR batch process...')
       await this.runOcrBatch()
 
-      // 5. 检查output/[basename].txt文件必须存在
+      // 4. Check that output/[basename].txt file exists
       const baseNameWithoutExt = path.basename(fileName, path.extname(fileName))
       const outputFilePath = path.join(this.getOutputDir(), `${baseNameWithoutExt}.txt`)
       if (!fs.existsSync(outputFilePath)) {
         throw new Error(`OV OCR output file not found at: ${outputFilePath}`)
       }
 
-      // 6. 读取output/[basename].txt文件内容
+      // 5. Read output/[basename].txt file content
       const ocrText = await fs.promises.readFile(outputFilePath, 'utf-8')
       logger.info(`OV OCR text extracted: ${ocrText.substring(0, 100)}...`)
 
-      // 7. 返回结果
+      // 6. Return result
       return { text: ocrText }
     } catch (error) {
       logger.error(`Error during OV OCR process: ${error}`)
