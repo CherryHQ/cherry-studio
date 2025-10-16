@@ -300,10 +300,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       try {
         const targetPath = file.path
-        const isTextFile = await window.api.file.isTextFile(targetPath)
-        if (!isTextFile) {
-          return
-        }
         const content = await window.api.file.readExternal(targetPath, true)
         try {
           await navigator.clipboard.writeText(content)

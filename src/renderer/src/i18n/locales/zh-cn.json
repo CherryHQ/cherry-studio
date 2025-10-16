@@ -523,6 +523,7 @@
       "file_error": "文件处理出错",
       "file_not_supported": "模型不支持此文件类型",
       "file_not_supported_count": "{{count}} 个文件不被支持",
+      "paste_text_file_confirm": "粘贴到输入框？",
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
