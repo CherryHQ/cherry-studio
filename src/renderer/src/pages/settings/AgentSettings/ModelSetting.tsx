@@ -21,7 +21,7 @@ export const ModelSetting: React.FC<ModelSettingProps> = ({ base, update, isDisa
   if (!base) return null
 
   return (
-    <SettingsItem inline className="gap-8">
+    <SettingsItem inline>
       <SettingsTitle id="model">{t('common.model')}</SettingsTitle>
       <SelectAgentBaseModelButton agentBase={base} onSelect={updateModel} isDisabled={isDisabled} />
     </SettingsItem>
