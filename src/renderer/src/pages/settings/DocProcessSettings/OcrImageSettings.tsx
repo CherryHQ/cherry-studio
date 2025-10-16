@@ -22,7 +22,7 @@ const OcrImageSettings = ({ setProvider }: Props) => {
   const { t } = useTranslation()
   const { providers, imageProvider, getOcrProviderName, setImageProviderId } = useOcrProviders()
   const fetcher = useCallback(() => {
-    return window.api.ocr.providers()
+    return window.api.ocr.listProviders()
   }, [])
 
   const { data: validProviders, isLoading, error } = useSWRImmutable('ocr/providers', fetcher)
