@@ -2034,8 +2034,9 @@
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能刪除內建提供者",
-        "existing": "提供商已存在",
-        "not_found": "OCR 提供商不存在",
+        "existing": "提供者已存在",
+        "get_providers": "取得可用提供者失敗",
+        "not_found": "OCR 提供者不存在",
         "update_failed": "更新配置失敗"
       },
       "unknown": "OCR過程發生錯誤"

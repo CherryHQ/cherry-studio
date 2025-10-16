@@ -2035,6 +2035,7 @@
       "provider": {
         "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
         "existing": "プロバイダーはすでに存在します",
+        "get_providers": "利用可能なプロバイダーの取得に失敗しました",
         "not_found": "OCRプロバイダーが存在しません",
         "update_failed": "更新構成に失敗しました"
       },

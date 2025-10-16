@@ -2035,6 +2035,7 @@
       "provider": {
         "cannot_remove_builtin": "No se puede eliminar el proveedor integrado",
         "existing": "El proveedor ya existe",
+        "get_providers": "Error al obtener proveedores disponibles",
         "not_found": "El proveedor de OCR no existe",
         "update_failed": "Actualización de la configuración fallida"
       },
