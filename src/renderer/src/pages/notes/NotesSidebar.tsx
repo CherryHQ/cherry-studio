@@ -348,7 +348,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
         const result = await SaveToKnowledgePopup.showForNote(note)
 
-        if (result?.success) {
+        // Only show success toast when adding new note (savedCount > 0 and not an update operation)
+        // For update and already-exists cases, the popup has already handled the toast
+        if (result?.success && result.savedCount > 0 && !result.isUpdate) {
           window.toast.success(t('notes.export_success', { count: result.savedCount }))
         }
       } catch (error) {

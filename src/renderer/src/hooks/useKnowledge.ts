@@ -71,11 +71,13 @@ export const useKnowledge = (baseId: string) => {
       sourceNotePath?: string
       sourceNoteId?: string
       contentHash?: string
-    }
+    },
+    forceUpdate = false
   ) => {
-    await dispatch(addNoteThunk(baseId, content, metadata))
+    const result = await dispatch(addNoteThunk(baseId, content, metadata, forceUpdate))
     // 数据库写入已在 thunk 中验证完成，直接触发队列检查
     KnowledgeQueue.checkAllBases()
+    return result
   }
 
   // 添加URL
@@ -130,6 +132,12 @@ export const useKnowledge = (baseId: string) => {
   // 移除项目
   const removeItem = async (item: KnowledgeItem) => {
     dispatch(removeItemAction({ baseId, item }))
+
+    // 如果是笔记类型，同时从数据库中删除
+    if (isKnowledgeNoteItem(item)) {
+      await db.knowledge_notes.delete(item.id)
+    }
+
     if (!base || !item?.uniqueId || !item?.uniqueIds) {
       return
     }

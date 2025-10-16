@@ -1942,6 +1942,7 @@
     "export_knowledge_already_exists": "Note \"{{name}}\" already exists in the knowledge base",
     "export_knowledge_update_content": "The content of note \"{{name}}\" has changed. Do you want to update the version in the knowledge base?",
     "export_knowledge_update_title": "Update Knowledge Base Note",
+    "export_knowledge_updated": "Note \"{{name}}\" has been updated successfully",
     "export_success": "Successfully exported to the knowledge base",
     "folder": "folder",
     "new_folder": "New Folder",

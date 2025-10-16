@@ -100,6 +100,7 @@ interface ShowParams {
 interface SaveResult {
   success: boolean
   savedCount: number
+  isUpdate?: boolean // Flag to indicate if this is an update operation
 }
 
 interface Props extends ShowParams {
@@ -294,22 +295,25 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           throw new Error('Note content is empty. Cannot export empty notes to knowledge base.')
         }
 
-        // 计算内容哈希
+        // Calculate content hash for change detection
         const contentHash = await simpleHash(content)
 
-        // 检查是否已存在相同源笔记的导出
-        const existingNotes = selectedBase.items.filter(
-          (item) =>
-            item.type === 'note' &&
-            ((item as any).sourceNoteId === note.id || (item as any).sourceNotePath === note.externalPath)
-        )
+        logger.debug('Note content loaded', { contentLength: content.length })
 
-        if (existingNotes.length > 0) {
-          // 检查内容是否有变化
-          const hasChanges = existingNotes.some((item) => (item as any).contentHash !== contentHash)
+        // Check if note with same source already exists
+        const { checkNoteExists } = await import('@renderer/store/thunk/knowledgeThunk')
+        const checkResult = await checkNoteExists(selectedBaseId, {
+          sourceNoteId: note.id,
+          sourceNotePath: note.externalPath
+        })
+
+        if (checkResult && checkResult.exists) {
+          // Check if content has changed
+          const existingHash = (checkResult.existingNote as any)?.contentHash
+          const hasChanges = existingHash !== contentHash
 
           if (hasChanges) {
-            // 内容有变化，询问用户是否更新
+            // Content has changed, ask user to confirm update
             const confirmed = await new Promise<boolean>((resolve) => {
               window.modal.confirm({
                 title: t('notes.export_knowledge_update_title'),
@@ -325,22 +329,38 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
               resolve(null)
               return
             }
+
+            // User confirmed, force update the note
+            await addNote(
+              content,
+              {
+                sourceNotePath: note.externalPath,
+                sourceNoteId: note.id,
+                contentHash
+              },
+              true // forceUpdate = true
+            )
+            savedCount = 1
+            setOpen(false)
+            window.toast.success(t('notes.export_knowledge_updated', { name: note.name }))
+            resolve({ success: true, savedCount, isUpdate: true })
+            return
           } else {
-            // 内容没有变化，提示已存在
+            // Content unchanged, show info message
             window.toast.info(t('notes.export_knowledge_already_exists', { name: note.name }))
             setOpen(false)
             resolve({ success: true, savedCount: 0 })
             return
           }
+        } else {
+          // Note doesn't exist, add as new
+          await addNote(content, {
+            sourceNotePath: note.externalPath,
+            sourceNoteId: note.id,
+            contentHash
+          })
+          savedCount = 1
         }
-
-        logger.debug('Note content loaded', { contentLength: content.length })
-        await addNote(content, {
-          sourceNotePath: note.externalPath,
-          sourceNoteId: note.id,
-          contentHash
-        })
-        savedCount = 1
       } else {
         // 原有的消息或主题处理逻辑
         const result = isTopicMode
