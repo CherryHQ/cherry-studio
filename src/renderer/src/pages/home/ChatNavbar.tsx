@@ -27,7 +27,7 @@ import styled from 'styled-components'
 import { AgentSettingsPopup, SessionSettingsPopup } from '../settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '../settings/AgentSettings/shared'
 import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectAgentBaseModelButton from './components/SelectAgentModelButton'
+import SelectAgentBaseModelButton from './components/SelectAgentBaseModelButton'
 import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 

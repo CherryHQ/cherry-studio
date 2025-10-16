@@ -1,4 +1,4 @@
-import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentModelButton'
+import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
 import { AgentBaseWithId, ApiModel, UpdateAgentBaseForm } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
