@@ -9,8 +9,6 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsPanel } from './styles'
-
 type DocPreprocessSelectOption = {
   value: string
   label: string
@@ -42,9 +40,9 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
     handlers
 
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">{t('common.name')}</div>
+    <div className="px-4">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">{t('common.name')}</div>
         <Input
           data-testid="name-input"
           size="sm"
@@ -54,10 +52,10 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('settings.tool.preprocess.title')}
           <InfoTooltip content={t('settings.tool.preprocess.tooltip')} placement="right" />
         </div>
@@ -81,10 +79,10 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
             <SelectItem key={option.value}>{option.label}</SelectItem>
           ))}
         </Select>
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('models.embedding_model')}
           <InfoTooltip content={t('models.embedding_model_tooltip')} placement="right" />
         </div>
@@ -96,10 +94,10 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           value={getModelUniqId(newBase.model)}
           onChange={handleEmbeddingModelChange}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('knowledge.dimensions')}
           <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} placement="right" />
         </div>
@@ -109,10 +107,10 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           model={newBase.model}
           disabled={!newBase.model}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('models.rerank_model')}
           <InfoTooltip content={t('models.rerank_model_tooltip')} placement="right" />
         </div>
@@ -125,10 +123,10 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           onChange={handleRerankModelChange}
           allowClear
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('knowledge.document_count')}
           <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
         </div>
@@ -151,8 +149,8 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
             setNewBase((prev) => ({ ...prev, documentCount: Array.isArray(value) ? value[0] : value }))
           }
         />
-      </SettingsItem>
-    </SettingsPanel>
+      </div>
+    </div>
   )
 }
 

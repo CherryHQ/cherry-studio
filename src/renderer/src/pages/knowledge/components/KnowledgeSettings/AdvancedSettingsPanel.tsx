@@ -3,8 +3,6 @@ import { Alert, NumberInput } from '@heroui/react'
 import type { KnowledgeBase } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsItem, SettingsPanel } from './styles'
-
 interface AdvancedSettingsPanelProps {
   newBase: KnowledgeBase
   handlers: {
@@ -19,9 +17,9 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
   const { handleChunkSizeChange, handleChunkOverlapChange, handleThresholdChange } = handlers
 
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">
+    <div className="px-4">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('knowledge.chunk_size')}
           <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
         </div>
@@ -38,10 +36,10 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
             handleChunkSizeChange(nextValue)
           }}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('knowledge.chunk_overlap')}
           <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
         </div>
@@ -58,10 +56,10 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
             handleChunkOverlapChange(nextValue)
           }}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="text-sm mb-2 flex items-center gap-2">
           {t('knowledge.threshold')}
           <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
         </div>
@@ -80,7 +78,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
             handleThresholdChange(nextValue)
           }}
         />
-      </SettingsItem>
+      </div>
 
       <Alert
         className="p-0"
@@ -90,7 +88,7 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
         variant="bordered"
         title={t('knowledge.chunk_size_change_warning')}
       />
-    </SettingsPanel>
+    </div>
   )
 }
 
