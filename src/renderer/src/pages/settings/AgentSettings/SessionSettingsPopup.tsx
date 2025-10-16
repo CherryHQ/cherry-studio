@@ -30,7 +30,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
 
   const { session, isLoading, error } = useSession(agentId, sessionId)
 
-  const updateSession = useUpdateSession(agentId)
+  const { updateSession } = useUpdateSession(agentId)
 
   const onOk = () => {
     setOpen(false)

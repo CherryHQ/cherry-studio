@@ -98,7 +98,7 @@ export const SessionModal: React.FC<Props> = ({
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
   const { createSession } = useSessions(agentId)
-  const updateSession = useUpdateSession(agentId)
+  const { updateSession } = useUpdateSession(agentId)
   const { agent } = useAgent(agentId)
   const isEditing = (session?: AgentSessionEntity) => session !== undefined
 

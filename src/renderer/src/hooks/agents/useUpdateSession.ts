@@ -4,16 +4,18 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
+import { UpdateAgentBaseOptions } from './types'
 import { useAgentClient } from './useAgentClient'
 
-export const useUpdateSession = (agentId: string) => {
+export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const paths = client.getSessionPaths(agentId)
-  const listKey = paths.base
 
   const updateSession = useCallback(
-    async (form: UpdateSessionForm) => {
+    async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions) => {
+      if (!agentId) return
+      const paths = client.getSessionPaths(agentId)
+      const listKey = paths.base
       const sessionId = form.id
       try {
         const itemKey = paths.withId(sessionId)
@@ -24,13 +26,29 @@ export const useUpdateSession = (agentId: string) => {
           (prev) => prev?.map((session) => (session.id === result.id ? result : session)) ?? []
         )
         mutate(itemKey, result)
-        window.toast.success(t('common.update_success'))
+        if (options?.showSuccessToast ?? true) {
+          window.toast.success(t('common.update_success'))
+        }
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
     },
-    [agentId, client, listKey, paths, t]
+    [agentId, client, t]
   )
 
-  return updateSession
+  const updateModel = useCallback(
+    async (sessionId: string, modelId: string, options?: UpdateAgentBaseOptions) => {
+      if (!agentId) return
+      return updateSession(
+        {
+          id: sessionId,
+          model: modelId
+        },
+        options
+      )
+    },
+    [agentId, updateSession]
+  )
+
+  return { updateSession, updateModel }
 }

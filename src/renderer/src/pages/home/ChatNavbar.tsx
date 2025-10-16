@@ -6,7 +6,7 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -49,7 +49,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { activeTopicOrSession } = chat
   const activeAgent = useActiveAgent()
   const activeSession = useActiveSession()
-  const { updateModel } = useUpdateAgent()
+  const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -81,10 +81,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
-      if (!activeAgent) return
-      return updateModel(activeAgent.id, model.id, { showSuccessToast: false })
+      if (!activeSession) return
+      return updateModel(activeSession.id, model.id, { showSuccessToast: false })
     },
-    [activeAgent, updateModel]
+    [activeSession, updateModel]
   )
 
   return (

@@ -23,7 +23,7 @@ type EssentialSettingsProps =
     }
   | {
       agentBase: GetAgentSessionResponse | undefined | null
-      update: ReturnType<typeof useUpdateSession>
+      update: ReturnType<typeof useUpdateSession>['updateSession']
     }
 
 const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update }) => {
