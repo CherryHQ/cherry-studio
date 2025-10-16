@@ -5,14 +5,14 @@
 ## 迁移范围统计
 
 - **涉及文件数**：7 个文件（同一文件中可能引用多个 antd 组件）。
-- **待替换 antd 组件**（按字母排序，共 8 项）：`Empty`、`Input`、`InputRef`、`List`、`Menu`、`Modal`、`ModalProps`、`Progress`、`Typography`。
-- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅、~~`Divider`~~ ✅、~~`Spin`~~ ✅
+- **待替换 antd 组件**（按字母排序，共 6 项）：`Empty`、`List`、`Menu`、`Modal`、`ModalProps`、`Progress`、`Typography`。
+- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅、~~`Divider`~~ ✅、~~`Spin`~~ ✅、~~`Input`~~ ✅、~~`InputRef`~~ ✅
 
 | 文件 | antd 依赖 | 备注 |
 | --- | --- | --- |
 | `KnowledgePage.tsx` | `Empty` | ~~侧边栏右键菜单（已迁移至 shadcn DropdownMenu）~~、空状态 |
 | `KnowledgeContent.tsx` | `Empty` | 列表空视图 |
-| `components/KnowledgeSearchPopup.tsx` | `Modal`、`Input`、`InputRef`、`List` | 搜索弹窗（输入框、搜索结果列表）、~~分割线（已迁移至 shadcn Separator）~~、~~Loading（已迁移至 shadcn SpinnerIcon）~~ |
+| `components/KnowledgeSearchPopup.tsx` | `Modal`、`List` | 搜索弹窗（搜索结果列表）、~~分割线（已迁移至 shadcn Separator）~~、~~Loading（已迁移至 Spinner）~~、~~搜索输入框（已迁移至 shadcn Input）~~ |
 | `components/KnowledgeSettings/KnowledgeBaseFormModal.tsx` | `Modal`、`Menu`、`ModalProps` | 知识库设置抽屉左侧菜单 |
 | `components/StatusIcon.tsx` | `Progress` | 处理状态的圆形进度 |
 | `components/KnowledgeSearchItem/components.tsx` | `Typography` | 搜索结果元信息的文字样式 |
@@ -28,8 +28,8 @@
 | `Empty` | 自研 `EmptyState` 组件或 HeroUI `Card` + 自定义文案 | HeroUI 暂无完全等价组件，可在 `@renderer/components` 中补一个通用空态。 |
 | ~~`Tabs`~~ ✅ | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` (shadcn) | ✅ **已完成**：使用 shadcn Tabs 组合式 API，`value`/`onValueChange` 替代 `activeKey`/`onChange`；将 antd `items` 数组转为 `TabsTrigger` + `TabsContent` 节点；下划线样式使用 Tailwind 类名实现。参考：`KnowledgeContent.tsx:159-177`。 |
 | `Modal`/`ModalProps` | `Modal`, `ModalContent`, `ModalBody`, `ModalHeader`, `ModalFooter` | HeroUI Modal 默认受控 `isOpen` + `onOpenChange`；`destroyOnHidden` 可用 `unmountOnExit` 替代。 |
-| `Input`/`InputRef` | `Input`, `InputProps` | `InputRef` 改为 `React.RefObject<HTMLInputElement>`；`allowClear` 可通过 `endContent` 自行实现。 |
-| ~~`Divider`~~ ✅ | `Separator` (shadcn) | ✅ **已完成**：使用 `Separator` 组件，默认水平方向；通过 `className` 调整间距。参考：`KnowledgeSearchPopup.tsx:119`。 |
+| ~~`Input`/`InputRef`~~ ✅ | `Input` (shadcn) | ✅ **已完成**：`InputRef` 改为 `React.RefObject<HTMLInputElement>`；`prefix` 通过包装容器实现；`allowClear` 手动实现清除按钮；`onPressEnter` 改为 `onKeyDown` 检测 Enter 键；`variant="borderless"` 使用 `className` 移除边框和阴影。参考：`KnowledgeSearchPopup.tsx:98-121`。 |
+| ~~`Divider`~~ ✅ | `Separator` (shadcn) | ✅ **已完成**：使用 `Separator` 组件，默认水平方向；通过 `className` 调整间距。参考：`KnowledgeSearchPopup.tsx:122`。 |
 | `List` | `Listbox`、`ScrollShadow` 或自建列表 | HeroUI 无 `List.Item` 结构，建议改为 `Listbox` + `ListboxItem`；若需要复杂子项，可直接渲染 `div` 列表，并配合 `ScrollShadow` 实现滚动。 |
 | ~~`Spin`~~ ✅ | `SpinnerIcon` (shadcn Spinner 别名) | ✅ **已完成**：使用 `SpinnerIcon` 组件（shadcn Spinner 以别名导出避免与 base/Spinner 冲突）；`size="large"` 替换为 `className="size-8"`（32px）。参考：`KnowledgeSearchPopup.tsx:124`。 |
 | `Menu` | `Tabs`（垂直模式）、`Listbox` 或 `Accordion` | 侧边菜单可改为 `Listbox`，利用 `selectedKeys` 控制选中态。 |
@@ -57,7 +57,7 @@
 
 ## 迁移进度跟踪
 
-### 已完成 (5/13)
+### 已完成 (7/13)
 
 - [x] **Tabs** - `KnowledgeContent.tsx` (2025-01-16)
   - 迁移到 shadcn Tabs 组合式 API
@@ -77,19 +77,27 @@
   - 使用 Tailwind 类名 `mt-1` 替代内联样式
 
 - [x] **Spin** - `KnowledgeSearchPopup.tsx` (2025-01-16)
-  - 迁移到 shadcn Spinner（以 `SpinnerIcon` 别名导出）
-  - `size="large"` 替换为 `className="size-8"`
+  - 迁移到 base/Spinner 组件（带文本的搜索状态指示器）
+  - 保持原有动画和文本显示效果
 
-### 待迁移 (8/13)
+- [x] **Input** - `KnowledgeSearchPopup.tsx` (2025-01-16)
+  - 迁移到 shadcn Input 组件
+  - `InputRef` 改为 `React.RefObject<HTMLInputElement>`
+  - 手动实现 `prefix`（SearchIcon）和 `allowClear`（清除按钮）功能
+  - `onPressEnter` 改为 `onKeyDown` 处理 Enter 键
+  - 使用包装容器 `SearchInputContainer` 组织布局
+
+- [x] **InputRef** - 类型依赖已随 Input 迁移移除
+
+### 待迁移 (6/13)
 
 - [ ] `Empty` - 2 处 (`KnowledgePage.tsx`, `KnowledgeContent.tsx`)
 - [ ] `Modal` - 2 处 (`KnowledgeSearchPopup.tsx`, `KnowledgeBaseFormModal.tsx`)
-- [ ] `Input` - 1 处 (`KnowledgeSearchPopup.tsx`)
 - [ ] `List` - 1 处 (`KnowledgeSearchPopup.tsx`)
 - [ ] `Menu` - 1 处 (`KnowledgeBaseFormModal.tsx`)
 - [ ] `Progress` - 1 处 (`StatusIcon.tsx`)
 - [ ] `Typography` - 3 处 (搜索结果相关组件)
-- [ ] `ModalProps` / `InputRef` - 类型依赖
+- [ ] `ModalProps` - 类型依赖
 
 ## 注意事项
 

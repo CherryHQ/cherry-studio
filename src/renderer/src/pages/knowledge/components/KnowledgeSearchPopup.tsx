@@ -1,11 +1,10 @@
-import { RowFlex, Separator, Spinner } from '@cherrystudio/ui'
+import { Input, Separator, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
-import type { InputRef } from 'antd'
-import { Input, List, Modal } from 'antd'
-import { Search } from 'lucide-react'
+import { List, Modal } from 'antd'
+import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -28,7 +27,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
-  const searchInputRef = useRef<InputRef>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -96,26 +95,28 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           padding: 0
         }
       }}>
-      <RowFlex className="mt-2 px-3">
+      <SearchInputContainer className="mt-2 px-3">
+        <Search size={15} />
         <Input
           ref={searchInputRef}
-          prefix={
-            <SearchIcon>
-              <Search size={15} />
-            </SearchIcon>
-          }
           value={searchKeyword}
           placeholder={t('knowledge.search')}
-          allowClear
           autoFocus
           spellCheck={false}
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
+          className="flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 dark:bg-transparent"
           onChange={(e) => setSearchKeyword(e.target.value)}
-          onPressEnter={() => handleSearch(searchKeyword)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleSearch(searchKeyword)
+            }
+          }}
         />
-      </RowFlex>
+        {searchKeyword && (
+          <ClearButton onClick={() => setSearchKeyword('')}>
+            <X size={14} />
+          </ClearButton>
+        )}
+      </SearchInputContainer>
       <Separator className="mt-1" />
 
       <ResultsContainer>
@@ -151,6 +152,12 @@ const LoadingContainer = styled.div`
   height: 200px;
 `
 
+const SearchInputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`
+
 const SearchIcon = styled.div`
   width: 32px;
   height: 32px;
@@ -160,13 +167,26 @@ const SearchIcon = styled.div`
   justify-content: center;
   align-items: center;
   background-color: var(--color-background-soft);
-  margin-right: 2px;
-  &.back-icon {
-    cursor: pointer;
-    transition: background-color 0.2s;
-    &:hover {
-      background-color: var(--color-background-mute);
-    }
+  flex-shrink: 0;
+`
+
+const ClearButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-3);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+    color: var(--color-text-1);
   }
 `
 
