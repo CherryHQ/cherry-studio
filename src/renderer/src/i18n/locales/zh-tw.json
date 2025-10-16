@@ -1273,6 +1273,7 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知識庫嵌入模型是必需的",
     "empty": "暫無知識庫",
+    "empty_item": "暫無資料",
     "error": {
       "failed_to_create": "知識庫創建失敗",
       "failed_to_edit": "知識庫編輯失敗",

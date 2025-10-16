@@ -1273,6 +1273,7 @@
     "embedding_model": "Modèle d'intégration",
     "embedding_model_required": "Le modèle d'intégration de la base de connaissances est obligatoire",
     "empty": "Aucune base de connaissances pour le moment",
+    "empty_item": "[to be translated]:暂无数据",
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
       "failed_to_edit": "Erreur lors de la modification de la base de connaissances",

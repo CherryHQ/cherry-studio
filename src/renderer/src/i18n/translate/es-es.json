@@ -1273,6 +1273,7 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "El modelo de incrustación de la base de conocimientos es obligatorio",
     "empty": "Sin bases de conocimientos",
+    "empty_item": "[to be translated]:暂无数据",
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_edit": "Error al editar la base de conocimientos",

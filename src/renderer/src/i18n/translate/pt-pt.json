@@ -1273,6 +1273,7 @@
     "embedding_model": "Modelo de incorporação",
     "embedding_model_required": "O modelo de incorporação da base de conhecimento é obrigatório",
     "empty": "Sem repositório de conhecimento",
+    "empty_item": "[to be translated]:暂无数据",
     "error": {
       "failed_to_create": "Falha ao criar o repositório de conhecimento",
       "failed_to_edit": "Falha ao editar o repositório de conhecimento",

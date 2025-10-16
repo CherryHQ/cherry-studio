@@ -5,7 +5,8 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import type { KnowledgeBase } from '@renderer/types'
-import { Empty, Tabs } from 'antd'
+import { Tabs } from 'antd'
+import { t } from 'i18next'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -175,7 +176,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   )
 }
 
-export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ image: { display: 'none' } }} />
+export const KnowledgeEmptyView = () => (
+  <div className="w-full items-center justify-center text-center text-gray-400">{t('knowledge.empty_item')}</div>
+)
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
