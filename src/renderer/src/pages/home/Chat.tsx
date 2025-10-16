@@ -5,18 +5,14 @@ import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { selectNewDisplayCount, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
@@ -55,59 +51,6 @@ const Chat: FC<Props> = (props) => {
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId, activeSessionId } = chat
   const { apiServer } = useSettings()
-  const dispatch = useAppDispatch()
-  const topicMessages = useTopicMessages(props.activeTopic.id)
-  const displayCount = useAppSelector(selectNewDisplayCount)
-  /**
-   * Mirror latest display count so async helpers can read the freshest value without re-subscribing.
-   */
-  const displayCountRef = React.useRef(displayCount)
-  /**
-   * Remember user's original display count so we can restore it after closing the search UI.
-   */
-  const previousDisplayCountRef = React.useRef<number | null>(null)
-  /**
-   * Flag indicates that search requested a temporary expansion of rendered messages.
-   */
-  const expandedBySearchRef = React.useRef(false)
-
-  React.useEffect(() => {
-    displayCountRef.current = displayCount
-  }, [displayCount])
-
-  const expandDisplayCountForSearch = useCallback(
-    (targetCount: number) => {
-      if (displayCountRef.current >= targetCount) {
-        return Promise.resolve()
-      }
-
-      return new Promise<void>((resolve) => {
-        const growStep = () => {
-          const current = displayCountRef.current
-          if (current >= targetCount) {
-            resolve()
-            return
-          }
-
-          const next = Math.min(targetCount, current + LOAD_MORE_COUNT * 2)
-          dispatch(newMessagesActions.setDisplayCount(next))
-
-          requestAnimationFrame(() => {
-            window.setTimeout(growStep, 0)
-          })
-        }
-
-        growStep()
-      })
-    },
-    [dispatch]
-  )
-
-  React.useEffect(() => {
-    if (expandedBySearchRef.current && topicMessages.length > displayCountRef.current) {
-      void expandDisplayCountForSearch(topicMessages.length)
-    }
-  }, [expandDisplayCountForSearch, topicMessages.length])
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -119,49 +62,10 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  const handleContentSearchOpenChange = useCallback(
-    (open: boolean) => {
-      // When the search panel closes we restore the original display count to keep scrolling snappy.
-      if (!open && expandedBySearchRef.current) {
-        const previousCount = previousDisplayCountRef.current
-        if (previousCount !== null) {
-          dispatch(newMessagesActions.setDisplayCount(previousCount))
-        }
-        expandedBySearchRef.current = false
-        previousDisplayCountRef.current = null
-      }
-    },
-    [dispatch]
-  )
-
-  const openContentSearch = useCallback(
-    async (initialText?: string) => {
-      const sanitizedText = initialText && initialText.length > 0 ? initialText : undefined
-      const totalMessageCount = topicMessages.length
-      const shouldExpand = totalMessageCount > displayCountRef.current
-
-      if (shouldExpand) {
-        if (!expandedBySearchRef.current) {
-          previousDisplayCountRef.current = displayCountRef.current
-        }
-        expandedBySearchRef.current = true
-        await expandDisplayCountForSearch(totalMessageCount)
-      }
-
-      // Defer enabling the search overlay until the DOM reflects the expanded message list.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          contentSearchRef.current?.enable(sanitizedText)
-        })
-      })
-    },
-    [expandDisplayCountForSearch, topicMessages.length]
-  )
-
   useShortcut('search_message_in_chat', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
-      void openContentSearch(selectedText)
+      contentSearchRef.current?.enable(selectedText)
     } catch (error) {
       logger.error('Error enabling content search:', error as Error)
     }
@@ -203,9 +107,8 @@ const Chat: FC<Props> = (props) => {
     }
   }
 
-  const userOutlinedItemClickHandler = (value: boolean) => {
-    // Keep local filter state in sync so subsequent searches reuse the same scope.
-    setFilterIncludeUser(value)
+  const userOutlinedItemClickHandler = () => {
+    setFilterIncludeUser(!filterIncludeUser)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setTimeoutTimer(
@@ -326,7 +229,6 @@ const Chat: FC<Props> = (props) => {
                   filter={contentSearchFilter}
                   includeUser={filterIncludeUser}
                   onIncludeUserChange={userOutlinedItemClickHandler}
-                  onOpenChange={handleContentSearchOpenChange}
                 />
                 {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
                 <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
