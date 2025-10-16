@@ -1,4 +1,4 @@
-import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
@@ -123,15 +123,21 @@ const HeaderNavbar: FC<Props> = ({
           </AnimatePresence>
         </NavbarLeft>
       )}
-      {activeTopicOrSession === 'topic' ? (
-        <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
-          <SelectModelButton assistant={assistant} />
-        </HStack>
-      ) : (
-        <ChatNavbarContainer style={{ maxWidth: chatMaxWidth }}>
-          <ChatNavbarContent assistant={assistant} />
-        </ChatNavbarContainer>
-      )}
+      <NavbarCenter>
+        {activeTopicOrSession === 'topic' ? (
+          <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
+            <SelectModelButton assistant={assistant} />
+          </HStack>
+        ) : (
+          <ChatNavbarContainer
+            style={{
+              maxWidth: chatMaxWidth,
+              marginLeft: !isMac ? 16 : 0
+            }}>
+            <ChatNavbarContent assistant={assistant} />
+          </ChatNavbarContainer>
+        )}
+      </NavbarCenter>
 
       <NavbarRight
         style={{
