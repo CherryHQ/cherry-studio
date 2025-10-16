@@ -14106,6 +14106,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     express: "npm:^5.1.0"
     express-validator: "npm:^7.2.1"
+    fake-indexeddb: "npm:^6.2.3"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:1.3.2"
@@ -18696,6 +18697,13 @@ __metadata:
   version: 1.4.1
   resolution: "extsprintf@npm:1.4.1"
   checksum: 10c0/e10e2769985d0e9b6c7199b053a9957589d02e84de42832c295798cb422a025e6d4a92e0259c1fb4d07090f5bfde6b55fd9f880ac5855bd61d775f8ab75a7ab0
+  languageName: node
+  linkType: hard
+
+"fake-indexeddb@npm:^6.2.3":
+  version: 6.2.3
+  resolution: "fake-indexeddb@npm:6.2.3"
+  checksum: 10c0/3acb86afe23b98976f4ba22051e751291d76cb06fe798f34884383e5a9064f21393453102be8165553236fefd326b5728a20a5a58029b8fafe75a27c0268d085
   languageName: node
   linkType: hard
 

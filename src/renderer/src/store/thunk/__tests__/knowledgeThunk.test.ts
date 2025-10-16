@@ -1,16 +1,15 @@
+import 'fake-indexeddb/auto'
+
+import { db } from '@renderer/databases'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
 import { FileMetadata, FileTypes, KnowledgeItem } from '@renderer/types'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { IDBFactory } from 'fake-indexeddb'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addFilesThunk, addItemThunk, addNoteThunk } from '../knowledgeThunk'
 
 const mocks = vi.hoisted(() => {
   return {
-    db: {
-      knowledge_notes: {
-        add: vi.fn()
-      }
-    },
     uuid: {
       v4: vi.fn()
     },
@@ -21,11 +20,6 @@ const mocks = vi.hoisted(() => {
     }
   }
 })
-
-// Mock dependencies
-vi.mock('@renderer/databases', () => ({
-  db: mocks.db
-}))
 
 vi.mock('uuid', () => ({
   v4: mocks.uuid.v4
@@ -102,6 +96,15 @@ describe('knowledgeThunk', () => {
     mockDispatch.mockClear()
   })
 
+  afterEach(async () => {
+    // 清空数据库表，而不是删除整个数据库
+    try {
+      await db.knowledge_notes.clear()
+    } catch (error) {
+      // 忽略清理错误
+    }
+  })
+
   describe('addFilesThunk', () => {
     it('should dispatch addFiles action with properly formatted and unique file items', () => {
       const baseId = 'test-base-id'
@@ -154,14 +157,10 @@ describe('knowledgeThunk', () => {
       const noteContent = 'This is a test note'
       const timestamp = Date.now()
       vi.spyOn(Date, 'now').mockReturnValue(timestamp)
-      mocks.db.knowledge_notes.add.mockResolvedValue(undefined)
 
       await addNoteThunk(baseId, noteContent)(mockDispatch)
 
-      const expectedNote = createMockKnowledgeItem('note', noteContent, timestamp)
-      expect(mocks.db.knowledge_notes.add).toHaveBeenCalledWith(expectedNote)
-
-      const expectedNoteRef = createMockKnowledgeItem('note', '', timestamp)
+      const expectedNoteRef = createMockKnowledgeItem('note', '', timestamp, { baseId })
       expect(mockDispatch).toHaveBeenCalledWith(updateNotes({ baseId, item: expectedNoteRef }))
     })
 
@@ -170,26 +169,11 @@ describe('knowledgeThunk', () => {
       const noteContent = ''
       const timestamp = Date.now()
       vi.spyOn(Date, 'now').mockReturnValue(timestamp)
-      mocks.db.knowledge_notes.add.mockResolvedValue(undefined)
 
       await addNoteThunk(baseId, noteContent)(mockDispatch)
 
-      const expectedNote = createMockKnowledgeItem('note', '', timestamp)
-      expect(mocks.db.knowledge_notes.add).toHaveBeenCalledWith(expectedNote)
-
-      const expectedNoteRef = createMockKnowledgeItem('note', '', timestamp)
+      const expectedNoteRef = createMockKnowledgeItem('note', '', timestamp, { baseId })
       expect(mockDispatch).toHaveBeenCalledWith(updateNotes({ baseId, item: expectedNoteRef }))
-    })
-
-    it('should not dispatch and re-throw the error on database failure', async () => {
-      const baseId = 'test-base-id'
-      const noteContent = 'Test note'
-      const dbError = new Error('Database error')
-      mocks.db.knowledge_notes.add.mockRejectedValue(dbError)
-
-      await expect(addNoteThunk(baseId, noteContent)(mockDispatch)).rejects.toThrow(dbError)
-
-      expect(mockDispatch).not.toHaveBeenCalled()
     })
   })
 

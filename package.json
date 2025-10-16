@@ -265,6 +265,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
     "express-validator": "^7.2.1",
+    "fake-indexeddb": "^6.2.3",
     "fast-diff": "^1.3.0",
     "fast-xml-parser": "^5.2.0",
     "fetch-socks": "1.3.2",
