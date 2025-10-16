@@ -1,9 +1,9 @@
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
 } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DraggableList } from '@renderer/components/DraggableList'
@@ -29,7 +29,6 @@ const KnowledgePage: FC = () => {
   const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
   const [isDragging, setIsDragging] = useState(false)
-  const [contextMenuOpen, setContextMenuOpen] = useState<string | null>(null)
 
   const handleAddKnowledge = useCallback(async () => {
     const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
@@ -101,40 +100,31 @@ const KnowledgePage: FC = () => {
               onDragStart={() => setIsDragging(true)}
               onDragEnd={() => setIsDragging(false)}>
               {(base: KnowledgeBase) => (
-                <DropdownMenu
-                  key={base.id}
-                  open={contextMenuOpen === base.id}
-                  onOpenChange={(open) => setContextMenuOpen(open ? base.id : null)}>
-                  <DropdownMenuTrigger asChild>
-                    <div
-                      onContextMenu={(e) => {
-                        e.preventDefault()
-                        setContextMenuOpen(base.id)
-                      }}>
-                      <ListItem
-                        active={selectedBase?.id === base.id}
-                        icon={<Book size={16} />}
-                        title={base.name}
-                        onClick={() => setSelectedBase(base)}
-                      />
-                    </div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => handleRenameKnowledge(base)}>
+                <ContextMenu key={base.id}>
+                  <ContextMenuTrigger>
+                    <ListItem
+                      active={selectedBase?.id === base.id}
+                      icon={<Book size={16} />}
+                      title={base.name}
+                      onClick={() => setSelectedBase(base)}
+                    />
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem onClick={() => handleRenameKnowledge(base)}>
                       <EditIcon size={14} />
                       {t('knowledge.rename')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleEditKnowledgeBase(base)}>
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleEditKnowledgeBase(base)}>
                       <Settings size={14} />
                       {t('common.settings')}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" onClick={() => handleDeleteKnowledge(base)}>
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem variant="destructive" onClick={() => handleDeleteKnowledge(base)}>
                       <DeleteIcon size={14} />
                       {t('common.delete')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               )}
             </DraggableList>
           </div>
