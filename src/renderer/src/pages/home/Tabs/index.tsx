@@ -1,3 +1,4 @@
+import { Alert, Skeleton } from '@heroui/react'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
@@ -8,7 +9,7 @@ import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { Tab } from '@renderer/types/chat'
-import { classNames, uuid } from '@renderer/utils'
+import { classNames, getErrorMessage, uuid } from '@renderer/utils'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -47,7 +48,7 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
-  const { session } = useActiveSession()
+  const { session, isLoading: isSessionLoading, error: sessionError } = useActiveSession()
   const { updateSession } = useUpdateSession(activeAgentId)
 
   const isSessionView = activeTopicOrSession === 'session'
@@ -154,7 +155,20 @@ const HomeTabs: FC<Props> = ({
           />
         )}
         {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
-        {tab === 'settings' && isSessionView && <SessionSettingsTab session={session} update={updateSession} />}
+        {tab === 'settings' && isSessionView && !sessionError && (
+          <Skeleton isLoaded={!isSessionLoading}>
+            <SessionSettingsTab session={session} update={updateSession} />
+          </Skeleton>
+        )}
+        {tab === 'settings' && isSessionView && sessionError && (
+          <div className="w-[var(--assistants-width)] p-2 px-3 pt-4">
+            <Alert
+              color="danger"
+              title={t('agent.session.get.error.failed')}
+              description={getErrorMessage(sessionError)}
+            />
+          </div>
+        )}
       </TabContent>
     </Container>
   )
