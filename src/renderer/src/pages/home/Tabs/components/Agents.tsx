@@ -1,4 +1,4 @@
-import { Alert, Button, Spinner } from '@heroui/react'
+import { Alert, Button, Spinner, useDisclosure } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
@@ -20,6 +20,7 @@ export const Agents: FC<AssistantsTabProps> = () => {
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { initializeAgentSession } = useAgentSessionInitializer()
+  const { isOpen, onOpen, onClose } = useDisclosure()
 
   const dispatch = useAppDispatch()
 
@@ -55,14 +56,13 @@ export const Agents: FC<AssistantsTabProps> = () => {
             }}
           />
         ))}
-      <AgentModal>
-        <Button
-          onPress={(e) => e.continuePropagation()}
-          startContent={<Plus size={16} className="mr-1 shrink-0 translate-x-[-2px]" />}
-          className="w-full justify-start bg-transparent text-foreground-500 hover:bg-[var(--color-list-item)]">
-          {t('agent.add.title')}
-        </Button>
-      </AgentModal>
+      <Button
+        onPress={onOpen}
+        startContent={<Plus size={16} className="mr-1 shrink-0 translate-x-[-2px]" />}
+        className="w-full justify-start bg-transparent text-foreground-500 hover:bg-[var(--color-list-item)]">
+        {t('agent.add.title')}
+      </Button>
+      <AgentModal isOpen={isOpen} onClose={onClose} />
     </>
   )
 }

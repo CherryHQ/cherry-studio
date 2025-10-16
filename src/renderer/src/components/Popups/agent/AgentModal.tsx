@@ -33,7 +33,7 @@ import {
   UpdateAgentForm
 } from '@renderer/types'
 import { AlertTriangleIcon } from 'lucide-react'
-import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
@@ -63,36 +63,23 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
 })
 
-interface BaseProps {
+type Props = {
   agent?: AgentWithTools
-}
-
-interface TriggerProps extends BaseProps {
-  children: ReactNode
-  isOpen?: never
-  onClose?: never
-}
-
-interface StateProps extends BaseProps {
-  children?: never
   isOpen: boolean
   onClose: () => void
 }
-
-type Props = TriggerProps | StateProps
 
 /**
  * Modal component for creating or editing an agent.
  *
  * Either trigger or isOpen and onClose is given.
  * @param agent - Optional agent entity for editing mode.
- * @param children - Optional trigger element that opens the modal. It MUST propagate the click event to trigger the modal.
  * @param isOpen - Optional controlled modal open state. From useDisclosure.
  * @param onClose - Optional callback when modal closes. From useDisclosure.
  * @returns Modal component for agent creation/editing
  */
-export const AgentModal: React.FC<Props> = ({ agent, children, isOpen: _isOpen, onClose: _onClose }) => {
-  const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
+export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _onClose }) => {
+  const { isOpen, onClose } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
@@ -349,22 +336,6 @@ export const AgentModal: React.FC<Props> = ({ agent, children, isOpen: _isOpen, 
 
   return (
     <ErrorBoundary>
-      {/* NOTE: Hero UI Modal Pattern: Combine the Button and Modal components into a single
-      encapsulated component. This is because the Modal component needs to bind the onOpen
-      event handler to the Button for proper focus management.
-
-      Or just use external isOpen/onOpen/onClose to control modal state.
-      */}
-
-      {children !== undefined && (
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpen()
-          }}>
-          {children}
-        </div>
-      )}
       <Modal
         isOpen={isOpen}
         onClose={onClose}
