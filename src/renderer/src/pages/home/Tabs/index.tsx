@@ -125,7 +125,7 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && isTopicView && (
+      {position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
