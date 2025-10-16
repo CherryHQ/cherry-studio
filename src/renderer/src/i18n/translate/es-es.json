@@ -74,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Error al obtener la sesión"
+          "failed": "Error al obtener la sesión",
+          "null_id": "El ID de sesión es nulo"
         }
       },
       "label_one": "Sesión",

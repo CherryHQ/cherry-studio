@@ -74,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "無法取得工作階段"
+          "failed": "無法取得工作階段",
+          "null_id": "工作階段 ID 為空"
         }
       },
       "label_one": "會議",

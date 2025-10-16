@@ -74,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Failed to get the session"
+          "failed": "Failed to get the session",
+          "null_id": "Session ID is null"
         }
       },
       "label_one": "Session",
