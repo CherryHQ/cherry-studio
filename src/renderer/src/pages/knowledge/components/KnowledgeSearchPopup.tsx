@@ -6,7 +6,6 @@ import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@render
 import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SearchItemRenderer from './KnowledgeSearchItem'
 
@@ -69,7 +68,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       <DialogContent
         showCloseButton={false}
         className="w-[700px] max-w-[90vw] overflow-hidden rounded-lg p-0 pb-3 sm:max-w-[700px]">
-        <SearchInputContainer className="mt-2 px-3">
+        <div className="mt-2 flex items-center gap-1 px-3">
           <Search size={15} />
           <Input
             ref={searchInputRef}
@@ -86,101 +85,44 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
             }}
           />
           {searchKeyword && (
-            <ClearButton
+            <button
+              type="button"
+              className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-none bg-transparent text-[var(--color-text-3)] transition-colors duration-200 hover:bg-[var(--color-background-soft)] hover:text-[var(--color-text-1)]"
               onClick={() => {
                 setSearchKeyword('')
                 setResults([])
               }}>
               <X size={14} />
-            </ClearButton>
+            </button>
           )}
-        </SearchInputContainer>
+        </div>
         {/* <Separator /> */}
 
         {loading ? (
-          <ResultsContainer>
-            <LoadingContainer>
+          <div className="max-h-[70vh] overflow-y-auto px-4">
+            <div className="flex h-[200px] items-center justify-center">
               <Spinner text={t('message.searching')} />
-            </LoadingContainer>
-          </ResultsContainer>
+            </div>
+          </div>
         ) : searchKeyword && results.length === 0 ? (
-          <EmptyState>{t('common.no_results')}</EmptyState>
+          <div className="flex items-center justify-center px-5 py-10 text-center text-[var(--color-text-3)]">
+            {t('common.no_results')}
+          </div>
         ) : results.length > 0 ? (
-          <ResultsContainer>
-            <ResultsList>
+          <div className="max-h-[70vh] overflow-y-auto px-4">
+            <div className="flex flex-col">
               {results.map((item, index) => (
-                <ResultsListItem key={index}>
+                <div key={index} className="border-[var(--color-border)] border-b last:border-b-0">
                   <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
-                </ResultsListItem>
+                </div>
               ))}
-            </ResultsList>
-          </ResultsContainer>
+            </div>
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>
   )
 }
-
-const ResultsContainer = styled.div`
-  padding: 0 16px;
-  overflow-y: auto;
-  max-height: 70vh;
-`
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-`
-
-const EmptyState = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 40px 20px;
-  color: var(--color-text-3);
-  text-align: center;
-`
-
-const ResultsList = styled.div`
-  display: flex;
-  flex-direction: column;
-`
-
-const ResultsListItem = styled.div`
-  border-bottom: 1px solid var(--color-border);
-
-  &:last-child {
-    border-bottom: none;
-  }
-`
-
-const SearchInputContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const ClearButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-3);
-  cursor: pointer;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  flex-shrink: 0;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text-1);
-  }
-`
 
 const TopViewKey = 'KnowledgeSearchPopup'
 
