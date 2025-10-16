@@ -8,7 +8,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { ApiModel, Assistant, PermissionMode } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
-import React, { FC, ReactNode, useCallback } from 'react'
+import { FC, ReactNode, useCallback } from 'react'
 
 import { AgentSettingsPopup } from '../../settings/AgentSettings'
 import { AgentLabel } from '../../settings/AgentSettings/shared'

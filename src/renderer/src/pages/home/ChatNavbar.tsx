@@ -14,7 +14,7 @@ import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC } from 'react'
+import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -94,11 +94,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </motion.div>
           )}
         </AnimatePresence>
-        <ChatNavbarContent
-          assistant={assistant}
-          activeTopic={activeTopic}
-          onShowAssistantsDrawer={onShowAssistantsDrawer}
-        />
+        <ChatNavbarContent assistant={assistant} />
       </div>
       <HStack alignItems="center" gap={8}>
         <UpdateAppButton />
