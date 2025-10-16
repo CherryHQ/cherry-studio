@@ -343,14 +343,12 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
-    /* overflow-y: hidden; */
     overflow-x: auto;
   }
   &.fold,
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
-    /* overflow: hidden; */
   }
   &.grid {
     grid-template-columns: repeat(
@@ -358,15 +356,11 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
       minmax(0, 1fr)
     );
     grid-template-rows: auto;
-    /* overflow-y: auto; */
-    /* overflow-x: hidden; */
   }
 
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
-    /* overflow-y: auto; */
-    /* overflow-x: hidden; */x
     .grid {
       height: auto;
     }
@@ -415,7 +409,6 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     display: block;
     height: 300px;
     overflow-y: hidden;
-    /* overflow: hidden; */
     border: 0.5px solid var(--color-border);
     border-radius: 10px;
     cursor: pointer;
