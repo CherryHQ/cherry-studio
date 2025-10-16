@@ -31,14 +31,15 @@ export const useSessions = (agentId: string) => {
     [agentId, client, mutate, t]
   )
 
-  // TODO: including messages field
   const getSession = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<GetAgentSessionResponse | null> => {
       try {
         const result = await client.getSession(agentId, id)
         mutate((prev) => prev?.map((session) => (session.id === result.id ? result : session)))
+        return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
+        return null
       }
     },
     [agentId, client, mutate, t]
