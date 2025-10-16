@@ -13,7 +13,7 @@ import { LanguageModelV2 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider, Provider } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 基础 Provider IDs

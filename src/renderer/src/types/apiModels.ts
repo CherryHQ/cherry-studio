@@ -1,11 +1,12 @@
 import { Model } from '@types'
-import { z } from 'zod'
+import * as z from 'zod'
 
 import { ProviderTypeSchema } from './provider'
 
 // Request schema for /v1/models
 export const ApiModelsFilterSchema = z.object({
   providerType: ProviderTypeSchema.optional(),
+  supportAnthropic: z.coerce.boolean().optional(),
   offset: z.coerce.number().min(0).default(0).optional(),
   limit: z.coerce.number().min(1).default(20).optional()
 })

@@ -24,7 +24,7 @@ const visionAllowedModels = [
   'qwen2.5-vl',
   'qwen3-vl',
   'qwen2.5-omni',
-  'qwen3-omni',
+  'qwen3-omni(?:-[\\w-]+)?',
   'qvq',
   'internvl2',
   'grok-vision-beta',
@@ -82,14 +82,14 @@ export const IMAGE_ENHANCEMENT_MODELS = [
   'grok-2-image(?:-[\\w-]+)?',
   'qwen-image-edit',
   'gpt-image-1',
-  'gemini-2.5-flash-image-preview',
+  'gemini-2.5-flash-image',
   'gemini-2.0-flash-preview-image-generation'
 ]
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
-export const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image-preview', ...DEDICATED_IMAGE_MODELS]
+export const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image', ...DEDICATED_IMAGE_MODELS]
 
 export const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
   'o3',
@@ -107,7 +107,7 @@ export const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp',
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.5-flash-image-preview',
+  'gemini-2.5-flash-image',
   ...DEDICATED_IMAGE_MODELS
 ]
 

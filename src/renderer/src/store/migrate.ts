@@ -68,6 +68,7 @@ function removeMiniAppIconsFromState(state: RootState) {
 
 function removeMiniAppFromState(state: RootState, id: string) {
   if (state.minapps) {
+    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
     state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
     state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
   }
@@ -2596,16 +2597,30 @@ const migrateConfig = {
       return state
     }
   },
-  '160': (state: RootState) => {
+  '161': (state: RootState) => {
+    try {
+      removeMiniAppFromState(state, 'nm-search')
+      removeMiniAppFromState(state, 'hika')
+      removeMiniAppFromState(state, 'hugging-chat')
+      addProvider(state, 'cherryin')
+      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
+      return state
+    }
+  },
+  '162': (state: RootState) => {
     try {
       // @ts-ignore
       if (state?.agents?.agents) {
         // @ts-ignore
         state.assistants.presets = [...state.agents.agents]
-
         // @ts-ignore
         delete state.agents.agents
+      }
 
+      if (state.settings.sidebarIcons) {
         state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
           // @ts-ignore
           return icon === 'agents' ? 'store' : icon
@@ -2615,6 +2630,7 @@ const migrateConfig = {
           return icon === 'agents' ? 'store' : icon
         })
       }
+
       state.llm.providers.forEach((provider) => {
         if (provider.anthropicApiHost) {
           return
@@ -2642,16 +2658,13 @@ const migrateConfig = {
           case 'new-api':
             provider.anthropicApiHost = 'http://localhost:3000'
             break
-          case 'cherryai':
-            provider.anthropicApiHost = 'https://api.cherry-ai.com'
-            break
           case 'grok':
             provider.anthropicApiHost = 'https://api.x.ai'
         }
       })
       return state
     } catch (error) {
-      logger.error('migrate 160 error', error as Error)
+      logger.error('migrate 162 error', error as Error)
       return state
     }
   }

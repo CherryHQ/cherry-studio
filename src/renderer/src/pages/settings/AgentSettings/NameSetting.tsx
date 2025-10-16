@@ -25,6 +25,7 @@ export const NameSetting: React.FC<NameSettingsProps> = ({ base, update }) => {
       <Input
         placeholder={t('common.agent_one') + t('common.name')}
         value={name}
+        size="sm"
         onValueChange={(value) => setName(value)}
         onBlur={() => {
           if (name !== base.name) {

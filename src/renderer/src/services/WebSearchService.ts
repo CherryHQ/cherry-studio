@@ -22,7 +22,6 @@ import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
-import { LRUCache } from 'lru-cache'
 import { sliceByTokens } from 'tokenx'
 
 import { getKnowledgeBaseParams } from './KnowledgeService'
@@ -32,7 +31,6 @@ const logger = loggerService.withContext('WebSearchService')
 
 interface RequestState {
   signal: AbortSignal | null
-  searchBase?: KnowledgeBase
   isPaused: boolean
   createdAt: number
 }
@@ -49,16 +47,7 @@ class WebSearchService {
   isPaused = false
 
   // 管理不同请求的状态
-  private requestStates = new LRUCache<string, RequestState>({
-    max: 5, // 最多5个并发请求
-    ttl: 1000 * 60 * 2, // 2分钟过期
-    dispose: (requestState: RequestState, requestId: string) => {
-      if (!requestState.searchBase) return
-      window.api.knowledgeBase
-        .delete(removeSpecialCharactersForFileName(requestState.searchBase.id))
-        .catch((error) => logger.warn(`Failed to cleanup search base for ${requestId}:`, error))
-    }
-  })
+  private requestStates = new Map<string, RequestState>()
 
   /**
    * 获取或创建单个请求的状态
@@ -209,7 +198,7 @@ class WebSearchService {
   }
 
   /**
-   * 确保搜索压缩知识库存在并配置正确
+   * 创建临时搜索知识库
    */
   private async ensureSearchBase(
     config: CompressionConfig,
@@ -218,25 +207,13 @@ class WebSearchService {
   ): Promise<KnowledgeBase> {
     // requestId: eg: openai-responses-openai/gpt-5-timestamp-uuid
     const baseId = `websearch-compression-${requestId}`
-    const state = this.getRequestState(requestId)
-
-    // 如果已存在且配置未变，直接复用
-    if (state.searchBase && this.isConfigMatched(state.searchBase, config)) {
-      return state.searchBase
-    }
-
-    // 清理旧的知识库
-    if (state.searchBase) {
-      // 将requestId中的 '/' 映射为 '_'
-      await window.api.knowledgeBase.delete(removeSpecialCharactersForFileName(state.searchBase.id))
-    }
 
     if (!config.embeddingModel) {
       throw new Error('Embedding model is required for RAG compression')
     }
 
     // 创建新的知识库
-    state.searchBase = {
+    const searchBase: KnowledgeBase = {
       id: baseId,
       name: `WebSearch-RAG-${requestId}`,
       model: config.embeddingModel,
@@ -249,25 +226,23 @@ class WebSearchService {
       version: 1
     }
 
-    // 更新LRU cache
-    this.requestStates.set(requestId, state)
-
     // 创建知识库
-    const baseParams = getKnowledgeBaseParams(state.searchBase)
+    const baseParams = getKnowledgeBaseParams(searchBase)
     await window.api.knowledgeBase.create(baseParams)
 
-    return state.searchBase
+    return searchBase
   }
 
   /**
-   * 检查配置是否匹配
+   * 清理临时搜索知识库
    */
-  private isConfigMatched(base: KnowledgeBase, config: CompressionConfig): boolean {
-    return (
-      base.model.id === config.embeddingModel?.id &&
-      base.rerankModel?.id === config.rerankModel?.id &&
-      base.dimensions === config.embeddingDimensions
-    )
+  private async cleanupSearchBase(searchBase: KnowledgeBase): Promise<void> {
+    try {
+      await window.api.knowledgeBase.delete(removeSpecialCharactersForFileName(searchBase.id))
+      logger.debug(`Cleaned up search base: ${searchBase.id}`)
+    } catch (error) {
+      logger.warn(`Failed to cleanup search base ${searchBase.id}:`, error as Error)
+    }
   }
 
   /**
@@ -334,45 +309,50 @@ class WebSearchService {
     const searchBase = await this.ensureSearchBase(config, totalDocumentCount, requestId)
     logger.debug('Search base for RAG compression: ', searchBase)
 
-    // 1. 清空知识库
-    const baseParams = getKnowledgeBaseParams(searchBase)
-    await window.api.knowledgeBase.reset(baseParams)
+    try {
+      // 1. 清空知识库
+      const baseParams = getKnowledgeBaseParams(searchBase)
+      await window.api.knowledgeBase.reset(baseParams)
 
-    logger.debug('Search base parameters for RAG compression: ', baseParams)
+      logger.debug('Search base parameters for RAG compression: ', baseParams)
 
-    // 2. 顺序添加所有搜索结果到知识库
-    // FIXME: 目前的知识库 add 不支持并发
-    for (const result of rawResults) {
-      const item: KnowledgeItem & { sourceUrl?: string } = {
-        id: uuid(),
-        type: 'note',
-        content: result.content,
-        sourceUrl: result.url, // 设置 sourceUrl 用于映射
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        processingStatus: 'pending'
+      // 2. 顺序添加所有搜索结果到知识库
+      // FIXME: 目前的知识库 add 不支持并发
+      for (const result of rawResults) {
+        const item: KnowledgeItem & { sourceUrl?: string } = {
+          id: uuid(),
+          type: 'note',
+          content: result.content,
+          sourceUrl: result.url, // 设置 sourceUrl 用于映射
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          processingStatus: 'pending'
+        }
+
+        await window.api.knowledgeBase.add({
+          base: getKnowledgeBaseParams(searchBase),
+          item
+        })
       }
 
-      await window.api.knowledgeBase.add({
-        base: getKnowledgeBaseParams(searchBase),
-        item
+      // 3. 对知识库执行多问题搜索获取压缩结果
+      const references = await this.querySearchBase(questions, searchBase)
+
+      // 4. 使用 Round Robin 策略选择引用
+      const selectedReferences = selectReferences(rawResults, references, totalDocumentCount)
+
+      logger.verbose('With RAG, the number of search results:', {
+        raw: rawResults.length,
+        retrieved: references.length,
+        selected: selectedReferences.length
       })
+
+      // 5. 按 sourceUrl 分组并合并同源片段
+      return consolidateReferencesByUrl(rawResults, selectedReferences)
+    } finally {
+      // 无论成功或失败都立即清理知识库
+      await this.cleanupSearchBase(searchBase)
     }
-
-    // 3. 对知识库执行多问题搜索获取压缩结果
-    const references = await this.querySearchBase(questions, searchBase)
-
-    // 4. 使用 Round Robin 策略选择引用
-    const selectedReferences = selectReferences(rawResults, references, totalDocumentCount)
-
-    logger.verbose('With RAG, the number of search results:', {
-      raw: rawResults.length,
-      retrieved: references.length,
-      selected: selectedReferences.length
-    })
-
-    // 5. 按 sourceUrl 分组并合并同源片段
-    return consolidateReferencesByUrl(rawResults, selectedReferences)
   }
 
   /**

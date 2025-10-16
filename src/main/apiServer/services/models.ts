@@ -1,3 +1,5 @@
+import { isEmpty } from 'lodash'
+
 import { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
 import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
@@ -8,6 +10,10 @@ const logger = loggerService.withContext('ModelsService')
 
 export type ModelsFilter = ApiModelsFilter
 
+const isAnthropicProvider = (provider: { type: string; anthropicApiHost?: string }) => {
+  return provider.type === 'anthropic' || !isEmpty(provider.anthropicApiHost?.trim())
+}
+
 export class ModelsService {
   async getModels(filter: ModelsFilter): Promise<ApiModelsResponse> {
     try {
@@ -16,9 +22,7 @@ export class ModelsService {
       let providers = await getAvailableProviders()
 
       if (filter.providerType === 'anthropic') {
-        providers = providers.filter(
-          (p) => p.type === 'anthropic' || (p.anthropicApiHost !== undefined && p.anthropicApiHost.trim() !== '')
-        )
+        providers = providers.filter(isAnthropicProvider)
       }
 
       const models = await listAllAvailableModels(providers)
@@ -38,6 +42,10 @@ export class ModelsService {
         }
         // Special case: For "aihubmix", it should be covered by above condition, but just in case
         if (provider.id === 'aihubmix' && filter.providerType === 'anthropic' && !model.id.includes('claude')) {
+          continue
+        }
+
+        if (filter.supportAnthropic && model.endpoint_type !== 'anthropic' && !isAnthropicProvider(provider)) {
           continue
         }
 
