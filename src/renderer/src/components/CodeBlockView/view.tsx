@@ -16,6 +16,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
@@ -56,6 +57,9 @@ interface Props {
 export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
   const { codeEditor, codeExecution, codeImageTools, codeCollapsible, codeWrappable } = useSettings()
+  const { fontSize } = useSettings()
+
+  const { activeCmTheme } = useCodeStyle()
 
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
@@ -245,6 +249,8 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
         <CodeEditor
           className="source-view"
           ref={sourceViewRef}
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={children}
           language={language}
           onSave={onSave}
@@ -265,7 +271,17 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
         />
       ),
-    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+    [
+      activeCmTheme,
+      children,
+      codeEditor.enabled,
+      fontSize,
+      handleHeightChange,
+      language,
+      onSave,
+      shouldExpand,
+      shouldWrap
+    ]
   )
 
   // 特殊视图组件映射

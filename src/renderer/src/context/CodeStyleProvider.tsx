@@ -1,3 +1,4 @@
+import { CodeMirrorTheme, getCmThemeByName } from '@renderer/components/CodeEditor'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -19,7 +20,7 @@ interface CodeStyleContextType {
   themeNames: string[]
   activeShikiTheme: string
   isShikiThemeDark: boolean
-  activeCmTheme: any
+  activeCmTheme: CodeMirrorTheme
 }
 
 const defaultCodeStyleContext: CodeStyleContextType = {
@@ -32,7 +33,7 @@ const defaultCodeStyleContext: CodeStyleContextType = {
   themeNames: ['auto'],
   activeShikiTheme: 'auto',
   isShikiThemeDark: false,
-  activeCmTheme: null
+  activeCmTheme: 'none'
 }
 
 const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
@@ -88,7 +89,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     if (!themeName || themeName === 'auto' || !themeNames.includes(themeName)) {
       themeName = theme === ThemeMode.light ? 'materialLight' : 'dark'
     }
-    return cmThemes[themeName as keyof typeof cmThemes] || themeName
+    return getCmThemeByName(themeName)
   }, [theme, codeEditor, themeNames])
 
   // 自定义 shiki 语言别名
