@@ -395,6 +395,14 @@ export interface PreferenceSchemas {
     'topic.tab.show': boolean
     // redux/settings/showTopicTime
     'topic.tab.show_time': boolean
+    // redux/translate/settings
+    'translate.settings.auto_copy': boolean
+    // indexedDB/translate
+    'translate.settings.auto_detection_method': PreferenceTypes.AutoDetectionMethod
+    'translate.settings.enable_markdown': boolean
+    'translate.settings.scroll_sync': boolean
+    // new preference
+    'translate.settings.target_langs': PreferenceTypes.TargetLangs
     // redux/settings/customCss
     'ui.custom_css': string
     // redux/settings/navbarPosition
@@ -654,6 +662,14 @@ export const DefaultPreferences: PreferenceSchemas = {
     'topic.tab.pin_to_top': false,
     'topic.tab.show': true,
     'topic.tab.show_time': false,
+    'translate.settings.auto_copy': false,
+    'translate.settings.auto_detection_method': 'franc',
+    'translate.settings.enable_markdown': false,
+    'translate.settings.scroll_sync': false,
+    'translate.settings.target_langs': {
+      alter: 'zh-cn',
+      target: 'en-us'
+    },
     'ui.custom_css': '',
     'ui.navbar.position': 'top',
     'ui.sidebar.icons.invisible': [],

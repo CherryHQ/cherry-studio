@@ -18,7 +18,7 @@ import { SettingRow, SettingRowTitle } from '..'
 export const OcrSystemSettings = () => {
   const { t } = useTranslation()
   // 和翻译自定义语言耦合了，应该还ok
-  const { translateLanguages } = useTranslate()
+  const { translateLanguages, getLanguageLabel } = useTranslate()
   const { provider, updateConfig } = useOcrProvider(BuiltinOcrProviderIds.system)
 
   if (!isOcrSystemProvider(provider)) {
@@ -36,9 +36,9 @@ export const OcrSystemSettings = () => {
     () =>
       translateLanguages.map((lang) => ({
         value: lang.langCode,
-        label: lang.emoji + ' ' + lang.label()
+        label: lang.emoji + ' ' + getLanguageLabel(lang.langCode)
       })),
-    [translateLanguages]
+    [getLanguageLabel, translateLanguages]
   )
 
   const onChange = useCallback((value: TranslateLanguageCode[]) => {

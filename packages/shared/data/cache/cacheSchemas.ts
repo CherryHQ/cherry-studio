@@ -1,3 +1,5 @@
+import type { TranslateLanguageCode } from '@types'
+
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -26,6 +28,15 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
+
+  // Translate state
+  'translate.lang.source': TranslateLanguageCode | 'auto'
+  'translate.lang.target': TranslateLanguageCode
+  'translate.input': string
+  'translate.output': string
+  'translate.detecting': boolean
+  'translate.translating': CacheValueTypes.CacheTranslating
+  'translate.bidirectional': CacheValueTypes.CacheTranslateBidirectional
 
   // Test keys (for dataRefactorTest window)
   // TODO: remove after testing
@@ -71,6 +82,19 @@ export const DefaultUseCache: UseCacheSchema = {
   'topic.active': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
+
+  // Translate state
+  'translate.lang.source': 'auto',
+  'translate.lang.target': 'zh-cn',
+  'translate.input': '',
+  'translate.output': '',
+  'translate.detecting': false,
+  'translate.translating': { isTranslating: false, abortKey: null },
+  'translate.bidirectional': {
+    enabled: false,
+    origin: 'en-us',
+    target: 'zh-cn'
+  },
 
   // Test keys (for dataRefactorTest window)
   // TODO: remove after testing

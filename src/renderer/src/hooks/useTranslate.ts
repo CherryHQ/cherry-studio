@@ -1,14 +1,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { builtinLanguages, UNKNOWN } from '@renderer/config/translate'
-import { useAppSelector } from '@renderer/store'
-import type { TranslateState } from '@renderer/store/translate'
-import { updateSettings } from '@renderer/store/translate'
-import type { TranslateLanguage } from '@renderer/types'
+import type { TranslateLanguageCode } from '@renderer/types'
+import { type TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { getTranslateOptions } from '@renderer/utils/translate'
-import { useCallback, useEffect, useState } from 'react'
-import { useDispatch } from 'react-redux'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useTranslate')
 
@@ -20,12 +18,10 @@ const logger = loggerService.withContext('useTranslate')
  * - getLanguageByLangcode: 通过语言代码获取语言对象
  */
 export default function useTranslate() {
+  const { t } = useTranslation()
   const [prompt] = usePreference('feature.translate.model_prompt')
-  const settings = useAppSelector((state) => state.translate.settings)
   const [translateLanguages, setTranslateLanguages] = useState<TranslateLanguage[]>(builtinLanguages)
   const [isLoaded, setIsLoaded] = useState(false)
-
-  const dispatch = useDispatch()
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -37,34 +33,68 @@ export default function useTranslate() {
 
   const getLanguageByLangcode = useCallback(
     (langCode: string) => {
-      if (!isLoaded) {
-        logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
-        return UNKNOWN
-      }
-
       const result = translateLanguages.find((item) => item.langCode === langCode)
       if (result) {
         return result
       } else {
-        logger.warn(`Unknown language ${langCode}`)
+        if (!isLoaded) {
+          logger.verbose('Translate languages are not loaded yet. Return UNKNOWN.')
+        } else {
+          logger.warn(`Unknown language ${langCode}`)
+        }
         return UNKNOWN
       }
     },
     [isLoaded, translateLanguages]
   )
 
-  const handleUpdateSettings = useCallback(
-    (update: Partial<TranslateState['settings']>) => {
-      dispatch(updateSettings(update))
+  const labelMap: Record<string, string> = useMemo(
+    () => ({
+      'zh-cn': t('languages.chinese'),
+      'zh-tw': t('languages.chinese-traditional'),
+      'ja-jp': t('languages.japanese'),
+      'ko-kr': t('languages.korean'),
+      'en-us': t('languages.english'),
+      'fr-fr': t('languages.french'),
+      'de-de': t('languages.german'),
+      'it-it': t('languages.italian'),
+      'es-es': t('languages.spanish'),
+      'pt-pt': t('languages.portuguese'),
+      'ru-ru': t('languages.russian'),
+      'pl-pl': t('languages.polish'),
+      'ar-ar': t('languages.arabic'),
+      'tr-tr': t('languages.turkish'),
+      'th-th': t('languages.thai'),
+      'vi-vn': t('languages.vietnamese'),
+      'id-id': t('languages.indonesian'),
+      'ur-pk': t('languages.urdu'),
+      'ms-my': t('languages.malay'),
+      'uk-ua': t('languages.ukrainian'),
+      unknown: t('common.unknown')
+    }),
+    [t]
+  )
+
+  const getLanguageLabel = useCallback(
+    (code: TranslateLanguageCode) => {
+      const label = labelMap[code]
+      if (label) {
+        return label
+      } else if (isLoaded) {
+        const language = getLanguageByLangcode(code)
+        return language.value
+      } else {
+        return t('common.unknown')
+      }
     },
-    [dispatch]
+    [getLanguageByLangcode, isLoaded, labelMap, t]
   )
 
   return {
     prompt,
-    settings,
+    isLoaded,
     translateLanguages,
     getLanguageByLangcode,
-    updateSettings: handleUpdateSettings
+    getLanguageLabel
   }
 }

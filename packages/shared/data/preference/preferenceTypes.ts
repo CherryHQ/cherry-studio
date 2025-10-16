@@ -1,3 +1,6 @@
+import type { TranslateLanguageCode } from '@types'
+import * as z from 'zod'
+
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -85,3 +88,13 @@ export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 
 export type MultiModelGridPopoverTrigger = 'hover' | 'click'
+
+const AutoDetectionMethodSchema = z.enum(['franc', 'llm', 'auto'])
+export type AutoDetectionMethod = z.infer<typeof AutoDetectionMethodSchema>
+export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
+  return AutoDetectionMethodSchema.safeParse(method).success
+}
+export type TargetLangs = {
+  target: TranslateLanguageCode
+  alter: TranslateLanguageCode
+}

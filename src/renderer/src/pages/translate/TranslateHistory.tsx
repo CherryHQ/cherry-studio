@@ -6,7 +6,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { clearHistory, deleteHistory, updateTranslateHistory } from '@renderer/services/TranslateService'
-import type { TranslateHistory, TranslateLanguage } from '@renderer/types'
+import type { TranslateHistory } from '@renderer/types'
 import { Drawer, Empty, Input, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -17,14 +17,9 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-type DisplayedTranslateHistoryItem = TranslateHistory & {
-  _sourceLanguage: TranslateLanguage
-  _targetLanguage: TranslateLanguage
-}
-
 type TranslateHistoryProps = {
   isOpen: boolean
-  onHistoryItemClick: (history: DisplayedTranslateHistoryItem) => void
+  onHistoryItemClick: (history: TranslateHistory) => void
   onClose: () => void
 }
 
@@ -35,39 +30,34 @@ const ITEM_HEIGHT = 160
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
   const { t } = useTranslation()
-  const { getLanguageByLangcode } = useTranslate()
+  const { getLanguageLabel } = useTranslate()
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
   const [search, setSearch] = useState('')
-  const [displayedHistory, setDisplayedHistory] = useState<DisplayedTranslateHistoryItem[]>([])
+  const [displayedHistory, setDisplayedHistory] = useState<TranslateHistory[]>([])
   const [showStared, setShowStared] = useState<boolean>(false)
 
-  const translateHistory: DisplayedTranslateHistoryItem[] = useMemo(() => {
+  const translateHistory: TranslateHistory[] = useMemo(() => {
     if (!_translateHistory) return []
 
     return _translateHistory.map((item) => ({
       ...item,
-      _sourceLanguage: getLanguageByLangcode(item.sourceLanguage),
-      _targetLanguage: getLanguageByLangcode(item.targetLanguage),
       createdAt: dayjs(item.createdAt).format('MM/DD HH:mm')
     }))
-  }, [_translateHistory, getLanguageByLangcode])
+  }, [_translateHistory])
 
   const searchFilter = useCallback(
-    (item: DisplayedTranslateHistoryItem) => {
+    (item: TranslateHistory) => {
       if (isEmpty(search)) return true
-      const content = `${item._sourceLanguage.label()} ${item._targetLanguage.label()} ${item.sourceText} ${item.targetText} ${item.createdAt}`
+      const content = `${getLanguageLabel(item.sourceLanguage)} ${getLanguageLabel(item.targetLanguage)} ${item.sourceText} ${item.targetText} ${item.createdAt}`
       return content.includes(search)
     },
-    [search]
+    [getLanguageLabel, search]
   )
 
-  const starFilter = useMemo(
-    () => (showStared ? (item: DisplayedTranslateHistoryItem) => !!item.star : () => true),
-    [showStared]
-  )
+  const starFilter = useMemo(() => (showStared ? (item: TranslateHistory) => !!item.star : () => true), [showStared])
 
   const finalFilter = useCallback(
-    (item: DisplayedTranslateHistoryItem) => searchFilter(item) && starFilter(item),
+    (item: TranslateHistory) => searchFilter(item) && starFilter(item),
     [searchFilter, starFilter]
   )
 
@@ -179,8 +169,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                       <ColFlex className="h-full w-full flex-1 justify-between gap-1">
                         <Flex className="h-[30px] items-center justify-between">
                           <Flex className="items-center gap-1.5">
-                            <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
-                            <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
+                            <HistoryListItemLanguage>{getLanguageLabel(item.sourceLanguage)} →</HistoryListItemLanguage>
+                            <HistoryListItemLanguage>{getLanguageLabel(item.targetLanguage)}</HistoryListItemLanguage>
                           </Flex>
                           {/* tool bar */}
                           <Flex className="mt-2 items-center justify-end">

@@ -23,7 +23,7 @@ import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
+import type { Assistant, Model, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -118,6 +118,7 @@ type MessageMenubarButtonContext = {
   softHoverBg: boolean
   t: TFunction
   translateLanguages: TranslateLanguage[]
+  getLanguageLabel: (lang: TranslateLanguageCode) => string
 }
 
 type MessageMenubarButtonRenderer = (ctx: MessageMenubarButtonContext) => ReactNode | null
@@ -142,7 +143,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
-  const { translateLanguages } = useTranslate()
+  const { translateLanguages, getLanguageLabel } = useTranslate()
   // const assistantModel = assistant?.model
   const {
     deleteMessage,
@@ -571,7 +572,8 @@ const MessageMenubar: FC<Props> = (props) => {
     showDeleteTooltip,
     softHoverBg,
     t,
-    translateLanguages
+    translateLanguages,
+    getLanguageLabel
   }
 
   return (
@@ -757,6 +759,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
   translate: ({
     isUserMessage,
     translateLanguages,
+    getLanguageLabel,
     handleTranslate,
     hasTranslationBlocks,
     message,
@@ -771,7 +774,7 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
 
     const items: MenuProps['items'] = [
       ...translateLanguages.map((item) => ({
-        label: item.emoji + ' ' + item.label(),
+        label: item.emoji + ' ' + getLanguageLabel(item.langCode),
         key: item.langCode,
         onClick: () => handleTranslate(item)
       })),

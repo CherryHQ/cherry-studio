@@ -24,7 +24,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   const [isTranslating, setIsTranslating] = useState(false)
   const [targetLanguage] = usePreference('feature.translate.target_language')
   const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
-  const { getLanguageByLangcode } = useTranslate()
+  const { getLanguageLabel, getLanguageByLangcode } = useTranslate()
 
   const translateConfirm = () => {
     if (!showTranslateConfirm) {
@@ -64,9 +64,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   }, [isLoading])
 
   return (
-    <Tooltip
-      content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
-      closeDelay={0}>
+    <Tooltip content={t('chat.input.translate', { target_language: getLanguageLabel(targetLanguage) })} closeDelay={0}>
       <Button
         onPress={handleTranslate}
         isDisabled={disabled || isTranslating}

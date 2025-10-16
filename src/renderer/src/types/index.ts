@@ -488,7 +488,6 @@ export type TranslateLanguageCode = string
 export type TranslateLanguage = {
   value: string
   langCode: TranslateLanguageCode
-  label: () => string
   emoji: string
 }
 
@@ -508,18 +507,6 @@ export type CustomTranslateLanguage = {
   langCode: TranslateLanguageCode
   value: string
   emoji: string
-}
-
-export const AutoDetectionMethods = {
-  franc: 'franc',
-  llm: 'llm',
-  auto: 'auto'
-} as const
-
-export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
-
-export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
-  return Object.hasOwn(AutoDetectionMethods, method)
 }
 
 // by fullex @ data refactor

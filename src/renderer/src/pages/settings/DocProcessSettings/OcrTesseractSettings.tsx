@@ -24,17 +24,17 @@ export const OcrTesseractSettings = () => {
   }
 
   const [langs, setLangs] = useState<Partial<Record<TesseractLangCode, boolean>>>(provider.config?.langs ?? {})
-  const { translateLanguages } = useTranslate()
+  const { translateLanguages, getLanguageLabel } = useTranslate()
 
   const options = useMemo(
     () =>
       translateLanguages
         .map((lang) => ({
           value: TESSERACT_LANG_MAP[lang.langCode],
-          label: lang.emoji + ' ' + lang.label()
+          label: lang.emoji + ' ' + getLanguageLabel(lang.langCode)
         }))
         .filter((option) => option.value),
-    [translateLanguages]
+    [getLanguageLabel, translateLanguages]
   )
 
   // TODO: type safe objectKeys

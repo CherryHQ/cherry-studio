@@ -736,7 +736,8 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'shortcuts.exit_fullscreen',
       targetKey: 'shortcut.app.exit_fullscreen'
     }
-  ]
+  ],
+  translate: [{ originalKey: 'settings.autoCopy', targetKey: 'translate.settings.auto_copy' }]
 } as const
 
 // === AUTO-GENERATED CONTENT END ===

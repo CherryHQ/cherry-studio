@@ -96,7 +96,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
-  const { translateLanguages } = useTranslate()
+  const { translateLanguages, getLanguageLabel } = useTranslate()
 
   const { t } = useTranslation()
 
@@ -142,8 +142,12 @@ const SettingsTab: FC<Props> = (props) => {
   )
 
   const targetLanguageItems = useMemo<SelectorItem<string>[]>(
-    () => translateLanguages.map((item) => ({ value: item.langCode, label: item.emoji + ' ' + item.label() })),
-    [translateLanguages]
+    () =>
+      translateLanguages.map((item) => ({
+        value: item.langCode,
+        label: item.emoji + ' ' + getLanguageLabel(item.langCode)
+      })),
+    [getLanguageLabel, translateLanguages]
   )
 
   const sendMessageShortcutItems = useMemo<SelectorItem<SendMessageShortcut>[]>(
@@ -727,7 +731,7 @@ const SettingsTab: FC<Props> = (props) => {
               selectionMode="single"
               selectedKeys={targetLanguage}
               onSelectionChange={(value) => setTargetLanguage(value)}
-              placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
+              placeholder={UNKNOWN.emoji + ' ' + getLanguageLabel(UNKNOWN.langCode)}
               items={targetLanguageItems}
             />
           </SettingRow>

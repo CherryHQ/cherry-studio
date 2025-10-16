@@ -11,6 +11,7 @@ import type { Assistant, TranslateLanguage, TranslateLanguageCode } from '@rende
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { LANG_DETECT_PROMPT } from '@shared/config/prompts'
+import type { CacheTranslateBidirectional } from '@shared/data/cache/cacheValueTypes'
 import { franc } from 'franc-min'
 import type { RefObject } from 'react'
 import React from 'react'
@@ -128,60 +129,68 @@ const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {
 }
 
 /**
- * 获取双向翻译的目标语言
- * @param sourceLanguage 检测到的源语言
- * @param languagePair 配置的语言对
- * @returns 目标语言
+ * Determine the target language for bidirectional translation.
+ * When the source language matches one side of the pair, the opposite side is returned.
+ * @param sourceLanguage The detected source language code
+ * @param languagePair The configured bidirectional language pair
+ * @returns The target language code to translate into
  */
 export const getTargetLanguageForBidirectional = (
-  sourceLanguage: TranslateLanguage,
-  languagePair: [TranslateLanguage, TranslateLanguage]
-): TranslateLanguage => {
-  if (sourceLanguage.langCode === languagePair[0].langCode) {
-    return languagePair[1]
-  } else if (sourceLanguage.langCode === languagePair[1].langCode) {
-    return languagePair[0]
+  sourceLanguage: TranslateLanguageCode,
+  languagePair: CacheTranslateBidirectional
+): TranslateLanguageCode => {
+  const { origin, target } = languagePair
+  if (sourceLanguage === origin) {
+    return target
+  } else if (sourceLanguage === target) {
+    return origin
   }
-  return languagePair[0] !== sourceLanguage ? languagePair[0] : languagePair[1]
+  return origin !== sourceLanguage ? origin : target
 }
 
 /**
- * 检查源语言是否在配置的语言对中
- * @param sourceLanguage 检测到的源语言
- * @param languagePair 配置的语言对
- * @returns 是否在语言对中
+ * Check if the source language is within the configured language pair
+ * @param sourceLanguage The detected source language code
+ * @param languagePair The configured bidirectional language pair
+ * @returns true if the source language is in the pair, false otherwise
  */
 export const isLanguageInPair = (
-  sourceLanguage: TranslateLanguage,
-  languagePair: [TranslateLanguage, TranslateLanguage]
+  sourceLanguage: TranslateLanguageCode,
+  languagePair: CacheTranslateBidirectional
 ): boolean => {
-  return [languagePair[0].langCode, languagePair[1].langCode].includes(sourceLanguage.langCode)
+  return [languagePair.origin, languagePair.target].includes(sourceLanguage)
 }
 
+type DetermineTargetLanguageReturn =
+  | { success: true; language: TranslateLanguageCode; errorType?: never }
+  | {
+      success: false
+      errorType: 'same_language' | 'not_in_pair'
+    }
+
 /**
- * 确定翻译的目标语言
- * @param sourceLanguage 检测到的源语言
- * @param targetLanguage 用户设置的目标语言
- * @param isBidirectional 是否开启双向翻译
- * @param bidirectionalPair 双向翻译的语言对
- * @returns 处理结果对象
+ * Determine the target language for translation
+ * @param sourceLanguage The detected source language code
+ * @param targetLanguage The user-set target language code
+ * @param bidirectional The bidirectional translation configuration
+ * @returns An object indicating success or failure, including the target language code if successful, or an error type if failed
  */
 export const determineTargetLanguage = (
-  sourceLanguage: TranslateLanguage,
-  targetLanguage: TranslateLanguage,
-  isBidirectional: boolean,
-  bidirectionalPair: [TranslateLanguage, TranslateLanguage]
-): { success: boolean; language?: TranslateLanguage; errorType?: 'same_language' | 'not_in_pair' } => {
+  sourceLanguage: TranslateLanguageCode,
+  targetLanguage: TranslateLanguageCode,
+  bidirectional: CacheTranslateBidirectional
+): DetermineTargetLanguageReturn => {
+  const isBidirectional = bidirectional.enabled
   if (isBidirectional) {
-    if (!isLanguageInPair(sourceLanguage, bidirectionalPair)) {
+    if (!isLanguageInPair(sourceLanguage, bidirectional)) {
       return { success: false, errorType: 'not_in_pair' }
     }
     return {
       success: true,
-      language: getTargetLanguageForBidirectional(sourceLanguage, bidirectionalPair)
+      language: getTargetLanguageForBidirectional(sourceLanguage, bidirectional)
     }
   } else {
-    if (sourceLanguage.langCode === targetLanguage.langCode) {
+    if (sourceLanguage === targetLanguage) {
       return { success: false, errorType: 'same_language' }
     }
     return { success: true, language: targetLanguage }
@@ -251,7 +260,6 @@ export const getTranslateOptions = async () => {
     // 转换为Language类型
     const transformedCustomLangs: TranslateLanguage[] = customLanguages.map((item) => ({
       value: item.value,
-      label: () => item.value,
       emoji: item.emoji,
       langCode: item.langCode
     }))

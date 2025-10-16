@@ -4,17 +4,15 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
-import db from '@renderer/databases'
+import { UNKNOWN } from '@renderer/config/translate'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import type { Assistant, Topic, TranslateAssistant, TranslateLanguageCode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
-import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
 import type { FC } from 'react'
@@ -34,11 +32,9 @@ const logger = loggerService.withContext('ActionTranslate')
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
 
-  const [language] = usePreference('app.language')
   const [translateModelPrompt] = usePreference('feature.translate.model_prompt')
-
-  const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
-  const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.zhCN)
+  const [targetLangs, setTargetLangs] = usePreference('translate.settings.target_langs')
+  const { target: targetLanguage, alter: alterLanguage } = targetLangs
 
   const [error, setError] = useState('')
   const [showOriginal, setShowOriginal] = useState(false)
@@ -53,36 +49,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const topicRef = useRef<Topic | null>(null)
   const askId = useRef('')
 
-  useEffect(() => {
-    runAsyncFunction(async () => {
-      const biDirectionLangPair = await db.settings.get({ id: 'translate:bidirectional:pair' })
-
-      let targetLang: TranslateLanguage
-      let alterLang: TranslateLanguage
-
-      if (!biDirectionLangPair || !biDirectionLangPair.value[0]) {
-        const lang = getLanguageByLangcode(language || navigator.language || defaultLanguage)
-        if (lang !== UNKNOWN) {
-          targetLang = lang
-        } else {
-          logger.warn('Fallback to zh-CN')
-          targetLang = LanguagesEnum.zhCN
-        }
-      } else {
-        targetLang = getLanguageByLangcode(biDirectionLangPair.value[0])
-      }
-
-      if (!biDirectionLangPair || !biDirectionLangPair.value[1]) {
-        alterLang = LanguagesEnum.enUS
-      } else {
-        alterLang = getLanguageByLangcode(biDirectionLangPair.value[1])
-      }
-
-      setTargetLanguage(targetLang)
-      setAlterLanguage(alterLang)
-    })
-  }, [getLanguageByLangcode, language])
-
   // Initialize values only once when action changes
   useEffect(() => {
     if (initialized.current || !action.selectedText) return
@@ -90,14 +56,22 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     runAsyncFunction(async () => {
       // Initialize assistant
-      const currentAssistant = await getDefaultTranslateAssistant(targetLanguage, action.selectedText!)
-
+      let currentAssistant: TranslateAssistant
+      try {
+        currentAssistant = await getDefaultTranslateAssistant(
+          getLanguageByLangcode(targetLanguage),
+          action.selectedText!
+        )
+      } catch (e) {
+        logger.error('Failed to initialize assistant', { targetLanguage, text: action.selectedText })
+        return
+      }
       assistantRef.current = currentAssistant
 
       // Initialize topic
       topicRef.current = getDefaultTopic(currentAssistant.id)
     })
-  }, [action, targetLanguage, translateModelPrompt])
+  }, [action, getLanguageByLangcode, targetLanguage, translateModelPrompt])
 
   const fetchResult = useCallback(async () => {
     if (!assistantRef.current || !topicRef.current || !action.selectedText) return
@@ -130,24 +104,31 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       return
     }
 
-    let translateLang: TranslateLanguage
+    let translateLang: TranslateLanguageCode
 
     if (sourceLanguageCode === UNKNOWN.langCode) {
       logger.debug('Unknown source language. Just use target language.')
       translateLang = targetLanguage
     } else {
       logger.debug('Detected Language: ', { sourceLanguage: sourceLanguageCode })
-      if (sourceLanguageCode === targetLanguage.langCode) {
+      if (sourceLanguageCode === targetLanguage) {
         translateLang = alterLanguage
       } else {
         translateLang = targetLanguage
       }
     }
 
-    const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
-    assistantRef.current = assistant
+    let assistant: TranslateAssistant
+    try {
+      assistant = await getDefaultTranslateAssistant(getLanguageByLangcode(translateLang), action.selectedText)
+      assistantRef.current = assistant
+    } catch (err) {
+      onError(err instanceof Error ? err : new Error('An error occurred'))
+      logger.error('Error when getting assistant:', err as Error)
+      return
+    }
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
-  }, [action, targetLanguage, alterLanguage, scrollToBottom])
+  }, [action.selectedText, getLanguageByLangcode, scrollToBottom, targetLanguage, alterLanguage])
 
   useEffect(() => {
     fetchResult()
@@ -161,11 +142,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     return lastAssistantMessage ? <MessageContent key={lastAssistantMessage.id} message={lastAssistantMessage} /> : null
   }, [allMessages])
 
-  const handleChangeLanguage = (targetLanguage: TranslateLanguage, alterLanguage: TranslateLanguage) => {
-    setTargetLanguage(targetLanguage)
-    setAlterLanguage(alterLanguage)
-
-    db.settings.put({ id: 'translate:bidirectional:pair', value: [targetLanguage.langCode, alterLanguage.langCode] })
+  const handleChangeLanguage = (targetLanguage: TranslateLanguageCode, alterLanguage: TranslateLanguageCode) => {
+    setTargetLangs({
+      target: targetLanguage,
+      alter: alterLanguage
+    })
   }
 
   const handlePause = () => {
@@ -191,24 +172,24 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
           <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
           <Tooltip placement="bottom" content={t('translate.target_language')}>
             <LanguageSelect
-              value={targetLanguage.langCode}
+              value={targetLanguage}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
               listHeight={160}
               title={t('translate.target_language')}
               optionFilterProp="label"
-              onChange={(value) => handleChangeLanguage(getLanguageByLangcode(value), alterLanguage)}
+              onChange={(value) => handleChangeLanguage(value, alterLanguage)}
               disabled={isLoading}
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
           <Tooltip placement="bottom" content={t('translate.alter_language')}>
             <LanguageSelect
-              value={alterLanguage.langCode}
+              value={alterLanguage}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
               listHeight={160}
               title={t('translate.alter_language')}
               optionFilterProp="label"
-              onChange={(value) => handleChangeLanguage(targetLanguage, getLanguageByLangcode(value))}
+              onChange={(value) => handleChangeLanguage(targetLanguage, value)}
               disabled={isLoading}
             />
           </Tooltip>

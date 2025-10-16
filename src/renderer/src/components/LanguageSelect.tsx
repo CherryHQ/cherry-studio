@@ -18,19 +18,22 @@ type Props = {
 } & Omit<SelectProps, 'labelRender' | 'options'>
 
 const LanguageSelect = (props: Props) => {
-  const { translateLanguages } = useTranslate()
+  const { translateLanguages, getLanguageLabel } = useTranslate()
   const { extraOptionsAfter, extraOptionsBefore, languageRenderer, ...restProps } = props
 
-  const defaultLanguageRenderer = useCallback((lang: TranslateLanguage) => {
-    return (
-      <Space.Compact direction="horizontal" block>
-        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-          {lang.emoji}
-        </span>
-        {lang.label()}
-      </Space.Compact>
-    )
-  }, [])
+  const defaultLanguageRenderer = useCallback(
+    (lang: TranslateLanguage) => {
+      return (
+        <Space.Compact direction="horizontal" block>
+          <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
+            {lang.emoji}
+          </span>
+          {getLanguageLabel(lang.langCode)}
+        </Space.Compact>
+      )
+    },
+    [getLanguageLabel]
+  )
 
   const labelRender = (props) => {
     const { label } = props
