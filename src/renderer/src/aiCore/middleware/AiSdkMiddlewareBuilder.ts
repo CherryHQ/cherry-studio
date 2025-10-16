@@ -4,6 +4,8 @@ import type { MCPTool, Message, Model, Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
 
+import { noThinkMiddleware } from './noThinkMiddleware'
+
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
 
 /**
@@ -185,6 +187,14 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
     default:
       // 其他provider的通用处理
       break
+  }
+
+  // OVMS+MCP's specific middleware
+  if (config.provider.id === 'ovms' && config.mcpTools && config.mcpTools.length > 0) {
+    builder.add({
+      name: 'no-think',
+      middleware: noThinkMiddleware()
+    })
   }
 }
 

@@ -14,6 +14,7 @@ import styled from 'styled-components'
 
 // Tab 模式下新的页面壳，不再直接创建 WebView，而是依赖全局 MinAppTabsPool
 import MinimalToolbar from './components/MinimalToolbar'
+import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MinAppPage')
 
@@ -184,6 +185,7 @@ const MinAppPage: FC = () => {
           onOpenDevTools={handleOpenDevTools}
         />
       </ToolbarWrapper>
+      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.id} />
       {!isReady && (
         <LoadingMask>
           <Avatar src={app.logo} size={60} style={{ border: '1px solid var(--color-border)' }} />
