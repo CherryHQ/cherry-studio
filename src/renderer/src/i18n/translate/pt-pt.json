@@ -530,6 +530,7 @@
         "context": "Limpar contexto {{Command}}"
       },
       "new_topic": "Novo tópico {{Command}}",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",

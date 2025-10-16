@@ -530,6 +530,7 @@
         "context": "Καθαρισμός ενδιάμεσων {{Command}}"
       },
       "new_topic": "Νέο θέμα {{Command}}",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",

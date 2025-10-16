@@ -523,7 +523,6 @@
       "file_error": "Error processing file",
       "file_not_supported": "Model does not support this file type",
       "file_not_supported_count": "{{count}} files are not supported",
-      "paste_text_file_confirm": "Paste into input bar?",
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
@@ -531,6 +530,7 @@
         "context": "Clear Context {{Command}}"
       },
       "new_topic": "New Topic {{Command}}",
+      "paste_text_file_confirm": "Paste into input bar?",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
