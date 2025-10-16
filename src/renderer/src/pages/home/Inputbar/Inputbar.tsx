@@ -320,6 +320,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           return needsSeparator ? `${prev}\n${content}` : prev + content
         })
 
+        setFiles((prev) => prev.filter((currentFile) => currentFile.id !== file.id))
+
         setTimeoutTimer(
           'appendTxtAttachment',
           () => {
