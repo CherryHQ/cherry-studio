@@ -1,10 +1,10 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { RowFlex, Separator, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
 import type { InputRef } from 'antd'
-import { Divider, Input, List, Modal, Spin } from 'antd'
+import { Input, List, Modal } from 'antd'
 import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,12 +116,12 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           onPressEnter={() => handleSearch(searchKeyword)}
         />
       </RowFlex>
-      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+      <Separator className="mt-1" />
 
       <ResultsContainer>
         {loading ? (
           <LoadingContainer>
-            <Spin size="large" />
+            <Spinner text={t('message.searching')} />
           </LoadingContainer>
         ) : (
           <List
