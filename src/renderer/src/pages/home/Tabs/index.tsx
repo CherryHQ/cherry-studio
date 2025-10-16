@@ -1,6 +1,6 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -46,9 +46,9 @@ const HomeTabs: FC<Props> = ({
   const { isLeftNavbar } = useNavbarPosition()
   const { t } = useTranslation()
   const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
+  const { activeTopicOrSession, activeAgentId } = chat
   const { session } = useActiveSession()
-  const { updateAgent } = useUpdateAgent()
+  const { updateSession } = useUpdateSession(activeAgentId)
 
   const isSessionView = activeTopicOrSession === 'session'
   const isTopicView = activeTopicOrSession === 'topic'
@@ -154,7 +154,7 @@ const HomeTabs: FC<Props> = ({
           />
         )}
         {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
-        {tab === 'settings' && isSessionView && <SessionSettingsTab session={session} update={updateAgent} />}
+        {tab === 'settings' && isSessionView && <SessionSettingsTab session={session} update={updateSession} />}
       </TabContent>
     </Container>
   )
