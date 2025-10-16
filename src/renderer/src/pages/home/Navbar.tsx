@@ -219,7 +219,7 @@ const ChatNavbarContainer: React.FC<{ children: React.ReactNode; style?: React.C
   style
 }) => {
   return (
-    <div className="flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden" style={style}>
+    <div className="nodrag flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden" style={style}>
       {children}
     </div>
   )
