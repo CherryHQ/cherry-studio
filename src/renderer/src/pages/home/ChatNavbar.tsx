@@ -4,8 +4,8 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { permissionModeCards } from '@renderer/constants/permissionModes'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSession } from '@renderer/hooks/agents/useSession'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
@@ -15,7 +15,7 @@ import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
-import { ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
+import { AgentEntity, AgentSessionEntity, ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -24,8 +24,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import React, { FC, ReactNode, useCallback } from 'react'
 import styled from 'styled-components'
 
-import { AgentSettingsPopup } from '../settings/AgentSettings'
-import { AgentLabel } from '../settings/AgentSettings/shared'
+import { AgentSettingsPopup, SessionSettingsPopup } from '../settings/AgentSettings'
+import { AgentLabel, SessionLabel } from '../settings/AgentSettings/shared'
 import AssistantsDrawer from './components/AssistantsDrawer'
 import SelectAgentModelButton from './components/SelectAgentModelButton'
 import SelectModelButton from './components/SelectModelButton'
@@ -46,9 +46,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
   const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
-  const sessionId = activeAgentId ? (chat.activeSessionIdMap[activeAgentId] ?? null) : null
-  const { agent } = useAgent(activeAgentId)
+  const { activeTopicOrSession } = chat
+  const activeAgent = useActiveAgent()
+  const activeSession = useActiveSession()
   const { updateModel } = useUpdateAgent()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
@@ -81,10 +81,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
-      if (!agent) return
-      return updateModel(agent.id, model.id, { showSuccessToast: false })
+      if (!activeAgent) return
+      return updateModel(activeAgent.id, model.id, { showSuccessToast: false })
     },
-    [agent, updateModel]
+    [activeAgent, updateModel]
   )
 
   return (
@@ -118,7 +118,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           )}
         </AnimatePresence>
         {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
-        {activeTopicOrSession === 'session' && agent && (
+        {activeTopicOrSession === 'session' && activeAgent && (
           <HorizontalScrollContainer>
             <Breadcrumbs
               classNames={{
@@ -126,24 +126,24 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
                 list: 'flex-nowrap'
               }}>
               <BreadcrumbItem
-                onPress={() => AgentSettingsPopup.show({ agentId: agent.id })}
+                onPress={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
                 classNames={{
                   base: 'self-stretch',
                   item: 'h-full'
                 }}>
                 <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
                   <AgentLabel
-                    agent={agent}
-                    classNames={{ name: 'max-w-50 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+                    agent={activeAgent}
+                    classNames={{ name: 'max-w-40 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
                   />
                 </Chip>
               </BreadcrumbItem>
               <BreadcrumbItem>
-                <SelectAgentModelButton agent={agent} onSelect={handleUpdateModel} />
+                <SelectAgentModelButton agent={activeAgent} onSelect={handleUpdateModel} />
               </BreadcrumbItem>
-              {activeAgentId && sessionId && (
+              {activeAgent && activeSession && (
                 <BreadcrumbItem>
-                  <SessionWorkspaceMeta agentId={activeAgentId} sessionId={sessionId} />
+                  <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
                 </BreadcrumbItem>
               )}
             </Breadcrumbs>
@@ -181,9 +181,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   )
 }
 
-const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agentId, sessionId }) => {
-  const { agent } = useAgent(agentId)
-  const { session } = useSession(agentId, sessionId)
+const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity }> = ({ agent, session }) => {
   if (!session || !agent) {
     return null
   }
