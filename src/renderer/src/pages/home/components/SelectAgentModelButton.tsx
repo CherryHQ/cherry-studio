@@ -12,12 +12,12 @@ import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  agent: AgentBaseWithId
+  agentBase: AgentBaseWithId
   onSelect: (model: ApiModel) => Promise<void>
   isDisabled?: boolean
 }
 
-const SelectAgentModelButton: FC<Props> = ({ agent, onSelect, isDisabled }) => {
+const SelectAgentBaseModelButton: FC<Props> = ({ agentBase: agent, onSelect, isDisabled }) => {
   const { t } = useTranslation()
   const model = useApiModel({ id: agent?.model })
 
@@ -53,4 +53,4 @@ const SelectAgentModelButton: FC<Props> = ({ agent, onSelect, isDisabled }) => {
   )
 }
 
-export default SelectAgentModelButton
+export default SelectAgentBaseModelButton

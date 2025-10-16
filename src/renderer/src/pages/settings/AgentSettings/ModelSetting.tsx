@@ -1,4 +1,4 @@
-import SelectAgentModelButton from '@renderer/pages/home/components/SelectAgentModelButton'
+import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentModelButton'
 import { AgentBaseWithId, ApiModel, UpdateAgentBaseForm } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
@@ -23,7 +23,7 @@ export const ModelSetting: React.FC<ModelSettingProps> = ({ base, update, isDisa
   return (
     <SettingsItem inline className="gap-8">
       <SettingsTitle id="model">{t('common.model')}</SettingsTitle>
-      <SelectAgentModelButton agent={base} onSelect={updateModel} isDisabled={isDisabled} />
+      <SelectAgentBaseModelButton agentBase={base} onSelect={updateModel} isDisabled={isDisabled} />
     </SettingsItem>
   )
 }
