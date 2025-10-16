@@ -535,7 +535,30 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
     }
 
     const highlight = async () => {
-      const result = await highlightCode(resultString, 'json')
+      // 处理转义字符
+      let processedString = resultString
+      try {
+        // 尝试解析字符串以处理可能的转义
+        const parsed = JSON.parse(resultString)
+        if (typeof parsed === 'string') {
+          // 如果解析后是字符串，再次尝试解析（处理双重转义）
+          try {
+            const doubleParsed = JSON.parse(parsed)
+            processedString = JSON.stringify(doubleParsed, null, 2)
+          } catch {
+            // 不是有效的 JSON，使用解析后的字符串
+            processedString = parsed
+          }
+        } else {
+          // 重新格式化 JSON
+          processedString = JSON.stringify(parsed, null, 2)
+        }
+      } catch {
+        // 解析失败，使用原始字符串
+        processedString = resultString
+      }
+
+      const result = await highlightCode(processedString, 'json')
       setStyledResult(result)
     }
 

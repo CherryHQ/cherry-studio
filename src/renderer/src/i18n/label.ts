@@ -329,7 +329,8 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
   [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
   [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python'
+  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
+  [BuiltinMCPServerNames.js]: 'settings.mcp.builtinServersDescriptions.js'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {

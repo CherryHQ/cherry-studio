@@ -6,6 +6,7 @@ import BraveSearchServer from './brave-search'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
+import JsServer from './js'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
@@ -41,6 +42,9 @@ export function createInMemoryMCPServer(
     }
     case BuiltinMCPServerNames.python: {
       return new PythonServer().server
+    }
+    case BuiltinMCPServerNames.js: {
+      return new JsServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

@@ -349,6 +349,9 @@ const api = {
     execute: (script: string, context?: Record<string, any>, timeout?: number) =>
       ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
   },
+  js: {
+    execute: (code: string, timeout?: number) => ipcRenderer.invoke(IpcChannel.Js_Execute, code, timeout)
+  },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
   },

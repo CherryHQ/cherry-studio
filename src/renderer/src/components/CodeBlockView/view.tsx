@@ -87,7 +87,8 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
-    return codeExecution.enabled && language === 'python'
+    const executableLanguages = ['python', 'py', 'javascript', 'js']
+    return codeExecution.enabled && executableLanguages.includes(language.toLowerCase())
   }, [codeExecution.enabled, language])
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
@@ -152,21 +153,49 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     setIsRunning(true)
     setExecutionResult(null)
 
-    pyodideService
-      .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
-      .then((result) => {
-        setExecutionResult(result)
-      })
-      .catch((error) => {
-        logger.error('Unexpected error:', error)
-        setExecutionResult({
-          text: `Unexpected error: ${error.message || 'Unknown error'}`
+    const isPython = ['python', 'py'].includes(language.toLowerCase())
+    const isJavaScript = ['javascript', 'js'].includes(language.toLowerCase())
+
+    if (isPython) {
+      pyodideService
+        .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
+        .then((result) => {
+          setExecutionResult(result)
         })
-      })
-      .finally(() => {
-        setIsRunning(false)
-      })
-  }, [children, codeExecution.timeoutMinutes])
+        .catch((error) => {
+          logger.error('Unexpected error:', error)
+          setExecutionResult({
+            text: `Unexpected error: ${error.message || 'Unknown error'}`
+          })
+        })
+        .finally(() => {
+          setIsRunning(false)
+        })
+    } else if (isJavaScript) {
+      window.api.js
+        .execute(children, codeExecution.timeoutMinutes * 60000)
+        .then((result) => {
+          if (result.error) {
+            setExecutionResult({
+              text: `Error: ${result.error}\n${result.stderr || ''}`
+            })
+          } else {
+            setExecutionResult({
+              text: result.stdout || (result.stderr ? `stderr: ${result.stderr}` : 'Execution completed')
+            })
+          }
+        })
+        .catch((error) => {
+          logger.error('Unexpected error:', error)
+          setExecutionResult({
+            text: `Unexpected error: ${error.message || 'Unknown error'}`
+          })
+        })
+        .finally(() => {
+          setIsRunning(false)
+        })
+    }
+  }, [children, codeExecution.timeoutMinutes, language])
 
   const showPreviewTools = useMemo(() => {
     return viewMode !== 'source' && hasSpecialView

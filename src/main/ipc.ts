@@ -37,6 +37,7 @@ import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
+import { jsService } from './services/JsService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
@@ -740,6 +741,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return await pythonService.executeScript(script, context, timeout)
     }
   )
+
+  // Register JavaScript execution handler
+  ipcMain.handle(IpcChannel.Js_Execute, async (_, code: string, timeout?: number) => {
+    return await jsService.executeScript(code, { timeout })
+  })
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
