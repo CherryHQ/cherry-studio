@@ -47,7 +47,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const dispatch = useAppDispatch()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
-  const sessionId = activeAgentId ? (chat.activeSessionId[activeAgentId] ?? null) : null
+  const sessionId = activeAgentId ? (chat.activeSessionIdMap[activeAgentId] ?? null) : null
   const { agent } = useAgent(activeAgentId)
   const { updateModel } = useUpdateAgent()
 
