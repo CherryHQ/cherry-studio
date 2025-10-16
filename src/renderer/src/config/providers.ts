@@ -289,7 +289,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
   'new-api': {
     id: 'new-api',
     name: 'New API',
-    type: 'openai',
+    type: 'new-api',
     apiKey: '',
     apiHost: 'http://localhost:3000',
     anthropicApiHost: 'http://localhost:3000',
@@ -1432,5 +1432,5 @@ export const isGeminiWebSearchProvider = (provider: Provider) => {
 }
 
 export const isNewApiProvider = (provider: Provider) => {
-  return ['new-api', 'cherryin'].includes(provider.id)
+  return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
 }

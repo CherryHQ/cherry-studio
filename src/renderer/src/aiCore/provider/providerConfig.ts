@@ -63,12 +63,13 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
   //   return createVertexProvider(provider)
   // }
 
+  if (isNewApiProvider(provider)) {
+    return newApiResolverCreator(model, provider)
+  }
+
   if (isSystemProvider(provider)) {
     if (provider.id === 'aihubmix') {
       return aihubmixProviderCreator(model, provider)
-    }
-    if (isNewApiProvider(provider)) {
-      return newApiResolverCreator(model, provider)
     }
     if (provider.id === 'vertexai') {
       return vertexAnthropicProviderCreator(model, provider)
