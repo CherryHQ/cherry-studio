@@ -92,6 +92,7 @@ export { Sortable } from './interactive/Sortable'
 // 暂无复合组件
 
 // UI Components (shadcn)
+export * from './ui/badge'
 export * from './ui/button'
 export * from './ui/command'
 export * from './ui/dialog'

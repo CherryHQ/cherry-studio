@@ -1,9 +1,9 @@
+import { Badge } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
-import { Tag } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,7 +52,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
   return (
     <>
       {quota && (
-        <Tag color="orange" style={{ borderRadius: 20, margin: 0 }}>
+        <Badge variant="outline" className="rounded-md text-xs">
           {quota === -9999
             ? t('knowledge.quota_infinity', {
                 name: provider.name
@@ -61,7 +61,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
                 name: provider.name,
                 quota: quota
               })}
-        </Tag>
+        </Badge>
       )}
     </>
   )
