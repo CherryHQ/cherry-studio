@@ -1,9 +1,9 @@
-import { Input, Separator, Spinner } from '@cherrystudio/ui'
+import { Dialog, DialogContent, Input, Separator, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
-import { List, Modal } from 'antd'
+import { List } from 'antd'
 import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,19 +50,14 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     }
   }
 
-  const onOk = () => {
-    setOpen(false)
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen)
+    if (!newOpen) {
+      resolve({})
+    }
   }
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
-  }
-
-  KnowledgeSearchPopup.hide = onCancel
+  KnowledgeSearchPopup.hide = () => setOpen(false)
 
   useEffect(() => {
     if (searchInputRef.current) {
@@ -71,71 +66,52 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   }, [])
 
   return (
-    <Modal
-      title={null}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      width={700}
-      footer={null}
-      centered
-      closable={false}
-      transitionName="animation-move-down"
-      styles={{
-        content: {
-          borderRadius: 20,
-          padding: 0,
-          overflow: 'hidden',
-          paddingBottom: 12
-        },
-        body: {
-          maxHeight: '80vh',
-          overflow: 'hidden',
-          padding: 0
-        }
-      }}>
-      <SearchInputContainer className="mt-2 px-3">
-        <Search size={15} />
-        <Input
-          ref={searchInputRef}
-          value={searchKeyword}
-          placeholder={t('knowledge.search')}
-          autoFocus
-          spellCheck={false}
-          className="flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 dark:bg-transparent"
-          onChange={(e) => setSearchKeyword(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleSearch(searchKeyword)
-            }
-          }}
-        />
-        {searchKeyword && (
-          <ClearButton onClick={() => setSearchKeyword('')}>
-            <X size={14} />
-          </ClearButton>
-        )}
-      </SearchInputContainer>
-      <Separator className="mt-1" />
-
-      <ResultsContainer>
-        {loading ? (
-          <LoadingContainer>
-            <Spinner text={t('message.searching')} />
-          </LoadingContainer>
-        ) : (
-          <List
-            dataSource={results}
-            renderItem={(item) => (
-              <List.Item>
-                <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
-              </List.Item>
-            )}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        className="w-[700px] max-w-[90vw] overflow-hidden rounded-lg p-0 pb-3 sm:max-w-[700px]">
+        <SearchInputContainer className="mt-2 px-3">
+          <Search size={15} />
+          <Input
+            ref={searchInputRef}
+            value={searchKeyword}
+            placeholder={t('knowledge.search')}
+            autoFocus
+            spellCheck={false}
+            className="flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 dark:bg-transparent"
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch(searchKeyword)
+              }
+            }}
           />
-        )}
-      </ResultsContainer>
-    </Modal>
+          {searchKeyword && (
+            <ClearButton onClick={() => setSearchKeyword('')}>
+              <X size={14} />
+            </ClearButton>
+          )}
+        </SearchInputContainer>
+        <Separator />
+
+        <ResultsContainer>
+          {loading ? (
+            <LoadingContainer>
+              <Spinner text={t('message.searching')} />
+            </LoadingContainer>
+          ) : (
+            <List
+              dataSource={results}
+              renderItem={(item) => (
+                <List.Item>
+                  <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
+                </List.Item>
+              )}
+            />
+          )}
+        </ResultsContainer>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -156,18 +132,6 @@ const SearchInputContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-`
-
-const SearchIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background-soft);
-  flex-shrink: 0;
 `
 
 const ClearButton = styled.button`
