@@ -265,7 +265,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 判断是否需要各种搜索
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
@@ -329,7 +329,7 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         // 📚 知识库搜索工具配置
         const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-        const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+        const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
 
         if (hasKnowledgeBase) {
           if (knowledgeRecognition === 'off') {
