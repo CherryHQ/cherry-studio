@@ -25,7 +25,7 @@ export const useAgentSessionInitializer = () => {
    */
   const initializeAgentSession = useCallback(
     async (agentId: string) => {
-      if (!agentId || agentId === 'fake') return
+      if (!agentId) return
 
       try {
         // Check if this agent already has an active session
@@ -65,7 +65,7 @@ export const useAgentSessionInitializer = () => {
    * Auto-initialize when activeAgentId changes
    */
   useEffect(() => {
-    if (activeAgentId && activeAgentId !== 'fake') {
+    if (activeAgentId) {
       // Check if we need to initialize this agent's session
       const hasActiveSession = activeSessionIdMap[activeAgentId]
       if (!hasActiveSession) {
