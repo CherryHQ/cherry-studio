@@ -69,7 +69,7 @@ const VideoItem: FC<Props> = ({ item, searchKeyword }) => {
   return (
     <>
       <KnowledgeItemMetadata item={item} />
-      <CopyButtonContainer textToCopy={item.pageContent} tooltipTitle={t('common.copy')} />
+      <CopyButtonContainer textToCopy={item.pageContent} />
       <p className="mb-0 select-text">{highlightText(item.pageContent, searchKeyword)}</p>
       <VideoContainer>{renderVideo()}</VideoContainer>
     </>

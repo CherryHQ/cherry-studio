@@ -1,7 +1,6 @@
 import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import type { FC } from 'react'
 import React from 'react'
-import { useTranslation } from 'react-i18next'
 
 import { CopyButtonContainer, KnowledgeItemMetadata } from './components'
 import { useHighlightText } from './hooks'
@@ -13,15 +12,12 @@ interface Props {
 }
 
 const TextItem: FC<Props> = ({ item, searchKeyword }) => {
-  const { t } = useTranslation()
   const { highlightText } = useHighlightText()
   return (
     <>
       <KnowledgeItemMetadata item={item} />
-      <CopyButtonContainer textToCopy={item.pageContent} tooltipTitle={t('common.copy')} />
-      <p className="mb-0 select-text">
-        {highlightText(item.pageContent, searchKeyword)}
-      </p>
+      <CopyButtonContainer textToCopy={item.pageContent} />
+      <p className="mb-0 select-text">{highlightText(item.pageContent, searchKeyword)}</p>
     </>
   )
 }
