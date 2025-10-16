@@ -27,7 +27,7 @@ import styled from 'styled-components'
 import { AgentSettingsPopup, SessionSettingsPopup } from '../settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '../settings/AgentSettings/shared'
 import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectAgentModelButton from './components/SelectAgentModelButton'
+import SelectAgentBaseModelButton from './components/SelectAgentModelButton'
 import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
@@ -155,9 +155,11 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
                   </Chip>
                 </BreadcrumbItem>
               )}
-              <BreadcrumbItem>
-                <SelectAgentModelButton agent={activeAgent} onSelect={handleUpdateModel} />
-              </BreadcrumbItem>
+              {activeSession && (
+                <BreadcrumbItem>
+                  <SelectAgentBaseModelButton agentBase={activeSession} onSelect={handleUpdateModel} />
+                </BreadcrumbItem>
+              )}
               {activeAgent && activeSession && (
                 <BreadcrumbItem>
                   <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
