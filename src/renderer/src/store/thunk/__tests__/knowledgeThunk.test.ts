@@ -3,7 +3,6 @@ import 'fake-indexeddb/auto'
 import { db } from '@renderer/databases'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
 import { FileMetadata, FileTypes, KnowledgeItem } from '@renderer/types'
-import { IDBFactory } from 'fake-indexeddb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addFilesThunk, addItemThunk, addNoteThunk } from '../knowledgeThunk'
