@@ -1,5 +1,6 @@
 import type { RequireSome } from '@cherrystudio/ui/types'
 import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
+import { t } from 'i18next'
 
 type AddToastProps = Parameters<typeof addToast>[0]
 type ToastPropsColored = Omit<AddToastProps, 'color'>
@@ -54,7 +55,7 @@ const loading = (args: RequireSome<AddToastProps, 'promise'>) => {
   if (args.timeout === undefined) {
     args.timeout = 1
   }
-  return addToast(args)
+  return addToast({ title: t('common.loading'), ...args })
 }
 
 export type ToastUtilities = {

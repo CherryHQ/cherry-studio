@@ -1,6 +1,6 @@
+import type OpenAI from '@cherrystudio/openai'
 import type { File } from '@google/genai'
 import type { FileSchema } from '@mistralai/mistralai/models/components'
-import type OpenAI from 'openai'
 
 export type RemoteFile =
   | {
@@ -125,6 +125,10 @@ export enum FileTypes {
 
 export type ImageFileMetadata = FileMetadata & {
   type: FileTypes.IMAGE
+}
+
+export type VideoFileMetadata = FileMetadata & {
+  type: FileTypes.VIDEO
 }
 
 export type PdfFileMetadata = FileMetadata & {

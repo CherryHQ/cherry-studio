@@ -63,6 +63,7 @@ export type SidebarIcon =
   | 'files'
   | 'code_tools'
   | 'notes'
+  | 'video'
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 

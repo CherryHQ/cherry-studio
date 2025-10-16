@@ -11,6 +11,10 @@ import type { MessageStream } from '@anthropic-ai/sdk/resources/messages/message
 import type AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
+import type { AzureOpenAI } from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
+import type { ChatCompletionContentPartImage } from '@cherrystudio/openai/resources'
+import type { Stream } from '@cherrystudio/openai/streaming'
 import type {
   Content,
   CreateChatParameters,
@@ -21,10 +25,6 @@ import type {
   SendMessageParameters,
   Tool
 } from '@google/genai'
-import type { AzureOpenAI } from 'openai'
-import type OpenAI from 'openai'
-import type { ChatCompletionContentPartImage } from 'openai/resources'
-import type { Stream } from 'openai/streaming'
 
 import type { EndpointType } from './index'
 

@@ -1,6 +1,6 @@
+import type { ChatCompletionCreateParams } from '@cherrystudio/openai/resources'
 import type { Request, Response } from 'express'
 import express from 'express'
-import type { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
 import {

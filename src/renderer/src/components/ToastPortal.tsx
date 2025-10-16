@@ -23,7 +23,8 @@ export const ToastPortal = () => {
         timeout: 3000,
         classNames: {
           // This setting causes the 'hero-toast' class to be applied twice to the toast element. This is weird and I don't know why, but it works.
-          base: 'hero-toast'
+          // `w-auto` would not overwrite default style, which set the width to a fixed value and causes text overflow.
+          base: 'hero-toast w-auto! max-w-[50vw]'
         }
       }}
     />,

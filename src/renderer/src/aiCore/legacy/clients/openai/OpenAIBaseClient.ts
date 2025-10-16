@@ -1,3 +1,4 @@
+import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import {
   isClaudeReasoningModel,
@@ -24,7 +25,6 @@ import type {
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
 import { formatApiHost } from '@renderer/utils/api'
-import OpenAI, { AzureOpenAI } from 'openai'
 
 import { BaseApiClient } from '../BaseApiClient'
 

@@ -12,7 +12,8 @@ import {
   MessageSquareQuote,
   NotepadText,
   Palette,
-  Sparkle
+  Sparkle,
+  Video
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -112,7 +113,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       knowledge: <FileSearch size={16} />,
       files: <Folder size={16} />,
       notes: <NotepadText size={16} />,
-      code_tools: <Code size={16} />
+      code_tools: <Code size={16} />,
+      video: <Video size={16} />
     }),
     []
   )

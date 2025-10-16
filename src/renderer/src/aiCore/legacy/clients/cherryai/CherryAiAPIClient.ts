@@ -1,6 +1,6 @@
+import type OpenAI from '@cherrystudio/openai'
 import type { Provider } from '@renderer/types'
 import type { OpenAISdkParams, OpenAISdkRawOutput } from '@renderer/types/sdk'
-import type OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 

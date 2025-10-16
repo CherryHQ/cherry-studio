@@ -1,8 +1,8 @@
+import type { OpenAI } from '@cherrystudio/openai'
+import type { Stream } from '@cherrystudio/openai/streaming'
 import type { TokenUsage } from '@mcp-trace/trace-core'
 import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
-import type { OpenAI } from 'openai'
-import type { Stream } from 'openai/streaming'
 
 export class StreamHandler {
   private topicId: string

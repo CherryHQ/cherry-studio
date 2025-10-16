@@ -1,7 +1,7 @@
 import type { LanguageModelV2Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
 export * from './file'
@@ -23,6 +23,7 @@ export * from './mcp'
 export * from './notification'
 export * from './ocr'
 export * from './provider'
+export * from './video'
 
 export type Assistant = {
   id: string
@@ -533,6 +534,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 //   | 'files'
 //   | 'code_tools'
 //   | 'notes'
+//   | 'video'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

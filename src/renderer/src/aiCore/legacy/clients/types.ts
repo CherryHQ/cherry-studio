@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
-import type { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
-import type { Provider } from '@renderer/types'
+import type OpenAI from '@cherrystudio/openai'
+import type { Assistant, MCPTool, MCPToolResponse, Model, Provider, ToolCallResponse } from '@renderer/types'
 import type {
   AnthropicSdkRawChunk,
   OpenAIResponseSdkRawChunk,
@@ -13,7 +13,6 @@ import type {
   SdkTool,
   SdkToolCall
 } from '@renderer/types/sdk'
-import type OpenAI from 'openai'
 
 import type { CompletionsParams, GenericChunk } from '../middleware/schemas'
 import type { CompletionsContext } from '../middleware/types'

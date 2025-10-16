@@ -1,4 +1,5 @@
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import { Stream } from '@cherrystudio/openai/streaming'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -18,7 +19,6 @@ import type { Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import type { SdkRawChunk } from '@renderer/types/sdk'
-import { Stream } from 'openai/streaming'
 
 const logger = loggerService.withContext('SpanManagerService')
 

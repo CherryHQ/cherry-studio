@@ -1,7 +1,7 @@
+import OpenAI from '@cherrystudio/openai'
+import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
 import { loggerService } from '@logger'
 import type { Provider } from '@types'
-import OpenAI from 'openai'
-import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from 'openai/resources'
 
 import { type ModelValidationError, validateModelId } from '../utils'
 
