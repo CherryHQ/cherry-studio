@@ -22,13 +22,13 @@ const ConfirmDialog: FC<Props> = ({ x, y, message, onConfirm, onCancel }) => {
     <>
       <div className="fixed inset-0 z-[99998] bg-transparent" onClick={onCancel} />
       <div
-        className="fixed z-[99999] -translate-x-1/2 -translate-y-full transform mt-[-8px]"
+        className="-translate-x-1/2 -translate-y-full fixed z-[99999] mt-[-8px] transform"
         style={{
           left: `${x}px`,
           top: `${y}px`
         }}>
         <div className="min-w-[160px] max-w-[200px] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
-          <div className="mb-2.5 text-center text-[13px] leading-[1.4] text-[var(--color-text)]">{message}</div>
+          <div className="mb-2.5 text-center text-[13px] text-[var(--color-text)] leading-[1.4]">{message}</div>
           <div className="flex justify-center gap-2">
             <Button size="sm" variant="flat" onPress={onCancel} className="min-w-[60px]">
               {t('common.cancel')}
