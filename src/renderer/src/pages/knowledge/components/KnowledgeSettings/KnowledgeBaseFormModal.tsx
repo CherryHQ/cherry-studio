@@ -1,7 +1,7 @@
-import { RowFlex } from '@cherrystudio/ui'
-import type { ModalProps } from 'antd'
-import { Menu, Modal } from 'antd'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, RowFlex } from '@cherrystudio/ui'
+import { Menu } from 'antd'
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 export interface PanelConfig {
@@ -10,62 +10,61 @@ export interface PanelConfig {
   panel: React.ReactNode
 }
 
-interface KnowledgeBaseFormModalProps extends Omit<ModalProps, 'children'> {
+interface KnowledgeBaseFormModalProps {
+  title?: string
+  open: boolean
+  onCancel: () => void
+  onOk?: () => void
   panels: PanelConfig[]
 }
 
-const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels, ...rest }) => {
+const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ title, open, onCancel, onOk, panels }) => {
+  const { t } = useTranslation()
   const [selectedMenu, setSelectedMenu] = useState(panels[0]?.key)
 
   const menuItems = panels.map(({ key, label }) => ({ key, label }))
   const activePanel = panels.find((p) => p.key === selectedMenu)?.panel
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      onCancel()
+    }
+  }
+
   return (
-    <StyledModal
-      destroyOnHidden
-      maskClosable={false}
-      centered
-      transitionName="animation-move-down"
-      width="min(900px, 65vw)"
-      styles={{
-        body: { padding: 0, height: 550 },
-        header: {
-          padding: '10px 15px',
-          borderBottom: '0.5px solid var(--color-border)',
-          margin: 0,
-          borderRadius: 0
-        },
-        content: {
-          padding: 0,
-          paddingBottom: 10,
-          overflow: 'hidden'
-        }
-      }}
-      {...rest}>
-      <RowFlex className="h-full">
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[selectedMenu]}
-            mode="vertical"
-            items={menuItems}
-            onSelect={({ key }) => setSelectedMenu(key)}
-          />
-        </LeftMenu>
-        <SettingsContentPanel>{activePanel}</SettingsContentPanel>
-      </RowFlex>
-    </StyledModal>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        showCloseButton={true}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        className="w-[900px] max-w-[65vw] overflow-hidden p-0 pb-[10px] sm:max-w-[900px]">
+        {title && (
+          <DialogHeader className="m-0 rounded-none border-[var(--color-border)] border-b-[0.5px] p-[10px_15px]">
+            <DialogTitle className="text-sm">{title}</DialogTitle>
+          </DialogHeader>
+        )}
+        <RowFlex className="h-[550px]">
+          <LeftMenu>
+            <StyledMenu
+              defaultSelectedKeys={[selectedMenu]}
+              mode="vertical"
+              items={menuItems}
+              onSelect={({ key }) => setSelectedMenu(key)}
+            />
+          </LeftMenu>
+          <SettingsContentPanel>{activePanel}</SettingsContentPanel>
+        </RowFlex>
+        {onOk && (
+          <DialogFooter className="border-[var(--color-border)] border-t-[0.5px] px-4 pt-3">
+            <Button variant="bordered" onPress={onCancel}>
+              {t('common.cancel')}
+            </Button>
+            <Button onPress={onOk}>{t('common.confirm')}</Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const StyledModal = styled(Modal)`
-  .ant-modal-title {
-    font-size: 14px;
-  }
-  .ant-modal-close {
-    top: 4px;
-    right: 4px;
-  }
-`
 
 const LeftMenu = styled.div`
   display: flex;
