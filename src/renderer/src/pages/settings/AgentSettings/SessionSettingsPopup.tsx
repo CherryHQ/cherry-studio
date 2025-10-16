@@ -6,8 +6,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
+import EssentialSettings from './EssentialSettings'
 import PromptSettings from './PromptSettings'
-import SessionEssentialSettings from './SessionEssentialSettings'
 import { LeftMenu, SessionLabel, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
 
@@ -89,7 +89,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
           />
         </LeftMenu>
         <Settings>
-          {menu === 'essential' && <SessionEssentialSettings session={session} update={updateSession} />}
+          {menu === 'essential' && <EssentialSettings agentBase={session} update={updateSession} />}
           {menu === 'prompt' && <PromptSettings agentBase={session} update={updateSession} />}
           {menu === 'tooling' && <ToolingSettings agentBase={session} update={updateSession} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={session} update={updateSession} />}
