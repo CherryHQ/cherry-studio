@@ -138,6 +138,23 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
                   />
                 </Chip>
               </BreadcrumbItem>
+              {activeSession && (
+                <BreadcrumbItem
+                  onPress={() =>
+                    SessionSettingsPopup.show({
+                      agentId: activeAgent.id,
+                      sessionId: activeSession.id
+                    })
+                  }
+                  classNames={{
+                    base: 'self-stretch',
+                    item: 'h-full'
+                  }}>
+                  <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
+                    <SessionLabel session={activeSession} className="max-w-40 font-bold text-xs" />
+                  </Chip>
+                </BreadcrumbItem>
+              )}
               <BreadcrumbItem>
                 <SelectAgentModelButton agent={activeAgent} onSelect={handleUpdateModel} />
               </BreadcrumbItem>
