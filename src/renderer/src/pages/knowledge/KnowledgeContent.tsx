@@ -1,11 +1,10 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { Badge, Button, RowFlex } from '@cherrystudio/ui'
+import { Badge, Button, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import type { KnowledgeBase } from '@renderer/types'
-import { Tabs } from 'antd'
 import { t } from 'i18next'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
@@ -122,21 +121,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const tabItems = knowledgeItems
-    .filter((item) => item.show)
-    .map((item) => ({
-      key: item.key,
-      label: (
-        <TabLabel>
-          {item.icon}
-          <span>{item.title}</span>
-          <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-            {item.items.length}
-          </CustomTag>
-        </TabLabel>
-      ),
-      children: <TabContent>{item.content}</TabContent>
-    }))
+  const visibleKnowledgeItems = knowledgeItems.filter((item) => item.show)
 
   return (
     <MainContainer>
@@ -171,7 +156,27 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           </NavbarIcon>
         </RowFlex>
       </HeaderContainer>
-      <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
+      <Tabs value={activeKey} onValueChange={setActiveKey} className="flex-1">
+        <TabsList className="ml-4 h-auto w-auto justify-start bg-transparent p-0">
+          {visibleKnowledgeItems.map((item) => (
+            <TabsTrigger
+              key={item.key}
+              value={item.key}
+              className="flex h-auto flex-none items-center gap-1.5 px-3 py-1.5 text-[13px]">
+              {item.icon}
+              <span>{item.title}</span>
+              <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
+                {item.items.length}
+              </CustomTag>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {visibleKnowledgeItems.map((item) => (
+          <TabsContent key={item.key} value={item.key} className="flex-1">
+            {item.content}
+          </TabsContent>
+        ))}
+      </Tabs>
     </MainContainer>
   )
 }
@@ -193,57 +198,6 @@ const MainContainer = styled.div`
   width: 100%;
   flex-direction: column;
   position: relative;
-`
-
-const TabLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px;
-  font-size: 14px;
-`
-
-const TabContent = styled.div``
-
-const StyledTabs = styled(Tabs)`
-  flex: 1;
-
-  .ant-tabs-nav {
-    padding: 0 16px;
-    margin: 0;
-    min-height: 48px;
-  }
-
-  .ant-tabs-tab {
-    padding: 12px 12px;
-    margin-right: 0;
-    font-size: 13px;
-
-    &:hover {
-      color: var(--color-primary);
-    }
-  }
-
-  .ant-tabs-tab-btn {
-    font-size: 13px;
-  }
-
-  .ant-tabs-content {
-    position: initial !important;
-  }
-
-  .ant-tabs-content-holder {
-    overflow: hidden;
-  }
-
-  .ant-tabs-tabpane {
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .ant-tabs-ink-bar {
-    height: 2px;
-  }
 `
 
 const HeaderContainer = styled.div`
