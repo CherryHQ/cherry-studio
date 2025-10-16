@@ -45,7 +45,7 @@ export const useSessions = (agentId: string) => {
   )
 
   const deleteSession = useCallback(
-    async (id: string) => {
+    async (id: string): Promise<boolean> => {
       if (!agentId) return false
       try {
         await client.deleteSession(agentId, id)
