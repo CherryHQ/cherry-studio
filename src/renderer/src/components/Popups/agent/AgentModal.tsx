@@ -356,7 +356,7 @@ export const AgentModal: React.FC<Props> = ({ agent, children, isOpen: _isOpen, 
       Or just use external isOpen/onOpen/onClose to control modal state.
       */}
 
-      {
+      {children !== undefined && (
         <div
           onClick={(e) => {
             e.stopPropagation()
@@ -364,7 +364,7 @@ export const AgentModal: React.FC<Props> = ({ agent, children, isOpen: _isOpen, 
           }}>
           {children}
         </div>
-      }
+      )}
       <Modal
         isOpen={isOpen}
         onClose={onClose}
