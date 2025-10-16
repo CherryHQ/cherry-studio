@@ -124,6 +124,7 @@ export { Dropzone } from './ui/shadcn-io/dropzone'
 // UI Components (shadcn)
 export * from './ui/badge'
 export * from './ui/button'
+export { CircularProgress } from './ui/circular-progress'
 export * from './ui/command'
 export * from './ui/dialog'
 export * from './ui/dropdown-menu'

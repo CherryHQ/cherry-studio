@@ -1,8 +1,7 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { CircularProgress, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { Progress } from 'antd'
 import type { FC } from 'react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,7 +64,7 @@ const StatusIcon: FC<StatusIconProps> = ({
 
       case 'processing': {
         return type === 'directory' || type === 'file' ? (
-          <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} />
+          <CircularProgress value={Number(progress?.toFixed(0))} size={14} showLabel={false} />
         ) : (
           <Tooltip placement="left" content={t('knowledge.status_processing')}>
             <StatusDot $status="processing" />
