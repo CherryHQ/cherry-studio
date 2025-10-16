@@ -13,6 +13,7 @@ import AgentItem from './AgentItem'
 
 interface AssistantsTabProps {}
 
+/** @deprecated */
 export const Agents: FC<AssistantsTabProps> = () => {
   const { agents, deleteAgent, isLoading, error } = useAgents()
   const { t } = useTranslation()
@@ -54,18 +55,14 @@ export const Agents: FC<AssistantsTabProps> = () => {
             }}
           />
         ))}
-      <AgentModal
-        trigger={{
-          content: (
-            <Button
-              onPress={(e) => e.continuePropagation()}
-              startContent={<Plus size={16} className="mr-1 shrink-0 translate-x-[-2px]" />}
-              className="w-full justify-start bg-transparent text-foreground-500 hover:bg-[var(--color-list-item)]">
-              {t('agent.add.title')}
-            </Button>
-          )
-        }}
-      />
+      <AgentModal>
+        <Button
+          onPress={(e) => e.continuePropagation()}
+          startContent={<Plus size={16} className="mr-1 shrink-0 translate-x-[-2px]" />}
+          className="w-full justify-start bg-transparent text-foreground-500 hover:bg-[var(--color-list-item)]">
+          {t('agent.add.title')}
+        </Button>
+      </AgentModal>
     </>
   )
 }

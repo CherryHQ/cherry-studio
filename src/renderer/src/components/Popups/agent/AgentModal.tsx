@@ -1,6 +1,5 @@
 import {
   Button,
-  cn,
   Form,
   Input,
   Modal,
@@ -69,13 +68,13 @@ interface BaseProps {
 }
 
 interface TriggerProps extends BaseProps {
-  trigger: { content: ReactNode; className?: string }
+  children: ReactNode
   isOpen?: never
   onClose?: never
 }
 
 interface StateProps extends BaseProps {
-  trigger?: never
+  children?: never
   isOpen: boolean
   onClose: () => void
 }
@@ -87,12 +86,12 @@ type Props = TriggerProps | StateProps
  *
  * Either trigger or isOpen and onClose is given.
  * @param agent - Optional agent entity for editing mode.
- * @param trigger - Optional trigger element that opens the modal. It MUST propagate the click event to trigger the modal.
+ * @param children - Optional trigger element that opens the modal. It MUST propagate the click event to trigger the modal.
  * @param isOpen - Optional controlled modal open state. From useDisclosure.
  * @param onClose - Optional callback when modal closes. From useDisclosure.
  * @returns Modal component for agent creation/editing
  */
-export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, onClose: _onClose }) => {
+export const AgentModal: React.FC<Props> = ({ agent, children, isOpen: _isOpen, onClose: _onClose }) => {
   const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
@@ -357,16 +356,15 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       Or just use external isOpen/onOpen/onClose to control modal state.
       */}
 
-      {trigger && (
+      {
         <div
           onClick={(e) => {
             e.stopPropagation()
             onOpen()
-          }}
-          className={cn('w-full', trigger.className)}>
-          {trigger.content}
+          }}>
+          {children}
         </div>
-      )}
+      }
       <Modal
         isOpen={isOpen}
         onClose={onClose}
