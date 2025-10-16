@@ -1,9 +1,8 @@
-import { cn } from '@heroui/react'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
+import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -131,7 +130,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     </NavbarHeader>
   )
 }
-
 
 export const NavbarIcon = styled.div`
   -webkit-app-region: none;

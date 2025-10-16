@@ -1,16 +1,14 @@
-import { BreadcrumbItem, Breadcrumbs, Chip } from '@heroui/react'
+import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
+import { ApiModel, Assistant, PermissionMode } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { cn } from '@heroui/react'
-import React, { FC, useCallback, ReactNode } from 'react'
 import { t } from 'i18next'
+import React, { FC, ReactNode, useCallback } from 'react'
 
 import { AgentSettingsPopup } from '../../settings/AgentSettings'
 import { AgentLabel } from '../../settings/AgentSettings/shared'
@@ -19,11 +17,9 @@ import SelectModelButton from './SelectModelButton'
 
 interface Props {
   assistant: Assistant
-  activeTopic: Topic
-  onShowAssistantsDrawer: () => void
 }
 
-const ChatNavbarContent: FC<Props> = ({ assistant, activeTopic, onShowAssistantsDrawer }) => {
+const ChatNavbarContent: FC<Props> = ({ assistant }) => {
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
   const sessionId = activeAgentId ? (chat.activeSessionId[activeAgentId] ?? null) : null
