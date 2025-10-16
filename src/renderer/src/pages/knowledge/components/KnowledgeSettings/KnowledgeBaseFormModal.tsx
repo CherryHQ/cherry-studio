@@ -1,8 +1,18 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, RowFlex } from '@cherrystudio/ui'
-import { Menu } from 'antd'
-import React, { useState } from 'react'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Separator,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@cherrystudio/ui'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 export interface PanelConfig {
   key: string
@@ -20,10 +30,6 @@ interface KnowledgeBaseFormModalProps {
 
 const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ title, open, onCancel, onOk, panels }) => {
   const { t } = useTranslation()
-  const [selectedMenu, setSelectedMenu] = useState(panels[0]?.key)
-
-  const menuItems = panels.map(({ key, label }) => ({ key, label }))
-  const activePanel = panels.find((p) => p.key === selectedMenu)?.panel
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
@@ -42,17 +48,26 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ title, 
             <DialogTitle className="text-sm">{title}</DialogTitle>
           </DialogHeader>
         )}
-        <RowFlex className="h-[550px]">
-          <LeftMenu>
-            <StyledMenu
-              defaultSelectedKeys={[selectedMenu]}
-              mode="vertical"
-              items={menuItems}
-              onSelect={({ key }) => setSelectedMenu(key)}
-            />
-          </LeftMenu>
-          <SettingsContentPanel>{activePanel}</SettingsContentPanel>
-        </RowFlex>
+        <Tabs defaultValue={panels[0]?.key} orientation="vertical" className="flex h-[550px] flex-row">
+          <TabsList className="flex h-full w-auto items-start justify-center bg-transparent px-2">
+            <TabsList className="mt-[2px] h-auto flex-col gap-0 bg-transparent p-[5px]">
+              {panels.map((panel) => (
+                <TabsTrigger
+                  key={panel.key}
+                  value={panel.key}
+                  className="mb-[7px] flex h-9 items-center justify-start rounded-md border-[0.5px] border-transparent bg-transparent px-3 font-normal text-[var(--color-text-2)] shadow-none hover:bg-[var(--color-background-soft)] data-[state=active]:border-[var(--color-border)] data-[state=active]:bg-[var(--color-background-soft)] data-[state=active]:font-medium data-[state=active]:text-[var(--color-text-1)] data-[state=active]:shadow-none">
+                  {panel.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </TabsList>
+          <Separator orientation="vertical" />
+          {panels.map((panel) => (
+            <TabsContent key={panel.key} value={panel.key} className="flex-1 overflow-y-auto">
+              {panel.panel}
+            </TabsContent>
+          ))}
+        </Tabs>
         {onOk && (
           <DialogFooter className="border-[var(--color-border)] border-t-[0.5px] px-4 pt-3">
             <Button variant="bordered" onPress={onCancel}>
@@ -65,51 +80,5 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ title, 
     </Dialog>
   )
 }
-
-const LeftMenu = styled.div`
-  display: flex;
-  height: 100%;
-  border-right: 0.5px solid var(--color-border);
-`
-
-const SettingsContentPanel = styled.div`
-  flex: 1;
-  padding: 16px 16px;
-  overflow-y: scroll;
-`
-
-const StyledMenu = styled(Menu)`
-  width: 200px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  border-inline-end: none !important;
-
-  .ant-menu-item {
-    height: 36px;
-    color: var(--color-text-2);
-    display: flex;
-    align-items: center;
-    border: 0.5px solid transparent;
-    border-radius: 6px;
-    margin-bottom: 7px;
-
-    .ant-menu-title-content {
-      line-height: 36px;
-    }
-  }
-  .ant-menu-item-active {
-    background-color: var(--color-background-soft) !important;
-    transition: none;
-  }
-  .ant-menu-item-selected {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    .ant-menu-title-content {
-      color: var(--color-text-1);
-      font-weight: 500;
-    }
-  }
-`
 
 export default KnowledgeBaseFormModal
