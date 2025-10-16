@@ -1,7 +1,7 @@
 import { Button } from '@heroui/react'
+import { CheckIcon, XIcon } from 'lucide-react'
 import { FC } from 'react'
 import { createPortal } from 'react-dom'
-import { useTranslation } from 'react-i18next'
 
 interface Props {
   x: number
@@ -12,8 +12,6 @@ interface Props {
 }
 
 const ConfirmDialog: FC<Props> = ({ x, y, message, onConfirm, onCancel }) => {
-  const { t } = useTranslation()
-
   if (typeof document === 'undefined') {
     return null
   }
@@ -27,14 +25,14 @@ const ConfirmDialog: FC<Props> = ({ x, y, message, onConfirm, onCancel }) => {
           left: `${x}px`,
           top: `${y}px`
         }}>
-        <div className="min-w-[160px] max-w-[200px] rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
-          <div className="mb-2.5 text-center text-[13px] text-[var(--color-text)] leading-[1.4]">{message}</div>
+        <div className="flex min-w-[160px] items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
+          <div className="mr-2 text-sm leading-[1.4]">{message}</div>
           <div className="flex justify-center gap-2">
-            <Button size="sm" variant="flat" onPress={onCancel} className="min-w-[60px]">
-              {t('common.cancel')}
+            <Button onPress={onCancel} radius="full" className="h-6 w-6 min-w-0 p-1" color="danger">
+              <XIcon className="text-danger-foreground" size={16} />
             </Button>
-            <Button size="sm" color="primary" onPress={onConfirm} className="min-w-[60px]">
-              {t('common.confirm')}
+            <Button onPress={onConfirm} radius="full" className="h-6 w-6 min-w-0 p-1" color="success">
+              <CheckIcon className="text-success-foreground" size={16} />
             </Button>
           </div>
         </div>
