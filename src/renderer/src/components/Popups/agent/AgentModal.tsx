@@ -56,7 +56,7 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   name: existing?.name ?? 'Claude Code',
   description: existing?.description,
   instructions: existing?.instructions,
-  model: existing?.model ?? 'claude-4-sonnet',
+  model: existing?.model ?? '',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
   allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
