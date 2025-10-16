@@ -1,5 +1,5 @@
 import { ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
@@ -30,7 +30,7 @@ export const useUpdateSession = (agentId: string | null) => {
           window.toast.success(t('common.update_success'))
         }
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
+        window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
       }
     },
     [agentId, client, t]
