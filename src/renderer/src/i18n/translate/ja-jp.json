@@ -30,6 +30,11 @@
         "failed": "エージェントの一覧取得に失敗しました。"
       }
     },
+    "server": {
+      "error": {
+        "not_running": "APIサーバーは有効になっていますが、正常に動作していません。"
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "ディレクトリを追加",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "API キーがクリップボードにコピーされました",
       "apiKeyRegenerated": "API キーが再生成されました",
+      "notEnabled": "APIサーバーが有効になっていません。",
       "operationFailed": "API サーバーの操作に失敗しました：",
       "restartError": "API サーバーの再起動に失敗しました：",
       "restartFailed": "API サーバーの再起動に失敗しました：",

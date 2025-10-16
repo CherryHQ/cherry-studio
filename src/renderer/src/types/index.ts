@@ -17,6 +17,7 @@ import type { BaseTool, MCPTool } from './tool'
 
 export * from './agent'
 export * from './apiModels'
+export * from './apiServer'
 export * from './knowledge'
 export * from './mcp'
 export * from './notification'
@@ -848,13 +849,6 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
-
-export interface ApiServerConfig {
-  enabled: boolean
-  host: string
-  port: number
-  apiKey: string
-}
 export * from './tool'
 
 // Memory Service Types

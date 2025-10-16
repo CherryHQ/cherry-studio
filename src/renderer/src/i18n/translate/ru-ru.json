@@ -30,6 +30,11 @@
         "failed": "Не удалось получить список агентов."
       }
     },
+    "server": {
+      "error": {
+        "not_running": "API-сервер включен, но работает неправильно."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Добавить каталог",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "API ключ скопирован в буфер обмена",
       "apiKeyRegenerated": "API ключ перегенерирован",
+      "notEnabled": "API-сервер не включен.",
       "operationFailed": "Операция API сервера не удалась: ",
       "restartError": "Не удалось перезапустить API сервер: ",
       "restartFailed": "Перезапуск API сервера не удался: ",

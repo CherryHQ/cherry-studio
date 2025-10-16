@@ -30,6 +30,11 @@
         "failed": "获取智能体列表失败"
       }
     },
+    "server": {
+      "error": {
+        "not_running": "API 服务器已启用但未正常运行。"
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "添加目录",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "API 密钥已复制到剪贴板",
       "apiKeyRegenerated": "API 密钥已重新生成",
+      "notEnabled": "API 服务器未启用。",
       "operationFailed": "API 服务器操作失败：",
       "restartError": "重启 API 服务器失败：",
       "restartFailed": "API 服务器重启失败：",
