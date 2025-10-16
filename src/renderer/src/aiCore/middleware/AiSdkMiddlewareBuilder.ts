@@ -1,10 +1,11 @@
 import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
-import type { MCPTool, Message, Model, Provider } from '@renderer/types'
+import type { Assistant, MCPTool, Message, Model, Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
 
 import { noThinkMiddleware } from './noThinkMiddleware'
+import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
 
@@ -12,6 +13,7 @@ const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
  * AI SDK 中间件配置项
  */
 export interface AiSdkMiddlewareConfig {
+  assistant: Assistant
   streamOutput: boolean
   onChunk?: (chunk: Chunk) => void
   model?: Model
@@ -120,6 +122,15 @@ export class AiSdkMiddlewareBuilder {
  */
 export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageModelMiddleware[] {
   const builder = new AiSdkMiddlewareBuilder()
+
+  // 0. 知识库强制调用中间件（必须在最前面，确保第一轮强制调用知识库）
+  if (config.assistant.knowledgeRecognition === 'off') {
+    builder.add({
+      name: 'force-knowledge-first',
+      middleware: toolChoiceMiddleware('builtin_knowledge_search')
+    })
+    logger.debug('Added toolChoice middleware to force knowledge base search on first round')
+  }
 
   // 1. 根据provider添加特定中间件
   if (config.provider) {
