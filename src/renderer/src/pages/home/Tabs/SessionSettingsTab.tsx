@@ -1,5 +1,5 @@
 import { Button, Divider } from '@heroui/react'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import AdvancedSettings from '@renderer/pages/settings/AgentSettings/AdvancedSettings'
 import EssentialSettings from '@renderer/pages/settings/AgentSettings/EssentialSettings'
@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   session: GetAgentSessionResponse | undefined | null
-  update: ReturnType<typeof useUpdateAgent>['updateAgent']
+  update: ReturnType<typeof useUpdateSession>['updateSession']
 }
 
 const SessionSettingsTab: FC<Props> = ({ session, update }) => {
