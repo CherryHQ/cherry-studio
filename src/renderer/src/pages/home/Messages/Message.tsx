@@ -290,6 +290,7 @@ const MessageContentContainer = styled(Scrollbar)`
   padding-left: 46px;
   margin-top: 0;
   overflow-y: auto;
+  /* overflow-x: hidden; */
 `
 
 const MessageFooter = styled.div`
