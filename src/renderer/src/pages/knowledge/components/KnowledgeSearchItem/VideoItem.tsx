@@ -1,14 +1,10 @@
+import { loggerService } from '@logger'
 import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
-import { Typography } from 'antd'
 import type { FC } from 'react'
 import React, { useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactPlayer from 'react-player'
 import styled from 'styled-components'
-
-const { Paragraph } = Typography
-
-import { loggerService } from '@logger'
-import { useTranslation } from 'react-i18next'
 
 import { CopyButtonContainer, KnowledgeItemMetadata } from './components'
 import { useHighlightText } from './hooks'
@@ -74,9 +70,7 @@ const VideoItem: FC<Props> = ({ item, searchKeyword }) => {
     <>
       <KnowledgeItemMetadata item={item} />
       <CopyButtonContainer textToCopy={item.pageContent} tooltipTitle={t('common.copy')} />
-      <Paragraph style={{ userSelect: 'text', marginBottom: 0 }}>
-        {highlightText(item.pageContent, searchKeyword)}
-      </Paragraph>
+      <p className="mb-0 select-text">{highlightText(item.pageContent, searchKeyword)}</p>
       <VideoContainer>{renderVideo()}</VideoContainer>
     </>
   )

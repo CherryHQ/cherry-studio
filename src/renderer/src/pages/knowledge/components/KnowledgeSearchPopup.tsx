@@ -110,7 +110,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           </div>
         ) : results.length > 0 ? (
           <div className="max-h-[70vh] overflow-y-auto px-4">
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-2">
               {results.map((item, index) => (
                 <div key={index} className="border-[var(--color-border)] border-b last:border-b-0">
                   <SearchItemRenderer item={item} searchKeyword={searchKeyword} />

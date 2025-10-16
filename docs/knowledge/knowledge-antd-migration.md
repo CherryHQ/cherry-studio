@@ -5,8 +5,8 @@
 ## 迁移范围统计
 
 - **涉及文件数**：7 个文件（同一文件中可能引用多个 antd 组件）。
-- **待替换 antd 组件**（按字母排序，共 4 项）：`Empty`、`Menu`、`Modal`（1 处）、`ModalProps`、`Progress`、`Typography`。
-- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅、~~`Divider`~~ ✅、~~`Spin`~~ ✅、~~`Input`~~ ✅、~~`InputRef`~~ ✅、~~`Modal`~~（1 处）✅、~~`List`~~ ✅
+- **待替换 antd 组件**（按字母排序，共 3 项）：`Empty`、`Menu`、`Modal`（1 处）、`ModalProps`、`Progress`。
+- **已完成迁移**：~~`Tabs`~~ ✅、~~`Dropdown`~~ ✅、~~`MenuProps`~~ ✅、~~`Divider`~~ ✅、~~`Spin`~~ ✅、~~`Input`~~ ✅、~~`InputRef`~~ ✅、~~`Modal`~~（1 处）✅、~~`List`~~ ✅、~~`Typography`~~ ✅
 
 | 文件 | antd 依赖 | 备注 |
 | --- | --- | --- |
@@ -15,8 +15,8 @@
 | `components/KnowledgeSearchPopup.tsx` | - | ~~全部迁移完成~~ ✅ |
 | `components/KnowledgeSettings/KnowledgeBaseFormModal.tsx` | `Modal`、`Menu`、`ModalProps` | 知识库设置抽屉左侧菜单 |
 | `components/StatusIcon.tsx` | `Progress` | 处理状态的圆形进度 |
-| `components/KnowledgeSearchItem/components.tsx` | `Typography` | 搜索结果元信息的文字样式 |
-| `components/KnowledgeSearchItem/TextItem.tsx` & `VideoItem.tsx` | `Typography` | 高亮文段、段落排版 |
+| `components/KnowledgeSearchItem/components.tsx` | - | ~~全部迁移完成~~ ✅ |
+| `components/KnowledgeSearchItem/TextItem.tsx` & `VideoItem.tsx` | - | ~~全部迁移完成~~ ✅ |
 
 > Tipp: 通过 `python scripts` 输出的清单见执行日志，可用于对照核查。
 
@@ -35,7 +35,7 @@
 | ~~`Spin`~~ ✅ | `Spinner` (base/Spinner) | ✅ **已完成**：迁移到 base/Spinner 组件（带文本的搜索状态指示器）；保持原有动画和文本显示效果。参考：`KnowledgeSearchPopup.tsx:99`。 |
 | `Menu` | `Tabs`（垂直模式）、`Listbox` 或 `Accordion` | 侧边菜单可改为 `Listbox`，利用 `selectedKeys` 控制选中态。 |
 | `Progress` | `CircularProgress` | `value` 接收 0-100 数字；若需要小尺寸可用 `size="sm"` 并修改 `className`。 |
-| `Typography` | `Text`, `Paragraph`, `Link` | HeroUI 文本组件支持 `as` 属性；高亮逻辑保留。 |
+| ~~`Typography`~~ ✅ | 原生 HTML 标签 + CSS 变量 | ✅ **已完成**：`Typography.Text` 改为 `<span>`；`type="secondary"` 改为 `className="text-[var(--color-text-2)]"`；`Typography.Paragraph` 改为 `<p className="mb-0 select-text">`。参考：`components.tsx:23-28`、`TextItem.tsx:22-24`、`VideoItem.tsx:74-76`。 |
 
 ## 迁移实施建议
 
@@ -58,7 +58,7 @@
 
 ## 迁移进度跟踪
 
-### 已完成 (9/13)
+### 已完成 (10/13)
 
 - [x] **Tabs** - `KnowledgeContent.tsx` (2025-01-16)
   - 迁移到 shadcn Tabs 组合式 API
@@ -104,13 +104,19 @@
   - 添加底部边框和 padding 样式，保持视觉一致
   - 实现条件渲染：初始状态显示空、加载中显示 Spinner、无结果显示空状态、有结果显示列表
 
-### 待迁移 (4/13)
+- [x] **Typography** - 3 处 (`components.tsx`, `TextItem.tsx`, `VideoItem.tsx`) (2025-01-16)
+  - `Typography.Text` 改为 `<span>` 标签
+  - `type="secondary"` 改为 `className="text-[var(--color-text-2)]"`（次要文本颜色）
+  - `Typography.Paragraph` 改为 `<p>` 标签
+  - `style={{ userSelect: 'text', marginBottom: 0 }}` 改为 `className="mb-0 select-text"`
+  - 使用项目 CSS 变量实现文本颜色层级
+
+### 待迁移 (3/13)
 
 - [ ] `Empty` - 2 处 (`KnowledgePage.tsx`, `KnowledgeContent.tsx`)
 - [ ] `Modal` - 1 处 (`KnowledgeBaseFormModal.tsx`)
 - [ ] `Menu` - 1 处 (`KnowledgeBaseFormModal.tsx`)
 - [ ] `Progress` - 1 处 (`StatusIcon.tsx`)
-- [ ] `Typography` - 3 处 (搜索结果相关组件)
 - [ ] `ModalProps` - 类型依赖
 
 ## 注意事项
