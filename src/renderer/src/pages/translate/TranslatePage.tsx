@@ -134,10 +134,13 @@ const TranslatePage: FC = () => {
   )
 
   // 控制复制行为
-  const copy = useCallback(async (text: string) => {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-  }, [])
+  const copy = useCallback(
+    async (text: string) => {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+    },
+    [setCopied]
+  )
 
   const onCopy = useCallback(async () => {
     try {
@@ -146,7 +149,7 @@ const TranslatePage: FC = () => {
       logger.error('Failed to copy text to clipboard:', error as Error)
       window.toast.error(t('common.copy_failed'))
     }
-  }, [setCopied, t, translatedContent])
+  }, [copy, t, translatedContent])
 
   /**
    * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
@@ -204,7 +207,7 @@ const TranslatePage: FC = () => {
         window.toast.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [autoCopy, dispatch, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, copy, dispatch, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
