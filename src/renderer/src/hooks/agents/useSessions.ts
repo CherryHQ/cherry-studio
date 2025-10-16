@@ -1,4 +1,4 @@
-import { CreateSessionForm } from '@renderer/types'
+import { CreateAgentSessionResponse, CreateSessionForm, GetAgentSessionResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,14 +18,14 @@ export const useSessions = (agentId: string) => {
   const { data, error, isLoading, mutate } = useSWR(key, fetcher)
 
   const createSession = useCallback(
-    async (form: CreateSessionForm) => {
+    async (form: CreateSessionForm): Promise<CreateAgentSessionResponse | null> => {
       try {
         const result = await client.createSession(agentId, form)
         await mutate((prev) => [result, ...(prev ?? [])], { revalidate: false })
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
-        return undefined
+        return null
       }
     },
     [agentId, client, mutate, t]
