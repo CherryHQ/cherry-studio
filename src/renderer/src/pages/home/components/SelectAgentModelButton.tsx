@@ -42,9 +42,9 @@ const SelectAgentModelButton: FC<Props> = ({ agent, onSelect, isDisabled }) => {
       className="nodrag rounded-2xl px-1 py-3"
       onPress={onSelectModel}
       isDisabled={isDisabled}>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 overflow-x-hidden">
         <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={20} />
-        <span className="-mr-0.5 font-medium">
+        <span className="-mr-0.5 truncate font-medium">
           {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
         </span>
       </div>
