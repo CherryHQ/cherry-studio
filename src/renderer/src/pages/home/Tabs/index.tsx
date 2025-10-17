@@ -189,10 +189,7 @@ const Container = styled.div`
     background-color: var(--color-background);
   }
   [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height) - 12px);
-    &.right {
-      height: calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px);
-    }
+    height: calc(100vh - var(--navbar-height));
   }
   overflow: hidden;
   .collapsed {

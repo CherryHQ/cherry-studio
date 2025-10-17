@@ -106,7 +106,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
       afterClose={afterClose}
       maskClosable={false}
       footer={null}
-      title={<SessionLabel session={session} className="font-extrabold text-lg" />}
+      title={<SessionLabel session={session} />}
       transitionName="animation-move-down"
       styles={{
         content: {

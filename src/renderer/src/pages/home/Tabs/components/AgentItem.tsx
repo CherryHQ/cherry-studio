@@ -44,9 +44,16 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
               <AgentLabel agent={agent} />
             </AgentNameWrapper>
           </AssistantNameRow>
-          <MenuButton>
-            {isActive ? <SessionCount>{sessions.length}</SessionCount> : <Bot size={14} className="text-primary" />}
-          </MenuButton>
+          {isActive && (
+            <MenuButton>
+              <SessionCount>{sessions.length}</SessionCount>
+            </MenuButton>
+          )}
+          {!isActive && (
+            <BotIcon>
+              <Bot size={16} className="text-primary" />
+            </BotIcon>
+          )}
         </Container>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -104,6 +111,16 @@ export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ cla
   <div
     className={cn(
       'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] w-[22px] flex-row items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
+      className
+    )}
+    {...props}
+  />
+)
+
+export const BotIcon: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div
+    className={cn(
+      'absolute top-[8px] right-[12px] flex flex-row items-center justify-center rounded-full text-[14px] text-[var(--color-text)]',
       className
     )}
     {...props}

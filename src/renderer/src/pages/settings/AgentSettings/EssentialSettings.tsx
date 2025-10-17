@@ -20,13 +20,15 @@ type EssentialSettingsProps =
   | {
       agentBase: GetAgentResponse | undefined | null
       update: ReturnType<typeof useUpdateAgent>['updateAgent']
+      showModelSetting?: boolean
     }
   | {
       agentBase: GetAgentSessionResponse | undefined | null
       update: ReturnType<typeof useUpdateSession>['updateSession']
+      showModelSetting?: boolean
     }
 
-const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update }) => {
+const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update, showModelSetting = true }) => {
   const { t } = useTranslation()
 
   if (!agentBase) return null
@@ -46,7 +48,7 @@ const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update }) =>
       )}
       {isAgent && <AvatarSetting agent={agentBase} update={update} />}
       <NameSetting base={agentBase} update={update} />
-      <ModelSetting base={agentBase} update={update} />
+      {showModelSetting && <ModelSetting base={agentBase} update={update} />}
       <AccessibleDirsSetting base={agentBase} update={update} />
       <DescriptionSetting base={agentBase} update={update} />
     </SettingsContainer>

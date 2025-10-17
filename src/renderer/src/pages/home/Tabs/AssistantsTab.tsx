@@ -180,7 +180,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 12px 10px;
 `
 
 export default AssistantsTab
