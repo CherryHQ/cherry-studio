@@ -60,15 +60,20 @@ const attachKeyboardHandler = (contents: Electron.WebContents) => {
     if (!isFindShortcut && !isEscape && !isEnter) {
       return
     }
-    // Prevent default to override the guest page's native find dialog
-    // and keep shortcuts routed to our custom search overlay
-    event.preventDefault()
 
     const host = contents.hostWebContents
     if (!host || host.isDestroyed()) {
       return
     }
 
+    // Always prevent Cmd/Ctrl+F to override the guest page's native find dialog
+    if (isFindShortcut) {
+      event.preventDefault()
+    }
+
+    // Send the hotkey event to the renderer
+    // The renderer will decide whether to preventDefault for Escape and Enter
+    // based on whether the search bar is visible
     host.send(IpcChannel.Webview_SearchHotkey, {
       webviewId: contents.id,
       key,

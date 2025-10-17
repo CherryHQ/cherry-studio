@@ -1,4 +1,4 @@
-import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
@@ -7,6 +7,8 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useChatMaxWidth } from '@renderer/pages/home/Chat'
+import ChatNavbarContent from '@renderer/pages/home/components/ChatNavbarContent'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
@@ -15,7 +17,7 @@ import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC } from 'react'
+import React, { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -28,13 +30,21 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
+  activeTopicOrSession?: 'topic' | 'session'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const HeaderNavbar: FC<Props> = ({
+  activeAssistant,
+  setActiveAssistant,
+  activeTopic,
+  setActiveTopic,
+  activeTopicOrSession
+}) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
+  const chatMaxWidth = useChatMaxWidth()
   const dispatch = useAppDispatch()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
@@ -113,15 +123,29 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </AnimatePresence>
         </NavbarLeft>
       )}
-      <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
-        <SelectModelButton assistant={assistant} />
-      </HStack>
+      <NavbarCenter>
+        {activeTopicOrSession === 'topic' ? (
+          <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
+            <SelectModelButton assistant={assistant} />
+          </HStack>
+        ) : (
+          <ChatNavbarContainer
+            style={{
+              maxWidth: chatMaxWidth,
+              marginLeft: !isMac ? 16 : 0
+            }}>
+            <ChatNavbarContent assistant={assistant} />
+          </ChatNavbarContainer>
+        )}
+      </NavbarCenter>
+
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
-          flex: 1,
+          flex: activeTopicOrSession === 'topic' ? 1 : 'none',
           position: 'relative',
-          paddingRight: isWin || isLinux ? '144px' : '15px'
+          paddingRight: isWin || isLinux ? '144px' : '15px',
+          minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
@@ -195,5 +219,16 @@ const NarrowIcon = styled(NavbarIcon)`
     display: none;
   }
 `
+
+const ChatNavbarContainer: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({
+  children,
+  style
+}) => {
+  return (
+    <div className="nodrag flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden" style={style}>
+      {children}
+    </div>
+  )
+}
 
 export default HeaderNavbar

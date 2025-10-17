@@ -266,7 +266,11 @@ export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   slash_commands: z.array(SlashCommandSchema).optional() // Array of slash commands to trigger the agent
 })
 
+export const CreateAgentSessionResponseSchema = GetAgentSessionResponseSchema
+
 export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
+
+export type CreateAgentSessionResponse = GetAgentSessionResponse
 
 export const ListAgentSessionsResponseSchema = z.object({
   data: z.array(AgentSessionEntitySchema),

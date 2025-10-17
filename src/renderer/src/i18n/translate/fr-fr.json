@@ -22,7 +22,8 @@
     },
     "get": {
       "error": {
-        "failed": "Échec de l'obtention de l'agent."
+        "failed": "Échec de l'obtention de l'agent.",
+        "null_id": "L'ID de l'agent est nul."
       }
     },
     "list": {
@@ -73,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Échec de l'obtention de la session"
+          "failed": "Échec de l'obtention de la session",
+          "null_id": "L'ID de session est nul"
         }
       },
       "label_one": "Session",
@@ -2041,6 +2043,7 @@
       "provider": {
         "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
         "existing": "Le fournisseur existe déjà",
+        "get_providers": "Échec de l'obtention des fournisseurs disponibles",
         "not_found": "Le fournisseur OCR n'existe pas",
         "update_failed": "Échec de la mise à jour de la configuration"
       },
@@ -3574,6 +3577,7 @@
       "builtinServers": "Serveurs intégrés",
       "builtinServersDescriptions": {
         "brave_search": "Une implémentation de serveur MCP intégrant l'API de recherche Brave, offrant des fonctionnalités de recherche web et locale. Nécessite la configuration de la variable d'environnement BRAVE_API_KEY",
+        "didi_mcp": "Serveur DiDi MCP fournissant des services de transport incluant la recherche de cartes, l'estimation des prix, la gestion des commandes et le suivi des conducteurs. Disponible uniquement en Chine continentale. Nécessite la configuration de la variable d'environnement DIDI_API_KEY",
         "dify_knowledge": "Implémentation du serveur MCP de Dify, fournissant une API simple pour interagir avec Dify. Nécessite la configuration de la clé Dify",
         "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
         "filesystem": "Serveur Node.js implémentant le protocole de contexte de modèle (MCP) pour les opérations de système de fichiers. Nécessite une configuration des répertoires autorisés à être accédés.",

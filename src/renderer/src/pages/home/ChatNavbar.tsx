@@ -1,34 +1,24 @@
-import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
-import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
+import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
-import { ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, ReactNode, useCallback } from 'react'
+import { FC } from 'react'
 import styled from 'styled-components'
 
-import { AgentSettingsPopup } from '../settings/AgentSettings'
-import { AgentLabel } from '../settings/AgentSettings/shared'
 import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectAgentModelButton from './components/SelectAgentModelButton'
-import SelectModelButton from './components/SelectModelButton'
+import ChatNavbarContent from './components/ChatNavbarContent'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -45,11 +35,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
-  const sessionId = activeAgentId ? (chat.activeSessionId[activeAgentId] ?? null) : null
-  const { agent } = useAgent(activeAgentId)
-  const { updateModel } = useUpdateAgent()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -79,13 +64,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
-  const handleUpdateModel = useCallback(
-    async (model: ApiModel) => {
-      if (!agent) return
-      return updateModel(agent.id, model.id, { showSuccessToast: false })
-    },
-    [agent, updateModel]
-  )
+  // const handleUpdateModel = useCallback(
+  //   async (model: ApiModel) => {
+  //     if (!activeSession || !activeAgent) return
+  //     return updateModel(activeSession.id, model.id, { showSuccessToast: false })
+  //   },
+  //   [activeAgent, activeSession, updateModel]
+  // )
 
   return (
     <NavbarHeader className="home-navbar">
@@ -117,38 +102,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </motion.div>
           )}
         </AnimatePresence>
-        {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
-        {activeTopicOrSession === 'session' && agent && (
-          <HorizontalScrollContainer>
-            <Breadcrumbs
-              classNames={{
-                base: 'flex',
-                list: 'flex-nowrap'
-              }}>
-              <BreadcrumbItem
-                onPress={() => AgentSettingsPopup.show({ agentId: agent.id })}
-                classNames={{
-                  base: 'self-stretch',
-                  item: 'h-full'
-                }}>
-                <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
-                  <AgentLabel
-                    agent={agent}
-                    classNames={{ name: 'max-w-50 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
-                  />
-                </Chip>
-              </BreadcrumbItem>
-              <BreadcrumbItem>
-                <SelectAgentModelButton agent={agent} onSelect={handleUpdateModel} />
-              </BreadcrumbItem>
-              {activeAgentId && sessionId && (
-                <BreadcrumbItem>
-                  <SessionWorkspaceMeta agentId={activeAgentId} sessionId={sessionId} />
-                </BreadcrumbItem>
-              )}
-            </Breadcrumbs>
-          </HorizontalScrollContainer>
-        )}
+        <ChatNavbarContent assistant={assistant} />
       </div>
       <HStack alignItems="center" gap={8}>
         <UpdateAppButton />
@@ -179,74 +133,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </HStack>
     </NavbarHeader>
   )
-}
-
-const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agentId, sessionId }) => {
-  const { agent } = useAgent(agentId)
-  const { session } = useSession(agentId, sessionId)
-  if (!session || !agent) {
-    return null
-  }
-
-  const firstAccessiblePath = session.accessible_paths?.[0]
-  const permissionMode = (session.configuration?.permission_mode ?? 'default') as PermissionMode
-  const permissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
-  const permissionModeLabel = permissionModeCard
-    ? t(permissionModeCard.titleKey, permissionModeCard.titleFallback)
-    : permissionMode
-
-  const infoItems: ReactNode[] = []
-
-  const InfoTag = ({
-    text,
-    className,
-    onClick
-  }: {
-    text: string
-    className?: string
-    classNames?: {}
-    onClick?: (e: React.MouseEvent) => void
-  }) => (
-    <div
-      className={cn(
-        'rounded-medium border border-default-200 px-2 py-1 text-foreground-500 text-xs dark:text-foreground-400',
-        onClick !== undefined ? 'cursor-pointer' : undefined,
-        className
-      )}
-      title={text}
-      onClick={onClick}>
-      <span className="block truncate">{text}</span>
-    </div>
-  )
-
-  // infoItems.push(<InfoTag key="name" text={agent.name ?? ''} className="max-w-60" />)
-
-  if (firstAccessiblePath) {
-    infoItems.push(
-      <InfoTag
-        key="path"
-        text={firstAccessiblePath}
-        className="max-w-60 transition-colors hover:border-primary hover:text-primary"
-        onClick={() => {
-          window.api.file
-            .openPath(firstAccessiblePath)
-            .catch((e) =>
-              window.toast.error(
-                formatErrorMessageWithPrefix(e, t('files.error.open_path', { path: firstAccessiblePath }))
-              )
-            )
-        }}
-      />
-    )
-  }
-
-  infoItems.push(<InfoTag key="permission-mode" text={permissionModeLabel} className="max-w-50" />)
-
-  if (infoItems.length === 0) {
-    return null
-  }
-
-  return <div className="ml-2 flex items-center gap-2">{infoItems}</div>
 }
 
 export const NavbarIcon = styled.div`

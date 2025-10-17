@@ -11,7 +11,7 @@ import { useAppDispatch } from '@renderer/store'
 import { addIknowAction } from '@renderer/store/runtime'
 import { Assistant, AssistantsSortType } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -80,12 +80,6 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     updateAssistants
   })
 
-  useEffect(() => {
-    if (!agentsLoading && agents.length > 0 && !activeAgentId && apiServerConfig.enabled) {
-      setActiveAgentId(agents[0].id)
-    }
-  }, [agentsLoading, agents, activeAgentId, setActiveAgentId, apiServerConfig.enabled])
-
   const onDeleteAssistant = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
@@ -107,7 +101,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      {!apiServerConfig.enabled && !iknow[ALERT_KEY] && (
+      {!apiServerConfig.enabled && !apiServerRunning && !iknow[ALERT_KEY] && (
         <Alert
           color="warning"
           title={t('agent.warning.enable_server')}
@@ -123,7 +117,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
       {apiServerConfig.enabled && !apiServerRunning && (
         <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
       )}
-      {apiServerConfig.enabled && apiServerRunning && agentsError && (
+      {apiServerRunning && agentsError && (
         <Alert
           color="danger"
           title={t('agent.list.error.failed')}
