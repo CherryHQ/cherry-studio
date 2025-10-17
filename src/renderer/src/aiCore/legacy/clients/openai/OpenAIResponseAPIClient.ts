@@ -342,9 +342,28 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       }
     }
     switch (message.type) {
-      case 'function_call_output':
-        sum += estimateTextTokens(message.output)
+      case 'function_call_output': {
+        let str = ''
+        if (typeof message.output === 'string') {
+          str = message.output
+        } else {
+          for (const part of message.output) {
+            switch (part.type) {
+              case 'input_text':
+                str += part.text
+                break
+              case 'input_image':
+                str += part.image_url || ''
+                break
+              case 'input_file':
+                str += part.file_data || ''
+                break
+            }
+          }
+        }
+        sum += estimateTextTokens(str)
         break
+      }
       case 'function_call':
         sum += estimateTextTokens(message.arguments)
         break

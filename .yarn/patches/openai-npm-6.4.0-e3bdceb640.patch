@@ -1,0 +1,38 @@
+diff --git a/azure.js b/azure.js
+index 90638e3ca941678f4ebecaad3a1246b220f96e07..955d2d1a873545c7839576b0438a0a636ef68a47 100644
+--- a/azure.js
++++ b/azure.js
+@@ -68,7 +68,13 @@ class AzureOpenAI extends client_1.OpenAI {
+             if (!(0, utils_1.isObj)(options.body)) {
+                 throw new Error('Expected request body to be an object');
+             }
+-            const model = this.deploymentName || options.body['model'] || options.__metadata?.['model'];
++            let model = this.deploymentName || options.body['model'] || options.__metadata?.['model'];
++            if (model === undefined && typeof options.body?.get === 'function') {
++                const formModel = options.body.get('model');
++                if (typeof formModel === 'string') {
++                    model = formModel;
++                }
++            }
+             if (model !== undefined && !this.baseURL.includes('/deployments')) {
+                 options.path = `/deployments/${model}${options.path}`;
+             }
+diff --git a/azure.mjs b/azure.mjs
+index 7bbc0aaad540a778cfd9310f0f0b7fa90859e0b0..82479e97040765a4354a047e4565d67826a30247 100644
+--- a/azure.mjs
++++ b/azure.mjs
+@@ -64,7 +64,13 @@ export class AzureOpenAI extends OpenAI {
+             if (!isObj(options.body)) {
+                 throw new Error('Expected request body to be an object');
+             }
+-            const model = this.deploymentName || options.body['model'] || options.__metadata?.['model'];
++            let model = this.deploymentName || options.body['model'] || options.__metadata?.['model'];
++            if (model === undefined && typeof options.body?.get === 'function') {
++                const formModel = options.body.get('model');
++                if (typeof formModel === 'string') {
++                    model = formModel;
++                }
++            }
+             if (model !== undefined && !this.baseURL.includes('/deployments')) {
+                 options.path = `/deployments/${model}${options.path}`;
+             }
