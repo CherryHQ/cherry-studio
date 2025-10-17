@@ -2,17 +2,18 @@ import { isEmpty } from 'lodash'
 
 import { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
-import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
+import {
+  getAvailableProviders,
+  getProviderAnthropicModelChecker,
+  listAllAvailableModels,
+  transformModelToOpenAI
+} from '../utils'
 
 const logger = loggerService.withContext('ModelsService')
 
 // Re-export for backward compatibility
 
 export type ModelsFilter = ApiModelsFilter
-
-const isAnthropicProvider = (provider: { type: string; anthropicApiHost?: string }) => {
-  return provider.type === 'anthropic' || !isEmpty(provider.anthropicApiHost?.trim())
-}
 
 export class ModelsService {
   async getModels(filter: ModelsFilter): Promise<ApiModelsResponse> {
@@ -22,7 +23,7 @@ export class ModelsService {
       let providers = await getAvailableProviders()
 
       if (filter.providerType === 'anthropic') {
-        providers = providers.filter(isAnthropicProvider)
+        providers = providers.filter((p) => p.type === 'anthropic' || !isEmpty(p.anthropicApiHost?.trim()))
       }
 
       const models = await listAllAvailableModels(providers)
@@ -31,22 +32,18 @@ export class ModelsService {
 
       for (const model of models) {
         const provider = providers.find((p) => p.id === model.provider)
-        logger.debug(`Processing model ${model.id} from provider ${model.provider}`, {
-          isAnthropicModel: provider?.isAnthropicModel
-        })
-        if (
-          !provider ||
-          (filter.providerType === 'anthropic' && provider.isAnthropicModel && !provider.isAnthropicModel(model))
-        ) {
-          continue
-        }
-        // Special case: For "aihubmix", it should be covered by above condition, but just in case
-        if (provider.id === 'aihubmix' && filter.providerType === 'anthropic' && !model.id.includes('claude')) {
+        logger.debug(`Processing model ${model.id}`)
+        if (!provider) {
+          logger.debug(`Skipping model ${model.id} . Reason: Provider not found.`)
           continue
         }
 
-        if (filter.supportAnthropic && model.endpoint_type !== 'anthropic' && !isAnthropicProvider(provider)) {
-          continue
+        if (filter.providerType === 'anthropic') {
+          const checker = getProviderAnthropicModelChecker(provider.id)
+          if (!checker(model)) {
+            logger.debug(`Skipping model ${model.id} from ${model.provider}. Reason: Not an Anthropic model.`)
+            continue
+          }
         }
 
         const openAIModel = transformModelToOpenAI(model, provider)
