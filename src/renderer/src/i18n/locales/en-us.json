@@ -365,7 +365,16 @@
     },
     "search": "Search assistants...",
     "settings": {
+      "add_model": "Add Model",
       "default_model": "Default Model",
+      "default_models": {
+        "label": "Default Models",
+        "save": "Save as Default",
+        "saveDescription": "Save current model selection as default for this assistant",
+        "save_failed": "Failed to save default models",
+        "saved": "Default models saved successfully",
+        "duplicate": "This model is already in the default list"
+      },
       "knowledge_base": {
         "label": "Knowledge Base Settings",
         "recognition": {

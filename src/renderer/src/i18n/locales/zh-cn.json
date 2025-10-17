@@ -365,7 +365,16 @@
     },
     "search": "搜索助手",
     "settings": {
+      "add_model": "添加模型",
       "default_model": "默认模型",
+      "default_models": {
+        "label": "默认模型组",
+        "save": "保存为默认模型组",
+        "saveDescription": "将当前选择的模型保存为该助手的默认模型组",
+        "save_failed": "保存默认模型组失败",
+        "saved": "默认模型组已保存",
+        "duplicate": "该模型已在默认列表中"
+      },
       "knowledge_base": {
         "label": "知识库设置",
         "recognition": {

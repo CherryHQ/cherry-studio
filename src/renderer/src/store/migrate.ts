@@ -2558,6 +2558,11 @@ const migrateConfig = {
         if (assistant.defaultModel?.provider === 'cherryin') {
           assistant.defaultModel.provider = 'cherryai'
         }
+        assistant.defaultModels?.forEach((model) => {
+          if (model.provider === 'cherryin') {
+            model.provider = 'cherryai'
+          }
+        })
       })
 
       // @ts-ignore
@@ -2569,6 +2574,14 @@ const migrateConfig = {
         }
         if (agent.defaultModel?.provider === 'cherryin') {
           agent.defaultModel.provider = 'cherryai'
+        }
+      })
+      if (state.assistants.defaultAssistant.defaultModel?.provider === 'cherryin') {
+        state.assistants.defaultAssistant.defaultModel.provider = 'cherryai'
+      }
+      state.assistants.defaultAssistant.defaultModels?.forEach((model) => {
+        if (model.provider === 'cherryin') {
+          model.provider = 'cherryai'
         }
       })
       return state
@@ -2665,6 +2678,31 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 162 error', error as Error)
+      return state
+    }
+  },
+  '163': (state: RootState) => {
+    try {
+      const updateModelTextDelta = (model?: Model) => {
+        if (model) {
+          model.supported_text_delta = true
+          if (isNotSupportedTextDelta(model)) {
+            model.supported_text_delta = false
+          }
+        }
+      }
+
+      // Update text delta for defaultModels on assistants
+      state.assistants.assistants.forEach((assistant) => {
+        assistant.defaultModels?.forEach((model) => updateModelTextDelta(model))
+      })
+
+      // Update text delta for defaultModels on default assistant
+      state.assistants.defaultAssistant.defaultModels?.forEach((model) => updateModelTextDelta(model))
+
+      return state
+    } catch (error) {
+      logger.error('migrate 163 error', error as Error)
       return state
     }
   }

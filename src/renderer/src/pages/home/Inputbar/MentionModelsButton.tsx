@@ -1,8 +1,10 @@
+import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { type QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
@@ -10,11 +12,13 @@ import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
-import { AtSign, CircleX, Plus } from 'lucide-react'
+import { AtSign, CircleX, Plus, Save } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('MentionModelsButton')
 
 export interface MentionModelsButtonRef {
   openQuickPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
@@ -22,6 +26,7 @@ export interface MentionModelsButtonRef {
 
 interface Props {
   ref?: React.RefObject<MentionModelsButtonRef | null>
+  assistantId: string
   mentionedModels: Model[]
   onMentionModel: (model: Model) => void
   onClearMentionModels: () => void
@@ -32,6 +37,7 @@ interface Props {
 
 const MentionModelsButton: FC<Props> = ({
   ref,
+  assistantId,
   mentionedModels,
   onMentionModel,
   onClearMentionModels,
@@ -43,6 +49,7 @@ const MentionModelsButton: FC<Props> = ({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
+  const { assistant, updateAssistant } = useAssistant(assistantId)
 
   // 记录是否有模型被选择的动作发生
   const hasModelActionRef = useRef<boolean>(false)
@@ -216,6 +223,28 @@ const MentionModelsButton: FC<Props> = ({
       }
     })
 
+    // Add "Save as default" button
+    items.unshift({
+      label: t('assistants.settings.default_models.save'),
+      description: t('assistants.settings.default_models.saveDescription'),
+      icon: <Save />,
+      alwaysVisible: true,
+      isSelected: false,
+      action: async ({ context: ctx }) => {
+        try {
+          await updateAssistant({
+            ...assistant,
+            defaultModels: mentionedModels
+          })
+          window.toast.success(t('assistants.settings.default_models.saved'))
+          ctx.close()
+        } catch (error) {
+          window.toast.error(t('assistants.settings.default_models.save_failed'))
+          logger.error('Failed to save default models', error as Error)
+        }
+      }
+    })
+
     return items
   }, [
     pinnedModels,
@@ -227,7 +256,9 @@ const MentionModelsButton: FC<Props> = ({
     navigate,
     onClearMentionModels,
     setText,
-    removeAtSymbolAndText
+    removeAtSymbolAndText,
+    assistant,
+    updateAssistant
   ])
 
   const openQuickPanel = useCallback(

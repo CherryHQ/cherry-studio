@@ -365,7 +365,16 @@
     },
     "search": "搜尋助手...",
     "settings": {
+      "add_model": "新增模型",
       "default_model": "預設模型",
+      "default_models": {
+        "label": "預設模型組",
+        "save": "儲存為預設模型組",
+        "saveDescription": "將目前選擇的模型儲存為此助手的預設模型組",
+        "save_failed": "儲存預設模型組失敗",
+        "saved": "預設模型組已儲存",
+        "duplicate": "此模型已在預設列表中"
+      },
       "knowledge_base": {
         "label": "知識庫設定",
         "recognition": {

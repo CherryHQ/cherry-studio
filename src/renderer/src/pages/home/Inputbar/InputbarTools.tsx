@@ -425,6 +425,7 @@ const InputbarTools = ({
         component: (
           <MentionModelsButton
             ref={mentionModelsButtonRef}
+            assistantId={assistant.id}
             mentionedModels={mentionedModels}
             onMentionModel={onMentionModel}
             onClearMentionModels={onClearMentionModels}

@@ -49,6 +49,7 @@ export function getDefaultAssistant(): Assistant {
     topics: [getDefaultTopic('default')],
     messages: [],
     type: 'assistant',
+    defaultModels: [],
     regularPhrases: [], // Added regularPhrases
     settings: DEFAULT_ASSISTANT_SETTINGS
   }
@@ -196,6 +197,7 @@ export async function createAssistantFromAgent(agent: AssistantPreset) {
     emoji: agent.emoji,
     topics: [topic],
     model: agent.defaultModel,
+    defaultModels: agent.defaultModels,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
     settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS

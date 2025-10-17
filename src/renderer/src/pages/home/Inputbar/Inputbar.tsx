@@ -25,6 +25,7 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
@@ -63,6 +64,14 @@ import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
 
+const areModelListsEqual = (a: Model[], b: Model[]) => {
+  if (a.length !== b.length) {
+    return false
+  }
+  const bIds = b.map((model) => getModelUniqId(model))
+  return a.every((model, index) => getModelUniqId(model) === bIds[index])
+}
+
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
@@ -71,7 +80,7 @@ interface Props {
 
 let _text = ''
 let _files: FileType[] = []
-let _mentionedModelsCache: Model[] = []
+const _mentionedModelsCache: Record<string, Model[] | undefined> = {}
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
@@ -104,7 +113,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
-  const [mentionedModels, setMentionedModels] = useState<Model[]>(_mentionedModelsCache)
+  const [mentionedModels, setMentionedModelsState] = useState<Model[]>(assistant.defaultModels ?? [])
+  const manualMentionUpdateRef = useRef(false)
+  const setMentionedModels = useCallback(
+    (value: React.SetStateAction<Model[]>) => {
+      manualMentionUpdateRef.current = true
+      setMentionedModelsState(value)
+    },
+    [setMentionedModelsState]
+  )
   const mentionedModelsRef = useRef(mentionedModels)
   const [isDragging, setIsDragging] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
@@ -202,9 +219,44 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     // 利用useEffect清理函数在卸载组件时更新状态缓存
     return () => {
-      _mentionedModelsCache = mentionedModelsRef.current
+      if (manualMentionUpdateRef.current) {
+        _mentionedModelsCache[assistant.id] = mentionedModelsRef.current
+      } else {
+        delete _mentionedModelsCache[assistant.id]
+      }
     }
-  }, [])
+  }, [assistant.defaultModels, assistant.id])
+
+  useEffect(() => {
+    const cached = _mentionedModelsCache[assistant.id]
+    if (cached !== undefined) {
+      manualMentionUpdateRef.current = true
+      setMentionedModelsState(cached)
+    } else {
+      manualMentionUpdateRef.current = false
+      setMentionedModelsState(assistant.defaultModels ?? [])
+    }
+  }, [assistant.defaultModels, assistant.id])
+
+  useEffect(() => {
+    if (manualMentionUpdateRef.current) {
+      return
+    }
+    const defaults = assistant.defaultModels ?? []
+    if (!areModelListsEqual(defaults, mentionedModelsRef.current)) {
+      delete _mentionedModelsCache[assistant.id]
+      manualMentionUpdateRef.current = false
+      setMentionedModelsState(defaults)
+    }
+  }, [assistant.defaultModels, assistant.id])
+
+  useEffect(() => {
+    if (manualMentionUpdateRef.current) {
+      _mentionedModelsCache[assistant.id] = mentionedModels
+    } else {
+      delete _mentionedModelsCache[assistant.id]
+    }
+  }, [assistant.id, mentionedModels])
 
   const focusTextarea = useCallback(() => {
     textareaRef.current?.focus()
@@ -408,11 +460,24 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     // Reset to assistant default model
     assistant.defaultModel && setModel(assistant.defaultModel)
 
+    // Clear mentioned models cache and reset to defaults
+    delete _mentionedModelsCache[assistant.id]
+    manualMentionUpdateRef.current = false
+    setMentionedModelsState(assistant.defaultModels ?? [])
+
     addTopic(topic)
     setActiveTopic(topic)
 
     setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
+  }, [
+    addTopic,
+    assistant.defaultModel,
+    assistant.defaultModels,
+    assistant.id,
+    setActiveTopic,
+    setModel,
+    setTimeoutTimer
+  ])
 
   const onQuote = useCallback(
     (text: string) => {

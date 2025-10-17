@@ -9,6 +9,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@r
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
@@ -38,6 +39,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     assistant?.settings?.customParameters ?? []
   )
   const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
+  const isAgentPreset = assistant.type === 'agent'
+  const defaultModels = assistant.defaultModels ?? []
 
   const customParametersRef = useRef(customParameters)
 
@@ -238,6 +241,51 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </HStack>
       </HStack>
       <Divider style={{ margin: '10px 0' }} />
+
+      {/* Default Models Section */}
+      {!isAgentPreset && (
+        <>
+          <HStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 10 }}>
+            <Label>{t('assistants.settings.default_models.label')}</Label>
+          </HStack>
+          <HStack alignItems="center" gap={5} style={{ flexWrap: 'wrap', marginBottom: 10 }}>
+            {defaultModels.map((model) => {
+              const modelKey = getModelUniqId(model)
+              return (
+                <ModelChip key={modelKey}>
+                  <ModelAvatar model={model} size={16} />
+                  <ModelChipName>{model.name}</ModelChipName>
+                  <DeleteIcon
+                    size={14}
+                    className="lucide-custom"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      const newModels = defaultModels.filter((m) => getModelUniqId(m) !== modelKey)
+                      updateAssistant({ ...assistant, defaultModels: newModels })
+                    }}
+                  />
+                </ModelChip>
+              )
+            })}
+            <Button
+              icon={<PlusIcon size={16} />}
+              onClick={async () => {
+                const selectedModel = await SelectModelPopup.show({ filter: modelFilter })
+                if (selectedModel) {
+                  const selectedModelKey = getModelUniqId(selectedModel)
+                  if (defaultModels.some((model) => getModelUniqId(model) === selectedModelKey)) {
+                    window.toast.warning(t('assistants.settings.default_models.duplicate'))
+                    return
+                  }
+                  updateAssistant({ ...assistant, defaultModels: [...defaultModels, selectedModel] })
+                }
+              }}>
+              {t('assistants.settings.add_model')}
+            </Button>
+          </HStack>
+          <Divider style={{ margin: '10px 0' }} />
+        </>
+      )}
 
       <SettingRow style={{ minHeight: 30 }}>
         <HStack alignItems="center">
@@ -537,6 +585,21 @@ const ModelName = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
+`
+
+const ModelChip = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background-color: var(--color-background-soft);
+  border: 1px solid var(--color-border);
+`
+
+const ModelChipName = styled.span`
+  font-size: 13px;
+  color: var(--color-text-1);
 `
 
 export default AssistantModelSettings

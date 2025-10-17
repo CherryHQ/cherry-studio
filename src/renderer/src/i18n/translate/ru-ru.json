@@ -365,7 +365,15 @@
     },
     "search": "Поиск ассистентов...",
     "settings": {
+      "add_model": "[to be translated]:添加模型",
       "default_model": "Модель по умолчанию",
+      "default_models": {
+        "label": "[to be translated]:默认模型组",
+        "save": "[to be translated]:保存为默认模型组",
+        "saveDescription": "[to be translated]:将当前选择的模型保存为该助手的默认模型组",
+        "save_failed": "[to be translated]:保存默认模型组失败",
+        "saved": "[to be translated]:默认模型组已保存"
+      },
       "knowledge_base": {
         "label": "Настройки базы знаний",
         "recognition": {
