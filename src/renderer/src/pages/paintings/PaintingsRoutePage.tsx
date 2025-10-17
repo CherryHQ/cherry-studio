@@ -44,7 +44,7 @@ const PaintingsRoutePage: FC = () => {
     if (provider && validOptions.includes(provider)) {
       dispatch(setDefaultPaintingProvider(provider as PaintingProvider))
     }
-  }, [provider, dispatch, Options])
+  }, [provider, dispatch, validOptions])
 
   return (
     <Routes>
