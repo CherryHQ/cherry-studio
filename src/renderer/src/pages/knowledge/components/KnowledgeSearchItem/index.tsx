@@ -1,6 +1,5 @@
 import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import React from 'react'
-import styled from 'styled-components'
 
 import TextItem from './TextItem'
 import VideoItem from './VideoItem'
@@ -24,70 +23,39 @@ const SearchItemRenderer: React.FC<Props> = ({ item, searchKeyword }) => {
     }
   }
 
-  return <ResultItem>{renderItem()}</ResultItem>
+  return <div className="group relative w-full rounded-lg bg-[var(--color-background-soft)] p-4">{renderItem()}</div>
 }
 
 export default React.memo(SearchItemRenderer)
 
-export const TagContainer = styled.div`
-  position: absolute;
-  top: 58px;
-  right: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
-`
+export const TagContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="absolute top-[58px] right-4 flex items-center gap-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+      {children}
+    </div>
+  )
+}
 
-const ResultItem = styled.div`
-  width: 100%;
-  position: relative;
-  padding: 16px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
+export const ScoreTag: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="flex-shrink-0 rounded bg-[var(--color-primary)] px-2 py-0.5 text-white text-xs">{children}</div>
+  )
+}
 
-  &:hover {
-    ${TagContainer} {
-      opacity: 1 !important;
-    }
-  }
-`
+export const CopyButton: React.FC<{ children: React.ReactNode; onClick: () => void }> = ({ children, onClick }) => {
+  return (
+    <div
+      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-[var(--color-background-mute)] text-[var(--color-text)] transition-all duration-200 hover:bg-[var(--color-primary)] hover:text-white"
+      onClick={onClick}>
+      {children}
+    </div>
+  )
+}
 
-export const ScoreTag = styled.div`
-  padding: 2px 8px;
-  background: var(--color-primary);
-  color: white;
-  border-radius: 4px;
-  font-size: 12px;
-  flex-shrink: 0;
-`
-
-export const CopyButton = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  background: var(--color-background-mute);
-  color: var(--color-text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-
-  &:hover {
-    background: var(--color-primary);
-    color: white;
-  }
-`
-
-export const MetadataContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--color-border);
-  user-select: text;
-`
+export const MetadataContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="mb-2 flex select-text items-center justify-between gap-4 border-[var(--color-border)] border-b pb-2">
+      {children}
+    </div>
+  )
+}
