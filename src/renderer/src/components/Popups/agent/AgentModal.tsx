@@ -17,7 +17,7 @@ import {
 import { loggerService } from '@logger'
 import type { Selection } from '@react-types/shared'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { getModelLogo } from '@renderer/config/models'
+import { agentModelFilter, getModelLogo } from '@renderer/config/models'
 import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
@@ -245,14 +245,23 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
 
   const modelOptions = useMemo(() => {
     // mocked data. not final version
-    return (models ?? []).map((model) => ({
-      type: 'model',
-      key: model.id,
-      label: model.name,
-      avatar: getModelLogo(model.id),
-      providerId: model.provider,
-      providerName: model.provider_name
-    })) satisfies ModelOption[]
+    return (models ?? [])
+      .filter((m) =>
+        agentModelFilter({
+          id: m.id,
+          provider: m.provider || '',
+          name: m.name,
+          group: ''
+        })
+      )
+      .map((model) => ({
+        type: 'model',
+        key: model.id,
+        label: model.name,
+        avatar: getModelLogo(model.id),
+        providerId: model.provider,
+        providerName: model.provider_name
+      })) satisfies ModelOption[]
   }, [models])
 
   const onModelChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {

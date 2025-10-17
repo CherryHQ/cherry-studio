@@ -279,3 +279,16 @@ export function validateProvider(provider: Provider): boolean {
     return false
   }
 }
+
+export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model) => boolean) => {
+  switch (providerId) {
+    case 'cherryin':
+    case 'new-api':
+      return (m: Model) => m.endpoint_type === 'anthropic'
+    case 'aihubmix':
+      return (m: Model) => m.id.includes('claude')
+    default:
+      // allow all models when checker not configured
+      return () => true
+  }
+}
