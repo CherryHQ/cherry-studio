@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
 
+import { loggerService } from "@logger"
+
 import { agentService } from '../services/agents'
-import { loggerService } from '../services/LoggerService'
 import { app } from './app'
 import { config } from './config'
 
@@ -15,9 +16,15 @@ export class ApiServer {
   private server: ReturnType<typeof createServer> | null = null
 
   async start(): Promise<void> {
-    if (this.server) {
+    if (this.server && this.server.listening) {
       logger.warn('Server already running')
       return
+    }
+
+    // Clean up any failed server instance
+    if (this.server && !this.server.listening) {
+      logger.warn('Cleaning up failed server instance')
+      this.server = null
     }
 
     // Load config
@@ -39,7 +46,11 @@ export class ApiServer {
         resolve()
       })
 
-      this.server!.on('error', reject)
+      this.server!.on('error', (error) => {
+        // Clean up the server instance if listen fails
+        this.server = null
+        reject(error)
+      })
     })
   }
 
