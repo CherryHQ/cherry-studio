@@ -4,7 +4,7 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { PaintingProvider, SystemProviderId } from '@renderer/types'
-import { FC, useEffect, useMemo } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useParams } from 'react-router-dom'
 
 import AihubmixPage from './AihubmixPage'
@@ -27,10 +27,21 @@ const PaintingsRoutePage: FC = () => {
   const Options = useMemo(() => {
     return [...BASE_OPTIONS, ...providers.filter((p) => isNewApiProvider(p)).map((p) => p.id)]
   }, [providers])
+  const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      const status = await window.api.ovms.getStatus()
+      setOvmsStatus(status)
+    }
+    checkStatus()
+  }, [])
+
+  const validOptions = Options.filter((option) => option !== 'ovms' || ovmsStatus === 'running')
 
   useEffect(() => {
     logger.debug(`defaultPaintingProvider: ${provider}`)
-    if (provider && Options.includes(provider)) {
+    if (provider && validOptions.includes(provider)) {
       dispatch(setDefaultPaintingProvider(provider as PaintingProvider))
     }
   }, [provider, dispatch, Options])
@@ -50,7 +61,7 @@ const PaintingsRoutePage: FC = () => {
         .map((p) => (
           <Route key={p.id} path={`/${p.id}`} element={<NewApiPage Options={Options} />} />
         ))}
-      <Route path="/new-api" element={<NewApiPage Options={Options} />} />      
+      <Route path="/new-api" element={<NewApiPage Options={Options} />} />
     </Routes>
   )
 }
