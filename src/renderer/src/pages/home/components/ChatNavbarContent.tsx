@@ -39,21 +39,14 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
       {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
       {activeTopicOrSession === 'session' && agent && (
         <HorizontalScrollContainer>
-          <Breadcrumbs
-            classNames={{
-              base: 'flex',
-              list: 'flex-nowrap'
-            }}>
+          <Breadcrumbs classNames={{ base: 'flex', list: 'flex-nowrap' }}>
             <BreadcrumbItem
               onPress={() => AgentSettingsPopup.show({ agentId: agent.id })}
-              classNames={{
-                base: 'self-stretch',
-                item: 'h-full'
-              }}>
+              classNames={{ base: 'self-stretch', item: 'h-full' }}>
               <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
                 <AgentLabel
                   agent={agent}
-                  classNames={{ name: 'max-w-50 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+                  classNames={{ name: 'max-w-50 font-bold text-xs', avatar: 'h-2 w-2 ml-[-4px]', container: 'gap-1.5' }}
                 />
               </Chip>
             </BreadcrumbItem>
