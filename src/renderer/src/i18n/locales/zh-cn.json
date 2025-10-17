@@ -22,7 +22,8 @@
     },
     "get": {
       "error": {
-        "failed": "获取智能体失败"
+        "failed": "获取智能体失败",
+        "null_id": "智能体 ID 为空。"
       }
     },
     "list": {
@@ -73,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "获取会话失败"
+          "failed": "获取会话失败",
+          "null_id": "会话 ID 为空"
         }
       },
       "label_one": "会话",

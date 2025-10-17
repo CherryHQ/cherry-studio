@@ -11,7 +11,7 @@ export interface ChatState {
   activeAgentId: string | null
   /** UI state. Map agent id to active session id.
    *  null represents no active session  */
-  activeSessionId: Record<string, string | null>
+  activeSessionIdMap: Record<string, string | null>
   /** meanwhile active Assistants or Agents */
   activeTopicOrSession: 'topic' | 'session'
   /** topic ids that are currently being renamed */
@@ -90,7 +90,7 @@ const initialState: RuntimeState = {
     activeTopic: null,
     activeAgentId: null,
     activeTopicOrSession: 'topic',
-    activeSessionId: {},
+    activeSessionIdMap: {},
     renamingTopics: [],
     newlyRenamedTopics: [],
     sessionWaiting: {}
@@ -163,7 +163,7 @@ const runtimeSlice = createSlice({
     },
     setActiveSessionIdAction: (state, action: PayloadAction<{ agentId: string; sessionId: string | null }>) => {
       const { agentId, sessionId } = action.payload
-      state.chat.activeSessionId[agentId] = sessionId
+      state.chat.activeSessionIdMap[agentId] = sessionId
     },
     setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
       state.chat.activeTopicOrSession = action.payload
