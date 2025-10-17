@@ -120,7 +120,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
       )}
 
       {agentsLoading && <Spinner />}
-      {!apiServerRunning && (
+      {apiServerConfig.enabled && !apiServerRunning && (
         <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
       )}
       {apiServerRunning && agentsError && (
