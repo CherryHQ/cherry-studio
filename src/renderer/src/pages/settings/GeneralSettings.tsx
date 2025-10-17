@@ -147,7 +147,8 @@ const GeneralSettings: FC = () => {
     { value: 'pt', label: 'Português', flag: '🇵🇹' },
     { value: 'ru', label: 'Русский', flag: '🇷🇺' },
     { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
+    { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+    { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
   ]
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
