@@ -1959,6 +1959,14 @@
     "rename": "Rename",
     "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",
+    "search": {
+      "both": "Name+Content",
+      "content": "Content",
+      "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
+      "more_matches": "more matches",
+      "searching": "Searching...",
+      "show_less": "Show less"
+    },
     "settings": {
       "data": {
         "apply": "Apply",
@@ -2104,8 +2112,10 @@
       "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "Only supports Windows",
       "install_code_103": "Download OVMS runtime failed",
-      "install_code_104": "Uncompress OVMS runtime failed",
-      "install_code_105": "Clean OVMS runtime failed",
+      "install_code_104": "Failed to install OVMS runtime",
+      "install_code_105": "Failed to create ovdnd.exe",
+      "install_code_106": "Failed to create run.bat",
+      "install_code_110": "Failed to clean old OVMS runtime",
       "run": "Run OVMS failed:",
       "stop": "Stop OVMS failed:"
     },
@@ -3576,6 +3586,7 @@
       "builtinServers": "Builtin Servers",
       "builtinServersDescriptions": {
         "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
+        "didi_mcp": "DiDi MCP server providing ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in Mainland China. Requires configuring the DIDI_API_KEY environment variable",
         "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
         "fetch": "MCP server for retrieving URL web content",
         "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
@@ -4081,7 +4092,7 @@
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
         "label": "API Key",
-        "tip": "Multiple keys separated by commas or spaces"
+        "tip": "Use commas to separate multiple keys"
       },
       "api_version": "API Version",
       "aws-bedrock": {

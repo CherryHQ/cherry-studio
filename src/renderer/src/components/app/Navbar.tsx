@@ -74,7 +74,7 @@ const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
 `
 
 const NavbarLeftContainer = styled.div`
-  min-width: var(--assistants-width);
+  min-width: ${isMac ? 'calc(var(--assistants-width) - 20px)' : 'var(--assistants-width)'};
   padding: 0 10px;
   display: flex;
   flex-direction: row;
