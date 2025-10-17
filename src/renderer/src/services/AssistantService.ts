@@ -35,7 +35,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxTokens: 0,
   streamOutput: true,
   topP: 1,
-  enableTopP: true,
+  enableTopP: false,
   toolUseMode: 'prompt',
   customParameters: []
 }
@@ -169,7 +169,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     enableTemperature: assistant?.settings?.enableTemperature ?? true,
     topP: assistant?.settings?.topP ?? 1,
-    enableTopP: assistant?.settings?.enableTopP ?? true,
+    enableTopP: assistant?.settings?.enableTopP ?? false,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
