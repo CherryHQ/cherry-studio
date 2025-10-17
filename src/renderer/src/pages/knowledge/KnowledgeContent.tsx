@@ -1,17 +1,14 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, RowFlex, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
-import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
-import { Empty, Tabs, Tag } from 'antd'
-import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
+import { t } from 'i18next'
+import { Book, Folder, Globe, Link, Notebook, RotateCw, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
@@ -37,8 +34,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
   const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
-
-  const providerName = getProviderName(base?.model)
 
   useEffect(() => {
     const handlers = [
@@ -124,26 +119,12 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const tabItems = knowledgeItems
-    .filter((item) => item.show)
-    .map((item) => ({
-      key: item.key,
-      label: (
-        <TabLabel>
-          {item.icon}
-          <span>{item.title}</span>
-          <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-            {item.items.length}
-          </CustomTag>
-        </TabLabel>
-      ),
-      children: <TabContent>{item.content}</TabContent>
-    }))
+  const visibleKnowledgeItems = knowledgeItems.filter((item) => item.show)
 
   return (
-    <MainContainer>
-      <HeaderContainer>
-        <ModelInfo>
+    <div className="relative flex w-full flex-col">
+      <div className="flex items-center justify-between gap-2 border-[var(--color-border)] border-b-[0.5px] px-4">
+        <div className="flex h-[45px] flex-row items-center gap-2 text-[var(--color-text-3)]">
           <Button
             variant="light"
             startContent={<Settings size={18} color="var(--color-icon)" />}
@@ -151,199 +132,129 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             onPress={() => EditKnowledgeBasePopup.show({ base })}
             size="sm"
           />
-          <div className="model-row">
-            <div className="label-column">
-              <label>{t('models.embedding_model')}</label>
-            </div>
-            <Tooltip placement="bottom" content={providerName}>
-              <div className="tag-column">
-                <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
-              </div>
-            </Tooltip>
-            {base.rerankModel && <Tag style={{ borderRadius: 20, margin: 0 }}>{base.rerankModel.name}</Tag>}
+          <div className="flex items-start gap-2.5">
+            <Badge variant="outline" className="rounded-md text-xs">
+              {base.model.name}
+            </Badge>
+
+            {base.rerankModel && (
+              <Badge variant="outline" className="rounded-md text-xs">
+                {base.rerankModel.name}
+              </Badge>
+            )}
             {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
               <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
             )}
           </div>
-        </ModelInfo>
+        </div>
         <RowFlex className="items-center gap-2">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
           </NavbarIcon>
         </RowFlex>
-      </HeaderContainer>
-      <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
-    </MainContainer>
+      </div>
+      <Tabs value={activeKey} onValueChange={setActiveKey} className="flex-1">
+        <TabsList className="ml-4 h-auto w-auto justify-start bg-transparent p-0">
+          {visibleKnowledgeItems.map((item) => (
+            <TabsTrigger
+              key={item.key}
+              value={item.key}
+              className="flex h-auto flex-none items-center gap-1.5 px-3 py-1.5 text-[13px]">
+              {item.icon}
+              <span>{item.title}</span>
+              <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
+                {item.items.length}
+              </CustomTag>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {visibleKnowledgeItems.map((item) => (
+          <TabsContent key={item.key} value={item.key} className="flex-1">
+            {item.content}
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
   )
 }
 
-export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ image: { display: 'none' } }} />
+export const KnowledgeEmptyView = () => (
+  <div className="w-full items-center justify-center text-center text-gray-400">{t('knowledge.empty_item')}</div>
+)
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
     <RowFlex className="items-center gap-2.5">
-      <label style={{ fontWeight: 600 }}>{label}</label>
+      <label className="font-semibold">{label}</label>
     </RowFlex>
   )
 }
 
-const MainContainer = styled.div`
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  position: relative;
-`
+export const ItemContainer: FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => {
+  return <div className={`flex h-full flex-1 flex-col gap-2.5 ${className}`}>{children}</div>
+}
 
-const TabLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 4px;
-  font-size: 14px;
-`
+export const ItemHeader: FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => {
+  return (
+    <div
+      className={`item-header absolute right-4 z-[1000] flex flex-row items-center justify-between ${className}`}
+      style={{
+        top: 'calc(var(--navbar-height) + 12px)'
+      }}>
+      {children}
+      <style>{`
+        [navbar-position='top'] .item-header {
+          top: calc(var(--navbar-height) + 10px);
+        }
+      `}</style>
+    </div>
+  )
+}
 
-const TabContent = styled.div``
+export const StatusIconWrapper: FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className = ''
+}) => {
+  return <div className={`flex h-9 w-9 items-center justify-center ${className}`}>{children}</div>
+}
 
-const StyledTabs = styled(Tabs)`
-  flex: 1;
+export const RefreshIcon: FC<{ className?: string; onClick?: () => void }> = ({ className = '', onClick }) => {
+  return <RotateCw size={15} className={`text-[var(--color-text-2)] ${className}`} onClick={onClick} />
+}
 
-  .ant-tabs-nav {
-    padding: 0 16px;
-    margin: 0;
-    min-height: 48px;
-  }
+export const ClickableSpan: FC<{ children: React.ReactNode; onClick?: () => void; className?: string }> = ({
+  children,
+  onClick,
+  className = ''
+}) => {
+  return (
+    <span className={`w-0 flex-1 cursor-pointer ${className}`} onClick={onClick}>
+      {children}
+    </span>
+  )
+}
 
-  .ant-tabs-tab {
-    padding: 12px 12px;
-    margin-right: 0;
-    font-size: 13px;
+export const FlexAlignCenter: FC<{ children: React.ReactNode; className?: string }> = ({
+  children,
+  className = ''
+}) => {
+  return <div className={`flex items-center justify-center ${className}`}>{children}</div>
+}
 
-    &:hover {
-      color: var(--color-primary);
-    }
-  }
-
-  .ant-tabs-tab-btn {
-    font-size: 13px;
-  }
-
-  .ant-tabs-content {
-    position: initial !important;
-  }
-
-  .ant-tabs-content-holder {
-    overflow: hidden;
-  }
-
-  .ant-tabs-tabpane {
-    height: 100%;
-    overflow: hidden;
-  }
-
-  .ant-tabs-ink-bar {
-    height: 2px;
-  }
-`
-
-const HeaderContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 0 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
-
-const ModelInfo = styled.div`
-  display: flex;
-  color: var(--color-text-3);
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  height: 45px;
-
-  .model-header {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .model-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .label-column {
-    flex-shrink: 0;
-  }
-
-  .tag-column {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    align-items: center;
-  }
-
-  label {
-    color: var(--color-text-2);
-  }
-`
-
-export const ItemContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  height: 100%;
-  flex: 1;
-`
-
-export const ItemHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  position: absolute;
-  right: 16px;
-  z-index: 1000;
-  top: calc(var(--navbar-height) + 12px);
-  [navbar-position='top'] & {
-    top: calc(var(--navbar-height) + 10px);
-  }
-`
-
-export const StatusIconWrapper = styled.div`
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-export const RefreshIcon = styled(RedoOutlined)`
-  font-size: 15px !important;
-  color: var(--color-text-2);
-`
-
-export const ClickableSpan = styled.span`
-  cursor: pointer;
-  flex: 1;
-  width: 0;
-`
-
-export const FlexAlignCenter = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-export const ResponsiveButton = styled(Button)`
-  @media (max-width: 1080px) {
-    [data-slot="icon"] + [data-slot="label"] {
-      display: none;
-    }
-  }
-`
+export const ResponsiveButton: FC<React.ComponentProps<typeof Button>> = (props) => {
+  return (
+    <>
+      <Button {...props} className={`responsive-button ${props.className || ''}`} />
+      <style>{`
+        @media (max-width: 1080px) {
+          .responsive-button [data-slot="icon"] + [data-slot="label"] {
+            display: none;
+          }
+        }
+      `}</style>
+    </>
+  )
+}
 
 export default KnowledgeContent

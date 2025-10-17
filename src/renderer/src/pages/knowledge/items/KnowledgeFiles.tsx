@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Dropzone } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -11,18 +11,16 @@ import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@ren
 import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeFiles')
 
 import { DeleteIcon } from '@renderer/components/Icons'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { PlusIcon } from 'lucide-react'
+import { PlusIcon, UploadIcon } from 'lucide-react'
 
 import {
   ClickableSpan,
@@ -34,9 +32,6 @@ import {
   ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
-
-const { Dragger } = Upload
-
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
   progressMap: Map<string, number>
@@ -153,24 +148,24 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
         </ResponsiveButton>
       </ItemHeader>
 
-      <ItemFlexColumn>
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddFile()
-          }}>
-          <Dragger
-            showUploadList={false}
-            customRequest={({ file }) => handleDrop([file as File])}
-            multiple={true}
-            accept={fileTypes.join(',')}
-            openFileDialogOnClick={false}>
-            <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
-            <p className="ant-upload-hint">
-              {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
+      <div className="flex flex-col gap-2.5 px-4 py-5">
+        <Dropzone
+          disabled={disabled}
+          multiple
+          onDrop={(acceptedFiles) => handleDrop(acceptedFiles)}
+          onError={(error) => window.toast?.error?.(error.message)}>
+          <div className="flex flex-col items-center justify-center gap-2 text-center">
+            <div className="flex size-10 items-center justify-center rounded-full bg-default-100 text-foreground/80">
+              <UploadIcon size={18} />
+            </div>
+            <p className="font-medium text-sm">{t('knowledge.drag_file')}</p>
+            <p className="max-w-64 text-balance text-muted-foreground text-xs">
+              {t('knowledge.file_hint', {
+                file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...'
+              })}
             </p>
-          </Dragger>
-        </div>
+          </div>
+        </Dropzone>
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
@@ -192,9 +187,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                     fileInfo={{
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
-                          <Ellipsis>
-                            <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
-                          </Ellipsis>
+                          <Ellipsis>{file.origin_name}</Ellipsis>
                         </ClickableSpan>
                       ),
                       ext: file.ext,
@@ -238,16 +231,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             }}
           </DynamicVirtualList>
         )}
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 20px 16px;
-  gap: 10px;
-`
 
 export default KnowledgeFiles

@@ -1,117 +1,66 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = `
-.c0 .ant-modal-title {
-  font-size: 14px;
-}
-
-.c0 .ant-modal-close {
-  top: 4px;
-  right: 4px;
-}
-
-.c1 {
-  display: flex;
-  height: 100%;
-  border-right: 0.5px solid var(--color-border);
-}
-
-.c3 {
-  flex: 1;
-  padding: 16px 16px;
-  overflow-y: scroll;
-}
-
-.c2 {
-  width: 200px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  border-inline-end: none!important;
-}
-
-.c2 .ant-menu-item {
-  height: 36px;
-  color: var(--color-text-2);
-  display: flex;
-  align-items: center;
-  border: 0.5px solid transparent;
-  border-radius: 6px;
-  margin-bottom: 7px;
-}
-
-.c2 .ant-menu-item .ant-menu-title-content {
-  line-height: 36px;
-}
-
-.c2 .ant-menu-item-active {
-  background-color: var(--color-background-soft)!important;
-  transition: none;
-}
-
-.c2 .ant-menu-item-selected {
-  background-color: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-}
-
-.c2 .ant-menu-item-selected .ant-menu-title-content {
-  color: var(--color-text-1);
-  font-weight: 500;
-}
-
 <div
-  class="c0"
-  data-testid="modal"
-  data-title="Knowledge Base Settings"
-  styles="[object Object]"
-  transitionname="animation-move-down"
-  width="min(900px, 65vw)"
+  data-open="true"
+  data-testid="dialog"
 >
   <div
-    data-testid="modal-header"
-  >
-    <span>
-      Knowledge Base Settings
-    </span>
-    <button
-      data-testid="modal-close"
-      type="button"
-    >
-      ×
-    </button>
-  </div>
-  <div
-    data-testid="modal-body"
+    class="w-[900px] max-w-[65vw] overflow-hidden p-0 pb-[10px] sm:max-w-[900px]"
+    data-show-close="true"
+    data-testid="dialog-content"
   >
     <div
-      class="h-full"
-      data-testid="hstack"
+      class="m-0 rounded-none border-[var(--color-border)] border-b-[0.5px] p-[10px_15px]"
+      data-testid="dialog-header"
+    >
+      <h2
+        class="text-sm"
+        data-testid="dialog-title"
+      >
+        Knowledge Base Settings
+      </h2>
+    </div>
+    <div
+      class="flex h-[550px] flex-row"
+      data-default-value="general"
+      data-orientation="vertical"
+      data-testid="tabs"
     >
       <div
-        class="c1"
+        class="flex h-full w-auto items-start justify-center bg-transparent px-2"
+        data-testid="tabs-list"
       >
         <div
-          class="c2"
-          data-default-selected="general"
-          data-testid="menu"
-          mode="vertical"
+          class="mt-[2px] h-auto flex-col gap-0 bg-transparent p-[5px]"
+          data-testid="tabs-list"
         >
-          <div
-            data-testid="menu-item-general"
-            style="cursor: pointer;"
+          <button
+            class="mb-[7px] flex h-9 items-center justify-start rounded-md border-[0.5px] border-transparent bg-transparent px-3 font-normal text-[var(--color-text-2)] shadow-none hover:bg-[var(--color-background-soft)] data-[state=active]:border-[var(--color-border)] data-[state=active]:bg-[var(--color-background-soft)] data-[state=active]:font-medium data-[state=active]:text-[var(--color-text-1)] data-[state=active]:shadow-none"
+            data-testid="tabs-trigger-general"
+            data-value="general"
+            type="button"
           >
             General Settings
-          </div>
-          <div
-            data-testid="menu-item-advanced"
-            style="cursor: pointer;"
+          </button>
+          <button
+            class="mb-[7px] flex h-9 items-center justify-start rounded-md border-[0.5px] border-transparent bg-transparent px-3 font-normal text-[var(--color-text-2)] shadow-none hover:bg-[var(--color-background-soft)] data-[state=active]:border-[var(--color-border)] data-[state=active]:bg-[var(--color-background-soft)] data-[state=active]:font-medium data-[state=active]:text-[var(--color-text-1)] data-[state=active]:shadow-none"
+            data-testid="tabs-trigger-advanced"
+            data-value="advanced"
+            type="button"
           >
             Advanced Settings
-          </div>
+          </button>
         </div>
       </div>
       <div
-        class="c3"
+        data-orientation="vertical"
+        data-testid="separator"
+      />
+      <div
+        class="flex-1 overflow-y-auto"
+        data-testid="tabs-content-general"
+        data-value="general"
       >
         <div
           data-testid="general-panel"
@@ -119,23 +68,36 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
           General Settings Panel
         </div>
       </div>
+      <div
+        class="flex-1 overflow-y-auto"
+        data-testid="tabs-content-advanced"
+        data-value="advanced"
+      >
+        <div
+          data-testid="advanced-panel"
+        >
+          Advanced Settings Panel
+        </div>
+      </div>
     </div>
-  </div>
-  <div
-    data-testid="modal-footer"
-  >
-    <button
-      data-testid="modal-cancel"
-      type="button"
+    <div
+      class="border-[var(--color-border)] border-t-[0.5px] px-4 pt-3"
+      data-testid="dialog-footer"
     >
-      Cancel
-    </button>
-    <button
-      data-testid="modal-ok"
-      type="button"
-    >
-      OK
-    </button>
+      <button
+        data-testid="button"
+        data-variant="bordered"
+        type="button"
+      >
+        Cancel
+      </button>
+      <button
+        data-testid="button"
+        type="button"
+      >
+        Confirm
+      </button>
+    </div>
   </div>
 </div>
 `;

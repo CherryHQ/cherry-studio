@@ -1,14 +1,11 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Dialog, DialogContent, Input, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
-import type { InputRef } from 'antd'
-import { Divider, Input, List, Modal, Spin } from 'antd'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import SearchItemRenderer from './KnowledgeSearchItem'
 
@@ -28,7 +25,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [results, setResults] = useState<Array<KnowledgeSearchResult & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
-  const searchInputRef = useRef<InputRef>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -51,19 +48,14 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     }
   }
 
-  const onOk = () => {
-    setOpen(false)
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen)
+    if (!newOpen) {
+      resolve({})
+    }
   }
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
-  }
-
-  KnowledgeSearchPopup.hide = onCancel
+  KnowledgeSearchPopup.hide = () => setOpen(false)
 
   useEffect(() => {
     if (searchInputRef.current) {
@@ -72,103 +64,65 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   }, [])
 
   return (
-    <Modal
-      title={null}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      width={700}
-      footer={null}
-      centered
-      closable={false}
-      transitionName="animation-move-down"
-      styles={{
-        content: {
-          borderRadius: 20,
-          padding: 0,
-          overflow: 'hidden',
-          paddingBottom: 12
-        },
-        body: {
-          maxHeight: '80vh',
-          overflow: 'hidden',
-          padding: 0
-        }
-      }}>
-      <RowFlex className="mt-2 px-3">
-        <Input
-          ref={searchInputRef}
-          prefix={
-            <SearchIcon>
-              <Search size={15} />
-            </SearchIcon>
-          }
-          value={searchKeyword}
-          placeholder={t('knowledge.search')}
-          allowClear
-          autoFocus
-          spellCheck={false}
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
-          onChange={(e) => setSearchKeyword(e.target.value)}
-          onPressEnter={() => handleSearch(searchKeyword)}
-        />
-      </RowFlex>
-      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-
-      <ResultsContainer>
-        {loading ? (
-          <LoadingContainer>
-            <Spin size="large" />
-          </LoadingContainer>
-        ) : (
-          <List
-            dataSource={results}
-            renderItem={(item) => (
-              <List.Item>
-                <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
-              </List.Item>
-            )}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        className="w-[700px] max-w-[90vw] overflow-hidden rounded-lg p-0 pb-3 sm:max-w-[700px]">
+        <div className="mt-2 flex items-center gap-1 px-3">
+          <Search size={15} />
+          <Input
+            ref={searchInputRef}
+            value={searchKeyword}
+            placeholder={t('knowledge.search')}
+            autoFocus
+            spellCheck={false}
+            className="flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 dark:bg-transparent"
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleSearch(searchKeyword)
+              }
+            }}
           />
-        )}
-      </ResultsContainer>
-    </Modal>
+          {searchKeyword && (
+            <button
+              type="button"
+              className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-none bg-transparent text-[var(--color-text-3)] transition-colors duration-200 hover:bg-[var(--color-background-soft)] hover:text-[var(--color-text-1)]"
+              onClick={() => {
+                setSearchKeyword('')
+                setResults([])
+              }}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {/* <Separator /> */}
+
+        {loading ? (
+          <div className="max-h-[70vh] overflow-y-auto px-4">
+            <div className="flex h-[200px] items-center justify-center">
+              <Spinner text={t('message.searching')} />
+            </div>
+          </div>
+        ) : searchKeyword && results.length === 0 ? (
+          <div className="flex items-center justify-center px-5 py-10 text-center text-[var(--color-text-3)]">
+            {t('common.no_results')}
+          </div>
+        ) : results.length > 0 ? (
+          <div className="max-h-[70vh] overflow-y-auto px-4">
+            <div className="flex flex-col gap-2">
+              {results.map((item, index) => (
+                <div key={index} className="border-[var(--color-border)] border-b last:border-b-0">
+                  <SearchItemRenderer item={item} searchKeyword={searchKeyword} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const ResultsContainer = styled.div`
-  padding: 0 16px;
-  overflow-y: auto;
-  max-height: 70vh;
-`
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-`
-
-const SearchIcon = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  background-color: var(--color-background-soft);
-  margin-right: 2px;
-  &.back-icon {
-    cursor: pointer;
-    transition: background-color 0.2s;
-    &:hover {
-      background-color: var(--color-background-mute);
-    }
-  }
-`
 
 const TopViewKey = 'KnowledgeSearchPopup'
 

@@ -1,9 +1,8 @@
-import { DeleteOutlined } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { DeleteIcon } from '@renderer/components/Icons'
 import VideoPopup from '@renderer/components/Popups/VideoPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -14,7 +13,6 @@ import VirtualList from 'rc-virtual-list'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeVideos')
 
@@ -87,6 +85,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
+          size="sm"
           variant="solid"
           color="primary"
           startContent={<Plus size={16} />}
@@ -95,7 +94,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           {t('knowledge.add_video')}
         </ResponsiveButton>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="flex h-[calc(100vh-135px)] flex-col gap-2.5 px-4 py-5">
         {videoItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
@@ -156,7 +155,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           <Button
                             variant="light"
                             color="danger"
-                            startContent={<DeleteOutlined />}
+                            startContent={<DeleteIcon />}
                             isIconOnly
                             onPress={() => removeItem(item)}
                           />
@@ -169,17 +168,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             }}
           </VirtualList>
         )}
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeVideos

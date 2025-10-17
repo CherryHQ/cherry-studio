@@ -12,7 +12,6 @@ import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
 import {
@@ -82,6 +81,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
+          size="sm"
           variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
@@ -90,7 +90,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           {t('knowledge.add_note')}
         </ResponsiveButton>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {noteItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -104,9 +104,11 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               key={note.id}
               fileInfo={{
                 name: (
-                  <NotePreview onClick={() => handleEditNote(note)}>
+                  <span
+                    className="cursor-pointer text-[var(--color-text-1)] hover:text-[var(--color-primary)] hover:underline"
+                    onClick={() => handleEditNote(note)}>
                     {markdownToPreviewText(note.content as string, 50)}
-                  </NotePreview>
+                  </span>
                 ),
                 ext: isMarkdownContent(note.content as string) ? '.md' : '.txt',
                 extra: getDisplayTime(note),
@@ -132,24 +134,9 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             />
           )}
         </DynamicVirtualList>
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
-
-const NotePreview = styled.span`
-  cursor: pointer;
-  color: var(--color-text-1);
-
-  &:hover {
-    color: var(--color-primary);
-    text-decoration: underline;
-  }
-`
 
 export default KnowledgeNotes

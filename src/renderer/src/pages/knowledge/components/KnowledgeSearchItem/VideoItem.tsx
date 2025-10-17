@@ -1,14 +1,9 @@
+import { loggerService } from '@logger'
 import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
-import { Typography } from 'antd'
 import type { FC } from 'react'
 import React, { useRef } from 'react'
-import ReactPlayer from 'react-player'
-import styled from 'styled-components'
-
-const { Paragraph } = Typography
-
-import { loggerService } from '@logger'
 import { useTranslation } from 'react-i18next'
+import ReactPlayer from 'react-player'
 
 import { CopyButtonContainer, KnowledgeItemMetadata } from './components'
 import { useHighlightText } from './hooks'
@@ -34,7 +29,7 @@ const VideoItem: FC<Props> = ({ item, searchKeyword }) => {
   const renderLocalVideo = () => {
     if (!item.metadata.video.path) {
       logger.warn('Local video was requested but block.filePath is missing.')
-      return <ErrorContainer>{t('knowledge.error.video.local_file_missing')}</ErrorContainer>
+      return <div className="flex items-center justify-center h-full text-[#999] text-sm">{t('knowledge.error.video.local_file_missing')}</div>
     }
 
     const videoSrc = `file://${item.metadata?.video?.path}`
@@ -73,32 +68,11 @@ const VideoItem: FC<Props> = ({ item, searchKeyword }) => {
   return (
     <>
       <KnowledgeItemMetadata item={item} />
-      <CopyButtonContainer textToCopy={item.pageContent} tooltipTitle={t('common.copy')} />
-      <Paragraph style={{ userSelect: 'text', marginBottom: 0 }}>
-        {highlightText(item.pageContent, searchKeyword)}
-      </Paragraph>
-      <VideoContainer>{renderVideo()}</VideoContainer>
+      <CopyButtonContainer textToCopy={item.pageContent} />
+      <p className="mb-0 select-text">{highlightText(item.pageContent, searchKeyword)}</p>
+      <div className="w-full aspect-video h-auto bg-black mt-2 rounded-lg overflow-hidden">{renderVideo()}</div>
     </>
   )
 }
 
 export default React.memo(VideoItem)
-
-const VideoContainer = styled.div`
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  height: auto;
-  background-color: #000;
-  margin-top: 8px;
-  border-radius: 8px;
-  overflow: hidden;
-`
-
-const ErrorContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #999;
-  font-size: 14px;
-`

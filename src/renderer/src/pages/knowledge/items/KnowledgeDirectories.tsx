@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -12,7 +12,6 @@ import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
 import {
@@ -69,6 +68,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
+          size="sm"
           variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
@@ -77,7 +77,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           {t('knowledge.add_directory')}
         </ResponsiveButton>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {directoryItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -92,9 +92,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
               fileInfo={{
                 name: (
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
-                    <Ellipsis>
-                      <Tooltip content={item.content as string}>{item.content as string}</Tooltip>
-                    </Ellipsis>
+                    <Ellipsis>{item.content as string}</Ellipsis>
                   </ClickableSpan>
                 ),
                 ext: '.folder',
@@ -124,14 +122,9 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
             />
           )}
         </DynamicVirtualList>
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeDirectories

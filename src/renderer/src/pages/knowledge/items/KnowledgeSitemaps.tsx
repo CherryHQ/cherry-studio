@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -13,7 +13,6 @@ import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
 import {
@@ -88,6 +87,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
+          size="sm"
           variant="solid"
           color="primary"
           startContent={<PlusIcon size={16} />}
@@ -96,7 +96,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="h-[calc(100vh-135px)] px-4 py-5">
         {sitemapItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -111,13 +111,11 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               fileInfo={{
                 name: (
                   <ClickableSpan>
-                    <Tooltip content={item.content as string}>
-                      <Ellipsis>
-                        <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                          {item.content as string}
-                        </a>
-                      </Ellipsis>
-                    </Tooltip>
+                    <Ellipsis>
+                      <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                        {item.content as string}
+                      </a>
+                    </Ellipsis>
                   </ClickableSpan>
                 ),
                 ext: '.sitemap',
@@ -146,14 +144,9 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             />
           )}
         </DynamicVirtualList>
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeSitemaps

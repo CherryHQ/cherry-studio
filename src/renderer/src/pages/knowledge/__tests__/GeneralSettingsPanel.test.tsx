@@ -1,186 +1,246 @@
-import type { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { userEvent } from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { KnowledgeBase, Model, PreprocessProvider } from "@renderer/types";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { userEvent } from "@testing-library/user-event";
+import React from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import GeneralSettingsPanel from '../components/KnowledgeSettings/GeneralSettingsPanel'
+import GeneralSettingsPanel from "../components/KnowledgeSettings/GeneralSettingsPanel";
 
 // Mock dependencies
 const mocks = vi.hoisted(() => ({
   t: vi.fn((key: string) => key),
   providers: [
     {
-      id: 'openai',
-      name: 'OpenAI',
+      id: "openai",
+      name: "OpenAI",
       models: [
         {
-          id: 'text-embedding-3-small',
-          provider: 'openai',
-          name: 'text-embedding-3-small',
-          group: 'embedding'
-        }
-      ]
-    }
+          id: "text-embedding-3-small",
+          provider: "openai",
+          name: "text-embedding-3-small",
+          group: "embedding",
+        },
+      ],
+    },
   ],
   handlers: {
     handleEmbeddingModelChange: vi.fn(),
     handleDimensionChange: vi.fn(),
     handleRerankModelChange: vi.fn(),
-    handleDocPreprocessChange: vi.fn()
-  }
-}))
+    handleDocPreprocessChange: vi.fn(),
+  },
+}));
 
-// Mock InfoTooltip component
-vi.mock('@cherrystudio/ui', () => ({
-  InfoTooltip: ({ title, placement }: { title: string; placement: string }) => (
+// Mock @cherrystudio/ui components
+vi.mock("@cherrystudio/ui", () => ({
+  InfoTooltip: ({
+    content,
+    placement,
+  }: {
+    content: string;
+    placement: string;
+  }) => (
     <span data-testid="info-tooltip" data-placement={placement}>
-      {title}
+      {content}
     </span>
-  )
-}))
+  ),
+  Input: ({
+    value,
+    onChange,
+    placeholder,
+    type = "text",
+    "data-testid": dataTestId,
+    className,
+  }: any) => (
+    <input
+      data-testid={dataTestId ?? "input"}
+      className={className}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      type={type}
+    />
+  ),
+  Select: ({ value, onValueChange, children }: any) => {
+    // Find SelectContent child and extract SelectItems from it
+    const childArray = React.Children.toArray(children);
+    const selectContent = childArray.find(
+      (child: any) => child.type?.name === "SelectContent",
+    );
+    const selectItems = selectContent
+      ? React.Children.toArray((selectContent as any).props.children)
+      : [];
+
+    return (
+      <select
+        data-testid="select"
+        value={value || ""}
+        onChange={(e) => onValueChange?.(e.target.value)}
+      >
+        {selectItems}
+      </select>
+    );
+  },
+  SelectTrigger: ({
+    children,
+    "data-testid": dataTestId,
+    className,
+    size,
+  }: any) => (
+    <div
+      data-testid={dataTestId ?? "select-trigger"}
+      className={className}
+      data-size={size}
+    >
+      {children}
+    </div>
+  ),
+  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
+  SelectContent: ({ children }: any) => <>{children}</>,
+  SelectItem: ({ value, children }: any) => (
+    <option value={value}>{children}</option>
+  ),
+  Slider: ({
+    value,
+    onValueChange,
+    min,
+    max,
+    step,
+    "data-testid": dataTestId,
+    className,
+  }: any) => (
+    <input
+      data-testid={dataTestId ?? "slider"}
+      type="range"
+      className={className}
+      value={value?.[0] ?? 0}
+      onChange={(e) => onValueChange?.([Number(e.target.value)])}
+      min={min}
+      max={max}
+      step={step}
+    />
+  ),
+}));
 
 // Mock ModelSelector component
-vi.mock('@renderer/components/ModelSelector', () => ({
-  default: ({ value, onChange, placeholder, allowClear, providers, predicate }: any) => {
+vi.mock("@renderer/components/ModelSelector", () => ({
+  default: ({
+    value,
+    onChange,
+    placeholder,
+    allowClear,
+    providers,
+    predicate,
+  }: any) => {
     // Determine if this is for embedding or rerank models based on predicate
-    const isEmbedding = predicate?.toString().includes('embedding')
-    const isRerank = predicate?.toString().includes('rerank')
+    const isEmbedding = predicate?.toString().includes("embedding");
+    const isRerank = predicate?.toString().includes("rerank");
 
     // Use providers parameter to avoid lint error
-    const hasProviders = providers && providers.length > 0
+    const hasProviders = providers && providers.length > 0;
 
     return (
       <select
         data-testid="model-selector"
-        value={value || ''}
+        value={value || ""}
         onChange={(e) => onChange?.(e.target.value)}
         data-placeholder={placeholder}
         data-allow-clear={allowClear}
-        data-model-type={isEmbedding ? 'embedding' : isRerank ? 'rerank' : 'unknown'}
-        data-has-providers={hasProviders}>
+        data-model-type={
+          isEmbedding ? "embedding" : isRerank ? "rerank" : "unknown"
+        }
+        data-has-providers={hasProviders}
+      >
         <option value="">Select model</option>
         {isEmbedding && (
           <>
-            <option value="openai/text-embedding-3-small">text-embedding-3-small</option>
-            <option value="openai/text-embedding-ada-002">text-embedding-ada-002</option>
+            <option value="openai/text-embedding-3-small">
+              text-embedding-3-small
+            </option>
+            <option value="openai/text-embedding-ada-002">
+              text-embedding-ada-002
+            </option>
           </>
         )}
         {isRerank && (
           <>
             <option value="openai/rerank-model">rerank-model</option>
-            <option value="cohere/rerank-english-v2.0">rerank-english-v2.0</option>
+            <option value="cohere/rerank-english-v2.0">
+              rerank-english-v2.0
+            </option>
           </>
         )}
       </select>
-    )
-  }
-}))
+    );
+  },
+}));
 
 // Mock InputEmbeddingDimension component
-vi.mock('@renderer/components/InputEmbeddingDimension', () => ({
+vi.mock("@renderer/components/InputEmbeddingDimension", () => ({
   default: ({ value, onChange, model, disabled }: any) => (
     <input
       data-testid="embedding-dimension-input"
       type="number"
-      value={value || ''}
+      value={value || ""}
       onChange={(e) => onChange?.(Number(e.target.value))}
       disabled={disabled}
       data-model={model?.id}
     />
-  )
-}))
+  ),
+}));
 
 // Mock useProviders hook
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: mocks.providers })
-}))
+vi.mock("@renderer/hooks/useProvider", () => ({
+  useProviders: () => ({ providers: mocks.providers }),
+}));
 
 // Mock ModelService
-vi.mock('@renderer/services/ModelService', () => ({
-  getModelUniqId: (model: Model | undefined) => (model ? `${model.provider}/${model.id}` : undefined)
-}))
+vi.mock("@renderer/services/ModelService", () => ({
+  getModelUniqId: (model: Model | undefined) =>
+    model ? `${model.provider}/${model.id}` : undefined,
+}));
 
 // Mock model predicates
-vi.mock('@renderer/config/models', () => ({
-  isEmbeddingModel: (model: Model) => model.group === 'embedding',
-  isRerankModel: (model: Model) => model.group === 'rerank'
-}))
+vi.mock("@renderer/config/models", () => ({
+  isEmbeddingModel: (model: Model) => model.group === "embedding",
+  isRerankModel: (model: Model) => model.group === "rerank",
+}));
 
 // Mock constant
-vi.mock('@renderer/config/constant', () => ({
-  DEFAULT_KNOWLEDGE_DOCUMENT_COUNT: 6
-}))
+vi.mock("@renderer/config/constant", () => ({
+  DEFAULT_KNOWLEDGE_DOCUMENT_COUNT: 6,
+}));
 
 // Mock react-i18next
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: mocks.t })
-}))
-
-// Mock antd components
-vi.mock('antd', () => ({
-  Input: ({ value, onChange, placeholder }: any) => (
-    <input data-testid="name-input" value={value} onChange={onChange} placeholder={placeholder} />
-  ),
-  Select: ({ value, onChange, placeholder, options, allowClear, children }: any) => (
-    <select
-      data-testid="preprocess-select"
-      value={value || ''}
-      onChange={(e) => onChange?.(e.target.value)}
-      data-placeholder={placeholder}
-      data-allow-clear={allowClear}>
-      <option value="">Select option</option>
-      {options?.map((option: any) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-      {children}
-    </select>
-  ),
-  Slider: ({ value, onChange, min, max, step, marks, style }: any) => {
-    // Determine test ID based on slider characteristics
-    const isWeightSlider = min === 0 && max === 1 && step === 0.1
-    const testId = isWeightSlider ? 'weight-slider' : 'document-count-slider'
-
-    return (
-      <input
-        data-testid={testId}
-        type="range"
-        value={value}
-        onChange={(e) => onChange?.(Number(e.target.value))}
-        min={min}
-        max={max}
-        step={step}
-        style={style}
-        data-marks={JSON.stringify(marks)}
-      />
-    )
-  }
-}))
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: mocks.t }),
+}));
 
 /**
  * 创建测试用的 KnowledgeBase 对象
  * @param overrides - 可选的属性覆盖
  * @returns 完整的 KnowledgeBase 对象
  */
-function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
+function createKnowledgeBase(
+  overrides: Partial<KnowledgeBase> = {},
+): KnowledgeBase {
   const defaultModel: Model = {
-    id: 'text-embedding-3-small',
-    provider: 'openai',
-    name: 'text-embedding-3-small',
-    group: 'embedding'
-  }
+    id: "text-embedding-3-small",
+    provider: "openai",
+    name: "text-embedding-3-small",
+    group: "embedding",
+  };
 
   return {
-    id: 'test-base-id',
-    name: 'Test Knowledge Base',
+    id: "test-base-id",
+    name: "Test Knowledge Base",
     model: defaultModel,
     items: [],
     created_at: Date.now(),
     updated_at: Date.now(),
     version: 1,
-    ...overrides
-  }
+    ...overrides,
+  };
 }
 
 /**
@@ -188,23 +248,25 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
  * @param overrides - 可选的属性覆盖
  * @returns 完整的 PreprocessProvider 对象
  */
-function createPreprocessProvider(overrides: Partial<PreprocessProvider> = {}): PreprocessProvider {
+function createPreprocessProvider(
+  overrides: Partial<PreprocessProvider> = {},
+): PreprocessProvider {
   return {
-    id: 'doc2x',
-    name: 'Doc2X',
-    apiKey: 'test-api-key',
-    ...overrides
-  }
+    id: "doc2x",
+    name: "Doc2X",
+    apiKey: "test-api-key",
+    ...overrides,
+  };
 }
 
-describe('GeneralSettingsPanel', () => {
-  const mockBase = createKnowledgeBase()
-  const mockSetNewBase = vi.fn()
-  const mockSelectedDocPreprocessProvider = createPreprocessProvider()
+describe("GeneralSettingsPanel", () => {
+  const mockBase = createKnowledgeBase();
+  const mockSetNewBase = vi.fn();
+  const mockSelectedDocPreprocessProvider = createPreprocessProvider();
   const mockDocPreprocessSelectOptions = [
-    { value: 'doc2x', label: 'Doc2X' },
-    { value: 'mistral', label: 'Mistral' }
-  ]
+    { value: "doc2x", label: "Doc2X" },
+    { value: "mistral", label: "Mistral" },
+  ];
 
   // 提取公共渲染函数
   const renderComponent = (props: Partial<any> = {}) => {
@@ -216,93 +278,104 @@ describe('GeneralSettingsPanel', () => {
         docPreprocessSelectOptions={mockDocPreprocessSelectOptions}
         handlers={mocks.handlers}
         {...props}
-      />
-    )
-  }
+      />,
+    );
+  };
 
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
-  describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = renderComponent()
-      expect(container.firstChild).toMatchSnapshot()
-    })
+  describe("basic rendering", () => {
+    it("should match snapshot", () => {
+      const { container } = renderComponent();
+      expect(container.firstChild).toMatchSnapshot();
+    });
 
-    it('should render without selectedDocPreprocessProvider', () => {
-      renderComponent({ selectedDocPreprocessProvider: undefined })
-      expect(screen.getByTestId('preprocess-select')).toHaveValue('')
-    })
+    it("should render without selectedDocPreprocessProvider", () => {
+      renderComponent({ selectedDocPreprocessProvider: undefined });
+      const select = screen.getByTestId("select");
+      expect(select).toBeInTheDocument();
+    });
 
-    it('should render with empty docPreprocessSelectOptions', () => {
-      renderComponent({ docPreprocessSelectOptions: [] })
-      const preprocessSelect = screen.getByTestId('preprocess-select')
-      expect(preprocessSelect.children).toHaveLength(1)
-    })
-  })
+    it("should render with empty docPreprocessSelectOptions", () => {
+      renderComponent({ docPreprocessSelectOptions: [] });
+      const select = screen.getByTestId("select");
+      // Should have "None" option only
+      expect(select.children.length).toBe(1);
+    });
+  });
 
-  describe('functionality', () => {
-    const user = userEvent.setup()
+  describe("functionality", () => {
+    const user = userEvent.setup();
 
-    it('should handle name input change', async () => {
-      renderComponent()
+    it("should handle name input change", async () => {
+      renderComponent();
 
-      const nameInput = screen.getByTestId('name-input')
-      await user.type(nameInput, 'New Knowledge Base Name')
+      const nameInput = screen.getByTestId("name-input");
+      await user.type(nameInput, "New Knowledge Base Name");
 
-      expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function))
-    })
+      expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function));
+    });
 
-    it('should handle preprocess provider change', async () => {
-      renderComponent()
+    it("should handle preprocess provider change", async () => {
+      renderComponent();
 
-      const preprocessSelect = screen.getByTestId('preprocess-select')
-      await user.selectOptions(preprocessSelect, 'mistral')
+      const preprocessSelect = screen.getByTestId("select");
+      await user.selectOptions(preprocessSelect, "mistral");
 
-      expect(mocks.handlers.handleDocPreprocessChange).toHaveBeenCalledWith('mistral')
-    })
+      expect(mocks.handlers.handleDocPreprocessChange).toHaveBeenCalledWith(
+        "mistral",
+      );
+    });
 
-    it('should handle model selection changes', async () => {
-      renderComponent()
+    it("should handle model selection changes", async () => {
+      renderComponent();
 
-      const modelSelectors = screen.getAllByTestId('model-selector')
+      const modelSelectors = screen.getAllByTestId("model-selector");
 
       // Test embedding model change
-      const embeddingModelSelector = modelSelectors[0]
-      await user.selectOptions(embeddingModelSelector, 'openai/text-embedding-ada-002')
-      expect(mocks.handlers.handleEmbeddingModelChange).toHaveBeenCalledWith('openai/text-embedding-ada-002')
+      const embeddingModelSelector = modelSelectors[0];
+      await user.selectOptions(
+        embeddingModelSelector,
+        "openai/text-embedding-ada-002",
+      );
+      expect(mocks.handlers.handleEmbeddingModelChange).toHaveBeenCalledWith(
+        "openai/text-embedding-ada-002",
+      );
 
       // Test rerank model change
-      const rerankModelSelector = modelSelectors[1]
-      await user.selectOptions(rerankModelSelector, 'openai/rerank-model')
-      expect(mocks.handlers.handleRerankModelChange).toHaveBeenCalledWith('openai/rerank-model')
-    })
+      const rerankModelSelector = modelSelectors[1];
+      await user.selectOptions(rerankModelSelector, "openai/rerank-model");
+      expect(mocks.handlers.handleRerankModelChange).toHaveBeenCalledWith(
+        "openai/rerank-model",
+      );
+    });
 
-    it('should handle dimension change', async () => {
-      renderComponent()
+    it("should handle dimension change", async () => {
+      renderComponent();
 
-      const dimensionInput = screen.getByTestId('embedding-dimension-input')
-      fireEvent.change(dimensionInput, { target: { value: '1536' } })
+      const dimensionInput = screen.getByTestId("embedding-dimension-input");
+      fireEvent.change(dimensionInput, { target: { value: "1536" } });
 
-      expect(mocks.handlers.handleDimensionChange).toHaveBeenCalledWith(1536)
-    })
+      expect(mocks.handlers.handleDimensionChange).toHaveBeenCalledWith(1536);
+    });
 
-    it('should handle document count change', async () => {
-      renderComponent()
+    it("should handle document count change", async () => {
+      renderComponent();
 
-      const documentCountSlider = screen.getByTestId('document-count-slider')
-      fireEvent.change(documentCountSlider, { target: { value: '10' } })
+      const documentCountSlider = screen.getByTestId("document-count-slider");
+      fireEvent.change(documentCountSlider, { target: { value: "10" } });
 
-      expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function))
-    })
+      expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function));
+    });
 
-    it('should disable dimension input when no model is selected', () => {
-      const baseWithoutModel = createKnowledgeBase({ model: undefined as any })
-      renderComponent({ newBase: baseWithoutModel })
+    it("should disable dimension input when no model is selected", () => {
+      const baseWithoutModel = createKnowledgeBase({ model: undefined as any });
+      renderComponent({ newBase: baseWithoutModel });
 
-      const dimensionInput = screen.getByTestId('embedding-dimension-input')
-      expect(dimensionInput).toBeDisabled()
-    })
-  })
-})
+      const dimensionInput = screen.getByTestId("embedding-dimension-input");
+      expect(dimensionInput).toBeDisabled();
+    });
+  });
+});

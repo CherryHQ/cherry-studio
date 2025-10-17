@@ -1,28 +1,38 @@
-import { InfoTooltip } from '@cherrystudio/ui'
-import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
-import ModelSelector from '@renderer/components/ModelSelector'
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import type { SelectProps } from 'antd'
-import { Input, Select, Slider } from 'antd'
-import { useTranslation } from 'react-i18next'
+import {
+  InfoTooltip,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+} from "@cherrystudio/ui";
+import InputEmbeddingDimension from "@renderer/components/InputEmbeddingDimension";
+import ModelSelector from "@renderer/components/ModelSelector";
+import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from "@renderer/config/constant";
+import { isEmbeddingModel, isRerankModel } from "@renderer/config/models";
+import { useProviders } from "@renderer/hooks/useProvider";
+import { getModelUniqId } from "@renderer/services/ModelService";
+import type { KnowledgeBase, PreprocessProvider } from "@renderer/types";
+import { useTranslation } from "react-i18next";
 
-import { SettingsItem, SettingsPanel } from './styles'
+type DocPreprocessSelectOption = {
+  value: string;
+  label: string;
+};
 
 interface GeneralSettingsPanelProps {
-  newBase: KnowledgeBase
-  setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>
-  selectedDocPreprocessProvider?: PreprocessProvider
-  docPreprocessSelectOptions: SelectProps['options']
+  newBase: KnowledgeBase;
+  setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>;
+  selectedDocPreprocessProvider?: PreprocessProvider;
+  docPreprocessSelectOptions: DocPreprocessSelectOption[];
   handlers: {
-    handleEmbeddingModelChange: (value: string) => void
-    handleDimensionChange: (value: number | null) => void
-    handleRerankModelChange: (value: string) => void
-    handleDocPreprocessChange: (value: string) => void
-  }
+    handleEmbeddingModelChange: (value: string) => void;
+    handleDimensionChange: (value: number | null) => void;
+    handleRerankModelChange: (value: string) => void;
+    handleDocPreprocessChange: (value: string) => void;
+  };
 }
 
 const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
@@ -30,58 +40,97 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
   setNewBase,
   selectedDocPreprocessProvider,
   docPreprocessSelectOptions,
-  handlers
+  handlers,
 }) => {
-  const { t } = useTranslation()
-  const { providers } = useProviders()
-  const { handleEmbeddingModelChange, handleDimensionChange, handleRerankModelChange, handleDocPreprocessChange } =
-    handlers
+  const { t } = useTranslation();
+  const { providers } = useProviders();
+  const {
+    handleEmbeddingModelChange,
+    handleDimensionChange,
+    handleRerankModelChange,
+    handleDocPreprocessChange,
+  } = handlers;
 
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">{t('common.name')}</div>
+    <div className="px-4">
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          {t("common.name")}
+        </div>
         <Input
-          placeholder={t('common.name')}
+          data-testid="name-input"
+          type="text"
+          placeholder={t("common.name")}
           value={newBase.name}
-          onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
+          onChange={(e) =>
+            setNewBase((prev) => ({ ...prev, name: e.target.value }))
+          }
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
-          {t('settings.tool.preprocess.title')}
-          <InfoTooltip content={t('settings.tool.preprocess.tooltip')} placement="right" />
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          {t("settings.tool.preprocess.title")}
+          <InfoTooltip
+            content={t("settings.tool.preprocess.tooltip")}
+            placement="right"
+          />
         </div>
         <Select
           value={selectedDocPreprocessProvider?.id}
-          style={{ width: '100%' }}
-          onChange={handleDocPreprocessChange}
-          placeholder={t('settings.tool.preprocess.provider_placeholder')}
-          options={docPreprocessSelectOptions}
-          allowClear
-        />
-      </SettingsItem>
+          onValueChange={(value) => {
+            if (value === "__none__") {
+              handleDocPreprocessChange("");
+              return;
+            }
+            handleDocPreprocessChange(value);
+          }}
+        >
+          <SelectTrigger
+            data-testid="preprocess-select"
+            className="w-full"
+            size="sm"
+          >
+            <SelectValue
+              placeholder={t("settings.tool.preprocess.provider_placeholder")}
+            />
+          </SelectTrigger>
+          <SelectContent className="w-full">
+            <SelectItem value="__none__">{t("common.none")}</SelectItem>
+            {docPreprocessSelectOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
-          {t('models.embedding_model')}
-          <InfoTooltip content={t('models.embedding_model_tooltip')} placement="right" />
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          {t("models.embedding_model")}
+          <InfoTooltip
+            content={t("models.embedding_model_tooltip")}
+            placement="right"
+          />
         </div>
         <ModelSelector
           providers={providers}
           predicate={isEmbeddingModel}
-          style={{ width: '100%' }}
-          placeholder={t('settings.models.empty')}
+          style={{ width: "100%" }}
+          placeholder={t("settings.models.empty")}
           value={getModelUniqId(newBase.model)}
           onChange={handleEmbeddingModelChange}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
-          {t('knowledge.dimensions')}
-          <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} placement="right" />
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          {t("knowledge.dimensions")}
+          <InfoTooltip
+            content={t("knowledge.dimensions_size_tooltip")}
+            placement="right"
+          />
         </div>
         <InputEmbeddingDimension
           value={newBase.dimensions}
@@ -89,41 +138,55 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           model={newBase.model}
           disabled={!newBase.model}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
-          {t('models.rerank_model')}
-          <InfoTooltip content={t('models.rerank_model_tooltip')} placement="right" />
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          {t("models.rerank_model")}
+          <InfoTooltip
+            content={t("models.rerank_model_tooltip")}
+            placement="right"
+          />
         </div>
         <ModelSelector
           providers={providers}
           predicate={isRerankModel}
-          style={{ width: '100%' }}
+          style={{ width: "100%" }}
           value={getModelUniqId(newBase.rerankModel) || undefined}
-          placeholder={t('settings.models.empty')}
+          placeholder={t("settings.models.empty")}
           onChange={handleRerankModelChange}
           allowClear
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
-          {t('knowledge.document_count')}
-          <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
+          {t("knowledge.document_count")}
+          <InfoTooltip
+            content={t("knowledge.document_count_help")}
+            placement="right"
+          />
         </div>
         <Slider
-          style={{ width: '100%' }}
+          data-testid="document-count-slider"
+          className="w-full"
           min={1}
           max={50}
           step={1}
-          value={newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
-          marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30', 50: '50' }}
-          onChange={(value) => setNewBase((prev) => ({ ...prev, documentCount: value }))}
+          value={[newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT]}
+          onValueChange={(value) =>
+            setNewBase((prev) => ({ ...prev, documentCount: value[0] }))
+          }
         />
-      </SettingsItem>
-    </SettingsPanel>
-  )
-}
+        <div className="mt-2 -mx-1.5 flex items-center justify-between text-muted-foreground text-xs">
+          <span>1</span>
+          <span>{t("knowledge.document_count_default")}</span>
+          <span>30</span>
+          <span>50</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-export default GeneralSettingsPanel
+export default GeneralSettingsPanel;

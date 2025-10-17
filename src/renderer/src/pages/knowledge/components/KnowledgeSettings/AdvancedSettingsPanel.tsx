@@ -1,10 +1,7 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Input } from '@cherrystudio/ui'
 import type { KnowledgeBase } from '@renderer/types'
-import { Alert, InputNumber } from 'antd'
-import { TriangleAlert } from 'lucide-react'
+import type { ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingsItem, SettingsPanel } from './styles'
 
 interface AdvancedSettingsPanelProps {
   newBase: KnowledgeBase
@@ -19,62 +16,102 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
   const { t } = useTranslation()
   const { handleChunkSizeChange, handleChunkOverlapChange, handleThresholdChange } = handlers
 
+  const handleNumericInputChange = (
+    event: ChangeEvent<HTMLInputElement>,
+    onChange: (value: number | null) => void,
+    options: { min?: number; max?: number; allowFloat?: boolean } = {}
+  ) => {
+    const { value } = event.target
+
+    if (value === '') {
+      onChange(null)
+      return
+    }
+
+    const parsed = options.allowFloat ? Number.parseFloat(value) : Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed)) {
+      return
+    }
+
+    let sanitized = parsed
+
+    if (!options.allowFloat) {
+      sanitized = Math.round(sanitized)
+    }
+
+    if (options.min !== undefined) {
+      sanitized = Math.max(options.min, sanitized)
+    }
+
+    if (options.max !== undefined) {
+      sanitized = Math.min(options.max, sanitized)
+    }
+
+    onChange(sanitized)
+  }
+
   return (
-    <SettingsPanel>
-      <SettingsItem>
-        <div className="settings-label">
+    <div className="px-4">
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
           {t('knowledge.chunk_size')}
           <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
         </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        <Input
+          className="w-full"
+          inputMode="numeric"
           min={100}
-          value={newBase.chunkSize}
+          step={1}
+          value={newBase.chunkSize ?? ''}
           placeholder={t('knowledge.chunk_size_placeholder')}
-          onChange={handleChunkSizeChange}
           aria-label={t('knowledge.chunk_size')}
+          onChange={(event) => handleNumericInputChange(event, handleChunkSizeChange, { min: 100 })}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
           {t('knowledge.chunk_overlap')}
           <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
         </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        <Input
+          className="w-full"
+          inputMode="numeric"
           min={0}
-          value={newBase.chunkOverlap}
+          step={1}
+          value={newBase.chunkOverlap ?? ''}
           placeholder={t('knowledge.chunk_overlap_placeholder')}
-          onChange={handleChunkOverlapChange}
           aria-label={t('knowledge.chunk_overlap')}
+          onChange={(event) => handleNumericInputChange(event, handleChunkOverlapChange, { min: 0 })}
         />
-      </SettingsItem>
+      </div>
 
-      <SettingsItem>
-        <div className="settings-label">
+      <div className="mb-6">
+        <div className="mb-2 flex items-center gap-2 text-sm">
           {t('knowledge.threshold')}
           <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
         </div>
-        <InputNumber
-          style={{ width: '100%' }}
+        <Input
+          className="w-full"
+          inputMode="decimal"
           step={0.1}
           min={0}
           max={1}
-          value={newBase.threshold}
+          value={newBase.threshold ?? ''}
           placeholder={t('knowledge.threshold_placeholder')}
-          onChange={handleThresholdChange}
           aria-label={t('knowledge.threshold')}
+          onChange={(event) =>
+            handleNumericInputChange(event, handleThresholdChange, { min: 0, max: 1, allowFloat: true })
+          }
         />
-      </SettingsItem>
+      </div>
 
-      <Alert
-        message={t('knowledge.chunk_size_change_warning')}
-        type="warning"
-        showIcon
-        icon={<TriangleAlert size={16} className="lucide-custom" />}
-      />
-    </SettingsPanel>
+      {/* <Alert className="border border-default-200 bg-default-50 text-sm" style={{ color: 'var(--color-warning)' }}>
+        <AlertDescription className="text-current">
+          {t('knowledge.chunk_size_change_warning')}
+        </AlertDescription>
+      </Alert> */}
+    </div>
   )
 }
 

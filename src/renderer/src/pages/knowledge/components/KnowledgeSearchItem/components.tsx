@@ -1,14 +1,10 @@
-import { CopyOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { CopyIcon } from '@cherrystudio/ui'
 import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
-import { Typography } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton, MetadataContainer, ScoreTag, TagContainer } from '.'
 import { useCopyText, useKnowledgeItemMetadata } from './hooks'
-
-const { Text } = Typography
 
 interface KnowledgeItemMetadataProps {
   item: KnowledgeSearchResult & {
@@ -24,12 +20,12 @@ export const KnowledgeItemMetadata: React.FC<KnowledgeItemMetadataProps> = ({ it
 
   return (
     <MetadataContainer>
-      <Text type="secondary">
+      <span style={{ color: 'var(--color-text-2)' }}>
         {t('knowledge.source')}:{' '}
-        <a href={sourceLink.href} target="_blank" rel="noreferrer">
+        <a href={sourceLink.href} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>
           {sourceLink.text}
         </a>
-      </Text>
+      </span>
       {item.score !== 0 && <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>}
     </MetadataContainer>
   )
@@ -37,19 +33,16 @@ export const KnowledgeItemMetadata: React.FC<KnowledgeItemMetadataProps> = ({ it
 
 interface CopyButtonContainerProps {
   textToCopy: string
-  tooltipTitle?: string
 }
 
-export const CopyButtonContainer: React.FC<CopyButtonContainerProps> = ({ textToCopy, tooltipTitle = 'Copy' }) => {
+export const CopyButtonContainer: React.FC<CopyButtonContainerProps> = ({ textToCopy }) => {
   const { handleCopy } = useCopyText()
 
   return (
     <TagContainer>
-      <Tooltip content={tooltipTitle}>
-        <CopyButton onClick={() => handleCopy(textToCopy)}>
-          <CopyOutlined />
-        </CopyButton>
-      </Tooltip>
+      <CopyButton onClick={() => handleCopy(textToCopy)}>
+        <CopyIcon />
+      </CopyButton>
     </TagContainer>
   )
 }

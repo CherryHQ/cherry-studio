@@ -1,60 +1,45 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
-.c0 {
-  padding: 0 16px;
-}
-
-.c1 {
-  margin-bottom: 24px;
-}
-
-.c1 .settings-label {
-  font-size: 14px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 <div
-  class="c0"
+  class="px-4"
 >
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       common.name
     </div>
     <input
       data-testid="name-input"
       placeholder="common.name"
+      type="text"
       value="Test Knowledge Base"
     />
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       settings.tool.preprocess.title
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        settings.tool.preprocess.tooltip
+      </span>
     </div>
     <select
-      data-allow-clear="true"
-      data-placeholder="settings.tool.preprocess.provider_placeholder"
-      data-testid="preprocess-select"
+      data-testid="select"
     >
       <option
-        value=""
+        value="__none__"
       >
-        Select option
+        common.none
       </option>
       <option
         value="doc2x"
@@ -69,16 +54,18 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     </select>
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       models.embedding_model
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        models.embedding_model_tooltip
+      </span>
     </div>
     <select
       data-has-providers="true"
@@ -104,16 +91,18 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     </select>
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       knowledge.dimensions
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        knowledge.dimensions_size_tooltip
+      </span>
     </div>
     <input
       data-model="text-embedding-3-small"
@@ -123,16 +112,18 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     />
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       models.rerank_model
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        models.rerank_model_tooltip
+      </span>
     </div>
     <select
       data-allow-clear="true"
@@ -159,27 +150,44 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     </select>
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       knowledge.document_count
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        knowledge.document_count_help
+      </span>
     </div>
     <input
-      data-marks="{"1":"1","6":"knowledge.document_count_default","30":"30","50":"50"}"
+      class="w-full"
       data-testid="document-count-slider"
       max="50"
       min="1"
       step="1"
-      style="width: 100%;"
       type="range"
       value="6"
     />
+    <div
+      class="mt-2 -mx-1.5 flex items-center justify-between text-muted-foreground text-xs"
+    >
+      <span>
+        1
+      </span>
+      <span>
+        knowledge.document_count_default
+      </span>
+      <span>
+        30
+      </span>
+      <span>
+        50
+      </span>
+    </div>
   </div>
 </div>
 `;

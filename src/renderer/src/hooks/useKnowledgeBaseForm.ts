@@ -52,16 +52,13 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
     [newBase.preprocessProvider]
   )
 
-  const docPreprocessSelectOptions = useMemo(() => {
-    const preprocessOptions = {
-      label: t('settings.tool.preprocess.provider'),
-      title: t('settings.tool.preprocess.provider'),
-      options: preprocessProviders
+  const docPreprocessSelectOptions = useMemo(
+    () =>
+      preprocessProviders
         .filter((p) => p.apiKey !== '' || p.id === 'mineru')
-        .map((p) => ({ value: p.id, label: p.name }))
-    }
-    return [preprocessOptions]
-  }, [preprocessProviders, t])
+        .map((p) => ({ value: p.id, label: p.name })),
+    [preprocessProviders]
+  )
 
   const handleEmbeddingModelChange = useCallback(
     (value: string) => {
