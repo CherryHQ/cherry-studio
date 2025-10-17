@@ -26,8 +26,47 @@
 - 2025-01-16：`components/KnowledgeSearchItem/VideoItem.tsx` 完成 styled-components 到 Tailwind CSS 迁移，移除 `VideoContainer`、`ErrorContainer` 2 个组件。
 - 2025-01-16：`components/KnowledgeSettings/styles.ts` 完成 styled-components 到 Tailwind CSS 迁移，移除 `SettingsPanel`、`SettingsItem` 2 个组件，并删除该样式文件。
 - 2025-01-16：`components/KnowledgeSearchItem/index.tsx` 完成 styled-components 到 Tailwind CSS 迁移，移除 `ResultItem`、`TagContainer`、`ScoreTag`、`CopyButton`、`MetadataContainer` 5 个组件，使用 Tailwind 的 group 机制实现复杂 hover 效果。
+- 2025-01-17：扫描知识库页面 HeroUI 使用情况，发现 3 个文件共 8 个组件需要迁移到 shadcn，制定迁移计划和优先级。
 
 > 如需复核历史细节，可查阅同分支的提交描述或执行 `git log -- docs/knowledge/knowledge-antd-migration.md`。
+
+## 🚧 下阶段计划：HeroUI 到 shadcn 迁移
+
+### 当前 HeroUI 使用情况
+
+根据 2025-01-17 扫描结果，知识库页面中仍有 **3 个文件**使用 HeroUI 组件，总计 **8 个组件**需要迁移到 shadcn：
+
+| 文件 | HeroUI 组件 | 用途 | 优先级 |
+| --- | --- | --- | --- |
+| `items/KnowledgeUrls.tsx` | Dropdown, DropdownItem, DropdownMenu, DropdownTrigger | URL 操作下拉菜单 | 高 |
+| `components/KnowledgeSettings/AdvancedSettingsPanel.tsx` | Alert, NumberInput | 警告提示、数字输入框 | 中 |
+| `components/KnowledgeSettings/GeneralSettingsPanel.tsx` | Input, Select, SelectItem, Slider | 文本输入、选择器、滑块 | 中 |
+
+### 迁移映射关系
+
+| HeroUI 组件 | shadcn 对应组件 | 迁移复杂度 | 备注 |
+| --- | --- | --- | --- |
+| Dropdown | DropdownMenu | 低 | API 相似，需要调整触发方式 |
+| DropdownItem | DropdownMenuItem | 低 | 属性基本一致 |
+| DropdownMenu | DropdownMenuContent | 低 | 需要适配事件处理 |
+| DropdownTrigger | DropdownMenuTrigger | 低 | 直接替换 |
+| Alert | Alert | 低 | 需要调整样式变体 |
+| NumberInput | Input + type="number" | 中 | 需要添加数值验证逻辑 |
+| Input | Input | 低 | 属性基本一致 |
+| Select | Select | 中 | API 有差异，需要适配 |
+| SelectItem | SelectItem | 中 | 需要调整渲染逻辑 |
+| Slider | Slider | 中 | 需要适配标记点和事件 |
+
+### 迁移建议优先级
+
+1. **高优先级**：`KnowledgeUrls.tsx` - URL 管理核心功能，用户交互频繁
+2. **中优先级**：设置面板组件 - 配置功能，相对独立，便于测试
+
+### 注意事项
+
+- 测试文件中的 `vi.mock('@heroui/react')` 需要同步更新
+- 保持现有的样式和交互行为不变
+- 确保表单验证和状态管理逻辑正常工作
 
 ## ✅ 迁移完成：样式从 styled-components 到 Tailwind CSS
 
