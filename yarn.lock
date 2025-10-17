@@ -7421,6 +7421,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch":
+  version: 0.1.18
+  resolution: "@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch::version=0.1.18&hash=1cf9d0"
+  dependencies:
+    "@ai-sdk/openai": "npm:^2.0.42"
+    "@ai-sdk/openai-compatible": "npm:^1.0.19"
+    "@ai-sdk/provider": "npm:^2.1.0-beta.4"
+    "@ai-sdk/provider-utils": "npm:^3.0.10"
+  checksum: 10c0/cfffc031d2742068d20baed0e0ade6e9182c29ee7a425fa64262c04023ae75220b8b944ad2c9554255681e325fa1a70ec5e1f961b5f7370c871e70cbaeac0e79
+  languageName: node
+  linkType: hard
+
 "@oxc-project/runtime@npm:0.71.0":
   version: 0.71.0
   resolution: "@oxc-project/runtime@npm:0.71.0"
@@ -13993,7 +14005,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
-    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.18"
+    "@opeoginni/github-copilot-openai-compatible": "patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
     "@reduxjs/toolkit": "npm:^2.2.5"
