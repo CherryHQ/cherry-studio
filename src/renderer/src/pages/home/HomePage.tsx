@@ -130,6 +130,7 @@ const HomePage: FC = () => {
           setActiveTopic={setActiveTopic}
           setActiveAssistant={setActiveAssistant}
           position="left"
+          activeTopicOrSession={activeTopicOrSession}
         />
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
