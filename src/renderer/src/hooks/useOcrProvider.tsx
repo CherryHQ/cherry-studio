@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import IntelLogo from '@renderer/assets/images/providers/intel.png'
 import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
 import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
@@ -83,6 +84,8 @@ export const useOcrProviders = () => {
           return <MonitorIcon size={size} />
         case 'paddleocr':
           return <Avatar size={size} src={PaddleocrLogo} />
+        case 'ovocr':
+          return <Avatar size={size} src={IntelLogo} />
       }
     }
     return <FileQuestionMarkIcon size={size} />
