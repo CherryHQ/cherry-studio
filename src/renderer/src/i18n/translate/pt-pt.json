@@ -30,6 +30,11 @@
         "failed": "Falha ao listar agentes."
       }
     },
+    "server": {
+      "error": {
+        "not_running": "O servidor de API está habilitado, mas não está funcionando corretamente."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Adicionar diretório",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "Chave API copiada para a área de transferência",
       "apiKeyRegenerated": "Chave API regenerada",
+      "notEnabled": "O Servidor de API não está habilitado.",
       "operationFailed": "Operação do Servidor API falhou: ",
       "restartError": "Falha ao reiniciar o Servidor API: ",
       "restartFailed": "Reinício do Servidor API falhou: ",

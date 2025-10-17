@@ -263,7 +263,9 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })}
+            placeholder={t('chat.input.placeholder_without_triggers', {
+              key: getSendMessageShortcutLabel(sendMessageShortcut)
+            })}
             autoFocus
             variant="borderless"
             spellCheck={enableSpellCheck}

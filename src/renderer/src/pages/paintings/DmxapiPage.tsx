@@ -8,7 +8,6 @@ import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
@@ -27,6 +26,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -44,20 +44,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
 
@@ -782,9 +768,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   return (
     <Container>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
+        <NavbarCenter className="border-r-0">{t('paintings.title')}</NavbarCenter>
         {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
+          <NavbarRight className="justify-end">
             <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={createNewPainting}>
               {t('paintings.button.new.image')}
             </Button>
@@ -794,7 +780,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <ProviderTitleContainer>
-            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
             <div>
               <SettingHelpLink target="_blank" href={COURSE_URL}>
                 {t('paintings.paint_course')}
@@ -802,32 +788,19 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <Avatar
-                radius="md"
-                src={getProviderLogo(dmxapiProvider.id)}
-                className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                style={{ marginLeft: 5 }}
-              />
+              <ProviderLogo radius="md" src={getProviderLogo(dmxapiProvider.id)} className="ml-1" />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[3].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <Avatar
-                    radius="md"
-                    src={getProviderLogo(provider.value || '')}
-                    className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                  />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect
+            provider={dmxapiProvider}
+            options={Options}
+            onChange={handleProviderChange}
+            className="mb-4"
+          />
           {painting.generationMode &&
             [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode) && (
               <>
-                <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>参考图</SettingTitle>
+                <SettingTitle className="mt-4 mb-1">参考图</SettingTitle>
                 <ImageUploader
                   fileMap={fileMap}
                   maxImages={painting.generationMode === generationModeType.EDIT ? 1 : 3}
@@ -839,13 +812,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               </>
             )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SettingTitle className="mt-4 mb-1">
             {t('common.model')} <SettingPrice>{painting.priceModel !== '0' ? painting.priceModel : ''}</SettingPrice>
           </SettingTitle>
           <Select
             value={painting.model}
             onChange={onSelectModel}
-            style={{ width: '100%' }}
+            className="w-full"
             loading={isLoadingModels}
             placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
             {Object.entries(modelOptions).map(([provider, models]) => {
@@ -862,11 +835,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             })}
           </Select>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
+          <SettingTitle className="mt-4 mb-1">{t('paintings.image.size')}</SettingTitle>
           <Select
             value={isCustomSize ? 'custom' : painting.image_size}
             onChange={(value) => onSelectImageSize(value)}
-            style={{ width: '100%' }}>
+            className="w-full">
             {(() => {
               const currentModel = allModels.find((m) => m.id === painting.model)
               const modelImageSizes = currentModel?.image_sizes || []
@@ -894,7 +867,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               <RowFlex className="items-center gap-2">
                 <InputNumber
                   placeholder="W"
@@ -922,7 +895,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {painting.generationMode === generationModeType.GENERATION && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+              <SettingTitle className="mt-4 mb-1">
                 {t('paintings.seed')}
                 <InfoTooltip content={t('paintings.seed_desc_tip')} />
               </SettingTitle>
@@ -940,7 +913,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </>
           )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.style_type')}</SettingTitle>
+          <SettingTitle className="mt-4 mb-1">{t('paintings.style_type')}</SettingTitle>
           <SliderContainer>
             <RadioTextBox>
               {STYLE_TYPE_OPTIONS.map((ele) => (
@@ -954,7 +927,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </RadioTextBox>
           </SliderContainer>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SettingTitle className="mt-4 mb-1">
             {t('paintings.auto_create_paint')}
             <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
@@ -1026,10 +999,8 @@ const ProviderTitleContainer = styled.div`
   margin-bottom: 5px;
 `
 
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
+const ProviderLogo = styled(Avatar)`
+  border: 0.5px solid var(--color-border);
 `
 
 const ContentContainer = styled.div`

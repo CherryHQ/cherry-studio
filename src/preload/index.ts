@@ -19,6 +19,7 @@ import type {
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
+  GetApiServerStatusResult,
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
@@ -29,8 +30,11 @@ import type {
   OcrProvider,
   OcrResult,
   Provider,
+  RestartApiServerStatusResult,
   S3Config,
   Shortcut,
+  StartApiServerStatusResult,
+  StopApiServerStatusResult,
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
@@ -537,6 +541,12 @@ const api = {
       ipcRenderer.on(channel, listener)
       return () => ipcRenderer.off(channel, listener)
     }
+  },
+  apiServer: {
+    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
+    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
+    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
+    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
   }
 }
 

@@ -30,6 +30,11 @@
         "failed": "無法列出代理程式。"
       }
     },
+    "server": {
+      "error": {
+        "not_running": "API 伺服器已啟用，但運行不正常。"
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新生成",
+      "notEnabled": "API 伺服器未啟用。",
       "operationFailed": "API 伺服器操作失敗：",
       "restartError": "重新啟動 API 伺服器失敗：",
       "restartFailed": "API 伺服器重新啟動失敗：",

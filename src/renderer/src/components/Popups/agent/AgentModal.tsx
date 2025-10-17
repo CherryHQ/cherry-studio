@@ -101,7 +101,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { addAgent } = useAgents()
   const { updateAgent } = useUpdateAgent()
   // hard-coded. We only support anthropic for now.
-  const { models } = useApiModels({ providerType: 'anthropic' })
+  const { models } = useApiModels({ supportAnthropic: true })
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))

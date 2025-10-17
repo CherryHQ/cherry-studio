@@ -30,6 +30,11 @@
         "failed": "Failed to list agents."
       }
     },
+    "server": {
+      "error": {
+        "not_running": "The API server is enabled but not running properly."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Add directory",
@@ -237,6 +242,7 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
+      "notEnabled": "The API Server is not enabled.",
       "operationFailed": "API Server operation failed: ",
       "restartError": "Failed to restart API Server: ",
       "restartFailed": "API Server restart failed: ",

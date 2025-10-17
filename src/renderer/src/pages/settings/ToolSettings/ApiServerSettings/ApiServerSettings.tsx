@@ -1,16 +1,14 @@
 // TODO: Refactor this component to use HeroUI
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { loggerService } from '@renderer/services/LoggerService'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
-import { setApiServerApiKey, setApiServerEnabled, setApiServerPort } from '@renderer/store/settings'
+import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { IpcChannel } from '@shared/IpcChannel'
 import { Input, InputNumber, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -18,7 +16,6 @@ import { v4 as uuidv4 } from 'uuid'
 
 import { SettingContainer } from '../..'
 
-const logger = loggerService.withContext('ApiServerSettings')
 const { Text, Title } = Typography
 
 const ApiServerSettings: FC = () => {
@@ -28,67 +25,25 @@ const ApiServerSettings: FC = () => {
 
   // API Server state with proper defaults
   const apiServerConfig = useSelector((state: RootState) => state.settings.apiServer)
-
-  const [apiServerRunning, setApiServerRunning] = useState(false)
-  const [apiServerLoading, setApiServerLoading] = useState(false)
-
-  // API Server functions
-  const checkApiServerStatus = async () => {
-    try {
-      const status = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus)
-      setApiServerRunning(status.running)
-    } catch (error: any) {
-      logger.error('Failed to check API server status:', error)
-    }
-  }
-
-  useEffect(() => {
-    checkApiServerStatus()
-  }, [])
+  const { apiServerRunning, apiServerLoading, startApiServer, stopApiServer, restartApiServer, setApiServerEnabled } =
+    useApiServer()
 
   const handleApiServerToggle = async (enabled: boolean) => {
-    setApiServerLoading(true)
     try {
       if (enabled) {
-        const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Start)
-        if (result.success) {
-          setApiServerRunning(true)
-          window.toast.success(t('apiServer.messages.startSuccess'))
-        } else {
-          window.toast.error(t('apiServer.messages.startError') + result.error)
-        }
+        await startApiServer()
       } else {
-        const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
-        if (result.success) {
-          setApiServerRunning(false)
-          window.toast.success(t('apiServer.messages.stopSuccess'))
-        } else {
-          window.toast.error(t('apiServer.messages.stopError') + result.error)
-        }
+        await stopApiServer()
       }
     } catch (error) {
       window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
     } finally {
-      dispatch(setApiServerEnabled(enabled))
-      setApiServerLoading(false)
+      setApiServerEnabled(enabled)
     }
   }
 
   const handleApiServerRestart = async () => {
-    setApiServerLoading(true)
-    try {
-      const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Restart)
-      if (result.success) {
-        await checkApiServerStatus()
-        window.toast.success(t('apiServer.messages.restartSuccess'))
-      } else {
-        window.toast.error(t('apiServer.messages.restartError') + result.error)
-      }
-    } catch (error) {
-      window.toast.error(t('apiServer.messages.restartFailed') + (error as Error).message)
-    } finally {
-      setApiServerLoading(false)
-    }
+    await restartApiServer()
   }
 
   const copyApiKey = () => {
