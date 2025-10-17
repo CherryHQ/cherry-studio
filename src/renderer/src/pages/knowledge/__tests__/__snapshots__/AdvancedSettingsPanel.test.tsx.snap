@@ -1,73 +1,62 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
-.c0 {
-  padding: 0 16px;
-}
-
-.c1 {
-  margin-bottom: 24px;
-}
-
-.c1 .settings-label {
-  font-size: 14px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 <div
-  class="c0"
+  class="px-4"
 >
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       分块大小
       <div />
     </div>
     <input
       aria-label="分块大小"
-      data-testid="number-input"
+      class="w-full"
+      data-testid="input"
       min="100"
       placeholder="knowledge.chunk_size_placeholder"
+      step="1"
       type="number"
       value="500"
     />
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       分块重叠
       <div />
     </div>
     <input
       aria-label="分块重叠"
-      data-testid="number-input"
+      class="w-full"
+      data-testid="input"
       min="0"
       placeholder="knowledge.chunk_overlap_placeholder"
+      step="1"
       type="number"
       value="200"
     />
   </div>
   <div
-    class="c1"
+    class="mb-6"
   >
     <div
-      class="settings-label"
+      class="mb-2 flex items-center gap-2 text-sm"
     >
       检索相似度阈值
       <div />
     </div>
     <input
       aria-label="检索相似度阈值"
-      data-testid="number-input"
+      class="w-full"
+      data-testid="input"
       max="1"
       min="0"
       placeholder="knowledge.threshold_placeholder"
@@ -75,17 +64,6 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
       type="number"
       value="0.5"
     />
-  </div>
-  <div
-    data-color="warning"
-    role="alert"
-  >
-    <span>
-      warning
-    </span>
-    <strong>
-      避免修改这个高级设置。
-    </strong>
   </div>
 </div>
 `;
