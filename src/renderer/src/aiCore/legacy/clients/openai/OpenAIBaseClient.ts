@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
 import {
   isClaudeReasoningModel,
   isOpenAIReasoningModel,
@@ -166,7 +167,8 @@ export abstract class OpenAIBaseClient<
         baseURL: this.getBaseURL(),
         defaultHeaders: {
           ...this.defaultHeaders(),
-          ...this.provider.extra_headers
+          ...this.provider.extra_headers,
+          ...(this.provider.id === 'copilot' ? COPILOT_DEFAULT_HEADERS : {}),
         }
       }) as TSdkInstance
     }
