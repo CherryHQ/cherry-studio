@@ -5,7 +5,8 @@ import { FileMetadata, ImageFileMetadata, isImageFileMetadata, TranslateLanguage
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract',
   system: 'system',
-  paddleocr: 'paddleocr'
+  paddleocr: 'paddleocr',
+  ovocr: 'ovocr'
 } as const
 
 export type BuiltinOcrProviderId = keyof typeof BuiltinOcrProviderIds
@@ -187,4 +188,20 @@ export type OcrPpocrProvider = {
 
 export const isOcrPpocrProvider = (p: OcrProvider): p is OcrPpocrProvider => {
   return p.id === BuiltinOcrProviderIds.paddleocr
+}
+
+// OV OCR Types
+export type OcrOvConfig = OcrProviderBaseConfig & {
+  langs?: TranslateLanguageCode[]
+}
+
+export type OcrOvProvider = {
+  id: 'ovocr'
+  config: OcrOvConfig
+} & ImageOcrProvider &
+  // PdfOcrProvider &
+  BuiltinOcrProvider
+
+export const isOcrOVProvider = (p: OcrProvider): p is OcrOvProvider => {
+  return p.id === BuiltinOcrProviderIds.ovocr
 }

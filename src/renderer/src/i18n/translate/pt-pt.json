@@ -2041,6 +2041,7 @@
       "provider": {
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
         "existing": "O provedor já existe",
+        "get_providers": "Falha ao obter provedores disponíveis",
         "not_found": "O provedor OCR não existe",
         "update_failed": "Falha ao atualizar a configuração"
       },
@@ -3574,6 +3575,7 @@
       "builtinServers": "Servidores integrados",
       "builtinServersDescriptions": {
         "brave_search": "uma implementação de servidor MCP integrada com a API de pesquisa Brave, fornecendo funcionalidades de pesquisa web e local. Requer a configuração da variável de ambiente BRAVE_API_KEY",
+        "didi_mcp": "Servidor DiDi MCP que fornece serviços de transporte incluindo pesquisa de mapas, estimativa de preços, gestão de pedidos e rastreamento de motoristas. Disponível apenas na China Continental. Requer configuração da variável de ambiente DIDI_API_KEY",
         "dify_knowledge": "Implementação do servidor MCP do Dify, que fornece uma API simples para interagir com o Dify. Requer a configuração da chave Dify",
         "fetch": "servidor MCP para obter o conteúdo da página web do URL",
         "filesystem": "Servidor Node.js do protocolo de contexto de modelo (MCP) para implementar operações de sistema de ficheiros. Requer configuração do diretório permitido para acesso",

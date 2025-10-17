@@ -2670,6 +2670,7 @@ const migrateConfig = {
   },
   '163': (state: RootState) => {
     try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'cherryin') {
           provider.anthropicApiHost = 'https://open.cherryin.net'

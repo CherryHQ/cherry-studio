@@ -5,7 +5,7 @@
  * @returns {string} 格式化后的 API key 字符串。
  */
 export function formatApiKeys(value: string): string {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll('\n', ',')
+  return value.replaceAll('，', ',').replaceAll('\n', ',')
 }
 
 /**

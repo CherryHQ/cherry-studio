@@ -70,13 +70,19 @@ export abstract class BaseApiClient<
 {
   public provider: Provider
   protected host: string
-  protected apiKey: string
   protected sdkInstance?: TSdkInstance
 
   constructor(provider: Provider) {
     this.provider = provider
     this.host = this.getBaseURL()
-    this.apiKey = this.getApiKey()
+  }
+
+  /**
+   * Get the current API key with rotation support
+   * This getter ensures API keys rotate on each access when multiple keys are configured
+   */
+  protected get apiKey(): string {
+    return this.getApiKey()
   }
 
   /**
