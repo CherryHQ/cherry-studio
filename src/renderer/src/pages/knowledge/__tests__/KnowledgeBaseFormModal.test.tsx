@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 
 // Mock @cherrystudio/ui components (shadcn)
 vi.mock("@cherrystudio/ui", () => ({
-  Dialog: ({ children, open, onOpenChange }: any) =>
+  Dialog: ({ children, open }: any) =>
     open ? (
       <div data-testid="dialog" data-open={open}>
         {children}
