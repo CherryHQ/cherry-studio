@@ -2085,7 +2085,7 @@
     "description": "<div><p>1. 下载 OV 模型.</p><p>2. 在 'Manager' 中添加模型.</p><p>仅支持 Windows!</p><p>OVMS 安装路径: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>请参考 <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 指南</a></p></dev>",
     "download": {
       "button": "下载",
-      "error": "选择失败",
+      "error": "下载失败",
       "model_id": {
         "label": "模型 ID",
         "model_id_pattern": "模型 ID 必须以 OpenVINO/ 开头",
@@ -2110,8 +2110,10 @@
       "install_code_101": "仅支持 Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "仅支持 Windows",
       "install_code_103": "下载 OVMS runtime 失败",
-      "install_code_104": "解压 OVMS runtime 失败",
-      "install_code_105": "清理 OVMS runtime 失败",
+      "install_code_104": "安装 OVMS runtime 失败",
+      "install_code_105": "创建 ovdnd.exe 失败",
+      "install_code_106": "创建 run.bat 失败",
+      "install_code_110": "清理旧 OVMS runtime 失败",
       "run": "运行 OVMS 失败:",
       "stop": "停止 OVMS 失败:"
     },
