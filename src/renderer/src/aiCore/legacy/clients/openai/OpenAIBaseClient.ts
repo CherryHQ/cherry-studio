@@ -168,7 +168,7 @@ export abstract class OpenAIBaseClient<
         defaultHeaders: {
           ...this.defaultHeaders(),
           ...this.provider.extra_headers,
-          ...(this.provider.id === 'copilot' ? COPILOT_DEFAULT_HEADERS : {}),
+          ...(this.provider.id === 'copilot' ? COPILOT_DEFAULT_HEADERS : {})
         }
       }) as TSdkInstance
     }
