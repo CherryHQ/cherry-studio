@@ -27,6 +27,8 @@
 - 2025-01-16：`components/KnowledgeSettings/styles.ts` 完成 styled-components 到 Tailwind CSS 迁移，移除 `SettingsPanel`、`SettingsItem` 2 个组件，并删除该样式文件。
 - 2025-01-16：`components/KnowledgeSearchItem/index.tsx` 完成 styled-components 到 Tailwind CSS 迁移，移除 `ResultItem`、`TagContainer`、`ScoreTag`、`CopyButton`、`MetadataContainer` 5 个组件，使用 Tailwind 的 group 机制实现复杂 hover 效果。
 - 2025-01-17：扫描知识库页面 HeroUI 使用情况，发现 3 个文件共 8 个组件需要迁移到 shadcn，制定迁移计划和优先级。
+- 2025-01-18：`KnowledgeUrls.tsx` 将 ContextMenu 包裹到 `FileItem` 外层，统一右键触发区域。
+- 2025-01-18：`components/KnowledgeSettings/AdvancedSettingsPanel.tsx` 将 Alert 与 NumberInput 迁移至 shadcn 版组件（使用共享 Alert/Input）。
 
 > 如需复核历史细节，可查阅同分支的提交描述或执行 `git log -- docs/knowledge/knowledge-antd-migration.md`。
 
@@ -34,12 +36,10 @@
 
 ### 当前 HeroUI 使用情况
 
-根据 2025-01-17 扫描结果，知识库页面中仍有 **3 个文件**使用 HeroUI 组件，总计 **8 个组件**需要迁移到 shadcn：
+根据 2025-01-18 更新，知识库页面中仍有 **1 个文件**使用 HeroUI 组件，总计 **4 个组件**需要迁移到 shadcn：
 
 | 文件 | HeroUI 组件 | 用途 | 优先级 |
 | --- | --- | --- | --- |
-| `items/KnowledgeUrls.tsx` | Dropdown, DropdownItem, DropdownMenu, DropdownTrigger | URL 操作下拉菜单 | 高 |
-| `components/KnowledgeSettings/AdvancedSettingsPanel.tsx` | Alert, NumberInput | 警告提示、数字输入框 | 中 |
 | `components/KnowledgeSettings/GeneralSettingsPanel.tsx` | Input, Select, SelectItem, Slider | 文本输入、选择器、滑块 | 中 |
 
 ### 迁移映射关系

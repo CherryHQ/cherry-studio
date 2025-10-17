@@ -1,6 +1,6 @@
-import { InfoTooltip } from '@cherrystudio/ui'
-import { Alert, NumberInput } from '@heroui/react'
+import { InfoTooltip, Input } from '@cherrystudio/ui'
 import type { KnowledgeBase } from '@renderer/types'
+import type { ChangeEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface AdvancedSettingsPanelProps {
@@ -16,78 +16,101 @@ const AdvancedSettingsPanel: React.FC<AdvancedSettingsPanelProps> = ({ newBase, 
   const { t } = useTranslation()
   const { handleChunkSizeChange, handleChunkOverlapChange, handleThresholdChange } = handlers
 
+  const handleNumericInputChange = (
+    event: ChangeEvent<HTMLInputElement>,
+    onChange: (value: number | null) => void,
+    options: { min?: number; max?: number; allowFloat?: boolean } = {}
+  ) => {
+    const { value } = event.target
+
+    if (value === '') {
+      onChange(null)
+      return
+    }
+
+    const parsed = options.allowFloat ? Number.parseFloat(value) : Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed)) {
+      return
+    }
+
+    let sanitized = parsed
+
+    if (!options.allowFloat) {
+      sanitized = Math.round(sanitized)
+    }
+
+    if (options.min !== undefined) {
+      sanitized = Math.max(options.min, sanitized)
+    }
+
+    if (options.max !== undefined) {
+      sanitized = Math.min(options.max, sanitized)
+    }
+
+    onChange(sanitized)
+  }
+
   return (
     <div className="px-4">
       <div className="mb-6">
-        <div className="text-sm mb-2 flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-2 text-sm">
           {t('knowledge.chunk_size')}
           <InfoTooltip content={t('knowledge.chunk_size_tooltip')} placement="right" />
         </div>
-        <NumberInput
+        <Input
           className="w-full"
-          variant="bordered"
-          size="sm"
-          minValue={100}
-          value={newBase.chunkSize ?? undefined}
+          inputMode="numeric"
+          min={100}
+          step={1}
+          value={newBase.chunkSize ?? ''}
           placeholder={t('knowledge.chunk_size_placeholder')}
           aria-label={t('knowledge.chunk_size')}
-          onValueChange={(value) => {
-            const nextValue = value === undefined || Number.isNaN(value) ? null : value
-            handleChunkSizeChange(nextValue)
-          }}
+          onChange={(event) => handleNumericInputChange(event, handleChunkSizeChange, { min: 100 })}
         />
       </div>
 
       <div className="mb-6">
-        <div className="text-sm mb-2 flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-2 text-sm">
           {t('knowledge.chunk_overlap')}
           <InfoTooltip content={t('knowledge.chunk_overlap_tooltip')} placement="right" />
         </div>
-        <NumberInput
+        <Input
           className="w-full"
-          variant="bordered"
-          size="sm"
-          minValue={0}
-          value={newBase.chunkOverlap ?? undefined}
+          inputMode="numeric"
+          min={0}
+          step={1}
+          value={newBase.chunkOverlap ?? ''}
           placeholder={t('knowledge.chunk_overlap_placeholder')}
           aria-label={t('knowledge.chunk_overlap')}
-          onValueChange={(value) => {
-            const nextValue = value === undefined || Number.isNaN(value) ? null : value
-            handleChunkOverlapChange(nextValue)
-          }}
+          onChange={(event) => handleNumericInputChange(event, handleChunkOverlapChange, { min: 0 })}
         />
       </div>
 
       <div className="mb-6">
-        <div className="text-sm mb-2 flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-2 text-sm">
           {t('knowledge.threshold')}
           <InfoTooltip content={t('knowledge.threshold_tooltip')} placement="right" />
         </div>
-        <NumberInput
+        <Input
           className="w-full"
-          variant="bordered"
-          size="sm"
+          inputMode="decimal"
           step={0.1}
-          minValue={0}
-          maxValue={1}
-          value={newBase.threshold ?? undefined}
+          min={0}
+          max={1}
+          value={newBase.threshold ?? ''}
           placeholder={t('knowledge.threshold_placeholder')}
           aria-label={t('knowledge.threshold')}
-          onValueChange={(value) => {
-            const nextValue = value === undefined || Number.isNaN(value) ? null : value
-            handleThresholdChange(nextValue)
-          }}
+          onChange={(event) =>
+            handleNumericInputChange(event, handleThresholdChange, { min: 0, max: 1, allowFloat: true })
+          }
         />
       </div>
 
-      <Alert
-        className="p-0"
-        radius="sm"
-        hideIconWrapper
-        color="warning"
-        variant="bordered"
-        title={t('knowledge.chunk_size_change_warning')}
-      />
+      {/* <Alert className="border border-default-200 bg-default-50 text-sm" style={{ color: 'var(--color-warning)' }}>
+        <AlertDescription className="text-current">
+          {t('knowledge.chunk_size_change_warning')}
+        </AlertDescription>
+      </Alert> */}
     </div>
   )
 }
