@@ -13,6 +13,7 @@ import AgentItem from './AgentItem'
 
 interface AssistantsTabProps {}
 
+/** @deprecated */
 export const Agents: FC<AssistantsTabProps> = () => {
   const { agents, deleteAgent, isLoading, error } = useAgents()
   const { t } = useTranslation()
