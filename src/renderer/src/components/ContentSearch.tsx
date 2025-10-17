@@ -27,6 +27,10 @@ interface Props {
    * 搜索条定位方式
    */
   positionMode?: 'fixed' | 'absolute' | 'sticky'
+  /**
+   * 搜索面板开关状态变化回调
+   */
+  onOpenChange?: (open: boolean) => void
 }
 
 enum SearchCompletedState {
@@ -135,7 +139,15 @@ const findRangesInTarget = (
 // eslint-disable-next-line @eslint-react/no-forward-ref
 export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
   (
-    { searchTarget, filter, includeUser = false, onIncludeUserChange, showUserToggle = true, positionMode = 'fixed' },
+    {
+      searchTarget,
+      filter,
+      includeUser = false,
+      onIncludeUserChange,
+      showUserToggle = true,
+      positionMode = 'fixed',
+      onOpenChange
+    },
     ref
   ) => {
     const target: HTMLElement | null = (() => {
@@ -212,9 +224,11 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
         disable: () => {
           setEnableContentSearch(false)
           CSS.highlights.clear()
+          onOpenChange?.(false)
         },
         enable: (initialText?: string) => {
           setEnableContentSearch(true)
+          onOpenChange?.(true)
           if (searchInputRef.current) {
             const inputEl = searchInputRef.current
             if (initialText && initialText.trim().length > 0) {
@@ -257,7 +271,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
           searchInputRef.current?.focus()
         }
       }),
-      [allRanges.length, locateByIndex, search]
+      [allRanges.length, locateByIndex, onOpenChange, search]
     )
 
     const _searchHandlerDebounce = useMemo(() => debounce(implementation.search, 300), [implementation.search])
