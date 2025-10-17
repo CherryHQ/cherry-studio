@@ -1,5 +1,5 @@
+import { ChatCompletionCreateParams } from '@cherrystudio/openai/resources'
 import express, { Request, Response } from 'express'
-import { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
 import {

@@ -1,3 +1,9 @@
+import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
+import {
+  ChatCompletionContentPart,
+  ChatCompletionContentPartRefusal,
+  ChatCompletionTool
+} from '@cherrystudio/openai/resources'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
@@ -78,8 +84,6 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { t } from 'i18next'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
 import { GenericChunk } from '../../middleware/schemas'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
