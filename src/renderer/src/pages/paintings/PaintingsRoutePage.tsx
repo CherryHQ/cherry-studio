@@ -48,20 +48,20 @@ const PaintingsRoutePage: FC = () => {
 
   return (
     <Routes>
-      <Route path="*" element={<ZhipuPage Options={Options} />} />
-      <Route path="/zhipu" element={<ZhipuPage Options={Options} />} />
-      <Route path="/aihubmix" element={<AihubmixPage Options={Options} />} />
-      <Route path="/silicon" element={<SiliconPage Options={Options} />} />
-      <Route path="/dmxapi" element={<DmxapiPage Options={Options} />} />
-      <Route path="/tokenflux" element={<TokenFluxPage Options={Options} />} />
-      <Route path="/ovms" element={<OvmsPage Options={Options} />} />
+      <Route path="*" element={<ZhipuPage Options={validOptions} />} />
+      <Route path="/zhipu" element={<ZhipuPage Options={validOptions} />} />
+      <Route path="/aihubmix" element={<AihubmixPage Options={validOptions} />} />
+      <Route path="/silicon" element={<SiliconPage Options={validOptions} />} />
+      <Route path="/dmxapi" element={<DmxapiPage Options={validOptions} />} />
+      <Route path="/tokenflux" element={<TokenFluxPage Options={validOptions} />} />
+      <Route path="/ovms" element={<OvmsPage Options={validOptions} />} />
       {/* new-api family providers are mounted dynamically below */}
       {providers
         .filter((p) => isNewApiProvider(p))
         .map((p) => (
-          <Route key={p.id} path={`/${p.id}`} element={<NewApiPage Options={Options} />} />
+          <Route key={p.id} path={`/${p.id}`} element={<NewApiPage Options={validOptions} />} />
         ))}
-      <Route path="/new-api" element={<NewApiPage Options={Options} />} />
+      <Route path="/new-api" element={<NewApiPage Options={validOptions} />} />
     </Routes>
   )
 }
