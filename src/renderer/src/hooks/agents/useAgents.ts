@@ -26,7 +26,8 @@ export const useAgents = () => {
   const key = client.agentPaths.base
   const { apiServerConfig, apiServerRunning } = useApiServer()
   const fetcher = useCallback(async () => {
-    if (!apiServerConfig.enabled) {
+    // API server will start on startup if enabled OR there are agents
+    if (!apiServerConfig.enabled && !apiServerRunning) {
       throw new Error(t('apiServer.messages.notEnabled'))
     }
     if (!apiServerRunning) {

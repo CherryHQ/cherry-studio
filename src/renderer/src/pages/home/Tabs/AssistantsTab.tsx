@@ -101,7 +101,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      {!apiServerConfig.enabled && !iknow[ALERT_KEY] && (
+      {!apiServerConfig.enabled && !apiServerRunning && !iknow[ALERT_KEY] && (
         <Alert
           color="warning"
           title={t('agent.warning.enable_server')}
@@ -117,7 +117,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
       {apiServerConfig.enabled && !apiServerRunning && (
         <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
       )}
-      {apiServerConfig.enabled && apiServerRunning && agentsError && (
+      {apiServerRunning && agentsError && (
         <Alert
           color="danger"
           title={t('agent.list.error.failed')}
