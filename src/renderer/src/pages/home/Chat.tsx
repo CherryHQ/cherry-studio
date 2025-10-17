@@ -49,7 +49,8 @@ const Chat: FC<Props> = (props) => {
   const { isTopNavbar } = useNavbarPosition()
   const chatMaxWidth = useChatMaxWidth()
   const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId, activeSessionId } = chat
+  const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
+  const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
   const { apiServer } = useSettings()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
@@ -147,8 +148,7 @@ const Chat: FC<Props> = (props) => {
     if (activeAgentId === null) {
       return () => <div> Active Agent ID is invalid.</div>
     }
-    const sessionId = activeSessionId[activeAgentId]
-    if (!sessionId) {
+    if (!activeSessionId) {
       return () => <div> Active Session ID is invalid.</div>
     }
     if (!apiServer.enabled) {
@@ -158,18 +158,17 @@ const Chat: FC<Props> = (props) => {
         </div>
       )
     }
-    return () => <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
+    return () => <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
   }, [activeAgentId, activeSessionId, apiServer.enabled, t])
 
   const SessionInputBar = useMemo(() => {
     if (activeAgentId === null) {
       return () => <div> Active Agent ID is invalid.</div>
     }
-    const sessionId = activeSessionId[activeAgentId]
-    if (!sessionId) {
+    if (!activeSessionId) {
       return () => <div> Active Session ID is invalid.</div>
     }
-    return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={sessionId} />
+    return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
   }, [activeAgentId, activeSessionId])
 
   // TODO: more info
@@ -235,10 +234,8 @@ const Chat: FC<Props> = (props) => {
               </>
             )}
             {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
-            {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId[activeAgentId] && (
-              <SessionInvalid />
-            )}
-            {activeTopicOrSession === 'session' && activeAgentId && activeSessionId[activeAgentId] && (
+            {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
+            {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
               <>
                 <SessionMessages />
                 <SessionInputBar />

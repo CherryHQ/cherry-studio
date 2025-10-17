@@ -11,8 +11,8 @@ export const useAgent = (id: string | null) => {
   const key = id ? client.agentPaths.withId(id) : null
   const { apiServerConfig, apiServerRunning } = useApiServer()
   const fetcher = useCallback(async () => {
-    if (!id || id === 'fake') {
-      return null
+    if (!id) {
+      throw new Error(t('agent.get.error.null_id'))
     }
     if (!apiServerConfig.enabled) {
       throw new Error(t('apiServer.messages.notEnabled'))

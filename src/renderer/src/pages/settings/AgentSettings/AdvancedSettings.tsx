@@ -23,7 +23,7 @@ type AdvancedSettingsProps =
     }
   | {
       agentBase: GetAgentSessionResponse | undefined | null
-      update: ReturnType<typeof useUpdateSession>
+      update: ReturnType<typeof useUpdateSession>['updateSession']
     }
 
 const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})

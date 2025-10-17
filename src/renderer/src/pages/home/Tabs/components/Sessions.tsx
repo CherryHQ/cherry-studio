@@ -30,7 +30,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { agent } = useAgent(agentId)
   const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
   const { chat } = useRuntime()
-  const { activeSessionId, sessionWaiting } = chat
+  const { activeSessionIdMap, sessionWaiting } = chat
   const dispatch = useAppDispatch()
 
   const setActiveSessionId = useCallback(
@@ -75,24 +75,24 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     [agentId, deleteSession, dispatch, sessions, t]
   )
 
-  const currentActiveSessionId = activeSessionId[agentId]
+  const activeSessionId = activeSessionIdMap[agentId]
 
   useEffect(() => {
-    if (!isLoading && sessions.length > 0 && !currentActiveSessionId) {
+    if (!isLoading && sessions.length > 0 && !activeSessionId) {
       setActiveSessionId(agentId, sessions[0].id)
     }
-  }, [isLoading, sessions, currentActiveSessionId, agentId, setActiveSessionId])
+  }, [isLoading, sessions, activeSessionId, agentId, setActiveSessionId])
 
   useEffect(() => {
-    if (currentActiveSessionId) {
+    if (activeSessionId) {
       dispatch(
         newMessagesActions.setTopicFulfilled({
-          topicId: buildAgentSessionTopicId(currentActiveSessionId),
+          topicId: buildAgentSessionTopicId(activeSessionId),
           fulfilled: false
         })
       )
     }
-  }, [currentActiveSessionId, dispatch])
+  }, [activeSessionId, dispatch])
 
   if (isLoading) {
     return (

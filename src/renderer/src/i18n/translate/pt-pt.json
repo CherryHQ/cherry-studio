@@ -22,7 +22,8 @@
     },
     "get": {
       "error": {
-        "failed": "Falha ao obter o agente."
+        "failed": "Falha ao obter o agente.",
+        "null_id": "O ID do agente é nulo."
       }
     },
     "list": {
@@ -73,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Falha ao obter a sessão"
+          "failed": "Falha ao obter a sessão",
+          "null_id": "O ID da sessão é nulo"
         }
       },
       "label_one": "Sessão",

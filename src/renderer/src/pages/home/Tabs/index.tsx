@@ -1,6 +1,7 @@
+import { Alert, Skeleton } from '@heroui/react'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -8,13 +9,13 @@ import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { Tab } from '@renderer/types/chat'
-import { classNames, uuid } from '@renderer/utils'
+import { classNames, getErrorMessage, uuid } from '@renderer/utils'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AgentSettingsTab from './AgentSettingsTab'
 import Assistants from './AssistantsTab'
+import SessionSettingsTab from './SessionSettingsTab'
 import Settings from './SettingsTab'
 import Topics from './TopicsTab'
 
@@ -47,8 +48,8 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
-  const { agent } = useAgent(activeAgentId)
-  const { updateAgent } = useUpdateAgent()
+  const { session, isLoading: isSessionLoading, error: sessionError } = useActiveSession()
+  const { updateSession } = useUpdateSession(activeAgentId)
 
   const isSessionView = activeTopicOrSession === 'session'
   const isTopicView = activeTopicOrSession === 'topic'
@@ -125,7 +126,7 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && isTopicView && (
+      {position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
@@ -154,7 +155,20 @@ const HomeTabs: FC<Props> = ({
           />
         )}
         {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
-        {tab === 'settings' && isSessionView && <AgentSettingsTab agent={agent} update={updateAgent} />}
+        {tab === 'settings' && isSessionView && !sessionError && (
+          <Skeleton isLoaded={!isSessionLoading} className="h-full">
+            <SessionSettingsTab session={session} update={updateSession} />
+          </Skeleton>
+        )}
+        {tab === 'settings' && isSessionView && sessionError && (
+          <div className="w-[var(--assistants-width)] p-2 px-3 pt-4">
+            <Alert
+              color="danger"
+              title={t('agent.session.get.error.failed')}
+              description={getErrorMessage(sessionError)}
+            />
+          </div>
+        )}
       </TabContent>
     </Container>
   )

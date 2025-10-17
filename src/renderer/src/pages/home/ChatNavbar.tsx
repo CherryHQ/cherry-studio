@@ -64,6 +64,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
+  // const handleUpdateModel = useCallback(
+  //   async (model: ApiModel) => {
+  //     if (!activeSession || !activeAgent) return
+  //     return updateModel(activeSession.id, model.id, { showSuccessToast: false })
+  //   },
+  //   [activeAgent, activeSession, updateModel]
+  // )
+
   return (
     <NavbarHeader className="home-navbar">
       <div className="flex min-w-0 flex-1 shrink items-center overflow-auto">

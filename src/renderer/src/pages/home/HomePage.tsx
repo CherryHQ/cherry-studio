@@ -117,7 +117,7 @@ const HomePage: FC = () => {
         type: 'chat'
       })
     } else if (activeTopicOrSession === 'topic') {
-      dispatch(setActiveAgentId('fake'))
+      dispatch(setActiveAgentId(null))
     }
   }, [activeTopicOrSession, dispatch, setActiveAssistant])
 

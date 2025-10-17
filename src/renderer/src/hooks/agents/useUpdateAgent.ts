@@ -4,12 +4,8 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
+import { UpdateAgentBaseOptions } from './types'
 import { useAgentClient } from './useAgentClient'
-
-export type UpdateAgentOptions = {
-  /** Whether to show success toast after updating. Defaults to true. */
-  showSuccessToast?: boolean
-}
 
 export const useUpdateAgent = () => {
   const { t } = useTranslation()
@@ -17,7 +13,7 @@ export const useUpdateAgent = () => {
   const listKey = client.agentPaths.base
 
   const updateAgent = useCallback(
-    async (form: UpdateAgentForm, options?: UpdateAgentOptions) => {
+    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions) => {
       try {
         const itemKey = client.agentPaths.withId(form.id)
         // may change to optimistic update
@@ -35,7 +31,7 @@ export const useUpdateAgent = () => {
   )
 
   const updateModel = useCallback(
-    async (agentId: string, modelId: string, options?: UpdateAgentOptions) => {
+    async (agentId: string, modelId: string, options?: UpdateAgentBaseOptions) => {
       updateAgent({ id: agentId, model: modelId }, options)
     },
     [updateAgent]

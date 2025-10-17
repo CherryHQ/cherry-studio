@@ -33,8 +33,8 @@ interface SessionItemProps {
 const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoading, onDelete, onPress }) => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
-  const updateSession = useUpdateSession(agentId)
-  const activeSessionId = chat.activeSessionId[agentId]
+  const { updateSession } = useUpdateSession(agentId)
+  const activeSessionId = chat.activeSessionIdMap[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
