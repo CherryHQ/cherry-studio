@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 
-import { loggerService } from "@logger"
+import { loggerService } from '@logger'
 
 import { agentService } from '../services/agents'
 import { app } from './app'
