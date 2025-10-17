@@ -343,13 +343,26 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
     switch (message.type) {
       case 'function_call_output':
-        if (typeof message.output === 'string') {
-          sum += estimateTextTokens(message.output)
-        } else {
-          sum += message.output
-            .filter((item) => item.type === 'input_text')
-            .map((item) => estimateTextTokens(item.text))
-            .reduce((prev, cur) => prev + cur, 0)
+        {
+          let str = ''
+          if (typeof message.output === 'string') {
+            str = message.output
+          } else {
+            for (const part of message.output) {
+              switch (part.type) {
+                case 'input_text':
+                  str += part.text
+                  break
+                case 'input_image':
+                  str += part.image_url || ''
+                  break
+                case 'input_file':
+                  str += part.file_data || ''
+                  break
+              }
+            }
+          }
+          sum += estimateTextTokens(str)
         }
         break
       case 'function_call':
