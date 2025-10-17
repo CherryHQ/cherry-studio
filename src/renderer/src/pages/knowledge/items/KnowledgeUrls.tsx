@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -135,58 +135,61 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           itemContainerStyle={{ paddingBottom: 10 }}
           autoHideScrollbar>
           {(item) => (
-            <FileItem
-              key={item.id}
-              fileInfo={{
-                name: (
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <ClickableSpan>
-                        <Ellipsis>
-                          <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                            {item.remark || (item.content as string)}
-                          </a>
-                        </Ellipsis>
-                      </ClickableSpan>
-                    </DropdownTrigger>
-                    <DropdownMenu
-                      aria-label="URL actions"
-                      onAction={(key) => {
-                        if (key === 'edit') {
-                          handleEditRemark(item)
-                        } else if (key === 'copy') {
-                          navigator.clipboard.writeText(item.content as string)
-                          window.toast.success(t('message.copied'))
-                        }
-                      }}>
-                      <DropdownItem key="edit" startContent={<EditIcon size={14} />}>
-                        {t('knowledge.edit_remark')}
-                      </DropdownItem>
-                      <DropdownItem key="copy" startContent={<CopyIcon size={14} />}>
-                        {t('common.copy')}
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                ),
-                ext: '.url',
-                extra: getDisplayTime(item),
-                actions: (
-                  <FlexAlignCenter>
-                    {item.uniqueId && (
-                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
-                        <RefreshIcon />
-                      </Button>
-                    )}
-                    <StatusIconWrapper>
-                      <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
-                    </StatusIconWrapper>
-                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
-                      <DeleteIcon size={14} className="lucide-custom" />
-                    </Button>
-                  </FlexAlignCenter>
-                )
-              }}
-            />
+            <ContextMenu key={item.id}>
+              <ContextMenuTrigger asChild>
+                <div>
+                  <FileItem
+                    fileInfo={{
+                      name: (
+                        <ClickableSpan>
+                          <Ellipsis>
+                            <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                              {item.remark || (item.content as string)}
+                            </a>
+                          </Ellipsis>
+                        </ClickableSpan>
+                      ),
+                      ext: '.url',
+                      extra: getDisplayTime(item),
+                      actions: (
+                        <FlexAlignCenter>
+                          {item.uniqueId && (
+                            <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                              <RefreshIcon />
+                            </Button>
+                          )}
+                          <StatusIconWrapper>
+                            <StatusIcon
+                              sourceId={item.id}
+                              base={base}
+                              getProcessingStatus={getProcessingStatus}
+                              type="url"
+                            />
+                          </StatusIconWrapper>
+                          <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
+                        </FlexAlignCenter>
+                      )
+                    }}
+                  />
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => handleEditRemark(item)}>
+                  <EditIcon size={14} className="mr-2" />
+                  {t('knowledge.edit_remark')}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    navigator.clipboard.writeText(item.content as string)
+                    window.toast.success(t('message.copied'))
+                  }}>
+                  <CopyIcon size={14} className="mr-2" />
+                  {t('common.copy')}
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           )}
         </DynamicVirtualList>
       </div>
