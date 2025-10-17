@@ -1,18 +1,18 @@
 import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { permissionModeCards } from '@renderer/constants/permissionModes'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { ApiModel, Assistant, PermissionMode } from '@renderer/types'
+import { AgentEntity, AgentSessionEntity, ApiModel, Assistant, PermissionMode } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
 import { FC, ReactNode, useCallback } from 'react'
 
-import { AgentSettingsPopup } from '../../settings/AgentSettings'
-import { AgentLabel } from '../../settings/AgentSettings/shared'
-import SelectAgentModelButton from './SelectAgentModelButton'
+import { AgentSettingsPopup, SessionSettingsPopup } from '../../settings/AgentSettings'
+import { AgentLabel, SessionLabel } from '../../settings/AgentSettings/shared'
+import SelectAgentBaseModelButton from './SelectAgentBaseModelButton'
 import SelectModelButton from './SelectModelButton'
 
 interface Props {
@@ -21,41 +21,67 @@ interface Props {
 
 const ChatNavbarContent: FC<Props> = ({ assistant }) => {
   const { chat } = useRuntime()
-  const { activeTopicOrSession, activeAgentId } = chat
-  const sessionId = activeAgentId ? (chat.activeSessionId[activeAgentId] ?? null) : null
-  const { agent } = useAgent(activeAgentId)
-  const { updateModel } = useUpdateAgent()
+  const { activeTopicOrSession } = chat
+  const { agent: activeAgent } = useActiveAgent()
+  const { session: activeSession } = useActiveSession()
+  const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
 
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
-      if (!agent) return
-      return updateModel(agent.id, model.id, { showSuccessToast: false })
+      if (!activeAgent || !activeSession) return
+      return updateModel(activeSession.id, model.id, { showSuccessToast: false })
     },
-    [agent, updateModel]
+    [activeAgent, activeSession, updateModel]
   )
 
   return (
     <>
       {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
-      {activeTopicOrSession === 'session' && agent && (
+      {activeTopicOrSession === 'session' && activeAgent && (
         <HorizontalScrollContainer>
-          <Breadcrumbs classNames={{ base: 'flex', list: 'flex-nowrap' }}>
+          <Breadcrumbs
+            classNames={{
+              base: 'flex',
+              list: 'flex-nowrap'
+            }}>
             <BreadcrumbItem
-              onPress={() => AgentSettingsPopup.show({ agentId: agent.id })}
-              classNames={{ base: 'self-stretch', item: 'h-full' }}>
+              onPress={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
+              classNames={{
+                base: 'self-stretch',
+                item: 'h-full'
+              }}>
               <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
                 <AgentLabel
-                  agent={agent}
-                  classNames={{ name: 'max-w-50 font-bold text-xs', avatar: 'h-2 w-2 ml-[-4px]', container: 'gap-1.5' }}
+                  agent={activeAgent}
+                  classNames={{ name: 'max-w-40 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
                 />
               </Chip>
             </BreadcrumbItem>
-            <BreadcrumbItem>
-              <SelectAgentModelButton agent={agent} onSelect={handleUpdateModel} />
-            </BreadcrumbItem>
-            {activeAgentId && sessionId && (
+            {activeSession && (
+              <BreadcrumbItem
+                onPress={() =>
+                  SessionSettingsPopup.show({
+                    agentId: activeAgent.id,
+                    sessionId: activeSession.id
+                  })
+                }
+                classNames={{
+                  base: 'self-stretch',
+                  item: 'h-full'
+                }}>
+                <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
+                  <SessionLabel session={activeSession} className="max-w-40 font-bold text-xs" />
+                </Chip>
+              </BreadcrumbItem>
+            )}
+            {activeSession && (
               <BreadcrumbItem>
-                <SessionWorkspaceMeta agentId={activeAgentId} sessionId={sessionId} />
+                <SelectAgentBaseModelButton agentBase={activeSession} onSelect={handleUpdateModel} />
+              </BreadcrumbItem>
+            )}
+            {activeAgent && activeSession && (
+              <BreadcrumbItem>
+                <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
               </BreadcrumbItem>
             )}
           </Breadcrumbs>
@@ -65,9 +91,7 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
   )
 }
 
-const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agentId, sessionId }) => {
-  const { agent } = useAgent(agentId)
-  const { session } = useSession(agentId, sessionId)
+const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity }> = ({ agent, session }) => {
   if (!session || !agent) {
     return null
   }

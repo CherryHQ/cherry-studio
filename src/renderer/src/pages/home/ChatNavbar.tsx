@@ -35,11 +35,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
-  // const { chat } = useRuntime()
-  // const { activeTopicOrSession } = chat
-  // const { agent: activeAgent } = useActiveAgent()
-  // const { session: activeSession } = useActiveSession()
-  // const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -107,57 +102,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </motion.div>
           )}
         </AnimatePresence>
-        {/* {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
-        {activeTopicOrSession === 'session' && activeAgent && (
-          <HorizontalScrollContainer>
-            <Breadcrumbs
-              classNames={{
-                base: 'flex',
-                list: 'flex-nowrap'
-              }}>
-              <BreadcrumbItem
-                onPress={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
-                classNames={{
-                  base: 'self-stretch',
-                  item: 'h-full'
-                }}>
-                <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
-                  <AgentLabel
-                    agent={activeAgent}
-                    classNames={{ name: 'max-w-40 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
-                  />
-                </Chip>
-              </BreadcrumbItem>
-              {activeSession && (
-                <BreadcrumbItem
-                  onPress={() =>
-                    SessionSettingsPopup.show({
-                      agentId: activeAgent.id,
-                      sessionId: activeSession.id
-                    })
-                  }
-                  classNames={{
-                    base: 'self-stretch',
-                    item: 'h-full'
-                  }}>
-                  <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
-                    <SessionLabel session={activeSession} className="max-w-40 font-bold text-xs" />
-                  </Chip>
-                </BreadcrumbItem>
-              )}
-              {activeSession && (
-                <BreadcrumbItem>
-                  <SelectAgentBaseModelButton agentBase={activeSession} onSelect={handleUpdateModel} />
-                </BreadcrumbItem>
-              )}
-              {activeAgent && activeSession && (
-                <BreadcrumbItem>
-                  <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
-                </BreadcrumbItem>
-              )}
-            </Breadcrumbs>
-          </HorizontalScrollContainer>
-        )} */}
         <ChatNavbarContent assistant={assistant} />
       </div>
       <HStack alignItems="center" gap={8}>
