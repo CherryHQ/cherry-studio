@@ -2681,6 +2681,31 @@ const migrateConfig = {
       logger.error('migrate 163 error', error as Error)
       return state
     }
+  },
+  '164': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (
+          (provider.id === SystemProviderIds.cherryin || provider.id === SystemProviderIds['new-api']) &&
+          provider.type !== 'new-api'
+        ) {
+          provider.type = 'new-api'
+        }
+        if (provider.id === SystemProviderIds.longcat) {
+          // https://longcat.chat/platform/docs/zh/#anthropic-api-%E6%A0%BC%E5%BC%8F
+          if (!provider.anthropicApiHost) {
+            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+          }
+        }
+        if (provider.id === SystemProviderIds.dashscope) {
+          provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 163 error', error as Error)
+      return state
+    }
   }
 }
 

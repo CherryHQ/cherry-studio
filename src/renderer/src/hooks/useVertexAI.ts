@@ -42,7 +42,7 @@ export function getVertexAIServiceAccount() {
  * 类型守卫：检查 Provider 是否为 VertexProvider
  */
 export function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return provider.type === 'vertexai' && 'googleCredentials' in provider
+  return provider.type === 'vertexai'
 }
 
 /**

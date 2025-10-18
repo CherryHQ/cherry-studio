@@ -4075,7 +4075,7 @@
         "url": {
           "preview": "Aperçu : {{url}}",
           "reset": "Réinitialiser",
-          "tip": "Ignorer la version v1 si terminé par /, forcer l'utilisation de l'adresse d'entrée si terminé par #"
+          "tip": "Ignorer la version API si terminé par /, forcer l'utilisation de l'adresse d'entrée si terminé par #"
         }
       },
       "api_host": "Adresse API",

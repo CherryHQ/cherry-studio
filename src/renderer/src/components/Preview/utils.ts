@@ -1,4 +1,4 @@
-import { makeSvgSizeAdaptive } from '@renderer/utils'
+import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import DOMPurify from 'dompurify'
 
 /**

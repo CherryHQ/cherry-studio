@@ -3,6 +3,7 @@
  * 构建AI SDK的流式和非流式参数
  */
 
+import { anthropic } from '@ai-sdk/anthropic'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
 import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
@@ -144,11 +145,26 @@ export async function buildStreamTextParams(
   }
 
   // google-vertex
-  if (enableUrlContext && aiSdkProviderId === 'google-vertex') {
+  if (enableUrlContext) {
     if (!tools) {
       tools = {}
     }
-    tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+    if (aiSdkProviderId === 'google-vertex') {
+      tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+    }
+    const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+    if (aiSdkProviderId === 'anthropic') {
+      tools.web_fetch = anthropic.tools.webFetch_20250910({
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+      }) as ProviderDefinedTool
+    }
+    if (aiSdkProviderId === 'google-vertex-anthropic') {
+      tools.web_fetch = vertexAnthropic.tools.webFetch_20250910({
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+      }) as ProviderDefinedTool
+    }
   }
 
   // 构建基础参数

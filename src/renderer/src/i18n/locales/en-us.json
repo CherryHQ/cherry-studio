@@ -4040,7 +4040,7 @@
       },
       "anthropic_api_host": "Anthropic API Host",
       "anthropic_api_host_preview": "Anthropic preview: {{url}}",
-      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores v1, ending with # forces use of input address.",
+      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores API version, ending with # forces use of input address.",
       "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
       "api": {
         "key": {
@@ -4085,7 +4085,7 @@
         "url": {
           "preview": "Preview: {{url}}",
           "reset": "Reset",
-          "tip": "Ending with / ignores v1, ending with # forces use of input address"
+          "tip": "ending with # forces use of input address"
         }
       },
       "api_host": "API Host",
