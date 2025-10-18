@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import {
+  isAnthropicModel,
   isGeminiModel,
   isGenerateImageModel,
   isMandatoryWebSearchModel,
@@ -383,7 +384,8 @@ const InputbarTools = ({
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} />,
-        condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
+        condition:
+          (isGeminiModel(model) || isAnthropicModel(model)) && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
         key: 'knowledge_base',

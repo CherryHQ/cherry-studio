@@ -13,6 +13,7 @@ import {
   KnowledgeSearchResult
 } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { isGeminiProvider } from '@renderer/utils'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -40,7 +41,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
 
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
-  if (provider.type === 'gemini') {
+  if (isGeminiProvider(provider)) {
     host = host + '/v1beta/openai/'
   }
 

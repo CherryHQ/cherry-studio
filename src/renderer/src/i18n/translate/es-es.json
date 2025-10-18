@@ -4075,7 +4075,7 @@
         "url": {
           "preview": "Vista previa: {{url}}",
           "reset": "Restablecer",
-          "tip": "Ignorar v1 al final con /, forzar uso de dirección de entrada con # al final"
+          "tip": "Ignorar Versión de la API al final con /, forzar uso de dirección de entrada con # al final"
         }
       },
       "api_host": "Dirección API",

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { Model, ModelType, Provider } from '@renderer/types'
+import { AzureOpenAIProvider, Model, ModelType, Provider } from '@renderer/types'
 import { ModalFuncProps } from 'antd'
 import { isEqual } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -201,12 +201,24 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
  * @param {Provider} provider 提供商对象
  * @returns {boolean} 是否为 OpenAI 兼容提供商
  */
+export function isOpenAICompatibleProvider(provider: Provider): boolean {
+  return ['openai', 'new-api', 'mistral'].includes(provider.type)
+}
+
+export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpenAIProvider {
+  return provider.type === 'azure-openai'
+}
+
 export function isOpenAIProvider(provider: Provider): boolean {
-  return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
+  return ['openai-response'].includes(provider.type)
 }
 
 export function isAnthropicProvider(provider: Provider): boolean {
   return provider.type === 'anthropic'
+}
+
+export function isGeminiProvider(provider: Provider): boolean {
+  return provider.type === 'gemini'
 }
 
 /**

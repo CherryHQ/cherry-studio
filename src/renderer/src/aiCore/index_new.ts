@@ -85,7 +85,7 @@ export default class ModernAiProvider {
 
     // 每次请求时重新生成配置以确保API key轮换生效
     this.config = providerToAiSdkConfig(this.actualProvider, this.model)
-
+    logger.debug('Generated provider config for completions', this.config)
     // 准备特殊配置
     await prepareSpecialProviderConfig(this.actualProvider, this.config)
 
