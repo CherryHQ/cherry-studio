@@ -1,10 +1,10 @@
 import { Button, Divider } from '@heroui/react'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import AdvancedSettings from '@renderer/pages/settings/AgentSettings/AdvancedSettings'
 import EssentialSettings from '@renderer/pages/settings/AgentSettings/EssentialSettings'
-import { GetAgentSessionResponse } from '@renderer/types'
-import { FC } from 'react'
+import type { GetAgentSessionResponse } from '@renderer/types'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {

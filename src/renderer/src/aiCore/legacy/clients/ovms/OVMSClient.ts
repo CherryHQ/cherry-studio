@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
-import { objectKeys, Provider } from '@renderer/types'
-import OpenAI from 'openai'
+import { objectKeys, type Provider } from '@renderer/types'
+import type OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 

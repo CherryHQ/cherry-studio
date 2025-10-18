@@ -1,14 +1,14 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { cn } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useSettings } from '@renderer/hooks/useSettings'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { AgentEntity } from '@renderer/types'
+import type { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { Bot } from 'lucide-react'
-import { FC, memo, useCallback } from 'react'
+import { type FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // const logger = loggerService.withContext('AgentItem')
@@ -23,7 +23,8 @@ interface AgentItemProps {
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
   const { sessions } = useSessions(agent.id)
-  const { clickAssistantToShowTopic, topicPosition } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
+  const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
 
   const handlePress = useCallback(() => {
     // Show session sidebar if setting is enabled (reusing the assistant setting for consistency)

@@ -1,9 +1,9 @@
-import { Provider } from '@types'
+import { loggerService } from '@logger'
+import type { Provider } from '@types'
 import OpenAI from 'openai'
-import { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from 'openai/resources'
+import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from 'openai/resources'
 
-import { loggerService } from '../../services/LoggerService'
-import { ModelValidationError, validateModelId } from '../utils'
+import { type ModelValidationError, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
 

@@ -1,43 +1,34 @@
+//FIXME @deprecated this file will be removed after data refactor
+import { usePreference } from '@data/hooks/usePreference'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  setAssistantsTabSortType,
-  setShowAssistants,
-  setShowTopics,
-  toggleShowAssistants,
-  toggleShowTopics
-} from '@renderer/store/settings'
-import { AssistantsSortType } from '@renderer/types'
+import store from '@renderer/store'
 
 export function useShowAssistants() {
-  const showAssistants = useAppSelector((state) => state.settings.showAssistants)
-  const dispatch = useAppDispatch()
+  const [showAssistants, setShowAssistants] = usePreference('assistant.tab.show')
 
   return {
     showAssistants,
-    setShowAssistants: (show: boolean) => dispatch(setShowAssistants(show)),
-    toggleShowAssistants: () => dispatch(toggleShowAssistants())
+    setShowAssistants,
+    toggleShowAssistants: () => setShowAssistants(!showAssistants)
   }
 }
 
 export function useShowTopics() {
-  const showTopics = useAppSelector((state) => state.settings.showTopics)
-  const dispatch = useAppDispatch()
+  const [showTopics, setShowTopics] = usePreference('topic.tab.show')
 
   return {
     showTopics,
-    setShowTopics: (show: boolean) => dispatch(setShowTopics(show)),
-    toggleShowTopics: () => dispatch(toggleShowTopics())
+    setShowTopics,
+    toggleShowTopics: () => setShowTopics(!showTopics)
   }
 }
 
 export function useAssistantsTabSortType() {
-  const assistantsTabSortType = useAppSelector((state) => state.settings.assistantsTabSortType)
-  const dispatch = useAppDispatch()
+  const [assistantsTabSortType, setAssistantsTabSortType] = usePreference('assistant.tab.sort_type')
 
   return {
     assistantsTabSortType,
-    setAssistantsTabSortType: (sortType: AssistantsSortType) => dispatch(setAssistantsTabSortType(sortType))
+    setAssistantsTabSortType
   }
 }
 

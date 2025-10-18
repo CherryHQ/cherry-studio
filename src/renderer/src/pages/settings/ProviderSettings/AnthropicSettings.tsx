@@ -1,6 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Alert, Button, Input, Modal } from 'antd'
+import { Alert, Input, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -99,7 +100,7 @@ const AnthropicSettings = () => {
               type="success"
               message={t('settings.provider.anthropic.authenticated')}
               action={
-                <Button type="primary" onClick={handleLogout}>
+                <Button color="primary" onPress={handleLogout}>
                   {t('settings.provider.anthropic.logout')}
                 </Button>
               }
@@ -142,7 +143,7 @@ const AnthropicSettings = () => {
               message={t('settings.provider.anthropic.description')}
               description={t('settings.provider.anthropic.description_detail')}
               action={
-                <Button type="primary" loading={loading} onClick={handleRedirectOAuth}>
+                <Button color="primary" isLoading={loading} onPress={handleRedirectOAuth}>
                   {t('settings.provider.anthropic.start_auth')}
                 </Button>
               }

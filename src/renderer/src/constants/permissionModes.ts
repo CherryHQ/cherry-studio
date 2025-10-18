@@ -1,4 +1,4 @@
-import { PermissionMode } from '@renderer/types'
+import type { PermissionMode } from '@renderer/types'
 
 export type PermissionModeCard = {
   mode: PermissionMode

@@ -1,4 +1,4 @@
-import { ApiModelsFilter } from '@renderer/types'
+import type { ApiModelsFilter } from '@renderer/types'
 
 import { useApiModels } from './useModels'
 

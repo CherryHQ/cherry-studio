@@ -1,12 +1,14 @@
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
-import { MinAppType } from '@renderer/types'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
-import { FC, useEffect } from 'react'
+import { Dropdown } from 'antd'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -15,9 +17,9 @@ import MinAppIcon from '../Icons/MinAppIcon'
 
 /** Tabs of opened minapps in sidebar */
 export const SidebarOpenedMinappTabs: FC = () => {
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
+  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useMinapps()
   const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
-  const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
+  const [showOpenedMinappsInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()
@@ -85,16 +87,18 @@ export const SidebarOpenedMinappTabs: FC = () => {
             const isActive = minappShow && currentMinappId === app.id
 
             return (
-              <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
-                <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                  <Icon
-                    theme={theme}
-                    onClick={() => handleOnClick(app)}
-                    className={`${isActive ? 'opened-active' : ''}`}>
-                    <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
-                  </Icon>
-                </Dropdown>
-              </Tooltip>
+              <Dropdown
+                key={app.id}
+                menu={{ items: menuItems }}
+                trigger={['contextMenu']}
+                overlayStyle={{ zIndex: 10000 }}>
+                {/* FIXME: Antd Dropdown is not compatible with HeroUI Tooltip */}
+                {/* <Tooltip content={app.name} placement="right" delay={800}> */}
+                <Icon theme={theme} onClick={() => handleOnClick(app)} className={`${isActive ? 'opened-active' : ''}`}>
+                  <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+                </Icon>
+                {/* </Tooltip> */}
+              </Dropdown>
             )
           })}
         </Menus>
@@ -104,9 +108,8 @@ export const SidebarOpenedMinappTabs: FC = () => {
 }
 
 export const SidebarPinnedApps: FC = () => {
-  const { pinned, updatePinnedMinapps } = useMinapps()
+  const { pinned, updatePinnedMinapps, minappShow, openedKeepAliveMinapps, currentMinappId } = useMinapps()
   const { t } = useTranslation()
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { theme } = useTheme()
   const { openMinappKeepAlive } = useMinappPopup()
   const { isTopNavbar } = useNavbarPosition()
@@ -126,7 +129,7 @@ export const SidebarPinnedApps: FC = () => {
         ]
         const isActive = minappShow && currentMinappId === app.id
         return (
-          <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+          <Tooltip key={app.id} content={app.name} placement="right" delay={800}>
             <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
               <Icon
                 theme={theme}

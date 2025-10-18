@@ -1,6 +1,6 @@
-import { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
+import type { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
-import { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

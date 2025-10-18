@@ -1,6 +1,6 @@
-import { Tooltip } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
 import { Copy } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -47,7 +47,7 @@ const CopyButton: FC<CopyButtonProps> = ({
   )
 
   if (tooltip) {
-    return <Tooltip title={tooltip}>{button}</Tooltip>
+    return <Tooltip content={tooltip}>{button}</Tooltip>
   }
 
   return button

@@ -1,6 +1,6 @@
 // 通用工具组件 - 减少重复代码
 
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 // 生成 AccordionItem 的标题
 export function ToolTitle({

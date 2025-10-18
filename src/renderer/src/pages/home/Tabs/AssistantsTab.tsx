@@ -9,9 +9,11 @@ import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { useAppDispatch } from '@renderer/store'
 import { addIknowAction } from '@renderer/store/runtime'
-import { Assistant, AssistantsSortType } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { FC, useCallback, useRef, useState } from 'react'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
+import type { Assistant } from '@types'
+import type { FC } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -93,7 +95,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   )
 
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
+    (sortType: AssistantTabSortType) => {
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]

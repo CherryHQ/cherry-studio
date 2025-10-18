@@ -1,29 +1,31 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import type { ActionItem } from '@renderer/types/selectionTypes'
+import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
-import { Tooltip } from 'antd'
+import { defaultLanguage } from '@shared/config/constant'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 interface Props {
-  action: ActionItem
+  action: SelectionActionItem
   scrollToBottom: () => void
 }
 
@@ -31,7 +33,9 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { translateModelPrompt, language } = useSettings()
+
+  const [language] = usePreference('app.language')
+  const [translateModelPrompt] = usePreference('feature.translate.model_prompt')
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
   const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.zhCN)
@@ -57,7 +61,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       let alterLang: TranslateLanguage
 
       if (!biDirectionLangPair || !biDirectionLangPair.value[0]) {
-        const lang = getLanguageByLangcode(language)
+        const lang = getLanguageByLangcode(language || navigator.language || defaultLanguage)
         if (lang !== UNKNOWN) {
           targetLang = lang
         } else {
@@ -84,13 +88,15 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     if (initialized.current || !action.selectedText) return
     initialized.current = true
 
-    // Initialize assistant
-    const currentAssistant = getDefaultTranslateAssistant(targetLanguage, action.selectedText)
+    runAsyncFunction(async () => {
+      // Initialize assistant
+      const currentAssistant = await getDefaultTranslateAssistant(targetLanguage, action.selectedText!)
 
-    assistantRef.current = currentAssistant
+      assistantRef.current = currentAssistant
 
-    // Initialize topic
-    topicRef.current = getDefaultTopic(currentAssistant.id)
+      // Initialize topic
+      topicRef.current = getDefaultTopic(currentAssistant.id)
+    })
   }, [action, targetLanguage, translateModelPrompt])
 
   const fetchResult = useCallback(async () => {
@@ -138,7 +144,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       }
     }
 
-    const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
+    const assistant = await getDefaultTranslateAssistant(translateLang, action.selectedText)
     assistantRef.current = assistant
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom])
@@ -179,11 +185,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     <>
       <Container>
         <MenuContainer>
-          <Tooltip placement="bottom" title={t('translate.any.language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.any.language')}>
             <Globe size={16} style={{ flexShrink: 0 }} />
           </Tooltip>
           <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.target_language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.target_language')}>
             <LanguageSelect
               value={targetLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -195,7 +201,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.alter_language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.alter_language')}>
             <LanguageSelect
               value={alterLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -206,7 +212,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               disabled={isLoading}
             />
           </Tooltip>
-          <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')} arrow>
+          <Tooltip placement="bottom" content={t('selection.action.translate.smart_translate_tips')}>
             <QuestionIcon size={14} style={{ marginLeft: 4 }} />
           </Tooltip>
           <Spacer />

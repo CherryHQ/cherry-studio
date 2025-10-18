@@ -3,12 +3,12 @@ import FileManager from '@renderer/services/FileManager'
 import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 import { toFile } from 'openai/uploads'
 
-import { BaseApiClient } from '../../clients/BaseApiClient'
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { BaseApiClient } from '../../clients/BaseApiClient'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'ImageGenerationMiddleware'
 
@@ -50,7 +50,11 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
               if (!block.file) return null
               const binaryData: Uint8Array = await FileManager.readBinaryImage(block.file)
               const mimeType = `${block.file.type}/${block.file.ext.slice(1)}`
-              return await toFile(new Blob([binaryData]), block.file.origin_name || 'image.png', { type: mimeType })
+              return await toFile(
+                new Blob([binaryData as unknown as BlobPart]),
+                block.file.origin_name || 'image.png',
+                { type: mimeType }
+              )
             })
           )
           imageFiles = imageFiles.concat(userImages.filter(Boolean) as Blob[])

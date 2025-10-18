@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { removeTab, setActiveTab } from '@renderer/store/tabs'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
-import { LRUCache } from 'lru-cache'
+import type { LRUCache } from 'lru-cache'
 
 import NavigationService from './NavigationService'
 

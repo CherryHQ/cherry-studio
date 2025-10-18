@@ -1,5 +1,6 @@
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata, FileTypes } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin, Table } from 'antd'
 import React, { memo } from 'react'

@@ -1,5 +1,5 @@
 import ClaudeAvatar from '@renderer/assets/images/models/claude.png'
-import { AgentBase, AgentType } from '@renderer/types'
+import type { AgentBase, AgentType } from '@renderer/types'
 
 // base agent config. no default config for now.
 const DEFAULT_AGENT_CONFIG: Omit<AgentBase, 'model'> = {

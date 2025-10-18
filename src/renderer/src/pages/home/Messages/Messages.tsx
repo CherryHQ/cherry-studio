@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
@@ -6,7 +7,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
@@ -20,7 +20,8 @@ import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageB
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import { type Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import type { MessageBlock } from '@renderer/types/newMessage'
+import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
@@ -62,7 +63,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [isProcessingContext, setIsProcessingContext] = useState(false)
 
   const { addTopic } = useAssistant(assistant.id)
-  const { showPrompt, messageNavigation } = useSettings()
+  const [showPrompt] = usePreference('chat.message.show_prompt')
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const messages = useTopicMessages(topic.id)

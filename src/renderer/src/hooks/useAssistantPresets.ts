@@ -6,7 +6,7 @@ import {
   updateAssistantPreset,
   updateAssistantPresetSettings
 } from '@renderer/store/assistants'
-import { AssistantPreset, AssistantSettings } from '@renderer/types'
+import type { AssistantPreset, AssistantSettings } from '@renderer/types'
 
 export function useAssistantPresets() {
   const presets = useAppSelector((state) => state.assistants.presets)

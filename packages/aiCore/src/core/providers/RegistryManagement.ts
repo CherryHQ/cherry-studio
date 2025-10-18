@@ -4,7 +4,7 @@
  * 基于 AI SDK 原生的 createProviderRegistry
  */
 
-import { EmbeddingModelV2, ImageModelV2, LanguageModelV2, ProviderV2 } from '@ai-sdk/provider'
+import type { EmbeddingModelV2, ImageModelV2, LanguageModelV2, ProviderV2 } from '@ai-sdk/provider'
 import { createProviderRegistry, type ProviderRegistryProvider } from 'ai'
 
 type PROVIDERS = Record<string, ProviderV2>

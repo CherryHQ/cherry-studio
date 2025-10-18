@@ -1,9 +1,9 @@
-import {
+import type {
   OAuthClientInformation,
   OAuthClientInformationFull,
   OAuthTokens
 } from '@modelcontextprotocol/sdk/shared/auth.js'
-import EventEmitter from 'events'
+import type EventEmitter from 'events'
 import * as z from 'zod'
 
 export interface OAuthStorageData {

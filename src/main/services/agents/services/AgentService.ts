@@ -1,8 +1,7 @@
 import path from 'node:path'
 
 import { getDataPath } from '@main/utils'
-import {
-  AgentBaseSchema,
+import type {
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -11,11 +10,12 @@ import {
   UpdateAgentRequest,
   UpdateAgentResponse
 } from '@types'
+import { AgentBaseSchema } from '@types'
 import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
-import { AgentModelField } from '../errors'
+import type { AgentModelField } from '../errors'
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null

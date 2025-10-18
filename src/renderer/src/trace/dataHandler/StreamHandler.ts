@@ -1,8 +1,8 @@
-import { TokenUsage } from '@mcp-trace/trace-core'
-import { Span } from '@opentelemetry/api'
+import type { TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
-import { OpenAI } from 'openai'
-import { Stream } from 'openai/streaming'
+import type { OpenAI } from 'openai'
+import type { Stream } from 'openai/streaming'
 
 export class StreamHandler {
   private topicId: string

@@ -1,7 +1,7 @@
-import { TokenUsage } from '@mcp-trace/trace-core'
-import { Span } from '@opentelemetry/api'
+import type { TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
-import { SdkRawChunk } from '@renderer/types/sdk'
+import type { SdkRawChunk } from '@renderer/types/sdk'
 
 export class AsyncIterableHandler {
   private span: Span

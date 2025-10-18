@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import {
   isSupportedReasoningEffortOpenAIModel,
@@ -8,21 +9,14 @@ import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
-import {
-  GroqServiceTiers,
-  Model,
-  OpenAIServiceTier,
-  OpenAIServiceTiers,
-  OpenAISummaryText,
-  ServiceTier,
-  SystemProviderIds
-} from '@renderer/types'
-import { OpenAIVerbosity } from '@types'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo } from 'react'
+import type { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier } from '@renderer/types'
+import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
+import type { OpenAIVerbosity } from '@types'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -172,9 +166,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.service_tier.title')}{' '}
-                <Tooltip title={t('settings.openai.service_tier.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
+                <HelpTooltip content={t('settings.openai.service_tier.tip')} />
               </SettingRowTitleSmall>
               <Selector
                 value={serviceTierMode}
@@ -193,9 +185,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.summary_text_mode.title')}{' '}
-                <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
+                <HelpTooltip content={t('settings.openai.summary_text_mode.tip')} />
               </SettingRowTitleSmall>
               <Selector
                 value={summaryText}
@@ -211,10 +201,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         {isSupportVerbosity && (
           <SettingRow>
             <SettingRowTitleSmall>
-              {t('settings.openai.verbosity.title')}{' '}
-              <Tooltip title={t('settings.openai.verbosity.tip')}>
-                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-              </Tooltip>
+              {t('settings.openai.verbosity.title')} <HelpTooltip content={t('settings.openai.verbosity.tip')} />
             </SettingRowTitleSmall>
             <Selector
               value={verbosity}

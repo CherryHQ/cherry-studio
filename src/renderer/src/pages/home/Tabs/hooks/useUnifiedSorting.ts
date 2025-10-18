@@ -1,10 +1,10 @@
 import { useAppDispatch } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { useCallback } from 'react'
 import * as tinyPinyin from 'tiny-pinyin'
 
-import { UnifiedItem } from './useUnifiedItems'
+import type { UnifiedItem } from './useUnifiedItems'
 
 interface UseUnifiedSortingOptions {
   unifiedItems: UnifiedItem[]

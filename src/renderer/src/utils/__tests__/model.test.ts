@@ -1,4 +1,4 @@
-import { Model, ModelTag } from '@renderer/types'
+import type { Model, ModelTag } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 import { getModelTags, isFreeModel } from '../model'

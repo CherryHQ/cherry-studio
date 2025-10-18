@@ -1,4 +1,4 @@
-import { Message, Topic } from '@renderer/types'
+import type { Message, Topic } from '@renderer/types'
 import i18next from 'i18next'
 
 import { messageToPlainText, topicToMarkdown, topicToPlainText } from './export'

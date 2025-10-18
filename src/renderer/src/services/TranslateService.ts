@@ -1,13 +1,14 @@
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
-import {
+import type {
   CustomTranslateLanguage,
   FetchChatCompletionOptions,
   TranslateHistory,
   TranslateLanguage,
   TranslateLanguageCode
 } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { readyToAbort } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
@@ -35,7 +36,7 @@ export const translateText = async (
   abortKey?: string
 ) => {
   let abortError
-  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+  const assistant = await getDefaultTranslateAssistant(targetLanguage, text)
 
   const signal = abortKey ? readyToAbort(abortKey) : undefined
 

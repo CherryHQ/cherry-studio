@@ -1,15 +1,16 @@
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { AgentSessionEntity } from '@renderer/types'
+import type { AgentSessionEntity } from '@renderer/types'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -21,12 +22,10 @@ import {
 } from '@renderer/ui/context-menu'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Tooltip } from 'antd'
 import { MenuIcon, XIcon } from 'lucide-react'
-import React, { FC, memo, startTransition, useEffect, useMemo, useState } from 'react'
+import React, { type FC, memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
 // const logger = loggerService.withContext('AgentItem')
 
 interface SessionItemProps {
@@ -58,9 +57,9 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     return (
       <Tooltip
         placement="bottom"
-        mouseEnterDelay={0.7}
-        mouseLeaveDelay={0}
-        title={
+        delay={700}
+        closeDelay={0}
+        content={
           <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
             {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
           </div>
@@ -107,7 +106,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     }
   }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
 
-  const { topicPosition, setTopicPosition } = useSettings()
+  const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const singlealone = topicPosition === 'right'
 
   return (

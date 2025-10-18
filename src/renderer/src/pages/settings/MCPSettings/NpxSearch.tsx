@@ -1,11 +1,13 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
+import { Center, RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
-import { Center, HStack } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Button, Card, Flex, Input, Space, Spin, Tag, Typography } from 'antd'
+import { Card, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,7 +105,7 @@ const NpxSearch: FC = () => {
     <Container>
       <Center>
         <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
-          <Center style={{ marginBottom: 15 }}>
+          <Center className="mb-[15px]">
             <img src={logo} alt="npm" width={120} />
           </Center>
           <Space.Compact style={{ width: '100%' }}>
@@ -116,7 +118,7 @@ const NpxSearch: FC = () => {
               styles={{ input: { borderRadius: 100 } }}
             />
           </Space.Compact>
-          <HStack alignItems="center" justifyContent="center">
+          <RowFlex className="items-center justify-center">
             {npmScopes.map((scope) => (
               <Tag
                 key={scope}
@@ -132,7 +134,7 @@ const NpxSearch: FC = () => {
                 {scope}
               </Tag>
             ))}
-          </HStack>
+          </RowFlex>
         </Space>
       </Center>
       {searchLoading && (
@@ -160,12 +162,12 @@ const NpxSearch: FC = () => {
                       v{record.version}
                     </Tag>
                     <Button
-                      type="text"
-                      icon={
+                      variant="light"
+                      startContent={
                         isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />
                       }
-                      size="small"
-                      onClick={() => {
+                      size="sm"
+                      onPress={() => {
                         if (isInstalled) {
                           return
                         }
@@ -185,6 +187,7 @@ const NpxSearch: FC = () => {
                         addMCPServer(newServer)
                         window.toast.success(t('settings.mcp.addSuccess'))
                       }}
+                      isIconOnly
                     />
                   </Flex>
                 }>

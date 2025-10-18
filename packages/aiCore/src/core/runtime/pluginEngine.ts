@@ -1,6 +1,13 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
-import { ImageModelV2 } from '@ai-sdk/provider'
-import { experimental_generateImage, generateObject, generateText, LanguageModel, streamObject, streamText } from 'ai'
+import type { ImageModelV2 } from '@ai-sdk/provider'
+import type {
+  experimental_generateImage,
+  generateObject,
+  generateText,
+  LanguageModel,
+  streamObject,
+  streamText
+} from 'ai'
 
 import { type AiPlugin, createContext, PluginManager } from '../plugins'
 import { type ProviderId } from '../providers/types'

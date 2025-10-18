@@ -1,3 +1,4 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -6,12 +7,14 @@ import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileMetadata, FileTypes, isKnowledgeFileItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Button, Tooltip, Upload } from 'antd'
+import { Upload } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -140,13 +143,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddFile()
-          }}
-          disabled={disabled}>
+          size="sm"
+          variant="solid"
+          color="primary"
+          startContent={<PlusIcon size={16} />}
+          onPress={handleAddFile}
+          isDisabled={disabled}>
           {t('knowledge.add_file')}
         </ResponsiveButton>
       </ItemHeader>
@@ -191,7 +193,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
-                            <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            <Tooltip content={file.origin_name}>{file.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),
@@ -200,7 +202,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                              <RefreshIcon />
+                            </Button>
                           )}
                           {showPreprocessIcon(item) && (
                             <StatusIconWrapper>
@@ -222,12 +226,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button
-                            type="text"
-                            danger
-                            onClick={() => removeItem(item)}
-                            icon={<DeleteIcon size={14} className="lucide-custom" />}
-                          />
+                          <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
                         </FlexAlignCenter>
                       )
                     }}
