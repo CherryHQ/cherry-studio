@@ -13,6 +13,7 @@ jobs:
     steps:
       - name: Delete merged branch
         uses: actions/github-script@v8
+        continue-on-error: true
         with:
           script: |
             github.rest.git.deleteRef({
