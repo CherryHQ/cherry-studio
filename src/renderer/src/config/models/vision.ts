@@ -15,6 +15,7 @@ const visionAllowedModels = [
   'gemini-(flash|pro|flash-lite)-latest',
   'gemini-exp',
   'claude-3',
+  'claude-haiku-4',
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',

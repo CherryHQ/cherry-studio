@@ -431,6 +431,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   anthropic: [
     {
+      id: 'claude-haiku-4-5-20251001',
+      provider: 'anthropic',
+      name: 'Claude Haiku 4.5',
+      group: 'Claude 4.5'
+    },
+    {
       id: 'claude-sonnet-4-5-20250929',
       provider: 'anthropic',
       name: 'Claude Sonnet 4.5',
