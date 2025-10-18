@@ -18,9 +18,10 @@ interface Props {
   activegroup?: string
   onClick: () => void
   getLocalizedGroupName: (group: string) => string
+  viewMode?: 'grid' | 'list'
 }
 
-const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocalizedGroupName }) => {
+const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocalizedGroupName, viewMode = 'grid' }) => {
   const { removeAssistantPreset } = useAssistantPresets()
   const [isVisible, setIsVisible] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -129,11 +130,12 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
   const prompt = (preset.description || preset.prompt).substring(0, 200).replace(/\\n/g, '')
 
   const content = (
-    <AgentCardContainer onClick={onClick} ref={cardRef}>
+    <AgentCardContainer onClick={onClick} ref={cardRef} $viewMode={viewMode}>
       {isVisible && (
-        <AgentCardBody>
-          <AgentCardBackground>{emoji}</AgentCardBackground>
-          <AgentCardHeader>
+        <AgentCardBody $viewMode={viewMode}>
+          {viewMode === 'grid' && <AgentCardBackground>{emoji}</AgentCardBackground>}
+          <AgentCardHeader $viewMode={viewMode}>
+            {viewMode === 'list' && emoji && <HeaderInfoEmoji $viewMode={viewMode}>{emoji}</HeaderInfoEmoji>}
             <AgentCardHeaderInfo>
               <AgentCardHeaderInfoTitle>{preset.name}</AgentCardHeaderInfoTitle>
               <AgentCardHeaderInfoTags>
@@ -152,7 +154,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
             </AgentCardHeaderInfo>
             {activegroup === '我的' ? (
               <AgentCardHeaderInfoAction>
-                {emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>}
+                {emoji && viewMode === 'grid' && <HeaderInfoEmoji $viewMode={viewMode}>{emoji}</HeaderInfoEmoji>}
                 <Dropdown
                   menu={{
                     items: menuItems
@@ -172,12 +174,19 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
                 </Dropdown>
               </AgentCardHeaderInfoAction>
             ) : (
-              emoji && <HeaderInfoEmoji>{emoji}</HeaderInfoEmoji>
+              emoji && viewMode === 'grid' && <HeaderInfoEmoji $viewMode={viewMode}>{emoji}</HeaderInfoEmoji>
             )}
           </AgentCardHeader>
-          <CardInfo>
-            <AgentPrompt>{prompt}</AgentPrompt>
-          </CardInfo>
+          {viewMode === 'grid' && (
+            <CardInfo>
+              <AgentPrompt>{prompt}</AgentPrompt>
+            </CardInfo>
+          )}
+          {viewMode === 'list' && (
+            <ListPromptContainer>
+              <ListPrompt>{prompt}</ListPrompt>
+            </ListPromptContainer>
+          )}
         </AgentCardBody>
       )}
     </AgentCardContainer>
@@ -207,11 +216,11 @@ const AgentCardHeaderInfoAction = styled.div`
   justify-content: flex-end;
 `
 
-const HeaderInfoEmoji = styled.div`
-  width: 45px;
-  height: 45px;
+const HeaderInfoEmoji = styled.div<{ $viewMode?: 'grid' | 'list' }>`
+  width: ${(props) => (props.$viewMode === 'list' ? '50px' : '45px')};
+  height: ${(props) => (props.$viewMode === 'list' ? '50px' : '45px')};
   border-radius: var(--list-item-border-radius);
-  font-size: 26px;
+  font-size: ${(props) => (props.$viewMode === 'list' ? '24px' : '26px')};
   line-height: 1;
   flex-shrink: 0;
   opacity: 1;
@@ -228,11 +237,12 @@ const MenuButton = styled(Button)`
   transition: opacity 0.2s ease;
 `
 
-const AgentCardContainer = styled.div`
+const AgentCardContainer = styled.div<{ $viewMode: 'grid' | 'list' }>`
   border-radius: var(--list-item-border-radius);
   cursor: pointer;
   border: 0.5px solid var(--color-border);
-  padding: 16px;
+  padding: ${(props) => (props.$viewMode === 'list' ? '16px 20px' : '16px')};
+  min-height: ${(props) => (props.$viewMode === 'list' ? '80px' : 'auto')};
   overflow: hidden;
   transition:
     box-shadow 0.2s ease,
@@ -247,7 +257,7 @@ const AgentCardContainer = styled.div`
     box-shadow:
       0 10px 15px -3px var(--color-border-soft),
       0 4px 6px -4px var(--color-border-soft);
-    transform: translateY(-2px);
+    transform: ${(props) => (props.$viewMode === 'list' ? 'translateX(4px)' : 'translateY(-2px)')};
 
     ${AgentCardHeaderInfoAction} ${HeaderInfoEmoji} {
       opacity: 0;
@@ -261,7 +271,7 @@ const AgentCardContainer = styled.div`
   }
 `
 
-const AgentCardBody = styled.div`
+const AgentCardBody = styled.div<{ $viewMode: 'grid' | 'list' }>`
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -272,7 +282,9 @@ const AgentCardBody = styled.div`
   }
   height: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: ${(props) => (props.$viewMode === 'list' ? 'row' : 'column')};
+  gap: ${(props) => (props.$viewMode === 'list' ? '20px' : '0')};
+  align-items: ${(props) => (props.$viewMode === 'list' ? 'center' : 'unset')};
   position: relative;
   animation: fadeIn 0.2s ease;
 `
@@ -293,12 +305,13 @@ const AgentCardBackground = styled.div`
   overflow: hidden;
 `
 
-const AgentCardHeader = styled.div`
+const AgentCardHeader = styled.div<{ $viewMode?: 'grid' | 'list' }>`
   display: flex;
   align-items: flex-start;
   gap: 8px;
   justify-content: flex-start;
   overflow: hidden;
+  flex: ${(props) => (props.$viewMode === 'list' ? '1' : 'unset')};
 `
 
 const AgentCardHeaderInfo = styled.div`
@@ -344,6 +357,26 @@ const AgentPrompt = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   color: var(--color-text-2);
+`
+
+const ListPromptContainer = styled.div`
+  flex: 1;
+  display: flex;
+  background-color: var(--color-background-soft);
+  padding: 10px 12px;
+  border-radius: 10px;
+  max-width: 60%;
+`
+
+const ListPrompt = styled.div`
+  font-size: 13px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-text-2);
+  flex: 1;
 `
 
 export default memo(AssistantPresetCard)
