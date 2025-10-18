@@ -4098,7 +4098,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию preview"
+          "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию v1"
         }
       },
       "basic_auth": {
