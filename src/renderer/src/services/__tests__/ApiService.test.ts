@@ -229,8 +229,10 @@ vi.mock('@renderer/store/llm.ts', () => {
         location: ''
       },
       awsBedrock: {
+        authType: 'iam',
         accessKeyId: '',
         secretAccessKey: '',
+        apiKey: '',
         region: ''
       }
     }
