@@ -70,7 +70,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.modelscope,
   SystemProviderIds.aihubmix,
   SystemProviderIds.grok,
-  SystemProviderIds.cherryin
+  SystemProviderIds.cherryin,
+  SystemProviderIds.longcat
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -259,7 +260,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isOpenAICompatibleProvider(provider)) {
-      if (provider.id === SystemProviderIds.doubao) return formatApiHost(apiHost, true, 'v3') + '/chat/completions'
       return formatApiHost(apiHost, isSupportAPIVersionProvider(provider)) + '/chat/completions'
     }
 

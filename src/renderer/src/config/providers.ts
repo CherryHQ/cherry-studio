@@ -1440,7 +1440,7 @@ export const isNewApiProvider = (provider: Provider) => {
   return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
 }
 
-const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'ppio'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
 
 export const isSupportAPIVersionProvider = (provider: Provider) => {
   if (isSystemProvider(provider)) {
