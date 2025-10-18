@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isAllowedMcpCommand } from '@main/utils/mcp'
 import { nanoid } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MCPServer } from '@types'
@@ -9,6 +10,14 @@ const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
 
 function installMCPServer(server: MCPServer) {
   const mainWindow = windowService.getMainWindow()
+
+  if (server.command && !isAllowedMcpCommand(server.command)) {
+    logger.warn(`Ignoring MCP server with unsupported command`, {
+      name: server.name,
+      command: server.command
+    })
+    return
+  }
 
   if (!server.id) {
     server.id = nanoid()
