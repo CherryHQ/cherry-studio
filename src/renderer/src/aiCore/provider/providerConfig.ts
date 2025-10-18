@@ -6,7 +6,12 @@ import {
   type ProviderSettingsMap
 } from '@cherrystudio/ai-core/provider'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
+import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isNewApiProvider
+} from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockRegion,
@@ -16,7 +21,6 @@ import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@r
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import { isAnthropicProvider, isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils'
 import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost } from '@renderer/utils/api'
 import { cloneDeep, trim } from 'lodash'
 

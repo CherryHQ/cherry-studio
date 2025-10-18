@@ -4,7 +4,16 @@ import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { isNewApiProvider, isSupportAPIVersionProvider, PROVIDER_URLS } from '@renderer/config/providers'
+import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isSupportAPIVersionProvider,
+  PROVIDER_URLS
+} from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -23,12 +32,7 @@ import {
   formatApiKeys,
   formatAzureOpenAIApiHost,
   formatVertexApiHost,
-  getFancyProviderName,
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider
+  getFancyProviderName
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
