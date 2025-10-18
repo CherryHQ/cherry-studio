@@ -157,7 +157,6 @@ class SelectiveDispatcher extends Dispatcher {
   dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
     if (opts.origin) {
       if (isByPass(opts.origin.toString())) {
-        logger.info(`bypass proxy: ${opts.origin.toString()}`)
         return this.directDispatcher.dispatch(opts, handler)
       }
     }
@@ -367,7 +366,6 @@ export class ProxyManager {
       // filter localhost
       if (url) {
         if (isByPass(url.toString())) {
-          logger.info(`bypass proxy: ${url.toString()}`)
           return originalMethod(url, options, callback)
         }
       }
