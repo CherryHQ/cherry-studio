@@ -1,6 +1,6 @@
+import { ChatCompletionContentPart, ChatCompletionMessageParam } from '@cherrystudio/openai/resources'
 import { Model } from '@renderer/types'
 import { findLast } from 'lodash'
-import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources'
 
 export function processReqMessages(
   model: Model,

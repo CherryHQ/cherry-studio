@@ -2677,6 +2677,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@cherrystudio/openai@npm:^6.5.0, openai@npm:@cherrystudio/openai@6.5.0":
+  version: 6.5.0
+  resolution: "@cherrystudio/openai@npm:6.5.0"
+  peerDependencies:
+    ws: ^8.18.0
+    zod: ^3.25 || ^4.0
+  peerDependenciesMeta:
+    ws:
+      optional: true
+    zod:
+      optional: true
+  bin:
+    openai: bin/cli
+  checksum: 10c0/0f6cafb97aec17037d5ddcccc88e4b4a9c8de77a989a35bab2394b682a1a69e8a9343e8ee5eb8107d5c495970dbf3567642f154c033f7afc3bf078078666a92e
+  languageName: node
+  linkType: hard
+
 "@chevrotain/cst-dts-gen@npm:11.0.3":
   version: 11.0.3
   resolution: "@chevrotain/cst-dts-gen@npm:11.0.3"
@@ -13974,6 +13991,7 @@ __metadata:
     "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@cherrystudio/extension-table-plus": "workspace:^"
+    "@cherrystudio/openai": "npm:^6.5.0"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
@@ -14154,7 +14172,6 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
-    openai: "patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch"
     os-proxy-config: "npm:^1.1.2"
     oxlint: "npm:^1.22.0"
     oxlint-tsgolint: "npm:^0.2.0"
@@ -24010,23 +24027,6 @@ __metadata:
   bin:
     openai: bin/cli
   checksum: 10c0/7737b9b24edc81fcf9e6dcfb18a196cc0f8e29b6e839adf06a2538558c03908e3aa4cd94901b1a7f4a9dd62676fe9e34d6202281b2395090d998618ea1614c0c
-  languageName: node
-  linkType: hard
-
-"openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch":
-  version: 5.12.2
-  resolution: "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch::version=5.12.2&hash=ad5d10"
-  peerDependencies:
-    ws: ^8.18.0
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    ws:
-      optional: true
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/2964a1c88a98cf169c9b73e8cd6776c03c8f3103fee30961c6953e5d995ad57a697e2179615999356809349186df6496abae105928ff7ce0229e5016dec87cb3
   languageName: node
   linkType: hard
 

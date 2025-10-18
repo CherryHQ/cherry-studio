@@ -1,10 +1,10 @@
+import OpenAI from '@cherrystudio/openai'
+import { toFile } from '@cherrystudio/openai/uploads'
 import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
 import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
-import OpenAI from 'openai'
-import { toFile } from 'openai/uploads'
 
 import { BaseApiClient } from '../../clients/BaseApiClient'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
