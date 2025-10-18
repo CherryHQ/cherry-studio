@@ -1,5 +1,8 @@
 import { NormalToolResponse } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, ToolMessageBlock } from '@renderer/types/newMessage'
+import { TFunction } from 'i18next'
+import { Pause } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { MessageAgentTools } from './MessageAgentTools'
 import { MessageKnowledgeSearchToolTitle } from './MessageKnowledgeSearch'
@@ -35,14 +38,28 @@ const isAgentTool = (toolName: string) => {
   return false
 }
 
-const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null => {
+const ChooseTool = (
+  toolResponse: NormalToolResponse,
+  status: MessageBlockStatus,
+  t: TFunction
+): React.ReactNode | null => {
   let toolName = toolResponse.tool.name
   const toolType = toolResponse.tool.type
   if (toolName.startsWith(prefix)) {
     toolName = toolName.slice(prefix.length)
+    if (status === MessageBlockStatus.PAUSED) {
+      return (
+        <div className="flex items-center gap-1">
+          <Pause className="h-4 w-4" />
+          <span>{t('message.tools.aborted')}</span>
+        </div>
+      )
+    }
     switch (toolName) {
       case 'web_search':
       case 'web_search_preview':
+      case 'exa_search':
+      case 'tavily_search':
         return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
       case 'knowledge_search':
         return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
@@ -58,12 +75,13 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
 }
 
 export default function MessageTool({ block }: Props) {
+  const { t } = useTranslation()
   // FIXME: 语义错误，这里已经不是 MCP tool 了,更改rawMcpToolResponse需要改用户数据, 所以暂时保留
   const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse
 
   if (!toolResponse) return null
 
-  const toolRenderer = ChooseTool(toolResponse as NormalToolResponse)
+  const toolRenderer = ChooseTool(toolResponse as NormalToolResponse, block.status, t)
 
   if (!toolRenderer) return null
 

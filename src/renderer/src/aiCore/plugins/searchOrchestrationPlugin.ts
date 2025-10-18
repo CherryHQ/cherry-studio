@@ -24,8 +24,10 @@ import { generateText } from 'ai'
 import { isEmpty } from 'lodash'
 
 import { MemoryProcessor } from '../../services/MemoryProcessor'
+import { exaSearchTool } from '../tools/ExaSearchTool'
 import { knowledgeSearchTool } from '../tools/KnowledgeSearchTool'
 import { memorySearchTool } from '../tools/MemorySearchTool'
+import { tavilySearchTool } from '../tools/TavilySearchTool'
 import { webSearchToolWithPreExtractedKeywords } from '../tools/WebSearchTool'
 
 const logger = loggerService.withContext('SearchOrchestrationPlugin')
@@ -316,13 +318,28 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
           const needsSearch = analysisResult.websearch.question && analysisResult.websearch.question[0] !== 'not_needed'
 
           if (needsSearch) {
-            // onChunk({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
-            // logger.info('🌐 Adding web search tool with pre-extracted keywords')
-            params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
-              assistant.webSearchProviderId,
-              analysisResult.websearch,
-              context.requestId
-            )
+            // 根据 Provider ID 动态选择工具
+            switch (assistant.webSearchProviderId) {
+              case 'exa':
+                logger.info('🌐 Adding Exa search tool (provider-specific)')
+                // Exa 工具直接接受单个查询字符串，使用第一个问题或合并所有问题
+                params.tools['builtin_exa_search'] = exaSearchTool(context.requestId)
+                break
+              case 'tavily':
+                logger.info('🌐 Adding Tavily search tool (provider-specific)')
+                // Tavily 工具直接接受单个查询字符串
+                params.tools['builtin_tavily_search'] = tavilySearchTool(context.requestId)
+                break
+              default:
+                logger.info('🌐 Adding web search tool with pre-extracted keywords')
+                // 其他 Provider 使用通用的 WebSearchTool
+                params.tools['builtin_web_search'] = webSearchToolWithPreExtractedKeywords(
+                  assistant.webSearchProviderId,
+                  analysisResult.websearch,
+                  context.requestId
+                )
+                break
+            }
           }
         }
 

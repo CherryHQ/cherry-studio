@@ -40,7 +40,7 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         .describe('Optional additional context, keywords, or specific focus to enhance the search')
     }),
 
-    execute: async ({ additionalContext }) => {
+    execute: async ({ additionalContext }, { abortSignal }) => {
       let finalQueries = [...extractedKeywords.question]
 
       if (additionalContext?.trim()) {
@@ -67,7 +67,15 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      // abortSignal?.addEventListener('abort', () => {
+      //   console.log('tool_call_abortSignal', abortSignal?.aborted)
+      // })
+      searchResults = await WebSearchService.processWebsearch(
+        webSearchProvider!,
+        extractResults,
+        requestId,
+        abortSignal
+      )
 
       return searchResults
     },

@@ -1,5 +1,5 @@
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import { ProviderSpecificParams, WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this
@@ -16,7 +16,8 @@ export default abstract class BaseWebSearchProvider {
   abstract search(
     query: string,
     websearch: WebSearchState,
-    httpOptions?: RequestInit
+    httpOptions?: RequestInit,
+    providerParams?: ProviderSpecificParams
   ): Promise<WebSearchProviderResponse>
 
   public getApiHost() {

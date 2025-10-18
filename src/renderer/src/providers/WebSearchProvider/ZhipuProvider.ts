@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import { ProviderSpecificParams, WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -43,7 +43,12 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
     }
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
+  public async search(
+    query: string,
+    websearch: WebSearchState,
+    httpOptions?: RequestInit,
+    _providerParams?: ProviderSpecificParams
+  ): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
@@ -62,7 +67,8 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
           'Content-Type': 'application/json',
           ...this.defaultHeaders()
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: httpOptions?.signal
       })
 
       if (!response.ok) {

@@ -84,7 +84,8 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         }
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
         // Handle citation block creation for web search results
-        if (toolResponse.tool.name === 'builtin_web_search' && toolResponse.response) {
+        const webSearchTools = ['builtin_web_search', 'builtin_exa_search', 'builtin_tavily_search']
+        if (webSearchTools.includes(toolResponse.tool.name) && toolResponse.response) {
           const citationBlock = createCitationBlock(
             assistantMsgId,
             {

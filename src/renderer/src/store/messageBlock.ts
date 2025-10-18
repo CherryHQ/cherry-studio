@@ -4,6 +4,7 @@ import { createEntityAdapter, createSelector, createSlice, type PayloadAction } 
 import { AISDKWebSearchResult, Citation, WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
+import { adaptSearchResultsToCitations } from '@renderer/utils/searchResultAdapters'
 import type OpenAI from 'openai'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
@@ -217,17 +218,12 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
-      case WebSearchSource.WEBSEARCH:
-        formattedCitations =
-          (block.response.results as WebSearchProviderResponse)?.results?.map((result, index) => ({
-            number: index + 1,
-            url: result.url,
-            title: result.title,
-            content: result.content,
-            showFavicon: true,
-            type: 'websearch'
-          })) || []
+      case WebSearchSource.WEBSEARCH: {
+        const results = (block.response.results as WebSearchProviderResponse)?.results || []
+        // 使用适配器统一转换，自动处理 Provider 特定字段（如 Exa 的 favicon、Tavily 的 answer 等）
+        formattedCitations = adaptSearchResultsToCitations(results)
         break
+      }
       case WebSearchSource.AISDK:
         formattedCitations =
           (block.response?.results as AISDKWebSearchResult[])?.map((result, index) => ({

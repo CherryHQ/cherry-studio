@@ -1,3 +1,5 @@
+import { ExaSearchToolInput, ExaSearchToolOutput } from '@renderer/aiCore/tools/ExaSearchTool'
+import { TavilySearchToolInput, TavilySearchToolOutput } from '@renderer/aiCore/tools/TavilySearchTool'
 import { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import { NormalToolResponse } from '@renderer/types'
@@ -8,17 +10,31 @@ import styled from 'styled-components'
 
 const { Text } = Typography
 
+// 联合类型 - 支持多种搜索工具
+type SearchToolInput = WebSearchToolInput | ExaSearchToolInput | TavilySearchToolInput
+type SearchToolOutput = WebSearchToolOutput | ExaSearchToolOutput | TavilySearchToolOutput
+
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
-  const toolInput = toolResponse.arguments as WebSearchToolInput
-  const toolOutput = toolResponse.response as WebSearchToolOutput
+  const toolInput = toolResponse.arguments as SearchToolInput
+  const toolOutput = toolResponse.response as SearchToolOutput
+  // 根据不同的工具类型获取查询内容
+  const getQueryText = () => {
+    if ('additionalContext' in toolInput) {
+      return toolInput.additionalContext ?? ''
+    }
+    if ('query' in toolInput) {
+      return toolInput.query ?? ''
+    }
+    return ''
+  }
 
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
         <PrepareToolWrapper>
           {t('message.searching')}
-          <span>{toolInput?.additionalContext ?? ''}</span>
+          <span>{getQueryText()}</span>
         </PrepareToolWrapper>
       }
     />

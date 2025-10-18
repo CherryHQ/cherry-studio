@@ -579,15 +579,61 @@ export type WebSearchProvider = {
   modelName?: string
 }
 
-export type WebSearchProviderResult = {
+// 基础搜索结果（所有 Provider 必须实现）
+export interface BaseSearchResult {
   title: string
   content: string
   url: string
 }
 
+// Exa Provider 特定扩展
+export interface ExaSearchResult extends BaseSearchResult {
+  favicon?: string
+  publishedDate?: string
+  author?: string
+  score?: number
+  highlights?: string[]
+}
+
+// Tavily Provider 特定扩展
+export interface TavilySearchResult extends BaseSearchResult {
+  answer?: string // Tavily 的 AI 直接答案
+  images?: string[]
+  rawContent?: string
+  score?: number
+}
+
+// 联合类型 - 向后兼容
+export type WebSearchProviderResult = BaseSearchResult | ExaSearchResult | TavilySearchResult
+
 export type WebSearchProviderResponse = {
   query?: string
   results: WebSearchProviderResult[]
+}
+
+// Provider 特定参数类型
+export interface ExaSearchParams {
+  type?: 'neural' | 'keyword' | 'auto' | 'fast'
+  category?: string
+  startPublishedDate?: string
+  endPublishedDate?: string
+  startCrawlDate?: string
+  endCrawlDate?: string
+  useAutoprompt?: boolean
+}
+
+export interface TavilySearchParams {
+  topic?: 'general' | 'news' | 'finance'
+  searchDepth?: 'basic' | 'advanced'
+  includeAnswer?: boolean
+  includeRawContent?: boolean
+  includeImages?: boolean
+}
+
+// 联合类型 - 支持不同 Provider 的特定参数
+export interface ProviderSpecificParams {
+  exa?: ExaSearchParams
+  tavily?: TavilySearchParams
 }
 
 export type AISDKWebSearchResult = Omit<Extract<LanguageModelV2Source, { sourceType: 'url' }>, 'sourceType'>
@@ -818,6 +864,7 @@ export interface Citation {
   hostname?: string
   content?: string
   showFavicon?: boolean
+  favicon?: string // 新增：直接的 favicon URL（来自 Provider）
   type?: string
   metadata?: Record<string, any>
 }
