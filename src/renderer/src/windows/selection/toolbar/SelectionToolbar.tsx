@@ -204,31 +204,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
   }, [setTimeoutTimer])
 
-  const handleAction = useCallback(
-    (action: ActionItem) => {
-      if (demo) return
-
-      /** avoid mutating the original action, it will cause syncing issue */
-      const newAction = { ...action, selectedText: selectedText.current }
-
-      switch (action.id) {
-        case 'copy':
-          handleCopy()
-          break
-        case 'search':
-          handleSearch(newAction)
-          break
-        case 'quote':
-          handleQuote(newAction)
-          break
-        default:
-          handleDefaultAction(newAction)
-          break
-      }
-    },
-    [demo, handleCopy]
-  )
-
   const handleSearch = (action: ActionItem) => {
     if (!action.searchEngine) return
 
@@ -255,6 +230,31 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     window.api?.selection.processAction(action, isFullScreen.current)
     window.api?.selection.hideToolbar()
   }
+
+  const handleAction = useCallback(
+    (action: ActionItem) => {
+      if (demo) return
+
+      /** avoid mutating the original action, it will cause syncing issue */
+      const newAction = { ...action, selectedText: selectedText.current }
+
+      switch (action.id) {
+        case 'copy':
+          handleCopy()
+          break
+        case 'search':
+          handleSearch(newAction)
+          break
+        case 'quote':
+          handleQuote(newAction)
+          break
+        default:
+          handleDefaultAction(newAction)
+          break
+      }
+    },
+    [demo, handleCopy]
+  )
 
   return (
     <Container>

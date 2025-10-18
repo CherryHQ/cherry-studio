@@ -9,7 +9,7 @@ import { findNode } from '@renderer/services/NotesTreeService'
 import { Dropdown, Input, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { menuItems } from './MenuConfig'
@@ -19,9 +19,6 @@ const logger = loggerService.withContext('HeaderNavbar')
 const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpandPath, onRenameNode }) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree)
-  const [breadcrumbItems, setBreadcrumbItems] = useState<
-    Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
-  >([])
   const [titleValue, setTitleValue] = useState('')
   const titleInputRef = useRef<any>(null)
   const { settings, updateSettings } = useNotesSettings()
@@ -141,18 +138,17 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   // 同步标题值
   useEffect(() => {
     if (activeNode?.type === 'file') {
-      setTitleValue(activeNode.name.replace('.md', ''))
+      startTransition(() => setTitleValue(activeNode.name.replace('.md', '')))
     }
   }, [activeNode])
 
   // 构建面包屑路径
-  useEffect(() => {
+  const breadcrumbItems = useMemo(() => {
     if (!activeNode || !notesTree) {
-      setBreadcrumbItems([])
-      return
+      return []
     }
     const node = findNode(notesTree, activeNode.id)
-    if (!node) return
+    if (!node) return []
 
     const pathParts = node.treePath.split('/').filter(Boolean)
     const items = pathParts.map((part, index) => {
@@ -166,7 +162,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       }
     })
 
-    setBreadcrumbItems(items)
+    return items
   }, [activeNode, notesTree])
 
   return (

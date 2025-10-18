@@ -63,39 +63,6 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
     ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
   ).filter(Boolean)
 
-  const ModalContent = () => {
-    if (isLoading) {
-      // TODO: use skeleton for better ux
-      return <Spinner />
-    }
-    if (error) {
-      return (
-        <div>
-          <Alert color="danger" title={t('agent.get.error.failed')} />
-        </div>
-      )
-    }
-    return (
-      <div className="flex w-full flex-1">
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
-            mode="vertical"
-            selectedKeys={[menu]}
-            items={items}
-            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
-          />
-        </LeftMenu>
-        <Settings>
-          {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
-        </Settings>
-      </div>
-    )
-  }
-
   return (
     <StyledModal
       open={open}
@@ -129,7 +96,31 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       }}
       width="min(800px, 70vw)"
       centered>
-      <ModalContent />
+      {isLoading && <Spinner />}
+      {!isLoading && error && (
+        <div>
+          <Alert color="danger" title={t('agent.get.error.failed')} />
+        </div>
+      )}
+      {!isLoading && !error && (
+        <div className="flex w-full flex-1">
+          <LeftMenu>
+            <StyledMenu
+              defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
+              mode="vertical"
+              selectedKeys={[menu]}
+              items={items}
+              onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
+            />
+          </LeftMenu>
+          <Settings>
+            {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
+            {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
+            {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
+            {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
+          </Settings>
+        </div>
+      )}
     </StyledModal>
   )
 }

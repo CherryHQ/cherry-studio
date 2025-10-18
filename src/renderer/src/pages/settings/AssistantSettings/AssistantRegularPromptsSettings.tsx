@@ -5,7 +5,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { Assistant, QuickPhrase } from '@renderer/types'
 import { Button, Flex, Input, Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
@@ -21,15 +21,12 @@ interface AssistantRegularPromptsSettingsProps {
 
 const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> = ({ assistant, updateAssistant }) => {
   const { t } = useTranslation()
-  const [promptsList, setPromptsList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPrompt, setEditingPrompt] = useState<QuickPhrase | null>(null)
   const [formData, setFormData] = useState({ title: '', content: '' })
   const [dragging, setDragging] = useState(false)
 
-  useEffect(() => {
-    setPromptsList(assistant.regularPhrases || [])
-  }, [assistant.regularPhrases])
+  const promptsList: QuickPhrase[] = useMemo(() => assistant.regularPhrases || [], [assistant.regularPhrases])
 
   const handleAdd = () => {
     setEditingPrompt(null)
@@ -45,7 +42,6 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
 
   const handleDelete = async (id: string) => {
     const updatedPrompts = promptsList.filter((prompt) => prompt.id !== id)
-    setPromptsList(updatedPrompts)
     updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
   }
 
@@ -68,13 +64,11 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       }
       updatedPrompts = [...promptsList, newPrompt]
     }
-    setPromptsList(updatedPrompts)
     updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
     setIsModalOpen(false)
   }
 
   const handleUpdateOrder = async (newPrompts: QuickPhrase[]) => {
-    setPromptsList(newPrompts)
     updateAssistant({ ...assistant, regularPhrases: newPrompts })
   }
 
