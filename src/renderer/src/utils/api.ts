@@ -63,8 +63,10 @@ export function formatApiHost(host?: string, isSupportedAPIVerion: boolean = tru
  * 格式化 Azure OpenAI 的 API 主机地址。
  */
 export function formatAzureOpenAIApiHost(host: string): string {
-  const normalizedHost = withoutTrailingSlash(host)?.replace(/\/openai$/, '')
-  // AISDK会添加上`v1`
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    .replace(/\/openai$/, '')
+  // NOTE: AISDK会添加上`v1`
   return formatApiHost(normalizedHost + '/openai', false)
 }
 
