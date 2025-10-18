@@ -4,6 +4,7 @@ import { app, ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
+import * as ipaddr from 'ipaddr.js'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
@@ -11,36 +12,132 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 const logger = loggerService.withContext('ProxyManager')
 let byPassRules: string[] = []
 
+/**
+ * Check if a hostname matches a wildcard pattern
+ * Supports:
+ * - Exact match: "example.com" matches "example.com"
+ * - Wildcard subdomain: "*.example.com" matches "sub.example.com", "api.example.com"
+ * - Leading dot: ".example.com" is treated as "*.example.com"
+ */
+export const matchWildcardDomain = (hostname: string, pattern: string): boolean => {
+  // Handle leading dot (convert to wildcard)
+  const normalizedPattern = pattern.startsWith('.') ? '*' + pattern : pattern
+
+  // Exact match
+  if (normalizedPattern === hostname) {
+    return true
+  }
+
+  // Wildcard match
+  if (normalizedPattern.startsWith('*.')) {
+    const domain = normalizedPattern.slice(2) // Remove "*."
+    return hostname === domain || hostname.endsWith('.' + domain)
+  }
+
+  return false
+}
+
+/**
+ * Check if an IP address matches a rule (single IP, wildcard, or CIDR)
+ */
+export const matchIpRule = (ip: string, rule: string): boolean => {
+  try {
+    // Handle IPv6 addresses in brackets
+    const cleanIp = ip.replace(/^\[|\]$/g, '')
+    const cleanRule = rule.replace(/^\[|\]$/g, '')
+
+    // Check if it's a CIDR notation
+    if (cleanRule.includes('/')) {
+      const addr = ipaddr.process(cleanIp)
+      const [rangeIp, prefix] = cleanRule.split('/')
+      const range = ipaddr.process(rangeIp)
+
+      // Validate prefix is a valid number
+      const prefixNum = parseInt(prefix)
+      if (isNaN(prefixNum) || prefixNum < 0 || prefixNum > 128) {
+        return false
+      }
+
+      // Check if both are same type (IPv4 or IPv6)
+      if (addr.kind() !== range.kind()) {
+        return false
+      }
+
+      return addr.match(range, prefixNum)
+    }
+
+    // Handle wildcard IP (e.g., 192.168.1.*)
+    if (cleanRule.includes('*')) {
+      const rulePattern = cleanRule.replace(/\./g, '\\.').replace(/\*/g, '\\d+')
+      return new RegExp(`^${rulePattern}$`).test(cleanIp)
+    }
+
+    // Exact IP match
+    return cleanIp === cleanRule
+  } catch (error) {
+    return false
+  }
+}
+
 const isByPass = (url: string) => {
   if (byPassRules.length === 0) {
     return false
   }
 
   try {
-    const subjectUrlTokens = new URL(url)
+    const parsedUrl = new URL(url)
+    const hostname = parsedUrl.hostname
+    const port = parsedUrl.port
+
     for (const rule of byPassRules) {
-      const ruleMatch = rule.replace(/^(?<leadingDot>\.)/, '*').match(/^(?<hostname>.+?)(?::(?<port>\d+))?$/)
-
-      if (!ruleMatch || !ruleMatch.groups) {
-        logger.warn('Failed to parse bypass rule:', { rule })
+      const trimmedRule = rule.trim()
+      if (!trimmedRule) {
         continue
       }
 
-      if (!ruleMatch.groups.hostname) {
+      // Special keyword: <local>
+      // Matches all hostnames without a dot (local network addresses)
+      if (trimmedRule === '<local>') {
+        if (!hostname.includes('.') && !hostname.includes(':')) {
+          return true
+        }
         continue
       }
 
-      const hostnameIsMatch = subjectUrlTokens.hostname === ruleMatch.groups.hostname
+      // Extract port from rule if present
+      const portMatch = trimmedRule.match(/^(.+?):(\d+)$/)
+      const ruleHost = portMatch ? portMatch[1] : trimmedRule
+      const rulePort = portMatch ? portMatch[2] : null
 
+      // If rule specifies a port, it must match
+      if (rulePort && port !== rulePort) {
+        continue
+      }
+
+      // Try to parse as IP address first
+      if (ipaddr.isValid(hostname)) {
+        if (matchIpRule(hostname, ruleHost)) {
+          return true
+        }
+        continue
+      }
+
+      // Check if rule is an IP-based rule
       if (
-        hostnameIsMatch &&
-        (!ruleMatch.groups ||
-          !ruleMatch.groups.port ||
-          (subjectUrlTokens.port && subjectUrlTokens.port === ruleMatch.groups.port))
+        ipaddr.isValid(ruleHost) ||
+        ruleHost.includes('/') || // CIDR
+        ruleHost.includes('*') // Wildcard IP
       ) {
+        // Rule is IP-based but hostname is not an IP, skip
+        continue
+      }
+
+      // Domain name matching (with wildcard support)
+      if (matchWildcardDomain(hostname, ruleHost)) {
         return true
       }
     }
+
     return false
   } catch (error) {
     logger.error('Failed to check bypass:', error as Error)
@@ -60,6 +157,7 @@ class SelectiveDispatcher extends Dispatcher {
   dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
     if (opts.origin) {
       if (isByPass(opts.origin.toString())) {
+        logger.info(`bypass proxy: ${opts.origin.toString()}`)
         return this.directDispatcher.dispatch(opts, handler)
       }
     }
@@ -165,7 +263,13 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || []
+      // Support both semicolon and comma as separators
+      byPassRules = config.proxyBypassRules
+        ? config.proxyBypassRules
+            .split(/[;,]/)
+            .map((rule) => rule.trim())
+            .filter((rule) => rule.length > 0)
+        : []
       this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
@@ -263,6 +367,7 @@ export class ProxyManager {
       // filter localhost
       if (url) {
         if (isByPass(url.toString())) {
+          logger.info(`bypass proxy: ${url.toString()}`)
           return originalMethod(url, options, callback)
         }
       }
