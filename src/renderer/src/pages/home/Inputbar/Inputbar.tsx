@@ -293,6 +293,53 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
 
+  const appendTxtContentToInput = useCallback(
+    async (file: FileType, event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      try {
+        const targetPath = file.path
+        const content = await window.api.file.readExternal(targetPath, true)
+        try {
+          await navigator.clipboard.writeText(content)
+        } catch (clipboardError) {
+          logger.warn('Failed to copy txt attachment content to clipboard:', clipboardError as Error)
+        }
+
+        setText((prev) => {
+          if (!prev) {
+            return content
+          }
+
+          const needsSeparator = !prev.endsWith('\n')
+          return needsSeparator ? `${prev}\n${content}` : prev + content
+        })
+
+        setFiles((prev) => prev.filter((currentFile) => currentFile.id !== file.id))
+
+        setTimeoutTimer(
+          'appendTxtAttachment',
+          () => {
+            const textArea = textareaRef.current?.resizableTextArea?.textArea
+            if (textArea) {
+              const end = textArea.value.length
+              textArea.focus()
+              textArea.setSelectionRange(end, end)
+            }
+
+            resizeTextArea(true)
+          },
+          0
+        )
+      } catch (error) {
+        logger.warn('Failed to append txt attachment content:', error as Error)
+        window.toast.error(t('chat.input.file_error'))
+      }
+    },
+    [resizeTextArea, setTimeoutTimer, t]
+  )
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {
@@ -831,7 +878,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
-          {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
+          {files.length > 0 && (
+            <AttachmentPreview files={files} setFiles={setFiles} onAttachmentContextMenu={appendTxtContentToInput} />
+          )}
           {selectedKnowledgeBases.length > 0 && (
             <KnowledgeBaseInput
               selectedKnowledgeBases={selectedKnowledgeBases}

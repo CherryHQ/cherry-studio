@@ -538,6 +538,7 @@
         "context": "Очистить контекст {{Command}}"
       },
       "new_topic": "Новый топик {{Command}}",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
