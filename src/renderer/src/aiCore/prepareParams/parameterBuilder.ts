@@ -4,6 +4,7 @@
  */
 
 import { anthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
 import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
@@ -98,10 +99,6 @@ export async function buildStreamTextParams(
 
   let tools = setupToolsConfig(mcpTools)
 
-  // if (webSearchProviderId) {
-  //   tools['builtin_web_search'] = webSearchTool(webSearchProviderId)
-  // }
-
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
     maxResults: store.getState().websearch.maxResults,
@@ -144,13 +141,15 @@ export async function buildStreamTextParams(
     }
   }
 
-  // google-vertex
   if (enableUrlContext) {
     if (!tools) {
       tools = {}
     }
     if (aiSdkProviderId === 'google-vertex') {
       tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+    }
+    if (aiSdkProviderId === 'google') {
+      tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
     }
     const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
     if (aiSdkProviderId === 'anthropic') {
