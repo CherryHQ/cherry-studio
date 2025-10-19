@@ -261,6 +261,7 @@ export class ToolCallChunkHandler {
       type: 'tool-result'
     } & TypedToolResult<ToolSet>
   ): void {
+    // TODO: 基于AI SDK为供应商内置工具做更好的展示和类型安全处理
     const { toolCallId, output, input } = chunk
 
     if (!toolCallId) {
