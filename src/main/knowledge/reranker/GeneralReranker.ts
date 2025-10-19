@@ -17,7 +17,27 @@ export default class GeneralReranker extends BaseReranker {
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        // Read the response body to get detailed error information
+        let errorBody: any
+        try {
+          errorBody = await response.json()
+        } catch {
+          // If response body is not JSON, try to read as text
+          try {
+            errorBody = await response.text()
+          } catch {
+            errorBody = null
+          }
+        }
+
+        const error = new Error(`HTTP ${response.status}: ${response.statusText}`)
+        // Attach response details to the error object for formatErrorMessage
+        ;(error as any).response = {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorBody
+        }
+        throw error
       }
 
       const data = await response.json()
