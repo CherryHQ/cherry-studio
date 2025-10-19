@@ -6,7 +6,14 @@
 
 import { loggerService } from '@logger'
 import { processKnowledgeReferences } from '@renderer/services/KnowledgeService'
-import { BaseTool, MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import {
+  BaseTool,
+  MCPCallToolResponse,
+  MCPTool,
+  MCPToolResponse,
+  MCPToolResultContent,
+  NormalToolResponse
+} from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import type { ToolSet, TypedToolCall, TypedToolError, TypedToolResult } from 'ai'
 
@@ -299,12 +306,7 @@ export class ToolCallChunkHandler {
         responses: [toolResponse]
       })
 
-      const images: string[] = []
-      for (const content of toolResponse.response?.content || []) {
-        if (content.type === 'image' && content.data) {
-          images.push(`data:${content.mimeType};base64,${content.data}`)
-        }
-      }
+      const images = extractImagesFromToolOutput(toolResponse.response)
 
       if (images.length) {
         this.onChunk({
@@ -351,3 +353,41 @@ export class ToolCallChunkHandler {
 }
 
 export const addActiveToolCall = ToolCallChunkHandler.addActiveToolCall.bind(ToolCallChunkHandler)
+
+function extractImagesFromToolOutput(output: unknown): string[] {
+  if (!output) {
+    return []
+  }
+
+  const contents: unknown[] = []
+
+  if (isMcpCallToolResponse(output)) {
+    contents.push(...output.content)
+  } else if (Array.isArray(output)) {
+    contents.push(...output)
+  } else if (hasContentArray(output)) {
+    contents.push(...output.content)
+  }
+
+  return contents
+    .filter(isMcpImageContent)
+    .map((content) => `data:${content.mimeType ?? 'image/png'};base64,${content.data}`)
+}
+
+function isMcpCallToolResponse(value: unknown): value is MCPCallToolResponse {
+  return typeof value === 'object' && value !== null && Array.isArray((value as MCPCallToolResponse).content)
+}
+
+function hasContentArray(value: unknown): value is { content: unknown[] } {
+  return typeof value === 'object' && value !== null && Array.isArray((value as { content?: unknown }).content)
+}
+
+function isMcpImageContent(content: unknown): content is MCPToolResultContent & { data: string } {
+  if (typeof content !== 'object' || content === null) {
+    return false
+  }
+
+  const resultContent = content as MCPToolResultContent
+
+  return resultContent.type === 'image' && typeof resultContent.data === 'string'
+}
