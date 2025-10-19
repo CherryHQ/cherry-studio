@@ -4089,6 +4089,7 @@
         }
       },
       "api_host": "API 地址",
+      "api_host_no_valid": "API 地址不合法",
       "api_host_preview": "预览：{{url}}",
       "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
       "api_key": {

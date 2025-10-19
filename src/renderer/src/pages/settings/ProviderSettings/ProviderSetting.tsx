@@ -32,7 +32,8 @@ import {
   formatApiKeys,
   formatAzureOpenAIApiHost,
   formatVertexApiHost,
-  getFancyProviderName
+  getFancyProviderName,
+  validateApiHost
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
@@ -170,6 +171,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   )
 
   const onUpdateApiHost = () => {
+    if (!validateApiHost(apiHost)) {
+      setApiHost(provider.apiHost)
+      window.toast.error(t('settings.provider.api_host_no_valid'))
+      return
+    }
     if (isVertexProvider(provider) || apiHost.trim()) {
       updateProvider({ apiHost })
     } else {

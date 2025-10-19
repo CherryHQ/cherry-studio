@@ -33,7 +33,7 @@ export function hasAPIVersion(host?: string): boolean {
 }
 
 export function withoutTrailingSlash(url: string | undefined) {
-  return url?.replace(/\/$/, '')
+  return url?.replace(/(\/|:)$/, '')
 }
 
 /**
@@ -53,7 +53,7 @@ export function formatApiHost(host?: string, isSupportedAPIVerion: boolean = tru
     return ''
   }
 
-  if (!isSupportedAPIVerion || hasAPIVersion(normalizedHost)) {
+  if (normalizedHost.endsWith('#') || !isSupportedAPIVerion || hasAPIVersion(normalizedHost)) {
     return normalizedHost
   }
   return `${normalizedHost}/${apiVersion}`
@@ -80,6 +80,73 @@ export function formatVertexApiHost(provider: VertexProvider): string {
     return `${formatApiHost(host)}/projects/${project}/locations/${location}`
   }
   return formatApiHost(trimmedHost)
+}
+
+// 目前对话界面只支持这些端点
+export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict']
+export const SUPPORTED_ENDPOINT_LIST = [
+  'chat/completions',
+  'responses',
+  'messages',
+  'generateContent',
+  'streamGenerateContent',
+  ...SUPPORTED_IMAGE_ENDPOINT_LIST
+]
+
+export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
+  const trimmedHost = trim(apiHost)
+  // 前面已经确保apiHost合法
+  if (!trimmedHost.endsWith('#')) {
+    return { baseURL: trimmedHost, endpoint: '' }
+  }
+  const host = trimmedHost.slice(0, -1)
+  const endpointMatch = SUPPORTED_ENDPOINT_LIST.find((endpoint) => host.endsWith(endpoint))
+  if (!endpointMatch) {
+    const baseURL = withoutTrailingSlash(host) ?? host
+    return { baseURL, endpoint: '' }
+  }
+  const baseSegment = host.slice(0, host.length - endpointMatch.length)
+  const baseURL = withoutTrailingSlash(baseSegment) ?? baseSegment
+  return { baseURL, endpoint: endpointMatch }
+}
+
+/**
+ * 验证 API 主机地址是否合法。
+ *
+ * @param {string} apiHost - 需要验证的 API 主机地址。
+ * @returns {boolean} 如果是合法的 URL 则返回 true，否则返回 false。
+ */
+export function validateApiHost(apiHost: string): boolean {
+  // 允许apiHost为空
+  if (!apiHost || !trim(apiHost)) {
+    return true
+  }
+  try {
+    const url = new URL(trim(apiHost))
+    // 验证协议是否为 http 或 https
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return false
+    }
+    // 逻辑验证
+    const path = withoutTrailingSlash(trim(url.pathname))
+    if (!path) {
+      return true
+    }
+    if (apiHost.endsWith('#')) {
+      let isValid = false
+      SUPPORTED_ENDPOINT_LIST.forEach((endpoint) => {
+        if (path.endsWith(endpoint)) {
+          isValid = true
+          return
+        }
+      })
+      return isValid
+    } else {
+      return true
+    }
+  } catch {
+    return false
+  }
 }
 
 /**

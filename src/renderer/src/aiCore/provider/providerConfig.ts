@@ -21,8 +21,8 @@ import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@r
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost } from '@renderer/utils/api'
-import { cloneDeep, trim } from 'lodash'
+import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
+import { cloneDeep } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -133,12 +133,13 @@ export function providerToAiSdkConfig(
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
 
   // 构建基础配置
+  const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
   const baseConfig = {
-    baseURL: trim(actualProvider.apiHost),
+    baseURL: baseURL,
     apiKey: getRotatedApiKey(actualProvider)
   }
 
-  const isCopilotProvider = actualProvider.id === 'copilot'
+  const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
   if (isCopilotProvider) {
     const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
     const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
@@ -159,6 +160,7 @@ export function providerToAiSdkConfig(
 
   // 处理OpenAI模式
   const extraOptions: any = {}
+  extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
   } else if (aiSdkProviderId === 'openai') {
