@@ -5,6 +5,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getThinkModelType,
   isDeepSeekHybridInferenceModel,
+  isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
@@ -170,6 +171,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // Doubao 思考模式支持
   if (isSupportedThinkingTokenDoubaoModel(model)) {
+    if (isDoubaoSeedAfter251015(model)) {
+      return { reasoningEffort }
+    }
+    // Comment below this line seems weird. reasoning is high instead of null/undefined. Who wrote this?
     // reasoningEffort 为空，默认开启 enabled
     if (reasoningEffort === 'high') {
       return { thinking: { type: 'enabled' } }
@@ -226,12 +231,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     const supportedOptions = MODEL_SUPPORTED_REASONING_EFFORT[modelType]
     if (supportedOptions.includes(reasoningEffort)) {
       return {
-        reasoning_effort: reasoningEffort
+        reasoningEffort
       }
     } else {
       // 如果不支持，fallback到第一个支持的值
       return {
-        reasoning_effort: supportedOptions[0]
+        reasoningEffort: supportedOptions[0]
       }
     }
   }
