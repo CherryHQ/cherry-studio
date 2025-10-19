@@ -387,7 +387,13 @@
     "@ai-sdk/google@npm:2.0.20": "patch:@ai-sdk/google@npm%3A2.0.20#~/.yarn/patches/@ai-sdk-google-npm-2.0.20-b9102f9d54.patch",
     "@ai-sdk/google@npm:2.0.23": "patch:@ai-sdk/google@npm%3A2.0.23#~/.yarn/patches/@ai-sdk-google-npm-2.0.23-81682e07b0.patch",
     "@ai-sdk/openai@npm:2.0.52": "patch:@ai-sdk/openai@npm%3A2.0.52#~/.yarn/patches/@ai-sdk-openai-npm-2.0.52-b36d949c76.patch",
-    "@ai-sdk/openai@npm:^2.0.42": "patch:@ai-sdk/openai@npm%3A2.0.52#~/.yarn/patches/@ai-sdk-openai-npm-2.0.52-b36d949c76.patch"
+    "@ai-sdk/openai@npm:^2.0.42": "patch:@ai-sdk/openai@npm%3A2.0.52#~/.yarn/patches/@ai-sdk-openai-npm-2.0.52-b36d949c76.patch",
+    "@img/sharp-darwin-arm64": "0.34.3",
+    "@img/sharp-darwin-x64": "0.34.3",
+    "@img/sharp-linux-arm": "0.34.3",
+    "@img/sharp-linux-arm64": "0.34.3",
+    "@img/sharp-linux-x64": "0.34.3",
+    "@img/sharp-win32-x64": "0.34.3"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
