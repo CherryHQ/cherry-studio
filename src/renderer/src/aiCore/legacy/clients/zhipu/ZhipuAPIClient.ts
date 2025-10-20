@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { Provider } from '@renderer/types'
 import { GenerateImageParams } from '@renderer/types'
+import { ImageContent } from '@renderer/types/chunk'
 import OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
@@ -24,7 +25,7 @@ export class ZhipuAPIClient extends OpenAIAPIClient {
     batchSize,
     signal,
     quality
-  }: GenerateImageParams): Promise<string[]> {
+  }: GenerateImageParams): Promise<ImageContent> {
     const sdk = await this.getSdkInstance()
 
     // 智谱AI使用不同的参数格式
@@ -54,10 +55,10 @@ export class ZhipuAPIClient extends OpenAIAPIClient {
       const response = await sdk.images.generate(body, { signal })
 
       if (response.data && response.data.length > 0) {
-        return response.data.map((image: any) => image.url).filter(Boolean)
+        return { type: 'url', images: response.data.map((image: any) => image.url).filter(Boolean) }
       }
 
-      return []
+      return { images: [] }
     } catch (error) {
       logger.error('Zhipu image generation failed:', error as Error)
       throw error

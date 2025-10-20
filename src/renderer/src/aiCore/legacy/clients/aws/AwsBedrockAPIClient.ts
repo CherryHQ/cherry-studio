@@ -30,6 +30,7 @@ import {
 } from '@renderer/types'
 import {
   ChunkType,
+  ImageContent,
   MCPToolCreatedChunk,
   TextDeltaChunk,
   ThinkingDeltaChunk,
@@ -456,8 +457,8 @@ export class AwsBedrockAPIClient extends BaseApiClient<
 
   // @ts-ignore sdk未提供
   // oxlint-disable-next-line @typescript-eslint/no-unused-vars
-  override async generateImage(_generateImageParams: GenerateImageParams): Promise<string[]> {
-    return []
+  override async generateImage(_generateImageParams: GenerateImageParams): Promise<ImageContent> {
+    return { images: [] }
   }
 
   override async getEmbeddingDimensions(model?: Model): Promise<number> {
