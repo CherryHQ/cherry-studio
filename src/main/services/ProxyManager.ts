@@ -411,8 +411,9 @@ export class ProxyManager {
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
-          logger.info(`current system proxy: ${currentProxy.proxyUrl}`)
+          logger.info(`current system proxy: ${currentProxy.proxyUrl}, bypass rules: ${currentProxy.noProxy.join(',')}`)
           config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+          config.proxyBypassRules = currentProxy.noProxy.join(',')
         }
         this.monitorSystemProxy()
       }
