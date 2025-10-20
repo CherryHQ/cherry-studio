@@ -4,7 +4,7 @@
  */
 
 import { loggerService } from '@logger'
-import { isVisionModel } from '@renderer/config/models'
+import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
 import { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import {
@@ -47,6 +47,30 @@ export async function convertMessageToSdkParam(
   }
 }
 
+async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): Promise<Array<ImagePart>> {
+  const parts: Array<ImagePart> = []
+  for (const imageBlock of imageBlocks) {
+    if (imageBlock.file) {
+      try {
+        const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+        parts.push({
+          type: 'image',
+          image: image.base64,
+          mediaType: image.mime
+        })
+      } catch (error) {
+        logger.warn('Failed to load image:', error as Error)
+      }
+    } else if (imageBlock.url) {
+      parts.push({
+        type: 'image',
+        image: imageBlock.url
+      })
+    }
+  }
+  return parts
+}
+
 /**
  * 转换为用户模型消息
  */
@@ -64,25 +88,7 @@ async function convertMessageToUserModelMessage(
 
   // 处理图片（仅在支持视觉的模型中）
   if (isVisionModel) {
-    for (const imageBlock of imageBlocks) {
-      if (imageBlock.file) {
-        try {
-          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
-          parts.push({
-            type: 'image',
-            image: image.base64,
-            mediaType: image.mime
-          })
-        } catch (error) {
-          logger.warn('Failed to load image:', error as Error)
-        }
-      } else if (imageBlock.url) {
-        parts.push({
-          type: 'image',
-          image: imageBlock.url
-        })
-      }
-    }
+    parts.push(...(await convertImageBlockToImagePart(imageBlocks)))
   }
   // 处理文件
   for (const fileBlock of fileBlocks) {
@@ -181,6 +187,23 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
   for (const message of messages) {
     const sdkMessage = await convertMessageToSdkParam(message, isVision, model)
     sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
+  }
+
+  if (isImageEnhancementModel(model) && messages.length >= 2) {
+    const assistantMessage = messages[messages.length - 2]
+    const userSdkMessage = sdkMessages[messages.length - 1] as UserModelMessage
+    const imageBlocks = findImageBlocks(assistantMessage)
+    const imageParts = await convertImageBlockToImagePart(imageBlocks)
+    const parts: Array<TextPart | ImagePart | FilePart> = []
+    if (typeof userSdkMessage.content === 'string') {
+      parts.push({ type: 'text', text: userSdkMessage.content })
+      parts.push(...imageParts)
+      userSdkMessage.content = parts
+    } else {
+      userSdkMessage.content.push(...imageParts)
+    }
+    const assistantSdkMessage = sdkMessages[messages.length - 2]
+    return [assistantSdkMessage, userSdkMessage]
   }
 
   return sdkMessages
