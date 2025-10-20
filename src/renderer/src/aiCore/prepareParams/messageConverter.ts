@@ -62,10 +62,21 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
         logger.warn('Failed to load image:', error as Error)
       }
     } else if (imageBlock.url) {
-      parts.push({
-        type: 'image',
-        image: imageBlock.url
-      })
+      const isBase64 = imageBlock.url.startsWith('data:')
+      if (isBase64) {
+        const base64 = imageBlock.url.match(/^data:[^;]*;base64,(.+)$/)![1]
+        const mimeMatch = imageBlock.url.match(/^data:([^;]+)/)
+        parts.push({
+          type: 'image',
+          image: base64,
+          mediaType: mimeMatch ? mimeMatch[1] : 'image/png'
+        })
+      } else {
+        parts.push({
+          type: 'image',
+          image: imageBlock.url
+        })
+      }
     }
   }
   return parts
