@@ -2692,6 +2692,31 @@ const migrateConfig = {
       logger.error('migrate 164 error', error as Error)
       return state
     }
+  },
+  '165': (state: RootState) => {
+    try {
+      // Ensure aws-bedrock provider exists
+      addProvider(state, 'aws-bedrock')
+
+      // Ensure awsBedrock settings exist and have all required fields
+      if (!state.llm.settings.awsBedrock) {
+        // For users who skipped migration 124 (versions 130+)
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+      } else {
+        // For users who have awsBedrock but missing new fields (authType and apiKey)
+        if (!state.llm.settings.awsBedrock.authType) {
+          state.llm.settings.awsBedrock.authType = 'iam'
+        }
+        if (state.llm.settings.awsBedrock.apiKey === undefined) {
+          state.llm.settings.awsBedrock.apiKey = ''
+        }
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 163 error', error as Error)
+      return state
+    }
   }
 }
 
