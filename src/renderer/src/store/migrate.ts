@@ -2677,6 +2677,7 @@ const migrateConfig = {
           provider.anthropicApiHost = 'https://open.cherryin.net'
         }
       })
+      state.paintings.ovms_paintings = []
       return state
     } catch (error) {
       logger.error('migrate 163 error', error as Error)
