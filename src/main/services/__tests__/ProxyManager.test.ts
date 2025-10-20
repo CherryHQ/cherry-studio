@@ -1,139 +1,86 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-import { matchIpRule, matchWildcardDomain } from '../ProxyManager'
+import { isByPass, updateByPassRules } from '../ProxyManager'
 
-describe('ProxyManager - matchWildcardDomain', () => {
-  describe('Exact match', () => {
-    it('should match exact domain', () => {
-      expect(matchWildcardDomain('example.com', 'example.com')).toBe(true)
-      expect(matchWildcardDomain('api.example.com', 'api.example.com')).toBe(true)
-      expect(matchWildcardDomain('localhost', 'localhost')).toBe(true)
-    })
-
-    it('should not match different domains', () => {
-      expect(matchWildcardDomain('example.com', 'different.com')).toBe(false)
-      expect(matchWildcardDomain('api.example.com', 'example.com')).toBe(false)
-    })
+describe('ProxyManager - bypass evaluation', () => {
+  beforeEach(() => {
+    updateByPassRules([])
   })
 
-  describe('Wildcard with *. prefix', () => {
-    it('should match subdomains', () => {
-      expect(matchWildcardDomain('api.example.com', '*.example.com')).toBe(true)
-      expect(matchWildcardDomain('www.example.com', '*.example.com')).toBe(true)
-      expect(matchWildcardDomain('sub.api.example.com', '*.example.com')).toBe(true)
-    })
+  it('matches simple hostname patterns', () => {
+    updateByPassRules(['foobar.com'])
+    expect(isByPass('http://foobar.com')).toBe(true)
+    expect(isByPass('http://www.foobar.com')).toBe(false)
 
-    it('should match the base domain itself', () => {
-      expect(matchWildcardDomain('example.com', '*.example.com')).toBe(true)
-    })
+    updateByPassRules(['*.foobar.com'])
+    expect(isByPass('http://api.foobar.com')).toBe(true)
+    expect(isByPass('http://foobar.com')).toBe(true)
+    expect(isByPass('http://foobar.org')).toBe(false)
 
-    it('should not match different domains', () => {
-      expect(matchWildcardDomain('notexample.com', '*.example.com')).toBe(false)
-      expect(matchWildcardDomain('examplexcom', '*.example.com')).toBe(false)
-    })
+    updateByPassRules(['*foobar.com'])
+    expect(isByPass('http://devfoobar.com')).toBe(true)
+    expect(isByPass('http://foobar.com')).toBe(true)
+    expect(isByPass('http://foobar.company')).toBe(false)
   })
 
-  describe('Wildcard with leading dot', () => {
-    it('should treat leading dot as wildcard', () => {
-      expect(matchWildcardDomain('api.example.com', '.example.com')).toBe(true)
-      expect(matchWildcardDomain('www.example.com', '.example.com')).toBe(true)
-      expect(matchWildcardDomain('example.com', '.example.com')).toBe(true)
-    })
-  })
-})
+  it('matches hostname patterns with scheme and port qualifiers', () => {
+    updateByPassRules(['https://secure.example.com'])
+    expect(isByPass('https://secure.example.com')).toBe(true)
+    expect(isByPass('https://secure.example.com:443/home')).toBe(true)
+    expect(isByPass('http://secure.example.com')).toBe(false)
 
-describe('ProxyManager - matchIpRule', () => {
-  describe('Exact IPv4 match', () => {
-    it('should match exact IPv4 address', () => {
-      expect(matchIpRule('192.168.1.100', '192.168.1.100')).toBe(true)
-      expect(matchIpRule('127.0.0.1', '127.0.0.1')).toBe(true)
-      expect(matchIpRule('10.0.0.1', '10.0.0.1')).toBe(true)
-    })
+    updateByPassRules(['https://secure.example.com:8443'])
+    expect(isByPass('https://secure.example.com:8443')).toBe(true)
+    expect(isByPass('https://secure.example.com')).toBe(false)
+    expect(isByPass('https://secure.example.com:443')).toBe(false)
 
-    it('should not match different IPv4 addresses', () => {
-      expect(matchIpRule('192.168.1.100', '192.168.1.101')).toBe(false)
-      expect(matchIpRule('127.0.0.1', '127.0.0.2')).toBe(false)
-    })
+    updateByPassRules(['https://x.*.y.com:99'])
+    expect(isByPass('https://x.api.y.com:99')).toBe(true)
+    expect(isByPass('https://x.api.y.com')).toBe(false)
+    expect(isByPass('http://x.api.y.com:99')).toBe(false)
   })
 
-  describe('Wildcard IPv4', () => {
-    it('should match IPv4 with single wildcard', () => {
-      expect(matchIpRule('192.168.1.1', '192.168.1.*')).toBe(true)
-      expect(matchIpRule('192.168.1.100', '192.168.1.*')).toBe(true)
-      expect(matchIpRule('192.168.1.255', '192.168.1.*')).toBe(true)
-    })
+  it('matches domain suffix patterns with leading dot', () => {
+    updateByPassRules(['.example.com'])
+    expect(isByPass('https://example.com')).toBe(true)
+    expect(isByPass('https://api.example.com')).toBe(true)
+    expect(isByPass('https://deep.api.example.com')).toBe(true)
+    expect(isByPass('https://example.org')).toBe(false)
 
-    it('should match IPv4 with multiple wildcards', () => {
-      expect(matchIpRule('192.168.1.1', '192.168.*.*')).toBe(true)
-      expect(matchIpRule('192.168.100.200', '192.168.*.*')).toBe(true)
-    })
+    updateByPassRules(['.com'])
+    expect(isByPass('https://anything.com')).toBe(true)
+    expect(isByPass('https://example.org')).toBe(false)
 
-    it('should not match different network', () => {
-      expect(matchIpRule('192.169.1.1', '192.168.1.*')).toBe(false)
-      expect(matchIpRule('10.0.1.1', '192.168.1.*')).toBe(false)
-    })
+    updateByPassRules(['http://.google.com'])
+    expect(isByPass('http://maps.google.com')).toBe(true)
+    expect(isByPass('https://maps.google.com')).toBe(false)
   })
 
-  describe('CIDR IPv4', () => {
-    it('should match IPv4 in CIDR range /24', () => {
-      expect(matchIpRule('192.168.1.1', '192.168.1.0/24')).toBe(true)
-      expect(matchIpRule('192.168.1.100', '192.168.1.0/24')).toBe(true)
-      expect(matchIpRule('192.168.1.255', '192.168.1.0/24')).toBe(true)
-    })
+  it('matches IP literals, CIDR ranges, and wildcard IPs', () => {
+    updateByPassRules(['127.0.0.1', '[::1]', '192.168.1.0/24', 'fefe:13::abc/33', '192.168.*.*'])
 
-    it('should match IPv4 in CIDR range /16', () => {
-      expect(matchIpRule('192.168.0.1', '192.168.0.0/16')).toBe(true)
-      expect(matchIpRule('192.168.1.1', '192.168.0.0/16')).toBe(true)
-      expect(matchIpRule('192.168.255.255', '192.168.0.0/16')).toBe(true)
-    })
-
-    it('should not match IPv4 outside CIDR range', () => {
-      expect(matchIpRule('192.169.1.1', '192.168.0.0/16')).toBe(false)
-      expect(matchIpRule('10.0.0.1', '192.168.0.0/16')).toBe(false)
-    })
-
-    it('should handle /32 CIDR (single host)', () => {
-      expect(matchIpRule('192.168.1.100', '192.168.1.100/32')).toBe(true)
-      expect(matchIpRule('192.168.1.101', '192.168.1.100/32')).toBe(false)
-    })
+    expect(isByPass('http://127.0.0.1')).toBe(true)
+    expect(isByPass('http://[::1]')).toBe(true)
+    expect(isByPass('http://192.168.1.55')).toBe(true)
+    expect(isByPass('http://192.168.200.200')).toBe(true)
+    expect(isByPass('http://192.169.1.1')).toBe(false)
+    expect(isByPass('http://[fefe:13::abc]')).toBe(true)
   })
 
-  describe('IPv6', () => {
-    it('should match exact IPv6 address', () => {
-      expect(matchIpRule('::1', '::1')).toBe(true)
-      expect(matchIpRule('[::1]', '[::1]')).toBe(true)
-      expect(matchIpRule('2001:db8::1', '2001:db8::1')).toBe(true)
-    })
+  it('matches CIDR ranges specified with IPv6 prefix lengths', () => {
+    updateByPassRules(['[2001:db8::1]', '2001:db8::/32'])
 
-    it('should match IPv6 in CIDR range', () => {
-      expect(matchIpRule('2001:db8::1', '2001:db8::/32')).toBe(true)
-      expect(matchIpRule('2001:db8:ffff:ffff:ffff:ffff:ffff:ffff', '2001:db8::/32')).toBe(true)
-    })
-
-    it('should not match IPv6 outside CIDR range', () => {
-      expect(matchIpRule('2001:db9::1', '2001:db8::/32')).toBe(false)
-    })
-
-    it('should handle brackets in IPv6', () => {
-      expect(matchIpRule('[::1]', '::1')).toBe(true)
-      expect(matchIpRule('::1', '[::1]')).toBe(true)
-    })
+    expect(isByPass('http://[2001:db8::1]')).toBe(true)
+    expect(isByPass('http://[2001:db8:0:0:0:0:0:ffff]')).toBe(true)
+    expect(isByPass('http://[2001:db9::1]')).toBe(false)
   })
 
-  describe('Error handling', () => {
-    it('should return false for invalid IP addresses', () => {
-      expect(matchIpRule('invalid-ip', '192.168.1.0/24')).toBe(false)
-      expect(matchIpRule('999.999.999.999', '192.168.1.0/24')).toBe(false)
-    })
+  it('matches local addresses when <local> keyword is provided', () => {
+    updateByPassRules(['<local>'])
 
-    it('should return false for malformed CIDR', () => {
-      expect(matchIpRule('192.168.1.1', '192.168.1.0/999')).toBe(false)
-      expect(matchIpRule('192.168.1.1', '192.168.1.0/abc')).toBe(false)
-    })
-
-    it('should return false when comparing IPv4 to IPv6 CIDR', () => {
-      expect(matchIpRule('192.168.1.1', '2001:db8::/32')).toBe(false)
-      expect(matchIpRule('2001:db8::1', '192.168.0.0/16')).toBe(false)
-    })
+    expect(isByPass('http://localhost')).toBe(true)
+    expect(isByPass('http://127.0.0.1')).toBe(true)
+    expect(isByPass('http://[::1]')).toBe(true)
+    expect(isByPass('http://dev.localdomain')).toBe(false)
   })
 })
