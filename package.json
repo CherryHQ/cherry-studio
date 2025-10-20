@@ -154,7 +154,7 @@
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opentelemetry/sdk-trace-web": "^2.0.0",
-    "@opeoginni/github-copilot-openai-compatible": "patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch",
+    "@opeoginni/github-copilot-openai-compatible": "0.1.19",
     "@playwright/test": "^1.52.0",
     "@radix-ui/react-context-menu": "^2.2.16",
     "@reduxjs/toolkit": "^2.2.5",
