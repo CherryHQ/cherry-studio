@@ -7307,27 +7307,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opeoginni/github-copilot-openai-compatible@npm:0.1.18":
-  version: 0.1.18
-  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.18"
+"@opeoginni/github-copilot-openai-compatible@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.19"
   dependencies:
     "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.1.0-beta.4"
     "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/31b87ed150883bbdd33a0203e45831859560fdf174f0285384fdcb1d01fc4a56ca15f31d648e8d6d3a2d4d5c6e327ddecbf422543eeefaa7e8fdd7dc2f2a3b08
-  languageName: node
-  linkType: hard
-
-"@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch":
-  version: 0.1.18
-  resolution: "@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch::version=0.1.18&hash=1cf9d0"
-  dependencies:
-    "@ai-sdk/openai": "npm:^2.0.42"
-    "@ai-sdk/openai-compatible": "npm:^1.0.19"
-    "@ai-sdk/provider": "npm:^2.1.0-beta.4"
-    "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/cfffc031d2742068d20baed0e0ade6e9182c29ee7a425fa64262c04023ae75220b8b944ad2c9554255681e325fa1a70ec5e1f961b5f7370c871e70cbaeac0e79
+  checksum: 10c0/dfb01832d7c704b2eb080fc09d31b07fc26e5ac4e648ce219dc0d80cf044ef3cae504427781ec2ce3c5a2459c9c81d043046a255642108d5b3de0f83f4a9f20a
   languageName: node
   linkType: hard
 
@@ -13903,7 +13891,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
-    "@opeoginni/github-copilot-openai-compatible": "patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch"
+    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.19"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
     "@reduxjs/toolkit": "npm:^2.2.5"
