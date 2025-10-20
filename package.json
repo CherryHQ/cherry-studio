@@ -302,7 +302,7 @@
     "p-queue": "^8.1.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
-    "playwright": "^1.52.0",
+    "playwright": "^1.55.1",
     "proxy-agent": "^6.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
