@@ -1,6 +1,7 @@
 import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock'
 import {
   BedrockRuntimeClient,
+  BedrockRuntimeClientConfig,
   ConverseCommand,
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand
@@ -89,8 +90,8 @@ export class AwsBedrockAPIClient extends BaseApiClient<
       throw new Error('AWS region is required. Please configure AWS region in settings.')
     }
 
-    // Build auth configuration based on auth type
-    let auth: any
+    // Build client configuration based on auth type
+    let clientConfig: BedrockRuntimeClientConfig
 
     if (authType === 'iam') {
       // IAM credentials authentication
@@ -101,34 +102,30 @@ export class AwsBedrockAPIClient extends BaseApiClient<
         throw new Error('AWS credentials are required. Please configure Access Key ID and Secret Access Key.')
       }
 
-      auth = {
+      clientConfig = {
+        region,
         credentials: {
           accessKeyId,
           secretAccessKey
         }
       }
     } else {
+      // API Key authentication
       const awsBedrockApiKey = getAwsBedrockApiKey()
 
       if (!awsBedrockApiKey) {
         throw new Error('AWS Bedrock API Key is required. Please configure API Key in settings.')
       }
 
-      auth = {
+      clientConfig = {
+        region,
         token: { token: awsBedrockApiKey },
         authSchemePreference: ['httpBearerAuth']
       }
     }
 
-    const client = new BedrockRuntimeClient({
-      region,
-      ...auth
-    })
-
-    const bedrockClient = new BedrockClient({
-      region,
-      ...auth
-    })
+    const client = new BedrockRuntimeClient(clientConfig)
+    const bedrockClient = new BedrockClient(clientConfig)
 
     this.sdkInstance = { client, bedrockClient, region }
     return this.sdkInstance
