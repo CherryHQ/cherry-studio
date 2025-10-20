@@ -6,6 +6,7 @@ import {
   setAwsBedrockRegion,
   setAwsBedrockSecretAccessKey
 } from '@renderer/store/llm'
+import { AwsBedrockAuthType } from '@renderer/types'
 import { useDispatch } from 'react-redux'
 
 export function useAwsBedrockSettings() {
@@ -14,7 +15,7 @@ export function useAwsBedrockSettings() {
 
   return {
     ...settings,
-    setAuthType: (authType: 'iam' | 'apiKey') => dispatch(setAwsBedrockAuthType(authType)),
+    setAuthType: (authType: AwsBedrockAuthType) => dispatch(setAwsBedrockAuthType(authType)),
     setAccessKeyId: (accessKeyId: string) => dispatch(setAwsBedrockAccessKeyId(accessKeyId)),
     setSecretAccessKey: (secretAccessKey: string) => dispatch(setAwsBedrockSecretAccessKey(secretAccessKey)),
     setApiKey: (apiKey: string) => dispatch(setAwsBedrockApiKey(apiKey)),

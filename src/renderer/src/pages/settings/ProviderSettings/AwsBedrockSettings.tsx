@@ -25,16 +25,10 @@ const AwsBedrockSettings: FC = () => {
   const providerConfig = PROVIDER_URLS['aws-bedrock']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
-  const [localAuthType, setLocalAuthType] = useState<'iam' | 'apiKey'>(authType)
   const [localAccessKeyId, setLocalAccessKeyId] = useState(accessKeyId)
   const [localSecretAccessKey, setLocalSecretAccessKey] = useState(secretAccessKey)
   const [localApiKey, setLocalApiKey] = useState(apiKey)
   const [localRegion, setLocalRegion] = useState(region)
-
-  const handleAuthTypeChange = (value: 'iam' | 'apiKey') => {
-    setLocalAuthType(value)
-    setAuthType(value)
-  }
 
   return (
     <>
@@ -43,10 +37,7 @@ const AwsBedrockSettings: FC = () => {
 
       {/* Authentication Type Selector */}
       <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.auth_type')}</SettingSubtitle>
-      <Radio.Group
-        value={localAuthType}
-        onChange={(e) => handleAuthTypeChange(e.target.value)}
-        style={{ marginTop: 5 }}>
+      <Radio.Group value={authType} onChange={(e) => setAuthType(e.target.value)} style={{ marginTop: 5 }}>
         <Radio value="iam">{t('settings.provider.aws-bedrock.auth_type_iam')}</Radio>
         <Radio value="apiKey">{t('settings.provider.aws-bedrock.auth_type_api_key')}</Radio>
       </Radio.Group>
@@ -55,7 +46,7 @@ const AwsBedrockSettings: FC = () => {
       </SettingHelpTextRow>
 
       {/* IAM Credentials Fields */}
-      {localAuthType === 'iam' && (
+      {authType === 'iam' && (
         <>
           <SettingSubtitle style={{ marginTop: 15 }}>
             {t('settings.provider.aws-bedrock.access_key_id')}
@@ -95,7 +86,7 @@ const AwsBedrockSettings: FC = () => {
         </>
       )}
 
-      {localAuthType === 'apiKey' && (
+      {authType === 'apiKey' && (
         <>
           <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.api_key')}</SettingSubtitle>
           <Input.Password

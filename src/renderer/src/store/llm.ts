@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
-import { Model, Provider } from '@renderer/types'
+import { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -24,7 +24,7 @@ type LlmSettings = {
     location: string
   }
   awsBedrock: {
-    authType: 'iam' | 'apiKey'
+    authType: AwsBedrockAuthType
     accessKeyId: string
     secretAccessKey: string
     apiKey: string
@@ -200,7 +200,7 @@ const llmSlice = createSlice({
     setVertexAIServiceAccountClientEmail: (state, action: PayloadAction<string>) => {
       state.settings.vertexai.serviceAccount.clientEmail = action.payload
     },
-    setAwsBedrockAuthType: (state, action: PayloadAction<'iam' | 'apiKey'>) => {
+    setAwsBedrockAuthType: (state, action: PayloadAction<AwsBedrockAuthType>) => {
       state.settings.awsBedrock.authType = action.payload
     },
     setAwsBedrockAccessKeyId: (state, action: PayloadAction<string>) => {
