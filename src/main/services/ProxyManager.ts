@@ -421,13 +421,15 @@ export class ProxyManager {
 
       // Support both semicolon and comma as separators
       if (config.proxyBypassRules !== this.config.proxyBypassRules) {
-        const rawRules = config.proxyBypassRules ?  config.proxyBypassRules
-          .split(/[;,]/)
-          .map((rule) => rule.trim())
-          .filter((rule) => rule.length > 0) : []
-          
+        const rawRules = config.proxyBypassRules
+          ? config.proxyBypassRules
+              .split(/[;,]/)
+              .map((rule) => rule.trim())
+              .filter((rule) => rule.length > 0)
+          : []
+
         updateByPassRules(rawRules)
-      } 
+      }
       this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
