@@ -18,7 +18,7 @@ const enum ProxyBypassRuleType {
   Local = 'local',
   Cidr = 'cidr',
   Ip = 'ip',
-  Hostname = 'hostname'
+  Domain = 'domain'
 }
 
 interface ParsedProxyBypassRule {
@@ -31,7 +31,6 @@ interface ParsedProxyBypassRule {
   regex?: RegExp
   cidr?: [ipaddr.IPv4 | ipaddr.IPv6, number]
   ip?: string
-  hostname?: string
 }
 
 let parsedByPassRules: ParsedProxyBypassRule[] = []
@@ -65,7 +64,7 @@ const matchHostnameRule = (hostname: string, rule: ParsedProxyBypassRule): boole
 
   switch (rule.matchType) {
     case 'exact':
-      return rule.hostname ? normalizedHostname === rule.hostname : normalizedHostname === rule.rule.toLowerCase()
+      return normalizedHostname === rule.domain
     case 'wildcardSubdomain': {
       const domain = rule.domain
       if (!domain) {
@@ -161,7 +160,7 @@ const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
   if (workingRule.startsWith('*.')) {
     const domain = normalizedHost.slice(2)
     return {
-      type: ProxyBypassRuleType.Hostname,
+      type: ProxyBypassRuleType.Domain,
       matchType: 'wildcardSubdomain',
       rule: workingRule,
       scheme,
@@ -173,7 +172,7 @@ const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
   if (workingRule.startsWith('.')) {
     const domain = normalizedHost.slice(1)
     return {
-      type: ProxyBypassRuleType.Hostname,
+      type: ProxyBypassRuleType.Domain,
       matchType: 'wildcardSubdomain',
       rule: workingRule,
       scheme,
@@ -184,7 +183,7 @@ const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
 
   if (workingRule.includes('*')) {
     return {
-      type: ProxyBypassRuleType.Hostname,
+      type: ProxyBypassRuleType.Domain,
       matchType: 'generalWildcard',
       rule: workingRule,
       scheme,
@@ -194,12 +193,12 @@ const parseProxyBypassRule = (rule: string): ParsedProxyBypassRule | null => {
   }
 
   return {
-    type: ProxyBypassRuleType.Hostname,
+    type: ProxyBypassRuleType.Domain,
     matchType: 'exact',
     rule: workingRule,
     scheme,
     port,
-    hostname: normalizedHost
+    domain: normalizedHost
   }
 }
 
@@ -257,12 +256,12 @@ export const isByPass = (url: string) => {
       }
 
       switch (rule.type) {
-        case 'local':
+        case ProxyBypassRuleType.Local:
           if (isLocalHostname(hostname)) {
             return true
           }
           break
-        case 'ip':
+        case ProxyBypassRuleType.Ip:
           if (!hostnameIsIp) {
             break
           }
@@ -275,7 +274,7 @@ export const isByPass = (url: string) => {
             return true
           }
           break
-        case 'cidr':
+        case ProxyBypassRuleType.Cidr:
           if (hostnameIsIp && rule.cidr) {
             const parsedHost = ipaddr.parse(cleanedHostname)
             const [cidrAddress, prefixLength] = rule.cidr
@@ -285,7 +284,7 @@ export const isByPass = (url: string) => {
             }
           }
           break
-        case 'hostname':
+        case ProxyBypassRuleType.Domain:
           if (!hostnameIsIp && matchHostnameRule(hostname, rule)) {
             return true
           }
@@ -408,13 +407,12 @@ export class ProxyManager {
     this.isSettingProxy = true
 
     try {
-      this.config = config
       this.clearSystemProxyMonitor()
       if (config.mode === 'system') {
         const currentProxy = await getSystemProxy()
         if (currentProxy) {
           logger.info(`current system proxy: ${currentProxy.proxyUrl}`)
-          this.config.proxyRules = currentProxy.proxyUrl.toLowerCase()
+          config.proxyRules = currentProxy.proxyUrl.toLowerCase()
         }
         this.monitorSystemProxy()
       }
@@ -430,7 +428,9 @@ export class ProxyManager {
 
         updateByPassRules(rawRules)
       }
-      this.setGlobalProxy(this.config)
+
+      this.setGlobalProxy(config)
+      this.config = config
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
       throw error
