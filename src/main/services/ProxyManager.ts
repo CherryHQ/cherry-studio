@@ -278,9 +278,9 @@ export const isByPass = (url: string) => {
         case 'cidr':
           if (hostnameIsIp && rule.cidr) {
             const parsedHost = ipaddr.parse(cleanedHostname)
-            const [cidrAddress, _] = rule.cidr
+            const [cidrAddress, prefixLength] = rule.cidr
             // Ensure IP version matches before comparing
-            if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match(rule.cidr)) {
+            if (parsedHost.kind() === cidrAddress.kind() && parsedHost.match([cidrAddress, prefixLength])) {
               return true
             }
           }
