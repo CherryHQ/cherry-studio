@@ -31,6 +31,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
   doubao_no_auto: ['high'] as const,
+  doubao_after_251015: ['minimal', 'low', 'medium', 'high'] as const,
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
@@ -51,6 +52,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
   doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
+  doubao_after_251015: MODEL_SUPPORTED_REASONING_EFFORT.doubao_after_251015,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
@@ -85,6 +87,8 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenDoubaoModel(model)) {
     if (isDoubaoThinkingAutoModel(model)) {
       thinkingModelType = 'doubao'
+    } else if (isDoubaoSeedAfter251015(model)) {
+      thinkingModelType = 'doubao_after_251015'
     } else {
       thinkingModelType = 'doubao_no_auto'
     }
@@ -308,12 +312,19 @@ export const DOUBAO_THINKING_MODEL_REGEX =
   /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$)))(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
+// Auto thinking is no longer supported after version 251015, see https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-seed-1-6
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
-  /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-[\w-]+)*/i
+  /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-lite)?(?!-251015)(?:-\d+)?$/i
 
 export function isDoubaoThinkingAutoModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.name)
+}
+
+export function isDoubaoSeedAfter251015(model: Model): boolean {
+  const pattern = new RegExp(/doubao-seed-1-6-(?:lite-)?251015/i)
+  const result = pattern.test(model.id)
+  return result
 }
 
 export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
@@ -335,7 +346,8 @@ export function isClaudeReasoningModel(model?: Model): boolean {
     modelId.includes('claude-3-7-sonnet') ||
     modelId.includes('claude-3.7-sonnet') ||
     modelId.includes('claude-sonnet-4') ||
-    modelId.includes('claude-opus-4')
+    modelId.includes('claude-opus-4') ||
+    modelId.includes('claude-haiku-4')
   )
 }
 
@@ -493,8 +505,9 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 },
-  'claude-(:?sonnet|opus)-4.*$': { min: 1024, max: 32000 }
+  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64_000 },
+  'claude-(:?haiku|sonnet)-4.*$': { min: 1024, max: 64_000 },
+  'claude-opus-4-1.*$': { min: 1024, max: 32_000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

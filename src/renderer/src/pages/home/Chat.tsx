@@ -140,9 +140,7 @@ const Chat: FC<Props> = (props) => {
     firstUpdateOrNoFirstUpdateHandler()
   }
 
-  const mainHeight = isTopNavbar
-    ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
-    : 'calc(100vh - var(--navbar-height))'
+  const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
   const SessionMessages = useMemo(() => {
     if (activeAgentId === null) {
@@ -192,66 +190,84 @@ const Chat: FC<Props> = (props) => {
       </div>
     )
   }, [])
+
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      {isTopNavbar && (
-        <ChatNavbar
-          activeAssistant={props.assistant}
-          activeTopic={props.activeTopic}
-          setActiveTopic={props.setActiveTopic}
-          setActiveAssistant={props.setActiveAssistant}
-          position="left"
-        />
-      )}
       <HStack>
-        <Main
-          ref={mainRef}
-          id="chat-main"
-          vertical
-          flex={1}
-          justify="space-between"
-          style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
-          <QuickPanelProvider>
-            {activeTopicOrSession === 'topic' && (
-              <>
-                <Messages
-                  key={props.activeTopic.id}
-                  assistant={assistant}
-                  topic={props.activeTopic}
-                  setActiveTopic={props.setActiveTopic}
-                  onComponentUpdate={messagesComponentUpdateHandler}
-                  onFirstUpdate={messagesComponentFirstUpdateHandler}
-                />
-                <ContentSearch
-                  ref={contentSearchRef}
-                  searchTarget={mainRef as React.RefObject<HTMLElement>}
-                  filter={contentSearchFilter}
-                  includeUser={filterIncludeUser}
-                  onIncludeUserChange={userOutlinedItemClickHandler}
-                />
-                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-              </>
-            )}
-            {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
-            {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
-            {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
-              <>
-                <SessionMessages />
-                <SessionInputBar />
-              </>
-            )}
-            {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
-          </QuickPanelProvider>
-        </Main>
+        <motion.div
+          animate={{
+            marginRight: topicPosition === 'right' && showTopics ? 'var(--assistants-width)' : 0
+          }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
+          style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+          <Main
+            ref={mainRef}
+            id="chat-main"
+            vertical
+            flex={1}
+            justify="space-between"
+            style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
+            <QuickPanelProvider>
+              <ChatNavbar
+                activeAssistant={props.assistant}
+                activeTopic={props.activeTopic}
+                setActiveTopic={props.setActiveTopic}
+                setActiveAssistant={props.setActiveAssistant}
+                position="left"
+              />
+              <div
+                className="flex flex-1 flex-col justify-between"
+                style={{ height: `calc(${mainHeight} - var(--navbar-height))` }}>
+                {activeTopicOrSession === 'topic' && (
+                  <>
+                    <Messages
+                      key={props.activeTopic.id}
+                      assistant={assistant}
+                      topic={props.activeTopic}
+                      setActiveTopic={props.setActiveTopic}
+                      onComponentUpdate={messagesComponentUpdateHandler}
+                      onFirstUpdate={messagesComponentFirstUpdateHandler}
+                    />
+                    <ContentSearch
+                      ref={contentSearchRef}
+                      searchTarget={mainRef as React.RefObject<HTMLElement>}
+                      filter={contentSearchFilter}
+                      includeUser={filterIncludeUser}
+                      onIncludeUserChange={userOutlinedItemClickHandler}
+                    />
+                    {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+                    <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+                  </>
+                )}
+                {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
+                {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
+                {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
+                  <>
+                    <SessionMessages />
+                    <SessionInputBar />
+                  </>
+                )}
+                {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
+              </div>
+            </QuickPanelProvider>
+          </Main>
+        </motion.div>
         <AnimatePresence initial={false}>
           {topicPosition === 'right' && showTopics && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'auto', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
+              key="right-tabs"
+              initial={{ x: 'var(--assistants-width)' }}
+              animate={{ x: 0 }}
+              exit={{ x: 'var(--assistants-width)' }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: isTopNavbar ? 0 : 'calc(var(--navbar-height) + 1px)',
+                width: 'var(--assistants-width)',
+                height: '100%',
+                zIndex: 10
+              }}>
               <Tabs
                 activeAssistant={assistant}
                 activeTopic={props.activeTopic}
@@ -269,13 +285,14 @@ const Chat: FC<Props> = (props) => {
 
 export const useChatMaxWidth = () => {
   const { showTopics, topicPosition } = useSettings()
-  const { isLeftNavbar } = useNavbarPosition()
+  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
   const { showAssistants } = useShowAssistants()
   const showRightTopics = showTopics && topicPosition === 'right'
   const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
   const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
+  const minusBorderWidth = isTopNavbar ? (showTopics ? '- 12px' : '- 6px') : ''
   const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
-  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth})`
+  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth} ${minusBorderWidth})`
 }
 
 const Container = styled.div`

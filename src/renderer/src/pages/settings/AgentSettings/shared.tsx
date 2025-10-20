@@ -36,7 +36,7 @@ export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames }) => 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
       <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />
-      <span className={cn('truncate', classNames?.name)}>
+      <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>
         {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
       </span>
     </div>
@@ -52,7 +52,7 @@ export const SessionLabel: React.FC<SessionLabelProps> = ({ session, className }
   const displayName = session?.name ?? session?.id
   return (
     <>
-      <span className={cn('truncate px-2 text-sm', className)}>{displayName}</span>
+      <span className={cn('truncate text-[var(--color-text)] text-sm', className)}>{displayName}</span>
     </>
   )
 }

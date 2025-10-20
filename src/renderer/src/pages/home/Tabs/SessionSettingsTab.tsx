@@ -30,7 +30,7 @@ const SessionSettingsTab: FC<Props> = ({ session, update }) => {
 
   return (
     <div className="w-[var(--assistants-width)] p-2 px-3 pt-4">
-      <EssentialSettings agentBase={session} update={update} />
+      <EssentialSettings agentBase={session} update={update} showModelSetting={false} />
       <AdvancedSettings agentBase={session} update={update} />
       <Divider className="my-2" />
       <Button size="sm" fullWidth onPress={onMoreSetting}>

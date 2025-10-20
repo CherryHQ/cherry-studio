@@ -7,7 +7,7 @@ import { isAnthropicModel } from './utils'
 import { isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
   'i'
 )
 
