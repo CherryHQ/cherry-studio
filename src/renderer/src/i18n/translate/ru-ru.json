@@ -1959,6 +1959,14 @@
     "rename": "переименовать",
     "rename_changed": "В связи с политикой безопасности имя файла было изменено с {{Original}} на {{final}}",
     "save": "Сохранить в заметки",
+    "search": {
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
+    },
     "settings": {
       "data": {
         "apply": "приложение",
@@ -2107,6 +2115,8 @@
       "install_code_103": "Ошибка загрузки среды выполнения OVMS",
       "install_code_104": "Ошибка распаковки среды выполнения OVMS",
       "install_code_105": "Ошибка очистки среды выполнения OVMS",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "Ошибка запуска OVMS:",
       "stop": "Ошибка остановки OVMS:"
     },
@@ -4079,6 +4089,7 @@
         }
       },
       "api_host": "Хост API",
+      "api_host_no_valid": "[to be translated]:API 地址不合法",
       "api_host_preview": "Предпросмотр: {{url}}",
       "api_host_tooltip": "Переопределяйте только когда провайдер требует пользовательский адрес, совместимый с OpenAI.",
       "api_key": {

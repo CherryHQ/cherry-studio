@@ -1959,6 +1959,14 @@
     "rename": "μετονομασία",
     "rename_changed": "Λόγω πολιτικής ασφάλειας, το όνομα του αρχείου έχει αλλάξει από {{original}} σε {{final}}",
     "save": "αποθήκευση στις σημειώσεις",
+    "search": {
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
+    },
     "settings": {
       "data": {
         "apply": "εφαρμογή",
@@ -2107,6 +2115,8 @@
       "install_code_103": "Η λήψη του OVMS runtime απέτυχε",
       "install_code_104": "Η αποσυμπίεση του OVMS runtime απέτυχε",
       "install_code_105": "Ο καθαρισμός του OVMS runtime απέτυχε",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "Η εκτέλεση του OVMS απέτυχε:",
       "stop": "Η διακοπή του OVMS απέτυχε:"
     },
@@ -4079,6 +4089,7 @@
         }
       },
       "api_host": "Διεύθυνση API",
+      "api_host_no_valid": "[to be translated]:API 地址不合法",
       "api_host_preview": "Προεπισκόπηση: {{url}}",
       "api_host_tooltip": "Αντικατάσταση μόνο όταν ο πάροχος απαιτεί προσαρμοσμένη διεύθυνση συμβατή με OpenAI.",
       "api_key": {

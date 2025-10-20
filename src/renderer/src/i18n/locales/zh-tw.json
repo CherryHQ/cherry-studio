@@ -4089,6 +4089,7 @@
         }
       },
       "api_host": "API 主機地址",
+      "api_host_no_valid": "[to be translated]:API 地址不合法",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {

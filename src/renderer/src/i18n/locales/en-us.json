@@ -4089,6 +4089,7 @@
         }
       },
       "api_host": "API Host",
+      "api_host_no_valid": "[to be translated]:API 地址不合法",
       "api_host_preview": "Preview: {{url}}",
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {

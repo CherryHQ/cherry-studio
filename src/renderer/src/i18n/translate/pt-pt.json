@@ -1959,6 +1959,14 @@
     "rename": "renomear",
     "rename_changed": "Devido às políticas de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "save": "salvar em notas",
+    "search": {
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
+    },
     "settings": {
       "data": {
         "apply": "aplicativo",
@@ -2107,6 +2115,8 @@
       "install_code_103": "Falha ao baixar o tempo de execução do OVMS",
       "install_code_104": "Falha ao descompactar o tempo de execução do OVMS",
       "install_code_105": "Falha ao limpar o tempo de execução do OVMS",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "Falha ao executar o OVMS:",
       "stop": "Falha ao parar o OVMS:"
     },
@@ -4079,6 +4089,7 @@
         }
       },
       "api_host": "Endereço API",
+      "api_host_no_valid": "[to be translated]:API 地址不合法",
       "api_host_preview": "Pré-visualização: {{url}}",
       "api_host_tooltip": "Substituir apenas quando o fornecedor necessita de um endereço compatível com OpenAI personalizado.",
       "api_key": {
