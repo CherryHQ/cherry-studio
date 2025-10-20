@@ -4227,7 +4227,8 @@
         "none": "不使用代理",
         "system": "系统代理",
         "title": "代理模式"
-      }
+      },
+      "tip": "支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "点击托盘图标启动",
