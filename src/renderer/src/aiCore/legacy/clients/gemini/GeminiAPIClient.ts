@@ -41,7 +41,13 @@ import {
   ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import {
+  ChunkType,
+  ImageContent,
+  LLMWebSearchCompleteChunk,
+  TextStartChunk,
+  ThinkingStartChunk
+} from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   GeminiOptions,
@@ -81,6 +87,15 @@ export class GeminiAPIClient extends BaseApiClient<
     super(provider)
   }
 
+  override getBaseURL(): string {
+    const host = this.provider.apiHost
+    const idx = host.lastIndexOf('/v1beta')
+    if (idx !== -1) {
+      return host.substring(0, idx)
+    }
+    return host
+  }
+
   override async createCompletions(payload: GeminiSdkParams, options?: GeminiOptions): Promise<GeminiSdkRawOutput> {
     const sdk = await this.getSdkInstance()
     const { model, history, ...rest } = payload
@@ -112,7 +127,7 @@ export class GeminiAPIClient extends BaseApiClient<
     }
   }
 
-  override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
+  override async generateImage(generateImageParams: GenerateImageParams): Promise<ImageContent> {
     const sdk = await this.getSdkInstance()
     try {
       const { model, prompt, imageSize, batchSize, signal } = generateImageParams
@@ -131,7 +146,7 @@ export class GeminiAPIClient extends BaseApiClient<
       })
 
       if (!response.generatedImages || response.generatedImages.length === 0) {
-        return []
+        return { images: [] }
       }
 
       const images = response.generatedImages
@@ -141,7 +156,7 @@ export class GeminiAPIClient extends BaseApiClient<
           return dataPrefix + image.image?.imageBytes
         })
       //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
-      return images
+      return { type: 'base64', images }
     } catch (error) {
       logger.error('[generateImage] error:', error as Error)
       throw error

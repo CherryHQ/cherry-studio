@@ -30,6 +30,7 @@ import {
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
+import { ImageContent } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   RequestOptions,
@@ -105,7 +106,7 @@ export abstract class BaseApiClient<
 
   abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
 
-  abstract generateImage(generateImageParams: GenerateImageParams): Promise<string[]>
+  abstract generateImage(generateImageParams: GenerateImageParams): Promise<ImageContent>
 
   abstract getEmbeddingDimensions(model?: Model): Promise<number>
 

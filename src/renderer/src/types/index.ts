@@ -189,11 +189,13 @@ export type LegacyMessage = {
   foldSelected?: boolean
 }
 
-export type Usage = OpenAI.Completions.CompletionUsage & {
-  thoughts_tokens?: number
-  // OpenRouter specific fields
-  cost?: number
-}
+export type Usage =
+  | (OpenAI.Completions.CompletionUsage & {
+      thoughts_tokens?: number
+      // OpenRouter specific fields
+      cost?: number
+    })
+  | OpenAI.ImagesResponse.Usage
 
 export type Metrics = {
   completion_tokens: number
@@ -480,6 +482,7 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
   quality?: string
+  responseFormat?: 'url' | 'b64_json'
 }
 
 export type GenerateImageResponse = {

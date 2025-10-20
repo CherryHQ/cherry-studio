@@ -11,6 +11,7 @@ import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { SettingsState } from '@renderer/store/settings'
 import { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
+import { ImageContent } from '@renderer/types/chunk'
 import {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
@@ -24,6 +25,7 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { extractImageContent } from '@renderer/utils'
 import { formatApiHost } from '@renderer/utils/api'
 import OpenAI, { AzureOpenAI } from 'openai'
 
@@ -63,10 +65,11 @@ export abstract class OpenAIBaseClient<
     numInferenceSteps,
     guidanceScale,
     signal,
-    promptEnhancement
-  }: GenerateImageParams): Promise<string[]> {
+    promptEnhancement,
+    responseFormat
+  }: GenerateImageParams): Promise<ImageContent> {
     const sdk = await this.getSdkInstance()
-    const response = (await sdk.request({
+    const response = await sdk.request({
       method: 'post',
       path: '/images/generations',
       signal,
@@ -79,11 +82,12 @@ export abstract class OpenAIBaseClient<
         seed: seed ? parseInt(seed) : undefined,
         num_inference_steps: numInferenceSteps,
         guidance_scale: guidanceScale,
-        prompt_enhancement: promptEnhancement
+        prompt_enhancement: promptEnhancement,
+        response_format: responseFormat
       }
-    })) as { data: Array<{ url: string }> }
+    })
 
-    return response.data.map((item) => item.url)
+    return extractImageContent(response)
   }
 
   override async getEmbeddingDimensions(model: Model): Promise<number> {

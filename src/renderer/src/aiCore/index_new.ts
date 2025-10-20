@@ -457,12 +457,12 @@ export default class ModernAiProvider {
       } catch (error) {
         logger.warn('Modern AI SDK generateImage failed, falling back to legacy:', error as Error)
         // fallback 到传统实现
-        return this.legacyProvider.generateImage(params)
+        return (await this.legacyProvider.generateImage(params)).images
       }
     }
 
     // 直接使用传统实现
-    return this.legacyProvider.generateImage(params)
+    return (await this.legacyProvider.generateImage(params)).images
   }
 
   /**

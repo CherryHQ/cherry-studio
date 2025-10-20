@@ -45,6 +45,7 @@ import {
 import {
   ChunkType,
   ErrorChunk,
+  ImageContent,
   LLMWebSearchCompleteChunk,
   LLMWebSearchInProgressChunk,
   MCPToolCreatedChunk,
@@ -120,8 +121,8 @@ export class AnthropicAPIClient extends BaseApiClient<
 
   // @ts-ignore sdk未提供
   // oxlint-disable-next-line @typescript-eslint/no-unused-vars
-  override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
-    return []
+  override async generateImage(generateImageParams: GenerateImageParams): Promise<ImageContent> {
+    return { images: [] }
   }
 
   override async listModels(): Promise<Anthropic.ModelInfo[]> {

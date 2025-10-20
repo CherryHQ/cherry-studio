@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+import { ImageContent, openaiCompatibleImageResponseSchema } from '@renderer/types/chunk'
 import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
 
@@ -565,4 +566,29 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
   element.removeAttribute('preserveAspectRatio')
 
   return element
+}
+
+export const extractImageContent = (resp: unknown): ImageContent => {
+  const parsed = openaiCompatibleImageResponseSchema.safeParse(resp)
+  if (!parsed.success) {
+    return {
+      images: []
+    }
+  }
+  let imageType: 'url' | 'base64' = 'url'
+  const images = parsed.data.data.reduce((acc: string[], item) => {
+    if (item.url) {
+      acc.push(item.url)
+    } else if (item.b64_json) {
+      acc.push(`data:image/png;base64,${item.b64_json}`)
+      if (imageType !== 'base64') {
+        imageType = 'base64'
+      }
+    }
+    return acc
+  }, [])
+  return {
+    type: imageType,
+    images
+  }
 }

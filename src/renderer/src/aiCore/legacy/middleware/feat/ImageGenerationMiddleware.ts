@@ -1,12 +1,16 @@
-import { isDedicatedImageGenerationModel } from '@renderer/config/models'
+import { PersonGeneration } from '@google/genai'
+import { isDedicatedGeminiImageGenerationModel, isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
-import { ChunkType } from '@renderer/types/chunk'
+import { GenerateImageParams } from '@renderer/types'
+import { ChunkType, ImageContent } from '@renderer/types/chunk'
+import { extractImageContent } from '@renderer/utils'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
 import OpenAI from 'openai'
 import { toFile } from 'openai/uploads'
 
 import { BaseApiClient } from '../../clients/BaseApiClient'
+import { GeminiAPIClient } from '../../clients/gemini/GeminiAPIClient'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
@@ -17,10 +21,33 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
   (next) =>
   async (context: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
     const { assistant, messages } = params
-    const client = context.apiClientInstance as BaseApiClient<OpenAI>
+    const client = context.apiClientInstance
     const signal = context._internal?.flowControl?.abortSignal
     if (!assistant.model || !isDedicatedImageGenerationModel(assistant.model) || typeof messages === 'string') {
       return next(context, params)
+    }
+
+    const openAIGenerateImage = async (
+      params: GenerateImageParams,
+      imageFiles?: Blob[]
+    ): Promise<{ content: ImageContent; usage?: OpenAI.ImagesResponse.Usage }> => {
+      const sdk = await (client as BaseApiClient<OpenAI>).getSdkInstance()
+      if (imageFiles && imageFiles.length > 0) {
+        const resp = await sdk.images.edit(
+          {
+            model: params.model,
+            image: imageFiles,
+            prompt: params.prompt
+          },
+          {
+            signal,
+            timeout: defaultTimeout
+          }
+        )
+        return { content: extractImageContent(resp), usage: resp.usage }
+      } else {
+        return { content: await client.generateImage(params) }
+      }
     }
 
     const stream = new ReadableStream<GenericChunk>({
@@ -32,7 +59,6 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             throw new Error('Assistant model is not defined.')
           }
 
-          const sdk = await client.getSdkInstance()
           const lastUserMessage = messages.findLast((m) => m.role === 'user')
           const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
 
@@ -74,54 +100,59 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           enqueue({ type: ChunkType.IMAGE_CREATED })
 
           const startTime = Date.now()
-          let response: OpenAI.Images.ImagesResponse
-          const options = { signal, timeout: defaultTimeout }
-
-          if (imageFiles.length > 0) {
-            response = await sdk.images.edit(
-              {
-                model: assistant.model.id,
-                image: imageFiles,
-                prompt: prompt || ''
-              },
-              options
-            )
-          } else {
-            response = await sdk.images.generate(
-              {
-                model: assistant.model.id,
-                prompt: prompt || '',
-                response_format: assistant.model.id.includes('gpt-image-1') ? undefined : 'b64_json'
-              },
-              options
-            )
+          const isGemini = context.apiClientInstance.provider.type === 'gemini'
+          const imageResult: ImageContent = {
+            type: 'url',
+            images: []
           }
+          let usage: OpenAI.ImagesResponse.Usage | undefined = undefined
 
-          let imageType: 'url' | 'base64' = 'base64'
-          const imageList =
-            response.data?.reduce((acc: string[], image) => {
-              if (image.url) {
-                acc.push(image.url)
-                imageType = 'url'
-              } else if (image.b64_json) {
-                acc.push(`data:image/png;base64,${image.b64_json}`)
-              }
-              return acc
-            }, []) || []
+          if (isGemini && isDedicatedGeminiImageGenerationModel(assistant.model)) {
+            const sdk = client as GeminiAPIClient
+            const images = await sdk.generateImage({
+              model: assistant.model.id,
+              prompt,
+              imageSize: '1:1',
+              batchSize: 1,
+              personGeneration: PersonGeneration.ALLOW_ALL,
+              signal
+            })
+            imageResult.type = 'base64'
+            imageResult.images.push(...images.images)
+          } else {
+            const data = await openAIGenerateImage(
+              {
+                model: assistant.model.id,
+                prompt,
+                imageSize: '1024x1024',
+                batchSize: 1,
+                responseFormat: 'b64_json'
+              },
+              imageFiles.length > 0 ? imageFiles : undefined
+            )
+            imageResult.type = data.content.type
+            imageResult.images.push(...data.content.images)
+            usage = data.usage
+          }
 
           enqueue({
             type: ChunkType.IMAGE_COMPLETE,
-            image: { type: imageType, images: imageList }
+            image: imageResult
           })
 
-          const usage = (response as any).usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+          usage = usage ?? {
+            input_tokens: 0,
+            input_tokens_details: { image_tokens: 0, text_tokens: 0 },
+            output_tokens: 0,
+            total_tokens: 0
+          }
 
           enqueue({
             type: ChunkType.LLM_RESPONSE_COMPLETE,
             response: {
               usage,
               metrics: {
-                completion_tokens: usage.completion_tokens,
+                completion_tokens: usage.output_tokens,
                 time_first_token_millsec: 0,
                 time_completion_millsec: Date.now() - startTime
               }

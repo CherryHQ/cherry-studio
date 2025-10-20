@@ -184,13 +184,15 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (mode === 'aihubmix_image_generate') {
         if (painting.model.startsWith('imagen-')) {
           const AI = new AiProvider(aihubmixProvider)
-          const base64s = await AI.generateImage({
-            prompt,
-            model: painting.model,
-            imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
-            personGeneration: painting.personGeneration
-          })
+          const base64s = (
+            await AI.generateImage({
+              prompt,
+              model: painting.model,
+              imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
+              batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
+              personGeneration: painting.personGeneration
+            })
+          ).images
           if (base64s?.length > 0) {
             const validFiles = await Promise.all(
               base64s.map(async (base64) => {

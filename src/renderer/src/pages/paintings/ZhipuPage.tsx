@@ -164,7 +164,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       // 调用智谱AI绘图API
-      const imageUrls = await aiProvider.generateImage(request)
+      const imageUrls = (await aiProvider.generateImage(request)).images
 
       // 下载图片到本地文件
       if (imageUrls.length > 0) {

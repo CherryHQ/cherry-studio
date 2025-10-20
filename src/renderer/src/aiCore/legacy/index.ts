@@ -6,6 +6,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
+import { ImageContent } from '@renderer/types/chunk'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isSupportedToolUse } from '@renderer/utils/mcp-tools'
 
@@ -171,7 +172,7 @@ export default class AiProvider {
     }
   }
 
-  public async generateImage(params: GenerateImageParams): Promise<string[]> {
+  public async generateImage(params: GenerateImageParams): Promise<ImageContent> {
     if (this.apiClient instanceof AihubmixAPIClient) {
       const client = this.apiClient.getClientForModel({ id: params.model } as Model)
       return client.generateImage(params)

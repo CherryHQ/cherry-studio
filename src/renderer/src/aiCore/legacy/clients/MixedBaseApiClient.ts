@@ -7,6 +7,7 @@ import {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
+import { ImageContent } from '@renderer/types/chunk'
 import {
   RequestOptions,
   SdkInstance,
@@ -115,7 +116,7 @@ export abstract class MixedBaseAPIClient extends BaseApiClient {
     return this.currentClient.createCompletions(payload, options)
   }
 
-  async generateImage(params: GenerateImageParams): Promise<string[]> {
+  async generateImage(params: GenerateImageParams): Promise<ImageContent> {
     return this.currentClient.generateImage(params)
   }
 

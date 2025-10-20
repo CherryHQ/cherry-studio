@@ -196,18 +196,20 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     try {
-      const urls = await AI.generateImage({
-        model: painting.model,
-        prompt,
-        negativePrompt: painting.negativePrompt || '',
-        imageSize: painting.imageSize || '1024x1024',
-        batchSize: painting.numImages || 1,
-        seed: painting.seed || undefined,
-        numInferenceSteps: painting.steps || 25,
-        guidanceScale: painting.guidanceScale || 4.5,
-        signal: controller.signal,
-        promptEnhancement: painting.promptEnhancement || false
-      })
+      const urls = (
+        await AI.generateImage({
+          model: painting.model,
+          prompt,
+          negativePrompt: painting.negativePrompt || '',
+          imageSize: painting.imageSize || '1024x1024',
+          batchSize: painting.numImages || 1,
+          seed: painting.seed || undefined,
+          numInferenceSteps: painting.steps || 25,
+          guidanceScale: painting.guidanceScale || 4.5,
+          signal: controller.signal,
+          promptEnhancement: painting.promptEnhancement || false
+        })
+      ).images
 
       if (urls.length > 0) {
         const downloadedFiles = await Promise.all(

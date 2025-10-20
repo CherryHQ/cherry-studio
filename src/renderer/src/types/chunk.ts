@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import {
   ExternalToolResult,
   KnowledgeReference,
@@ -161,6 +163,17 @@ export interface ImageDeltaChunk {
   type: ChunkType.IMAGE_DELTA
 }
 
+export const openaiCompatibleImageResponseSchema = z.object({
+  data: z.array(
+    z.object({ b64_json: z.string().optional(), url: z.string().optional(), revised_prompt: z.string().optional() })
+  )
+})
+
+export type ImageContent = {
+  type?: 'url' | 'base64'
+  images: string[]
+}
+
 export interface ImageCompleteChunk {
   /**
    * The type of the chunk
@@ -170,7 +183,7 @@ export interface ImageCompleteChunk {
   /**
    * The image content of the chunk
    */
-  image?: { type: 'url' | 'base64'; images: string[] }
+  image?: ImageContent
 }
 
 export interface ThinkingStartChunk {
