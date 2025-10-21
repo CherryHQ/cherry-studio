@@ -7,6 +7,4 @@ export function testFunction(a: number, b: number): number {
 
 export const badlyFormatted = { foo: 'bar', baz: 123, nested: { key: 'value' } }
 
-function anotherFunction() {
-  console.log('bad spacing')
-}
+export function anotherFunction(){ console.log('bad spacing') }
