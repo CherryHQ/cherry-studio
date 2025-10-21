@@ -27,7 +27,7 @@ import React, { FC, memo, startTransition, useEffect, useMemo, useState } from '
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer } from './shared'
+import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton } from './shared'
 
 // const logger = loggerService.withContext('AgentItem')
 
@@ -68,7 +68,6 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
           </div>
         }>
         <MenuButton
-          className="menu"
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
             if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
@@ -189,18 +188,6 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     </>
   )
 }
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
-`
 
 const PendingIndicator = styled.div.attrs({
   className: 'animation-pulse'

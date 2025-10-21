@@ -53,7 +53,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AddButton from './AddButton'
-import { ListContainer, ListItem, ListItemEditInput, ListItemName, ListItemNameContainer } from './shared'
+import { ListContainer, ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton } from './shared'
 
 interface Props {
   assistant: Assistant
@@ -549,7 +549,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                         </div>
                       }>
                       <MenuButton
-                        className="menu"
                         onClick={(e) => {
                           if (e.ctrlKey || e.metaKey) {
                             handleConfirmDelete(topic, e)
@@ -631,16 +630,4 @@ const TopicPromptText = styled.div`
 const TopicTime = styled.div`
   color: var(--color-text-3);
   font-size: 11px;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
 `

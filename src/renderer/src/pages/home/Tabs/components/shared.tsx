@@ -29,6 +29,7 @@ export const ListItemNameContainer = ({ children, className, ...props }: Compone
   )
 }
 
+// This component involves complex animations and will not be migrated for now.
 export const ListItemName = styled.div`
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -92,6 +93,14 @@ export const ListItemEditInput = ({ className, ...props }: ComponentPropsWithRef
 export const ListContainer = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
     <div className={cn('flex h-full w-full flex-col p-2', className)} {...props}>
+      {children}
+    </div>
+  )
+}
+
+export const MenuButton = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
+  return (
+    <div className={cn('menu', 'flex min-h-5 min-w-5 flex-row items-center justify-center', className)} {...props}>
       {children}
     </div>
   )
