@@ -155,8 +155,9 @@ import ZhipuModelLogoDark from '@renderer/assets/images/models/zhipu_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import { Model } from '@renderer/types'
 
-export function getModelLogo(modelId: string) {
+export function getModelLogoById(modelId: string) {
   const isLight = true
 
   if (!modelId) {
@@ -299,4 +300,8 @@ export function getModelLogo(modelId: string) {
   }
 
   return undefined
+}
+
+export function getModelLogo(model: Model | undefined | null): string | null {
+  return model ? (getModelLogoById(model.id) ?? getModelLogoById(model.name)) : null
 }

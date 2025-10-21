@@ -36,7 +36,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
   return (
     <ListItem ref={ref}>
       <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-        <Avatar src={getModelLogo(model.id) || getModelLogo(model.name)} size={24}>
+        <Avatar src={getModelLogo(model)} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
         <ModelIdWithTags
