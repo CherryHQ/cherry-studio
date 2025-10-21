@@ -141,6 +141,7 @@ We're actively working on the following features and improvements:
 - iOS App (Phase 1)
 - Multi-Window support
 - Window Pinning functionality
+- Intel AI PC (Core Ultra) Support
 
 4. 🔌 **Advanced Features**
 
@@ -285,6 +286,14 @@ We believe the Enterprise Edition will become your team's AI productivity engine
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=CherryHQ/cherry-studio&type=Date" />
  </picture>
 </a>
+
+# 📜 License
+
+The Cherry Studio Community Edition is governed by the standard GNU Affero General Public License v3.0 (AGPL-3.0), available at https://www.gnu.org/licenses/agpl-3.0.html.
+
+Use of the Cherry Studio Community Edition for commercial purposes is permitted, subject to full compliance with the terms and conditions of the AGPL-3.0 license.
+
+Should you require a commercial license that provides an exemption from the AGPL-3.0 requirements, please contact us at bd@cherry-ai.com.
 
 <!-- Links & Images -->
 
