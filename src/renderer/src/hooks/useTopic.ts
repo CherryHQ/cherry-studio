@@ -201,6 +201,12 @@ export const TopicManager = {
       await deleteMessageFiles(message)
     }
 
+    // 删除话题对应的消息块
+    const blockIds = messages.flatMap((message) => message.blocks || [])
+    if (blockIds.length > 0) {
+      await db.message_blocks.bulkDelete(blockIds)
+    }
+
     db.topics.delete(id)
   },
 
@@ -210,6 +216,12 @@ export const TopicManager = {
     if (topic) {
       for (const message of topic?.messages ?? []) {
         await deleteMessageFiles(message)
+      }
+
+      // 删除话题对应的消息块
+      const blockIds = topic.messages.flatMap((message) => message.blocks || [])
+      if (blockIds.length > 0) {
+        await db.message_blocks.bulkDelete(blockIds)
       }
 
       topic.messages = []
