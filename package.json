@@ -350,7 +350,7 @@
     "undici": "6.21.2",
     "unified": "^11.0.5",
     "uuid": "^13.0.0",
-    "vite": "npm:rolldown-vite@latest",
+    "vite": "npm:rolldown-vite@7.1.5",
     "vitest": "^3.2.4",
     "webdav": "^5.8.0",
     "winston": "^3.17.0",
