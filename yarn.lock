@@ -7307,27 +7307,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opeoginni/github-copilot-openai-compatible@npm:0.1.18":
-  version: 0.1.18
-  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.18"
+"@opeoginni/github-copilot-openai-compatible@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.19"
   dependencies:
     "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.1.0-beta.4"
     "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/31b87ed150883bbdd33a0203e45831859560fdf174f0285384fdcb1d01fc4a56ca15f31d648e8d6d3a2d4d5c6e327ddecbf422543eeefaa7e8fdd7dc2f2a3b08
-  languageName: node
-  linkType: hard
-
-"@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch":
-  version: 0.1.18
-  resolution: "@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch::version=0.1.18&hash=1cf9d0"
-  dependencies:
-    "@ai-sdk/openai": "npm:^2.0.42"
-    "@ai-sdk/openai-compatible": "npm:^1.0.19"
-    "@ai-sdk/provider": "npm:^2.1.0-beta.4"
-    "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/cfffc031d2742068d20baed0e0ade6e9182c29ee7a425fa64262c04023ae75220b8b944ad2c9554255681e325fa1a70ec5e1f961b5f7370c871e70cbaeac0e79
+  checksum: 10c0/dfb01832d7c704b2eb080fc09d31b07fc26e5ac4e648ce219dc0d80cf044ef3cae504427781ec2ce3c5a2459c9c81d043046a255642108d5b3de0f83f4a9f20a
   languageName: node
   linkType: hard
 
@@ -13903,7 +13891,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
-    "@opeoginni/github-copilot-openai-compatible": "patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch"
+    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.19"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
     "@reduxjs/toolkit": "npm:^2.2.5"
@@ -14033,6 +14021,7 @@ __metadata:
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
     iconv-lite: "npm:^0.6.3"
+    ipaddr.js: "npm:^2.2.0"
     isbinaryfile: "npm:5.0.4"
     jaison: "npm:^2.0.2"
     jest-styled-components: "npm:^7.2.0"
@@ -14059,7 +14048,7 @@ __metadata:
     p-queue: "npm:^8.1.0"
     pdf-lib: "npm:^1.17.1"
     pdf-parse: "npm:^1.1.1"
-    playwright: "npm:^1.52.0"
+    playwright: "npm:^1.55.1"
     proxy-agent: "npm:^6.5.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
@@ -14112,7 +14101,7 @@ __metadata:
     undici: "npm:6.21.2"
     unified: "npm:^11.0.5"
     uuid: "npm:^13.0.0"
-    vite: "npm:rolldown-vite@latest"
+    vite: "npm:rolldown-vite@7.1.5"
     vitest: "npm:^3.2.4"
     webdav: "npm:^5.8.0"
     winston: "npm:^3.17.0"
@@ -20334,6 +20323,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ipaddr.js@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "ipaddr.js@npm:2.2.0"
+  checksum: 10c0/e4ee875dc1bd92ac9d27e06cfd87cdb63ca786ff9fd7718f1d4f7a8ef27db6e5d516128f52d2c560408cbb75796ac2f83ead669e73507c86282d45f84c5abbb6
+  languageName: node
+  linkType: hard
+
 "is-alphabetical@npm:^1.0.0":
   version: 1.0.4
   resolution: "is-alphabetical@npm:1.0.4"
@@ -24618,7 +24614,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright@npm:1.52.0, playwright@npm:^1.52.0":
+"playwright-core@npm:1.56.1":
+  version: 1.56.1
+  resolution: "playwright-core@npm:1.56.1"
+  bin:
+    playwright-core: cli.js
+  checksum: 10c0/ffd40142b99c68678b387445d5b42f1fee4ab0b65d983058c37f342e5629f9cdbdac0506ea80a0dfd41a8f9f13345bad54e9a8c35826ef66dc765f4eb3db8da7
+  languageName: node
+  linkType: hard
+
+"playwright@npm:1.52.0":
   version: 1.52.0
   resolution: "playwright@npm:1.52.0"
   dependencies:
@@ -24630,6 +24635,21 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: 10c0/2c6edf1e15e59bbaf77f3fa0fe0ac975793c17cff835d9c8b8bc6395a3b6f1c01898b3058ab37891b2e4d424bcc8f1b4844fe70d943e0143d239d7451408c579
+  languageName: node
+  linkType: hard
+
+"playwright@npm:^1.55.1":
+  version: 1.56.1
+  resolution: "playwright@npm:1.56.1"
+  dependencies:
+    fsevents: "npm:2.3.2"
+    playwright-core: "npm:1.56.1"
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    playwright: cli.js
+  checksum: 10c0/8e9965aede86df0f4722063385748498977b219630a40a10d1b82b8bd8d4d4e9b6b65ecbfa024331a30800163161aca292fb6dd7446c531a1ad25f4155625ab4
   languageName: node
   linkType: hard
 
@@ -29335,7 +29355,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:rolldown-vite@latest":
+"vite@npm:rolldown-vite@7.1.5":
   version: 7.1.5
   resolution: "rolldown-vite@npm:7.1.5"
   dependencies:

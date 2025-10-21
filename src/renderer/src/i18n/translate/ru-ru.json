@@ -538,6 +538,7 @@
         "context": "Очистить контекст {{Command}}"
       },
       "new_topic": "Новый топик {{Command}}",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
@@ -1959,6 +1960,14 @@
     "rename": "переименовать",
     "rename_changed": "В связи с политикой безопасности имя файла было изменено с {{Original}} на {{final}}",
     "save": "Сохранить в заметки",
+    "search": {
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
+    },
     "settings": {
       "data": {
         "apply": "приложение",
@@ -2107,6 +2116,8 @@
       "install_code_103": "Ошибка загрузки среды выполнения OVMS",
       "install_code_104": "Ошибка распаковки среды выполнения OVMS",
       "install_code_105": "Ошибка очистки среды выполнения OVMS",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "Ошибка запуска OVMS:",
       "stop": "Ошибка остановки OVMS:"
     },
@@ -4217,7 +4228,8 @@
         "none": "Не использовать прокси",
         "system": "Системный прокси",
         "title": "Режим прокси"
-      }
+      },
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Нажмите на иконку трея для запуска",

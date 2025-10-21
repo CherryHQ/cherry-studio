@@ -538,6 +538,7 @@
         "context": "Clear Context {{Command}}"
       },
       "new_topic": "New Topic {{Command}}",
+      "paste_text_file_confirm": "Paste into input bar?",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
@@ -4227,7 +4228,8 @@
         "none": "No Proxy",
         "system": "System Proxy",
         "title": "Proxy Mode"
-      }
+      },
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
