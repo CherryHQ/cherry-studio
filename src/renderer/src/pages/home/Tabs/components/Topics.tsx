@@ -492,7 +492,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       <AddButton onPress={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
         {t('chat.add.topic.title')}
       </AddButton>
-      <DraggableVirtualList className="topics-tab" list={sortedTopics} onUpdate={updateTopics}>
+      <DraggableVirtualList list={sortedTopics} onUpdate={updateTopics} className="overflow-y-auto overflow-x-hidden">
         {(topic) => {
           const isActive = topic.id === activeTopic?.id
           const topicName = topic.name.replace('`', '')
