@@ -38,7 +38,7 @@ out
 mcp_server
 stats.html
 .eslintcache
-resources/data/components
+resources/data/claude-code-plugins
 
 # ENV
 .env

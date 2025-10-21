@@ -8,7 +8,7 @@ const path = require('path')
  */
 
 const SOURCE_DIR = path.join(__dirname, '../external/claude-code-templates/cli-tool/components')
-const TARGET_DIR = path.join(__dirname, '../resources/data/components')
+const TARGET_DIR = path.join(__dirname, '../resources/data/claude-code-plugins')
 
 function copyDirectory(source, target) {
   // Create target directory if it doesn't exist
