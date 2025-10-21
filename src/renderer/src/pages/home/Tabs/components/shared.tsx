@@ -1,6 +1,5 @@
 import { cn } from '@heroui/react'
 import { HTMLAttributes } from 'react'
-import styled from 'styled-components'
 
 export const ListItem = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
   return (
@@ -58,17 +57,17 @@ export const ListItemName = ({ children, className, ...props }: HTMLAttributes<H
   )
 }
 
-export const ListItemEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
+export const ListItemEditInput = ({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => {
+  return (
+    <input
+      className={cn(
+        'bg-[var(--color-background)] border-none text-[var(--color-text-1)] text-sm font-inherit w-full outline-none px-[6px] py-[2px] p-0',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
 export const ListContainer = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
   return (
