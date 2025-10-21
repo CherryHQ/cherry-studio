@@ -1,3 +1,5 @@
+import { cn } from '@heroui/react'
+import { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
 export const ListItem = styled.div`
@@ -116,3 +118,11 @@ export const ListItemEditInput = styled.input`
   outline: none;
   padding: 0;
 `
+
+export const ListContainer = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div className={cn('flex h-full w-full flex-col p-2', className)} {...props}>
+      {children}
+    </div>
+  )
+}

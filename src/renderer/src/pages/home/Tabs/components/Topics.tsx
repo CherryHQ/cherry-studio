@@ -52,7 +52,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AddButton from './AddButton'
-import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer } from './shared'
+import { ListContainer, ListItem, ListItemEditInput, ListItemName, ListItemNameContainer } from './shared'
 
 interface Props {
   assistant: Assistant
@@ -489,107 +489,104 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const singlealone = topicPosition === 'right' && position === 'right'
 
   return (
-    <DraggableVirtualList
-      className="topics-tab"
-      list={sortedTopics}
-      onUpdate={updateTopics}
-      style={{ height: '100%', padding: '11px 0 10px 10px' }}
-      itemContainerStyle={{ paddingBottom: '8px' }}
-      header={
-        <AddButton onPress={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
-          {t('chat.add.topic.title')}
-        </AddButton>
-      }>
-      {(topic) => {
-        const isActive = topic.id === activeTopic?.id
-        const topicName = topic.name.replace('`', '')
-        const topicPrompt = topic.prompt
-        const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+    <ListContainer className="topics-tab">
+      <AddButton onPress={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
+        {t('chat.add.topic.title')}
+      </AddButton>
+      <DraggableVirtualList className="topics-tab" list={sortedTopics} onUpdate={updateTopics}>
+        {(topic) => {
+          const isActive = topic.id === activeTopic?.id
+          const topicName = topic.name.replace('`', '')
+          const topicPrompt = topic.prompt
+          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
 
-        const getTopicNameClassName = () => {
-          if (isRenaming(topic.id)) return 'shimmer'
-          if (isNewlyRenamed(topic.id)) return 'typing'
-          return ''
-        }
+          const getTopicNameClassName = () => {
+            if (isRenaming(topic.id)) return 'shimmer'
+            if (isNewlyRenamed(topic.id)) return 'typing'
+            return ''
+          }
 
-        return (
-          <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
-            <ListItem
-              onContextMenu={() => setTargetTopic(topic)}
-              className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
-              style={{
-                borderRadius,
-                cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
-              }}>
-              {isPending(topic.id) && !isActive && <PendingIndicator />}
-              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
-              <ListItemNameContainer>
-                {editingTopicId === topic.id && topicEdit.isEditing ? (
-                  <ListItemEditInput
-                    ref={topicEdit.inputRef}
-                    value={topicEdit.editValue}
-                    onChange={topicEdit.handleInputChange}
-                    onKeyDown={topicEdit.handleKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <ListItemName
-                    className={getTopicNameClassName()}
-                    title={topicName}
-                    onDoubleClick={() => {
-                      setEditingTopicId(topic.id)
-                      topicEdit.startEdit(topic.name)
-                    }}>
-                    {topicName}
-                  </ListItemName>
-                )}
-                {!topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
-                    title={
-                      <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                        {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
+          return (
+            <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
+              <ListItem
+                onContextMenu={() => setTargetTopic(topic)}
+                className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+                onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
+                style={{
+                  borderRadius,
+                  cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
+                }}>
+                {isPending(topic.id) && !isActive && <PendingIndicator />}
+                {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+                <ListItemNameContainer>
+                  {editingTopicId === topic.id && topicEdit.isEditing ? (
+                    <ListItemEditInput
+                      ref={topicEdit.inputRef}
+                      value={topicEdit.editValue}
+                      onChange={topicEdit.handleInputChange}
+                      onKeyDown={topicEdit.handleKeyDown}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <ListItemName
+                      className={getTopicNameClassName()}
+                      title={topicName}
+                      onDoubleClick={() => {
+                        setEditingTopicId(topic.id)
+                        topicEdit.startEdit(topic.name)
                       }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
-                      ) : (
-                        <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
-                      )}
+                      {topicName}
+                    </ListItemName>
+                  )}
+                  {!topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      mouseLeaveDelay={0}
+                      title={
+                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
+                        ) : (
+                          <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PinIcon size={14} color="var(--color-text-3)" />
                     </MenuButton>
-                  </Tooltip>
+                  )}
+                </ListItemNameContainer>
+                {topicPrompt && (
+                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                    {fullTopicPrompt}
+                  </TopicPromptText>
                 )}
-                {topic.pinned && (
-                  <MenuButton className="pin">
-                    <PinIcon size={14} color="var(--color-text-3)" />
-                  </MenuButton>
+                {showTopicTime && (
+                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
                 )}
-              </ListItemNameContainer>
-              {topicPrompt && (
-                <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                  {fullTopicPrompt}
-                </TopicPromptText>
-              )}
-              {showTopicTime && <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>}
-            </ListItem>
-          </Dropdown>
-        )
-      }}
-    </DraggableVirtualList>
+              </ListItem>
+            </Dropdown>
+          )
+        }}
+      </DraggableVirtualList>
+    </ListContainer>
   )
 }
 
