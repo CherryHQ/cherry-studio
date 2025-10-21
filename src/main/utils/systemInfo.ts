@@ -101,7 +101,7 @@ export function getClientId(): string {
   let clientId = preferenceService.get('app.user.id')
 
   // If it's the placeholder value, generate a new UUID
-  if (!clientId || clientId === 'uuid()') {
+  if (!clientId || clientId.length === 0) {
     clientId = uuidv4()
     preferenceService.set('app.user.id', clientId)
   }
