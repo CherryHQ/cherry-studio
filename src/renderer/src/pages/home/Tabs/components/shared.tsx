@@ -1,67 +1,55 @@
 import { cn } from '@heroui/react'
-import { HTMLAttributes } from 'react'
+import { ComponentPropsWithoutRef, ComponentPropsWithRef } from 'react'
 
-export const ListItem = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+export const ListItem = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
     <div
       className={cn(
-        'px-3 py-[7px] rounded-lg text-sm flex flex-col justify-between cursor-pointer w-[calc(var(--assistants-width)-20px)] mb-2',
+        'mb-2 flex w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-col justify-between rounded-lg px-3 py-[7px] text-sm',
         'transition-colors duration-100',
         'hover:bg-[var(--color-list-item-hover)]',
         'active:bg-[var(--color-list-item)] active:shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
-        '[.menu]:opacity-0 [.menu]:text-[var(--color-text-3)]',
+        '[.menu]:text-[var(--color-text-3)] [.menu]:opacity-0',
         'hover:[.menu]:opacity-1',
         'active:[.menu]:opacity-1 active:[.menu]:hover:text-[var(--color-text-2)]',
-        'singlealone:rounded-none singlealone:hover:bg-[var(--color-background-soft)] singlealone:active:border-l-2 singlealone:active:border-[var(--color-primary)] singlealone:active:shadow-none',
+        'singlealone:rounded-none singlealone:hover:bg-[var(--color-background-soft)] singlealone:active:border-[var(--color-primary)] singlealone:active:border-l-2 singlealone:active:shadow-none',
         className
       )}
-      {...props}
-    >
+      {...props}>
       {children}
     </div>
   )
 }
-export const ListItemNameContainer = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+export const ListItemNameContainer = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
-    <div
-      className={cn(
-        'flex flex-row items-center gap-1 h-5 justify-between',
-        className
-      )}
-      {...props}
-    >
+    <div className={cn('flex h-5 flex-row items-center justify-between gap-1', className)} {...props}>
       {children}
     </div>
   )
 }
 
-export const ListItemName = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+export const ListItemName = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
     <div
-      className={cn(
-        'overflow-hidden text-sm relative',
-        'will-change-[background-position,width]',
-        className
-      )}
+      className={cn('relative overflow-hidden text-sm', 'will-change-[background-position,width]', className)}
       style={{
         display: '-webkit-box',
         WebkitLineClamp: 1,
         WebkitBoxOrient: 'vertical',
         WebkitBoxFlex: 1,
-        ...props.style,
+        ...props.style
       }}
-      {...props}
-    >
+      {...props}>
       {children}
     </div>
   )
 }
 
-export const ListItemEditInput = ({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => {
+export const ListItemEditInput = ({ className, ...props }: ComponentPropsWithRef<'input'>) => {
   return (
     <input
       className={cn(
-        'bg-[var(--color-background)] border-none text-[var(--color-text-1)] text-sm font-inherit w-full outline-none px-[6px] py-[2px] p-0',
+        'w-full border-none bg-[var(--color-background)] p-0 px-[6px] py-[2px] font-inherit text-[var(--color-text-1)] text-sm outline-none',
         className
       )}
       {...props}
@@ -69,7 +57,7 @@ export const ListItemEditInput = ({ className, ...props }: React.InputHTMLAttrib
   )
 }
 
-export const ListContainer = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+export const ListContainer = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
     <div className={cn('flex h-full w-full flex-col p-2', className)} {...props}>
       {children}
