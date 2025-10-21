@@ -195,19 +195,8 @@ export const TopicManager = {
   },
 
   async removeTopic(id: string) {
-    const messages = await TopicManager.getTopicMessages(id)
-
-    for (const message of messages) {
-      await deleteMessageFiles(message)
-    }
-
-    // 删除话题对应的消息块
-    const blockIds = messages.flatMap((message) => message.blocks || [])
-    if (blockIds.length > 0) {
-      await db.message_blocks.bulkDelete(blockIds)
-    }
-
-    db.topics.delete(id)
+    await TopicManager.clearTopicMessages(id)
+    await db.topics.delete(id)
   },
 
   async clearTopicMessages(id: string) {
