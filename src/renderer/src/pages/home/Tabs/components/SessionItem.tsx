@@ -27,6 +27,8 @@ import React, { FC, memo, startTransition, useEffect, useMemo, useState } from '
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer } from './shared'
+
 // const logger = loggerService.withContext('AgentItem')
 
 interface SessionItemProps {
@@ -114,7 +116,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
-          <SessionListItem
+          <ListItem
             className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
             onClick={isEditing ? undefined : onPress}
             onDoubleClick={() => startEdit(session.name ?? '')}
@@ -125,9 +127,9 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
             }}>
             {isPending && !isActive && <PendingIndicator />}
             {isFulfilled && !isActive && <FulfilledIndicator />}
-            <SessionNameContainer>
+            <ListItemNameContainer>
               {isEditing ? (
-                <SessionEditInput
+                <ListItemEditInput
                   ref={inputRef}
                   value={editValue}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleValueChange(e.target.value)}
@@ -137,14 +139,14 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
                 />
               ) : (
                 <>
-                  <SessionName>
+                  <ListItemName>
                     <SessionLabel session={session} />
-                  </SessionName>
+                  </ListItemName>
                   <DeleteButton />
                 </>
               )}
-            </SessionNameContainer>
-          </SessionListItem>
+            </ListItemNameContainer>
+          </ListItem>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem
@@ -186,85 +188,6 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     </>
   )
 }
-
-const SessionListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
-  margin-bottom: 8px;
-
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
-
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-
-  &.singlealone {
-    border-radius: 0 !important;
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      border-left: 2px solid var(--color-primary);
-      box-shadow: none;
-    }
-  }
-`
-
-const SessionNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
-
-const SessionName = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-`
-
-const SessionEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
 
 const MenuButton = styled.div`
   display: flex;
