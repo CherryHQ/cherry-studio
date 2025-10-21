@@ -538,6 +538,7 @@
         "context": "コンテキストをクリア {{Command}}"
       },
       "new_topic": "新しいトピック {{Command}}",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",

@@ -157,7 +157,7 @@
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opentelemetry/sdk-trace-web": "^2.0.0",
-    "@opeoginni/github-copilot-openai-compatible": "patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch",
+    "@opeoginni/github-copilot-openai-compatible": "0.1.19",
     "@playwright/test": "^1.52.0",
     "@radix-ui/react-context-menu": "^2.2.16",
     "@reduxjs/toolkit": "^2.2.5",
@@ -387,7 +387,13 @@
     "undici": "6.21.2",
     "vite": "npm:rolldown-vite@latest",
     "tesseract.js@npm:*": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
-    "@ai-sdk/google@npm:2.0.20": "patch:@ai-sdk/google@npm%3A2.0.20#~/.yarn/patches/@ai-sdk-google-npm-2.0.20-b9102f9d54.patch"
+    "@ai-sdk/google@npm:2.0.20": "patch:@ai-sdk/google@npm%3A2.0.20#~/.yarn/patches/@ai-sdk-google-npm-2.0.20-b9102f9d54.patch",
+    "@img/sharp-darwin-arm64": "0.34.3",
+    "@img/sharp-darwin-x64": "0.34.3",
+    "@img/sharp-linux-arm": "0.34.3",
+    "@img/sharp-linux-arm64": "0.34.3",
+    "@img/sharp-linux-x64": "0.34.3",
+    "@img/sharp-win32-x64": "0.34.3"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {

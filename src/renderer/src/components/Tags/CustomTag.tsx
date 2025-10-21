@@ -14,6 +14,7 @@ export interface CustomTagProps {
   closable?: boolean
   onClose?: () => void
   onClick?: MouseEventHandler<HTMLDivElement>
+  onContextMenu?: MouseEventHandler<HTMLDivElement>
   disabled?: boolean
   inactive?: boolean
 }
@@ -28,6 +29,7 @@ const CustomTag: FC<CustomTagProps> = ({
   closable = false,
   onClose,
   onClick,
+  onContextMenu,
   disabled,
   inactive
 }) => {
@@ -40,6 +42,7 @@ const CustomTag: FC<CustomTagProps> = ({
         $closable={closable}
         $clickable={!disabled && !!onClick}
         onClick={disabled ? undefined : onClick}
+        onContextMenu={disabled ? undefined : onContextMenu}
         style={{
           ...(disabled && { cursor: 'not-allowed' }),
           ...style
@@ -57,7 +60,7 @@ const CustomTag: FC<CustomTagProps> = ({
         )}
       </Tag>
     ),
-    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style]
+    [actualColor, children, closable, disabled, icon, onClick, onClose, onContextMenu, size, style]
   )
 
   return tooltip ? (
