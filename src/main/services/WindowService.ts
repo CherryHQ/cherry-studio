@@ -14,7 +14,6 @@ import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
-import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
 
@@ -87,7 +86,7 @@ export class WindowService {
         webSecurity: false,
         webviewTag: true,
         allowRunningInsecureContent: true,
-        zoomFactor: configManager.getZoomFactor(),
+        zoomFactor: preferenceService.get('app.zoom_factor'),
         backgroundThrottling: false
       }
     })
@@ -120,10 +119,10 @@ export class WindowService {
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
-    const enableSpellCheck = configManager.get('enableSpellCheck', false)
+    const enableSpellCheck = preferenceService.get('app.spell_check.enabled')
     if (enableSpellCheck) {
       try {
-        const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
+        const spellCheckLanguages = preferenceService.get('app.spell_check.languages')
         spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
       } catch (error) {
         logger.error('Failed to set spell check languages:', error as Error)
@@ -175,7 +174,7 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
 
       // show window only when laucn to tray not set
       const isLaunchToTray = preferenceService.get('app.tray.on_launch')
@@ -204,14 +203,14 @@ export class WindowService {
     // and resize ipc
     //
     mainWindow.on('will-resize', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
     // minimize and restore will cause zoom reset
     mainWindow.on('restore', () => {
-      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
     })
 
     // ARCH: as `will-resize` is only for Win & Mac,
@@ -219,7 +218,7 @@ export class WindowService {
     // but `resize` will fliker the ui
     if (isLinux) {
       mainWindow.on('resize', () => {
-        mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+        mainWindow.webContents.setZoomFactor(preferenceService.get('app.zoom_factor'))
         mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }

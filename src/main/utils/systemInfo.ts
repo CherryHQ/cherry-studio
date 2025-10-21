@@ -1,6 +1,8 @@
+import { preferenceService } from '@data/PreferenceService'
 import { app } from 'electron'
 import macosRelease from 'macos-release'
 import os from 'os'
+import { v4 as uuidv4 } from 'uuid'
 
 /**
  * System information interface
@@ -89,4 +91,20 @@ export function generateUserAgent(): string {
   const systemInfo = getSystemInfo()
 
   return `Mozilla/5.0 (${systemInfo.osString}; ${systemInfo.archString}) AppleWebKit/537.36 (KHTML, like Gecko) CherryStudio/${systemInfo.appVersion} Chrome/124.0.0.0 Safari/537.36`
+}
+
+/**
+ * Get or generate a unique client ID
+ * @returns {string} Client ID
+ */
+export function getClientId(): string {
+  let clientId = preferenceService.get('app.user.id')
+
+  // If it's the placeholder value, generate a new UUID
+  if (!clientId || clientId === 'uuid()') {
+    clientId = uuidv4()
+    preferenceService.set('app.user.id', clientId)
+  }
+
+  return clientId
 }

@@ -19,7 +19,6 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
-import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
 import {
@@ -42,12 +41,12 @@ const logger = loggerService.withContext('MainEntry')
 /**
  * Disable hardware acceleration if setting is enabled
  */
-//FIXME should not use configManager, use usePreference instead
+//FIXME should not use preferenceService before initialization
 //TODO 我们需要调整配置管理的加载位置，以保证其在 preferenceService 初始化之前被调用
-const disableHardwareAcceleration = configManager.getDisableHardwareAcceleration()
-if (disableHardwareAcceleration) {
-  app.disableHardwareAcceleration()
-}
+// const disableHardwareAcceleration = preferenceService.get('app.disable_hardware_acceleration')
+// if (disableHardwareAcceleration) {
+//   app.disableHardwareAcceleration()
+// }
 
 /**
  * Disable chromium's window animations
