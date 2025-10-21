@@ -29331,7 +29331,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:rolldown-vite@latest":
+"vite@npm:rolldown-vite@7.1.5":
   version: 7.1.5
   resolution: "rolldown-vite@npm:7.1.5"
   dependencies:
