@@ -13,7 +13,7 @@ export const ListItem = ({ children, className, ...props }: ComponentPropsWithou
         '[&_.menu]:text-[var(--color-text-3)] [&_.menu]:opacity-0',
         'hover:[&_.menu]:opacity-100',
         '[.active]:[&_.menu]:opacity-100 [.active]:[&_.menu]:hover:text-[var(--color-text-2)]',
-        '[.singlealone.active]:border-[var(--color-primary)] [.singlealone.active]:border-l-2 [.singlealone.active]:shadow-none [.singlealone]:rounded-none [.singlealone]:hover:bg-[var(--color-background-soft)]',
+        '[.singlealone.active]:border-[var(--color-primary)] [.singlealone.active]:shadow-none [.singlealone]:rounded-none [.singlealone]:border-transparent [.singlealone]:border-l-2 [.singlealone]:hover:bg-[var(--color-background-soft)]',
         className
       )}
       {...props}>
