@@ -2,54 +2,26 @@ import { cn } from '@heroui/react'
 import { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
-export const ListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
-  margin-bottom: 8px;
-
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
-
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-
-  &.singlealone {
-    border-radius: 0 !important;
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      border-left: 2px solid var(--color-primary);
-      box-shadow: none;
-    }
-  }
-`
+export const ListItem = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div
+      className={cn(
+        'px-3 py-[7px] rounded-lg text-sm flex flex-col justify-between cursor-pointer w-[calc(var(--assistants-width)-20px)] mb-2',
+        'transition-colors duration-100',
+        'hover:bg-[var(--color-list-item-hover)]',
+        'active:bg-[var(--color-list-item)] active:shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+        '[.menu]:opacity-0 [.menu]:text-[var(--color-text-3)]',
+        'hover:[.menu]:opacity-1',
+        'active:[.menu]:opacity-1 active:[.menu]:hover:text-[var(--color-text-2)]',
+        'singlealone:rounded-none singlealone:hover:bg-[var(--color-background-soft)] singlealone:active:border-l-2 singlealone:active:border-[var(--color-primary)] singlealone:active:shadow-none',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
 export const ListItemNameContainer = styled.div`
   display: flex;
   flex-direction: row;
