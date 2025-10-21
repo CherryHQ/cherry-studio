@@ -22,14 +22,19 @@ export const ListItem = ({ children, className, ...props }: HTMLAttributes<HTMLD
     </div>
   )
 }
-export const ListItemNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
+export const ListItemNameContainer = ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => {
+  return (
+    <div
+      className={cn(
+        'flex flex-row items-center gap-1 h-5 justify-between',
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+}
 
 export const ListItemName = styled.div`
   display: -webkit-box;
