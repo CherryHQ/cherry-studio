@@ -53,7 +53,15 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AddButton from './AddButton'
-import { ListContainer, ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton } from './shared'
+import {
+  ListContainer,
+  ListItem,
+  ListItemEditInput,
+  ListItemName,
+  ListItemNameContainer,
+  MenuButton,
+  StatusIndicator
+} from './shared'
 
 interface Props {
   assistant: Assistant
@@ -516,8 +524,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                   showTopicTime ? 'rounded-2xl' : 'rounded-[var(--list-item-border-radius)]'
                 )}
                 onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}>
-                {isPending(topic.id) && !isActive && <PendingIndicator />}
-                {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
+                {isPending(topic.id) && !isActive && <StatusIndicator variant="pending" />}
+                {isFulfilled(topic.id) && !isActive && <StatusIndicator variant="fulfilled" />}
                 <ListItemNameContainer>
                   {editingTopicId === topic.id && topicEdit.isEditing ? (
                     <ListItemEditInput
@@ -588,32 +596,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     </ListContainer>
   )
 }
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
 
 const TopicPromptText = styled.div`
   color: var(--color-text-2);

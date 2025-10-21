@@ -25,9 +25,8 @@ import { Tooltip } from 'antd'
 import { MenuIcon, XIcon } from 'lucide-react'
 import React, { FC, memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton } from './shared'
+import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton, StatusIndicator } from './shared'
 
 // const logger = loggerService.withContext('AgentItem')
 
@@ -125,8 +124,8 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
             onClick={isEditing ? undefined : onPress}
             onDoubleClick={() => startEdit(session.name ?? '')}
             title={session.name ?? session.id}>
-            {isPending && !isActive && <PendingIndicator />}
-            {isFulfilled && !isActive && <FulfilledIndicator />}
+            {isPending && !isActive && <StatusIndicator variant="pending" />}
+            {isFulfilled && !isActive && <StatusIndicator variant="fulfilled" />}
             <ListItemNameContainer>
               {isEditing ? (
                 <ListItemEditInput
@@ -188,31 +187,5 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     </>
   )
 }
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
 
 export default memo(SessionItem)

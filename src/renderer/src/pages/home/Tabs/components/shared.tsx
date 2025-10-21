@@ -1,5 +1,6 @@
 import { cn } from '@heroui/react'
-import { ComponentPropsWithoutRef, ComponentPropsWithRef } from 'react'
+import { ComponentPropsWithoutRef, ComponentPropsWithRef, useMemo } from 'react'
+import styled from 'styled-components'
 
 export const ListItem = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
@@ -105,19 +106,25 @@ export const MenuButton = ({ children, className, ...props }: ComponentPropsWith
   )
 }
 
-export const PendingIndicator = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => {
+export const StatusIndicator = ({ variant }: { variant: 'pending' | 'fulfilled' }) => {
+  const colors = useMemo(() => {
+    switch (variant) {
+      case 'pending':
+        return {
+          wave: 'bg-warning-400',
+          back: 'bg-warning-500'
+        }
+      case 'fulfilled':
+        return {
+          wave: 'bg-success-400',
+          back: 'bg-success-500'
+        }
+    }
+  }, [variant])
   return (
-    <div
-      className={cn(
-        'absolute left-[3px] top-[15px] h-[5px] w-[5px] animate-pulse rounded-full',
-        'bg-[var(--color-status-warning)]',
-        className
-      )}
-      style={{
-        '--pulse-size': '5px',
-        ...props.style,
-      }}
-      {...props}
-    />
+    <div className="absolute top-4 left-1 flex size-1">
+      <span className={cn('absolute inline-flex h-full w-full animate-ping rounded-full opacity-75', colors.wave)} />
+      <span className={cn('relative inline-flex size-1 rounded-full bg-warning-500', colors.back)} />
+    </div>
   )
 }
