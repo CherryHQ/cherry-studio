@@ -34,7 +34,7 @@ export const ListItemName = styled.div`
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  font-size: 13px;
+  font-size: 14px;
   position: relative;
   will-change: background-position, width;
 
@@ -81,7 +81,7 @@ export const ListItemEditInput = ({ className, ...props }: ComponentPropsWithRef
   return (
     <input
       className={cn(
-        'w-full border-none bg-[var(--color-background)] p-0 px-[6px] py-[2px] font-inherit text-[var(--color-text-1)] text-sm outline-none',
+        'w-full border-none bg-[var(--color-background)] p-0 font-inherit text-[var(--color-text-1)] text-sm outline-none',
         className
       )}
       {...props}
