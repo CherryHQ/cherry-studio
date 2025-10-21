@@ -1,6 +1,5 @@
 import { cn } from '@heroui/react'
 import { ComponentPropsWithoutRef, ComponentPropsWithRef } from 'react'
-import styled from 'styled-components'
 
 export const ListItem = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
@@ -103,5 +102,22 @@ export const MenuButton = ({ children, className, ...props }: ComponentPropsWith
     <div className={cn('menu', 'flex min-h-5 min-w-5 flex-row items-center justify-center', className)} {...props}>
       {children}
     </div>
+  )
+}
+
+export const PendingIndicator = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => {
+  return (
+    <div
+      className={cn(
+        'absolute left-[3px] top-[15px] h-[5px] w-[5px] animate-pulse rounded-full',
+        'bg-[var(--color-status-warning)]',
+        className
+      )}
+      style={{
+        '--pulse-size': '5px',
+        ...props.style,
+      }}
+      {...props}
+    />
   )
 }
