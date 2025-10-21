@@ -1,5 +1,6 @@
 import { cn } from '@heroui/react'
 import { ComponentPropsWithoutRef, ComponentPropsWithRef } from 'react'
+import styled from 'styled-components'
 
 export const ListItem = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
   return (
@@ -28,22 +29,53 @@ export const ListItemNameContainer = ({ children, className, ...props }: Compone
   )
 }
 
-export const ListItemName = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
-  return (
-    <div
-      className={cn('relative overflow-hidden text-sm', 'will-change-[background-position,width]', className)}
-      style={{
-        display: '-webkit-box',
-        WebkitLineClamp: 1,
-        WebkitBoxOrient: 'vertical',
-        WebkitBoxFlex: 1,
-        ...props.style
-      }}
-      {...props}>
-      {children}
-    </div>
-  )
-}
+export const ListItemName = styled.div`
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  position: relative;
+  will-change: background-position, width;
+
+  --color-shimmer-mid: var(--color-text-1);
+  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+
+  &.shimmer {
+    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
+    background-size: 200% 100%;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  &.typing {
+    display: block;
+    -webkit-line-clamp: unset;
+    -webkit-box-orient: unset;
+    white-space: nowrap;
+    overflow: hidden;
+    animation: typewriter 0.5s steps(40, end);
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes typewriter {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
+`
 
 export const ListItemEditInput = ({ className, ...props }: ComponentPropsWithRef<'input'>) => {
   return (
