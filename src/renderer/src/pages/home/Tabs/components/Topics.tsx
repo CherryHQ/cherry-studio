@@ -1,3 +1,4 @@
+import { cn } from '@heroui/react'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -17,7 +18,7 @@ import { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
-import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -72,8 +73,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
   const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
-
-  const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
@@ -510,12 +509,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
               <ListItem
                 onContextMenu={() => setTargetTopic(topic)}
-                className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-                onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
-                style={{
-                  borderRadius,
-                  cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
-                }}>
+                className={cn(
+                  isActive ? 'active' : undefined,
+                  singlealone ? 'singlealone' : undefined,
+                  editingTopicId === topic.id && topicEdit.isEditing ? 'cursor-default' : 'cursor-pointer',
+                  showTopicTime ? 'rounded-2xl' : 'rounded-[var(--list-item-border-radius)]'
+                )}
+                onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
                 {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
                 <ListItemNameContainer>

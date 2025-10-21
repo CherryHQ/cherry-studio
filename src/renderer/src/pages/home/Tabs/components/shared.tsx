@@ -5,14 +5,14 @@ export const ListItem = ({ children, className, ...props }: ComponentPropsWithou
   return (
     <div
       className={cn(
-        'mb-2 flex w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-col justify-between rounded-lg px-3 py-[7px] text-sm',
+        'mb-2 flex w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-col justify-between rounded-lg px-3 py-2 text-sm',
         'transition-colors duration-100',
         'hover:bg-[var(--color-list-item-hover)]',
-        'active:bg-[var(--color-list-item)] active:shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
-        '[.menu]:text-[var(--color-text-3)] [.menu]:opacity-0',
-        'hover:[.menu]:opacity-1',
-        'active:[.menu]:opacity-1 active:[.menu]:hover:text-[var(--color-text-2)]',
-        'singlealone:rounded-none singlealone:hover:bg-[var(--color-background-soft)] singlealone:active:border-[var(--color-primary)] singlealone:active:border-l-2 singlealone:active:shadow-none',
+        '[.active]:bg-[var(--color-list-item)] [.active]:shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+        '[&_.menu]:text-[var(--color-text-3)] [&_.menu]:opacity-0',
+        'hover:[&_.menu]:opacity-100',
+        '[.active]:[&_.menu]:opacity-100 [.active]:[&_.menu]:hover:text-[var(--color-text-2)]',
+        '[.singlealone.active]:border-[var(--color-primary)] [.singlealone.active]:border-l-2 [.singlealone.active]:shadow-none [.singlealone]:rounded-none [.singlealone]:hover:bg-[var(--color-background-soft)]',
         className
       )}
       {...props}>
