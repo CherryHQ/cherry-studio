@@ -42,7 +42,7 @@ export function useAssistantPreset(id: string) {
   const dispatch = useAppDispatch()
 
   if (!preset) {
-    logger.warn('Assistant preset not found in state.', { id })
+    logger.warn(`Assistant preset with id ${id} not found in state.`)
   }
 
   return {
@@ -50,10 +50,10 @@ export function useAssistantPreset(id: string) {
     updateAssistantPreset: (preset: AssistantPreset) => dispatch(updateAssistantPreset(preset)),
     updateAssistantPresetSettings: (settings: Partial<AssistantSettings>) => {
       if (!preset) {
-        logger.warn('Failed to update assistant preset settings because preset is missing.', { id })
+        logger.warn(`Failed to update assistant preset settings because preset with id ${id} is missing.`)
         return
       }
-      dispatch(updateAssistantPresetSettings({ assistantId: id, settings }))
+      dispatch(updateAssistantPresetSettings({ assistantId: preset.id, settings }))
     }
   }
 }
