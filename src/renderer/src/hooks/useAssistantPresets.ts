@@ -46,7 +46,7 @@ export function useAssistantPreset(id: string) {
   }
 
   return {
-    preset: preset as AssistantPreset | undefined,
+    preset: preset,
     updateAssistantPreset: (preset: AssistantPreset) => dispatch(updateAssistantPreset(preset)),
     updateAssistantPresetSettings: (settings: Partial<AssistantSettings>) => {
       if (!preset) {
