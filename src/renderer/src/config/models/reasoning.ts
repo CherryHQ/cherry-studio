@@ -59,7 +59,6 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
 } as const
 
-// 更语义化的名称：dualModelCall 或 withModelIdFallback 等
 const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
   const modelWithNameAsId = { ...model, id: model.name }
   return {
