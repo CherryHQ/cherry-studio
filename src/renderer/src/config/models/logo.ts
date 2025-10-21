@@ -157,7 +157,7 @@ import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import { Model } from '@renderer/types'
 
-export function getModelLogoById(modelId: string) {
+export function getModelLogoById(modelId: string): string | undefined {
   const isLight = true
 
   if (!modelId) {
@@ -290,7 +290,7 @@ export function getModelLogoById(modelId: string) {
     longcat: LongCatAppLogo,
     bytedance: BytedanceModelLogo,
     '(V_1|V_1_TURBO|V_2|V_2A|V_2_TURBO|DESCRIBE|UPSCALE)': IdeogramModelLogo
-  } as const
+  } as const satisfies Record<string, string>
 
   for (const key in logoMap) {
     const regex = new RegExp(key, 'i')
@@ -302,6 +302,6 @@ export function getModelLogoById(modelId: string) {
   return undefined
 }
 
-export function getModelLogo(model: Model | undefined | null): string | null {
-  return model ? (getModelLogoById(model.id) ?? getModelLogoById(model.name)) : null
+export function getModelLogo(model: Model | undefined | null): string | undefined {
+  return model ? (getModelLogoById(model.id) ?? getModelLogoById(model.name)) : undefined
 }
