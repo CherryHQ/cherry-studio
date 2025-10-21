@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistantPreset,
@@ -8,8 +9,22 @@ import {
 } from '@renderer/store/assistants'
 import { AssistantPreset, AssistantSettings } from '@renderer/types'
 
+const logger = loggerService.withContext('useAssistantPresets')
+
+function ensurePresetsArray(storedPresets: unknown): AssistantPreset[] {
+  if (Array.isArray(storedPresets)) {
+    return storedPresets
+  }
+  logger.warn('Unexpected data type from state.assistants.presets, falling back to empty list.', {
+    type: typeof storedPresets,
+    value: storedPresets
+  })
+  return []
+}
+
 export function useAssistantPresets() {
-  const presets = useAppSelector((state) => state.assistants.presets)
+  const storedPresets = useAppSelector((state) => state.assistants.presets)
+  const presets = ensurePresetsArray(storedPresets)
   const dispatch = useAppDispatch()
 
   return {
@@ -21,15 +36,24 @@ export function useAssistantPresets() {
 }
 
 export function useAssistantPreset(id: string) {
-  // FIXME: undefined is not handled
-  const preset = useAppSelector((state) => state.assistants.presets.find((a) => a.id === id) as AssistantPreset)
+  const storedPresets = useAppSelector((state) => state.assistants.presets)
+  const presets = ensurePresetsArray(storedPresets)
+  const preset = presets.find((a) => a.id === id)
   const dispatch = useAppDispatch()
 
+  if (!preset) {
+    logger.warn('Assistant preset not found in state.', { id })
+  }
+
   return {
-    preset,
+    preset: preset as AssistantPreset | undefined,
     updateAssistantPreset: (preset: AssistantPreset) => dispatch(updateAssistantPreset(preset)),
     updateAssistantPresetSettings: (settings: Partial<AssistantSettings>) => {
-      dispatch(updateAssistantPresetSettings({ assistantId: preset.id, settings }))
+      if (!preset) {
+        logger.warn('Failed to update assistant preset settings because preset is missing.', { id })
+        return
+      }
+      dispatch(updateAssistantPresetSettings({ assistantId: id, settings }))
     }
   }
 }

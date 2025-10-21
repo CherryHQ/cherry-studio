@@ -2681,6 +2681,22 @@ const migrateConfig = {
       logger.error('migrate 163 error', error as Error)
       return state
     }
+  },
+  '164': (state: RootState) => {
+    try {
+      if (!state.assistants) {
+        return state
+      }
+
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 164 error', error as Error)
+      return state
+    }
   }
 }
 
