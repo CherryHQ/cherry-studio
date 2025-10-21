@@ -40,7 +40,8 @@ vi.mock('@main/utils/locales', () => ({
 }))
 
 vi.mock('@main/utils/systemInfo', () => ({
-  generateUserAgent: vi.fn(() => 'test-user-agent')
+  generateUserAgent: vi.fn(() => 'test-user-agent'),
+  getClientId: vi.fn(() => 'test-client-id')
 }))
 
 vi.mock('electron', () => ({

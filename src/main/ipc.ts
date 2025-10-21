@@ -169,7 +169,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    configManager.set('spellCheckLanguages', languages)
+    preferenceService.set('app.spell_check.languages', languages)
   })
 
   // launch on boot
@@ -264,12 +264,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
-    configManager.set(key, value, isNotify)
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string) => {
+    // Legacy config handler - will be deprecated
+    logger.warn(`Legacy Config_Set called for key: ${key}`)
   })
 
   ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
-    return configManager.get(key)
+    // Legacy config handler - will be deprecated
+    logger.warn(`Legacy Config_Get called for key: ${key}`)
+    return undefined
   })
 
   // // theme
@@ -280,7 +283,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
     handleZoomFactor(windows, delta, reset)
-    return configManager.getZoomFactor()
+    return preferenceService.get('app.zoom_factor')
   })
 
   // clear cache

@@ -1,9 +1,8 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { configManager } from '@main/services/ConfigManager'
 import { getIpCountry } from '@main/utils/ipService'
-import { generateUserAgent } from '@main/utils/systemInfo'
+import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import { FeedUrl } from '@shared/config/constant'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -39,7 +38,7 @@ export default class AppUpdater {
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       'User-Agent': generateUserAgent(),
-      'X-Client-Id': configManager.getClientId()
+      'X-Client-Id': getClientId()
     }
 
     autoUpdater.on('error', (error) => {
