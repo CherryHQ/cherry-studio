@@ -28,7 +28,7 @@
     "start": "electron-vite preview",
     "dev": "dotenv electron-vite dev",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "node scripts/copy-templates.js && npm run typecheck && electron-vite build",
     "build:check": "yarn lint && yarn test",
     "build:unpack": "dotenv npm run build && electron-builder --dir",
     "build:win": "dotenv npm run build && electron-builder --win --x64 --arm64",

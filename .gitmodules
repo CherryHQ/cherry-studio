@@ -1,0 +1,3 @@
+[submodule "external/claude-code-templates"]
+	path = external/claude-code-templates
+	url = https://github.com/davila7/claude-code-templates.git

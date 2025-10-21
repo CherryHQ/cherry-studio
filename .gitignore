@@ -38,6 +38,7 @@ out
 mcp_server
 stats.html
 .eslintcache
+resources/data/components
 
 # ENV
 .env
