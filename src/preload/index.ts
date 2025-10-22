@@ -35,16 +35,16 @@ import {
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { CreateDirectoryOptions } from 'webdav'
 
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
 import type {
+  InstalledPlugin,
   InstallPluginOptions,
   ListAvailablePluginsResult,
   PluginMetadata,
   PluginResult,
-  InstalledPlugin,
   UninstallPluginOptions,
   WritePluginContentOptions
 } from '../renderer/src/types/plugin'
+import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {

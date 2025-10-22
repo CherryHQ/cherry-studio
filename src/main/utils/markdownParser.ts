@@ -1,12 +1,10 @@
+import { loggerService } from '@logger'
+import type { PluginError,PluginMetadata } from '@types'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import * as path from 'path'
-
-import { loggerService } from '@logger'
 import matter from 'gray-matter'
 import * as yaml from 'js-yaml'
-
-import type { PluginMetadata, PluginError } from '@types'
+import * as path from 'path'
 
 import { getDirectorySize } from './fileOperations'
 
@@ -32,7 +30,7 @@ export async function parsePluginMetadata(
   // Parse frontmatter safely with FAILSAFE_SCHEMA to prevent deserialization attacks
   const { data } = matter(content, {
     engines: {
-      yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA })
+      yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA }) as object
     }
   })
 
@@ -159,7 +157,7 @@ export async function parseSkillMetadata(
   try {
     const parsed = matter(content, {
       engines: {
-        yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA })
+        yaml: (s) => yaml.load(s, { schema: yaml.FAILSAFE_SCHEMA }) as object
       }
     })
     data = parsed.data

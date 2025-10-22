@@ -1,6 +1,15 @@
+import type { InstalledPlugin, PluginError, PluginMetadata } from '@renderer/types/plugin'
 import { useCallback, useEffect, useState } from 'react'
 
-import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
+/**
+ * Helper to extract error message from PluginError union type
+ */
+function getPluginErrorMessage(error: PluginError, defaultMessage: string): string {
+  if ('message' in error && error.message) return error.message
+  if ('reason' in error) return error.reason
+  if ('path' in error) return `Error with file: ${error.path}`
+  return defaultMessage
+}
 
 /**
  * Hook to fetch and cache available plugins from the resources directory
@@ -26,7 +35,7 @@ export function useAvailablePlugins() {
           setCommands(result.data.commands)
           setSkills(result.data.skills)
         } else {
-          setError(result.error.message || 'Failed to load available plugins')
+          setError(getPluginErrorMessage(result.error, 'Failed to load available plugins'))
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -68,7 +77,7 @@ export function useInstalledPlugins(agentId: string | undefined) {
       if (result.success) {
         setPlugins(result.data)
       } else {
-        setError(result.error.message || 'Failed to load installed plugins')
+        setError(getPluginErrorMessage(result.error, 'Failed to load installed plugins'))
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -109,7 +118,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
           onSuccess?.()
           return { success: true as const, data: result.data }
         } else {
-          const errorMessage = result.error.message || 'Failed to install plugin'
+          const errorMessage = getPluginErrorMessage(result.error, 'Failed to install plugin')
           return { success: false as const, error: errorMessage }
         }
       } catch (err) {
@@ -137,7 +146,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
           onSuccess?.()
           return { success: true as const }
         } else {
-          const errorMessage = result.error.message || 'Failed to uninstall plugin'
+          const errorMessage = getPluginErrorMessage(result.error, 'Failed to uninstall plugin')
           return { success: false as const, error: errorMessage }
         }
       } catch (err) {

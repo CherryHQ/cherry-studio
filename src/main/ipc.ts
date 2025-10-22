@@ -899,13 +899,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       const data = await pluginService.listAvailable()
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to list available plugins', error)
+      const err = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to list available plugins', err)
       return {
         success: false,
         error: {
           type: 'TRANSACTION_FAILED',
           operation: 'list-available',
-          reason: error.message
+          reason: err.message
         }
       }
     }
@@ -936,13 +937,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       const data = await pluginService.listInstalled(agentId)
       return { success: true, data }
     } catch (error) {
-      logger.error('Failed to list installed plugins', { agentId, error })
+      const err = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to list installed plugins', { agentId, error: err })
       return {
         success: false,
         error: {
           type: 'TRANSACTION_FAILED',
           operation: 'list-installed',
-          reason: error.message
+          reason: err.message
         }
       }
     }
@@ -953,13 +955,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       pluginService.invalidateCache()
       return { success: true, data: undefined }
     } catch (error) {
-      logger.error('Failed to invalidate plugin cache', error)
+      const err = error instanceof Error ? error : new Error(String(error))
+      logger.error('Failed to invalidate plugin cache', err)
       return {
         success: false,
         error: {
           type: 'TRANSACTION_FAILED',
           operation: 'invalidate-cache',
-          reason: error.message
+          reason: err.message
         }
       }
     }

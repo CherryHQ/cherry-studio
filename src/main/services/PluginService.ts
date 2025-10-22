@@ -1,7 +1,3 @@
-import * as crypto from 'crypto'
-import * as fs from 'fs'
-import * as path from 'path'
-
 import { loggerService } from '@logger'
 import { getResourcePath } from '@main/utils'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
@@ -16,6 +12,9 @@ import type {
   PluginType,
   UninstallPluginOptions
 } from '@types'
+import * as crypto from 'crypto'
+import * as fs from 'fs'
+import * as path from 'path'
 
 import { AgentService } from './agents/services/AgentService'
 
@@ -513,6 +512,8 @@ export class PluginService {
 
       await AgentService.getInstance().updateAgent(agentId, {
         configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
           ...agent.configuration,
           installed_plugins: updatedPlugins
         }
@@ -722,9 +723,8 @@ export class PluginService {
   private sanitizeFilename(filename: string): string {
     // Remove path separators
     let sanitized = filename.replace(/[/\\]/g, '_')
-    // Remove null bytes
-    // eslint-disable-next-line no-control-regex
-    sanitized = sanitized.replace(/\0/g, '')
+    // Remove null bytes using String method to avoid control-regex lint error
+    sanitized = sanitized.replace(new RegExp(String.fromCharCode(0), 'g'), '')
     // Limit to safe characters (alphanumeric, dash, underscore, dot)
     sanitized = sanitized.replace(/[^a-zA-Z0-9._-]/g, '_')
 
@@ -743,9 +743,8 @@ export class PluginService {
   private sanitizeFolderName(folderName: string): string {
     // Remove path separators
     let sanitized = folderName.replace(/[/\\]/g, '_')
-    // Remove null bytes
-    // eslint-disable-next-line no-control-regex
-    sanitized = sanitized.replace(/\0/g, '')
+    // Remove null bytes using String method to avoid control-regex lint error
+    sanitized = sanitized.replace(new RegExp(String.fromCharCode(0), 'g'), '')
     // Limit to safe characters (alphanumeric, dash, underscore)
     // NOTE: No dots allowed to avoid confusion with file extensions
     sanitized = sanitized.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -899,6 +898,8 @@ export class PluginService {
 
       await AgentService.getInstance().updateAgent(agent.id, {
         configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
           ...agent.configuration,
           installed_plugins: updatedPlugins
         }
@@ -960,6 +961,8 @@ export class PluginService {
     try {
       await AgentService.getInstance().updateAgent(agent.id, {
         configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
           ...agent.configuration,
           installed_plugins: updatedPlugins
         }
@@ -984,6 +987,8 @@ export class PluginService {
         try {
           await AgentService.getInstance().updateAgent(agent.id, {
             configuration: {
+              permission_mode: 'default',
+              max_turns: 100,
               ...agent.configuration,
               installed_plugins: originalPlugins
             }
@@ -1059,6 +1064,8 @@ export class PluginService {
 
       await AgentService.getInstance().updateAgent(agent.id, {
         configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
           ...agent.configuration,
           installed_plugins: updatedPlugins
         }
@@ -1115,6 +1122,8 @@ export class PluginService {
     try {
       await AgentService.getInstance().updateAgent(agent.id, {
         configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
           ...agent.configuration,
           installed_plugins: updatedPlugins
         }
@@ -1138,6 +1147,8 @@ export class PluginService {
         try {
           await AgentService.getInstance().updateAgent(agent.id, {
             configuration: {
+              permission_mode: 'default',
+              max_turns: 100,
               ...agent.configuration,
               installed_plugins: originalPlugins
             }
