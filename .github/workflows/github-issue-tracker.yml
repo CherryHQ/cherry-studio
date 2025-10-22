@@ -42,6 +42,8 @@ jobs:
 
             Format your response in clean markdown, suitable for display in a notification card.
             Keep it concise but informative.
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
 
       - name: Send to Feishu
         env:
