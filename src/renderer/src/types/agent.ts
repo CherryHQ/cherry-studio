@@ -121,6 +121,8 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
+  sortBy?: 'created_at' | 'updated_at' | 'name'
+  orderBy?: 'asc' | 'desc'
 }
 
 // AgentSession entity representing a conversation session with one or more agents
