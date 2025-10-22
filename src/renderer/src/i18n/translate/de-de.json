@@ -2,1797 +2,1797 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:添加 Agent 失败",
-        "invalid_agent": "[to be translated]:无效的 Agent"
+        "failed": "Agent hinzufügen fehlgeschlagen",
+        "invalid_agent": "Ungültiger Agent"
       },
-      "title": "[to be translated]:添加 Agent",
+      "title": "Agent hinzufügen",
       "type": {
-        "placeholder": "[to be translated]:选择 Agent 类型"
+        "placeholder": "Agent-Typ auswählen"
       }
     },
     "delete": {
-      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "content": "Das Löschen dieses Agents wird alle Sitzungen unter diesem Agent zwangsweise beenden und löschen. Sind Sie sicher?",
       "error": {
-        "failed": "[to be translated]:删除 Agent 失败"
+        "failed": "Agent löschen fehlgeschlagen"
       },
-      "title": "[to be translated]:删除 Agent"
+      "title": "Agent löschen"
     },
     "edit": {
-      "title": "[to be translated]:编辑 Agent"
+      "title": "Agent bearbeiten"
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:获取智能体失败"
+        "failed": "Agent abrufen fehlgeschlagen"
       }
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:获取智能体列表失败"
+        "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
     },
     "session": {
       "accessible_paths": {
-        "add": "[to be translated]:添加目录",
-        "duplicate": "[to be translated]:该目录已添加。",
-        "empty": "[to be translated]:请选择至少一个智能体可访问的目录。",
+        "add": "Verzeichnis hinzufügen",
+        "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
+        "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
-          "at_least_one": "[to be translated]:请至少选择一个可访问的目录"
+          "at_least_one": "Bitte wählen Sie mindestens ein zugängliches Verzeichnis aus"
         },
-        "label": "[to be translated]:工作目录",
-        "select_failed": "[to be translated]:选择目录失败"
+        "label": "Arbeitsverzeichnis",
+        "select_failed": "Verzeichnisauswahl fehlgeschlagen"
       },
       "add": {
-        "title": "[to be translated]:添加会话"
+        "title": "Sitzung hinzufügen"
       },
       "allowed_tools": {
-        "empty": "[to be translated]:当前智能体暂无可用工具。",
-        "helper": "[to be translated]:选择预先授权的工具，未选中的工具在使用时需要手动审批。",
-        "label": "[to be translated]:预先授权工具",
-        "placeholder": "[to be translated]:选择预先授权的工具"
+        "empty": "Für diesen Agent sind derzeit keine Tools verfügbar.",
+        "helper": "Wählen Sie vorab autorisierte Tools aus. Nicht ausgewählte Tools erfordern bei der Verwendung eine manuelle Genehmigung.",
+        "label": "Vorab autorisierte Tools",
+        "placeholder": "Vorab autorisierte Tools auswählen"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:添加会话失败"
+          "failed": "Sitzung hinzufügen fehlgeschlagen"
         }
       },
       "delete": {
-        "content": "[to be translated]:确定要删除此会话吗？",
+        "content": "Möchten Sie diese Sitzung wirklich löschen?",
         "error": {
-          "failed": "[to be translated]:删除会话失败",
-          "last": "[to be translated]:至少需要保留一个会话"
+          "failed": "Sitzung löschen fehlgeschlagen",
+          "last": "Mindestens eine Sitzung muss beibehalten werden"
         },
-        "title": "[to be translated]:删除会话"
+        "title": "Sitzung löschen"
       },
       "edit": {
-        "title": "[to be translated]:编辑会话"
+        "title": "Sitzung bearbeiten"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:获取会话失败"
+          "failed": "Sitzung abrufen fehlgeschlagen"
         }
       },
-      "label_one": "[to be translated]:会话",
-      "label_other": "[to be translated]:会话",
+      "label_one": "Sitzung",
+      "label_other": "Sitzungen",
       "update": {
         "error": {
-          "failed": "[to be translated]:更新会话失败"
+          "failed": "Sitzung aktualisieren fehlgeschlagen"
         }
       }
     },
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
-          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
-          "label": "[to be translated]:会话轮次数上限"
+          "description": "Legen Sie die Anzahl der Anfrage-/Antwort-Runden fest, die der Agent automatisch ausführt.",
+          "helper": "Höhere Werte ermöglichen längere autonome Ausführung; niedrigere Werte bieten bessere Kontrolle.",
+          "label": "Maximale Anzahl der Sitzungsrunden"
         },
         "permissionMode": {
-          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
-          "label": "[to be translated]:权限模式",
+          "description": "Steuert, wie der Agent mit Autorisierungsanfragen umgeht.",
+          "label": "Berechtigungsmodus",
           "options": {
-            "acceptEdits": "[to be translated]:自动接受编辑",
-            "bypassPermissions": "[to be translated]:跳过权限检查",
-            "default": "[to be translated]:默认（继续前询问）",
-            "plan": "[to be translated]:规划模式（需审批计划）"
+            "acceptEdits": "Bearbeitungen automatisch akzeptieren",
+            "bypassPermissions": "Berechtigungsprüfung überspringen",
+            "default": "Standard (vor Fortsetzung fragen)",
+            "plan": "Planungsmodus (Plan muss genehmigt werden)"
           },
-          "placeholder": "[to be translated]:选择权限模式"
+          "placeholder": "Berechtigungsmodus auswählen"
         },
-        "title": "[to be translated]:高级设置"
+        "title": "Erweiterte Einstellungen"
       },
-      "essential": "[to be translated]:基础设置",
-      "prompt": "[to be translated]:提示词设置",
+      "essential": "Grundeinstellungen",
+      "prompt": "Prompt-Einstellungen",
       "tooling": {
         "mcp": {
-          "description": "[to be translated]:连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
-          "empty": "[to be translated]:未检测到 MCP 服务器，请前往 MCP 设置页添加。",
-          "manageHint": "[to be translated]:需要更多配置？前往 设置 → MCP 服务器。",
-          "toggle": "[to be translated]:切换 {{name}}"
+          "description": "Verbinden Sie MCP-Server, um weitere Tools freizuschalten, die oben vorab autorisiert werden können.",
+          "empty": "Keine MCP-Server erkannt. Bitte fügen Sie welche auf der MCP-Einstellungsseite hinzu.",
+          "manageHint": "Benötigen Sie weitere Konfigurationen? Gehen Sie zu Einstellungen → MCP-Server.",
+          "toggle": "{{name}} umschalten"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "[to be translated]:预先授权受信任的文件系统工具，允许即时执行。",
-            "description": "[to be translated]:文件编辑和文件系统操作将自动通过审批。",
-            "title": "[to be translated]:自动接受文件编辑"
+            "behavior": "Vertrauenswürdige Dateisystem-Tools werden vorab autorisiert und können sofort ausgeführt werden.",
+            "description": "Dateibearbeitungen und Dateisystemoperationen werden automatisch genehmigt.",
+            "title": "Dateibearbeitungen automatisch akzeptieren"
           },
           "bypassPermissions": {
-            "behavior": "[to be translated]:所有工具都会被自动预先授权。",
-            "description": "[to be translated]:所有权限提示都会被跳过，请谨慎使用。",
-            "title": "[to be translated]:跳过所有权限检查",
-            "warning": "[to be translated]:危险：所有工具都会在无审批情况下执行。"
+            "behavior": "Alle Tools werden automatisch vorab autorisiert.",
+            "description": "Alle Berechtigungsabfragen werden übersprungen. Bitte verwenden Sie diese Option mit Vorsicht.",
+            "title": "Alle Berechtigungsprüfungen überspringen",
+            "warning": "Gefahr: Alle Tools werden ohne Genehmigung ausgeführt."
           },
           "confirmChange": {
-            "description": "[to be translated]:切换模式会更新自动预先授权的工具。",
-            "title": "[to be translated]:确认切换权限模式？"
+            "description": "Das Wechseln des Modus aktualisiert die automatisch vorab autorisierten Tools.",
+            "title": "Berechtigungsmodus-Wechsel bestätigen?"
           },
           "default": {
-            "behavior": "[to be translated]:只读工具会自动预先授权。",
-            "description": "[to be translated]:只读工具会自动预先授权，其它操作仍需权限。",
-            "title": "[to be translated]:默认（继续前询问）"
+            "behavior": "Nur-Lese-Tools werden automatisch vorab autorisiert.",
+            "description": "Nur-Lese-Tools werden automatisch vorab autorisiert, andere Vorgänge erfordern weiterhin Berechtigungen.",
+            "title": "Standard (vor Fortsetzung fragen)"
           },
-          "helper": "[to be translated]:指定智能体如何处理工具使用授权",
-          "placeholder": "[to be translated]:选择权限模式",
+          "helper": "Legen Sie fest, wie der Agent Tool-Autorisierungen verwaltet",
+          "placeholder": "Berechtigungsmodus auswählen",
           "plan": {
-            "behavior": "[to be translated]:默认的只读工具会自动预先授权，但执行仍被禁用。",
-            "description": "[to be translated]:继承默认的只读工具集，并会在执行前先呈现计划。",
-            "title": "[to be translated]:规划模式"
+            "behavior": "Standard-Nur-Lese-Tools werden automatisch vorab autorisiert, aber die Ausführung bleibt deaktiviert.",
+            "description": "Erbt die Standard-Nur-Lese-Tools und zeigt einen Plan vor der Ausführung an.",
+            "title": "Planungsmodus"
           },
-          "title": "[to be translated]:权限模式"
+          "title": "Berechtigungsmodus"
         },
         "preapproved": {
-          "autoBadge": "[to be translated]:模式自动添加",
-          "autoDescription": "[to be translated]:该工具由当前权限模式自动预先授权。",
-          "empty": "[to be translated]:没有符合筛选条件的工具。",
-          "mcpBadge": "[to be translated]:MCP 工具",
-          "requiresApproval": "[to be translated]:禁用时需要人工审批",
-          "search": "[to be translated]:搜索工具",
-          "toggle": "[to be translated]:切换 {{name}}",
+          "autoBadge": "Automatisch vom Modus hinzugefügt",
+          "autoDescription": "Dieses Tool wird vom aktuellen Berechtigungsmodus automatisch vorab autorisiert.",
+          "empty": "Keine Tools entsprechen den Filterkriterien.",
+          "mcpBadge": "MCP-Tool",
+          "requiresApproval": "Erfordert bei Deaktivierung manuelle Genehmigung",
+          "search": "Tools suchen",
+          "toggle": "{{name}} umschalten",
           "warning": {
-            "description": "[to be translated]:仅启用你信任的工具。模式默认值会自动标注。",
-            "title": "[to be translated]:预先授权的工具将在无人工审核时运行。"
+            "description": "Aktivieren Sie nur Tools, denen Sie vertrauen. Modusstandardwerte werden automatisch gekennzeichnet.",
+            "title": "Vorab autorisierte Tools werden ohne manuelle Überprüfung ausgeführt."
           }
         },
         "review": {
-          "autoTools": "[to be translated]:自动：{{count}}",
-          "customTools": "[to be translated]:自定义：{{count}}",
-          "helper": "[to be translated]:设置会自动保存，可随时返回上方步骤进行调整。",
-          "mcp": "[to be translated]:MCP：{{count}}",
-          "mode": "[to be translated]:模式：{{mode}}"
+          "autoTools": "Automatisch: {{count}}",
+          "customTools": "Benutzerdefiniert: {{count}}",
+          "helper": "Einstellungen werden automatisch gespeichert. Sie können jederzeit zu den obigen Schritten zurückkehren und Anpassungen vornehmen.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Modus: {{mode}}"
         },
         "steps": {
           "mcp": {
-            "title": "[to be translated]:MCP 服务器"
+            "title": "MCP-Server"
           },
           "permissionMode": {
-            "title": "[to be translated]:步骤 1 · 权限模式"
+            "title": "Schritt 1 · Berechtigungsmodus"
           },
           "preapproved": {
-            "title": "[to be translated]:步骤 2 · 预先授权工具"
+            "title": "Schritt 2 · Vorab autorisierte Tools"
           },
           "review": {
-            "title": "[to be translated]:步骤 3 · 总览"
+            "title": "Schritt 3 · Übersicht"
           }
         },
-        "tab": "[to be translated]:工具与权限"
+        "tab": "Tools & Berechtigungen"
       },
       "tools": {
-        "approved": "[to be translated]:已授权",
-        "caution": "[to be translated]:预先授权的工具会跳过人工审核，请仅启用可信的工具。",
-        "description": "[to be translated]:选择哪些工具可以在无需人工审批的情况下执行。",
-        "requiresPermission": "[to be translated]:未预先授权时需要人工审批。",
-        "tab": "[to be translated]:预先授权工具",
-        "title": "[to be translated]:预先授权工具",
-        "toggle": "[to be translated]:{{defaultValue}}"
+        "approved": "Autorisiert",
+        "caution": "Vorab autorisierte Tools überspringen die manuelle Überprüfung. Aktivieren Sie nur vertrauenswürdige Tools.",
+        "description": "Wählen Sie aus, welche Tools ohne manuelle Genehmigung ausgeführt werden können.",
+        "requiresPermission": "Erfordert manuelle Genehmigung, wenn nicht vorab autorisiert.",
+        "tab": "Vorab autorisierte Tools",
+        "title": "Vorab autorisierte Tools",
+        "toggle": "{{defaultValue}}"
       }
     },
     "type": {
-      "label": "[to be translated]:智能体类型",
-      "unknown": "[to be translated]:未知类型"
+      "label": "Agent-Typ",
+      "unknown": "Unbekannter Typ"
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:更新智能体失败"
+        "failed": "Agent aktualisieren fehlgeschlagen"
       }
     },
     "warning": {
-      "enable_server": "[to be translated]:请启用 API 服务器以使用智能体功能"
+      "enable_server": "Bitte aktivieren Sie den API-Server, um Agent-Funktionen zu verwenden"
     }
   },
   "apiServer": {
     "actions": {
-      "copy": "[to be translated]:复制",
-      "regenerate": "[to be translated]:重新生成",
+      "copy": "Kopieren",
+      "regenerate": "Neu generieren",
       "restart": {
-        "button": "[to be translated]:重启",
-        "tooltip": "[to be translated]:重启服务器"
+        "button": "Neustarten",
+        "tooltip": "Server neustarten"
       },
-      "start": "[to be translated]:启动",
-      "stop": "[to be translated]:停止"
+      "start": "Starten",
+      "stop": "Stoppen"
     },
     "authHeader": {
-      "title": "[to be translated]:授权标头"
+      "title": "Autorisierungs-Header"
     },
-    "authHeaderText": "[to be translated]:在授权标头中使用：",
-    "configuration": "[to be translated]:配置",
-    "description": "[to be translated]:通过 OpenAI 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
+    "authHeaderText": "Im Autorisierungs-Header verwenden:",
+    "configuration": "Konfiguration",
+    "description": "Stellen Sie die KI-Funktionen von Cherry Studio über eine OpenAI-kompatible HTTP-API bereit",
     "documentation": {
-      "title": "[to be translated]:API 文档"
+      "title": "API-Dokumentation"
     },
     "fields": {
       "apiKey": {
-        "copyTooltip": "[to be translated]:复制 API 密钥",
-        "description": "[to be translated]:用于 API 访问的安全认证令牌",
-        "label": "[to be translated]:API 密钥",
-        "placeholder": "[to be translated]:API 密钥将自动生成"
+        "copyTooltip": "API-Schlüssel kopieren",
+        "description": "Sicherheits-Token für API-Zugriff",
+        "label": "API-Schlüssel",
+        "placeholder": "API-Schlüssel wird automatisch generiert"
       },
       "port": {
-        "description": "[to be translated]:HTTP 服务器的 TCP 端口号 (1000-65535)",
-        "helpText": "[to be translated]:停止服务器以更改端口",
-        "label": "[to be translated]:端口"
+        "description": "TCP-Portnummer des HTTP-Servers (1000-65535)",
+        "helpText": "Server stoppen, um Port zu ändern",
+        "label": "Port"
       },
       "url": {
-        "copyTooltip": "[to be translated]:复制 URL",
-        "label": "[to be translated]:URL"
+        "copyTooltip": "URL kopieren",
+        "label": "URL"
       }
     },
     "messages": {
-      "apiKeyCopied": "[to be translated]:API 密钥已复制到剪贴板",
-      "apiKeyRegenerated": "[to be translated]:API 密钥已重新生成",
-      "operationFailed": "[to be translated]:API 服务器操作失败：",
-      "restartError": "[to be translated]:重启 API 服务器失败：",
-      "restartFailed": "[to be translated]:API 服务器重启失败：",
-      "restartSuccess": "[to be translated]:API 服务器重启成功",
-      "startError": "[to be translated]:启动 API 服务器失败：",
-      "startSuccess": "[to be translated]:API 服务器启动成功",
-      "stopError": "[to be translated]:停止 API 服务器失败：",
-      "stopSuccess": "[to be translated]:API 服务器停止成功",
-      "urlCopied": "[to be translated]:服务器 URL 已复制到剪贴板"
+      "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
+      "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
+      "operationFailed": "API-Server-Operation fehlgeschlagen:",
+      "restartError": "API-Server-Neustart fehlgeschlagen:",
+      "restartFailed": "API-Server-Neustart fehlgeschlagen:",
+      "restartSuccess": "API-Server erfolgreich neu gestartet",
+      "startError": "API-Server starten fehlgeschlagen:",
+      "startSuccess": "API-Server erfolgreich gestartet",
+      "stopError": "API-Server stoppen fehlgeschlagen:",
+      "stopSuccess": "API-Server erfolgreich gestoppt",
+      "urlCopied": "Server-URL in die Zwischenablage kopiert"
     },
     "status": {
-      "running": "[to be translated]:运行中",
-      "stopped": "[to be translated]:已停止"
+      "running": "Läuft",
+      "stopped": "Gestoppt"
     },
-    "title": "[to be translated]:API 服务器"
+    "title": "API-Server"
   },
   "assistants": {
-    "abbr": "[to be translated]:助手",
+    "abbr": "Assistent",
     "clear": {
-      "content": "[to be translated]:清空话题会删除助手下所有话题和文件，确定要继续吗？",
-      "title": "[to be translated]:清空话题"
+      "content": "Das Leeren von Themen löscht alle Themen und Dateien unter dem Assistenten. Möchten Sie fortfahren?",
+      "title": "Themen leeren"
     },
     "copy": {
-      "title": "[to be translated]:复制助手"
+      "title": "Assistent kopieren"
     },
     "delete": {
-      "content": "[to be translated]:删除助手会删除所有该助手下的话题和文件，确定要继续吗？",
-      "title": "[to be translated]:删除助手"
+      "content": "Das Löschen des Assistenten löscht alle Themen und Dateien unter diesem Assistenten. Möchten Sie fortfahren?",
+      "title": "Assistent löschen"
     },
     "edit": {
-      "title": "[to be translated]:编辑助手"
+      "title": "Assistent bearbeiten"
     },
     "icon": {
-      "type": "[to be translated]:助手图标"
+      "type": "Assistenten-Symbol"
     },
     "list": {
-      "showByList": "[to be translated]:列表展示",
-      "showByTags": "[to be translated]:标签展示"
+      "showByList": "Listenansicht",
+      "showByTags": "Tag-Ansicht"
     },
     "presets": {
       "add": {
-        "button": "[to be translated]:添加到助手",
+        "button": "Zu Assistent hinzufügen",
         "knowledge_base": {
-          "label": "[to be translated]:知识库",
-          "placeholder": "[to be translated]:选择知识库"
+          "label": "Wissensdatenbank",
+          "placeholder": "Wissensdatenbank auswählen"
         },
         "name": {
-          "label": "[to be translated]:名称",
-          "placeholder": "[to be translated]:输入名称"
+          "label": "Name",
+          "placeholder": "Name eingeben"
         },
         "prompt": {
-          "label": "[to be translated]:提示词",
-          "placeholder": "[to be translated]:输入提示词",
+          "label": "Prompt",
+          "placeholder": "Prompt eingeben",
           "variables": {
             "tip": {
-              "content": "[to be translated]:{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU 架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称\n{{username}}:\t用户名",
-              "title": "[to be translated]:可用的变量"
+              "content": "{{date}}:\tDatum\n{{time}}:\tZeit\n{{datetime}}:\tDatum und Zeit\n{{system}}:\tBetriebssystem\n{{arch}}:\tCPU-Architektur\n{{language}}:\tSprache\n{{model_name}}:\tModellname\n{{username}}:\tBenutzername",
+              "title": "Verfügbare Variablen"
             }
           }
         },
-        "title": "[to be translated]:创建助手",
-        "unsaved_changes_warning": "[to be translated]:你有未保存的内容，确定要关闭吗？"
+        "title": "Assistent erstellen",
+        "unsaved_changes_warning": "Sie haben ungespeicherte Änderungen. Möchten Sie wirklich schließen?"
       },
       "delete": {
         "popup": {
-          "content": "[to be translated]:确定要删除此助手吗？"
+          "content": "Möchten Sie diesen Assistenten wirklich löschen?"
         }
       },
       "edit": {
         "model": {
           "select": {
-            "title": "[to be translated]:选择模型"
+            "title": "Modell auswählen"
           }
         },
-        "title": "[to be translated]:编辑助手"
+        "title": "Assistent bearbeiten"
       },
       "export": {
-        "agent": "[to be translated]:导出助手"
+        "agent": "Assistent exportieren"
       },
       "import": {
-        "button": "[to be translated]:导入",
+        "button": "Importieren",
         "error": {
-          "fetch_failed": "[to be translated]:从 URL 获取数据失败",
-          "invalid_format": "[to be translated]:无效的助手格式：缺少必填字段",
-          "url_required": "[to be translated]:请输入 URL"
+          "fetch_failed": "Daten von URL abrufen fehlgeschlagen",
+          "invalid_format": "Ungültiges Assistentenformat: Pflichtfelder fehlen",
+          "url_required": "Bitte geben Sie eine URL ein"
         },
-        "file_filter": "[to be translated]:JSON 文件",
-        "select_file": "[to be translated]:选择文件",
-        "title": "[to be translated]:从外部导入",
+        "file_filter": "JSON-Datei",
+        "select_file": "Datei auswählen",
+        "title": "Von extern importieren",
         "type": {
-          "file": "[to be translated]:文件",
-          "url": "[to be translated]:URL"
+          "file": "Datei",
+          "url": "URL"
         },
-        "url_placeholder": "[to be translated]:输入 JSON URL"
+        "url_placeholder": "JSON-URL eingeben"
       },
       "manage": {
-        "title": "[to be translated]:管理助手"
+        "title": "Assistenten verwalten"
       },
-      "my_agents": "[to be translated]:我的助手",
+      "my_agents": "Meine Assistenten",
       "search": {
-        "no_results": "[to be translated]:没有找到相关助手"
+        "no_results": "Keine passenden Assistenten gefunden"
       },
       "settings": {
-        "title": "[to be translated]:助手配置"
+        "title": "Assistenten-Konfiguration"
       },
       "sorting": {
-        "title": "[to be translated]:排序"
+        "title": "Sortierung"
       },
       "tag": {
-        "agent": "[to be translated]:助手",
-        "default": "[to be translated]:默认",
-        "new": "[to be translated]:新建",
-        "system": "[to be translated]:系统"
+        "agent": "Assistent",
+        "default": "Standard",
+        "new": "Neu",
+        "system": "System"
       },
-      "title": "[to be translated]:助手库"
+      "title": "Assistentenbibliothek"
     },
     "save": {
-      "success": "[to be translated]:保存成功",
-      "title": "[to be translated]:保存到助手库"
+      "success": "Erfolgreich gespeichert",
+      "title": "In Assistentenbibliothek speichern"
     },
-    "search": "[to be translated]:搜索助手",
+    "search": "Assistent suchen",
     "settings": {
-      "default_model": "[to be translated]:默认模型",
+      "default_model": "Standardmodell",
       "knowledge_base": {
-        "label": "[to be translated]:知识库设置",
+        "label": "Wissensdatenbank-Einstellungen",
         "recognition": {
-          "label": "[to be translated]:调用知识库",
-          "off": "[to be translated]:强制检索",
-          "on": "[to be translated]:意图识别",
-          "tip": "[to be translated]:助手将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
+          "label": "Wissensdatenbank aufrufen",
+          "off": "Erzwungene Abfrage",
+          "on": "Absichtserkennung",
+          "tip": "Der Assistent verwendet die Absichtserkennungsfähigkeit des großen Modells, um zu bestimmen, ob die Wissensdatenbank für die Antwort aufgerufen werden muss. Diese Funktion hängt von den Fähigkeiten des Modells ab"
         }
       },
       "mcp": {
-        "description": "[to be translated]:默认启用的 MCP 服务器",
-        "enableFirst": "[to be translated]:请先在 MCP 设置中启用此服务器",
-        "label": "[to be translated]:MCP 服务器",
-        "noServersAvailable": "[to be translated]:无可用 MCP 服务器。请在设置中添加服务器",
-        "title": "[to be translated]:MCP 服务器"
+        "description": "Standardmäßig aktivierte MCP-Server",
+        "enableFirst": "Bitte aktivieren Sie diesen Server zuerst in den MCP-Einstellungen",
+        "label": "MCP-Server",
+        "noServersAvailable": "Keine MCP-Server verfügbar. Bitte fügen Sie Server in den Einstellungen hinzu",
+        "title": "MCP-Server"
       },
-      "model": "[to be translated]:模型设置",
-      "more": "[to be translated]:助手设置",
-      "prompt": "[to be translated]:提示词设置",
+      "model": "Modelleinstellungen",
+      "more": "Assistenteneinstellungen",
+      "prompt": "Prompt-Einstellungen",
       "reasoning_effort": {
-        "default": "[to be translated]:默认",
-        "high": "[to be translated]:沉思",
-        "label": "[to be translated]:思维链长度",
-        "low": "[to be translated]:浮想",
-        "medium": "[to be translated]:斟酌",
-        "minimal": "[to be translated]:微念",
-        "off": "[to be translated]:关闭"
+        "default": "Standard",
+        "high": "Tiefes Nachdenken",
+        "label": "Gedankenkettenlänge",
+        "low": "Spontan",
+        "medium": "Überlegt",
+        "minimal": "Minimal",
+        "off": "Aus"
       },
       "regular_phrases": {
-        "add": "[to be translated]:添加短语",
-        "contentLabel": "[to be translated]:内容",
-        "contentPlaceholder": "[to be translated]:请输入短语内容，支持使用变量，然后按 Tab 键可以快速定位到变量进行修改。比如：\n帮我规划从 ${from} 到 ${to} 的路线，然后发送到 ${email}",
-        "delete": "[to be translated]:删除短语",
-        "deleteConfirm": "[to be translated]:确定要删除这个短语吗？",
-        "edit": "[to be translated]:编辑短语",
-        "title": "[to be translated]:常用短语",
-        "titleLabel": "[to be translated]:标题",
-        "titlePlaceholder": "[to be translated]:输入标题"
+        "add": "Phrase hinzufügen",
+        "contentLabel": "Inhalt",
+        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein. Sie können Variablen verwenden und dann die Tab-Taste drücken, um schnell zu Variablen zu navigieren und sie zu ändern. Zum Beispiel:\nPlanen Sie mir eine Route von ${from} nach ${to} und senden Sie sie an ${email}",
+        "delete": "Phrase löschen",
+        "deleteConfirm": "Möchten Sie diese Phrase wirklich löschen?",
+        "edit": "Phrase bearbeiten",
+        "title": "Häufig verwendete Phrasen",
+        "titleLabel": "Titel",
+        "titlePlaceholder": "Titel eingeben"
       },
-      "title": "[to be translated]:助手设置",
+      "title": "Assistenteneinstellungen",
       "tool_use_mode": {
-        "function": "[to be translated]:函数",
-        "label": "[to be translated]:工具调用方式",
-        "prompt": "[to be translated]:提示词"
+        "function": "Funktion",
+        "label": "Tool-Aufrufmethode",
+        "prompt": "Prompt"
       }
     },
     "tags": {
-      "add": "[to be translated]:添加标签",
-      "delete": "[to be translated]:删除标签",
-      "deleteConfirm": "[to be translated]:确定要删除这个标签吗？",
-      "manage": "[to be translated]:标签管理",
-      "modify": "[to be translated]:修改标签",
-      "none": "[to be translated]:暂无标签",
+      "add": "Tag hinzufügen",
+      "delete": "Tag löschen",
+      "deleteConfirm": "Möchten Sie diesen Tag wirklich löschen?",
+      "manage": "Tags verwalten",
+      "modify": "Tag ändern",
+      "none": "Keine Tags vorhanden",
       "settings": {
-        "title": "[to be translated]:标签设置"
+        "title": "Tag-Einstellungen"
       },
-      "untagged": "[to be translated]:未分组"
+      "untagged": "Nicht gruppiert"
     },
-    "title": "[to be translated]:助手"
+    "title": "Assistent"
   },
   "auth": {
-    "error": "[to be translated]:自动获取密钥失败，请手动获取",
-    "get_key": "[to be translated]:获取",
-    "get_key_success": "[to be translated]:自动获取密钥成功",
-    "login": "[to be translated]:登录",
-    "oauth_button": "[to be translated]:使用 {{provider}} 登录"
+    "error": "Automatischer Schlüsselabruf fehlgeschlagen, bitte manuell abrufen",
+    "get_key": "Abrufen",
+    "get_key_success": "Schlüssel erfolgreich automatisch abgerufen",
+    "login": "Anmelden",
+    "oauth_button": "Mit {{provider}} anmelden"
   },
   "backup": {
     "confirm": {
-      "button": "[to be translated]:选择备份位置",
-      "label": "[to be translated]:确定要备份数据吗？"
+      "button": "Backup-Speicherort auswählen",
+      "label": "Möchten Sie wirklich eine Datensicherung durchführen?"
     },
-    "content": "[to be translated]:备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
+    "content": "Sichern Sie alle Daten, einschließlich Chat-Verlauf, Einstellungen, Wissensdatenbank und alle anderen Daten. Bitte beachten Sie, dass der Backup-Vorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld",
     "progress": {
-      "completed": "[to be translated]:备份完成",
-      "compressing": "[to be translated]:压缩文件...",
-      "copying_files": "[to be translated]:复制文件... {{progress}}%",
-      "preparing": "[to be translated]:准备备份...",
-      "preparing_compression": "[to be translated]:准备压缩...",
-      "title": "[to be translated]:备份进度",
-      "writing_data": "[to be translated]:写入数据..."
+      "completed": "Backup abgeschlossen",
+      "compressing": "Dateien werden komprimiert...",
+      "copying_files": "Dateien werden kopiert... {{progress}}%",
+      "preparing": "Backup wird vorbereitet...",
+      "preparing_compression": "Komprimierung wird vorbereitet...",
+      "title": "Backup-Fortschritt",
+      "writing_data": "Daten werden geschrieben..."
     },
-    "title": "[to be translated]:数据备份"
+    "title": "Datensicherung"
   },
   "button": {
-    "add": "[to be translated]:添加",
-    "added": "[to be translated]:已添加",
-    "case_sensitive": "[to be translated]:区分大小写",
-    "collapse": "[to be translated]:收起",
-    "download": "[to be translated]:下载",
-    "includes_user_questions": "[to be translated]:包含用户提问",
-    "manage": "[to be translated]:管理",
-    "select_model": "[to be translated]:选择模型",
+    "add": "Hinzufügen",
+    "added": "Hinzugefügt",
+    "case_sensitive": "Groß-/Kleinschreibung beachten",
+    "collapse": "Einklappen",
+    "download": "Herunterladen",
+    "includes_user_questions": "Benutzerfragen einschließen",
+    "manage": "Verwalten",
+    "select_model": "Modell auswählen",
     "show": {
-      "all": "[to be translated]:显示全部"
+      "all": "Alle anzeigen"
     },
-    "update_available": "[to be translated]:有可用更新",
-    "whole_word": "[to be translated]:全字匹配"
+    "update_available": "Update verfügbar",
+    "whole_word": "Ganzes Wort"
   },
   "chat": {
     "add": {
       "assistant": {
-        "title": "[to be translated]:添加助手"
+        "title": "Assistent hinzufügen"
       },
       "topic": {
-        "title": "[to be translated]:新建话题"
+        "title": "Neues Thema erstellen"
       }
     },
     "artifacts": {
       "button": {
-        "download": "[to be translated]:下载",
-        "openExternal": "[to be translated]:外部浏览器打开",
-        "preview": "[to be translated]:预览"
+        "download": "Herunterladen",
+        "openExternal": "In externem Browser öffnen",
+        "preview": "Vorschau"
       },
       "preview": {
         "openExternal": {
           "error": {
-            "content": "[to be translated]:外部浏览器打开出错"
+            "content": "Fehler beim Öffnen im externen Browser"
           }
         }
       }
     },
     "assistant": {
       "search": {
-        "placeholder": "[to be translated]:搜索"
+        "placeholder": "Suchen"
       }
     },
-    "deeply_thought": "[to be translated]:已深度思考（用时 {{seconds}} 秒）",
+    "deeply_thought": "Tiefgehend nachgedacht ({{seconds}} Sekunden)",
     "default": {
-      "description": "[to be translated]:你好，我是默认助手。你可以立刻开始跟我聊天",
-      "name": "[to be translated]:默认助手",
+      "description": "Hallo, ich bin der Standardassistent. Sie können sofort mit mir chatten",
+      "name": "Standardassistent",
       "topic": {
-        "name": "[to be translated]:默认话题"
+        "name": "Standardthema"
       }
     },
     "history": {
-      "assistant_node": "[to be translated]:助手",
-      "click_to_navigate": "[to be translated]:点击跳转到对应消息",
-      "coming_soon": "[to be translated]:聊天工作流图表即将上线",
-      "no_messages": "[to be translated]:没有找到消息",
-      "start_conversation": "[to be translated]:开始对话以查看聊天流程图",
-      "title": "[to be translated]:聊天历史",
-      "user_node": "[to be translated]:用户",
-      "view_full_content": "[to be translated]:查看完整内容"
+      "assistant_node": "Assistent",
+      "click_to_navigate": "Klicken Sie, um zur entsprechenden Nachricht zu springen",
+      "coming_soon": "Chat-Workflow-Diagramm kommt bald",
+      "no_messages": "Keine Nachrichten gefunden",
+      "start_conversation": "Starten Sie ein Gespräch, um das Chat-Flussdiagramm anzuzeigen",
+      "title": "Chat-Verlauf",
+      "user_node": "Benutzer",
+      "view_full_content": "Vollständigen Inhalt anzeigen"
     },
     "input": {
-      "auto_resize": "[to be translated]:自动调整高度",
+      "auto_resize": "Höhe automatisch anpassen",
       "clear": {
-        "content": "[to be translated]:确定要清除当前会话所有消息吗？",
-        "label": "[to be translated]:清空消息 {{Command}}",
-        "title": "[to be translated]:清空消息"
+        "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
+        "label": "Nachrichten leeren {{Command}}",
+        "title": "Nachrichten leeren"
       },
-      "collapse": "[to be translated]:收起",
+      "collapse": "Einklappen",
       "context_count": {
-        "tip": "[to be translated]:上下文数 / 最大上下文数"
+        "tip": "Kontextanzahl / Maximale Kontextanzahl"
       },
       "estimated_tokens": {
-        "tip": "[to be translated]:预估 Token 数"
+        "tip": "Geschätzte Token-Anzahl"
       },
-      "expand": "[to be translated]:展开",
-      "file_error": "[to be translated]:文件处理出错",
-      "file_not_supported": "[to be translated]:模型不支持此文件类型",
-      "file_not_supported_count": "[to be translated]:{{count}} 个文件不被支持",
-      "generate_image": "[to be translated]:生成图片",
-      "generate_image_not_supported": "[to be translated]:模型不支持生成图片",
-      "knowledge_base": "[to be translated]:知识库",
+      "expand": "Ausklappen",
+      "file_error": "Fehler bei der Dateiverarbeitung",
+      "file_not_supported": "Modell unterstützt diesen Dateityp nicht",
+      "file_not_supported_count": "{{count}} Dateien werden nicht unterstützt",
+      "generate_image": "Bild generieren",
+      "generate_image_not_supported": "Modell unterstützt keine Bildgenerierung",
+      "knowledge_base": "Wissensdatenbank",
       "new": {
-        "context": "[to be translated]:清除上下文 {{Command}}"
+        "context": "Kontext löschen {{Command}}"
       },
-      "new_topic": "[to be translated]:新话题 {{Command}}",
-      "pause": "[to be translated]:暂停",
-      "placeholder": "[to be translated]:在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
-      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
-      "send": "[to be translated]:发送",
-      "settings": "[to be translated]:设置",
+      "new_topic": "Neues Thema {{Command}}",
+      "pause": "Pause",
+      "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
+      "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "send": "Senden",
+      "settings": "Einstellungen",
       "thinking": {
-        "budget_exceeds_max": "[to be translated]:思考预算超过最大 Token 数",
-        "label": "[to be translated]:思考",
+        "budget_exceeds_max": "Denkbudget übersteigt maximale Token-Anzahl",
+        "label": "Denken",
         "mode": {
           "custom": {
-            "label": "[to be translated]:自定义",
-            "tip": "[to be translated]:模型最多可以思考的 Token 数。需要考虑模型的上下文限制，否则会报错"
+            "label": "Benutzerdefiniert",
+            "tip": "Maximale Token-Anzahl, die das Modell denken kann. Beachten Sie die Kontextbeschränkung des Modells, sonst tritt ein Fehler auf"
           },
           "default": {
-            "label": "[to be translated]:默认",
-            "tip": "[to be translated]:模型会自动确定思考的 Token 数"
+            "label": "Standard",
+            "tip": "Das Modell bestimmt automatisch die Token-Anzahl zum Denken"
           },
           "tokens": {
-            "tip": "[to be translated]:设置思考的 Token 数"
+            "tip": "Legen Sie die Token-Anzahl zum Denken fest"
           }
         }
       },
       "tools": {
-        "collapse": "[to be translated]:折叠",
-        "collapse_in": "[to be translated]:加入折叠",
-        "collapse_out": "[to be translated]:移出折叠",
-        "expand": "[to be translated]:展开"
+        "collapse": "Falten",
+        "collapse_in": "Zum Falten hinzufügen",
+        "collapse_out": "Aus Falten entfernen",
+        "expand": "Ausklappen"
       },
-      "topics": "[to be translated]:话题",
-      "translate": "[to be translated]:翻译成 {{target_language}}",
-      "translating": "[to be translated]:翻译中...",
+      "topics": "Themen",
+      "translate": "Übersetzen nach {{target_language}}",
+      "translating": "Wird übersetzt...",
       "upload": {
-        "attachment": "[to be translated]:上传附件",
-        "document": "[to be translated]:上传文档（模型不支持图片）",
-        "image_or_document": "[to be translated]:上传图片或文档",
-        "upload_from_local": "[to be translated]:上传本地文件..."
+        "attachment": "Anhang hochladen",
+        "document": "Dokument hochladen (Modell unterstützt keine Bilder)",
+        "image_or_document": "Bild oder Dokument hochladen",
+        "upload_from_local": "Lokale Datei hochladen..."
       },
-      "url_context": "[to be translated]:网页上下文",
+      "url_context": "Webseiten-Kontext",
       "web_search": {
         "builtin": {
-          "disabled_content": "[to be translated]:当前模型不支持网络搜索功能",
-          "enabled_content": "[to be translated]:使用模型内置的网络搜索功能",
-          "label": "[to be translated]:模型内置"
+          "disabled_content": "Aktuelles Modell unterstützt keine Websuche",
+          "enabled_content": "Verwenden Sie die integrierte Websuchfunktion des Modells",
+          "label": "Modell integriert"
         },
         "button": {
-          "ok": "[to be translated]:去设置"
+          "ok": "Zu Einstellungen"
         },
-        "enable": "[to be translated]:开启网络搜索",
-        "enable_content": "[to be translated]:需要先在设置中检查网络搜索连通性",
-        "label": "[to be translated]:网络搜索",
+        "enable": "Websuche aktivieren",
+        "enable_content": "Bitte überprüfen Sie zunächst die Websuch-Konnektivität in den Einstellungen",
+        "label": "Websuche",
         "no_web_search": {
-          "description": "[to be translated]:不启用网络搜索功能",
-          "label": "[to be translated]:不使用网络"
+          "description": "Websuchfunktion nicht aktivieren",
+          "label": "Keine Websuche"
         },
-        "settings": "[to be translated]:网络搜索设置"
+        "settings": "Websuch-Einstellungen"
       }
     },
     "mcp": {
       "error": {
-        "parse_tool_call": "[to be translated]:无法转换为有效的工具调用格式：{{toolCall}}"
+        "parse_tool_call": "Kann nicht in gültiges Tool-Aufrufformat konvertiert werden: {{toolCall}}"
       },
       "warning": {
-        "gemini_web_search": "[to be translated]:Gemini 不支持同时使用原生网络搜索工具与函数调用",
-        "multiple_tools": "[to be translated]:存在多个匹配的MCP工具，已选择 {{tool}}",
-        "no_tool": "[to be translated]:未匹配到所需的MCP工具 {{tool}}",
-        "url_context": "[to be translated]:Gemini 不支持同时使用网页上下文与函数调用"
+        "gemini_web_search": "Gemini unterstützt nicht die gleichzeitige Verwendung von nativer Websuche und Funktionsaufrufen",
+        "multiple_tools": "Mehrere übereinstimmende MCP-Tools gefunden, {{tool}} wurde ausgewählt",
+        "no_tool": "Erforderliches MCP-Tool {{tool}} nicht gefunden",
+        "url_context": "Gemini unterstützt nicht die gleichzeitige Verwendung von Webseiten-Kontext und Funktionsaufrufen"
       }
     },
     "message": {
       "new": {
         "branch": {
-          "created": "[to be translated]:新分支已创建",
-          "label": "[to be translated]:分支"
+          "created": "Neuer Branch erstellt",
+          "label": "Branch"
         },
-        "context": "[to be translated]:清除上下文"
+        "context": "Kontext löschen"
       },
-      "quote": "[to be translated]:引用",
+      "quote": "Zitieren",
       "regenerate": {
-        "model": "[to be translated]:切换模型"
+        "model": "Modell wechseln"
       },
       "useful": {
-        "label": "[to be translated]:设置为上下文",
-        "tip": "[to be translated]:在这组消息中，该消息将被选择加入上下文"
+        "label": "Als Kontext festlegen",
+        "tip": "In dieser Nachrichtengruppe wird diese Nachricht in den Kontext aufgenommen"
       }
     },
     "multiple": {
       "select": {
-        "empty": "[to be translated]:未选中任何消息",
-        "label": "[to be translated]:多选"
+        "empty": "Keine Nachrichten ausgewählt",
+        "label": "Mehrfachauswahl"
       }
     },
     "navigation": {
-      "bottom": "[to be translated]:回到底部",
-      "close": "[to be translated]:关闭",
-      "first": "[to be translated]:已经是第一条消息",
-      "history": "[to be translated]:聊天历史",
-      "last": "[to be translated]:已经是最后一条消息",
-      "next": "[to be translated]:下一条消息",
-      "prev": "[to be translated]:上一条消息",
-      "top": "[to be translated]:回到顶部"
+      "bottom": "Zum Boden scrollen",
+      "close": "Schließen",
+      "first": "Bereits die erste Nachricht",
+      "history": "Chat-Verlauf",
+      "last": "Bereits die letzte Nachricht",
+      "next": "Nächste Nachricht",
+      "prev": "Vorherige Nachricht",
+      "top": "Nach oben scrollen"
     },
-    "resend": "[to be translated]:重新发送",
+    "resend": "Erneut senden",
     "save": {
       "file": {
-        "title": "[to be translated]:保存到本地文件"
+        "title": "In lokale Datei speichern"
       },
       "knowledge": {
         "content": {
           "citation": {
-            "description": "[to be translated]:包括网络搜索和知识库引用信息",
-            "title": "[to be translated]:引用"
+            "description": "Einschließlich Websuche und Wissensdatenbank-Zitate",
+            "title": "Zitate"
           },
           "code": {
-            "description": "[to be translated]:包括独立的代码块",
-            "title": "[to be translated]:代码块"
+            "description": "Einschließlich eigenständiger Codeblöcke",
+            "title": "Codeblock"
           },
           "error": {
-            "description": "[to be translated]:包括执行过程中的错误信息",
-            "title": "[to be translated]:错误"
+            "description": "Einschließlich Fehlermeldungen während der Ausführung",
+            "title": "Fehler"
           },
           "file": {
-            "description": "[to be translated]:包括作为附件的文件",
-            "title": "[to be translated]:文件"
+            "description": "Einschließlich angehängter Dateien",
+            "title": "Datei"
           },
           "maintext": {
-            "description": "[to be translated]:包括主要的文本内容",
-            "title": "[to be translated]:主文本"
+            "description": "Einschließlich des Haupttextinhalts",
+            "title": "Haupttext"
           },
           "thinking": {
-            "description": "[to be translated]:包括模型思考内容",
-            "title": "[to be translated]:思考"
+            "description": "Einschließlich Modell-Denkinhalt",
+            "title": "Denken"
           },
           "tool_use": {
-            "description": "[to be translated]:包括工具调用参数和执行结果",
-            "title": "[to be translated]:工具调用"
+            "description": "Einschließlich Tool-Aufrufparameter und Ausführungsergebnisse",
+            "title": "Tool-Aufruf"
           },
           "translation": {
-            "description": "[to be translated]:包括翻译内容",
-            "title": "[to be translated]:翻译"
+            "description": "Einschließlich Übersetzungsinhalt",
+            "title": "Übersetzung"
           }
         },
         "empty": {
-          "no_content": "[to be translated]:此消息没有可保存的内容",
-          "no_knowledge_base": "[to be translated]:暂无可用知识库，请先创建知识库"
+          "no_content": "Diese Nachricht hat keinen speicherbaren Inhalt",
+          "no_knowledge_base": "Keine Wissensdatenbank verfügbar, bitte erstellen Sie zuerst eine"
         },
         "error": {
-          "invalid_base": "[to be translated]:所选知识库未正确配置",
-          "no_content_selected": "[to be translated]:请至少选择一种内容",
-          "save_failed": "[to be translated]:保存失败，请检查知识库配置"
+          "invalid_base": "Die ausgewählte Wissensdatenbank ist nicht korrekt konfiguriert",
+          "no_content_selected": "Bitte wählen Sie mindestens einen Inhaltstyp aus",
+          "save_failed": "Speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
         },
         "select": {
           "base": {
-            "placeholder": "[to be translated]:请选择知识库",
-            "title": "[to be translated]:选择知识库"
+            "placeholder": "Bitte Wissensdatenbank auswählen",
+            "title": "Wissensdatenbank auswählen"
           },
           "content": {
-            "tip": "[to be translated]:已选择 {{count}} 项内容，文本类型将合并保存为一个笔记",
-            "title": "[to be translated]:选择要保存的内容类型"
+            "tip": "{{count}} Inhalte ausgewählt, Texttypen werden als eine Notiz zusammengefügt und gespeichert",
+            "title": "Zu speichernde Inhaltstypen auswählen"
           }
         },
-        "title": "[to be translated]:保存到知识库"
+        "title": "In Wissensdatenbank speichern"
       },
-      "label": "[to be translated]:保存",
+      "label": "Speichern",
       "topic": {
         "knowledge": {
           "content": {
             "maintext": {
-              "description": "[to be translated]:包括话题标题和所有消息的主要文本内容"
+              "description": "Einschließlich Thementitel und Haupttextinhalt aller Nachrichten"
             }
           },
           "empty": {
-            "no_content": "[to be translated]:此话题没有可保存的内容"
+            "no_content": "Dieses Thema hat keinen speicherbaren Inhalt"
           },
           "error": {
-            "save_failed": "[to be translated]:保存话题失败，请检查知识库配置"
+            "save_failed": "Thema speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
           },
-          "loading": "[to be translated]:正在分析话题内容...",
+          "loading": "Themeninhalt wird analysiert...",
           "select": {
             "content": {
-              "label": "[to be translated]:选择要保存的内容类型",
-              "selected_tip": "[to be translated]:已选择 {{count}} 项内容，来自 {{messages}} 条消息",
-              "tip": "[to be translated]:话题将以包含完整对话上下文的形式保存到知识库"
+              "label": "Zu speichernde Inhaltstypen auswählen",
+              "selected_tip": "{{count}} Inhalte ausgewählt, aus {{messages}} Nachrichten",
+              "tip": "Das Thema wird mit vollständigem Gesprächskontext in der Wissensdatenbank gespeichert"
             }
           },
-          "success": "[to be translated]:话题已成功保存到知识库（{{count}} 项内容）",
-          "title": "[to be translated]:保存话题到知识库"
+          "success": "Thema erfolgreich in Wissensdatenbank gespeichert ({{count}} Inhalte)",
+          "title": "Thema in Wissensdatenbank speichern"
         }
       }
     },
     "settings": {
       "code": {
-        "title": "[to be translated]:代码块设置"
+        "title": "Codeblock-Einstellungen"
       },
-      "code_collapsible": "[to be translated]:代码块可折叠",
+      "code_collapsible": "Codeblöcke einklappbar",
       "code_editor": {
-        "autocompletion": "[to be translated]:自动补全",
-        "fold_gutter": "[to be translated]:折叠控件",
-        "highlight_active_line": "[to be translated]:高亮当前行",
-        "keymap": "[to be translated]:快捷键",
-        "title": "[to be translated]:代码编辑器"
+        "autocompletion": "Autovervollständigung",
+        "fold_gutter": "Falten-Steuerung",
+        "highlight_active_line": "Aktuelle Zeile hervorheben",
+        "keymap": "Tastenkombination",
+        "title": "Code-Editor"
       },
       "code_execution": {
         "timeout_minutes": {
-          "label": "[to be translated]:超时时间",
-          "tip": "[to be translated]:代码执行超时时间（分钟）"
+          "label": "Zeitüberschreitung",
+          "tip": "Zeitüberschreitung für Code-Ausführung (Minuten)"
         },
-        "tip": "[to be translated]:可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
-        "title": "[to be translated]:代码执行"
+        "tip": "Ausführbare Codeblöcke zeigen einen Ausführen-Button in der Symbolleiste. Achten Sie darauf, keinen gefährlichen Code auszuführen!",
+        "title": "Code-Ausführung"
       },
       "code_fancy_block": {
-        "label": "[to be translated]:花式代码块",
-        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+        "label": "Fancy-Codeblock",
+        "tip": "Verwenden Sie schönere Codeblock-Stile, z.B. HTML-Karten"
       },
       "code_image_tools": {
-        "label": "[to be translated]:启用预览工具",
-        "tip": "[to be translated]:为 mermaid 等代码块渲染后的图像启用预览工具"
+        "label": "Vorschau-Tools aktivieren",
+        "tip": "Aktivieren Sie Vorschau-Tools für gerenderte Bilder aus Codeblöcken wie Mermaid"
       },
-      "code_wrappable": "[to be translated]:代码块可换行",
+      "code_wrappable": "Codeblöcke können umbrechen",
       "context_count": {
-        "label": "[to be translated]:上下文数",
-        "tip": "[to be translated]:要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 Token 越多。普通聊天建议 5-10"
+        "label": "Kontextanzahl",
+        "tip": "Anzahl der im Kontext zu behaltenden Nachrichten. Je größer der Wert, desto länger der Kontext und desto mehr Token werden verbraucht. Für normales Chatten wird 5-10 empfohlen"
       },
-      "max": "[to be translated]:不限",
+      "max": "Unbegrenzt",
       "max_tokens": {
-        "confirm": "[to be translated]:最大 Token 数",
-        "confirm_content": "[to be translated]:设置单次交互所用的最大 Token 数，会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
-        "label": "[to be translated]:最大 Token 数",
-        "tip": "[to be translated]:单次交互所用的最大 Token 数，会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错"
+        "confirm": "Maximale Token-Anzahl",
+        "confirm_content": "Legen Sie die maximale Token-Anzahl für eine einzelne Interaktion fest, was die Länge des Ergebnisses beeinflusst. Muss entsprechend der Kontextbeschränkung des Modells eingestellt werden, sonst tritt ein Fehler auf",
+        "label": "Maximale Token-Anzahl",
+        "tip": "Maximale Token-Anzahl für eine einzelne Interaktion, beeinflusst die Länge des Ergebnisses. Muss entsprechend der Kontextbeschränkung des Modells eingestellt werden, sonst tritt ein Fehler auf"
       },
-      "reset": "[to be translated]:重置",
-      "set_as_default": "[to be translated]:应用到默认助手",
-      "show_line_numbers": "[to be translated]:代码显示行号",
+      "reset": "Zurücksetzen",
+      "set_as_default": "Auf Standardassistent anwenden",
+      "show_line_numbers": "Code mit Zeilennummern anzeigen",
       "temperature": {
-        "label": "[to be translated]:模型温度",
-        "tip": "[to be translated]:模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7"
+        "label": "Modelltemperatur",
+        "tip": "Zufälligkeit der Textgenerierung des Modells. Je größer der Wert, desto vielfältiger, kreativer und zufälliger die Antwort; bei 0 wird sachlich geantwortet. Für normales Chatten wird 0,7 empfohlen"
       },
       "thought_auto_collapse": {
-        "label": "[to be translated]:思考内容自动折叠",
-        "tip": "[to be translated]:思考结束后思考内容自动折叠"
+        "label": "Denkinhalt automatisch einklappen",
+        "tip": "Denkinhalt wird nach Abschluss des Denkens automatisch eingeklappt"
       },
       "top_p": {
-        "label": "[to be translated]:Top-P",
-        "tip": "[to be translated]:默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇范围越大，越多样化"
+        "label": "Top-P",
+        "tip": "Standardwert ist 1. Je kleiner der Wert, desto monotoner und leichter verständlich ist der KI-generierte Inhalt; je größer der Wert, desto größer ist der Wortschatzbereich der KI-Antwort und desto vielfältiger"
       }
     },
     "suggestions": {
-      "title": "[to be translated]:建议的问题"
+      "title": "Vorgeschlagene Fragen"
     },
-    "thinking": "[to be translated]:思考中（用时 {{seconds}} 秒）",
+    "thinking": "Denkt ({{seconds}} Sekunden)",
     "topics": {
-      "auto_rename": "[to be translated]:生成话题名",
+      "auto_rename": "Themenname generieren",
       "clear": {
-        "title": "[to be translated]:清空消息"
+        "title": "Nachrichten leeren"
       },
       "copy": {
-        "image": "[to be translated]:复制为图片",
-        "md": "[to be translated]:复制为 Markdown",
-        "plain_text": "[to be translated]:复制为纯文本（去除 Markdown）",
-        "title": "[to be translated]:复制"
+        "image": "Als Bild kopieren",
+        "md": "Als Markdown kopieren",
+        "plain_text": "Als reinen Text kopieren (Markdown entfernen)",
+        "title": "Kopieren"
       },
       "delete": {
-        "shortcut": "[to be translated]:按住 {{key}} 可直接删除"
+        "shortcut": "{{key}} gedrückt halten zum direkten Löschen"
       },
       "edit": {
-        "placeholder": "[to be translated]:输入新名称",
-        "title": "[to be translated]:编辑话题名",
-        "title_tip": "[to be translated]:提示: 双击话题名可以直接就地重命名"
+        "placeholder": "Neuen Namen eingeben",
+        "title": "Themenname bearbeiten",
+        "title_tip": "Tipp: Doppelklicken Sie auf den Themennamen, um ihn direkt umzubenennen"
       },
       "export": {
-        "image": "[to be translated]:导出为图片",
-        "joplin": "[to be translated]:导出到 Joplin",
+        "image": "Als Bild exportieren",
+        "joplin": "Nach Joplin exportieren",
         "md": {
-          "label": "[to be translated]:导出为 Markdown",
-          "reason": "[to be translated]:导出为 Markdown (包含思考)"
+          "label": "Als Markdown exportieren",
+          "reason": "Als Markdown exportieren (mit Denken)"
         },
-        "notes": "[to be translated]:导出到笔记",
-        "notion": "[to be translated]:导出到 Notion",
-        "obsidian": "[to be translated]:导出到 Obsidian",
-        "obsidian_atributes": "[to be translated]:配置笔记属性",
-        "obsidian_btn": "[to be translated]:确定",
-        "obsidian_created": "[to be translated]:创建时间",
-        "obsidian_created_placeholder": "[to be translated]:请选择创建时间",
-        "obsidian_export_failed": "[to be translated]:导出到 Obsidian 失败",
-        "obsidian_export_success": "[to be translated]:导出到 Obsidian 成功",
-        "obsidian_fetch_error": "[to be translated]:获取 Obsidian 保管库失败",
-        "obsidian_fetch_folders_error": "[to be translated]:获取文件夹结构失败",
-        "obsidian_loading": "[to be translated]:加载中...",
-        "obsidian_no_vault_selected": "[to be translated]:请先选择一个保管库",
-        "obsidian_no_vaults": "[to be translated]:未找到 Obsidian 保管库",
-        "obsidian_operate": "[to be translated]:处理方式",
-        "obsidian_operate_append": "[to be translated]:追加",
-        "obsidian_operate_new_or_overwrite": "[to be translated]:新建（如果存在就覆盖）",
-        "obsidian_operate_placeholder": "[to be translated]:请选择处理方式",
-        "obsidian_operate_prepend": "[to be translated]:前置",
-        "obsidian_path": "[to be translated]:路径",
-        "obsidian_path_placeholder": "[to be translated]:请选择路径",
-        "obsidian_reasoning": "[to be translated]:导出思维链",
-        "obsidian_root_directory": "[to be translated]:根目录",
-        "obsidian_select_vault_first": "[to be translated]:请先选择保管库",
-        "obsidian_source": "[to be translated]:来源",
-        "obsidian_source_placeholder": "[to be translated]:请输入来源",
-        "obsidian_tags": "[to be translated]:标签",
-        "obsidian_tags_placeholder": "[to be translated]:请输入标签，多个标签用英文逗号分隔",
-        "obsidian_title": "[to be translated]:标题",
-        "obsidian_title_placeholder": "[to be translated]:请输入标题",
-        "obsidian_title_required": "[to be translated]:标题不能为空",
-        "obsidian_vault": "[to be translated]:保管库",
-        "obsidian_vault_placeholder": "[to be translated]:请选择保管库名称",
-        "siyuan": "[to be translated]:导出到思源笔记",
-        "title": "[to be translated]:导出",
-        "title_naming_failed": "[to be translated]:标题生成失败，使用默认标题",
-        "title_naming_success": "[to be translated]:标题生成成功",
-        "wait_for_title_naming": "[to be translated]:正在生成标题...",
-        "word": "[to be translated]:导出为 Word",
-        "yuque": "[to be translated]:导出到语雀"
+        "notes": "In Notizen exportieren",
+        "notion": "Nach Notion exportieren",
+        "obsidian": "Nach Obsidian exportieren",
+        "obsidian_atributes": "Notizeigenschaften konfigurieren",
+        "obsidian_btn": "OK",
+        "obsidian_created": "Erstellungszeit",
+        "obsidian_created_placeholder": "Bitte Erstellungszeit auswählen",
+        "obsidian_export_failed": "Export nach Obsidian fehlgeschlagen",
+        "obsidian_export_success": "Erfolgreich nach Obsidian exportiert",
+        "obsidian_fetch_error": "Obsidian-Tresor abrufen fehlgeschlagen",
+        "obsidian_fetch_folders_error": "Ordnerstruktur abrufen fehlgeschlagen",
+        "obsidian_loading": "Lädt...",
+        "obsidian_no_vault_selected": "Bitte zuerst einen Tresor auswählen",
+        "obsidian_no_vaults": "Keine Obsidian-Tresore gefunden",
+        "obsidian_operate": "Verarbeitungsmethode",
+        "obsidian_operate_append": "Anhängen",
+        "obsidian_operate_new_or_overwrite": "Neu erstellen (überschreiben, falls vorhanden)",
+        "obsidian_operate_placeholder": "Bitte Verarbeitungsmethode auswählen",
+        "obsidian_operate_prepend": "Voranstellen",
+        "obsidian_path": "Pfad",
+        "obsidian_path_placeholder": "Bitte Pfad auswählen",
+        "obsidian_reasoning": "Gedankenkette exportieren",
+        "obsidian_root_directory": "Stammverzeichnis",
+        "obsidian_select_vault_first": "Bitte zuerst Tresor auswählen",
+        "obsidian_source": "Quelle",
+        "obsidian_source_placeholder": "Bitte Quelle eingeben",
+        "obsidian_tags": "Tags",
+        "obsidian_tags_placeholder": "Bitte Tags eingeben, mehrere Tags durch Komma trennen",
+        "obsidian_title": "Titel",
+        "obsidian_title_placeholder": "Bitte Titel eingeben",
+        "obsidian_title_required": "Titel darf nicht leer sein",
+        "obsidian_vault": "Tresor",
+        "obsidian_vault_placeholder": "Bitte Tresorname auswählen",
+        "siyuan": "Nach SiYuan-Notizen exportieren",
+        "title": "Exportieren",
+        "title_naming_failed": "Titelgenerierung fehlgeschlagen, verwende Standardtitel",
+        "title_naming_success": "Titel erfolgreich generiert",
+        "wait_for_title_naming": "Titel wird generiert...",
+        "word": "Als Word exportieren",
+        "yuque": "Nach Yuque exportieren"
       },
-      "list": "[to be translated]:话题列表",
-      "move_to": "[to be translated]:移动到",
-      "new": "[to be translated]:开始新对话",
-      "pin": "[to be translated]:固定话题",
+      "list": "Themenliste",
+      "move_to": "Verschieben nach",
+      "new": "Neues Gespräch starten",
+      "pin": "Thema anheften",
       "prompt": {
         "edit": {
-          "title": "[to be translated]:编辑话题提示词"
+          "title": "Themen-Prompt bearbeiten"
         },
-        "label": "[to be translated]:话题提示词",
-        "tips": "[to be translated]:话题提示词：针对当前话题提供额外的补充提示词"
+        "label": "Themen-Prompt",
+        "tips": "Themen-Prompt: Bietet zusätzliche ergänzende Prompts für das aktuelle Thema"
       },
-      "title": "[to be translated]:话题",
-      "unpin": "[to be translated]:取消固定"
+      "title": "Thema",
+      "unpin": "Anheften aufheben"
     },
-    "translate": "[to be translated]:翻译",
+    "translate": "Übersetzen",
     "web_search": {
       "warning": {
-        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+        "openai": "GPT5-Modell mit minimaler Denkstärke unterstützt keine Websuche"
       }
     }
   },
   "code": {
-    "auto_update_to_latest": "[to be translated]:检查更新并安装最新版本",
-    "bun_required_message": "[to be translated]:运行 CLI 工具需要安装 Bun 环境",
-    "cli_tool": "[to be translated]:CLI 工具",
-    "cli_tool_placeholder": "[to be translated]:选择要使用的 CLI 工具",
-    "custom_path": "[to be translated]:自定义路径",
-    "custom_path_error": "[to be translated]:设置自定义终端路径失败",
-    "custom_path_required": "[to be translated]:此终端需要设置自定义路径",
-    "custom_path_set": "[to be translated]:自定义终端路径设置成功",
-    "description": "[to be translated]:快速启动多个代码 CLI 工具，提高开发效率",
-    "env_vars_help": "[to be translated]:输入自定义环境变量（每行一个，格式：KEY=value）",
-    "environment_variables": "[to be translated]:环境变量",
-    "folder_placeholder": "[to be translated]:选择工作目录",
-    "install_bun": "[to be translated]:安装 Bun",
-    "installing_bun": "[to be translated]:安装中...",
+    "auto_update_to_latest": "Updates prüfen und neueste Version installieren",
+    "bun_required_message": "Bun-Umgebung erforderlich zum Ausführen von CLI-Tools",
+    "cli_tool": "CLI-Tool",
+    "cli_tool_placeholder": "CLI-Tool auswählen",
+    "custom_path": "Benutzerdefinierter Pfad",
+    "custom_path_error": "Benutzerdefinierten Terminalpfad festlegen fehlgeschlagen",
+    "custom_path_required": "Dieses Terminal erfordert einen benutzerdefinierten Pfad",
+    "custom_path_set": "Benutzerdefinierter Terminalpfad erfolgreich festgelegt",
+    "description": "Starten Sie schnell mehrere Code-CLI-Tools, um die Entwicklungseffizienz zu steigern",
+    "env_vars_help": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: KEY=value)",
+    "environment_variables": "Umgebungsvariablen",
+    "folder_placeholder": "Arbeitsverzeichnis auswählen",
+    "install_bun": "Bun installieren",
+    "installing_bun": "Wird installiert...",
     "launch": {
-      "bun_required": "[to be translated]:请先安装 Bun 环境再启动 CLI 工具",
-      "error": "[to be translated]:启动失败，请重试",
-      "label": "[to be translated]:启动",
-      "success": "[to be translated]:启动成功",
-      "validation_error": "[to be translated]:请完成所有必填项：CLI 工具、模型和工作目录"
+      "bun_required": "Bitte installieren Sie zuerst die Bun-Umgebung, bevor Sie CLI-Tools starten",
+      "error": "Start fehlgeschlagen, bitte versuchen Sie es erneut",
+      "label": "Starten",
+      "success": "Erfolgreich gestartet",
+      "validation_error": "Bitte füllen Sie alle Pflichtfelder aus: CLI-Tool, Modell und Arbeitsverzeichnis"
     },
-    "launching": "[to be translated]:启动中...",
-    "model": "[to be translated]:模型",
-    "model_placeholder": "[to be translated]:选择要使用的模型",
-    "model_required": "[to be translated]:请选择模型",
-    "select_folder": "[to be translated]:选择文件夹",
-    "set_custom_path": "[to be translated]:设置自定义终端路径",
-    "supported_providers": "[to be translated]:支持的服务商",
-    "terminal": "[to be translated]:终端",
-    "terminal_placeholder": "[to be translated]:选择终端应用",
-    "title": "[to be translated]:代码工具",
-    "update_options": "[to be translated]:更新选项",
-    "working_directory": "[to be translated]:工作目录"
+    "launching": "Wird gestartet...",
+    "model": "Modell",
+    "model_placeholder": "Zu verwendendes Modell auswählen",
+    "model_required": "Bitte Modell auswählen",
+    "select_folder": "Ordner auswählen",
+    "set_custom_path": "Benutzerdefinierten Terminalpfad festlegen",
+    "supported_providers": "Unterstützte Anbieter",
+    "terminal": "Terminal",
+    "terminal_placeholder": "Terminal-Anwendung auswählen",
+    "title": "Code-Tools",
+    "update_options": "Update-Optionen",
+    "working_directory": "Arbeitsverzeichnis"
   },
   "code_block": {
-    "collapse": "[to be translated]:收起",
+    "collapse": "Einklappen",
     "copy": {
-      "failed": "[to be translated]:复制失败",
-      "label": "[to be translated]:复制",
-      "source": "[to be translated]:复制源代码",
-      "success": "[to be translated]:复制成功"
+      "failed": "Kopieren fehlgeschlagen",
+      "label": "Kopieren",
+      "source": "Quellcode kopieren",
+      "success": "Erfolgreich kopiert"
     },
     "download": {
       "failed": {
-        "network": "[to be translated]:下载失败，请检查网络"
+        "network": "Download fehlgeschlagen, bitte Netzwerk überprüfen"
       },
-      "label": "[to be translated]:下载",
-      "png": "[to be translated]:下载 PNG",
-      "source": "[to be translated]:下载源代码",
-      "svg": "[to be translated]:下载 SVG"
+      "label": "Herunterladen",
+      "png": "PNG herunterladen",
+      "source": "Quellcode herunterladen",
+      "svg": "SVG herunterladen"
     },
     "edit": {
-      "label": "[to be translated]:编辑",
+      "label": "Bearbeiten",
       "save": {
         "failed": {
-          "label": "[to be translated]:保存失败",
-          "message_not_found": "[to be translated]:保存失败，没有找到对应的消息"
+          "label": "Speichern fehlgeschlagen",
+          "message_not_found": "Speichern fehlgeschlagen, entsprechende Nachricht nicht gefunden"
         },
-        "label": "[to be translated]:保存修改",
-        "success": "[to be translated]:已保存"
+        "label": "Änderungen speichern",
+        "success": "Gespeichert"
       }
     },
-    "expand": "[to be translated]:展开",
-    "more": "[to be translated]:更多",
-    "run": "[to be translated]:运行代码",
+    "expand": "Ausklappen",
+    "more": "Mehr",
+    "run": "Code ausführen",
     "split": {
-      "label": "[to be translated]:分割视图",
-      "restore": "[to be translated]:取消分割视图"
+      "label": "Ansicht teilen",
+      "restore": "Ansichtsteilung aufheben"
     },
     "wrap": {
-      "off": "[to be translated]:取消换行",
-      "on": "[to be translated]:换行"
+      "off": "Zeilenumbruch aufheben",
+      "on": "Zeilenumbruch"
     }
   },
   "common": {
-    "add": "[to be translated]:添加",
-    "add_success": "[to be translated]:添加成功",
-    "advanced_settings": "[to be translated]:高级设置",
-    "agent_one": "[to be translated]:智能体",
-    "agent_other": "[to be translated]:智能体",
-    "and": "[to be translated]:和",
-    "assistant": "[to be translated]:助手",
-    "assistant_one": "[to be translated]:助手",
-    "assistant_other": "[to be translated]:助手",
-    "avatar": "[to be translated]:头像",
-    "back": "[to be translated]:返回",
-    "browse": "[to be translated]:浏览",
-    "cancel": "[to be translated]:取消",
-    "chat": "[to be translated]:聊天",
-    "clear": "[to be translated]:清除",
-    "close": "[to be translated]:关闭",
-    "collapse": "[to be translated]:折叠",
-    "confirm": "[to be translated]:确认",
-    "copied": "[to be translated]:已复制",
-    "copy": "[to be translated]:复制",
-    "copy_failed": "[to be translated]:复制失败",
-    "cut": "[to be translated]:剪切",
-    "default": "[to be translated]:默认",
-    "delete": "[to be translated]:删除",
-    "delete_confirm": "[to be translated]:确定要删除吗？",
-    "delete_failed": "[to be translated]:删除失败",
-    "delete_success": "[to be translated]:删除成功",
-    "description": "[to be translated]:描述",
-    "detail": "[to be translated]:详情",
-    "disabled": "[to be translated]:已禁用",
-    "docs": "[to be translated]:文档",
-    "download": "[to be translated]:下载",
-    "duplicate": "[to be translated]:复制",
-    "edit": "[to be translated]:编辑",
-    "enabled": "[to be translated]:已启用",
-    "error": "[to be translated]:错误",
+    "add": "Hinzufügen",
+    "add_success": "Erfolgreich hinzugefügt",
+    "advanced_settings": "Erweiterte Einstellungen",
+    "agent_one": "Agent",
+    "agent_other": "Agenten",
+    "and": "und",
+    "assistant": "Assistent",
+    "assistant_one": "Assistent",
+    "assistant_other": "Assistenten",
+    "avatar": "Avatar",
+    "back": "Zurück",
+    "browse": "Durchsuchen",
+    "cancel": "Abbrechen",
+    "chat": "Chat",
+    "clear": "Löschen",
+    "close": "Schließen",
+    "collapse": "Einklappen",
+    "confirm": "Bestätigen",
+    "copied": "Kopiert",
+    "copy": "Kopieren",
+    "copy_failed": "Kopieren fehlgeschlagen",
+    "cut": "Ausschneiden",
+    "default": "Standard",
+    "delete": "Löschen",
+    "delete_confirm": "Möchten Sie wirklich löschen?",
+    "delete_failed": "Löschen fehlgeschlagen",
+    "delete_success": "Erfolgreich gelöscht",
+    "description": "Beschreibung",
+    "detail": "Details",
+    "disabled": "Deaktiviert",
+    "docs": "Dokumentation",
+    "download": "Herunterladen",
+    "duplicate": "Duplizieren",
+    "edit": "Bearbeiten",
+    "enabled": "Aktiviert",
+    "error": "Fehler",
     "errors": {
-      "create_message": "[to be translated]:创建消息失败",
-      "validation": "[to be translated]:验证失败"
+      "create_message": "Nachricht erstellen fehlgeschlagen",
+      "validation": "Validierung fehlgeschlagen"
     },
-    "expand": "[to be translated]:展开",
+    "expand": "Ausklappen",
     "file": {
-      "not_supported": "[to be translated]:不支持的文件类型 {{type}}"
+      "not_supported": "Nicht unterstützter Dateityp {{type}}"
     },
-    "footnote": "[to be translated]:引用内容",
-    "footnotes": "[to be translated]:引用内容",
-    "fullscreen": "[to be translated]:已进入全屏模式，按 F11 退出",
-    "go_to_settings": "[to be translated]:前往设置",
-    "i_know": "[to be translated]:我知道了",
-    "inspect": "[to be translated]:检查",
-    "invalid_value": "[to be translated]:无效值",
-    "knowledge_base": "[to be translated]:知识库",
-    "language": "[to be translated]:语言",
-    "loading": "[to be translated]:加载中...",
-    "model": "[to be translated]:模型",
-    "models": "[to be translated]:模型",
-    "more": "[to be translated]:更多",
-    "name": "[to be translated]:名称",
-    "no_results": "[to be translated]:无结果",
-    "none": "[to be translated]:无",
-    "open": "[to be translated]:打开",
-    "paste": "[to be translated]:粘贴",
+    "footnote": "Zitierte Inhalte",
+    "footnotes": "Zitierte Inhalte",
+    "fullscreen": "Vollbildmodus aktiviert, F11 zum Beenden",
+    "go_to_settings": "Zu Einstellungen",
+    "i_know": "Verstanden",
+    "inspect": "Prüfen",
+    "invalid_value": "Ungültiger Wert",
+    "knowledge_base": "Wissensdatenbank",
+    "language": "Sprache",
+    "loading": "Lädt...",
+    "model": "Modell",
+    "models": "Modelle",
+    "more": "Mehr",
+    "name": "Name",
+    "no_results": "Keine Ergebnisse",
+    "none": "Keine",
+    "open": "Öffnen",
+    "paste": "Einfügen",
     "placeholders": {
       "select": {
-        "model": "[to be translated]:选择模型"
+        "model": "Modell auswählen"
       }
     },
-    "preview": "[to be translated]:预览",
-    "prompt": "[to be translated]:提示词",
-    "provider": "[to be translated]:提供商",
-    "reasoning_content": "[to be translated]:已深度思考",
-    "refresh": "[to be translated]:刷新",
-    "regenerate": "[to be translated]:重新生成",
-    "rename": "[to be translated]:重命名",
-    "reset": "[to be translated]:重置",
-    "save": "[to be translated]:保存",
-    "saved": "[to be translated]:已保存",
-    "search": "[to be translated]:搜索",
-    "select": "[to be translated]:选择",
-    "selected": "[to be translated]:已选择",
-    "selectedItems": "[to be translated]:已选择 {{count}} 项",
-    "selectedMessages": "[to be translated]:选中 {{count}} 条消息",
-    "settings": "[to be translated]:设置",
+    "preview": "Vorschau",
+    "prompt": "Prompt",
+    "provider": "Anbieter",
+    "reasoning_content": "Tiefgehend nachgedacht",
+    "refresh": "Aktualisieren",
+    "regenerate": "Neu generieren",
+    "rename": "Umbenennen",
+    "reset": "Zurücksetzen",
+    "save": "Speichern",
+    "saved": "Gespeichert",
+    "search": "Suchen",
+    "select": "Auswählen",
+    "selected": "Ausgewählt",
+    "selectedItems": "{{count}} Elemente ausgewählt",
+    "selectedMessages": "{{count}} Nachrichten ausgewählt",
+    "settings": "Einstellungen",
     "sort": {
       "pinyin": {
-        "asc": "[to be translated]:按拼音升序",
-        "desc": "[to be translated]:按拼音降序",
-        "label": "[to be translated]:按拼音排序"
+        "asc": "Pinyin aufsteigend",
+        "desc": "Pinyin absteigend",
+        "label": "Nach Pinyin sortieren"
       }
     },
-    "stop": "[to be translated]:停止",
-    "success": "[to be translated]:成功",
-    "swap": "[to be translated]:交换",
-    "topics": "[to be translated]:话题",
-    "unknown": "[to be translated]:未知",
-    "unnamed": "[to be translated]:未命名",
-    "update_success": "[to be translated]:更新成功",
-    "upload_files": "[to be translated]:上传文件",
-    "warning": "[to be translated]:警告",
-    "you": "[to be translated]:用户"
+    "stop": "Stoppen",
+    "success": "Erfolgreich",
+    "swap": "Tauschen",
+    "topics": "Themen",
+    "unknown": "Unbekannt",
+    "unnamed": "Unbenannt",
+    "update_success": "Erfolgreich aktualisiert",
+    "upload_files": "Dateien hochladen",
+    "warning": "Warnung",
+    "you": "Sie"
   },
   "docs": {
-    "title": "[to be translated]:帮助文档"
+    "title": "Hilfedokumentation"
   },
   "endpoint_type": {
-    "anthropic": "[to be translated]:Anthropic",
-    "gemini": "[to be translated]:Gemini",
-    "image-generation": "[to be translated]:图片生成",
-    "jina-rerank": "[to be translated]:Jina 重排序",
-    "openai": "[to be translated]:OpenAI",
-    "openai-response": "[to be translated]:OpenAI-Response"
+    "anthropic": "Anthropic",
+    "gemini": "Gemini",
+    "image-generation": "Bildgenerierung",
+    "jina-rerank": "Jina Reranking",
+    "openai": "OpenAI",
+    "openai-response": "OpenAI-Response"
   },
   "error": {
-    "availableProviders": "[to be translated]:可用提供商",
-    "availableTools": "[to be translated]:可用工具",
+    "availableProviders": "Verfügbare Anbieter",
+    "availableTools": "Verfügbare Tools",
     "backup": {
-      "file_format": "[to be translated]:备份文件格式错误"
+      "file_format": "Backup-Dateiformat fehlerhaft"
     },
     "boundary": {
       "default": {
-        "devtools": "[to be translated]:打开调试面板",
-        "message": "[to be translated]:似乎出现了一些问题...",
-        "reload": "[to be translated]:重新加载"
+        "devtools": "Debug-Panel öffnen",
+        "message": "Es scheint ein Problem aufgetreten zu sein...",
+        "reload": "Neu laden"
       },
-      "details": "[to be translated]:详细信息",
+      "details": "Details",
       "mcp": {
-        "invalid": "[to be translated]:无效的MCP服务器"
+        "invalid": "Ungültiger MCP-Server"
       }
     },
-    "cause": "[to be translated]:错误原因",
+    "cause": "Fehlerursache",
     "chat": {
       "chunk": {
-        "non_json": "[to be translated]:返回了无效的数据格式"
+        "non_json": "Ungültiges Datenformat zurückgegeben"
       },
-      "insufficient_balance": "[to be translated]:请前往 <provider>{{provider}}</provider> 充值",
-      "no_api_key": "[to be translated]:您未配置 API 密钥，请前往 <provider>{{provider}}</provider> 获取API密钥",
-      "quota_exceeded": "[to be translated]:您今日免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
-      "response": "[to be translated]:出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
+      "insufficient_balance": "Bitte gehen Sie zu <provider>{{provider}}</provider> zum Aufladen",
+      "no_api_key": "Sie haben keinen API-Schlüssel konfiguriert. Bitte gehen Sie zu <provider>{{provider}}</provider>, um einen API-Schlüssel zu erhalten",
+      "quota_exceeded": "Ihr kostenloses Kontingent für heute ist aufgebraucht. Bitte gehen Sie zu <provider>{{provider}}</provider>, um einen API-Schlüssel zu erhalten und konfigurieren Sie ihn, um fortzufahren",
+      "response": "Ein Fehler ist aufgetreten. Falls kein API-Schlüssel konfiguriert ist, gehen Sie bitte zu Einstellungen > Modellanbieter, um einen Schlüssel zu konfigurieren"
     },
-    "content": "[to be translated]:内容",
-    "data": "[to be translated]:数据",
-    "detail": "[to be translated]:错误详情",
-    "details": "[to be translated]:详细信息",
-    "errors": "[to be translated]:错误",
-    "finishReason": "[to be translated]:结束原因",
-    "functionality": "[to be translated]:功能",
+    "content": "Inhalt",
+    "data": "Daten",
+    "detail": "Fehlerdetails",
+    "details": "Details",
+    "errors": "Fehler",
+    "finishReason": "Beendigungsgrund",
+    "functionality": "Funktion",
     "http": {
-      "400": "[to be translated]:请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
-      "401": "[to be translated]:身份验证失败，请检查 API 密钥是否正确",
-      "403": "[to be translated]:禁止访问，请翻译具体报错信息查看原因，或联系服务商询问被禁止原因",
-      "404": "[to be translated]:模型不存在或者请求路径错误",
-      "429": "[to be translated]:请求速率超过限制，请稍后再试",
-      "500": "[to be translated]:服务器错误，请稍后再试",
-      "502": "[to be translated]:网关错误，请稍后再试",
-      "503": "[to be translated]:服务不可用，请稍后再试",
-      "504": "[to be translated]:网关超时，请稍后再试"
+      "400": "Anfragefehler. Bitte überprüfen Sie die Anfrageparameter. Falls Modelleinstellungen geändert wurden, setzen Sie diese auf Standardwerte zurück",
+      "401": "Authentifizierung fehlgeschlagen. Bitte überprüfen Sie, ob der API-Schlüssel korrekt ist",
+      "403": "Zugriff verweigert. Bitte übersetzen Sie die spezifische Fehlermeldung für Details oder kontaktieren Sie den Dienstanbieter",
+      "404": "Modell existiert nicht oder Anfragepfad ist fehlerhaft",
+      "429": "Anfragelimit überschritten. Bitte versuchen Sie es später erneut",
+      "500": "Serverfehler. Bitte versuchen Sie es später erneut",
+      "502": "Gateway-Fehler. Bitte versuchen Sie es später erneut",
+      "503": "Dienst nicht verfügbar. Bitte versuchen Sie es später erneut",
+      "504": "Gateway-Timeout. Bitte versuchen Sie es später erneut"
     },
-    "lastError": "[to be translated]:最后错误",
-    "maxEmbeddingsPerCall": "[to be translated]:每次调用的最大嵌入",
-    "message": "[to be translated]:错误信息",
-    "missing_user_message": "[to be translated]:无法切换模型响应：原始用户消息已被删除。请发送新消息以获取此模型的响应",
+    "lastError": "Letzter Fehler",
+    "maxEmbeddingsPerCall": "Maximale Embeddings pro Aufruf",
+    "message": "Fehlermeldung",
+    "missing_user_message": "Modellresponse kann nicht gewechselt werden: Ursprüngliche Benutzernachricht wurde gelöscht. Bitte senden Sie eine neue Nachricht, um eine Response von diesem Modell zu erhalten",
     "model": {
-      "exists": "[to be translated]:模型已存在",
-      "not_exists": "[to be translated]:模型不存在"
+      "exists": "Modell existiert bereits",
+      "not_exists": "Modell existiert nicht"
     },
-    "modelId": "[to be translated]:模型 ID",
-    "modelType": "[to be translated]:模型类型",
-    "name": "[to be translated]:错误名称",
-    "no_api_key": "[to be translated]:API 密钥未配置",
-    "no_response": "[to be translated]:无响应",
-    "originalError": "[to be translated]:原错误",
-    "originalMessage": "[to be translated]:原消息",
-    "parameter": "[to be translated]:参数",
-    "pause_placeholder": "[to be translated]:已中断",
-    "prompt": "[to be translated]:提示词",
-    "provider": "[to be translated]:提供商",
-    "providerId": "[to be translated]:提供商 ID",
-    "provider_disabled": "[to be translated]:模型提供商未启用",
-    "reason": "[to be translated]:原因",
+    "modelId": "Modell-ID",
+    "modelType": "Modelltyp",
+    "name": "Fehlername",
+    "no_api_key": "API-Schlüssel nicht konfiguriert",
+    "no_response": "Keine Antwort",
+    "originalError": "Ursprünglicher Fehler",
+    "originalMessage": "Ursprüngliche Nachricht",
+    "parameter": "Parameter",
+    "pause_placeholder": "Unterbrochen",
+    "prompt": "Prompt",
+    "provider": "Anbieter",
+    "providerId": "Anbieter-ID",
+    "provider_disabled": "Modellanbieter nicht aktiviert",
+    "reason": "Grund",
     "render": {
-      "description": "[to be translated]:消息内容渲染失败，请检查消息内容格式是否正确",
-      "title": "[to be translated]:渲染错误"
+      "description": "Rendering der Nachricht fehlgeschlagen. Bitte überprüfen Sie das Format des Nachrichteninhalts",
+      "title": "Rendering-Fehler"
     },
-    "requestBody": "[to be translated]:请求内容",
-    "requestBodyValues": "[to be translated]:请求体",
-    "requestUrl": "[to be translated]:请求路径",
-    "response": "[to be translated]:响应",
-    "responseBody": "[to be translated]:响应内容",
-    "responseHeaders": "[to be translated]:响应首部",
-    "responses": "[to be translated]:响应",
-    "role": "[to be translated]:角色",
-    "stack": "[to be translated]:堆栈信息",
-    "status": "[to be translated]:状态码",
-    "statusCode": "[to be translated]:状态码",
-    "statusText": "[to be translated]:状态文本",
-    "text": "[to be translated]:文本",
-    "toolInput": "[to be translated]:工具输入",
-    "toolName": "[to be translated]:工具名",
-    "unknown": "[to be translated]:未知错误",
-    "usage": "[to be translated]:用量",
-    "user_message_not_found": "[to be translated]:无法找到原始用户消息",
-    "value": "[to be translated]:值",
-    "values": "[to be translated]:值"
+    "requestBody": "Anfrage-Inhalt",
+    "requestBodyValues": "Anfrage-Body",
+    "requestUrl": "Anfrage-URL",
+    "response": "Antwort",
+    "responseBody": "Antwort-Inhalt",
+    "responseHeaders": "Antwort-Header",
+    "responses": "Antworten",
+    "role": "Rolle",
+    "stack": "Stack-Trace",
+    "status": "Statuscode",
+    "statusCode": "Statuscode",
+    "statusText": "Statustext",
+    "text": "Text",
+    "toolInput": "Tool-Eingabe",
+    "toolName": "Tool-Name",
+    "unknown": "Unbekannter Fehler",
+    "usage": "Nutzung",
+    "user_message_not_found": "Ursprüngliche Benutzernachricht nicht gefunden",
+    "value": "Wert",
+    "values": "Werte"
   },
   "export": {
-    "assistant": "[to be translated]:助手",
-    "attached_files": "[to be translated]:附件",
-    "conversation_details": "[to be translated]:会话详情",
-    "conversation_history": "[to be translated]:会话历史",
-    "created": "[to be translated]:创建时间",
-    "last_updated": "[to be translated]:最后更新",
-    "messages": "[to be translated]:消息数",
+    "assistant": "Assistent",
+    "attached_files": "Anhänge",
+    "conversation_details": "Gesprächsdetails",
+    "conversation_history": "Gesprächsverlauf",
+    "created": "Erstellt am",
+    "last_updated": "Zuletzt aktualisiert",
+    "messages": "Nachrichtenanzahl",
     "notion": {
-      "reasoning_truncated": "[to be translated]:思维链无法分块，已截断"
+      "reasoning_truncated": "Gedankenkette kann nicht aufgeteilt werden, wurde abgeschnitten"
     },
-    "user": "[to be translated]:用户"
+    "user": "Benutzer"
   },
   "files": {
-    "actions": "[to be translated]:操作",
-    "all": "[to be translated]:所有文件",
-    "batch_delete": "[to be translated]:批量删除",
-    "batch_operation": "[to be translated]:全选",
-    "count": "[to be translated]:个文件",
-    "created_at": "[to be translated]:创建时间",
+    "actions": "Aktionen",
+    "all": "Alle Dateien",
+    "batch_delete": "Stapellöschung",
+    "batch_operation": "Alle auswählen",
+    "count": "Dateien",
+    "created_at": "Erstellt am",
     "delete": {
-      "content": "[to be translated]:删除文件会删除文件在所有消息中的引用，确定要删除此文件吗？",
-      "db_error": "[to be translated]:删除失败",
-      "label": "[to be translated]:删除",
+      "content": "Das Löschen einer Datei entfernt alle Referenzen in Nachrichten. Möchten Sie diese Datei wirklich löschen?",
+      "db_error": "Löschen fehlgeschlagen",
+      "label": "Löschen",
       "paintings": {
-        "warning": "[to be translated]:绘图中包含该图片，暂时无法删除"
+        "warning": "Diese Datei wird in einer Zeichnung verwendet und kann derzeit nicht gelöscht werden"
       },
-      "title": "[to be translated]:删除文件"
+      "title": "Datei löschen"
     },
-    "document": "[to be translated]:文档",
-    "edit": "[to be translated]:编辑",
+    "document": "Dokument",
+    "edit": "Bearbeiten",
     "error": {
-      "open_path": "[to be translated]:无法打开路径: {{path}}"
+      "open_path": "Pfad konnte nicht geöffnet werden: {{path}}"
     },
-    "file": "[to be translated]:文件",
-    "image": "[to be translated]:图片",
-    "name": "[to be translated]:文件名",
-    "open": "[to be translated]:打开",
+    "file": "Datei",
+    "image": "Bild",
+    "name": "Dateiname",
+    "open": "Öffnen",
     "preview": {
-      "error": "[to be translated]:打开文件失败"
+      "error": "Datei konnte nicht geöffnet werden"
     },
-    "size": "[to be translated]:大小",
-    "text": "[to be translated]:文本",
-    "title": "[to be translated]:文件",
-    "type": "[to be translated]:类型"
+    "size": "Größe",
+    "text": "Text",
+    "title": "Dateien",
+    "type": "Typ"
   },
   "gpustack": {
     "keep_alive_time": {
-      "description": "[to be translated]:模型在内存中保持的时间（默认：5 分钟）",
-      "placeholder": "[to be translated]:分钟",
-      "title": "[to be translated]:保持活跃时间"
+      "description": "Zeit, die das Modell im Speicher bleibt (Standard: 5 Minuten)",
+      "placeholder": "Minuten",
+      "title": "Aktiv-Haltezeit"
     },
-    "title": "[to be translated]:GPUStack"
+    "title": "GPUStack"
   },
   "history": {
-    "continue_chat": "[to be translated]:继续聊天",
+    "continue_chat": "Chat fortsetzen",
     "error": {
-      "topic_not_found": "[to be translated]:话题不存在"
+      "topic_not_found": "Thema existiert nicht"
     },
     "locate": {
-      "message": "[to be translated]:定位到消息"
+      "message": "Zu Nachricht navigieren"
     },
     "search": {
-      "messages": "[to be translated]:搜索所有消息",
-      "placeholder": "[to be translated]:搜索话题或消息...",
+      "messages": "Alle Nachrichten durchsuchen",
+      "placeholder": "Themen oder Nachrichten suchen...",
       "topics": {
-        "empty": "[to be translated]:没有找到相关话题，点击回车键搜索所有消息"
+        "empty": "Keine passenden Themen gefunden. Drücken Sie Enter, um alle Nachrichten zu durchsuchen"
       }
     },
-    "title": "[to be translated]:话题搜索"
+    "title": "Themensuche"
   },
   "html_artifacts": {
     "capture": {
-      "label": "[to be translated]:捕获页面",
-      "to_clipboard": "[to be translated]:复制到剪贴板",
-      "to_file": "[to be translated]:保存为图片"
+      "label": "Seite erfassen",
+      "to_clipboard": "In Zwischenablage kopieren",
+      "to_file": "Als Bild speichern"
     },
-    "code": "[to be translated]:代码",
-    "empty_preview": "[to be translated]:无内容可展示",
-    "generating": "[to be translated]:生成中",
-    "preview": "[to be translated]:预览",
-    "split": "[to be translated]:分屏"
+    "code": "Code",
+    "empty_preview": "Kein Inhalt zum Anzeigen",
+    "generating": "Wird generiert",
+    "preview": "Vorschau",
+    "split": "Geteilte Ansicht"
   },
   "knowledge": {
     "add": {
-      "title": "[to be translated]:添加知识库"
+      "title": "Wissensdatenbank hinzufügen"
     },
-    "add_directory": "[to be translated]:添加目录",
-    "add_file": "[to be translated]:添加文件",
-    "add_image": "[to be translated]:添加图片",
-    "add_note": "[to be translated]:添加笔记",
-    "add_sitemap": "[to be translated]:站点地图",
-    "add_url": "[to be translated]:添加网址",
-    "add_video": "[to be translated]:添加视频",
-    "cancel_index": "[to be translated]:取消索引",
-    "chunk_overlap": "[to be translated]:重叠大小",
-    "chunk_overlap_placeholder": "[to be translated]:默认值（不建议修改）",
-    "chunk_overlap_tooltip": "[to be translated]:相邻文本块之间重复的内容量，确保分段后的文本块之间仍然有上下文联系，提升模型处理长文本的整体效果",
-    "chunk_size": "[to be translated]:分段大小",
-    "chunk_size_change_warning": "[to be translated]:分段大小和重叠大小修改只针对新添加的内容有效",
-    "chunk_size_placeholder": "[to be translated]:默认值（不建议修改）",
-    "chunk_size_too_large": "[to be translated]:分段大小不能超过模型上下文限制（{{max_context}}）",
-    "chunk_size_tooltip": "[to be translated]:将文档切割分段，每段的大小，不能超过模型上下文限制",
-    "clear_selection": "[to be translated]:清除选择",
-    "delete": "[to be translated]:删除",
-    "delete_confirm": "[to be translated]:确定要删除此知识库吗？",
-    "dimensions": "[to be translated]:嵌入维度",
-    "dimensions_auto_set": "[to be translated]:自动设置嵌入维度",
-    "dimensions_default": "[to be translated]:模型将使用默认嵌入维度",
-    "dimensions_error_invalid": "[to be translated]:无效的嵌入维度",
-    "dimensions_set_right": "[to be translated]:⚠️ 请确保模型支持所设置的嵌入维度大小",
-    "dimensions_size_placeholder": "[to be translated]:留空表示不设置",
-    "dimensions_size_too_large": "[to be translated]:嵌入维度不能超过模型上下文限制（{{max_context}}）",
-    "dimensions_size_tooltip": "[to be translated]:嵌入维度大小，数值越大消耗的 Token 也越多。留空则不传递 dimensions 参数。",
-    "directories": "[to be translated]:目录",
-    "directory_placeholder": "[to be translated]:请输入目录路径",
-    "document_count": "[to be translated]:请求文档片段数量",
-    "document_count_default": "[to be translated]:默认",
-    "document_count_help": "[to be translated]:请求文档片段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
-    "drag_file": "[to be translated]:拖拽文件到这里",
-    "drag_image": "[to be translated]:拖拽图片到这里",
-    "edit_remark": "[to be translated]:修改备注",
-    "edit_remark_placeholder": "[to be translated]:请输入备注内容",
-    "embedding_model": "[to be translated]:嵌入模型",
-    "embedding_model_required": "[to be translated]:知识库嵌入模型是必需的",
-    "empty": "[to be translated]:暂无知识库",
+    "add_directory": "Verzeichnis hinzufügen",
+    "add_file": "Datei hinzufügen",
+    "add_image": "Bild hinzufügen",
+    "add_note": "Notiz hinzufügen",
+    "add_sitemap": "Sitemap",
+    "add_url": "URL hinzufügen",
+    "add_video": "Video hinzufügen",
+    "cancel_index": "Indexierung abbrechen",
+    "chunk_overlap": "Überlappungsgröße",
+    "chunk_overlap_placeholder": "Standardwert (Änderung nicht empfohlen)",
+    "chunk_overlap_tooltip": "Menge an wiederholtem Inhalt zwischen benachbarten Textblöcken, um den Kontext nach der Segmentierung aufrechtzuerhalten und die Gesamtleistung des Modells bei langen Texten zu verbessern",
+    "chunk_size": "Segmentgröße",
+    "chunk_size_change_warning": "Änderungen an Segmentgröße und Überlappungsgröße gelten nur für neu hinzugefügte Inhalte",
+    "chunk_size_placeholder": "Standardwert (Änderung nicht empfohlen)",
+    "chunk_size_too_large": "Segmentgröße darf Modellkontextlimit ({{max_context}}) nicht überschreiten",
+    "chunk_size_tooltip": "Größe jedes Segments beim Aufteilen von Dokumenten, darf das Modellkontextlimit nicht überschreiten",
+    "clear_selection": "Auswahl löschen",
+    "delete": "Löschen",
+    "delete_confirm": "Möchten Sie diese Wissensdatenbank wirklich löschen?",
+    "dimensions": "Embedding-Dimensionen",
+    "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
+    "dimensions_default": "Modell verwendet Standard-Embedding-Dimensionen",
+    "dimensions_error_invalid": "Ungültige Embedding-Dimensionen",
+    "dimensions_set_right": "⚠️ Bitte stellen Sie sicher, dass das Modell die festgelegte Embedding-Dimensionsgröße unterstützt",
+    "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
+    "dimensions_size_too_large": "Embedding-Dimensionen dürfen Modellkontextlimit ({{max_context}}) nicht überschreiten",
+    "dimensions_size_tooltip": "Embedding-Dimensionsgröße. Höhere Werte verbrauchen mehr Token. Leer lassen, um den dimensions-Parameter nicht zu übergeben.",
+    "directories": "Verzeichnisse",
+    "directory_placeholder": "Bitte Verzeichnispfad eingeben",
+    "document_count": "Anzahl angeforderter Dokumentfragmente",
+    "document_count_default": "Standard",
+    "document_count_help": "Mehr Dokumentfragmente bedeuten mehr Informationen, aber auch höheren Token-Verbrauch",
+    "drag_file": "Datei hierher ziehen",
+    "drag_image": "Bild hierher ziehen",
+    "edit_remark": "Bemerkung bearbeiten",
+    "edit_remark_placeholder": "Bitte Bemerkung eingeben",
+    "embedding_model": "Embedding-Modell",
+    "embedding_model_required": "Embedding-Modell für Wissensdatenbank ist erforderlich",
+    "empty": "Keine Wissensdatenbanken vorhanden",
     "error": {
-      "failed_to_create": "[to be translated]:知识库创建失败",
-      "failed_to_edit": "[to be translated]:知识库编辑失败",
-      "model_invalid": "[to be translated]:未选择模型",
+      "failed_to_create": "Wissensdatenbank erstellen fehlgeschlagen",
+      "failed_to_edit": "Wissensdatenbank bearbeiten fehlgeschlagen",
+      "model_invalid": "Kein Modell ausgewählt",
       "video": {
-        "local_file_missing": "[to be translated]:视频文件不存在",
-        "youtube_url_missing": "[to be translated]:YouTube 视频链接不存在"
+        "local_file_missing": "Videodatei existiert nicht",
+        "youtube_url_missing": "YouTube-Video-Link existiert nicht"
       }
     },
-    "file_hint": "[to be translated]:支持 {{file_types}} 格式",
-    "image_hint": "[to be translated]:支持 {{image_types}} 格式",
-    "images": "[to be translated]:图片",
-    "index_all": "[to be translated]:索引全部",
-    "index_cancelled": "[to be translated]:索引已取消",
-    "index_started": "[to be translated]:索引开始",
-    "invalid_url": "[to be translated]:无效的网址",
+    "file_hint": "{{file_types}}-Formate werden unterstützt",
+    "image_hint": "{{image_types}}-Formate werden unterstützt",
+    "images": "Bilder",
+    "index_all": "Alle indizieren",
+    "index_cancelled": "Indexierung abgebrochen",
+    "index_started": "Indexierung gestartet",
+    "invalid_url": "Ungültige URL",
     "migrate": {
       "button": {
-        "text": "[to be translated]:迁移"
+        "text": "Migrieren"
       },
       "confirm": {
-        "content": "[to be translated]:检测到嵌入模型或维度有变更，无法直接保存配置，可以执行迁移。知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
-        "ok": "[to be translated]:开始迁移",
-        "title": "[to be translated]:知识库迁移"
+        "content": "Änderungen am Embedding-Modell oder den Dimensionen erkannt. Konfiguration kann nicht direkt gespeichert werden. Migration kann durchgeführt werden. Die Migration löscht die alte Wissensdatenbank nicht, sondern erstellt eine Kopie und verarbeitet alle Einträge neu. Dies kann viele Tokens verbrauchen. Bitte mit Vorsicht fortfahren.",
+        "ok": "Migration starten",
+        "title": "Wissensdatenbank-Migration"
       },
       "error": {
-        "failed": "[to be translated]:迁移失败"
+        "failed": "Migration fehlgeschlagen"
       },
-      "source_dimensions": "[to be translated]:源维度",
-      "source_model": "[to be translated]:源模型",
-      "target_dimensions": "[to be translated]:目标维度",
-      "target_model": "[to be translated]:目标模型"
+      "source_dimensions": "Quell-Dimensionen",
+      "source_model": "Quellmodell",
+      "target_dimensions": "Ziel-Dimensionen",
+      "target_model": "Zielmodell"
     },
-    "model_info": "[to be translated]:模型信息",
-    "name_required": "[to be translated]:知识库名称为必填项",
-    "no_bases": "[to be translated]:暂无知识库",
-    "no_match": "[to be translated]:未匹配到知识库内容",
-    "no_provider": "[to be translated]:知识库模型服务商丢失，该知识库将不再支持，请重新创建知识库",
-    "not_set": "[to be translated]:未设置",
-    "not_support": "[to be translated]:知识库数据库引擎已更新，该知识库将不再支持，请重新创建知识库",
-    "notes": "[to be translated]:笔记",
-    "notes_placeholder": "[to be translated]:输入此知识库的附加信息或上下文...",
-    "provider_not_found": "[to be translated]:未找到服务商",
-    "quota": "[to be translated]:{{name}} 剩余额度：{{quota}}",
-    "quota_infinity": "[to be translated]:{{name}} 剩余额度：无限制",
-    "rename": "[to be translated]:重命名",
-    "search": "[to be translated]:搜索知识库",
-    "search_placeholder": "[to be translated]:输入查询内容",
+    "model_info": "Modellinformationen",
+    "name_required": "Wissensdatenbankname ist erforderlich",
+    "no_bases": "Keine Wissensdatenbanken vorhanden",
+    "no_match": "Keine Übereinstimmung mit Wissensdatenbankinhalt",
+    "no_provider": "Modellanbieter für Wissensdatenbank fehlt. Diese Wissensdatenbank wird nicht mehr unterstützt. Bitte erstellen Sie eine neue",
+    "not_set": "Nicht gesetzt",
+    "not_support": "Datenbank-Engine der Wissensdatenbank wurde aktualisiert. Diese Wissensdatenbank wird nicht mehr unterstützt. Bitte erstellen Sie eine neue",
+    "notes": "Notizen",
+    "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
+    "provider_not_found": "Anbieter nicht gefunden",
+    "quota": "{{name}} verbleibendes Kontingent: {{quota}}",
+    "quota_infinity": "{{name}} verbleibendes Kontingent: unbegrenzt",
+    "rename": "Umbenennen",
+    "search": "Wissensdatenbank durchsuchen",
+    "search_placeholder": "Suchanfrage eingeben",
     "settings": {
-      "preprocessing": "[to be translated]:预处理",
-      "preprocessing_tooltip": "[to be translated]:使用 OCR 预处理上传的文件",
-      "title": "[to be translated]:知识库设置"
+      "preprocessing": "Vorverarbeitung",
+      "preprocessing_tooltip": "OCR zur Vorverarbeitung hochgeladener Dateien verwenden",
+      "title": "Wissensdatenbank-Einstellungen"
     },
-    "sitemap_added": "[to be translated]:添加成功",
-    "sitemap_placeholder": "[to be translated]:请输入站点地图 URL",
-    "sitemaps": "[to be translated]:网站",
-    "source": "[to be translated]:来源",
-    "status": "[to be translated]:状态",
-    "status_completed": "[to be translated]:已完成",
-    "status_embedding_completed": "[to be translated]:嵌入完成",
-    "status_embedding_failed": "[to be translated]:嵌入失败",
-    "status_failed": "[to be translated]:失败",
-    "status_new": "[to be translated]:已添加",
-    "status_pending": "[to be translated]:等待中",
-    "status_preprocess_completed": "[to be translated]:预处理完成",
-    "status_preprocess_failed": "[to be translated]:预处理失败",
-    "status_processing": "[to be translated]:处理中",
-    "subtitle_file": "[to be translated]:字幕文件",
-    "threshold": "[to be translated]:匹配度阈值",
-    "threshold_placeholder": "[to be translated]:未设置",
-    "threshold_too_large_or_small": "[to be translated]:阈值不能大于 1 或小于 0",
-    "threshold_tooltip": "[to be translated]:用于衡量用户问题与知识库内容之间的相关性（0-1）",
-    "title": "[to be translated]:知识库",
-    "topN": "[to be translated]:返回结果数量",
-    "topN_placeholder": "[to be translated]:未设置",
-    "topN_too_large_or_small": "[to be translated]:返回结果数量不能大于 30 或小于 1",
-    "topN_tooltip": "[to be translated]:返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
-    "url_added": "[to be translated]:网址已添加",
-    "url_placeholder": "[to be translated]:请输入网址, 多个网址用回车分隔",
-    "urls": "[to be translated]:网址",
-    "videos": "[to be translated]:视频",
-    "videos_file": "[to be translated]:视频文件"
+    "sitemap_added": "Erfolgreich hinzugefügt",
+    "sitemap_placeholder": "Bitte Sitemap-URL eingeben",
+    "sitemaps": "Websites",
+    "source": "Quelle",
+    "status": "Status",
+    "status_completed": "Abgeschlossen",
+    "status_embedding_completed": "Embedding abgeschlossen",
+    "status_embedding_failed": "Embedding fehlgeschlagen",
+    "status_failed": "Fehlgeschlagen",
+    "status_new": "Hinzugefügt",
+    "status_pending": "Wartend",
+    "status_preprocess_completed": "Vorverarbeitung abgeschlossen",
+    "status_preprocess_failed": "Vorverarbeitung fehlgeschlagen",
+    "status_processing": "In Bearbeitung",
+    "subtitle_file": "Untertiteldatei",
+    "threshold": "Übereinstimmungsschwelle",
+    "threshold_placeholder": "Nicht gesetzt",
+    "threshold_too_large_or_small": "Schwelle darf nicht größer als 1 oder kleiner als 0 sein",
+    "threshold_tooltip": "Misst die Relevanz zwischen Benutzerfrage und Wissensdatenbankinhalt (0-1)",
+    "title": "Wissensdatenbank",
+    "topN": "Anzahl zurückgegebener Ergebnisse",
+    "topN_placeholder": "Nicht gesetzt",
+    "topN_too_large_or_small": "Anzahl zurückgegebener Ergebnisse darf nicht größer als 30 oder kleiner als 1 sein",
+    "topN_tooltip": "Anzahl zurückgegebener Übereinstimmungsergebnisse. Höhere Werte bedeuten mehr Ergebnisse, aber auch höheren Token-Verbrauch",
+    "url_added": "URL hinzugefügt",
+    "url_placeholder": "Bitte URL eingeben, mehrere URLs mit Enter trennen",
+    "urls": "URLs",
+    "videos": "Videos",
+    "videos_file": "Videodatei"
   },
   "languages": {
-    "arabic": "[to be translated]:阿拉伯文",
-    "chinese": "[to be translated]:简体中文",
-    "chinese-traditional": "[to be translated]:繁体中文",
-    "english": "[to be translated]:英文",
-    "french": "[to be translated]:法文",
-    "german": "[to be translated]:德文",
-    "indonesian": "[to be translated]:印尼文",
-    "italian": "[to be translated]:意大利文",
-    "japanese": "[to be translated]:日文",
-    "korean": "[to be translated]:韩文",
-    "malay": "[to be translated]:马来文",
-    "polish": "[to be translated]:波兰文",
-    "portuguese": "[to be translated]:葡萄牙文",
-    "russian": "[to be translated]:俄文",
-    "spanish": "[to be translated]:西班牙文",
-    "thai": "[to be translated]:泰文",
-    "turkish": "[to be translated]:土耳其文",
-    "ukrainian": "[to be translated]:乌克兰语",
-    "unknown": "[to be translated]:未知",
-    "urdu": "[to be translated]:乌尔都文",
-    "vietnamese": "[to be translated]:越南文"
+    "arabic": "Arabisch",
+    "chinese": "Vereinfachtes Chinesisch",
+    "chinese-traditional": "Traditionelles Chinesisch",
+    "english": "Englisch",
+    "french": "Französisch",
+    "german": "Deutsch",
+    "indonesian": "Indonesisch",
+    "italian": "Italienisch",
+    "japanese": "Japanisch",
+    "korean": "Koreanisch",
+    "malay": "Malaiisch",
+    "polish": "Polnisch",
+    "portuguese": "Portugiesisch",
+    "russian": "Russisch",
+    "spanish": "Spanisch",
+    "thai": "Thailändisch",
+    "turkish": "Türkisch",
+    "ukrainian": "Ukrainisch",
+    "unknown": "Unbekannt",
+    "urdu": "Urdu",
+    "vietnamese": "Vietnamesisch"
   },
   "launchpad": {
-    "apps": "[to be translated]:应用",
-    "minapps": "[to be translated]:小程序"
+    "apps": "Apps",
+    "minapps": "Mini-Apps"
   },
   "lmstudio": {
     "keep_alive_time": {
-      "description": "[to be translated]:对话后模型在内存中保持的时间（默认：5 分钟）",
-      "placeholder": "[to be translated]:分钟",
-      "title": "[to be translated]:保持活跃时间"
+      "description": "Zeit, die das Modell nach dem Gespräch im Speicher bleibt (Standard: 5 Minuten)",
+      "placeholder": "Minuten",
+      "title": "Aktiv-Haltezeit"
     },
-    "title": "[to be translated]:LM Studio"
+    "title": "LM Studio"
   },
   "memory": {
-    "actions": "[to be translated]:操作",
-    "add_failed": "[to be translated]:添加记忆失败",
-    "add_first_memory": "[to be translated]:添加您的第一条记忆",
-    "add_memory": "[to be translated]:添加记忆",
-    "add_new_user": "[to be translated]:添加新用户",
-    "add_success": "[to be translated]:记忆添加成功",
-    "add_user": "[to be translated]:添加用户",
-    "add_user_failed": "[to be translated]:添加用户失败",
-    "all_users": "[to be translated]:所有用户",
-    "cannot_delete_default_user": "[to be translated]:不能删除默认用户",
-    "configure_memory_first": "[to be translated]:请先配置记忆设置",
-    "content": "[to be translated]:内容",
-    "current_user": "[to be translated]:当前用户",
-    "custom": "[to be translated]:自定义",
-    "default": "[to be translated]:默认",
-    "default_user": "[to be translated]:默认用户",
-    "delete_confirm": "[to be translated]:确定要删除这条记忆吗？",
-    "delete_confirm_content": "[to be translated]:确定要删除 {{count}} 条记忆吗？",
-    "delete_confirm_single": "[to be translated]:确定要删除这条记忆吗？",
-    "delete_confirm_title": "[to be translated]:删除记忆",
-    "delete_failed": "[to be translated]:删除记忆失败",
-    "delete_selected": "[to be translated]:删除选中",
-    "delete_success": "[to be translated]:记忆删除成功",
-    "delete_user": "[to be translated]:删除用户",
-    "delete_user_confirm_content": "[to be translated]:确定要删除用户 {{user}} 及其所有记忆吗？",
-    "delete_user_confirm_title": "[to be translated]:删除用户",
-    "delete_user_failed": "[to be translated]:删除用户失败",
-    "description": "[to be translated]:记忆功能允许您存储和管理与助手交互的信息。您可以添加、编辑和删除记忆，也可以对它们进行过滤和搜索。",
-    "edit_memory": "[to be translated]:编辑记忆",
-    "embedding_dimensions": "[to be translated]:嵌入维度",
-    "embedding_model": "[to be translated]:嵌入模型",
-    "enable_global_memory_first": "[to be translated]:请先启用全局记忆",
-    "end_date": "[to be translated]:结束日期",
-    "global_memory": "[to be translated]:全局记忆",
-    "global_memory_description": "[to be translated]:需要开启助手设置中的全局记忆才能使用",
-    "global_memory_disabled_desc": "[to be translated]:要使用记忆功能，请先在助手设置中启用全局记忆。",
-    "global_memory_disabled_title": "[to be translated]:全局记忆已禁用",
-    "global_memory_enabled": "[to be translated]:全局记忆已启用",
-    "go_to_memory_page": "[to be translated]:前往记忆页面",
-    "initial_memory_content": "[to be translated]:欢迎！这是您的第一条记忆。",
-    "llm_model": "[to be translated]:LLM 模型",
-    "load_failed": "[to be translated]:加载记忆失败",
-    "loading": "[to be translated]:正在加载记忆...",
-    "loading_memories": "[to be translated]:正在加载记忆...",
-    "memories_description": "[to be translated]:显示 {{count}} / {{total}} 条记忆",
-    "memories_reset_success": "[to be translated]:{{user}} 的所有记忆已成功重置",
-    "memory": "[to be translated]:条记忆",
-    "memory_content": "[to be translated]:记忆内容",
-    "memory_placeholder": "[to be translated]:输入记忆内容...",
-    "new_user_id": "[to be translated]:新用户ID",
-    "new_user_id_placeholder": "[to be translated]:输入唯一的用户ID",
-    "no_matching_memories": "[to be translated]:未找到匹配的记忆",
-    "no_memories": "[to be translated]:暂无记忆",
-    "no_memories_description": "[to be translated]:开始添加您的第一条记忆吧",
-    "not_configured_desc": "[to be translated]:请在记忆设置中配置嵌入和LLM模型以启用记忆功能。",
-    "not_configured_title": "[to be translated]:记忆未配置",
-    "pagination_total": "[to be translated]:第 {{start}}-{{end}} 项，共 {{total}} 项",
-    "please_enter_memory": "[to be translated]:请输入记忆内容",
-    "please_select_embedding_model": "[to be translated]:请选择嵌入模型",
-    "please_select_llm_model": "[to be translated]:请选择 LLM 模型",
-    "reset_filters": "[to be translated]:重置筛选",
-    "reset_memories": "[to be translated]:重置记忆",
-    "reset_memories_confirm_content": "[to be translated]:确定要永久删除 {{user}} 的所有记忆吗？此操作无法撤销。",
-    "reset_memories_confirm_title": "[to be translated]:重置所有记忆",
-    "reset_memories_failed": "[to be translated]:重置记忆失败",
-    "reset_user_memories": "[to be translated]:重置用户记忆",
-    "reset_user_memories_confirm_content": "[to be translated]:确定要重置 {{user}} 的所有记忆吗？",
-    "reset_user_memories_confirm_title": "[to be translated]:重置用户记忆",
-    "reset_user_memories_failed": "[to be translated]:重置用户记忆失败",
-    "score": "[to be translated]:分数",
-    "search": "[to be translated]:搜索",
-    "search_placeholder": "[to be translated]:搜索记忆...",
-    "select_embedding_model_placeholder": "[to be translated]:选择嵌入模型",
-    "select_llm_model_placeholder": "[to be translated]:选择 LLM 模型",
-    "select_user": "[to be translated]:选择用户",
-    "settings": "[to be translated]:设置",
-    "settings_title": "[to be translated]:记忆设置",
-    "start_date": "[to be translated]:开始日期",
-    "statistics": "[to be translated]:统计",
-    "stored_memories": "[to be translated]:已存储记忆",
-    "switch_user": "[to be translated]:切换用户",
-    "switch_user_confirm": "[to be translated]:将用户上下文切换到 {{user}}？",
-    "time": "[to be translated]:时间",
-    "title": "[to be translated]:全局记忆",
-    "total_memories": "[to be translated]:条记忆",
-    "try_different_filters": "[to be translated]:尝试调整搜索条件",
-    "update_failed": "[to be translated]:更新记忆失败",
-    "update_success": "[to be translated]:记忆更新成功",
-    "user": "[to be translated]:用户",
-    "user_created": "[to be translated]:用户 {{user}} 创建并切换成功",
-    "user_deleted": "[to be translated]:用户 {{user}} 删除成功",
-    "user_id": "[to be translated]:用户 ID",
-    "user_id_exists": "[to be translated]:该用户ID已存在",
-    "user_id_invalid_chars": "[to be translated]:用户ID只能包含字母、数字、连字符和下划线",
-    "user_id_placeholder": "[to be translated]:输入用户 ID（可选）",
-    "user_id_required": "[to be translated]:用户ID为必填项",
-    "user_id_reserved": "[to be translated]:'default-user' 为保留字，请使用其他ID",
-    "user_id_rules": "[to be translated]:用户ID必须唯一，只能包含字母、数字、连字符(-)和下划线(_)",
-    "user_id_too_long": "[to be translated]:用户ID不能超过50个字符",
-    "user_management": "[to be translated]:用户管理",
-    "user_memories_reset": "[to be translated]:{{user}} 的所有记忆已重置",
-    "user_switch_failed": "[to be translated]:切换用户失败",
-    "user_switched": "[to be translated]:用户上下文已切换到 {{user}}",
-    "users": "[to be translated]:用户"
+    "actions": "Aktionen",
+    "add_failed": "Erinnerung hinzufügen fehlgeschlagen",
+    "add_first_memory": "Erste Erinnerung hinzufügen",
+    "add_memory": "Erinnerung hinzufügen",
+    "add_new_user": "Neuen Benutzer hinzufügen",
+    "add_success": "Erinnerung erfolgreich hinzugefügt",
+    "add_user": "Benutzer hinzufügen",
+    "add_user_failed": "Benutzer hinzufügen fehlgeschlagen",
+    "all_users": "Alle Benutzer",
+    "cannot_delete_default_user": "Standardbenutzer kann nicht gelöscht werden",
+    "configure_memory_first": "Bitte konfigurieren Sie zuerst die Erinnerungseinstellungen",
+    "content": "Inhalt",
+    "current_user": "Aktueller Benutzer",
+    "custom": "Benutzerdefiniert",
+    "default": "Standard",
+    "default_user": "Standardbenutzer",
+    "delete_confirm": "Möchten Sie diese Erinnerung wirklich löschen?",
+    "delete_confirm_content": "Möchten Sie {{count}} Erinnerungen wirklich löschen?",
+    "delete_confirm_single": "Möchten Sie diese Erinnerung wirklich löschen?",
+    "delete_confirm_title": "Erinnerung löschen",
+    "delete_failed": "Erinnerung löschen fehlgeschlagen",
+    "delete_selected": "Ausgewählte löschen",
+    "delete_success": "Erinnerung erfolgreich gelöscht",
+    "delete_user": "Benutzer löschen",
+    "delete_user_confirm_content": "Möchten Sie Benutzer {{user}} und alle zugehörigen Erinnerungen wirklich löschen?",
+    "delete_user_confirm_title": "Benutzer löschen",
+    "delete_user_failed": "Benutzer löschen fehlgeschlagen",
+    "description": "Die Erinnerungsfunktion ermöglicht es Ihnen, Informationen aus Ihren Interaktionen mit dem Assistenten zu speichern und zu verwalten. Sie können Erinnerungen hinzufügen, bearbeiten und löschen sowie filtern und durchsuchen.",
+    "edit_memory": "Erinnerung bearbeiten",
+    "embedding_dimensions": "Embedding-Dimensionen",
+    "embedding_model": "Embedding-Modell",
+    "enable_global_memory_first": "Bitte aktivieren Sie zuerst die globale Erinnerung",
+    "end_date": "Enddatum",
+    "global_memory": "Globale Erinnerung",
+    "global_memory_description": "Globale Erinnerung muss in den Assistenteneinstellungen aktiviert werden, um sie zu verwenden",
+    "global_memory_disabled_desc": "Um die Erinnerungsfunktion zu nutzen, aktivieren Sie bitte zuerst die globale Erinnerung in den Assistenteneinstellungen.",
+    "global_memory_disabled_title": "Globale Erinnerung ist deaktiviert",
+    "global_memory_enabled": "Globale Erinnerung ist aktiviert",
+    "go_to_memory_page": "Zur Erinnerungsseite",
+    "initial_memory_content": "Willkommen! Dies ist Ihre erste Erinnerung.",
+    "llm_model": "LLM-Modell",
+    "load_failed": "Erinnerungen laden fehlgeschlagen",
+    "loading": "Erinnerungen werden geladen...",
+    "loading_memories": "Erinnerungen werden geladen...",
+    "memories_description": "{{count}} / {{total}} Erinnerungen angezeigt",
+    "memories_reset_success": "Alle Erinnerungen von {{user}} wurden erfolgreich zurückgesetzt",
+    "memory": "Erinnerungen",
+    "memory_content": "Erinnerungsinhalt",
+    "memory_placeholder": "Erinnerungsinhalt eingeben...",
+    "new_user_id": "Neue Benutzer-ID",
+    "new_user_id_placeholder": "Eindeutige Benutzer-ID eingeben",
+    "no_matching_memories": "Keine passenden Erinnerungen gefunden",
+    "no_memories": "Keine Erinnerungen vorhanden",
+    "no_memories_description": "Beginnen Sie damit, Ihre erste Erinnerung hinzuzufügen",
+    "not_configured_desc": "Bitte konfigurieren Sie Embedding- und LLM-Modelle in den Erinnerungseinstellungen, um die Erinnerungsfunktion zu aktivieren.",
+    "not_configured_title": "Erinnerung nicht konfiguriert",
+    "pagination_total": "Eintrag {{start}}-{{end}} von {{total}}",
+    "please_enter_memory": "Bitte Erinnerungsinhalt eingeben",
+    "please_select_embedding_model": "Bitte Embedding-Modell auswählen",
+    "please_select_llm_model": "Bitte LLM-Modell auswählen",
+    "reset_filters": "Filter zurücksetzen",
+    "reset_memories": "Erinnerungen zurücksetzen",
+    "reset_memories_confirm_content": "Möchten Sie alle Erinnerungen von {{user}} dauerhaft löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.",
+    "reset_memories_confirm_title": "Alle Erinnerungen zurücksetzen",
+    "reset_memories_failed": "Erinnerungen zurücksetzen fehlgeschlagen",
+    "reset_user_memories": "Benutzererinnerungen zurücksetzen",
+    "reset_user_memories_confirm_content": "Möchten Sie alle Erinnerungen von {{user}} wirklich zurücksetzen?",
+    "reset_user_memories_confirm_title": "Benutzererinnerungen zurücksetzen",
+    "reset_user_memories_failed": "Benutzererinnerungen zurücksetzen fehlgeschlagen",
+    "score": "Bewertung",
+    "search": "Suchen",
+    "search_placeholder": "Erinnerungen durchsuchen...",
+    "select_embedding_model_placeholder": "Embedding-Modell auswählen",
+    "select_llm_model_placeholder": "LLM-Modell auswählen",
+    "select_user": "Benutzer auswählen",
+    "settings": "Einstellungen",
+    "settings_title": "Erinnerungseinstellungen",
+    "start_date": "Startdatum",
+    "statistics": "Statistiken",
+    "stored_memories": "Gespeicherte Erinnerungen",
+    "switch_user": "Benutzer wechseln",
+    "switch_user_confirm": "Benutzerkontext zu {{user}} wechseln?",
+    "time": "Zeit",
+    "title": "Globale Erinnerung",
+    "total_memories": "Erinnerungen",
+    "try_different_filters": "Versuchen Sie, die Suchkriterien anzupassen",
+    "update_failed": "Erinnerung aktualisieren fehlgeschlagen",
+    "update_success": "Erinnerung erfolgreich aktualisiert",
+    "user": "Benutzer",
+    "user_created": "Benutzer {{user}} erfolgreich erstellt und gewechselt",
+    "user_deleted": "Benutzer {{user}} erfolgreich gelöscht",
+    "user_id": "Benutzer-ID",
+    "user_id_exists": "Diese Benutzer-ID existiert bereits",
+    "user_id_invalid_chars": "Benutzer-ID darf nur Buchstaben, Zahlen, Bindestriche und Unterstriche enthalten",
+    "user_id_placeholder": "Benutzer-ID eingeben (optional)",
+    "user_id_required": "Benutzer-ID ist erforderlich",
+    "user_id_reserved": "'default-user' ist reserviert. Bitte verwenden Sie eine andere ID",
+    "user_id_rules": "Benutzer-ID muss eindeutig sein und darf nur Buchstaben, Zahlen, Bindestriche (-) und Unterstriche (_) enthalten",
+    "user_id_too_long": "Benutzer-ID darf 50 Zeichen nicht überschreiten",
+    "user_management": "Benutzerverwaltung",
+    "user_memories_reset": "Alle Erinnerungen von {{user}} wurden zurückgesetzt",
+    "user_switch_failed": "Benutzer wechseln fehlgeschlagen",
+    "user_switched": "Benutzerkontext zu {{user}} gewechselt",
+    "users": "Benutzer"
   },
   "message": {
     "agents": {
       "import": {
-        "error": "[to be translated]:导入失败"
+        "error": "Import fehlgeschlagen"
       },
-      "imported": "[to be translated]:导入成功"
+      "imported": "Erfolgreich importiert"
     },
     "api": {
       "check": {
         "model": {
-          "title": "[to be translated]:请选择要检测的模型"
+          "title": "Bitte zu testendes Modell auswählen"
         }
       },
       "connection": {
-        "failed": "[to be translated]:连接失败",
-        "success": "[to be translated]:连接成功"
+        "failed": "Verbindung fehlgeschlagen",
+        "success": "Verbindung erfolgreich"
       }
     },
     "assistant": {
       "added": {
-        "content": "[to be translated]:智能体添加成功"
+        "content": "Agent erfolgreich hinzugefügt"
       }
     },
     "attachments": {
-      "pasted_image": "[to be translated]:剪切板图片",
-      "pasted_text": "[to be translated]:剪切板文件"
+      "pasted_image": "Bild aus Zwischenablage",
+      "pasted_text": "Datei aus Zwischenablage"
     },
     "backup": {
-      "failed": "[to be translated]:备份失败",
+      "failed": "Backup fehlgeschlagen",
       "start": {
-        "success": "[to be translated]:开始备份"
+        "success": "Backup gestartet"
       },
-      "success": "[to be translated]:备份成功"
+      "success": "Backup erfolgreich"
     },
     "branch": {
-      "error": "[to be translated]:分支创建失败"
+      "error": "Branch erstellen fehlgeschlagen"
     },
     "chat": {
       "completion": {
-        "paused": "[to be translated]:会话已停止"
+        "paused": "Sitzung gestoppt"
       }
     },
-    "citation": "[to be translated]:{{count}} 个引用内容",
-    "citations": "[to be translated]:引用内容",
-    "copied": "[to be translated]:已复制",
+    "citation": "{{count}} Zitate",
+    "citations": "Zitate",
+    "copied": "Kopiert",
     "copy": {
-      "failed": "[to be translated]:复制失败",
-      "success": "[to be translated]:复制成功"
+      "failed": "Kopieren fehlgeschlagen",
+      "success": "Erfolgreich kopiert"
     },
     "delete": {
       "confirm": {
-        "content": "[to be translated]:确认删除选中的 {{count}} 条消息吗？",
-        "title": "[to be translated]:删除确认"
+        "content": "Möchten Sie die ausgewählten {{count}} Nachrichten wirklich löschen?",
+        "title": "Löschen bestätigen"
       },
-      "failed": "[to be translated]:删除失败",
-      "success": "[to be translated]:删除成功"
+      "failed": "Löschen fehlgeschlagen",
+      "success": "Erfolgreich gelöscht"
     },
     "dialog": {
-      "failed": "[to be translated]:预览失败"
+      "failed": "Vorschau fehlgeschlagen"
     },
     "download": {
-      "failed": "[to be translated]:下载失败",
-      "success": "[to be translated]:下载成功"
+      "failed": "Download fehlgeschlagen",
+      "success": "Erfolgreich heruntergeladen"
     },
-    "empty_url": "[to be translated]:无法下载图片，可能是提示词包含敏感内容或违禁词汇",
+    "empty_url": "Bild konnte nicht heruntergeladen werden. Möglicherweise enthält der Prompt sensible Inhalte oder verbotene Wörter",
     "error": {
-      "chunk_overlap_too_large": "[to be translated]:分段重叠不能大于分段大小",
-      "copy": "[to be translated]:复制失败",
-      "dimension_too_large": "[to be translated]:内容尺寸过大",
+      "chunk_overlap_too_large": "Segmentüberlappung darf nicht größer als Segmentgröße sein",
+      "copy": "Kopieren fehlgeschlagen",
+      "dimension_too_large": "Inhaltsgröße zu groß",
       "enter": {
         "api": {
-          "host": "[to be translated]:请输入您的 API 地址",
-          "label": "[to be translated]:请输入您的 API 密钥"
+          "host": "Bitte geben Sie Ihre API-Adresse ein",
+          "label": "Bitte geben Sie Ihren API-Schlüssel ein"
         },
-        "model": "[to be translated]:请选择一个模型",
-        "name": "[to be translated]:请输入知识库名称"
+        "model": "Bitte wählen Sie ein Modell aus",
+        "name": "Bitte geben Sie einen Wissensdatenbanknamen ein"
       },
-      "fetchTopicName": "[to be translated]:话题命名失败",
-      "get_embedding_dimensions": "[to be translated]:获取嵌入维度失败",
+      "fetchTopicName": "Themenname generieren fehlgeschlagen",
+      "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "invalid": {
         "api": {
-          "host": "[to be translated]:无效的 API 地址",
-          "label": "[to be translated]:无效的 API 密钥"
+          "host": "Ungültige API-Adresse",
+          "label": "Ungültiger API-Schlüssel"
         },
         "enter": {
-          "model": "[to be translated]:请选择一个模型"
+          "model": "Bitte wählen Sie ein Modell aus"
         },
-        "nutstore": "[to be translated]:无效的坚果云设置",
-        "nutstore_token": "[to be translated]:无效的坚果云 Token",
+        "nutstore": "Ungültige Nutstore-Einstellungen",
+        "nutstore_token": "Ungültiger Nutstore-Token",
         "proxy": {
-          "url": "[to be translated]:无效的代理地址"
+          "url": "Ungültige Proxy-Adresse"
         },
-        "webdav": "[to be translated]:无效的 WebDAV 设置"
+        "webdav": "Ungültige WebDAV-Einstellungen"
       },
       "joplin": {
-        "export": "[to be translated]:导出 Joplin 失败，请保持 Joplin 已运行并检查连接状态或检查配置",
-        "no_config": "[to be translated]:未配置 Joplin 授权令牌 或 URL"
+        "export": "Export nach Joplin fehlgeschlagen. Bitte stellen Sie sicher, dass Joplin läuft, und überprüfen Sie den Verbindungsstatus oder die Konfiguration",
+        "no_config": "Joplin-Autorisierungstoken oder URL nicht konfiguriert"
       },
       "markdown": {
         "export": {
-          "preconf": "[to be translated]:导出 Markdown 文件到预先设定的路径失败",
-          "specified": "[to be translated]:导出 Markdown 文件失败"
+          "preconf": "Export der Markdown-Datei in vorkonfigurierten Pfad fehlgeschlagen",
+          "specified": "Export der Markdown-Datei fehlgeschlagen"
         }
       },
       "notes": {
-        "export": "[to be translated]:导出笔记失败"
+        "export": "Notizen exportieren fehlgeschlagen"
       },
       "notion": {
-        "export": "[to be translated]:导出 Notion 错误，请检查连接状态并对照文档检查配置",
-        "no_api_key": "[to be translated]:未配置 Notion API Key 或 Notion Database ID",
-        "no_content": "[to be translated]:无可导出到 Notion 的内容"
+        "export": "Export nach Notion fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
+        "no_api_key": "Notion API Key oder Notion Database ID nicht konfiguriert",
+        "no_content": "Kein Inhalt zum Exportieren nach Notion vorhanden"
       },
       "siyuan": {
-        "export": "[to be translated]:导出思源笔记失败，请检查连接状态并对照文档检查配置",
-        "no_config": "[to be translated]:未配置思源笔记 API 地址或令牌"
+        "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
+        "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
       },
-      "unknown": "[to be translated]:未知错误",
+      "unknown": "Unbekannter Fehler",
       "yuque": {
-        "export": "[to be translated]:导出语雀错误，请检查连接状态并对照文档检查配置",
-        "no_config": "[to be translated]:未配置语雀 Token 或 知识库 URL"
+        "export": "Export nach Yuque fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
+        "no_config": "Yuque Token oder Wissensdatenbank-URL nicht konfiguriert"
       }
     },
     "group": {
       "delete": {
-        "content": "[to be translated]:删除分组消息会删除用户提问和所有助手的回答",
-        "title": "[to be translated]:删除分组消息"
+        "content": "Das Löschen einer Gruppennachricht löscht die Benutzerfrage und alle Antworten der Assistenten",
+        "title": "Gruppennachricht löschen"
       },
-      "retry_failed": "[to be translated]:重试出错的消息"
+      "retry_failed": "Fehlgeschlagene Nachricht wiederholen"
     },
     "ignore": {
       "knowledge": {
-        "base": "[to be translated]:联网模式开启，忽略知识库"
+        "base": "Online-Modus aktiviert, Wissensdatenbank wird ignoriert"
       }
     },
     "loading": {
       "notion": {
-        "exporting_progress": "[to be translated]:正在导出到 Notion ...",
-        "preparing": "[to be translated]:正在准备导出到 Notion..."
+        "exporting_progress": "Wird nach Notion exportiert ...",
+        "preparing": "Export nach Notion wird vorbereitet..."
       }
     },
     "mention": {
-      "title": "[to be translated]:切换模型回答"
+      "title": "Modellantwort wechseln"
     },
     "message": {
-      "code_style": "[to be translated]:代码风格",
+      "code_style": "Code-Stil",
       "delete": {
-        "content": "[to be translated]:确定要删除此消息吗？",
-        "title": "[to be translated]:删除消息"
+        "content": "Möchten Sie diese Nachricht wirklich löschen?",
+        "title": "Nachricht löschen"
       },
       "multi_model_style": {
         "fold": {
-          "compress": "[to be translated]:切换到紧凑排列",
-          "expand": "[to be translated]:切换到展开排列",
-          "label": "[to be translated]:标签模式"
+          "compress": "Zu kompakter Anordnung wechseln",
+          "expand": "Zu erweiterter Anordnung wechseln",
+          "label": "Tab-Modus"
         },
-        "grid": "[to be translated]:卡片布局",
-        "horizontal": "[to be translated]:横向排列",
-        "label": "[to be translated]:多模型回答样式",
-        "vertical": "[to be translated]:纵向堆叠"
+        "grid": "Kartenlayout",
+        "horizontal": "Horizontale Anordnung",
+        "label": "Mehrmodell-Antwortstil",
+        "vertical": "Vertikale Stapel"
       },
       "style": {
-        "bubble": "[to be translated]:气泡",
-        "label": "[to be translated]:消息样式",
-        "plain": "[to be translated]:简洁"
+        "bubble": "Sprechblase",
+        "label": "Nachrichtenstil",
+        "plain": "Schlicht"
       },
       "video": {
         "error": {
-          "local_file_missing": "[to be translated]:本地视频文件路径不存在",
-          "unsupported_type": "[to be translated]:不支持的视频类型",
-          "youtube_url_missing": "[to be translated]:YouTube 视频链接不存在"
+          "local_file_missing": "Lokaler Videodateipfad existiert nicht",
+          "unsupported_type": "Nicht unterstützter Videotyp",
+          "youtube_url_missing": "YouTube-Video-Link existiert nicht"
         }
       }
     },
-    "processing": "[to be translated]:正在处理...",
+    "processing": "Wird verarbeitet...",
     "regenerate": {
-      "confirm": "[to be translated]:重新生成会覆盖当前消息"
+      "confirm": "Neu generieren überschreibt die aktuelle Nachricht"
     },
     "reset": {
       "confirm": {
-        "content": "[to be translated]:确定要重置所有数据吗？"
+        "content": "Möchten Sie alle Daten wirklich zurücksetzen?"
       },
       "double": {
         "confirm": {
-          "content": "[to be translated]:你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "[to be translated]:数据丢失！！！"
+          "content": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
+          "title": "Datenverlust!!!"
         }
       }
     },
     "restore": {
-      "failed": "[to be translated]:恢复失败",
-      "success": "[to be translated]:恢复成功"
+      "failed": "Wiederherstellung fehlgeschlagen",
+      "success": "Erfolgreich wiederhergestellt"
     },
     "save": {
       "success": {
-        "title": "[to be translated]:保存成功"
+        "title": "Erfolgreich gespeichert"
       }
     },
-    "searching": "[to be translated]:正在搜索...",
+    "searching": "Wird gesucht...",
     "success": {
       "joplin": {
-        "export": "[to be translated]:成功导出到 Joplin"
+        "export": "Erfolgreich nach Joplin exportiert"
       },
       "markdown": {
         "export": {
-          "preconf": "[to be translated]:成功导出 Markdown 文件到预先设定的路径",
-          "specified": "[to be translated]:成功导出 Markdown 文件"
+          "preconf": "Markdown-Datei erfolgreich in vorkonfigurierten Pfad exportiert",
+          "specified": "Markdown-Datei erfolgreich exportiert"
         }
       },
       "notes": {
-        "export": "[to be translated]:成功导出到笔记"
+        "export": "Erfolgreich in Notizen exportiert"
       },
       "notion": {
-        "export": "[to be translated]:成功导出到 Notion"
+        "export": "Erfolgreich nach Notion exportiert"
       },
       "siyuan": {
-        "export": "[to be translated]:导出到思源笔记成功"
+        "export": "Erfolgreich nach SiYuan-Notizen exportiert"
       },
       "yuque": {
-        "export": "[to be translated]:成功导出到语雀"
+        "export": "Erfolgreich nach Yuque exportiert"
       }
     },
     "switch": {
-      "disabled": "[to be translated]:请等待当前回复完成后操作"
+      "disabled": "Bitte warten Sie, bis die aktuelle Antwort abgeschlossen ist"
     },
     "tools": {
-      "abort_failed": "[to be translated]:工具调用中断失败",
-      "aborted": "[to be translated]:工具调用已中断",
-      "autoApproveEnabled": "[to be translated]:此工具已启用自动批准",
-      "cancelled": "[to be translated]:已取消",
-      "completed": "[to be translated]:已完成",
-      "error": "[to be translated]:发生错误",
-      "invoking": "[to be translated]:调用中",
-      "pending": "[to be translated]:等待中",
-      "preview": "[to be translated]:预览",
-      "raw": "[to be translated]:原始"
+      "abort_failed": "Tool-Aufruf abbrechen fehlgeschlagen",
+      "aborted": "Tool-Aufruf abgebrochen",
+      "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
+      "cancelled": "Abgebrochen",
+      "completed": "Abgeschlossen",
+      "error": "Fehler aufgetreten",
+      "invoking": "Wird aufgerufen",
+      "pending": "Wartend",
+      "preview": "Vorschau",
+      "raw": "Roh"
     },
     "topic": {
-      "added": "[to be translated]:话题添加成功"
+      "added": "Thema erfolgreich hinzugefügt"
     },
     "upgrade": {
       "success": {
-        "button": "[to be translated]:重启",
-        "content": "[to be translated]:重启用以完成升级",
-        "title": "[to be translated]:升级成功"
+        "button": "Neustart",
+        "content": "Neustart zum Abschluss des Upgrades",
+        "title": "Upgrade erfolgreich"
       }
     },
     "warn": {
       "export": {
-        "exporting": "[to be translated]:正在进行其他导出，请等待上一导出完成后重试"
+        "exporting": "Anderer Export läuft. Bitte warten Sie, bis der vorherige Export abgeschlossen ist"
       }
     },
     "warning": {
       "rate": {
-        "limit": "[to be translated]:发送过于频繁，请等待 {{seconds}} 秒后再尝试"
+        "limit": "Zu viele Anfragen. Bitte warten Sie {{seconds}} Sekunden, bevor Sie es erneut versuchen"
       }
     },
     "websearch": {
-      "cutoff": "[to be translated]:正在截断搜索内容...",
-      "fetch_complete": "[to be translated]:{{count}} 个搜索结果",
-      "rag": "[to be translated]:正在执行 RAG...",
-      "rag_complete": "[to be translated]:保留 {{countBefore}} 个结果中的 {{countAfter}} 个...",
-      "rag_failed": "[to be translated]:RAG 失败，返回空结果..."
+      "cutoff": "Suchergebnisse werden gekürzt...",
+      "fetch_complete": "{{count}} Suchergebnisse",
+      "rag": "RAG wird ausgeführt...",
+      "rag_complete": "{{countAfter}} von {{countBefore}} Ergebnissen behalten...",
+      "rag_failed": "RAG fehlgeschlagen, leere Ergebnisse zurückgegeben..."
     }
   },
   "minapp": {
-    "add_to_launchpad": "[to be translated]:添加到启动台",
-    "add_to_sidebar": "[to be translated]:添加到侧边栏",
+    "add_to_launchpad": "Zu Launchpad hinzufügen",
+    "add_to_sidebar": "Zur Seitenleiste hinzufügen",
     "popup": {
-      "close": "[to be translated]:关闭小程序",
-      "devtools": "[to be translated]:开发者工具",
-      "goBack": "[to be translated]:后退",
-      "goForward": "[to be translated]:前进",
-      "minimize": "[to be translated]:最小化小程序",
-      "openExternal": "[to be translated]:在浏览器中打开",
-      "open_link_external_off": "[to be translated]:当前：使用默认窗口打开链接",
-      "open_link_external_on": "[to be translated]:当前：在浏览器中打开链接",
-      "refresh": "[to be translated]:刷新",
-      "rightclick_copyurl": "[to be translated]:右键复制 URL"
+      "close": "Mini-App schließen",
+      "devtools": "Entwicklertools",
+      "goBack": "Zurück",
+      "goForward": "Vorwärts",
+      "minimize": "Mini-App minimieren",
+      "openExternal": "In Browser öffnen",
+      "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
+      "open_link_external_on": "Aktuell: Links im Browser öffnen",
+      "refresh": "Aktualisieren",
+      "rightclick_copyurl": "Rechtsklick zum Kopieren der URL"
     },
-    "remove_from_launchpad": "[to be translated]:从启动台移除",
-    "remove_from_sidebar": "[to be translated]:从侧边栏移除",
+    "remove_from_launchpad": "Aus Launchpad entfernen",
+    "remove_from_sidebar": "Aus Seitenleiste entfernen",
     "sidebar": {
       "close": {
-        "title": "[to be translated]:关闭"
+        "title": "Schließen"
       },
       "closeall": {
-        "title": "[to be translated]:关闭所有"
+        "title": "Alle schließen"
       },
       "hide": {
-        "title": "[to be translated]:隐藏"
+        "title": "Ausblenden"
       },
       "remove_custom": {
-        "title": "[to be translated]:删除自定义应用"
+        "title": "Benutzerdefinierte App entfernen"
       }
     },
-    "title": "[to be translated]:小程序"
+    "title": "Mini-Apps"
   },
   "minapps": {
     "baichuan": "[to be translated]:百小应",
