@@ -1097,8 +1097,8 @@ if (fs.existsSync(skillsDir)) {
 ## Implementation Progress
 
 - [x] Create file operation utilities (fileOperations.ts)
-- [ ] Add skill metadata parsing to markdown parser
-- [ ] Update plugin types to include 'skill'
+- [x] Add skill metadata parsing to markdown parser
+- [x] Update plugin types to include 'skill'
 - [ ] Add skill scanning to PluginService (scanSkillDirectory, sanitizeFolderName)
 - [ ] Add skill installation to PluginService (installSkill)
 - [ ] Add skill uninstallation to PluginService (uninstallSkill)

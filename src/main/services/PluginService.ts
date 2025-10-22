@@ -4,7 +4,8 @@ import * as path from 'path'
 
 import { loggerService } from '@logger'
 import { getResourcePath } from '@main/utils'
-import { parsePluginMetadata } from '@main/utils/markdownParser'
+import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
+import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
 import type {
   AgentEntity,
   InstalledPlugin,
@@ -12,6 +13,7 @@ import type {
   ListAvailablePluginsResult,
   PluginError,
   PluginMetadata,
+  PluginType,
   UninstallPluginOptions
 } from '@types'
 
@@ -81,13 +83,18 @@ export class PluginService {
 
     logger.info('Scanning available plugins')
 
-    const agents = await this.scanPluginDirectory('agent')
-    const commands = await this.scanPluginDirectory('command')
+    // Scan all plugin types
+    const [agents, commands, skills] = await Promise.all([
+      this.scanPluginDirectory('agent'),
+      this.scanPluginDirectory('command'),
+      this.scanSkillDirectory()
+    ])
 
     const result: ListAvailablePluginsResult = {
       agents,
       commands,
-      total: agents.length + commands.length
+      skills, // NEW: include skills
+      total: agents.length + commands.length + skills.length
     }
 
     // Update cache
@@ -97,6 +104,7 @@ export class PluginService {
     logger.info('Available plugins scanned', {
       agentsCount: agents.length,
       commandsCount: commands.length,
+      skillsCount: skills.length,
       total: result.total
     })
 
@@ -139,7 +147,57 @@ export class PluginService {
     const basePath = this.getPluginsBasePath()
     const sourceAbsolutePath = path.join(basePath, options.sourcePath)
 
-    // Validate plugin file
+    // BRANCH: Handle skills differently than files
+    if (options.type === 'skill') {
+      // Validate skill folder exists and is a directory
+      try {
+        const stats = await fs.promises.stat(sourceAbsolutePath)
+        if (!stats.isDirectory()) {
+          throw {
+            type: 'INVALID_METADATA',
+            reason: 'Skill source is not a directory',
+            path: options.sourcePath
+          } as PluginError
+        }
+      } catch (error) {
+        throw {
+          type: 'FILE_NOT_FOUND',
+          path: sourceAbsolutePath
+        } as PluginError
+      }
+
+      // Parse metadata from SKILL.md
+      const metadata = await parseSkillMetadata(sourceAbsolutePath, options.sourcePath, 'skills')
+
+      // Sanitize folder name (different rules than file names)
+      const sanitizedFolderName = this.sanitizeFolderName(metadata.filename)
+
+      // Ensure .claude/skills directory exists
+      await this.ensureClaudeDirectory(workdir, 'skill')
+
+      // Construct destination path (folder, not file)
+      const destPath = path.join(workdir, '.claude', 'skills', sanitizedFolderName)
+
+      // Update metadata with sanitized folder name
+      metadata.filename = sanitizedFolderName
+
+      // Execute skill-specific install
+      await this.installSkill(agent, sourceAbsolutePath, destPath, metadata)
+
+      logger.info('Skill installed successfully', {
+        agentId: options.agentId,
+        sourcePath: options.sourcePath,
+        folderName: sanitizedFolderName
+      })
+
+      return {
+        ...metadata,
+        installedAt: Date.now()
+      }
+    }
+
+    // EXISTING LOGIC for agents/commands (unchanged)
+    // Files go through existing validation and sanitization
     await this.validatePluginFile(sourceAbsolutePath)
 
     // Parse metadata
@@ -211,10 +269,24 @@ export class PluginService {
       } as PluginError
     }
 
-    // Sanitize filename
-    const sanitizedFilename = this.sanitizeFilename(options.filename)
+    // BRANCH: Handle skills differently than files
+    if (options.type === 'skill') {
+      // For skills, filename is the folder name (no extension)
+      // Use sanitizeFolderName to ensure consistency
+      const sanitizedFolderName = this.sanitizeFolderName(options.filename)
+      await this.uninstallSkill(agent, sanitizedFolderName)
 
-    // Execute transactional uninstall
+      logger.info('Skill uninstalled successfully', {
+        agentId: options.agentId,
+        folderName: sanitizedFolderName
+      })
+
+      return
+    }
+
+    // EXISTING LOGIC for agents/commands (unchanged)
+    // For files, filename includes .md extension
+    const sanitizedFilename = this.sanitizeFilename(options.filename)
     await this.uninstallTransaction(agent, sanitizedFilename, options.type)
 
     logger.info('Plugin uninstalled successfully', {
@@ -253,13 +325,19 @@ export class PluginService {
     const validatedPlugins: InstalledPlugin[] = []
 
     for (const plugin of installedPlugins) {
-      const pluginPath = path.join(workdir, '.claude', plugin.type === 'agent' ? 'agents' : 'commands', plugin.filename)
+      // Get plugin path based on type
+      let pluginPath: string
+      if (plugin.type === 'skill') {
+        pluginPath = path.join(workdir, '.claude', 'skills', plugin.filename)
+      } else {
+        pluginPath = path.join(workdir, '.claude', plugin.type === 'agent' ? 'agents' : 'commands', plugin.filename)
+      }
 
       try {
         const stats = await fs.promises.stat(pluginPath)
 
-        // Verify file hash if stored
-        if (plugin.contentHash) {
+        // For files (agents/commands), verify file hash if stored
+        if (plugin.type !== 'skill' && plugin.contentHash) {
           const currentHash = await this.calculateFileHash(pluginPath)
           if (currentHash !== plugin.contentHash) {
             logger.warn('Plugin file hash mismatch', {
@@ -270,6 +348,8 @@ export class PluginService {
           }
         }
 
+        // For skills, stats.size is folder size (handled differently)
+        // For files, stats.size is file size
         validatedPlugins.push({
           filename: plugin.filename,
           type: plugin.type,
@@ -292,7 +372,7 @@ export class PluginService {
           }
         })
       } catch (error) {
-        logger.warn('Plugin file not found on filesystem', {
+        logger.warn('Plugin not found on filesystem', {
           filename: plugin.filename,
           path: pluginPath,
           error: error instanceof Error ? error.message : String(error)
@@ -359,13 +439,9 @@ export class PluginService {
 
   /**
    * Write plugin content to installed plugin (in agent's .claude directory)
+   * Note: Only works for file-based plugins (agents/commands), not skills
    */
-  async writeContent(
-    agentId: string,
-    filename: string,
-    type: 'agent' | 'command',
-    content: string
-  ): Promise<void> {
+  async writeContent(agentId: string, filename: string, type: PluginType, content: string): Promise<void> {
     logger.info('Writing plugin content', { agentId, filename, type })
 
     // Get agent
@@ -526,6 +602,53 @@ export class PluginService {
   }
 
   /**
+   * Scan skills directory for skill folders
+   */
+  private async scanSkillDirectory(): Promise<PluginMetadata[]> {
+    const basePath = this.getPluginsBasePath()
+    const skillsPath = path.join(basePath, 'skills')
+
+    const skills: PluginMetadata[] = []
+
+    try {
+      // Check if skills directory exists
+      try {
+        await fs.promises.access(skillsPath)
+      } catch {
+        logger.warn('Skills directory not found', { skillsPath })
+        return []
+      }
+
+      // Read all entries in skills directory (flat structure)
+      const entries = await fs.promises.readdir(skillsPath, { withFileTypes: true })
+
+      for (const entry of entries) {
+        // Skip non-directories
+        if (!entry.isDirectory()) continue
+
+        const skillFolderPath = path.join(skillsPath, entry.name)
+        const sourcePath = path.join('skills', entry.name)
+
+        try {
+          const metadata = await parseSkillMetadata(skillFolderPath, sourcePath, 'skills')
+          skills.push(metadata)
+        } catch (error) {
+          logger.warn(`Failed to parse skill folder: ${entry.name}`, {
+            skillFolderPath,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          // Continue with other skills
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to scan skill directory', { skillsPath, error })
+      // Return empty array on error
+    }
+
+    return skills
+  }
+
+  /**
    * Validate source path to prevent path traversal attacks
    */
   private validateSourcePath(sourcePath: string): void {
@@ -594,7 +717,7 @@ export class PluginService {
   }
 
   /**
-   * Sanitize filename to remove unsafe characters
+   * Sanitize filename to remove unsafe characters (for agents/commands)
    */
   private sanitizeFilename(filename: string): string {
     // Remove path separators
@@ -608,6 +731,31 @@ export class PluginService {
     // Ensure .md extension
     if (!sanitized.endsWith('.md') && !sanitized.endsWith('.markdown')) {
       sanitized += '.md'
+    }
+
+    return sanitized
+  }
+
+  /**
+   * Sanitize folder name for skills (different rules than file names)
+   * NO dots allowed to avoid confusion with file extensions
+   */
+  private sanitizeFolderName(folderName: string): string {
+    // Remove path separators
+    let sanitized = folderName.replace(/[/\\]/g, '_')
+    // Remove null bytes
+    // eslint-disable-next-line no-control-regex
+    sanitized = sanitized.replace(/\0/g, '')
+    // Limit to safe characters (alphanumeric, dash, underscore)
+    // NOTE: No dots allowed to avoid confusion with file extensions
+    sanitized = sanitized.replace(/[^a-zA-Z0-9_-]/g, '_')
+
+    // Validate no extension was provided
+    if (folderName.includes('.')) {
+      logger.warn('Skill folder name contained dots, sanitized', {
+        original: folderName,
+        sanitized
+      })
     }
 
     return sanitized
@@ -672,11 +820,23 @@ export class PluginService {
   }
 
   /**
-   * Ensure .claude/agents or .claude/commands directory exists
+   * Ensure .claude subdirectory exists for the given plugin type
    */
-  private async ensureClaudeDirectory(workdir: string, type: 'agent' | 'command'): Promise<void> {
+  private async ensureClaudeDirectory(workdir: string, type: PluginType): Promise<void> {
     const claudeDir = path.join(workdir, '.claude')
-    const typeDir = path.join(claudeDir, type === 'agent' ? 'agents' : 'commands')
+
+    let subDir: string
+    if (type === 'agent') {
+      subDir = 'agents'
+    } else if (type === 'command') {
+      subDir = 'commands'
+    } else if (type === 'skill') {
+      subDir = 'skills'
+    } else {
+      throw new Error(`Unknown plugin type: ${type}`)
+    }
+
+    const typeDir = path.join(claudeDir, subDir)
 
     try {
       await fs.promises.mkdir(typeDir, { recursive: true })
@@ -840,6 +1000,159 @@ export class PluginService {
       throw {
         type: 'TRANSACTION_FAILED',
         operation: 'uninstall',
+        reason: error instanceof Error ? error.message : String(error)
+      } as PluginError
+    }
+  }
+
+  /**
+   * Install a skill (copy entire folder)
+   */
+  private async installSkill(
+    agent: AgentEntity,
+    sourceAbsolutePath: string,
+    destPath: string,
+    metadata: PluginMetadata
+  ): Promise<void> {
+    const logContext = logger.withContext('installSkill')
+
+    // Step 1: If destination exists, remove it first (overwrite behavior)
+    let existingRemoved = false
+    try {
+      await fs.promises.access(destPath)
+      // Exists - remove it
+      await deleteDirectoryRecursive(destPath)
+      existingRemoved = true
+      logContext.info('Removed existing skill folder', { destPath })
+    } catch {
+      // Doesn't exist - nothing to remove
+    }
+
+    // Step 2: Copy folder to temporary location
+    const tempPath = `${destPath}.tmp`
+    let folderCopied = false
+
+    try {
+      // Copy to temp location
+      await copyDirectoryRecursive(sourceAbsolutePath, tempPath)
+      folderCopied = true
+      logContext.info('Skill folder copied to temp location', { tempPath })
+
+      // Step 3: Update agent configuration in database
+      const updatedPlugins = [
+        ...(agent.configuration?.installed_plugins || []).filter(
+          (p) => !(p.filename === metadata.filename && p.type === 'skill')
+        ),
+        {
+          sourcePath: metadata.sourcePath,
+          filename: metadata.filename, // Folder name, no extension
+          type: metadata.type,
+          name: metadata.name,
+          description: metadata.description,
+          tools: metadata.tools,
+          category: metadata.category,
+          tags: metadata.tags,
+          version: metadata.version,
+          author: metadata.author,
+          contentHash: metadata.contentHash,
+          installedAt: Date.now()
+        }
+      ]
+
+      await AgentService.getInstance().updateAgent(agent.id, {
+        configuration: {
+          ...agent.configuration,
+          installed_plugins: updatedPlugins
+        }
+      })
+
+      logContext.info('Agent configuration updated', { agentId: agent.id })
+
+      // Step 4: Move temp folder to final location (atomic on same filesystem)
+      await fs.promises.rename(tempPath, destPath)
+      logContext.info('Skill folder moved to final location', { destPath })
+    } catch (error) {
+      // Rollback: delete temp folder if it exists
+      if (folderCopied) {
+        try {
+          await deleteDirectoryRecursive(tempPath)
+          logContext.info('Rolled back temp folder', { tempPath })
+        } catch (unlinkError) {
+          logContext.error('Failed to rollback temp folder', { tempPath, error: unlinkError })
+        }
+      }
+
+      throw {
+        type: 'TRANSACTION_FAILED',
+        operation: 'install-skill',
+        reason: error instanceof Error ? error.message : String(error)
+      } as PluginError
+    }
+  }
+
+  /**
+   * Uninstall a skill (remove entire folder)
+   */
+  private async uninstallSkill(agent: AgentEntity, folderName: string): Promise<void> {
+    const logContext = logger.withContext('uninstallSkill')
+    const workdir = agent.accessible_paths?.[0]
+
+    if (!workdir) {
+      throw {
+        type: 'INVALID_WORKDIR',
+        agentId: agent.id,
+        workdir: '',
+        message: 'Agent has no accessible paths'
+      } as PluginError
+    }
+
+    const skillPath = path.join(workdir, '.claude', 'skills', folderName)
+
+    // Step 1: Update database first
+    const originalPlugins = agent.configuration?.installed_plugins || []
+    const updatedPlugins = originalPlugins.filter((p) => !(p.filename === folderName && p.type === 'skill'))
+
+    let dbUpdated = false
+
+    try {
+      await AgentService.getInstance().updateAgent(agent.id, {
+        configuration: {
+          ...agent.configuration,
+          installed_plugins: updatedPlugins
+        }
+      })
+      dbUpdated = true
+      logContext.info('Agent configuration updated', { agentId: agent.id })
+
+      // Step 2: Delete folder
+      try {
+        await deleteDirectoryRecursive(skillPath)
+        logContext.info('Skill folder deleted', { skillPath })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error // Folder should exist, re-throw if not ENOENT
+        }
+        logContext.warn('Skill folder already deleted', { skillPath })
+      }
+    } catch (error) {
+      // Rollback: restore database if folder deletion failed
+      if (dbUpdated) {
+        try {
+          await AgentService.getInstance().updateAgent(agent.id, {
+            configuration: {
+              ...agent.configuration,
+              installed_plugins: originalPlugins
+            }
+          })
+          logContext.info('Rolled back database update', { agentId: agent.id })
+        } catch (rollbackError) {
+          logContext.error('Failed to rollback database', { agentId: agent.id, error: rollbackError })
+        }
+      }
+
+      throw {
+        type: 'TRANSACTION_FAILED',
+        operation: 'uninstall-skill',
         reason: error instanceof Error ? error.message : String(error)
       } as PluginError
     }
