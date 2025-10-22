@@ -23907,23 +23907,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:6.4.0":
-  version: 6.4.0
-  resolution: "openai@npm:6.4.0"
-  peerDependencies:
-    ws: ^8.18.0
-    zod: ^3.25 || ^4.0
-  peerDependenciesMeta:
-    ws:
-      optional: true
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/1b748b46759b3d44a4dddbac899bff4f7f540237fb6f0ae3d622e983226be6bb5911e3c02b806b416f4bc779a4e944b4d2b0b7da6ef1fb1448f66bbac598abec
-  languageName: node
-  linkType: hard
-
 "openapi-types@npm:^12.1.3":
   version: 12.1.3
   resolution: "openapi-types@npm:12.1.3"
