@@ -18,6 +18,7 @@ import {
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIDeepResearchModel,
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
@@ -127,6 +128,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!isReasoningModel(model)) {
       return {}
+    }
+
+    if (isOpenAIDeepResearchModel(model)) {
+      return {
+        reasoning_effort: 'medium'
+      }
     }
 
     const reasoningEffort = assistant?.settings?.reasoning_effort
