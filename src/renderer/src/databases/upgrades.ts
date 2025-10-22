@@ -402,24 +402,24 @@ export async function upgradeToV9(tx: Transaction): Promise<void> {
   logger.info('DB migration to version 9 started')
 
   const topics = tx.table('topics')
-  topics.toCollection().modify(async (topic: Topic) => {
+  await topics.toCollection().modify(async (topic: Topic) => {
     for (const message of topic.messages) {
       const usage = message.usage
-      let newUsage: Usage | undefined = undefined
-      if (usage) {
-        if ('prompt_tokens' in usage || 'completion_tokens' in usage || 'total_tokens' in usage) {
-          newUsage = {
-            ...usage,
-            inputTokens: (usage as any).prompt_tokens,
-            outputTokens: (usage as any).completion_tokens,
-            totalTokens: (usage as any).total_tokens
-          }
-          delete (newUsage as any).prompt_tokens
-          delete (newUsage as any).completion_tokens
-          delete (newUsage as any).total_tokens
+      if (usage && ('prompt_tokens' in usage || 'completion_tokens' in usage || 'total_tokens' in usage)) {
+        const newUsage: Usage = {
+          ...usage,
+          inputTokens: (usage as any).prompt_tokens,
+          outputTokens: (usage as any).completion_tokens,
+          totalTokens: (usage as any).total_tokens
         }
+        delete (newUsage as any).prompt_tokens
+        delete (newUsage as any).completion_tokens
+        delete (newUsage as any).total_tokens
+        Object.assign(message, { usage: newUsage })
       }
-      Object.assign(message, { usage: newUsage })
+      // 如果不包含旧字段，保持原样不修改
     }
   })
+
+  logger.info('DB migration to version 9 finished.')
 }
