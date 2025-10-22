@@ -59,7 +59,15 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
 } as const
 
-export const getThinkModelType = (model: Model): ThinkingModelType => {
+const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
+  const modelWithNameAsId = { ...model, id: model.name }
+  return {
+    idResult: fn(model),
+    nameResult: fn(modelWithNameAsId)
+  }
+}
+
+const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
   if (isGPT5SeriesModel(model)) {
@@ -99,12 +107,16 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   return thinkingModelType
 }
 
-/** 用于判断是否支持控制思考，但不一定以reasoning_effort的方式 */
-export function isSupportedThinkingTokenModel(model?: Model): boolean {
-  if (!model) {
-    return false
+export const getThinkModelType = (model: Model): ThinkingModelType => {
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _getThinkModelType)
+  if (idResult !== 'default') {
+    return idResult
+  } else {
+    return nameResult
   }
+}
 
+function _isSupportedThinkingTokenModel(model: Model): boolean {
   // Specifically for DeepSeek V3.1. White list for now
   if (isDeepSeekHybridInferenceModel(model)) {
     return (
@@ -130,6 +142,13 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenHunyuanModel(model) ||
     isSupportedThinkingTokenZhipuModel(model)
   )
+}
+
+/** 用于判断是否支持控制思考，但不一定以reasoning_effort的方式 */
+export function isSupportedThinkingTokenModel(model?: Model): boolean {
+  if (!model) return false
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenModel)
+  return idResult || nameResult
 }
 
 export function isSupportedReasoningEffortModel(model?: Model): boolean {
@@ -405,6 +424,14 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
   return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
 }
 
+export const isLingReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return ['ring-1t', 'ring-mini', 'ring-flash'].some((id) => modelId.includes(id))
+}
+
 export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
 
 export const isZhipuReasoningModel = (model?: Model): boolean => {
@@ -456,6 +483,7 @@ export function isReasoningModel(model?: Model): boolean {
     isZhipuReasoningModel(model) ||
     isStepReasoningModel(model) ||
     isDeepSeekHybridInferenceModel(model) ||
+    isLingReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
     modelId.includes('pangu-pro-moe') ||

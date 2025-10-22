@@ -7,7 +7,7 @@ export interface BaseOption {
   key: string
   label: string
   // img src
-  avatar: string
+  avatar?: string
 }
 
 export interface ModelOption extends BaseOption {

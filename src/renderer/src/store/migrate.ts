@@ -2315,7 +2315,8 @@ const migrateConfig = {
         // @ts-ignore upscale
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
-        openai_image_edit: state?.paintings?.openai_image_edit || []
+        openai_image_edit: state?.paintings?.openai_image_edit || [],
+        ovms_paintings: []
       }
 
       return state
@@ -2676,6 +2677,7 @@ const migrateConfig = {
           provider.anthropicApiHost = 'https://open.cherryin.net'
         }
       })
+      state.paintings.ovms_paintings = []
       return state
     } catch (error) {
       logger.error('migrate 163 error', error as Error)
@@ -2684,6 +2686,8 @@ const migrateConfig = {
   },
   '164': (state: RootState) => {
     try {
+      addMiniApp(state, 'ling')
+
       if (state.assistants.presets === undefined) {
         state.assistants.presets = []
       }

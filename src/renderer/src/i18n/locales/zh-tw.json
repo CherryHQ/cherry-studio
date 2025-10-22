@@ -1804,6 +1804,7 @@
     "title": "小工具"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI搜索",
     "chatglm": "智譜清言",
@@ -4228,7 +4229,8 @@
         "none": "不使用代理伺服器",
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
-      }
+      },
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",
