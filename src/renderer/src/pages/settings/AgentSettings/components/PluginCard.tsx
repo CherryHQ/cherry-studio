@@ -10,13 +10,14 @@ export interface PluginCardProps {
   onInstall: () => void
   onUninstall: () => void
   loading: boolean
+  onClick: () => void
 }
 
-export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, onUninstall, loading }) => {
+export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, onUninstall, loading, onClick }) => {
   const { t } = useTranslation()
 
   return (
-    <Card className="w-full">
+    <Card className="w-full cursor-pointer transition-shadow hover:shadow-md" isPressable onPress={onClick}>
       <CardHeader className="flex flex-col items-start gap-2 pb-2">
         <div className="flex w-full items-center justify-between">
           <h3 className="font-semibold text-medium">{plugin.name}</h3>
@@ -50,7 +51,10 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
             variant="flat"
             size="sm"
             startContent={loading ? <Spinner size="sm" color="current" /> : <Trash2 className="h-4 w-4" />}
-            onPress={onUninstall}
+            onPress={(e) => {
+              e.stopPropagation()
+              onUninstall()
+            }}
             isDisabled={loading}
             fullWidth>
             {loading ? t('plugins.uninstalling') : t('plugins.uninstall')}
@@ -61,7 +65,10 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
             variant="flat"
             size="sm"
             startContent={loading ? <Spinner size="sm" color="current" /> : <Download className="h-4 w-4" />}
-            onPress={onInstall}
+            onPress={(e) => {
+              e.stopPropagation()
+              onInstall()
+            }}
             isDisabled={loading}
             fullWidth>
             {loading ? t('plugins.installing') : t('plugins.install')}

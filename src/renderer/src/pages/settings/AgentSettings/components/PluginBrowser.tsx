@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { CategoryFilter } from './CategoryFilter'
 import { PluginCard } from './PluginCard'
+import { PluginDetailModal } from './PluginDetailModal'
 
 export interface PluginBrowserProps {
   agents: PluginMetadata[]
@@ -34,6 +35,8 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   const [activeType, setActiveType] = useState<PluginType>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
+  const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Combine all plugins based on active type
   const allPlugins = useMemo(() => {
@@ -123,6 +126,16 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     setCurrentPage(1)
   }
 
+  const handlePluginClick = (plugin: PluginMetadata) => {
+    setSelectedPlugin(plugin)
+    setIsModalOpen(true)
+  }
+
+  const handleModalClose = () => {
+    setIsModalOpen(false)
+    setSelectedPlugin(null)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Search Input */}
@@ -177,6 +190,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
                 onInstall={() => handleInstall(plugin)}
                 onUninstall={() => handleUninstall(plugin)}
                 loading={loading || isActioning}
+                onClick={() => handlePluginClick(plugin)}
               />
             )
           })}
@@ -189,6 +203,17 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
           <Pagination total={totalPages} page={currentPage} onChange={setCurrentPage} showControls />
         </div>
       )}
+
+      {/* Plugin Detail Modal */}
+      <PluginDetailModal
+        plugin={selectedPlugin}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+        installed={selectedPlugin ? isPluginInstalled(selectedPlugin) : false}
+        onInstall={() => selectedPlugin && handleInstall(selectedPlugin)}
+        onUninstall={() => selectedPlugin && handleUninstall(selectedPlugin)}
+        loading={selectedPlugin ? actioningPlugin === selectedPlugin.sourcePath : false}
+      />
     </div>
   )
 }
