@@ -51,7 +51,7 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
             variant="flat"
             size="sm"
             startContent={loading ? <Spinner size="sm" color="current" /> : <Trash2 className="h-4 w-4" />}
-            onPress={(e) => {
+            onClick={(e) => {
               e.stopPropagation()
               onUninstall()
             }}
@@ -65,7 +65,7 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
             variant="flat"
             size="sm"
             startContent={loading ? <Spinner size="sm" color="current" /> : <Download className="h-4 w-4" />}
-            onPress={(e) => {
+            onClick={(e) => {
               e.stopPropagation()
               onInstall()
             }}
