@@ -2,6 +2,7 @@ import EnUs from '../../renderer/src/i18n/locales/en-us.json'
 import ZhCn from '../../renderer/src/i18n/locales/zh-cn.json'
 import ZhTw from '../../renderer/src/i18n/locales/zh-tw.json'
 // Machine translation
+import deDE from '../../renderer/src/i18n/translate/de-de.json'
 import elGR from '../../renderer/src/i18n/translate/el-gr.json'
 import esES from '../../renderer/src/i18n/translate/es-es.json'
 import frFR from '../../renderer/src/i18n/translate/fr-fr.json'
@@ -16,6 +17,7 @@ const locales = Object.fromEntries(
     ['zh-TW', ZhTw],
     ['ja-JP', JaJP],
     ['ru-RU', RuRu],
+    ['de-DE', deDE],
     ['el-GR', elGR],
     ['es-ES', esES],
     ['fr-FR', frFR],
