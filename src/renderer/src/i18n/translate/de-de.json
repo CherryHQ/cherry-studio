@@ -2934,7 +2934,6 @@
       "limit": {
         "appDataDiskQuota": "Festplattenspeicher-Warnung",
         "appDataDiskQuotaDescription": "Der Speicherplatz des Datenverzeichnisses geht zur Neige. Bitte bereinigen Sie den Speicher, sonst gehen Daten verloren"
-        
       },
       "local": {
         "autoSync": {
@@ -3393,9 +3392,9 @@
       },
       "custom": {
         "css": {
-            "cherrycss": "Von cherrycss.com beziehen",
-            "label": "Benutzerdefiniertes CSS",
-            "placeholder": "/* Hier benutzerdefiniertes CSS einfügen */"
+          "cherrycss": "Von cherrycss.com beziehen",
+          "label": "Benutzerdefiniertes CSS",
+          "placeholder": "/* Hier benutzerdefiniertes CSS einfügen */"
         }
       },
       "font": {
@@ -3439,10 +3438,10 @@
       },
       "title": "Anzeigeeinstellungen",
       "topic": {
-          "title": "Themen-Einstellungen"
+        "title": "Themen-Einstellungen"
       },
       "zoom": {
-          "title": "Zoom-Einstellungen"
+        "title": "Zoom-Einstellungen"
       }
     },
     "font_size": {
@@ -3512,7 +3511,7 @@
       "target_language": {
         "chinese": "Vereinfachtes Chinesisch",
         "chinese-traditional": "Traditionelles Chinesisch",
-          "english": "Englisch",
+        "english": "Englisch",
         "japanese": "Japanisch",
         "label": "Zielsprache",
         "russian": "Russisch"
