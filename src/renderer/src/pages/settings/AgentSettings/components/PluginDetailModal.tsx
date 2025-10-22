@@ -2,6 +2,7 @@ import { Button, Chip, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader,
 import { PluginMetadata } from '@renderer/types/plugin'
 import { Download, Trash2 } from 'lucide-react'
 import { FC } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 export interface PluginDetailModalProps {
@@ -27,8 +28,15 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
 
   if (!plugin) return null
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} size="2xl" scrollBehavior="inside">
+  const modalContent = (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      size="2xl"
+      scrollBehavior="inside"
+      classNames={{
+        wrapper: 'z-[9999]'
+      }}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -160,4 +168,6 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
       </ModalContent>
     </Modal>
   )
+
+  return createPortal(modalContent, document.body)
 }
