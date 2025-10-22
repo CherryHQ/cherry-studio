@@ -9,6 +9,7 @@ electronLanguages:
   - zh_CN # for macOS
   - zh_TW # for macOS
   - en # for macOS
+  - de
 directories:
   buildResources: build
 
