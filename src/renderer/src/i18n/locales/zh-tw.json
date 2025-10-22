@@ -189,6 +189,49 @@
         "tab": "預先授權工具",
         "title": "預先授權工具",
         "toggle": "{{defaultValue}}"
+      },
+      "plugins": {
+        "tab": "外掛",
+        "available": {
+          "title": "可用外掛"
+        },
+        "installed": {
+          "title": "已安裝外掛",
+          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。"
+        },
+        "search": {
+          "placeholder": "搜尋外掛..."
+        },
+        "filter": {
+          "all": "所有類別"
+        },
+        "install": "安裝",
+        "uninstall": "解除安裝",
+        "installing": "安裝中...",
+        "uninstalling": "解除安裝中...",
+        "empty": {
+          "available": "未找到符合的外掛。請嘗試調整搜尋或類別篩選。"
+        },
+        "confirm": {
+          "uninstall": "確定要解除安裝此外掛嗎？"
+        },
+        "success": {
+          "install": "外掛安裝成功",
+          "uninstall": "外掛解除安裝成功"
+        },
+        "error": {
+          "load": "載入外掛失敗",
+          "install": "安裝外掛失敗",
+          "uninstall": "解除安裝外掛失敗"
+        },
+        "results": "找到 {{count}} 個外掛",
+        "type": {
+          "all": "全部",
+          "agents": "代理",
+          "commands": "指令",
+          "agent": "代理",
+          "command": "指令"
+        }
       }
     },
     "type": {

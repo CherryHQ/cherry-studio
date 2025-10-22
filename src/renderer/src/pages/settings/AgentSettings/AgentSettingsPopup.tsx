@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
 import EssentialSettings from './EssentialSettings'
+import PluginSettings from './PluginSettings'
 import PromptSettings from './PromptSettings'
 import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
@@ -20,7 +21,7 @@ interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'session-mcps'
+type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'plugins' | 'session-mcps'
 
 const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -57,6 +58,10 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         label: t('agent.settings.tooling.tab', 'Tooling & permissions')
       },
       {
+        key: 'plugins',
+        label: t('agent.settings.plugins.tab', 'Plugins')
+      },
+      {
         key: 'advanced',
         label: t('agent.settings.advance.title', 'Advanced Settings')
       }
@@ -90,6 +95,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
           {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
           {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'plugins' && <PluginSettings agentBase={agent} update={updateAgent} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
         </Settings>
       </div>

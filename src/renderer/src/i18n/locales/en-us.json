@@ -189,6 +189,49 @@
         "tab": "Pre-approved tools",
         "title": "Pre-approved tools",
         "toggle": "{{defaultValue}}"
+      },
+      "plugins": {
+        "tab": "Plugins",
+        "available": {
+          "title": "Available Plugins"
+        },
+        "installed": {
+          "title": "Installed Plugins",
+          "empty": "No plugins installed yet. Browse available plugins to get started."
+        },
+        "search": {
+          "placeholder": "Search plugins..."
+        },
+        "filter": {
+          "all": "All Categories"
+        },
+        "install": "Install",
+        "uninstall": "Uninstall",
+        "installing": "Installing...",
+        "uninstalling": "Uninstalling...",
+        "empty": {
+          "available": "No plugins found matching your filters. Try adjusting your search or category filters."
+        },
+        "confirm": {
+          "uninstall": "Are you sure you want to uninstall this plugin?"
+        },
+        "success": {
+          "install": "Plugin installed successfully",
+          "uninstall": "Plugin uninstalled successfully"
+        },
+        "error": {
+          "load": "Failed to load plugins",
+          "install": "Failed to install plugin",
+          "uninstall": "Failed to uninstall plugin"
+        },
+        "results": "{{count}} plugin(s) found",
+        "type": {
+          "all": "All",
+          "agents": "Agents",
+          "commands": "Commands",
+          "agent": "Agent",
+          "command": "Command"
+        }
       }
     },
     "type": {

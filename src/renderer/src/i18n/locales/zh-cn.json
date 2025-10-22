@@ -189,6 +189,49 @@
         "tab": "预先授权工具",
         "title": "预先授权工具",
         "toggle": "{{defaultValue}}"
+      },
+      "plugins": {
+        "tab": "插件",
+        "available": {
+          "title": "可用插件"
+        },
+        "installed": {
+          "title": "已安装插件",
+          "empty": "尚未安装任何插件。浏览可用插件以开始使用。"
+        },
+        "search": {
+          "placeholder": "搜索插件..."
+        },
+        "filter": {
+          "all": "所有类别"
+        },
+        "install": "安装",
+        "uninstall": "卸载",
+        "installing": "安装中...",
+        "uninstalling": "卸载中...",
+        "empty": {
+          "available": "未找到匹配的插件。请尝试调整搜索或类别筛选。"
+        },
+        "confirm": {
+          "uninstall": "确定要卸载此插件吗？"
+        },
+        "success": {
+          "install": "插件安装成功",
+          "uninstall": "插件卸载成功"
+        },
+        "error": {
+          "load": "加载插件失败",
+          "install": "安装插件失败",
+          "uninstall": "卸载插件失败"
+        },
+        "results": "找到 {{count}} 个插件",
+        "type": {
+          "all": "全部",
+          "agents": "代理",
+          "commands": "命令",
+          "agent": "代理",
+          "command": "命令"
+        }
       }
     },
     "type": {
