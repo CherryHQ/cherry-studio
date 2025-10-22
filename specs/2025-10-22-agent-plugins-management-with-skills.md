@@ -1103,8 +1103,8 @@ if (fs.existsSync(skillsDir)) {
 - [x] Add skill installation to PluginService (installSkill)
 - [x] Add skill uninstallation to PluginService (uninstallSkill)
 - [x] Update PluginService methods to support skills (listAvailable, install, uninstall, ensureClaudeDirectory)
-- [ ] Update IPC handlers for skills
-- [ ] Update frontend hooks for skills
-- [ ] Update UI components for skills (PluginCard, PluginBrowser)
-- [ ] Add session integration for skills
-- [ ] Run build check and verify implementation
+- [x] Update IPC handlers for skills
+- [x] Update frontend hooks for skills
+- [x] Update UI components for skills (PluginCard, PluginBrowser)
+- [ ] Add session integration for skills (deferred - not blocking)
+- [x] Run build check and verify implementation
