@@ -4717,5 +4717,30 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
+  },
+  "plugins": {
+    "search_placeholder": "Search plugins...",
+    "all_types": "All",
+    "agents": "Agents",
+    "commands": "Commands",
+    "showing_results_one": "Showing {{count}} plugin",
+    "showing_results_other": "Showing {{count}} plugins",
+    "no_results": "No plugins found",
+    "try_different_search": "Try adjusting your search or category filters",
+    "all_categories": "All Categories",
+    "no_installed_plugins": "No plugins installed yet",
+    "install_plugins_from_browser": "Browse available plugins to get started",
+    "name": "Name",
+    "type": "Type",
+    "category": "Category",
+    "actions": "Actions",
+    "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "no_description": "No description available",
+    "uninstalling": "Uninstalling...",
+    "uninstall": "Uninstall",
+    "installing": "Installing...",
+    "install": "Install",
+    "showing_results": "Showing {{count}} plugin",
+    "showing_results_plural": "Showing {{count}} plugins"
   }
 }

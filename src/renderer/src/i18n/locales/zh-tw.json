@@ -4717,5 +4717,30 @@
     "quit": "結束",
     "show_window": "顯示視窗",
     "visualization": "視覺化"
+  },
+  "plugins": {
+    "search_placeholder": "搜尋外掛...",
+    "all_types": "全部",
+    "agents": "代理",
+    "commands": "指令",
+    "showing_results_one": "顯示 {{count}} 個外掛",
+    "showing_results_other": "顯示 {{count}} 個外掛",
+    "no_results": "未找到外掛",
+    "try_different_search": "請嘗試調整搜尋或類別篩選",
+    "all_categories": "所有類別",
+    "no_installed_plugins": "尚未安裝任何外掛",
+    "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
+    "name": "名稱",
+    "type": "類型",
+    "category": "類別",
+    "actions": "操作",
+    "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "no_description": "無描述",
+    "uninstalling": "解除安裝中...",
+    "uninstall": "解除安裝",
+    "installing": "安裝中...",
+    "install": "安裝",
+    "showing_results": "顯示 {{count}} 個外掛",
+    "showing_results_plural": "顯示 {{count}} 個外掛"
   }
 }
