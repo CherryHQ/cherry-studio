@@ -107,6 +107,50 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
+      "plugins": {
+        "available": {
+          "title": "Available Plugins"
+        },
+        "confirm": {
+          "uninstall": "Are you sure you want to uninstall this plugin?"
+        },
+        "empty": {
+          "available": "No plugins found matching your filters. Try adjusting your search or category filters."
+        },
+        "error": {
+          "install": "Failed to install plugin",
+          "load": "Failed to load plugins",
+          "uninstall": "Failed to uninstall plugin"
+        },
+        "filter": {
+          "all": "All Categories"
+        },
+        "install": "Install",
+        "installed": {
+          "empty": "No plugins installed yet. Browse available plugins to get started.",
+          "title": "Installed Plugins"
+        },
+        "installing": "Installing...",
+        "results": "{{count}} plugin(s) found",
+        "search": {
+          "placeholder": "Search plugins..."
+        },
+        "success": {
+          "install": "Plugin installed successfully",
+          "uninstall": "Plugin uninstalled successfully"
+        },
+        "tab": "Plugins",
+        "type": {
+          "agent": "Agent",
+          "agents": "Agents",
+          "all": "All",
+          "command": "Command",
+          "commands": "Commands",
+          "skills": "Skills"
+        },
+        "uninstall": "Uninstall",
+        "uninstalling": "Uninstalling..."
+      },
       "prompt": "Prompt Settings",
       "tooling": {
         "mcp": {
@@ -189,50 +233,6 @@
         "tab": "Pre-approved tools",
         "title": "Pre-approved tools",
         "toggle": "{{defaultValue}}"
-      },
-      "plugins": {
-        "tab": "Plugins",
-        "available": {
-          "title": "Available Plugins"
-        },
-        "installed": {
-          "title": "Installed Plugins",
-          "empty": "No plugins installed yet. Browse available plugins to get started."
-        },
-        "search": {
-          "placeholder": "Search plugins..."
-        },
-        "filter": {
-          "all": "All Categories"
-        },
-        "install": "Install",
-        "uninstall": "Uninstall",
-        "installing": "Installing...",
-        "uninstalling": "Uninstalling...",
-        "empty": {
-          "available": "No plugins found matching your filters. Try adjusting your search or category filters."
-        },
-        "confirm": {
-          "uninstall": "Are you sure you want to uninstall this plugin?"
-        },
-        "success": {
-          "install": "Plugin installed successfully",
-          "uninstall": "Plugin uninstalled successfully"
-        },
-        "error": {
-          "load": "Failed to load plugins",
-          "install": "Failed to install plugin",
-          "uninstall": "Failed to uninstall plugin"
-        },
-        "results": "{{count}} plugin(s) found",
-        "type": {
-          "all": "All",
-          "agents": "Agents",
-          "commands": "Commands",
-          "skills": "Skills",
-          "agent": "Agent",
-          "command": "Command"
-        }
       }
     },
     "type": {
@@ -2340,6 +2340,32 @@
       "resemblance_tip": "Controls similarity to original image",
       "seed_tip": "Controls upscaling randomness"
     }
+  },
+  "plugins": {
+    "actions": "Actions",
+    "agents": "Agents",
+    "all_categories": "All Categories",
+    "all_types": "All",
+    "category": "Category",
+    "commands": "Commands",
+    "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "install": "Install",
+    "install_plugins_from_browser": "Browse available plugins to get started",
+    "installing": "Installing...",
+    "name": "Name",
+    "no_description": "No description available",
+    "no_installed_plugins": "No plugins installed yet",
+    "no_results": "No plugins found",
+    "search_placeholder": "Search plugins...",
+    "showing_results": "Showing {{count}} plugin",
+    "showing_results_one": "Showing {{count}} plugin",
+    "showing_results_other": "Showing {{count}} plugins",
+    "showing_results_plural": "Showing {{count}} plugins",
+    "skills": "Skills",
+    "try_different_search": "Try adjusting your search or category filters",
+    "type": "Type",
+    "uninstall": "Uninstall",
+    "uninstalling": "Uninstalling..."
   },
   "preview": {
     "copy": {
@@ -4718,31 +4744,5 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
-  },
-  "plugins": {
-    "search_placeholder": "Search plugins...",
-    "all_types": "All",
-    "agents": "Agents",
-    "commands": "Commands",
-    "skills": "Skills",
-    "showing_results_one": "Showing {{count}} plugin",
-    "showing_results_other": "Showing {{count}} plugins",
-    "no_results": "No plugins found",
-    "try_different_search": "Try adjusting your search or category filters",
-    "all_categories": "All Categories",
-    "no_installed_plugins": "No plugins installed yet",
-    "install_plugins_from_browser": "Browse available plugins to get started",
-    "name": "Name",
-    "type": "Type",
-    "category": "Category",
-    "actions": "Actions",
-    "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
-    "no_description": "No description available",
-    "uninstalling": "Uninstalling...",
-    "uninstall": "Uninstall",
-    "installing": "Installing...",
-    "install": "Install",
-    "showing_results": "Showing {{count}} plugin",
-    "showing_results_plural": "Showing {{count}} plugins"
   }
 }

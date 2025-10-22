@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 export interface InstalledPluginsListProps {
   plugins: InstalledPlugin[]
-  onUninstall: (filename: string, type: 'agent' | 'command') => void
+  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
   loading: boolean
 }
 

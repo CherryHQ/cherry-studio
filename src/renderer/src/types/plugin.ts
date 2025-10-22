@@ -1,4 +1,4 @@
-import * as z from 'zod';
+import * as z from 'zod'
 
 // Plugin Type
 export type PluginType = 'agent' | 'command' | 'skill'

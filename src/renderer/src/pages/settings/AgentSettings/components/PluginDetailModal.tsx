@@ -277,7 +277,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
                 }}
               />
             ) : (
-              <pre className="max-h-96 overflow-auto rounded-md bg-default-100 p-3 font-mono text-tiny whitespace-pre-wrap">
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-default-100 p-3 font-mono text-tiny">
                 {content}
               </pre>
             )}

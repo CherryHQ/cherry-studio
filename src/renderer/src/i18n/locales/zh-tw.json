@@ -107,6 +107,50 @@
         "title": "進階設定"
       },
       "essential": "必要設定",
+      "plugins": {
+        "available": {
+          "title": "可用外掛"
+        },
+        "confirm": {
+          "uninstall": "確定要解除安裝此外掛嗎？"
+        },
+        "empty": {
+          "available": "未找到符合的外掛。請嘗試調整搜尋或類別篩選。"
+        },
+        "error": {
+          "install": "安裝外掛失敗",
+          "load": "載入外掛失敗",
+          "uninstall": "解除安裝外掛失敗"
+        },
+        "filter": {
+          "all": "所有類別"
+        },
+        "install": "安裝",
+        "installed": {
+          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
+          "title": "已安裝外掛"
+        },
+        "installing": "安裝中...",
+        "results": "找到 {{count}} 個外掛",
+        "search": {
+          "placeholder": "搜尋外掛..."
+        },
+        "success": {
+          "install": "外掛安裝成功",
+          "uninstall": "外掛解除安裝成功"
+        },
+        "tab": "外掛",
+        "type": {
+          "agent": "代理",
+          "agents": "代理",
+          "all": "全部",
+          "command": "指令",
+          "commands": "指令",
+          "skills": "技能"
+        },
+        "uninstall": "解除安裝",
+        "uninstalling": "解除安裝中..."
+      },
       "prompt": "提示設定",
       "tooling": {
         "mcp": {
@@ -189,50 +233,6 @@
         "tab": "預先授權工具",
         "title": "預先授權工具",
         "toggle": "{{defaultValue}}"
-      },
-      "plugins": {
-        "tab": "外掛",
-        "available": {
-          "title": "可用外掛"
-        },
-        "installed": {
-          "title": "已安裝外掛",
-          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。"
-        },
-        "search": {
-          "placeholder": "搜尋外掛..."
-        },
-        "filter": {
-          "all": "所有類別"
-        },
-        "install": "安裝",
-        "uninstall": "解除安裝",
-        "installing": "安裝中...",
-        "uninstalling": "解除安裝中...",
-        "empty": {
-          "available": "未找到符合的外掛。請嘗試調整搜尋或類別篩選。"
-        },
-        "confirm": {
-          "uninstall": "確定要解除安裝此外掛嗎？"
-        },
-        "success": {
-          "install": "外掛安裝成功",
-          "uninstall": "外掛解除安裝成功"
-        },
-        "error": {
-          "load": "載入外掛失敗",
-          "install": "安裝外掛失敗",
-          "uninstall": "解除安裝外掛失敗"
-        },
-        "results": "找到 {{count}} 個外掛",
-        "type": {
-          "all": "全部",
-          "agents": "代理",
-          "commands": "指令",
-          "skills": "技能",
-          "agent": "代理",
-          "command": "指令"
-        }
       }
     },
     "type": {
@@ -2340,6 +2340,32 @@
       "resemblance_tip": "控制放大結果與原圖的相似程度",
       "seed_tip": "控制放大結果的隨機性"
     }
+  },
+  "plugins": {
+    "actions": "操作",
+    "agents": "代理",
+    "all_categories": "所有類別",
+    "all_types": "全部",
+    "category": "類別",
+    "commands": "指令",
+    "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "install": "安裝",
+    "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
+    "installing": "安裝中...",
+    "name": "名稱",
+    "no_description": "無描述",
+    "no_installed_plugins": "尚未安裝任何外掛",
+    "no_results": "未找到外掛",
+    "search_placeholder": "搜尋外掛...",
+    "showing_results": "顯示 {{count}} 個外掛",
+    "showing_results_one": "顯示 {{count}} 個外掛",
+    "showing_results_other": "顯示 {{count}} 個外掛",
+    "showing_results_plural": "顯示 {{count}} 個外掛",
+    "skills": "技能",
+    "try_different_search": "請嘗試調整搜尋或類別篩選",
+    "type": "類型",
+    "uninstall": "解除安裝",
+    "uninstalling": "解除安裝中..."
   },
   "preview": {
     "copy": {
@@ -4718,31 +4744,5 @@
     "quit": "結束",
     "show_window": "顯示視窗",
     "visualization": "視覺化"
-  },
-  "plugins": {
-    "search_placeholder": "搜尋外掛...",
-    "all_types": "全部",
-    "agents": "代理",
-    "commands": "指令",
-    "skills": "技能",
-    "showing_results_one": "顯示 {{count}} 個外掛",
-    "showing_results_other": "顯示 {{count}} 個外掛",
-    "no_results": "未找到外掛",
-    "try_different_search": "請嘗試調整搜尋或類別篩選",
-    "all_categories": "所有類別",
-    "no_installed_plugins": "尚未安裝任何外掛",
-    "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
-    "name": "名稱",
-    "type": "類型",
-    "category": "類別",
-    "actions": "操作",
-    "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
-    "no_description": "無描述",
-    "uninstalling": "解除安裝中...",
-    "uninstall": "解除安裝",
-    "installing": "安裝中...",
-    "install": "安裝",
-    "showing_results": "顯示 {{count}} 個外掛",
-    "showing_results_plural": "顯示 {{count}} 個外掛"
   }
 }

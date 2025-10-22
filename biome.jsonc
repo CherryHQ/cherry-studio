@@ -21,7 +21,11 @@
       "quoteStyle": "single"
     }
   },
-  "files": { "ignoreUnknown": false },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**", "!external/**", "!resources/data/claude-code-plugins/**"],
+    "maxSize": 2097152
+  },
   "formatter": {
     "attributePosition": "auto",
     "bracketSameLine": false,

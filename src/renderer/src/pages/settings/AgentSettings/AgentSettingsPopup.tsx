@@ -80,6 +80,9 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         </div>
       )
     }
+    if (!agent) {
+      return null
+    }
     return (
       <div className="flex w-full flex-1">
         <LeftMenu>
