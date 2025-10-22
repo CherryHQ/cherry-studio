@@ -1,3 +1,6 @@
 [submodule "external/claude-code-templates"]
 	path = external/claude-code-templates
 	url = https://github.com/davila7/claude-code-templates.git
+[submodule "external/anthropics-skills"]
+	path = external/anthropics-skills
+	url = https://github.com/anthropics/skills.git
