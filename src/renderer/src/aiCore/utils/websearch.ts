@@ -78,6 +78,7 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'xai': {
+      const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
       return {
         xai: {
           maxSearchResults: webSearchConfig.maxResults,
@@ -85,7 +86,7 @@ export function buildProviderBuiltinWebSearchConfig(
           sources: [
             {
               type: 'web',
-              excludedWebsites: mapRegexToPatterns(webSearchConfig.excludeDomains)
+              excludedWebsites: excludeDomains.slice(0, Math.min(excludeDomains.length, 5))
             },
             { type: 'news' },
             { type: 'x' }
