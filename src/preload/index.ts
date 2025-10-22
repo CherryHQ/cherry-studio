@@ -42,7 +42,8 @@ import type {
   PluginMetadata,
   PluginResult,
   InstalledPlugin,
-  UninstallPluginOptions
+  UninstallPluginOptions,
+  WritePluginContentOptions
 } from '../renderer/src/types/plugin'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
@@ -525,7 +526,11 @@ const api = {
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Uninstall, options),
     listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
-    invalidateCache: (): Promise<PluginResult<void>> => ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InvalidateCache)
+    invalidateCache: (): Promise<PluginResult<void>> => ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InvalidateCache),
+    readContent: (sourcePath: string): Promise<PluginResult<string>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
+    writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options)
   }
 }
 

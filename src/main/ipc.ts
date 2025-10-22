@@ -964,4 +964,24 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       }
     }
   })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ReadContent, async (_, sourcePath: string) => {
+    try {
+      const data = await pluginService.readContent(sourcePath)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to read plugin content', { sourcePath, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
+    try {
+      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to write plugin content', { options, error })
+      return { success: false, error }
+    }
+  })
 }

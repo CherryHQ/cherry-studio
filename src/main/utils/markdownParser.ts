@@ -5,7 +5,7 @@ import * as path from 'path'
 import matter from 'gray-matter'
 import * as yaml from 'js-yaml'
 
-import type { PluginMetadata } from '@renderer/types/plugin'
+import type { PluginMetadata } from '@types'
 
 /**
  * Parse plugin metadata from a markdown file with frontmatter

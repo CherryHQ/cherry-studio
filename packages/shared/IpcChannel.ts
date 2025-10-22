@@ -356,5 +356,7 @@ export enum IpcChannel {
   ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
   ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
   ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
-  ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache'
+  ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache',
+  ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
+  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content'
 }

@@ -6,14 +6,14 @@ import { loggerService } from '@logger'
 import { getResourcePath } from '@main/utils'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
 import type {
+  AgentEntity,
   InstalledPlugin,
   InstallPluginOptions,
   ListAvailablePluginsResult,
   PluginError,
   PluginMetadata,
   UninstallPluginOptions
-} from '@renderer/types/plugin'
-import type { AgentEntity } from '@types'
+} from '@types'
 
 import { AgentService } from './agents/services/AgentService'
 
@@ -315,6 +315,146 @@ export class PluginService {
     this.availablePluginsCache = null
     this.cacheTimestamp = 0
     logger.info('Plugin cache invalidated')
+  }
+
+  /**
+   * Read plugin content from source (resources directory)
+   */
+  async readContent(sourcePath: string): Promise<string> {
+    logger.info('Reading plugin content', { sourcePath })
+
+    // Validate source path
+    this.validateSourcePath(sourcePath)
+
+    // Get absolute path
+    const basePath = this.getPluginsBasePath()
+    const absolutePath = path.join(basePath, sourcePath)
+
+    // Validate file exists and is accessible
+    try {
+      await fs.promises.access(absolutePath, fs.constants.R_OK)
+    } catch (error) {
+      throw {
+        type: 'FILE_NOT_FOUND',
+        path: sourcePath
+      } as PluginError
+    }
+
+    // Read content
+    try {
+      const content = await fs.promises.readFile(absolutePath, 'utf8')
+      logger.debug('Plugin content read successfully', {
+        sourcePath,
+        size: content.length
+      })
+      return content
+    } catch (error) {
+      throw {
+        type: 'READ_FAILED',
+        path: sourcePath,
+        reason: error instanceof Error ? error.message : String(error)
+      } as PluginError
+    }
+  }
+
+  /**
+   * Write plugin content to installed plugin (in agent's .claude directory)
+   */
+  async writeContent(
+    agentId: string,
+    filename: string,
+    type: 'agent' | 'command',
+    content: string
+  ): Promise<void> {
+    logger.info('Writing plugin content', { agentId, filename, type })
+
+    // Get agent
+    const agent = await AgentService.getInstance().getAgent(agentId)
+    if (!agent) {
+      throw {
+        type: 'INVALID_WORKDIR',
+        agentId,
+        workdir: '',
+        message: 'Agent not found'
+      } as PluginError
+    }
+
+    const workdir = agent.accessible_paths?.[0]
+    if (!workdir) {
+      throw {
+        type: 'INVALID_WORKDIR',
+        agentId,
+        workdir: '',
+        message: 'Agent has no accessible paths'
+      } as PluginError
+    }
+
+    // Check if plugin is installed
+    const installedPlugins = agent.configuration?.installed_plugins || []
+    const installedPlugin = installedPlugins.find((p) => p.filename === filename && p.type === type)
+
+    if (!installedPlugin) {
+      throw {
+        type: 'PLUGIN_NOT_INSTALLED',
+        filename,
+        agentId
+      } as PluginError
+    }
+
+    // Get file path
+    const filePath = path.join(workdir, '.claude', type === 'agent' ? 'agents' : 'commands', filename)
+
+    // Verify file exists
+    try {
+      await fs.promises.access(filePath, fs.constants.W_OK)
+    } catch (error) {
+      throw {
+        type: 'FILE_NOT_FOUND',
+        path: filePath
+      } as PluginError
+    }
+
+    // Write content
+    try {
+      await fs.promises.writeFile(filePath, content, 'utf8')
+      logger.debug('Plugin content written successfully', {
+        filePath,
+        size: content.length
+      })
+
+      // Update content hash in database
+      const newContentHash = crypto.createHash('sha256').update(content).digest('hex')
+      const updatedPlugins = installedPlugins.map((p) => {
+        if (p.filename === filename && p.type === type) {
+          return {
+            ...p,
+            contentHash: newContentHash,
+            updatedAt: Date.now()
+          }
+        }
+        return p
+      })
+
+      await AgentService.getInstance().updateAgent(agentId, {
+        configuration: {
+          ...agent.configuration,
+          installed_plugins: updatedPlugins
+        }
+      })
+
+      logger.info('Plugin content updated successfully', {
+        agentId,
+        filename,
+        type,
+        newContentHash
+      })
+    } catch (error) {
+      throw {
+        type: 'WRITE_FAILED',
+        path: filePath,
+        reason: error instanceof Error ? error.message : String(error)
+      } as PluginError
+    }
   }
 
   // ============================================================================

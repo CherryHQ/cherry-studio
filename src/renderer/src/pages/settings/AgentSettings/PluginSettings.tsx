@@ -74,6 +74,7 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
               </Card>
             ) : (
               <PluginBrowser
+                agentId={agentBase.id}
                 agents={agents}
                 commands={commands}
                 installedPlugins={plugins}

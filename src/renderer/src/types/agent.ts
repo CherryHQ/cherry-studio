@@ -70,7 +70,11 @@ export const AgentConfigurationSchema = z
           name: z.string(),
           description: z.string().optional(),
           allowed_tools: z.array(z.string()).optional(),
+          tools: z.array(z.string()).optional(),
+          category: z.string().optional(),
+          tags: z.array(z.string()).optional(),
           version: z.string().optional(),
+          author: z.string().optional(),
           contentHash: z.string(), // Detect file modifications
           installedAt: z.number(), // Track installation time
           updatedAt: z.number().optional() // Track updates

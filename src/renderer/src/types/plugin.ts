@@ -46,11 +46,14 @@ export type PluginError =
   | { type: 'INVALID_METADATA'; reason: string; path: string }
   | { type: 'FILE_TOO_LARGE'; size: number; max: number }
   | { type: 'DUPLICATE_FILENAME'; filename: string }
-  | { type: 'INVALID_WORKDIR'; workdir: string; agentId: string }
+  | { type: 'INVALID_WORKDIR'; workdir: string; agentId: string; message?: string }
   | { type: 'INVALID_FILE_TYPE'; extension: string }
   | { type: 'WORKDIR_NOT_FOUND'; workdir: string }
   | { type: 'DISK_SPACE_ERROR'; required: number; available: number }
   | { type: 'TRANSACTION_FAILED'; operation: string; reason: string }
+  | { type: 'READ_FAILED'; path: string; reason: string }
+  | { type: 'WRITE_FAILED'; path: string; reason: string }
+  | { type: 'PLUGIN_NOT_INSTALLED'; filename: string; agentId: string }
 
 export type PluginResult<T> = { success: true; data: T } | { success: false; error: PluginError }
 
@@ -64,6 +67,13 @@ export interface UninstallPluginOptions {
   agentId: string
   filename: string
   type: 'agent' | 'command'
+}
+
+export interface WritePluginContentOptions {
+  agentId: string
+  filename: string
+  type: 'agent' | 'command'
+  content: string
 }
 
 export interface ListAvailablePluginsResult {

@@ -9,6 +9,7 @@ import { PluginCard } from './PluginCard'
 import { PluginDetailModal } from './PluginDetailModal'
 
 export interface PluginBrowserProps {
+  agentId: string
   agents: PluginMetadata[]
   commands: PluginMetadata[]
   installedPlugins: InstalledPlugin[]
@@ -22,6 +23,7 @@ type PluginType = 'all' | 'agent' | 'command'
 const ITEMS_PER_PAGE = 12
 
 export const PluginBrowser: FC<PluginBrowserProps> = ({
+  agentId,
   agents,
   commands,
   installedPlugins,
@@ -206,6 +208,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
 
       {/* Plugin Detail Modal */}
       <PluginDetailModal
+        agentId={agentId}
         plugin={selectedPlugin}
         isOpen={isModalOpen}
         onClose={handleModalClose}
