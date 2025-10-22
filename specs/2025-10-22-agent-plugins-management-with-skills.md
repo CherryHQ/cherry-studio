@@ -1,7 +1,7 @@
 # Agent Plugins Management - Skills Support Extension
 
 **Date**: 2025-10-22
-**Status**: Planned
+**Status**: In Progress
 **Reviewed by**: Manual Review
 **Extends**: 2025-10-22-agent-plugins-management.md
 
@@ -1091,3 +1091,20 @@ if (fs.existsSync(skillsDir)) {
 ---
 
 **Plan Status**: Ready for implementation with clear handling of identifier inconsistency issue.
+
+---
+
+## Implementation Progress
+
+- [ ] Create file operation utilities (fileOperations.ts)
+- [ ] Add skill metadata parsing to markdown parser
+- [ ] Update plugin types to include 'skill'
+- [ ] Add skill scanning to PluginService (scanSkillDirectory, sanitizeFolderName)
+- [ ] Add skill installation to PluginService (installSkill)
+- [ ] Add skill uninstallation to PluginService (uninstallSkill)
+- [ ] Update PluginService methods to support skills (listAvailable, install, uninstall, ensureClaudeDirectory)
+- [ ] Update IPC handlers for skills
+- [ ] Update frontend hooks for skills
+- [ ] Update UI components for skills (PluginCard, PluginBrowser)
+- [ ] Add session integration for skills
+- [ ] Run build check and verify implementation
