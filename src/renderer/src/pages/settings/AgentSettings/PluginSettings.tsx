@@ -17,7 +17,7 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
   const { t } = useTranslation()
 
   // Fetch available plugins
-  const { agents, commands, loading: loadingAvailable, error: errorAvailable } = useAvailablePlugins()
+  const { agents, commands, skills, loading: loadingAvailable, error: errorAvailable } = useAvailablePlugins()
 
   // Fetch installed plugins
   const { plugins, loading: loadingInstalled, error: errorInstalled, refresh } = useInstalledPlugins(agentBase.id)
@@ -27,7 +27,7 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
 
   // Handle install action
   const handleInstall = useCallback(
-    async (sourcePath: string, type: 'agent' | 'command') => {
+    async (sourcePath: string, type: 'agent' | 'command' | 'skill') => {
       const result = await install(sourcePath, type)
 
       if (result.success) {
@@ -41,7 +41,7 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
 
   // Handle uninstall action
   const handleUninstall = useCallback(
-    async (filename: string, type: 'agent' | 'command') => {
+    async (filename: string, type: 'agent' | 'command' | 'skill') => {
       const result = await uninstall(filename, type)
 
       if (result.success) {
@@ -77,6 +77,7 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
                 agentId={agentBase.id}
                 agents={agents}
                 commands={commands}
+                skills={skills}
                 installedPlugins={plugins}
                 onInstall={handleInstall}
                 onUninstall={handleUninstall}
