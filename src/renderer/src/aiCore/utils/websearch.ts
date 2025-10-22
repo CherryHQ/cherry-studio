@@ -77,6 +77,11 @@ export function buildProviderBuiltinWebSearchConfig(
         anthropic: anthropicSearchOptions
       }
     }
+    case 'google': {
+      return {
+        google: {}
+      }
+    }
     case 'xai': {
       return {
         xai: {
