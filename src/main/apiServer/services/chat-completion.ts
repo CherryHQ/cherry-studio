@@ -1,6 +1,6 @@
+import OpenAI from '@cherrystudio/openai'
+import { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
 import { Provider } from '@types'
-import OpenAI from 'openai'
-import { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
 import { ModelValidationError, validateModelId } from '../utils'

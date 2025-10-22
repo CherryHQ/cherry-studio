@@ -122,6 +122,7 @@ const GeneralSettings: FC = () => {
     { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
+    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
     { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
@@ -233,7 +234,12 @@ const GeneralSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
+              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>{t('settings.proxy.bypass')}</span>
+                <Tooltip title={t('settings.proxy.tip')} placement="right">
+                  <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+                </Tooltip>
+              </SettingRowTitle>
               <Input
                 spellCheck={false}
                 placeholder={defaultByPassRules}

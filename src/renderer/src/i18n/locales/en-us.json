@@ -1804,6 +1804,7 @@
     "title": "MinApp"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
@@ -4228,7 +4229,8 @@
         "none": "No Proxy",
         "system": "System Proxy",
         "title": "Proxy Mode"
-      }
+      },
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
