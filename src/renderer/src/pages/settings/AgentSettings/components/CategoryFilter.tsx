@@ -26,7 +26,7 @@ export const CategoryFilter: FC<CategoryFilterProps> = ({ categories, selectedCa
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto">
       <Chip
         variant={isAllSelected ? 'solid' : 'bordered'}
         color={isAllSelected ? 'primary' : 'default'}
