@@ -66,7 +66,7 @@ export const AgentConfigurationSchema = z
         z.object({
           sourcePath: z.string(), // Full source path for re-install/updates
           filename: z.string(), // Destination filename (unique)
-          type: z.enum(['agent', 'command']),
+          type: z.enum(['agent', 'command', 'skill']),
           name: z.string(),
           description: z.string().optional(),
           allowed_tools: z.array(z.string()).optional(),
@@ -292,7 +292,7 @@ export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
     .array(
       z.object({
         filename: z.string(),
-        type: z.enum(['agent', 'command']),
+        type: z.enum(['agent', 'command', 'skill']),
         metadata: PluginMetadataSchema
       })
     )
