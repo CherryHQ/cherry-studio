@@ -229,6 +229,7 @@
           "all": "All",
           "agents": "Agents",
           "commands": "Commands",
+          "skills": "Skills",
           "agent": "Agent",
           "command": "Command"
         }
@@ -4723,6 +4724,7 @@
     "all_types": "All",
     "agents": "Agents",
     "commands": "Commands",
+    "skills": "Skills",
     "showing_results_one": "Showing {{count}} plugin",
     "showing_results_other": "Showing {{count}} plugins",
     "no_results": "No plugins found",

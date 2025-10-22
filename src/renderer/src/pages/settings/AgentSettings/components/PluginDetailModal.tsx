@@ -1,4 +1,14 @@
-import { Button, Chip, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Spinner, Textarea } from '@heroui/react'
+import {
+  Button,
+  Chip,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Spinner,
+  Textarea
+} from '@heroui/react'
 import { PluginMetadata } from '@renderer/types/plugin'
 import { Download, Edit, Save, Trash2, X } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -244,11 +254,7 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
                       </Button>
                     </>
                   ) : (
-                    <Button
-                      size="sm"
-                      variant="flat"
-                      startContent={<Edit className="h-3 w-3" />}
-                      onPress={handleEdit}>
+                    <Button size="sm" variant="flat" startContent={<Edit className="h-3 w-3" />} onPress={handleEdit}>
                       Edit
                     </Button>
                   )}

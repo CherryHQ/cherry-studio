@@ -219,8 +219,7 @@ export async function parseSkillMetadata(
   }
 
   // Validate and sanitize name
-  const name =
-    typeof data.name === 'string' && data.name.trim() ? data.name.trim() : folderName
+  const name = typeof data.name === 'string' && data.name.trim() ? data.name.trim() : folderName
 
   // Validate and sanitize description
   const description =

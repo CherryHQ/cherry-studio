@@ -111,10 +111,7 @@ export async function copyDirectoryRecursive(
  * @param options - Delete options
  * @throws If deletion fails or path is invalid
  */
-export async function deleteDirectoryRecursive(
-  dirPath: string,
-  options?: { allowedBasePath?: string }
-): Promise<void> {
+export async function deleteDirectoryRecursive(dirPath: string, options?: { allowedBasePath?: string }): Promise<void> {
   // Input validation
   if (!dirPath) {
     throw new TypeError('Directory path is required')

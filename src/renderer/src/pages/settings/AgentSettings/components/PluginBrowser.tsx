@@ -169,6 +169,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
         <Tab key="all" title={t('plugins.all_types')} />
         <Tab key="agent" title={t('plugins.agents')} />
         <Tab key="command" title={t('plugins.commands')} />
+        <Tab key="skill" title={t('plugins.skills')} />
       </Tabs>
 
       {/* Result Count */}

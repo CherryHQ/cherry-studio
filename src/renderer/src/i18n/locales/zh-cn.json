@@ -229,6 +229,7 @@
           "all": "全部",
           "agents": "代理",
           "commands": "命令",
+          "skills": "技能",
           "agent": "代理",
           "command": "命令"
         }
@@ -4723,6 +4724,7 @@
     "all_types": "全部",
     "agents": "代理",
     "commands": "命令",
+    "skills": "技能",
     "showing_results_one": "显示 {{count}} 个插件",
     "showing_results_other": "显示 {{count}} 个插件",
     "no_results": "未找到插件",
