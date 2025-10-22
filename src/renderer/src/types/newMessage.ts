@@ -1,5 +1,5 @@
+import type { CompletionUsage } from '@cherrystudio/openai/resources'
 import type { ProviderMetadata } from 'ai'
-import type { CompletionUsage } from 'openai/resources'
 
 import type {
   Assistant,

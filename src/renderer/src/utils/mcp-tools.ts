@@ -1,4 +1,11 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import OpenAI from '@cherrystudio/openai'
+import {
+  ChatCompletionContentPart,
+  ChatCompletionMessageParam,
+  ChatCompletionMessageToolCall,
+  ChatCompletionTool
+} from '@cherrystudio/openai/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
 import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
@@ -21,13 +28,6 @@ import { ChunkType } from '@renderer/types/chunk'
 import { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
 import { t } from 'i18next'
 import { nanoid } from 'nanoid'
-import OpenAI from 'openai'
-import {
-  ChatCompletionContentPart,
-  ChatCompletionMessageParam,
-  ChatCompletionMessageToolCall,
-  ChatCompletionTool
-} from 'openai/resources'
 
 import { isToolUseModeFunction } from './assistant'
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'

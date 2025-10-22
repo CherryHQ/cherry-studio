@@ -6,6 +6,8 @@ import {
   WebSearchResultBlock,
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
+import OpenAI from '@cherrystudio/openai'
+import { ChatCompletionChunk } from '@cherrystudio/openai/resources'
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
@@ -38,8 +40,6 @@ import {
 import { mcpToolCallResponseToGeminiMessage } from '@renderer/utils/mcp-tools'
 import * as McpToolsModule from '@renderer/utils/mcp-tools'
 import { cloneDeep } from 'lodash'
-import OpenAI from 'openai'
-import { ChatCompletionChunk } from 'openai/resources'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Mock the ApiClientFactory
 vi.mock('@renderer/aiCore/legacy/clients/ApiClientFactory', () => ({

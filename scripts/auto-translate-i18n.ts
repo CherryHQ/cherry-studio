@@ -2,9 +2,9 @@
  * 该脚本用于少量自动翻译所有baseLocale以外的文本。待翻译文案必须以[to be translated]开头
  *
  */
+import OpenAI from '@cherrystudio/openai'
 import cliProgress from 'cli-progress'
 import * as fs from 'fs'
-import OpenAI from 'openai'
 import * as path from 'path'
 
 const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
