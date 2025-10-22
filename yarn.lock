@@ -13985,13 +13985,13 @@ __metadata:
     dotenv-cli: "npm:^7.4.2"
     drizzle-kit: "npm:^0.31.4"
     drizzle-orm: "npm:^0.44.5"
-    electron: "npm:37.6.0"
+    electron: "npm:38.4.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-reload: "npm:^2.0.0-alpha.1"
     electron-store: "npm:^8.2.0"
     electron-updater: "npm:6.6.4"
-    electron-vite: "npm:4.0.0"
+    electron-vite: "npm:4.0.1"
     electron-window-state: "npm:^5.0.3"
     emittery: "npm:^1.0.3"
     emoji-picker-element: "npm:^1.22.1"
@@ -17602,9 +17602,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-vite@npm:4.0.0":
-  version: 4.0.0
-  resolution: "electron-vite@npm:4.0.0"
+"electron-vite@npm:4.0.1":
+  version: 4.0.1
+  resolution: "electron-vite@npm:4.0.1"
   dependencies:
     "@babel/core": "npm:^7.27.7"
     "@babel/plugin-transform-arrow-functions": "npm:^7.27.1"
@@ -17620,7 +17620,7 @@ __metadata:
       optional: true
   bin:
     electron-vite: bin/electron-vite.js
-  checksum: 10c0/6f12f25971a3ec33615f2979b6fc47189f3c23778bd0f7ec6d23213f0ffdec6d616a7c4a844a56a253a28e9b563916d7d0f65590340e8be59e4b62aae8b1a842
+  checksum: 10c0/4e81ac4e4ede6060ffec56ba9b1d5ff95bb263496e62527345e8c79542924c54c54def39de9b466a81ed250b68774792c2106b93274c790b4cd8e7be448f6af8
   languageName: node
   linkType: hard
 
@@ -17634,16 +17634,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:37.6.0":
-  version: 37.6.0
-  resolution: "electron@npm:37.6.0"
+"electron@npm:38.4.0":
+  version: 38.4.0
+  resolution: "electron@npm:38.4.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/d67b7f0ff902f9184c2a7445507746343f8b39f3616d9d26128e7515e0184252cfc8ac97a3f1458f9ea9b4af6ab5b3208282014e8d91c0e1505ff21f5fa57ce6
+  checksum: 10c0/3458409151d12f1fcd5e95374aa36e0d2f4aa0d3421c9f57dc521c606070294f33b24a681b3f93b49b02f4a3a07eb0070100ebda51b1198efd4b49dbf1260713
   languageName: node
   linkType: hard
 
