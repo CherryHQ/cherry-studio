@@ -21,7 +21,10 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
       <CardHeader className="flex flex-col items-start gap-2 pb-2">
         <div className="flex w-full items-center justify-between">
           <h3 className="font-semibold text-medium">{plugin.name}</h3>
-          <Chip size="sm" variant="solid" color={plugin.type === 'agent' ? 'primary' : 'secondary'}>
+          <Chip
+            size="sm"
+            variant="solid"
+            color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}>
             {plugin.type}
           </Chip>
         </div>

@@ -12,13 +12,14 @@ export interface PluginBrowserProps {
   agentId: string
   agents: PluginMetadata[]
   commands: PluginMetadata[]
+  skills: PluginMetadata[]
   installedPlugins: InstalledPlugin[]
-  onInstall: (sourcePath: string, type: 'agent' | 'command') => void
-  onUninstall: (filename: string, type: 'agent' | 'command') => void
+  onInstall: (sourcePath: string, type: 'agent' | 'command' | 'skill') => void
+  onUninstall: (filename: string, type: 'agent' | 'command' | 'skill') => void
   loading: boolean
 }
 
-type PluginType = 'all' | 'agent' | 'command'
+type PluginType = 'all' | 'agent' | 'command' | 'skill'
 
 const ITEMS_PER_PAGE = 12
 
@@ -26,6 +27,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   agentId,
   agents,
   commands,
+  skills,
   installedPlugins,
   onInstall,
   onUninstall,
@@ -47,11 +49,13 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
         return agents
       case 'command':
         return commands
+      case 'skill':
+        return skills
       case 'all':
       default:
-        return [...agents, ...commands]
+        return [...agents, ...commands, ...skills]
     }
-  }, [agents, commands, activeType])
+  }, [agents, commands, skills, activeType])
 
   // Extract all unique categories
   const allCategories = useMemo(() => {

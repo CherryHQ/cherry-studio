@@ -4,11 +4,12 @@ import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
 
 /**
  * Hook to fetch and cache available plugins from the resources directory
- * @returns Object containing available agents, commands, loading state, and error
+ * @returns Object containing available agents, commands, skills, loading state, and error
  */
 export function useAvailablePlugins() {
   const [agents, setAgents] = useState<PluginMetadata[]>([])
   const [commands, setCommands] = useState<PluginMetadata[]>([])
+  const [skills, setSkills] = useState<PluginMetadata[]>([])
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,6 +24,7 @@ export function useAvailablePlugins() {
         if (result.success) {
           setAgents(result.data.agents)
           setCommands(result.data.commands)
+          setSkills(result.data.skills)
         } else {
           setError(result.error.message || 'Failed to load available plugins')
         }
@@ -36,7 +38,7 @@ export function useAvailablePlugins() {
     fetchAvailablePlugins()
   }, [])
 
-  return { agents, commands, loading, error }
+  return { agents, commands, skills, loading, error }
 }
 
 /**
@@ -93,7 +95,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
   const [uninstalling, setUninstalling] = useState<boolean>(false)
 
   const install = useCallback(
-    async (sourcePath: string, type: 'agent' | 'command') => {
+    async (sourcePath: string, type: 'agent' | 'command' | 'skill') => {
       setInstalling(true)
 
       try {
@@ -121,7 +123,7 @@ export function usePluginActions(agentId: string, onSuccess?: () => void) {
   )
 
   const uninstall = useCallback(
-    async (filename: string, type: 'agent' | 'command') => {
+    async (filename: string, type: 'agent' | 'command' | 'skill') => {
       setUninstalling(true)
 
       try {

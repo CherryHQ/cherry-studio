@@ -1099,10 +1099,10 @@ if (fs.existsSync(skillsDir)) {
 - [x] Create file operation utilities (fileOperations.ts)
 - [x] Add skill metadata parsing to markdown parser
 - [x] Update plugin types to include 'skill'
-- [ ] Add skill scanning to PluginService (scanSkillDirectory, sanitizeFolderName)
-- [ ] Add skill installation to PluginService (installSkill)
-- [ ] Add skill uninstallation to PluginService (uninstallSkill)
-- [ ] Update PluginService methods to support skills (listAvailable, install, uninstall, ensureClaudeDirectory)
+- [x] Add skill scanning to PluginService (scanSkillDirectory, sanitizeFolderName)
+- [x] Add skill installation to PluginService (installSkill)
+- [x] Add skill uninstallation to PluginService (uninstallSkill)
+- [x] Update PluginService methods to support skills (listAvailable, install, uninstall, ensureClaudeDirectory)
 - [ ] Update IPC handlers for skills
 - [ ] Update frontend hooks for skills
 - [ ] Update UI components for skills (PluginCard, PluginBrowser)
