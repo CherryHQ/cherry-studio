@@ -1,14 +1,8 @@
 const fs = require('fs')
 const path = require('path')
 
-const CLAUDE_COMPONENTS_SOURCE_DIR = path.join(
-  __dirname,
-  '../external/claude-code-templates/cli-tool/components'
-)
-const ANTHROPICS_SKILLS_SOURCE_DIR = path.join(
-  __dirname,
-  '../external/anthropics-skills'
-)
+const CLAUDE_COMPONENTS_SOURCE_DIR = path.join(__dirname, '../external/claude-code-templates/cli-tool/components')
+const ANTHROPICS_SKILLS_SOURCE_DIR = path.join(__dirname, '../external/anthropics-skills')
 const TARGET_DIR = path.join(__dirname, '../resources/data/claude-code-plugins')
 const TARGET_SKILLS_DIR = path.join(TARGET_DIR, 'skills')
 const SKIP_NAMES = new Set(['.git', 'node_modules'])
@@ -75,7 +69,7 @@ function main() {
   // Copy templates
   try {
     copyDirectory(CLAUDE_COMPONENTS_SOURCE_DIR, TARGET_DIR, {
-      filter: (item) => !SKIP_NAMES.has(item.name),
+      filter: (item) => !SKIP_NAMES.has(item.name)
     })
     console.log('✅ Claude templates copied successfully!')
   } catch (error) {
@@ -91,7 +85,7 @@ function main() {
         if (fs.existsSync(targetPath)) {
           console.warn(`   ⚠️ Overwriting existing entry: ${path.relative(TARGET_DIR, targetPath)}`)
         }
-      },
+      }
     })
     console.log('✅ Anthropics skills merged successfully!')
   } catch (error) {

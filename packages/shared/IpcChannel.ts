@@ -349,5 +349,12 @@ export enum IpcChannel {
   Ovms_StopOVMS = 'ovms:stop-ovms',
 
   // CherryAI
-  Cherryai_GetSignature = 'cherryai:get-signature'
+  Cherryai_GetSignature = 'cherryai:get-signature',
+
+  // Claude Code Plugins
+  ClaudeCodePlugin_ListAvailable = 'claudeCodePlugin:list-available',
+  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
+  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
+  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
+  ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache'
 }

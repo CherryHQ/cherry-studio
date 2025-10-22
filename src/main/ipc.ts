@@ -46,6 +46,7 @@ import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import OvmsManager from './services/OvmsManager'
+import { PluginService } from './services/PluginService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -93,6 +94,7 @@ const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
 const ovmsManager = new OvmsManager()
+const pluginService = PluginService.getInstance()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
@@ -890,4 +892,76 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
+
+  // Claude Code Plugins
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListAvailable, async () => {
+    try {
+      const data = await pluginService.listAvailable()
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list available plugins', error)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-available',
+          reason: error.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+    try {
+      const data = await pluginService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+    try {
+      await pluginService.uninstall(options)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to uninstall plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
+    try {
+      const data = await pluginService.listInstalled(agentId)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to list installed plugins', { agentId, error })
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-installed',
+          reason: error.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InvalidateCache, async () => {
+    try {
+      pluginService.invalidateCache()
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to invalidate plugin cache', error)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'invalidate-cache',
+          reason: error.message
+        }
+      }
+    }
+  })
 }

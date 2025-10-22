@@ -36,6 +36,14 @@ import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from '
 import { CreateDirectoryOptions } from 'webdav'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
+import type {
+  InstallPluginOptions,
+  ListAvailablePluginsResult,
+  PluginMetadata,
+  PluginResult,
+  InstalledPlugin,
+  UninstallPluginOptions
+} from '../renderer/src/types/plugin'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {
@@ -507,6 +515,17 @@ const api = {
     start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
     restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
     stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
+  },
+  claudeCodePlugin: {
+    listAvailable: (): Promise<PluginResult<ListAvailablePluginsResult>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListAvailable),
+    install: (options: InstallPluginOptions): Promise<PluginResult<PluginMetadata>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Install, options),
+    uninstall: (options: UninstallPluginOptions): Promise<PluginResult<void>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Uninstall, options),
+    listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
+    invalidateCache: (): Promise<PluginResult<void>> => ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InvalidateCache)
   }
 }
 
