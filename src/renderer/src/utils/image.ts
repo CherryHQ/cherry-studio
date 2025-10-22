@@ -71,6 +71,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const originalScrollTop = el.scrollTop
 
+      // Track nested elements we temporarily modify
+      type SavedStyle = Partial<Pick<CSSStyleDeclaration, 'overflow' | 'overflowX' | 'overflowY' | 'height' | 'maxHeight' | 'width'>>
+      const modifiedElements: Array<{ node: HTMLElement; style: SavedStyle }> = []
+
       // Hide scrollbars during capture
       el.classList.add('hide-scrollbar')
 
@@ -79,6 +83,49 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       el.style.maxHeight = 'none'
       el.style.overflow = 'visible'
       el.style.position = 'static'
+
+      // Expand nested scrollable containers (horizontal groups, inner content areas, etc.)
+      const expandNestedScrollables = () => {
+        const all = Array.from(el.querySelectorAll<HTMLElement>('*'))
+        for (const node of all) {
+          const cs = getComputedStyle(node)
+          const save = (fields: Array<keyof SavedStyle>) => {
+            const saved: SavedStyle = {}
+            for (const f of fields) saved[f] = (node.style as any)[f]
+            modifiedElements.push({ node, style: saved })
+          }
+
+          // Expand vertical scroll regions
+          if (cs.overflowY === 'auto' || cs.overflowY === 'scroll' || cs.overflowY === 'hidden') {
+            save(['overflow', 'overflowY', 'height', 'maxHeight'])
+            node.style.overflowY = 'visible'
+            node.style.overflow = 'visible'
+            node.style.maxHeight = 'none'
+            node.style.height = 'auto'
+          }
+
+          // Expand horizontal scroll regions
+          if (cs.overflowX === 'auto' || cs.overflowX === 'scroll' || cs.overflowX === 'hidden') {
+            save(['overflow', 'overflowX', 'width'])
+            node.style.overflowX = 'visible'
+            node.style.overflow = 'visible'
+            // Ensure full width for horizontally-scrolling containers
+            const sw = Math.max(node.scrollWidth, node.clientWidth)
+            if (sw > 0) node.style.width = `${sw}px`
+          }
+
+          // Special case: message content containers in horizontal layout
+          if (node.classList.contains('message-content-container')) {
+            save(['maxHeight', 'overflow', 'overflowY', 'height'])
+            node.style.maxHeight = 'none'
+            node.style.overflow = 'visible'
+            node.style.overflowY = 'visible'
+            node.style.height = 'auto'
+          }
+        }
+      }
+
+      expandNestedScrollables()
 
       // calculate the size of the element
       const totalWidth = el.scrollWidth
@@ -92,6 +139,16 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         el.style.maxHeight = originalStyle.maxHeight
         el.style.overflow = originalStyle.overflow
         el.style.position = originalStyle.position
+
+        // restore nested modified elements
+        for (const { node, style } of modifiedElements.reverse()) {
+          if (style.overflow !== undefined) node.style.overflow = style.overflow
+          if (style.overflowX !== undefined) node.style.overflowX = style.overflowX
+          if (style.overflowY !== undefined) node.style.overflowY = style.overflowY
+          if (style.height !== undefined) node.style.height = style.height
+          if (style.maxHeight !== undefined) node.style.maxHeight = style.maxHeight
+          if (style.width !== undefined) node.style.width = style.width
+        }
 
         // restore the original scroll position
         setTimeout(() => {
@@ -109,8 +166,8 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
             cacheBust: true,
             pixelRatio: window.devicePixelRatio,
             skipAutoScale: true,
-            canvasWidth: el.scrollWidth,
-            canvasHeight: el.scrollHeight,
+            width: el.scrollWidth,
+            height: el.scrollHeight,
             style: {
               backgroundColor: getComputedStyle(el).backgroundColor,
               color: getComputedStyle(el).color
@@ -125,6 +182,16 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       el.style.maxHeight = originalStyle.maxHeight
       el.style.overflow = originalStyle.overflow
       el.style.position = originalStyle.position
+
+      // Restore nested modified elements
+      for (const { node, style } of modifiedElements.reverse()) {
+        if (style.overflow !== undefined) node.style.overflow = style.overflow
+        if (style.overflowX !== undefined) node.style.overflowX = style.overflowX
+        if (style.overflowY !== undefined) node.style.overflowY = style.overflowY
+        if (style.height !== undefined) node.style.height = style.height
+        if (style.maxHeight !== undefined) node.style.maxHeight = style.maxHeight
+        if (style.width !== undefined) node.style.width = style.width
+      }
 
       const imageData = canvas
 
