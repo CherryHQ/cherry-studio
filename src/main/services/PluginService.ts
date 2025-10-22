@@ -2,9 +2,8 @@ import * as crypto from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { app } from 'electron'
-
 import { loggerService } from '@logger'
+import { getResourcePath } from '@main/utils'
 import { parsePluginMetadata } from '@main/utils/markdownParser'
 import type {
   InstalledPlugin,
@@ -326,13 +325,8 @@ export class PluginService {
    * Get absolute path to plugins directory (handles packaged vs dev)
    */
   private getPluginsBasePath(): string {
-    if (app.isPackaged) {
-      // Production: resources are in app.asar or resources directory
-      return path.join(process.resourcesPath, 'data', 'claude-code-plugins')
-    }
-    // Development: relative to project root
-    // __dirname in dev is typically: /path/to/project/src/main/services
-    return path.join(__dirname, '../../../resources/data/claude-code-plugins')
+    // Use the utility function which handles both dev and production correctly
+    return path.join(getResourcePath(), 'data', 'claude-code-plugins')
   }
 
   /**
