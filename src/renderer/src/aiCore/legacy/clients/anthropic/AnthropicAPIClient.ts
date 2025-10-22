@@ -607,9 +607,9 @@ export class AnthropicAPIClient extends BaseApiClient<
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: rawChunk.usage.input_tokens || 0,
-                    completion_tokens: rawChunk.usage.output_tokens || 0,
-                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                    inputTokens: rawChunk.usage.input_tokens || 0,
+                    outputTokens: rawChunk.usage.output_tokens || 0,
+                    totalTokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
                   }
                 }
               })
@@ -720,9 +720,9 @@ export class AnthropicAPIClient extends BaseApiClient<
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: rawChunk.usage.input_tokens || 0,
-                    completion_tokens: rawChunk.usage.output_tokens || 0,
-                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                    inputTokens: rawChunk.usage.input_tokens || 0,
+                    outputTokens: rawChunk.usage.output_tokens || 0,
+                    totalTokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
                   }
                 }
               })

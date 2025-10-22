@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
-import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
+import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode, Usage } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
@@ -396,4 +396,30 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
     }
   }
   logger.info('DB migration to version 8 finished.')
+}
+
+export async function upgradeToV9(tx: Transaction): Promise<void> {
+  logger.info('DB migration to version 9 started')
+
+  const topics = tx.table('topics')
+  topics.toCollection().modify(async (topic: Topic) => {
+    for (const message of topic.messages) {
+      const usage = message.usage
+      let newUsage: Usage | undefined = undefined
+      if (usage) {
+        if ('prompt_tokens' in usage || 'completion_tokens' in usage || 'total_tokens' in usage) {
+          newUsage = {
+            ...usage,
+            inputTokens: (usage as any).prompt_tokens,
+            outputTokens: (usage as any).completion_tokens,
+            totalTokens: (usage as any).total_tokens
+          }
+          delete (newUsage as any).prompt_tokens
+          delete (newUsage as any).completion_tokens
+          delete (newUsage as any).total_tokens
+        }
+      }
+      Object.assign(message, { usage: newUsage })
+    }
+  })
 }

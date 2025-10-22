@@ -177,24 +177,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         if (
           !isOpenRouter &&
           response &&
-          (response.usage?.total_tokens === 0 ||
-            response?.usage?.prompt_tokens === 0 ||
-            response?.usage?.completion_tokens === 0)
+          (response.usage?.totalTokens === 0 ||
+            response?.usage?.inputTokens === 0 ||
+            response?.usage?.outputTokens === 0)
         ) {
           const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
           response.usage = usage
-        }
-      }
-
-      if (response && response.metrics) {
-        if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
-          response = {
-            ...response,
-            metrics: {
-              ...response.metrics,
-              completion_tokens: response.usage.completion_tokens
-            }
-          }
         }
       }
 

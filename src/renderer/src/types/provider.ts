@@ -1,5 +1,6 @@
-import { Model } from '@types'
 import * as z from 'zod'
+
+import { Model } from './ai'
 
 export const ProviderTypeSchema = z.enum([
   'openai',
@@ -194,3 +195,7 @@ export type VertexProvider = Provider & {
 export const isSystemProvider = (provider: Provider): provider is SystemProvider => {
   return isSystemProviderId(provider.id) && !!provider.isSystem
 }
+
+export type OpenAIVerbosity = 'high' | 'medium' | 'low'
+
+export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'

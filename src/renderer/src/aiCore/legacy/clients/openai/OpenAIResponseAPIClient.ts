@@ -578,9 +578,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
             type: ChunkType.LLM_RESPONSE_COMPLETE,
             response: {
               usage: {
-                prompt_tokens: chunk.usage?.input_tokens || 0,
-                completion_tokens: chunk.usage?.output_tokens || 0,
-                total_tokens: chunk.usage?.total_tokens || 0
+                inputTokens: chunk.usage?.input_tokens || 0,
+                outputTokens: chunk.usage?.output_tokens || 0,
+                totalTokens: chunk.usage?.total_tokens || 0
               }
             }
           })
@@ -694,15 +694,15 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                 })
                 hasBeenCollectedToolCalls = true
               }
-              const completion_tokens = chunk.response.usage?.output_tokens || 0
-              const total_tokens = chunk.response.usage?.total_tokens || 0
+              const outputTokens = chunk.response.usage?.output_tokens || 0
+              const totalTokens = chunk.response.usage?.total_tokens || 0
               controller.enqueue({
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: chunk.response.usage?.input_tokens || 0,
-                    completion_tokens: completion_tokens,
-                    total_tokens: total_tokens
+                    inputTokens: chunk.response.usage?.input_tokens || 0,
+                    outputTokens: outputTokens,
+                    totalTokens: totalTokens
                   }
                 }
               })

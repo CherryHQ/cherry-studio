@@ -1,7 +1,7 @@
 import { PersonGeneration } from '@google/genai'
 import { isDedicatedGeminiImageGenerationModel, isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
-import { GenerateImageParams } from '@renderer/types'
+import { GenerateImageParams, Usage } from '@renderer/types'
 import { ChunkType, ImageContent } from '@renderer/types/chunk'
 import { extractImageContent } from '@renderer/utils'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -105,7 +105,7 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             type: 'url',
             images: []
           }
-          let usage: OpenAI.ImagesResponse.Usage | undefined = undefined
+          let usage: Usage | undefined = undefined
 
           if (isGemini && isDedicatedGeminiImageGenerationModel(assistant.model)) {
             const sdk = client as GeminiAPIClient
@@ -132,7 +132,11 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             )
             imageResult.type = data.content.type
             imageResult.images.push(...data.content.images)
-            usage = data.usage
+            usage = {
+              inputTokens: data.usage?.input_tokens ?? 0,
+              outputTokens: data.usage?.output_tokens ?? 0,
+              totalTokens: data.usage?.total_tokens ?? 0
+            }
           }
 
           enqueue({
@@ -140,19 +144,11 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             image: imageResult
           })
 
-          usage = usage ?? {
-            input_tokens: 0,
-            input_tokens_details: { image_tokens: 0, text_tokens: 0 },
-            output_tokens: 0,
-            total_tokens: 0
-          }
-
           enqueue({
             type: ChunkType.LLM_RESPONSE_COMPLETE,
             response: {
               usage,
               metrics: {
-                completion_tokens: usage.output_tokens,
                 time_first_token_millsec: 0,
                 time_completion_millsec: Date.now() - startTime
               }

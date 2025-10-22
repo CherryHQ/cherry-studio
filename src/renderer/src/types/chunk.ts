@@ -1,16 +1,10 @@
 import * as z from 'zod'
 
-import {
-  ExternalToolResult,
-  KnowledgeReference,
-  MCPTool,
-  MCPToolResponse,
-  NormalToolResponse,
-  ToolUseResponse,
-  WebSearchResponse
-} from '.'
+import { KnowledgeReference } from './knowledge'
 import { Response, ResponseError } from './newMessage'
 import { SdkToolCall } from './sdk'
+import { ExternalToolResult, MCPTool, MCPToolResponse, NormalToolResponse, ToolUseResponse } from './tool'
+import { WebSearchResponse } from './websearch'
 
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期

@@ -677,10 +677,10 @@ export class GeminiAPIClient extends BaseApiClient<
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-                    completion_tokens:
+                    inputTokens: chunk.usageMetadata?.promptTokenCount || 0,
+                    outputTokens:
                       (chunk.usageMetadata?.totalTokenCount || 0) - (chunk.usageMetadata?.promptTokenCount || 0),
-                    total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+                    totalTokens: chunk.usageMetadata?.totalTokenCount || 0
                   }
                 }
               })

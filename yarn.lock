@@ -2450,7 +2450,7 @@ __metadata:
     tsdown: "npm:^0.12.9"
     typescript: "npm:^5.0.0"
     vitest: "npm:^3.2.4"
-    zod: "npm:^4.1.5"
+    zod: "npm:^4.1.12"
   peerDependencies:
     ai: ^5.0.26
   languageName: unknown
@@ -14112,7 +14112,7 @@ __metadata:
     yjs: "npm:^13.6.27"
     youtubei.js: "npm:^15.0.1"
     zipread: "npm:^1.3.3"
-    zod: "npm:^4.1.5"
+    zod: "npm:^4.1.12"
   languageName: unknown
   linkType: soft
 
@@ -30192,10 +30192,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^4.1.5":
-  version: 4.1.5
-  resolution: "zod@npm:4.1.5"
-  checksum: 10c0/7826fb931bc71d4d0fff2fbb72f1a1cf30a6672cf9dbe6933a216bbb60242ef1c3bdfbcd3c5b27e806235a35efaad7a4a9897ff4d3621452f9ea278bce6fd42a
+"zod@npm:^4.1.12":
+  version: 4.1.12
+  resolution: "zod@npm:4.1.12"
+  checksum: 10c0/b64c1feb19e99d77075261eaf613e0b2be4dfcd3551eff65ad8b4f2a079b61e379854d066f7d447491fcf193f45babd8095551a9d47973d30b46b6d8e2c46774
   languageName: node
   linkType: hard
 

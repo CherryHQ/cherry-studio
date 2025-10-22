@@ -1114,9 +1114,9 @@ const mockOpenaiApiClient = {
       }
 
       const usage = lastUsageInfo || {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        total_tokens: 0
+        outputTokens: 0,
+        inputTokens: 0,
+        totalTokens: 0
       }
 
       controller.enqueue({
@@ -1135,9 +1135,9 @@ const mockOpenaiApiClient = {
         // 持续更新usage信息
         if (chunk.usage) {
           lastUsageInfo = {
-            prompt_tokens: chunk.usage.prompt_tokens || 0,
-            completion_tokens: chunk.usage.completion_tokens || 0,
-            total_tokens: (chunk.usage.prompt_tokens || 0) + (chunk.usage.completion_tokens || 0)
+            outputTokens: chunk.usage.completion_tokens || 0,
+            inputTokens: chunk.usage.completion_tokens || 0,
+            totalTokens: (chunk.usage.completion_tokens || 0) + (chunk.usage.completion_tokens || 0)
           }
         }
 
@@ -1416,10 +1416,10 @@ const mockGeminiApiClient = {
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
-                    completion_tokens:
+                    inputTokens: chunk.usageMetadata?.promptTokenCount || 0,
+                    outputTokens:
                       (chunk.usageMetadata?.totalTokenCount || 0) - (chunk.usageMetadata?.promptTokenCount || 0),
-                    total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+                    totalTokens: chunk.usageMetadata?.totalTokenCount || 0
                   }
                 }
               })
@@ -1532,9 +1532,9 @@ const mockAnthropicApiClient = {
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: rawChunk.usage.input_tokens || 0,
-                    completion_tokens: rawChunk.usage.output_tokens || 0,
-                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                    inputTokens: rawChunk.usage.input_tokens || 0,
+                    outputTokens: rawChunk.usage.output_tokens || 0,
+                    totalTokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
                   }
                 }
               })
@@ -1644,9 +1644,9 @@ const mockAnthropicApiClient = {
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
                 response: {
                   usage: {
-                    prompt_tokens: rawChunk.usage.input_tokens || 0,
-                    completion_tokens: rawChunk.usage.output_tokens || 0,
-                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                    inputTokens: rawChunk.usage.input_tokens || 0,
+                    outputTokens: rawChunk.usage.output_tokens || 0,
+                    totalTokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
                   }
                 }
               })
@@ -1788,9 +1788,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            total_tokens: 1205,
-            prompt_tokens: 383,
-            completion_tokens: 822
+            totalTokens: 1205,
+            inputTokens: 383,
+            outputTokens: 822
           }
         }
       }
@@ -1829,9 +1829,9 @@ describe('ApiService', () => {
     // 验证LLM_RESPONSE_COMPLETE chunk包含usage信息
     const completionChunk = lastChunk as LLMResponseCompleteChunk
     expect(completionChunk.response?.usage).toBeDefined()
-    expect(completionChunk.response?.usage?.total_tokens).toBe(1205)
-    expect(completionChunk.response?.usage?.prompt_tokens).toBe(383)
-    expect(completionChunk.response?.usage?.completion_tokens).toBe(822)
+    expect(completionChunk.response?.usage?.totalTokens).toBe(1205)
+    expect(completionChunk.response?.usage?.inputTokens).toBe(383)
+    expect(completionChunk.response?.usage?.outputTokens).toBe(822)
   })
 
   it('should return a non-stream of chunks with correct types and content in anthropic', async () => {
@@ -1893,9 +1893,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            completion_tokens: 21,
-            prompt_tokens: 15,
-            total_tokens: 36
+            inputTokens: 21,
+            outputTokens: 15,
+            totalTokens: 36
           }
         }
       }
@@ -1974,9 +1974,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            completion_tokens: 28,
-            prompt_tokens: 0,
-            total_tokens: 28
+            outputTokens: 28,
+            inputTokens: 0,
+            totalTokens: 28
           }
         }
       }
@@ -2144,9 +2144,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            prompt_tokens: 6,
-            completion_tokens: 1279,
-            total_tokens: 1285
+            inputTokens: 6,
+            outputTokens: 1279,
+            totalTokens: 1285
           }
         }
       }
@@ -2320,9 +2320,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            completion_tokens: 0,
-            prompt_tokens: 0,
-            total_tokens: 0
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0
           }
         }
       }
@@ -2486,9 +2486,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            completion_tokens: 0,
-            prompt_tokens: 0,
-            total_tokens: 0
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0
           }
         }
       }
@@ -2834,9 +2834,9 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            completion_tokens: 0,
-            prompt_tokens: 0,
-            total_tokens: 0
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0
           }
         }
       }

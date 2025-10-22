@@ -44,7 +44,7 @@
     "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": "^3.0.12",
     "@ai-sdk/xai": "^2.0.26",
-    "zod": "^4.1.5"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "tsdown": "^0.12.9",

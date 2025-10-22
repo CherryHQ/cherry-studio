@@ -4,7 +4,7 @@
  */
 
 import { loggerService } from '@logger'
-import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
+import { AISDKWebSearchResult, MCPTool, Usage, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -299,10 +299,10 @@ export class AiSdkToChunkAdapter {
       }
 
       case 'finish': {
-        const usage = {
-          completion_tokens: chunk.totalUsage?.outputTokens || 0,
-          prompt_tokens: chunk.totalUsage?.inputTokens || 0,
-          total_tokens: chunk.totalUsage?.totalTokens || 0
+        const usage: Usage = {
+          outputTokens: chunk.totalUsage?.outputTokens ?? 0,
+          inputTokens: chunk.totalUsage?.inputTokens ?? 0,
+          totalTokens: chunk.totalUsage?.totalTokens ?? 0
         }
         const metrics = this.buildMetrics(chunk.totalUsage)
         const baseResponse = {
@@ -314,8 +314,8 @@ export class AiSdkToChunkAdapter {
           type: ChunkType.BLOCK_COMPLETE,
           response: {
             ...baseResponse,
-            usage: { ...usage },
-            metrics: metrics ? { ...metrics } : undefined
+            usage,
+            metrics
           }
         })
         this.onChunk({
@@ -381,20 +381,14 @@ export class AiSdkToChunkAdapter {
       return undefined
     }
 
-    const completionTokens = totalUsage.outputTokens ?? 0
     const now = Date.now()
     const start = this.responseStartTimestamp ?? now
     const firstToken = this.firstTokenTimestamp
     const timeFirstToken = Math.max(firstToken != null ? firstToken - start : 0, 0)
     const baseForCompletion = firstToken ?? start
-    let timeCompletion = Math.max(now - baseForCompletion, 0)
-
-    if (timeCompletion === 0 && completionTokens > 0) {
-      timeCompletion = 1
-    }
+    const timeCompletion = Math.max(now - baseForCompletion, 0)
 
     return {
-      completion_tokens: completionTokens,
       time_first_token_millsec: timeFirstToken,
       time_completion_millsec: timeCompletion
     }

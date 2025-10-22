@@ -196,9 +196,9 @@ vi.mock('@renderer/store/assistants', () => {
 vi.mock('@renderer/services/TokenService', () => ({
   estimateMessagesUsage: vi.fn(() =>
     Promise.resolve({
-      prompt_tokens: 100,
-      completion_tokens: 50,
-      total_tokens: 150
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 150
     })
   )
 }))
@@ -371,15 +371,15 @@ describe('streamCallback Integration Tests', () => {
       {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
-          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-          metrics: { completion_tokens: 50, time_completion_millsec: 1000 }
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          metrics: { time_completion_millsec: 1000 }
         }
       },
       {
         type: ChunkType.BLOCK_COMPLETE,
         response: {
-          usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 },
-          metrics: { completion_tokens: 50, time_completion_millsec: 1000 }
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          metrics: { time_completion_millsec: 1000 }
         }
       }
     ]
@@ -399,7 +399,7 @@ describe('streamCallback Integration Tests', () => {
     // 验证消息状态更新
     const message = state.messages.entities[mockAssistantMsgId]
     expect(message?.status).toBe(AssistantMessageStatus.SUCCESS)
-    expect(message?.usage?.total_tokens).toBe(150)
+    expect(message?.usage?.totalTokens).toBe(150)
   })
 
   it('should handle thinking flow', async () => {

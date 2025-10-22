@@ -935,9 +935,9 @@ export class AwsBedrockAPIClient extends BaseApiClient<
               type: ChunkType.LLM_RESPONSE_COMPLETE,
               response: {
                 usage: {
-                  prompt_tokens: usage.inputTokens || 0,
-                  completion_tokens: usage.outputTokens || 0,
-                  total_tokens: (usage.inputTokens || 0) + (usage.outputTokens || 0)
+                  inputTokens: usage.inputTokens || 0,
+                  outputTokens: usage.outputTokens || 0,
+                  totalTokens: (usage.inputTokens || 0) + (usage.outputTokens || 0)
                 }
               }
             })

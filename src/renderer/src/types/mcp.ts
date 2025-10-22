@@ -1,7 +1,5 @@
 import * as z from 'zod'
 
-import { isBuiltinMCPServerName } from '.'
-
 export const MCPConfigSampleSchema = z.object({
   command: z.string(),
   args: z.array(z.string()),
@@ -259,4 +257,127 @@ export function safeValidateMcpServerConfig(config: unknown) {
  */
 export function getMcpServerType(url: string): McpServerType {
   return url.endsWith('/mcp') ? 'streamableHttp' : 'sse'
+}
+
+export type MCPArgType = 'string' | 'list' | 'number'
+export type MCPEnvType = 'string' | 'number'
+export type MCPArgParameter = { [key: string]: MCPArgType }
+export type MCPEnvParameter = { [key: string]: MCPEnvType }
+
+export interface MCPServerParameter {
+  name: string
+  type: MCPArgType | MCPEnvType
+  description: string
+}
+
+export interface MCPServer {
+  id: string // internal id
+  name: string // mcp name, generally as unique key
+  type?: McpServerType | 'inMemory'
+  description?: string
+  baseUrl?: string
+  command?: string
+  registryUrl?: string
+  args?: string[]
+  env?: Record<string, string>
+  headers?: Record<string, string> // Custom headers to be sent with requests to this server
+  provider?: string // Provider name for this server like ModelScope, Higress, etc.
+  providerUrl?: string // URL of the MCP server in provider's website or documentation
+  logoUrl?: string // URL of the MCP server's logo
+  tags?: string[] // List of tags associated with this server
+  longRunning?: boolean // Whether the server is long running
+  timeout?: number // Timeout in seconds for requests to this server, default is 60 seconds
+  dxtVersion?: string // Version of the DXT package
+  dxtPath?: string // Path where the DXT package was extracted
+  reference?: string // Reference link for the server, e.g., documentation or homepage
+  searchKey?: string
+  configSample?: MCPConfigSample
+  /** List of tool names that are disabled for this server */
+  disabledTools?: string[]
+  /** Whether to auto-approve tools for this server */
+  disabledAutoApproveTools?: string[]
+
+  /** 用于标记内置 MCP 是否需要配置 */
+  shouldConfig?: boolean
+  /** 用于标记服务器是否运行中 */
+  isActive: boolean
+}
+
+export type BuiltinMCPServer = MCPServer & {
+  type: 'inMemory'
+  name: BuiltinMCPServerName
+}
+
+export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServer => {
+  return server.type === 'inMemory' && isBuiltinMCPServerName(server.name)
+}
+
+export const BuiltinMCPServerNames = {
+  mcpAutoInstall: '@cherry/mcp-auto-install',
+  memory: '@cherry/memory',
+  sequentialThinking: '@cherry/sequentialthinking',
+  braveSearch: '@cherry/brave-search',
+  fetch: '@cherry/fetch',
+  filesystem: '@cherry/filesystem',
+  difyKnowledge: '@cherry/dify-knowledge',
+  python: '@cherry/python',
+  didiMCP: '@cherry/didi-mcp'
+} as const
+
+export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
+
+export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
+
+export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
+  return BuiltinMCPServerNamesArray.some((n) => n === name)
+}
+
+export interface MCPPromptArguments {
+  name: string
+  description?: string
+  required?: boolean
+}
+
+export interface MCPPrompt {
+  id: string
+  name: string
+  description?: string
+  arguments?: MCPPromptArguments[]
+  serverId: string
+  serverName: string
+}
+
+export interface GetMCPPromptResponse {
+  description?: string
+  messages: {
+    role: string
+    content: {
+      type: 'text' | 'image' | 'audio' | 'resource'
+      text?: string
+      data?: string
+      mimeType?: string
+    }
+  }[]
+}
+
+export interface MCPConfig {
+  servers: MCPServer[]
+  isUvInstalled: boolean
+  isBunInstalled: boolean
+}
+
+export interface MCPResource {
+  serverId: string
+  serverName: string
+  uri: string
+  name: string
+  description?: string
+  mimeType?: string
+  size?: number
+  text?: string
+  blob?: string
+}
+
+export interface GetResourceResponse {
+  contents: MCPResource[]
 }

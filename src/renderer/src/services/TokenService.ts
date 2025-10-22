@@ -101,11 +101,12 @@ export async function estimateUserPromptUsage({
   }
 
   const tokens = estimateTextTokens(content || '')
+  imageTokens = imageTokens ? imageTokens - 7 : 0
 
   return {
-    prompt_tokens: tokens,
-    completion_tokens: tokens,
-    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0)
+    inputTokens: tokens + imageTokens,
+    outputTokens: undefined,
+    totalTokens: tokens + imageTokens
   }
 }
 
@@ -116,7 +117,7 @@ export async function estimateUserPromptUsage({
  * 统计文本和图片的 token 数量，适用于对完整消息对象进行 usage 估算。
  *
  * @param {Partial<Message>} message - 消息对象，可以是完整或部分 Message
- * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
+ * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 inputTokens、outputTokens、totalTokens
  */
 export async function estimateMessageUsage(message: Partial<Message>): Promise<Usage> {
   const fileBlocks = findFileBlocks(message as Message)
@@ -133,15 +134,17 @@ export async function estimateMessageUsage(message: Partial<Message>): Promise<U
     }
   }
 
+  imageTokens = imageTokens ? imageTokens - 7 : 0
+
   const content = getMainTextContent(message as Message)
   const reasoningContent = getThinkingContent(message as Message)
   const combinedContent = [content, reasoningContent].filter((s) => s !== undefined).join(' ')
   const tokens = estimateTextTokens(combinedContent)
 
   return {
-    prompt_tokens: tokens,
-    completion_tokens: tokens,
-    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0)
+    inputTokens: undefined,
+    outputTokens: tokens + imageTokens,
+    totalTokens: tokens + imageTokens
   }
 }
 
@@ -154,14 +157,14 @@ export async function estimateMessagesUsage({
 }): Promise<Usage> {
   const outputMessage = messages.pop()!
 
-  const prompt_tokens = await estimateHistoryTokens(assistant, messages)
-  const { completion_tokens } = await estimateMessageUsage(outputMessage)
+  const inputTokens = await estimateHistoryTokens(assistant, messages)
+  const { outputTokens } = await estimateMessageUsage(outputMessage)
 
   return {
-    prompt_tokens,
-    completion_tokens,
-    total_tokens: prompt_tokens + completion_tokens
-  } as Usage
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + (outputTokens ?? 0)
+  }
 }
 
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {
@@ -173,8 +176,8 @@ export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[
   const uasageTokens = messages
     .filter((m) => m.usage)
     .reduce((acc, message) => {
-      const inputTokens = message.usage?.total_tokens ?? 0
-      const outputTokens = message.usage!.completion_tokens ?? 0
+      const inputTokens = message.usage?.inputTokens ?? 0
+      const outputTokens = message.usage?.outputTokens ?? 0
       return acc + (message.role === 'user' ? inputTokens : outputTokens)
     }, 0)
 

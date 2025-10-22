@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import type { ExternalToolResult, GenerateImageResponse, MCPToolResponse, WebSearchResponse } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { ExternalToolResult, MCPToolResponse, WebSearchResponse } from '@renderer/types'
+import type { Chunk, ImageContent } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Response } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
@@ -36,8 +36,8 @@ export interface StreamProcessorCallbacks {
   onLLMWebSearchComplete?: (llmWebSearchResult: WebSearchResponse) => void
   // Image generation chunk received
   onImageCreated?: () => void
-  onImageDelta?: (imageData: GenerateImageResponse) => void
-  onImageGenerated?: (imageData?: GenerateImageResponse) => void
+  onImageDelta?: (imageData: ImageContent) => void
+  onImageGenerated?: (imageData?: ImageContent) => void
   onLLMResponseComplete?: (response?: Response) => void
   // Called when an error occurs during chunk processing
   onError?: (error: any) => void

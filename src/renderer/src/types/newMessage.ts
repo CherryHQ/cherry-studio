@@ -1,23 +1,16 @@
 import type { ProviderMetadata } from 'ai'
-import type { CompletionUsage } from 'openai/resources'
 
-import type {
-  Assistant,
-  FileMetadata,
-  GenerateImageResponse,
-  KnowledgeReference,
-  MCPServer,
-  MCPToolResponse,
-  MemoryItem,
-  Metrics,
-  Model,
-  NormalToolResponse,
-  Topic,
-  Usage,
-  WebSearchResponse,
-  WebSearchSource
-} from '.'
+import { Metrics, Model, Usage } from './ai'
+import { Assistant } from './assistant'
+import { Topic } from './chat'
+import { ImageContent } from './chunk'
 import { SerializedError } from './error'
+import { FileMetadata } from './file'
+import { KnowledgeReference } from './knowledge'
+import { MCPServer } from './mcp'
+import { MemoryItem } from './memory'
+import { MCPToolResponse, NormalToolResponse } from './tool'
+import { WebSearchResponse, WebSearchSource } from './websearch'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -103,7 +96,7 @@ export interface ImageMessageBlock extends BaseMessageBlock {
   metadata?: BaseMessageBlock['metadata'] & {
     prompt?: string
     negativePrompt?: string
-    generateImageResponse?: GenerateImageResponse
+    generateImageResponse?: ImageContent
   }
 }
 
@@ -221,7 +214,7 @@ export interface Response {
   metrics?: Metrics
   webSearch?: WebSearchResponse
   mcpToolResponse?: MCPToolResponse[]
-  generateImage?: GenerateImageResponse
+  generateImage?: ImageContent
   error?: ResponseError
 }
 
@@ -238,5 +231,16 @@ export interface MessageInputBaseParams {
    * @deprecated
    */
   enabledMCPs?: MCPServer[]
-  usage?: CompletionUsage
+  usage?: Usage
+}
+
+export interface Citation {
+  number: number
+  url: string
+  title?: string
+  hostname?: string
+  content?: string
+  showFavicon?: boolean
+  type?: string
+  metadata?: Record<string, any>
 }

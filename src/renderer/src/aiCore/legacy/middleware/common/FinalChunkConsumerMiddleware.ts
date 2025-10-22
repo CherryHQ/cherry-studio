@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { Usage } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 
@@ -33,19 +32,19 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
       if (!ctx._internal.customState) {
         ctx._internal.customState = {}
       }
-      ctx._internal.observer = {
-        usage: {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0
-        },
-        metrics: {
-          completion_tokens: 0,
-          time_completion_millsec: 0,
-          time_first_token_millsec: 0,
-          time_thinking_millsec: 0
-        }
-      }
+      // ctx._internal.observer = {
+      //   usage: {
+      //     prompt_tokens: 0,
+      //     completion_tokens: 0,
+      //     total_tokens: 0
+      //   },
+      //   metrics: {
+      //     completion_tokens: 0,
+      //     time_completion_millsec: 0,
+      //     time_first_token_millsec: 0,
+      //     time_thinking_millsec: 0
+      //   }
+      // }
       // 初始化文本累积器
       ctx._internal.customState.accumulatedText = ''
       ctx._internal.customState.startTimestamp = Date.now()
@@ -146,9 +145,9 @@ function extractAndAccumulateUsageMetrics(ctx: CompletionsContext, chunk: Generi
     }
     if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
       // 从LLM_RESPONSE_COMPLETE chunk中提取usage数据
-      if (chunk.response?.usage) {
-        accumulateUsage(ctx._internal.observer.usage, chunk.response.usage)
-      }
+      // if (chunk.response?.usage) {
+      //   accumulateUsage(ctx._internal.observer.usage, chunk.response.usage)
+      // }
 
       if (ctx._internal.customState && ctx._internal.customState?.firstTokenTimestamp) {
         ctx._internal.observer.metrics.time_first_token_millsec =
@@ -172,24 +171,25 @@ function extractAndAccumulateUsageMetrics(ctx: CompletionsContext, chunk: Generi
 
 /**
  * 累加usage数据
+ * @depcrecated 使用新的Usage类型替代
  */
-function accumulateUsage(accumulated: Usage, newUsage: Usage): void {
-  if (newUsage.prompt_tokens !== undefined) {
-    accumulated.prompt_tokens += newUsage.prompt_tokens
-  }
-  if (newUsage.completion_tokens !== undefined) {
-    accumulated.completion_tokens += newUsage.completion_tokens
-  }
-  if (newUsage.total_tokens !== undefined) {
-    accumulated.total_tokens += newUsage.total_tokens
-  }
-  if (newUsage.thoughts_tokens !== undefined) {
-    accumulated.thoughts_tokens = (accumulated.thoughts_tokens || 0) + newUsage.thoughts_tokens
-  }
-  // Handle OpenRouter specific cost fields
-  if (newUsage.cost !== undefined) {
-    accumulated.cost = (accumulated.cost || 0) + newUsage.cost
-  }
-}
+// function accumulateUsage(accumulated: Usage, newUsage: Usage): void {
+//   if (newUsage.prompt_tokens !== undefined) {
+//     accumulated.prompt_tokens += newUsage.prompt_tokens
+//   }
+//   if (newUsage.completion_tokens !== undefined) {
+//     accumulated.completion_tokens += newUsage.completion_tokens
+//   }
+//   if (newUsage.total_tokens !== undefined) {
+//     accumulated.total_tokens += newUsage.total_tokens
+//   }
+//   if (newUsage.thoughts_tokens !== undefined) {
+//     accumulated.thoughts_tokens = (accumulated.thoughts_tokens || 0) + newUsage.thoughts_tokens
+//   }
+//   // Handle OpenRouter specific cost fields
+//   if (newUsage.cost !== undefined) {
+//     accumulated.cost = (accumulated.cost || 0) + newUsage.cost
+//   }
+// }
 
 export default FinalChunkConsumerMiddleware

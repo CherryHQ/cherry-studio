@@ -22,3 +22,5 @@ export interface NotesTreeNode {
   createdAt: string
   updatedAt: string
 }
+
+export type EditorView = 'preview' | 'source' | 'read' // 实时,源码,预览

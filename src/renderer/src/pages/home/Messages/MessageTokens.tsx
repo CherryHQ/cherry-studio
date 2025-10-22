@@ -17,8 +17,8 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   }
 
   const getPrice = () => {
-    const inputTokens = message?.usage?.prompt_tokens ?? 0
-    const outputTokens = message?.usage?.completion_tokens ?? 0
+    const inputTokens = message?.usage?.inputTokens ?? 0
+    const outputTokens = message?.usage?.outputTokens ?? 0
     const model = message.model
 
     // For OpenRouter, use the cost directly from usage if available
@@ -57,7 +57,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   if (message.role === 'user') {
     return (
       <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        {`Tokens: ${message?.usage?.total_tokens}`}
+        {`Tokens: ${message?.usage?.totalTokens}`}
       </MessageMetadata>
     )
   }
@@ -65,22 +65,20 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   if (message.role === 'assistant') {
     let metrixs = ''
     let hasMetrics = false
-    if (message?.metrics?.completion_tokens && message?.metrics?.time_completion_millsec) {
+    if (message?.usage.outputTokens && message?.metrics?.time_completion_millsec) {
       hasMetrics = true
       metrixs = t('settings.messages.metrics', {
         time_first_token_millsec: message?.metrics?.time_first_token_millsec,
-        token_speed: (message?.metrics?.completion_tokens / (message?.metrics?.time_completion_millsec / 1000)).toFixed(
-          0
-        )
+        token_speed: (message?.usage.outputTokens / (message?.metrics?.time_completion_millsec / 1000)).toFixed(0)
       })
     }
 
     const tokensInfo = (
       <span className="tokens">
         Tokens:
-        <span>{message?.usage?.total_tokens}</span>
-        <span>↑{message?.usage?.prompt_tokens}</span>
-        <span>↓{message?.usage?.completion_tokens}</span>
+        <span>{message?.usage?.totalTokens}</span>
+        <span>↑{message?.usage?.inputTokens}</span>
+        <span>↓{message?.usage?.outputTokens}</span>
         <span>{getPriceString()}</span>
       </span>
     )
