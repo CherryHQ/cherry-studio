@@ -1,20 +1,25 @@
 import { z } from 'zod'
 
+// Plugin Type
+export type PluginType = 'agent' | 'command' | 'skill'
+
 // Plugin Metadata Type
 export const PluginMetadataSchema = z.object({
   // Identification
-  sourcePath: z.string(), // e.g., "agents/ai-specialists/ai-ethics-advisor.md"
-  filename: z.string(), // e.g., "ai-ethics-advisor.md" (unique destination name)
+  sourcePath: z.string(), // e.g., "agents/ai-specialists/ai-ethics-advisor.md" or "skills/my-skill"
+  filename: z.string(), // IMPORTANT: Semantics vary by type:
+  // - For agents/commands: includes .md extension (e.g., "my-agent.md")
+  // - For skills: folder name only, no extension (e.g., "my-skill")
   name: z.string(), // Display name from frontmatter or filename
 
   // Content
   description: z.string().optional(),
   allowed_tools: z.array(z.string()).optional(), // from frontmatter (for commands)
-  tools: z.array(z.string()).optional(), // from frontmatter (for agents)
+  tools: z.array(z.string()).optional(), // from frontmatter (for agents and skills)
 
   // Organization
   category: z.string(), // derived from parent folder name
-  type: z.enum(['agent', 'command']),
+  type: z.enum(['agent', 'command', 'skill']), // UPDATED: now includes 'skill'
   tags: z.array(z.string()).optional(),
 
   // Versioning (for future updates)
@@ -32,7 +37,7 @@ export type PluginMetadata = z.infer<typeof PluginMetadataSchema>
 
 export const InstalledPluginSchema = z.object({
   filename: z.string(),
-  type: z.enum(['agent', 'command']),
+  type: z.enum(['agent', 'command', 'skill']),
   metadata: PluginMetadataSchema
 })
 
@@ -60,25 +65,26 @@ export type PluginResult<T> = { success: true; data: T } | { success: false; err
 export interface InstallPluginOptions {
   agentId: string
   sourcePath: string
-  type: 'agent' | 'command'
+  type: 'agent' | 'command' | 'skill'
 }
 
 export interface UninstallPluginOptions {
   agentId: string
   filename: string
-  type: 'agent' | 'command'
+  type: 'agent' | 'command' | 'skill'
 }
 
 export interface WritePluginContentOptions {
   agentId: string
   filename: string
-  type: 'agent' | 'command'
+  type: 'agent' | 'command' | 'skill'
   content: string
 }
 
 export interface ListAvailablePluginsResult {
   agents: PluginMetadata[]
   commands: PluginMetadata[]
+  skills: PluginMetadata[] // NEW: skills plugin type
   total: number
 }
 
