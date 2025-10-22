@@ -1017,12 +1017,10 @@ export class PluginService {
     const logContext = logger.withContext('installSkill')
 
     // Step 1: If destination exists, remove it first (overwrite behavior)
-    let existingRemoved = false
     try {
       await fs.promises.access(destPath)
       // Exists - remove it
       await deleteDirectoryRecursive(destPath)
-      existingRemoved = true
       logContext.info('Removed existing skill folder', { destPath })
     } catch {
       // Doesn't exist - nothing to remove
