@@ -37,7 +37,7 @@ const assistantsSlice = createSlice({
       state.assistants = action.payload
     },
     addAssistant: (state, action: PayloadAction<Assistant>) => {
-      state.assistants.push(action.payload)
+      state.assistants.unshift(action.payload)
     },
     insertAssistant: (state, action: PayloadAction<{ index: number; assistant: Assistant }>) => {
       const { index, assistant } = action.payload

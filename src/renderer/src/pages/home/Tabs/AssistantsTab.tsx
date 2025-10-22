@@ -126,6 +126,8 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       )}
 
+      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
+
       {assistantsTabSortType === 'tags' ? (
         <UnifiedTagGroups
           groupedItems={groupedUnifiedItems}
@@ -169,8 +171,6 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           sortByPinyinDesc={sortByPinyinDesc}
         />
       )}
-
-      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
 
       {!dragging && <div style={{ minHeight: 10 }}></div>}
     </Container>

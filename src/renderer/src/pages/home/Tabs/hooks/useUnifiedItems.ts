@@ -43,9 +43,11 @@ export const useUnifiedItems = (options: UseUnifiedItemsOptions) => {
       }
     })
 
-    // Add new items (not in saved order) to the end
-    availableAgents.forEach((agent) => items.push({ type: 'agent', data: agent }))
-    availableAssistants.forEach((assistant) => items.push({ type: 'assistant', data: assistant }))
+    // Add new items (not in saved order) to the beginning
+    const newItems: UnifiedItem[] = []
+    availableAgents.forEach((agent) => newItems.push({ type: 'agent', data: agent }))
+    availableAssistants.forEach((assistant) => newItems.push({ type: 'assistant', data: assistant }))
+    items.unshift(...newItems)
 
     return items
   }, [agents, assistants, apiServerEnabled, agentsLoading, agentsError, unifiedListOrder])

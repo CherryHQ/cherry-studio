@@ -21,6 +21,7 @@ import {
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
+  ListOptions,
   objectEntries,
   objectKeys,
   UpdateAgentForm,
@@ -95,10 +96,19 @@ export class AgentApiClient {
     }
   }
 
-  public async listAgents(): Promise<ListAgentsResponse> {
+  public async listAgents(options?: ListOptions): Promise<ListAgentsResponse> {
     const url = this.agentPaths.base
     try {
-      const response = await this.axios.get(url)
+      const params = new URLSearchParams()
+      if (options?.limit !== undefined) params.append('limit', String(options.limit))
+      if (options?.offset !== undefined) params.append('offset', String(options.offset))
+      if (options?.sortBy) params.append('sortBy', options.sortBy)
+      if (options?.orderBy) params.append('orderBy', options.orderBy)
+
+      const queryString = params.toString()
+      const fullUrl = queryString ? `${url}?${queryString}` : url
+
+      const response = await this.axios.get(fullUrl)
       const result = ListAgentsResponseSchema.safeParse(response.data)
       if (!result.success) {
         throw new Error('Not a valid Agents array.')

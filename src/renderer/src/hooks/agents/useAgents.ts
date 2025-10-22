@@ -33,7 +33,7 @@ export const useAgents = () => {
     if (!apiServerRunning) {
       throw new Error(t('agent.server.error.not_running'))
     }
-    const result = await client.listAgents()
+    const result = await client.listAgents({ sortBy: 'created_at', orderBy: 'desc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])

@@ -11,7 +11,7 @@ import {
   UpdateAgentRequest,
   UpdateAgentResponse
 } from '@types'
-import { count, eq } from 'drizzle-orm'
+import { asc, count, desc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
@@ -100,7 +100,13 @@ export class AgentService extends BaseService {
 
     const totalResult = await this.database.select({ count: count() }).from(agentsTable)
 
-    const baseQuery = this.database.select().from(agentsTable).orderBy(agentsTable.created_at)
+    const sortBy = options.sortBy || 'created_at'
+    const orderBy = options.orderBy || 'desc'
+
+    const sortField = agentsTable[sortBy]
+    const orderFn = orderBy === 'asc' ? asc : desc
+
+    const baseQuery = this.database.select().from(agentsTable).orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined
