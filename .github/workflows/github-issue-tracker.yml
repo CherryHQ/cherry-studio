@@ -1,0 +1,57 @@
+name: GitHub Issue Tracker with Feishu Notification
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  summarize-and-notify:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Summarize issue with Claude
+        id: summarize
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Please analyze this GitHub issue and provide a concise summary in Chinese (-�).
+
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+            Author: ${{ github.event.issue.user.login }}
+            URL: ${{ github.event.issue.html_url }}
+
+            Issue Body:
+            ${{ github.event.issue.body }}
+
+            Please provide:
+            1. A brief Chinese summary of the issue (2-3 sentences)
+            2. The main problem or request
+            3. Any important technical details mentioned
+
+            Format your response in clean markdown, suitable for display in a notification card.
+            Keep it concise but informative.
+
+      - name: Send to Feishu
+        env:
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+          ISSUE_SUMMARY: ${{ steps.summarize.outputs.response }}
+        run: |
+          node scripts/feishu-notify.js
