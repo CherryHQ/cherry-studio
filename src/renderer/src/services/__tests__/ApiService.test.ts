@@ -1893,8 +1893,8 @@ describe('ApiService', () => {
         type: ChunkType.LLM_RESPONSE_COMPLETE,
         response: {
           usage: {
-            inputTokens: 21,
-            outputTokens: 15,
+            inputTokens: 15,
+            outputTokens: 21,
             totalTokens: 36
           }
         }
