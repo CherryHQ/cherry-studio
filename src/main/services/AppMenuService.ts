@@ -7,10 +7,6 @@ import { app, Menu, MenuItemConstructorOptions } from 'electron'
 import { configManager } from './ConfigManager'
 export class AppMenuService {
   public setupApplicationMenu(): void {
-    if (!isMac) {
-      return
-    }
-
     const locale = locales[configManager.getLanguage()]
     const { common } = locale.translation
 
@@ -52,4 +48,4 @@ export class AppMenuService {
   }
 }
 
-export const appMenuService = new AppMenuService()
+export const appMenuService = isMac ? new AppMenuService() : null

@@ -124,7 +124,7 @@ if (!app.requestSingleInstanceLock()) {
     new TrayService()
 
     // Setup macOS application menu
-    appMenuService.setupApplicationMenu()
+    appMenuService?.setupApplicationMenu()
 
     nodeTraceService.init()
 
