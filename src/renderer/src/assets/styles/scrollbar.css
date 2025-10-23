@@ -17,6 +17,11 @@ body[theme-mode='light'] {
   --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-light-hover);
 }
 
+/* Windows系统专用滚动条配置 - 增加宽度以避免与窗口调整大小区域重叠 */
+body[os='windows'] {
+  --scrollbar-width: 10px;
+}
+
 /* 全局初始化滚动条样式 */
 ::-webkit-scrollbar {
   width: var(--scrollbar-width);
@@ -31,6 +36,12 @@ body[theme-mode='light'] {
 ::-webkit-scrollbar-thumb {
   border-radius: var(--scrollbar-thumb-radius);
   background: var(--color-scrollbar-thumb);
+}
+
+/* Windows系统滚动条添加右侧间距，避免与窗口调整大小区域重叠 */
+body[os='windows'] ::-webkit-scrollbar-thumb {
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -73,6 +84,12 @@ pre:not(.shiki)::-webkit-scrollbar-thumb:hover {
 .rc-virtual-list-scrollbar-thumb {
   border-radius: var(--scrollbar-thumb-radius) !important;
   background: var(--color-scrollbar-thumb) !important;
+}
+
+/* Windows系统虚拟列表滚动条添加右侧间距 */
+body[os='windows'] .rc-virtual-list-scrollbar-thumb {
+  border-right: 2px solid transparent !important;
+  background-clip: padding-box !important;
 }
 
 .rc-virtual-list-scrollbar-thumb:hover {

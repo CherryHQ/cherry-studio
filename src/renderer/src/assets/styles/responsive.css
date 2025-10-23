@@ -12,6 +12,11 @@
   --scrollbar-width: 5px;
 }
 
+/* Windows系统专用滚动条配置 */
+body[os='windows'] {
+  --scrollbar-width: 10px;
+}
+
 [navbar-position='left'] {
   --navbar-height: 42px;
   --list-item-border-radius: 20px;
