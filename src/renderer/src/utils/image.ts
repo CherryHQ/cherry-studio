@@ -73,7 +73,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       // Track nested elements we temporarily modify
       type SavedStyle = Partial<
-        Pick<CSSStyleDeclaration, 'overflow' | 'overflowX' | 'overflowY' | 'height' | 'maxHeight' | 'width' | 'minWidth'>
+        Pick<
+          CSSStyleDeclaration,
+          'overflow' | 'overflowX' | 'overflowY' | 'height' | 'maxHeight' | 'width' | 'minWidth'
+        >
       >
       const savedStyles = new Map<HTMLElement, SavedStyle>()
       const modifiedNodes: HTMLElement[] = []
@@ -135,10 +138,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
           }
 
           // Special case: message content containers in horizontal layout
-          if (
-            node.classList.contains('message-content-container') &&
-            node.scrollHeight > node.clientHeight
-          ) {
+          if (node.classList.contains('message-content-container') && node.scrollHeight > node.clientHeight) {
             save(node, ['maxHeight', 'overflow', 'overflowY', 'height'])
             node.style.maxHeight = 'none'
             node.style.overflow = 'visible'
@@ -190,7 +190,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       }
       // Cap pixelRatio to avoid exceeding browser canvas limits
       const maxLogical = Math.max(totalWidth, totalHeight)
-      const maxAllowedPR = Math.max(0.1, Math.min(window.devicePixelRatio, MAX_ALLOWED_DIMENSION / Math.max(1, maxLogical)))
+      const maxAllowedPR = Math.max(
+        0.1,
+        Math.min(window.devicePixelRatio, MAX_ALLOWED_DIMENSION / Math.max(1, maxLogical))
+      )
 
       const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
         htmlToImage
