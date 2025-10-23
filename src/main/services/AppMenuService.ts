@@ -1,21 +1,25 @@
+import { isMac } from '@main/constant'
+import { windowService } from '@main/services/WindowService'
+import { locales } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, Menu, MenuItemConstructorOptions } from 'electron'
 
-import { isMac } from '../constant'
-import { windowService } from './WindowService'
-
+import { configManager } from './ConfigManager'
 export class AppMenuService {
   public setupApplicationMenu(): void {
     if (!isMac) {
       return
     }
 
+    const locale = locales[configManager.getLanguage()]
+    const { common } = locale.translation
+
     const template: MenuItemConstructorOptions[] = [
       {
         label: app.name,
         submenu: [
           {
-            label: 'About ' + app.name,
+            label: common.about + ' ' + app.name,
             click: () => {
               // Emit event to navigate to About page
               const mainWindow = windowService.getMainWindow()

@@ -22,12 +22,18 @@
     },
     "get": {
       "error": {
-        "failed": "Agent abrufen fehlgeschlagen"
+        "failed": "Agent abrufen fehlgeschlagen",
+        "null_id": "[to be translated]:智能体 ID 为空。"
       }
     },
     "list": {
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "[to be translated]:API 服务器已启用但未正常运行。"
       }
     },
     "session": {
@@ -68,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Sitzung abrufen fehlgeschlagen"
+          "failed": "Sitzung abrufen fehlgeschlagen",
+          "null_id": "[to be translated]:会话 ID 为空"
         }
       },
       "label_one": "Sitzung",
@@ -237,6 +244,7 @@
     "messages": {
       "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
+      "notEnabled": "[to be translated]:API 服务器未启用。",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
       "restartError": "API-Server-Neustart fehlgeschlagen:",
       "restartFailed": "API-Server-Neustart fehlgeschlagen:",
@@ -530,6 +538,7 @@
         "context": "Kontext löschen {{Command}}"
       },
       "new_topic": "Neues Thema {{Command}}",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
@@ -943,6 +952,7 @@
     }
   },
   "common": {
+    "about": "[to be translated]:关于",
     "add": "Hinzufügen",
     "add_success": "Erfolgreich hinzugefügt",
     "advanced_settings": "Erweiterte Einstellungen",
@@ -1795,6 +1805,7 @@
     "title": "Mini-Apps"
   },
   "minapps": {
+    "ant-ling": "[to be translated]:蚂蚁百灵",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
     "chatglm": "ChatGLM",
@@ -1951,6 +1962,14 @@
     "rename": "Umbenennen",
     "rename_changed": "Aus Sicherheitsgründen wurde der Dateiname von {{original}} zu {{final}} geändert",
     "save": "In Notizen speichern",
+    "search": {
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
+    },
     "settings": {
       "data": {
         "apply": "Anwenden",
@@ -2035,6 +2054,7 @@
       "provider": {
         "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
         "existing": "Anbieter existiert bereits",
+        "get_providers": "[to be translated]:获取可用提供商失败",
         "not_found": "OCR-Anbieter nicht gefunden",
         "update_failed": "Konfiguration aktualisieren fehlgeschlagen"
       },
@@ -2098,6 +2118,8 @@
       "install_code_103": "OVMS Runtime herunterladen fehlgeschlagen",
       "install_code_104": "OVMS Runtime entpacken fehlgeschlagen",
       "install_code_105": "OVMS Runtime bereinigen fehlgeschlagen",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "OVMS ausführen fehlgeschlagen:",
       "stop": "OVMS stoppen fehlgeschlagen:"
     },
@@ -3568,6 +3590,7 @@
       "builtinServers": "Integrierter Server",
       "builtinServersDescriptions": {
         "brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
+        "didi_mcp": "[to be translated]:一个集成了滴滴 MCP 服务器实现，提供网约车服务包括地图搜索、价格预估、订单管理和司机跟踪。仅支持中国大陆地区。需要配置 DIDI_API_KEY 环境变量",
         "dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
         "fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
         "filesystem": "MCP-Server für Dateisystemoperationen (Node.js), der den Zugriff auf bestimmte Verzeichnisse ermöglicht",
@@ -4207,7 +4230,8 @@
         "none": "Keinen Proxy verwenden",
         "system": "System-Proxy",
         "title": "Proxy-Modus"
-      }
+      },
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",

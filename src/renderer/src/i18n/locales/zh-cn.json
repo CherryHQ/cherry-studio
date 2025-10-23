@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "关于",
     "add": "添加",
     "add_success": "添加成功",
     "advanced_settings": "高级设置",

@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "[to be translated]:关于",
     "add": "Добавить",
     "add_success": "Успешно добавлено",
     "advanced_settings": "Дополнительные настройки",

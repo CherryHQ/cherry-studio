@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "[to be translated]:关于",
     "add": "Προσθέστε",
     "add_success": "Η προσθήκη ήταν επιτυχής",
     "advanced_settings": "Προχωρημένες ρυθμίσεις",

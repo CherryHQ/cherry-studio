@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "[to be translated]:关于",
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
