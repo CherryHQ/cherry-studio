@@ -33,10 +33,10 @@ const NavigationHandler: React.FC = () => {
       navigate('/settings/about')
     }
 
-    window.electron.ipcRenderer.on(IpcChannel.Windows_NavigateToAbout, handleNavigateToAbout)
+    const removeListener = window.electron.ipcRenderer.on(IpcChannel.Windows_NavigateToAbout, handleNavigateToAbout)
 
     return () => {
-      window.electron.ipcRenderer.removeListener(IpcChannel.Windows_NavigateToAbout, handleNavigateToAbout)
+      removeListener()
     }
   }, [navigate])
 
