@@ -538,7 +538,7 @@
         "context": "Καθαρισμός ενδιάμεσων {{Command}}"
       },
       "new_topic": "Νέο θέμα {{Command}}",
-      "paste_text_file_confirm": "Επικόλληση στο πλαίσιο εισαγωγής;",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
@@ -952,7 +952,6 @@
     }
   },
   "common": {
-    "about": "σχετικά με",
     "add": "Προσθέστε",
     "add_success": "Η προσθήκη ήταν επιτυχής",
     "advanced_settings": "Προχωρημένες ρυθμίσεις",
@@ -1963,12 +1962,12 @@
     "rename_changed": "Λόγω πολιτικής ασφάλειας, το όνομα του αρχείου έχει αλλάξει από {{original}} σε {{final}}",
     "save": "αποθήκευση στις σημειώσεις",
     "search": {
-      "both": "όνομα + περιεχόμενο",
-      "content": "περιεχόμενο",
-      "found_results": "Βρέθηκαν {{count}} αποτελέσματα (όνομα: {{nameCount}}, περιεχόμενο: {{contentCount}})",
-      "more_matches": "ένας αγώνας",
-      "searching": "Αναζήτηση...",
-      "show_less": "κλείσιμο"
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
     },
     "settings": {
       "data": {
@@ -2118,8 +2117,8 @@
       "install_code_103": "Η λήψη του OVMS runtime απέτυχε",
       "install_code_104": "Η αποσυμπίεση του OVMS runtime απέτυχε",
       "install_code_105": "Ο καθαρισμός του OVMS runtime απέτυχε",
-      "install_code_106": "Η δημιουργία του run.bat απέτυχε",
-      "install_code_110": "Η διαγραφή του παλιού χρόνου εκτέλεσης OVMS απέτυχε",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "Η εκτέλεση του OVMS απέτυχε:",
       "stop": "Η διακοπή του OVMS απέτυχε:"
     },
@@ -4231,7 +4230,7 @@
         "system": "συστηματική προξενική",
         "title": "κλίμακα προξενικής"
       },
-      "tip": "υποστηρίζει ασαφή αντιστοίχιση (*.test.com,192.168.0.0/16)"
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Επιλέξτε την εικόνα στο πίνακα για να ενεργοποιήσετε",
