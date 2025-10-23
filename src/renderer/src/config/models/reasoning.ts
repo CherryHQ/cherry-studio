@@ -10,7 +10,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isGPT5SeriesModel } from './utils'
 import { isTextToImageModel } from './vision'
-import { GEMINI_FLASH_MODEL_REGEX } from './websearch'
+import { GEMINI_FLASH_MODEL_REGEX, isOpenAIDeepResearchModel } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -21,6 +21,7 @@ export const REASONING_REGEX =
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
   o: ['low', 'medium', 'high'] as const,
+  openai_deep_research: ['medium'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
@@ -42,6 +43,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
   o: MODEL_SUPPORTED_REASONING_EFFORT.o,
+  openai_deep_research: MODEL_SUPPORTED_REASONING_EFFORT.openai_deep_research,
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
@@ -70,6 +72,9 @@ const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idR
 const _getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
   const modelId = getLowerBaseModelName(model.id)
+  if (isOpenAIDeepResearchModel(model)) {
+    return 'openai_deep_research'
+  }
   if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_codex'
@@ -424,6 +429,14 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
   return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
 }
 
+export const isLingReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return ['ring-1t', 'ring-mini', 'ring-flash'].some((id) => modelId.includes(id))
+}
+
 export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
 
 export const isZhipuReasoningModel = (model?: Model): boolean => {
@@ -475,6 +488,7 @@ export function isReasoningModel(model?: Model): boolean {
     isZhipuReasoningModel(model) ||
     isStepReasoningModel(model) ||
     isDeepSeekHybridInferenceModel(model) ||
+    isLingReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
     modelId.includes('pangu-pro-moe') ||

@@ -1848,6 +1848,7 @@
     "title": "Встроенные приложения"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Байчжан",
     "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
