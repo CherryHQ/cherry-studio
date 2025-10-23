@@ -952,7 +952,7 @@
     }
   },
   "common": {
-    "about": "Acerca de",
+    "about": "sobre",
     "add": "Agregar",
     "add_success": "Añadido con éxito",
     "advanced_settings": "Configuración avanzada",
@@ -1963,10 +1963,10 @@
     "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "save": "Guardar en notas",
     "search": {
-      "both": "Nombre + contenido",
+      "both": "Nombre + Contenido",
       "content": "contenido",
-      "found_results": "Encontrados {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",
-      "more_matches": "una coincidencia",
+      "found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",
+      "more_matches": "Una coincidencia",
       "searching": "Buscando...",
       "show_less": "Recoger"
     },
@@ -4231,7 +4231,7 @@
         "system": "Proxy del sistema",
         "title": "Modo de proxy"
       },
-      "tip": "Soporta coincidencia difusa (*.test.com, 192.168.0.0/16)"
+      "tip": "Admite coincidencia parcial (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Haz clic en el icono de la bandeja para iniciar",
