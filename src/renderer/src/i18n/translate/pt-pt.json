@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "sobre",
     "add": "Adicionar",
     "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",

@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "について",
     "add": "追加",
     "add_success": "追加成功",
     "advanced_settings": "詳細設定",
