@@ -22,12 +22,18 @@
     },
     "get": {
       "error": {
-        "failed": "Agent abrufen fehlgeschlagen"
+        "failed": "Agent abrufen fehlgeschlagen",
+        "null_id": "Die Agenten-ID ist null."
       }
     },
     "list": {
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "Der API-Server ist aktiviert, läuft jedoch nicht ordnungsgemäß."
       }
     },
     "session": {
@@ -68,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Sitzung abrufen fehlgeschlagen"
+          "failed": "Sitzung abrufen fehlgeschlagen",
+          "null_id": "Die Sitzungs-ID ist null"
         }
       },
       "label_one": "Sitzung",
@@ -237,6 +244,7 @@
     "messages": {
       "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
+      "notEnabled": "Der API-Server ist nicht aktiviert.",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
       "restartError": "API-Server-Neustart fehlgeschlagen:",
       "restartFailed": "API-Server-Neustart fehlgeschlagen:",
@@ -530,6 +538,7 @@
         "context": "Kontext löschen {{Command}}"
       },
       "new_topic": "Neues Thema {{Command}}",
+      "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
@@ -1795,6 +1804,7 @@
     "title": "Mini-Apps"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
     "chatglm": "ChatGLM",
@@ -1951,6 +1961,14 @@
     "rename": "Umbenennen",
     "rename_changed": "Aus Sicherheitsgründen wurde der Dateiname von {{original}} zu {{final}} geändert",
     "save": "In Notizen speichern",
+    "search": {
+      "both": "Name+Inhalt",
+      "content": "Inhalt",
+      "found_results": "{{count}} Ergebnisse gefunden (Name: {{nameCount}}, Inhalt: {{contentCount}})",
+      "more_matches": "weitere Spiele",
+      "searching": "Suche...",
+      "show_less": "Weniger anzeigen"
+    },
     "settings": {
       "data": {
         "apply": "Anwenden",
@@ -2035,6 +2053,7 @@
       "provider": {
         "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
         "existing": "Anbieter existiert bereits",
+        "get_providers": "Fehler beim Abrufen der verfügbaren Anbieter",
         "not_found": "OCR-Anbieter nicht gefunden",
         "update_failed": "Konfiguration aktualisieren fehlgeschlagen"
       },
@@ -2098,6 +2117,8 @@
       "install_code_103": "OVMS Runtime herunterladen fehlgeschlagen",
       "install_code_104": "OVMS Runtime entpacken fehlgeschlagen",
       "install_code_105": "OVMS Runtime bereinigen fehlgeschlagen",
+      "install_code_106": "Fehler beim Erstellen von run.bat",
+      "install_code_110": "Fehler beim Bereinigen der alten OVMS-Laufzeitumgebung",
       "run": "OVMS ausführen fehlgeschlagen:",
       "stop": "OVMS stoppen fehlgeschlagen:"
     },
@@ -2656,11 +2677,11 @@
             "go_to_settings": "Zu Einstellungen",
             "open_accessibility_settings": "Bedienungshilfen-Einstellungen öffnen"
           },
-          "description": [
-            "Der Textauswahl-Assistent benötigt <strong>Bedienungshilfen-Berechtigungen</strong>, um ordnungsgemäß zu funktionieren.",
-            "Klicken Sie auf <strong>Zu Einstellungen</strong> und anschließend im Berechtigungsdialog auf <strong>Systemeinstellungen öffnen</strong>. Suchen Sie danach in der App-Liste <strong>Cherry Studio</strong> und aktivieren Sie den Schalter.",
-            "Nach Abschluss der Einrichtung Textauswahl-Assistent erneut aktivieren."
-          ],
+          "description": {
+            "0": "Der Textauswahl-Assistent benötigt <strong>Bedienungshilfen-Berechtigungen</strong>, um ordnungsgemäß zu funktionieren.",
+            "1": "Klicken Sie auf <strong>Zu Einstellungen</strong> und anschließend im Berechtigungsdialog auf <strong>Systemeinstellungen öffnen</strong>. Suchen Sie danach in der App-Liste <strong>Cherry Studio</strong> und aktivieren Sie den Schalter.",
+            "2": "Nach Abschluss der Einrichtung Textauswahl-Assistent erneut aktivieren."
+          },
           "title": "Bedienungshilfen-Berechtigung"
         },
         "title": "Aktivieren"
@@ -3568,6 +3589,7 @@
       "builtinServers": "Integrierter Server",
       "builtinServersDescriptions": {
         "brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
+        "didi_mcp": "DiDi MCP-Server, der Ride-Hailing-Services wie Kartensuche, Preisschätzung, Auftragsverwaltung und Fahrer-Tracking bietet. Nur in Festlandchina verfügbar. Erfordert die Konfiguration der Umgebungsvariablen DIDI_API_KEY",
         "dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
         "fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
         "filesystem": "MCP-Server für Dateisystemoperationen (Node.js), der den Zugriff auf bestimmte Verzeichnisse ermöglicht",
@@ -4207,7 +4229,8 @@
         "none": "Keinen Proxy verwenden",
         "system": "System-Proxy",
         "title": "Proxy-Modus"
-      }
+      },
+      "tip": "Unterstützung für unscharfe Übereinstimmung (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",
