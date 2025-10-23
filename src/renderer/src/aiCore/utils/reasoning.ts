@@ -95,7 +95,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           extra_body: {
             google: {
               thinking_config: {
-                thinking_budget: 0
+                thinkingBudget: 0
               }
             }
           }
@@ -136,9 +136,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   const effortRatio = EFFORT_RATIO[reasoningEffort]
-  const budgetTokens = Math.floor(
-    (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
-  )
+  const tokenLimit = findTokenLimit(model.id)
+  let budgetTokens: number | undefined
+  if (tokenLimit) {
+    budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+  }
 
   // See https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
   if (model.provider === SystemProviderIds.silicon) {
@@ -150,7 +152,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     ) {
       return {
         enable_thinking: true,
-        thinking_budget: toInteger(Math.max(budgetTokens, 32768))
+        // Hard-encoded maximum, only for silicon
+        thinking_budget: budgetTokens ? toInteger(Math.max(budgetTokens, 32768)) : undefined
       }
     }
     return {}
@@ -253,8 +256,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         extra_body: {
           google: {
             thinking_config: {
-              thinking_budget: -1,
-              include_thoughts: true
+              thinkingBudget: -1,
+              includeThoughts: true
             }
           }
         }
@@ -264,8 +267,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       extra_body: {
         google: {
           thinking_config: {
-            thinking_budget: budgetTokens,
-            include_thoughts: true
+            thinkingBudget: budgetTokens,
+            includeThoughts: true
           }
         }
       }
@@ -278,9 +281,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {
       thinking: {
         type: 'enabled',
-        budget_tokens: Math.floor(
-          Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
-        )
+        budget_tokens: budgetTokens
+          ? Math.floor(Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio)))
+          : undefined
       }
     }
   }

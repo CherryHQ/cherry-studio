@@ -22,6 +22,7 @@ import {
   GoogleGenAI,
   Model as GeminiModel,
   SendMessageParameters,
+  ThinkingConfig,
   Tool
 } from '@google/genai'
 
@@ -90,10 +91,7 @@ export type ReasoningEffortOptionalParams = {
   }
   extra_body?: {
     google?: {
-      thinking_config: {
-        thinking_budget: number
-        include_thoughts?: boolean
-      }
+      thinking_config: ThinkingConfig
     }
   }
   // Add any other potential reasoning-related keys here if they exist
