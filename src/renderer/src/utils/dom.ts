@@ -5,10 +5,7 @@
  * @param element - The target element to scroll into view
  * @param options - Scroll options. If not provided, uses { behavior: 'smooth', block: 'center', inline: 'nearest' }
  */
-export function scrollIntoView(
-  element: HTMLElement,
-  options?: ScrollIntoViewOptions
-): void {
+export function scrollIntoView(element: HTMLElement, options?: ScrollIntoViewOptions): void {
   const defaultOptions: ScrollIntoViewOptions = {
     behavior: 'smooth',
     block: 'center',
@@ -37,8 +34,9 @@ export function scrollElementIntoView(
   }
 
   // Check if container is scrollable
-  const canScroll = scrollContainer.scrollHeight > scrollContainer.clientHeight ||
-                    scrollContainer.scrollWidth > scrollContainer.clientWidth
+  const canScroll =
+    scrollContainer.scrollHeight > scrollContainer.clientHeight ||
+    scrollContainer.scrollWidth > scrollContainer.clientWidth
 
   if (canScroll) {
     // Container is scrollable, scroll within the container
