@@ -486,6 +486,35 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.25#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.25-08bbabb5d3.patch":
+  version: 0.1.25
+  resolution: "@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.25#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.25-08bbabb5d3.patch::version=0.1.25&hash=1b10b5"
+  dependencies:
+    "@img/sharp-darwin-arm64": "npm:^0.33.5"
+    "@img/sharp-darwin-x64": "npm:^0.33.5"
+    "@img/sharp-linux-arm": "npm:^0.33.5"
+    "@img/sharp-linux-arm64": "npm:^0.33.5"
+    "@img/sharp-linux-x64": "npm:^0.33.5"
+    "@img/sharp-win32-x64": "npm:^0.33.5"
+  peerDependencies:
+    zod: ^3.24.1
+  dependenciesMeta:
+    "@img/sharp-darwin-arm64":
+      optional: true
+    "@img/sharp-darwin-x64":
+      optional: true
+    "@img/sharp-linux-arm":
+      optional: true
+    "@img/sharp-linux-arm64":
+      optional: true
+    "@img/sharp-linux-x64":
+      optional: true
+    "@img/sharp-win32-x64":
+      optional: true
+  checksum: 10c0/01d4759213d55085d6eff0f17e9908fb00a929f71ad9fe6fc1494fff24b8300dc57c7e16122e02f547f634b3a1ba346a1179bad0b82b3fad3268c91c724acb9e
+  languageName: node
+  linkType: hard
+
 "@anthropic-ai/sdk@npm:>=0.50.3 <1":
   version: 0.56.0
   resolution: "@anthropic-ai/sdk@npm:0.56.0"
@@ -13821,7 +13850,7 @@ __metadata:
     "@ai-sdk/mistral": "npm:^2.0.19"
     "@ai-sdk/perplexity": "npm:^2.0.13"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
-    "@anthropic-ai/claude-agent-sdk": "npm:0.1.25"
+    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.25#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.25-08bbabb5d3.patch"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
     "@aws-sdk/client-bedrock": "npm:^3.840.0"
