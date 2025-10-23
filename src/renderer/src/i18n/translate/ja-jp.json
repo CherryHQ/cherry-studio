@@ -538,7 +538,7 @@
         "context": "コンテキストをクリア {{Command}}"
       },
       "new_topic": "新しいトピック {{Command}}",
-      "paste_text_file_confirm": "入力ボックスに貼り付けますか？",
+      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
@@ -1962,12 +1962,12 @@
     "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "save": "メモに保存する",
     "search": {
-      "both": "名称＋内容",
-      "content": "内容",
-      "found_results": "{{count}} 件の結果が見つかりました（名称: {{nameCount}}、内容: {{contentCount}}）",
-      "more_matches": "個のマッチング",
-      "searching": "検索中...",
-      "show_less": "閉じる"
+      "both": "[to be translated]:名称+内容",
+      "content": "[to be translated]:内容",
+      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
+      "more_matches": "[to be translated]:个匹配",
+      "searching": "[to be translated]:搜索中...",
+      "show_less": "[to be translated]:收起"
     },
     "settings": {
       "data": {
@@ -2117,8 +2117,8 @@
       "install_code_103": "OVMSランタイムのダウンロードに失敗しました",
       "install_code_104": "OVMSランタイムの解凍に失敗しました",
       "install_code_105": "OVMSランタイムのクリーンアップに失敗しました",
-      "install_code_106": "run.bat の作成に失敗しました",
-      "install_code_110": "旧OVMSランタイムのクリーンアップに失敗しました",
+      "install_code_106": "[to be translated]:创建 run.bat 失败",
+      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
       "run": "OVMSの実行に失敗しました:",
       "stop": "OVMSの停止に失敗しました:"
     },
@@ -4230,7 +4230,7 @@
         "system": "システムプロキシ",
         "title": "プロキシモード"
       },
-      "tip": "あいまい一致をサポート（*.test.com、192.168.0.0/16）"
+      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "トレイアイコンをクリックして起動",
