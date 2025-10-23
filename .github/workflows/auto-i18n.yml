@@ -1,9 +1,9 @@
 name: Auto I18N
 
 env:
-  API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
-  MODEL: ${{ vars.AUTO_I18N_MODEL || 'deepseek/deepseek-v3.1'}}
-  BASE_URL: ${{ vars.AUTO_I18N_BASE_URL || 'https://api.ppinfra.com/openai'}}
+  TRANSLATION_API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
+  TRANSLATION_MODEL: ${{ vars.AUTO_I18N_MODEL || 'deepseek/deepseek-v3.1'}}
+  TRANSLATION_BASE_URL: ${{ vars.AUTO_I18N_BASE_URL || 'https://api.ppinfra.com/openai'}}
 
 on:
   pull_request:
@@ -42,7 +42,7 @@ jobs:
           echo "NODE_PATH=/tmp/translation-deps/node_modules" >> $GITHUB_ENV
 
       - name: 🏃‍♀️ Translate
-        run: npx tsx scripts/auto-translate-i18n.ts
+        run: npx tsx scripts/sync-i18n.ts && npx tsx scripts/auto-translate-i18n.ts
 
       - name: 🔍 Format
         run: cd /tmp/translation-deps && npx biome format --config-path /home/runner/work/cherry-studio/cherry-studio/biome.jsonc --write /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/

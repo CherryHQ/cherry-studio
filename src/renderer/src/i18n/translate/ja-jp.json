@@ -538,7 +538,7 @@
         "context": "コンテキストをクリア {{Command}}"
       },
       "new_topic": "新しいトピック {{Command}}",
-      "paste_text_file_confirm": "入力ボックスに貼り付けますか？",
+      "paste_text_file_confirm": "入力欄に貼り付けますか？",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
@@ -1966,9 +1966,9 @@
       "both": "名称+内容",
       "content": "内容",
       "found_results": "{{count}} 件の結果が見つかりました（名称: {{nameCount}}、内容: {{contentCount}}）",
-      "more_matches": "個マッチ",
+      "more_matches": "一致",
       "searching": "検索中...",
-      "show_less": "<translate_input>\n折りたたむ\n</translate_input>"
+      "show_less": "閉じる"
     },
     "settings": {
       "data": {
