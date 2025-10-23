@@ -1,4 +1,4 @@
-import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
+import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import React from 'react'
 import styled from 'styled-components'
 

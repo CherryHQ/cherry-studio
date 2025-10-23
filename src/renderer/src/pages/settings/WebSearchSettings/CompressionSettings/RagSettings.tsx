@@ -1,3 +1,4 @@
+import { InfoTooltip } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
@@ -7,10 +8,9 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
-import { Slider, Tooltip } from 'antd'
+import type { Model } from '@renderer/types'
+import { Slider } from 'antd'
 import { find } from 'lodash'
-import { Info } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -70,9 +70,14 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
-          <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
-            <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-          </Tooltip>
+          <InfoTooltip
+            content={t('knowledge.dimensions_size_tooltip')}
+            iconProps={{
+              size: 16,
+              color: 'var(--color-icon)',
+              className: 'ml-1 cursor-pointer'
+            }}
+          />
         </SettingRowTitle>
         <InputEmbeddingDimension
           value={compressionConfig?.embeddingDimensions}
@@ -101,9 +106,14 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('settings.tool.websearch.compression.rag.document_count.label')}
-          <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="top">
-            <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-          </Tooltip>
+          <InfoTooltip
+            content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
+            iconProps={{
+              size: 16,
+              color: 'var(--color-icon)',
+              className: 'ml-1 cursor-pointer'
+            }}
+          />
         </SettingRowTitle>
         <div style={{ width: INPUT_BOX_WIDTH }}>
           <Slider

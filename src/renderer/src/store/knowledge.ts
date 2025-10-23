@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:Knowledge')
 

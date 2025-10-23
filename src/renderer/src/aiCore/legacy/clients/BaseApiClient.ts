@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import {
   isFunctionCallingModel,
@@ -5,33 +6,34 @@ import {
   isOpenAIModel,
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
-import {
+import type {
   Assistant,
-  FileTypes,
   GenerateImageParams,
-  GroqServiceTiers,
-  isGroqServiceTier,
-  isOpenAIServiceTier,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   MemoryItem,
   Model,
-  OpenAIServiceTiers,
   OpenAIVerbosity,
   Provider,
-  SystemProviderIds,
   ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
 import {
+  FileTypes,
+  GroqServiceTiers,
+  isGroqServiceTier,
+  isOpenAIServiceTier,
+  OpenAIServiceTiers,
+  SystemProviderIds
+} from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -46,12 +48,12 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
-import { CompletionsContext } from '../middleware/types'
-import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
-
+import type { CompletionsContext } from '../middleware/types'
+import type { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
 const logger = loggerService.withContext('BaseApiClient')
 
 /**
@@ -170,16 +172,16 @@ export abstract class BaseApiClient<
       return keys[0]
     }
 
-    const lastUsedKey = window.keyv.get(keyName)
-    if (!lastUsedKey) {
-      window.keyv.set(keyName, keys[0])
+    const lastUsedKey = cacheService.getShared(keyName) as string | undefined
+    if (lastUsedKey === undefined) {
+      cacheService.setShared(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    window.keyv.set(keyName, nextKey)
+    cacheService.setShared(keyName, nextKey)
 
     return nextKey
   }
@@ -335,7 +337,7 @@ export abstract class BaseApiClient<
   }
 
   private getMemoryReferencesFromCache(message: Message) {
-    const memories = window.keyv.get(`memory-search-${message.id}`) as MemoryItem[] | undefined
+    const memories = cacheService.get(`memory-search-${message.id}`) as MemoryItem[] | undefined
     if (memories) {
       const memoryReferences: KnowledgeReference[] = memories.map((mem, index) => ({
         id: index + 1,
@@ -353,10 +355,10 @@ export abstract class BaseApiClient<
     if (isEmpty(content)) {
       return []
     }
-    const webSearch: WebSearchResponse = window.keyv.get(`web-search-${message.id}`)
+    const webSearch: WebSearchResponse | undefined = cacheService.get(`web-search-${message.id}`)
 
     if (webSearch) {
-      window.keyv.remove(`web-search-${message.id}`)
+      cacheService.delete(`web-search-${message.id}`)
       return (webSearch.results as WebSearchProviderResponse).results.map(
         (result, index) =>
           ({
@@ -379,10 +381,10 @@ export abstract class BaseApiClient<
     if (isEmpty(content)) {
       return []
     }
-    const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
+    const knowledgeReferences: KnowledgeReference[] | undefined = cacheService.get(`knowledge-search-${message.id}`)
 
-    if (!isEmpty(knowledgeReferences)) {
-      window.keyv.remove(`knowledge-search-${message.id}`)
+    if (knowledgeReferences && !isEmpty(knowledgeReferences)) {
+      cacheService.delete(`knowledge-search-${message.id}`)
       logger.debug(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }

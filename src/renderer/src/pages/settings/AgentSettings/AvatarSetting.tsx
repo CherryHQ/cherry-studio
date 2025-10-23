@@ -1,5 +1,6 @@
 import { EmojiAvatarWithPicker } from '@renderer/components/Avatar/EmojiAvatarWithPicker'
-import { AgentEntity, isAgentType, UpdateAgentForm } from '@renderer/types'
+import type { AgentEntity, UpdateAgentForm } from '@renderer/types'
+import { isAgentType } from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

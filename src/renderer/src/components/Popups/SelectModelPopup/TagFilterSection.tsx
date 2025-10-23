@@ -1,3 +1,4 @@
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import {
   EmbeddingTag,
@@ -8,8 +9,7 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
-import { ModelTag } from '@renderer/types'
-import { Flex } from 'antd'
+import type { ModelTag } from '@renderer/types'
 import React, { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -48,7 +48,7 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
 
   return (
     <FilterContainer>
-      <Flex wrap="wrap" gap={4}>
+      <Flex className="flex-wrap gap-1">
         <FilterText>{t('models.filter.by_tag')}</FilterText>
         {availableTags.map((tag) => {
           const TagElement = tagComponents[tag]

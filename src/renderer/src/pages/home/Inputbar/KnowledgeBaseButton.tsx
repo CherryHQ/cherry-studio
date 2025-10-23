@@ -1,10 +1,12 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
-import { KnowledgeBase } from '@renderer/types'
-import { Tooltip } from 'antd'
+import type { KnowledgeBase } from '@renderer/types'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -106,13 +108,13 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   }))
 
   return (
-    <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
+    <Tooltip content={t('chat.input.knowledge_base')} closeDelay={0}>
       <ActionIconButton
-        onClick={handleOpenQuickPanel}
+        onPress={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}
-        disabled={disabled}>
-        <FileSearch size={18} />
-      </ActionIconButton>
+        isDisabled={disabled}
+        icon={<FileSearch size={18} />}
+      />
     </Tooltip>
   )
 }

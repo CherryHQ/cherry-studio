@@ -1,20 +1,18 @@
+import { RowFlex, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { modelGenerating } from '@renderer/hooks/useModel'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { setNarrowMode } from '@renderer/store/settings'
-import { Assistant, Topic } from '@renderer/types'
-import { Tooltip } from 'antd'
+import type { Assistant, Topic } from '@renderer/types'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -30,12 +28,14 @@ interface Props {
 }
 
 const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+  const [topicPosition] = usePreference('topic.position')
+  const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
+
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { topicPosition, narrowMode } = useSettings()
+
   const { showTopics, toggleShowTopics } = useShowTopics()
   const { isTopNavbar } = useNavbarPosition()
-  const dispatch = useAppDispatch()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -53,7 +53,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
-    dispatch(setNarrowMode(!narrowMode))
+    setNarrowMode(!narrowMode)
   }
 
   const onShowAssistantsDrawer = () => {
@@ -77,14 +77,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
         {isTopNavbar && showAssistants && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {isTopNavbar && !showAssistants && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -105,37 +105,37 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </AnimatePresence>
         <ChatNavbarContent assistant={assistant} />
       </div>
-      <HStack alignItems="center" gap={8}>
+      <RowFlex className="items-center gap-2">
         {isTopNavbar && <UpdateAppButton />}
         {isTopNavbar && (
-          <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" content={t('navbar.expand')} delay={800}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
         )}
         {isTopNavbar && (
-          <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')} delay={800}>
             <NavbarIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {isTopNavbar && topicPosition === 'right' && !showTopics && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={2000}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {isTopNavbar && topicPosition === 'right' && showTopics && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+          <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={2000}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-      </HStack>
+      </RowFlex>
     </NavbarHeader>
   )
 }

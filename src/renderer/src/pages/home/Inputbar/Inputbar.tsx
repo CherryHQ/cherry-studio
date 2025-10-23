@@ -1,4 +1,7 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -15,8 +18,7 @@ import {
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -30,10 +32,9 @@ import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setSearching } from '@renderer/store/runtime'
+import { useAppDispatch } from '@renderer/store'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, Model, Topic } from '@renderer/types'
+import type { Assistant, FileType, KnowledgeBase, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, filterSupportedFiles } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
@@ -45,17 +46,19 @@ import {
 } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Tooltip } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { debounce, isEmpty } from 'lodash'
 import { CirclePause } from 'lucide-react'
-import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
-import InputbarTools, { InputbarToolsRef } from './InputbarTools'
+import type { InputbarToolsRef } from './InputbarTools'
+import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
@@ -74,20 +77,20 @@ let _files: FileType[] = []
 let _mentionedModelsCache: Model[] = []
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [fontSize] = usePreference('chat.message.font_size')
+
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
-  const {
-    targetLanguage,
-    sendMessageShortcut,
-    fontSize,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
-    showInputEstimatedTokens,
-    autoTranslateWithSpace,
-    enableQuickPanelTriggers,
-    enableSpellCheck
-  } = useSettings()
+
   const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
@@ -96,7 +99,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { t } = useTranslation()
   const { getLanguageByLangcode } = useTranslate()
   const containerRef = useRef(null)
-  const { searching } = useRuntime()
+  const [searching, setSearching] = useCache('chat.websearch.searching')
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
@@ -111,7 +114,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
+  const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
@@ -236,7 +239,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     logger.info('Starting to send message')
 
-    const parent = spanManagerService.startTrace(
+    const parent = await spanManagerService.startTrace(
       { topicId: topic.id, name: 'sendMessage', inputs: text },
       mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )
@@ -919,7 +922,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             disabled={searching}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => {
-              searching && dispatch(setSearching(false))
+              searching && setSearching(false)
               quickPanel.close()
             }}
           />
@@ -957,10 +960,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
-                <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ActionIconButton>
+                <Tooltip content={t('chat.input.pause')} closeDelay={0}>
+                  <ActionIconButton
+                    onClick={onPause}
+                    className="mr-[-2px]"
+                    icon={<CirclePause size={20} color="var(--color-error)" />}
+                  />
                 </Tooltip>
               )}
             </ToolbarMenu>

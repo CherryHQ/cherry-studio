@@ -10,7 +10,8 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
-import { Dropdown, Image as AntImage, ImageProps as AntImageProps, Space } from 'antd'
+import type { ImageProps as AntImageProps } from 'antd'
+import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
 import { DownloadIcon, ImageIcon } from 'lucide-react'
 import mime from 'mime'
@@ -38,7 +39,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         if (!match) throw new Error('Invalid base64 image format')
         const mimeType = match[1]
         const byteArray = Base64.toUint8Array(match[2])
-        const blob = new Blob([byteArray], { type: mimeType })
+        const blob = new Blob([byteArray as unknown as BlobPart], { type: mimeType })
         await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
       } else if (src.startsWith('file://')) {
         // 处理本地文件路径

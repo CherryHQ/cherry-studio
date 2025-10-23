@@ -1,7 +1,8 @@
 import { Button, Popover, PopoverContent, PopoverTrigger, useDisclosure } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { Bot, MessageSquare } from 'lucide-react'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddButton from './AddButton'

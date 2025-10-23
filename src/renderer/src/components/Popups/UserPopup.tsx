@@ -1,19 +1,17 @@
+import { Center, ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { useAppDispatch } from '@renderer/store'
-import { setAvatar } from '@renderer/store/runtime'
-import { setUserName } from '@renderer/store/settings'
 import { compressImage, isEmoji } from '@renderer/utils'
-import { Avatar, Dropdown, Input, Modal, Popover, Upload } from 'antd'
+import { Dropdown, Input, Modal, Popover, Upload } from 'antd'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import EmojiPicker from '../EmojiPicker'
-import { Center, HStack, VStack } from '../Layout'
 import { TopView } from '../TopView'
 
 interface Props {
@@ -21,12 +19,12 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
+  const [userName, setUserName] = usePreference('app.user.name')
+
   const [open, setOpen] = useState(true)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
-  const { userName } = useSettings()
-  const dispatch = useAppDispatch()
   const avatar = useAvatar()
 
   const onOk = () => {
@@ -46,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       // set emoji string
       await ImageStorage.set('avatar', emoji)
       // update avatar display
-      dispatch(setAvatar(emoji))
+      cacheService.set('avatar', emoji)
       setEmojiPickerOpen(false)
     } catch (error: any) {
       window.toast.error(error.message)
@@ -55,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const handleReset = async () => {
     try {
       await ImageStorage.set('avatar', DefaultAvatar)
-      dispatch(setAvatar(DefaultAvatar))
+      cacheService.set('avatar', DefaultAvatar)
       setDropdownOpen(false)
     } catch (error: any) {
       window.toast.error(error.message)
@@ -80,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                   const compressedFile = await compressImage(_file)
                   await ImageStorage.set('avatar', compressedFile)
                 }
-                dispatch(setAvatar(await ImageStorage.get('avatar')))
+                cacheService.set('avatar', await ImageStorage.get('avatar'))
                 setDropdownOpen(false)
               } catch (error: any) {
                 window.toast.error(error.message)
@@ -130,8 +128,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       centered>
-      <Center mt="30px">
-        <VStack alignItems="center" gap="10px">
+      <Center className="mt-[30px]">
+        <ColFlex className="items-center gap-2.5">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -164,17 +162,17 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               )}
             </Popover>
           </Dropdown>
-        </VStack>
+        </ColFlex>
       </Center>
-      <HStack alignItems="center" gap="10px" p="20px">
+      <RowFlex className="items-center gap-2.5 p-5">
         <Input
           placeholder={t('settings.general.user_name.placeholder')}
           value={userName}
-          onChange={(e) => dispatch(setUserName(e.target.value.trim()))}
+          onChange={(e) => setUserName(e.target.value.trim())}
           style={{ flex: 1, textAlign: 'center', width: '100%' }}
           maxLength={30}
         />
-      </HStack>
+      </RowFlex>
     </Modal>
   )
 }

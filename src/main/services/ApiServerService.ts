@@ -1,5 +1,5 @@
 import { IpcChannel } from '@shared/IpcChannel'
-import {
+import type {
   ApiServerConfig,
   GetApiServerStatusResult,
   RestartApiServerStatusResult,

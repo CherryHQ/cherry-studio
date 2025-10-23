@@ -1,11 +1,13 @@
+import { Avatar } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { matchKeywordsInString } from '@renderer/utils'
 import { getFancyProviderName } from '@renderer/utils/naming'
-import { Avatar, Select, SelectProps } from 'antd'
+import type { SelectProps } from 'antd'
+import { Select } from 'antd'
 import { sortBy } from 'lodash'
-import { BaseSelectRef } from 'rc-select'
+import type { BaseSelectRef } from 'rc-select'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -106,7 +108,7 @@ const ModelSelector = ({
       } else {
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {showAvatar && <Avatar size={18} />}
+            {showAvatar && <Avatar className="h-[18px] w-[18px]" />}
             <span>{t('knowledge.error.model_invalid')}</span>
           </div>
         )

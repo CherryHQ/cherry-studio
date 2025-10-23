@@ -1,7 +1,8 @@
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
-import { Button, Form, Input, Modal, Select } from 'antd'
+import { Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -276,10 +277,15 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         </ProviderContent>
 
         <ButtonContainer>
-          <Button type="default" onClick={onCancel}>
+          <Button variant="solid" onPress={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button type="primary" onClick={handleSync} loading={isSyncing} disabled={isSyncDisabled()}>
+          <Button
+            variant="solid"
+            color="primary"
+            onPress={handleSync}
+            isLoading={isSyncing}
+            isDisabled={isSyncDisabled()}>
             {t('settings.mcp.sync.button', 'Sync')}
           </Button>
         </ButtonContainer>

@@ -1,4 +1,4 @@
-import { ExtractProviderOptions, ProviderOptionsMap, TypedProviderOptions } from './types'
+import type { ExtractProviderOptions, ProviderOptionsMap, TypedProviderOptions } from './types'
 
 /**
  * 创建特定供应商的选项

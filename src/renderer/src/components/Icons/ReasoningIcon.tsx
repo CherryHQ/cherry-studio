@@ -1,5 +1,6 @@
-import { Tooltip } from 'antd'
-import React, { FC } from 'react'
+import { Tooltip } from '@cherrystudio/ui'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -8,7 +9,7 @@ const ReasoningIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement
 
   return (
     <Container>
-      <Tooltip title={t('models.type.reasoning')} placement="top">
+      <Tooltip content={t('models.type.reasoning')}>
         <Icon className="iconfont icon-thinking" {...(props as any)} />
       </Tooltip>
     </Container>

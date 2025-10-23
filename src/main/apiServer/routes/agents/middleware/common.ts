@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import type { Request, Response } from 'express'
 
 import { agentService } from '../../../../services/agents'
 import { loggerService } from '../../../../services/LoggerService'

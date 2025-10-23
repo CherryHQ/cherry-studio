@@ -4,6 +4,7 @@
 /* heroui */
 @plugin '../../hero.ts';
 @source '../../../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@source '../../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
 
 @custom-variant dark (&:is(.dark *));
 

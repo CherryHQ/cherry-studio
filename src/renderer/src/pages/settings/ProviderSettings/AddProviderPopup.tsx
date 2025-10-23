@@ -1,14 +1,14 @@
+import { Center, ColFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Center, VStack } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { Provider, ProviderType } from '@renderer/types'
+import type { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
-import { ItemType } from 'antd/es/menu/interface'
+import type { ItemType } from 'antd/es/menu/interface'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -191,8 +191,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       okButtonProps={{ disabled: buttonDisabled }}>
       <Divider style={{ margin: '8px 0' }} />
 
-      <Center mt="10px" mb="20px">
-        <VStack alignItems="center" gap="10px">
+      <Center className="mt-2.5">
+        <ColFlex className="items-center gap-2.5">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -227,7 +227,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               )}
             </Popover>
           </Dropdown>
-        </VStack>
+        </ColFlex>
       </Center>
 
       <Form layout="vertical" style={{ gap: 8 }}>

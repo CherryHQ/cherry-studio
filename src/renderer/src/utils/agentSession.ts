@@ -1,4 +1,4 @@
-import { AgentType, ApiModelsFilter } from '@renderer/types'
+import type { AgentType, ApiModelsFilter } from '@renderer/types'
 
 const SESSION_TOPIC_PREFIX = 'agent-session:'
 

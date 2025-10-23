@@ -1,9 +1,9 @@
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
+import { Avatar, EmojiAvatar } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
@@ -13,7 +13,6 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Avatar } from 'antd'
 import { CircleChevronDown } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +32,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { userName } = useSettings()
+  const [userName] = usePreference('app.user.name')
   const { setTimeoutTimer } = useTimer()
 
   const messagesListRef = useRef<HTMLDivElement>(null)
@@ -227,8 +226,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               {message.role === 'assistant' ? (
                 <MessageItemAvatar
                   src={avatarSource}
-                  size={size}
                   style={{
+                    width: size,
+                    height: size,
                     border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
                     filter: theme === 'dark' ? 'invert(0.05)' : undefined
                   }}
@@ -246,7 +246,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                       {avatar}
                     </EmojiAvatar>
                   ) : (
-                    <MessageItemAvatar src={avatar} size={size} />
+                    <MessageItemAvatar src={avatar} style={{ width: size, height: size }} />
                   )}
                 </>
               )}

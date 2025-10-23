@@ -1,14 +1,16 @@
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
+import { Alert, Space, Tag, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback } from 'react'
-import { FallbackProps } from 'react-error-boundary'
+import type { FC } from 'react'
+import { useCallback } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,8 +34,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
   onOpenUrl
 }) => {
   const { t } = useTranslation()
-  const handleOpenUrl = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleOpenUrl = () => {
     if (server.providerUrl) {
       onOpenUrl(server.providerUrl)
     }
@@ -60,8 +61,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
         )
       }
 
-      const onClickDetails = (e: React.MouseEvent<HTMLDivElement>) => {
-        e.stopPropagation()
+      const onClickDetails = () => {
         GeneralPopup.show({ content: <ErrorDetails /> })
       }
       return (
@@ -79,29 +79,30 @@ const McpServerCard: FC<McpServerCardProps> = ({
           action={
             <Space.Compact>
               <Button
-                danger
-                type="text"
-                icon={
-                  <Tooltip title={t('error.boundary.details')}>
+                color="danger"
+                variant="light"
+                startContent={
+                  <Tooltip content={t('error.boundary.details')}>
                     <CircleXIcon size={16} />
                   </Tooltip>
                 }
-                size="small"
-                onClick={onClickDetails}
+                size="sm"
+                onPress={onClickDetails}
+                isIconOnly
               />
               <Button
-                danger
-                type="text"
-                icon={
-                  <Tooltip title={t('common.delete')}>
+                color="danger"
+                variant="light"
+                startContent={
+                  <Tooltip content={t('common.delete')}>
                     <DeleteIcon size={16} />
                   </Tooltip>
                 }
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation()
+                size="sm"
+                onPress={() => {
                   onDelete()
                 }}
+                isIconOnly
               />
             </Space.Compact>
           }
@@ -120,33 +121,43 @@ const McpServerCard: FC<McpServerCardProps> = ({
             <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
             {server.providerUrl && (
               <Button
-                type="text"
-                size="small"
-                shape="circle"
-                icon={<SquareArrowOutUpRight size={14} />}
-                onClick={handleOpenUrl}
+                variant="light"
+                size="sm"
+                radius="full"
+                startContent={<SquareArrowOutUpRight size={14} />}
+                onPress={handleOpenUrl}
                 data-no-dnd
+                isIconOnly
               />
             )}
           </ServerNameWrapper>
           <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
             <Switch
-              value={server.isActive}
+              isSelected={server.isActive}
               key={server.id}
-              loading={isLoading}
-              onChange={onToggle}
-              size="small"
+              isLoading={isLoading}
+              onValueChange={onToggle}
+              size="sm"
               data-no-dnd
             />
             <Button
-              type="text"
-              shape="circle"
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              danger
-              onClick={onDelete}
-              data-no-dnd
+              size="sm"
+              variant="light"
+              radius="full"
+              startContent={<DeleteIcon size={14} className="lucide-custom" />}
+              color="danger"
+              onPress={onDelete}
+              isIconOnly
             />
-            <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
+            <Button
+              size="sm"
+              variant="light"
+              radius="full"
+              startContent={<Settings2 size={14} />}
+              onPress={onEdit}
+              data-no-dnd
+              isIconOnly
+            />
           </ToolbarWrapper>
         </ServerHeader>
         <ServerDescription>{server.description}</ServerDescription>

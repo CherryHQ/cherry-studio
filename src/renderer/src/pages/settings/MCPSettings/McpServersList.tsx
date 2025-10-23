@@ -1,16 +1,18 @@
+import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
-import { Button, Dropdown, Empty } from 'antd'
+import { Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
-import { FC, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -228,7 +230,11 @@ const McpServersList: FC = () => {
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
-          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
+          <Button
+            startContent={<EditIcon size={14} />}
+            variant="solid"
+            radius="full"
+            onPress={() => EditMcpJsonPopup.show()}>
             {t('common.edit')}
           </Button>
           <Dropdown
@@ -236,11 +242,11 @@ const McpServersList: FC = () => {
               items: menuItems
             }}
             trigger={['click']}>
-            <Button icon={<Plus size={16} />} type="default" shape="round">
+            <Button startContent={<Plus size={16} />} variant="solid" radius="full">
               {t('common.add')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshIcon size={14} />} type="default" onClick={onSyncServers} shape="round">
+          <Button startContent={<RefreshIcon size={14} />} variant="solid" onPress={onSyncServers} radius="full">
             {t('settings.mcp.sync.button')}
           </Button>
         </ButtonGroup>

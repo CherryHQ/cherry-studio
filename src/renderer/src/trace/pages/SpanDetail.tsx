@@ -3,8 +3,9 @@ import './Trace.css'
 import { DoubleLeftOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 // import TraceModal from '@renderer/trace/TraceModal'
-import { TraceModal } from '@renderer/trace/pages/TraceModel'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactJson from 'react-json-view'
 
@@ -85,7 +86,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
 
   return (
     <Box padding={5}>
-      <Box padding={0} style={{ marginBottom: 16 }}>
+      <Box className="mb-4">
         <a
           onClick={(e) => {
             e.preventDefault()
@@ -134,7 +135,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         <Text style={{ fontWeight: 'bold' }}>{t('trace.parentId')}: </Text>
         <Text>{node.parentId}</Text>
       </Box> */}
-      <Box style={{ position: 'relative', margin: '15px 0 15px' }}>
+      <Box className="relative my-[15px]">
         <Button className={`content-button ${showInput ? 'active' : ''}`} onClick={() => setShowInput(true)}>
           {t('trace.inputs')}
         </Button>

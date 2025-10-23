@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { FileMetadata, PreprocessProvider } from '@types'
+import type { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
@@ -277,7 +277,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
       const response = await net.fetch(uploadUrl, {
         method: 'PUT',
-        body: fileBuffer,
+        body: fileBuffer as unknown as BodyInit,
         headers: {
           'Content-Type': 'application/pdf'
         }

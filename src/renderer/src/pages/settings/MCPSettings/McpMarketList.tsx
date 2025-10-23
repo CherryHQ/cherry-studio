@@ -1,6 +1,6 @@
 import ZhipuLogo from '@renderer/assets/images/providers/zhipu.png'
 import { ExternalLink } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -74,7 +74,7 @@ const McpMarketList: FC = () => {
 
   return (
     <>
-      <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.findMore')}</SettingTitle>
+      <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
         {mcpMarkets.map((resource) => (
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>

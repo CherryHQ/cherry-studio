@@ -1,6 +1,7 @@
-import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
+import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import { Typography } from 'antd'
-import React, { FC, useRef } from 'react'
+import type { FC } from 'react'
+import React, { useRef } from 'react'
 import ReactPlayer from 'react-player'
 import styled from 'styled-components'
 

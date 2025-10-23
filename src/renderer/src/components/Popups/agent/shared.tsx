@@ -1,4 +1,5 @@
-import { Avatar, SelectedItemProps, SelectedItems } from '@heroui/react'
+import type { SelectedItemProps, SelectedItems } from '@heroui/react'
+import { Avatar } from '@heroui/react'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { useTranslation } from 'react-i18next'
 

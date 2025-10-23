@@ -6,6 +6,7 @@ import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkAPICallError,
   isSerializedAiSdkDownloadError,
@@ -28,10 +29,7 @@ import {
   isSerializedAiSdkTooManyEmbeddingValuesForCallError,
   isSerializedAiSdkTypeValidationError,
   isSerializedAiSdkUnsupportedFunctionalityError,
-  isSerializedError,
-  SerializedAiSdkError,
-  SerializedAiSdkErrorUnion,
-  SerializedError
+  isSerializedError
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'

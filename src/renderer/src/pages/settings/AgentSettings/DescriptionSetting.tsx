@@ -1,5 +1,5 @@
 import { Textarea } from '@heroui/react'
-import { AgentBaseWithId, UpdateAgentBaseForm } from '@renderer/types'
+import type { AgentBaseWithId, UpdateAgentBaseForm } from '@renderer/types'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

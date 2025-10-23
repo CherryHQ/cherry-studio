@@ -1,6 +1,7 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
-import { AssistantMessage } from '@renderer/types'
+import type { AssistantMessage } from '@renderer/types'
 import {
   FactRetrievalSchema,
   getFactRetrievalMessages,
@@ -8,7 +9,7 @@ import {
   MemoryUpdateSchema,
   updateMemorySystemPrompt
 } from '@renderer/utils/memory-prompts'
-import { MemoryConfig, MemoryItem } from '@types'
+import type { MemoryConfig, MemoryItem } from '@types'
 import jaison from 'jaison/lib/index.js'
 
 import { fetchGenerate } from './ApiService'
@@ -103,7 +104,7 @@ export class MemoryProcessor {
     if (!memoryConfig.llmApiClient) {
       throw new Error('No LLM model configured for memory processing')
     }
-    const existingMemoriesResult = (window.keyv.get(`memory-search-${lastMessageId}`) as MemoryItem[]) || []
+    const existingMemoriesResult = (cacheService.get(`memory-search-${lastMessageId}`) as MemoryItem[]) || []
 
     const existingMemories = existingMemoriesResult.map((memory) => ({
       id: memory.id,

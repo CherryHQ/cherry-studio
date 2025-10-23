@@ -1,10 +1,10 @@
-import { ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
+import type { ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
-import { UpdateAgentBaseOptions } from './types'
+import type { UpdateAgentBaseOptions } from './types'
 import { useAgentClient } from './useAgentClient'
 
 export const useUpdateSession = (agentId: string | null) => {

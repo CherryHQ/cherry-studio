@@ -1,10 +1,10 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setAgentssubscribeUrl } from '@renderer/store/settings'
 import Input from 'antd/es/input/Input'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
@@ -29,15 +29,15 @@ const AgentsSubscribeUrlSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.websearch.subscribe_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={agentssubscribeUrl || ''}
             onChange={handleAgentChange}
-            style={{ width: 315 }}
+            className="w-[315px]"
             placeholder={t('settings.tool.websearch.subscribe_name.placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

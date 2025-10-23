@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import { isNewApiProvider } from '@renderer/config/providers'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { AwsBedrockAPIClient } from './aws/AwsBedrockAPIClient'
-import { BaseApiClient } from './BaseApiClient'
+import type { BaseApiClient } from './BaseApiClient'
 import { CherryAiAPIClient } from './cherryai/CherryAiAPIClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'

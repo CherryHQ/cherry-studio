@@ -1,8 +1,8 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import { Assistant, Topic } from '@renderer/types'
-import { FC } from 'react'
+import type { Assistant, Topic } from '@renderer/types'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 import MessageItem from './Message'

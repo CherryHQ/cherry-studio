@@ -3,9 +3,8 @@ import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import {
+import type {
   AgentConfiguration,
-  AgentConfigurationSchema,
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
@@ -14,9 +13,11 @@ import {
   UpdateAgentForm,
   UpdateSessionForm
 } from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
-import { FC, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 

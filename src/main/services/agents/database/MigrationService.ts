@@ -5,7 +5,7 @@ import { type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
 
-import * as schema from './schema'
+import type * as schema from './schema'
 import { migrations, type NewMigration } from './schema/migrations.schema'
 
 const logger = loggerService.withContext('MigrationService')

@@ -1,4 +1,4 @@
-import { OcrApiProvider, SupportedOcrFile } from '@renderer/types'
+import type { OcrApiProvider, SupportedOcrFile } from '@renderer/types'
 
 import { OcrBaseApiClient } from './OcrBaseApiClient'
 

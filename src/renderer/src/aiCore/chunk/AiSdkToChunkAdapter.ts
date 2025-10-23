@@ -4,12 +4,13 @@
  */
 
 import { loggerService } from '@logger'
-import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
+import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@types'
+import { WebSearchSource } from '@types'
 import { AISDKError, type TextStreamPart, type ToolSet } from 'ai'
 
 import { ToolCallChunkHandler } from './handleToolCallChunk'

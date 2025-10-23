@@ -1,18 +1,18 @@
-import {
-  AgentBaseSchema,
-  type AgentEntity,
-  type AgentSessionEntity,
-  type CreateSessionRequest,
-  type GetAgentSessionResponse,
-  type ListOptions,
-  type UpdateSessionRequest,
+import type {
+  AgentEntity,
+  AgentSessionEntity,
+  CreateSessionRequest,
+  GetAgentSessionResponse,
+  ListOptions,
+  UpdateSessionRequest,
   UpdateSessionResponse
 } from '@types'
+import { AgentBaseSchema } from '@types'
 import { and, count, desc, eq, type SQL } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
-import { AgentModelField } from '../errors'
+import type { AgentModelField } from '../errors'
 
 export class SessionService extends BaseService {
   private static instance: SessionService | null = null
