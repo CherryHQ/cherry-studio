@@ -15,6 +15,7 @@ jobs:
     permissions:
       issues: write
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout repository
@@ -62,6 +63,7 @@ jobs:
         id: summarize
         uses: anthropics/claude-code-action@main
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
           prompt: |
             Please analyze this GitHub issue and provide a concise summary in Chinese (中文).
@@ -103,6 +105,7 @@ jobs:
     permissions:
       issues: write
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout repository
