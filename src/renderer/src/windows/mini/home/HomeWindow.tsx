@@ -19,6 +19,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { replacePromptVariables } from '@renderer/utils/prompt'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -270,6 +271,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           messagesForContext,
           newAssistant
         )
+        // replace prompt vars
+        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
 
         await fetchChatCompletion({
           messages: modelMessages,
