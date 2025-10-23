@@ -89,8 +89,6 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         }
         for (const f of fields) {
           if (saved[f] === undefined) {
-            // Record inline style only once
-            // @ts-expect-error index signature
             saved[f] = node.style[f]
           }
         }
