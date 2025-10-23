@@ -1,5 +1,6 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import { scrollElementIntoView } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
@@ -182,23 +183,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             // 获取第一个文本节点的父元素来进行滚动
             const parentElement = currentMatchRange.startContainer.parentElement
             if (shouldScroll && parentElement) {
-              // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来“跳到第一条”
-              if (target && target instanceof HTMLElement) {
-                const canScroll = target.scrollHeight > target.clientHeight || target.scrollWidth > target.clientWidth
-                if (canScroll) {
-                  const containerRect = target.getBoundingClientRect()
-                  const elRect = parentElement.getBoundingClientRect()
-                  // 计算元素相对于容器的可滚动偏移位置
-                  const elementTopWithinContainer = elRect.top - containerRect.top + target.scrollTop
-                  const desiredTop = elementTopWithinContainer - Math.max(0, target.clientHeight - elRect.height) / 2
-                  target.scrollTo({ top: Math.max(0, desiredTop), behavior: 'smooth' })
-                } else {
-                  // 传入的容器不可滚动，回退到浏览器的默认滚动定位
-                  parentElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
-                }
-              } else {
-                parentElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
-              }
+              // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来"跳到第一条"
+              scrollElementIntoView(parentElement, target)
             }
           }
         }

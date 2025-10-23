@@ -1500,7 +1500,7 @@ export const cloneMessagesToNewTopicThunk =
       const filesToUpdateCount: FileMetadata[] = []
       const originalToNewMsgIdMap = new Map<string, string>() // Map original message ID -> new message ID
 
-      // 3. First pass: Create ID mappings for all messages
+      // 3. Clone Messages and Blocks with New IDs
       for (const oldMessage of messagesToClone) {
         const newMsgId = uuid()
         originalToNewMsgIdMap.set(oldMessage.id, newMsgId) // Store mapping for all cloned messages
