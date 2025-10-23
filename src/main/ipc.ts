@@ -672,6 +672,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
   })
 
+  // Navigate to About page in settings
+  ipcMain.on(IpcChannel.Windows_NavigateToAbout, () => {
+    checkMainWindow()
+    windowService.showMainWindow()
+    mainWindow.webContents.send(IpcChannel.Windows_NavigateToAbout)
+  })
+
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)
