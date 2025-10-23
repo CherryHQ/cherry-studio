@@ -284,6 +284,20 @@
       "showByList": "List View",
       "showByTags": "Tag View"
     },
+    "move_topics": {
+      "deselect_all": "Deselect All",
+      "error": "Failed to move topics",
+      "modal_title": "Move Topics",
+      "move_button": "Move",
+      "moving": "Moving topics...",
+      "select_all": "Select All",
+      "select_destination": "Select Destination Assistant",
+      "select_destination_placeholder": "Choose an assistant...",
+      "select_topics": "Select Topics",
+      "success": "Successful",
+      "summary": "Move {{count}} topic(s) to {{destination}}",
+      "title": "Batch Move Topics"
+    },
     "presets": {
       "add": {
         "button": "Add to Assistant",

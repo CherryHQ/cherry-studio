@@ -284,6 +284,20 @@
       "showByList": "列表展示",
       "showByTags": "標籤展示"
     },
+    "move_topics": {
+      "deselect_all": "取消全選",
+      "error": "移動话題失敗",
+      "modal_title": "移動话題",
+      "move_button": "移動",
+      "moving": "正在移動话題...",
+      "select_all": "全選",
+      "select_destination": "選擇目標助手",
+      "select_destination_placeholder": "選擇一個助手...",
+      "select_topics": "選擇话題",
+      "success": "话題移動成功",
+      "summary": "將 {{count}} 個话題移動到 {{destination}}",
+      "title": "批次移動话題"
+    },
     "presets": {
       "add": {
         "button": "新增到助手",

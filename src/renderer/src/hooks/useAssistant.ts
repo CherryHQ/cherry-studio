@@ -13,6 +13,7 @@ import {
   addAssistant,
   addTopic,
   insertAssistant,
+  moveMultipleTopics as moveMultipleTopicsAction,
   removeAllTopics,
   removeAssistant,
   removeTopic,
@@ -164,6 +165,68 @@ export function useAssistant(id: string) {
             }))
           }
         })
+    },
+    moveMultipleTopics: async (topicIds: string[], toAssistant: Assistant) => {
+      const logger = loggerService.withContext('moveMultipleTopics')
+
+      try {
+        // Validate inputs
+        if (!topicIds || topicIds.length === 0) {
+          logger.warn('No topics provided to move')
+          return
+        }
+
+        if (!assistant?.id || !toAssistant?.id) {
+          logger.error('Invalid assistant IDs', { fromId: assistant?.id, toId: toAssistant?.id })
+          throw new Error('Invalid assistant IDs for topic move operation')
+        }
+
+        // Dispatch Redux action to update store
+        dispatch(
+          moveMultipleTopicsAction({
+            fromAssistantId: assistant.id,
+            toAssistantId: toAssistant.id,
+            topicIds
+          })
+        )
+
+        // Update topic messages in database for all moved topics
+        const updatePromises = topicIds.map((topicId) =>
+          db.topics
+            .where('id')
+            .equals(topicId)
+            .modify((dbTopic) => {
+              if (dbTopic.messages) {
+                dbTopic.messages = dbTopic.messages.map((message) => ({
+                  ...message,
+                  assistantId: toAssistant.id
+                }))
+              }
+            })
+            .catch((error) => {
+              logger.error(`Failed to update topic ${topicId} in database`, error as Error)
+              throw error
+            })
+        )
+
+        await Promise.all(updatePromises)
+        logger.info(`Successfully moved ${topicIds.length} topics`, {
+          fromAssistantId: assistant.id,
+          toAssistantId: toAssistant.id
+        })
+      } catch (error) {
+        logger.error('Failed to move multiple topics', error as Error)
+        // Revert Redux state on database failure
+        dispatch(
+          moveMultipleTopicsAction({
+            fromAssistantId: toAssistant.id,
+            toAssistantId: assistant.id,
+            topicIds
+          })
+        )
+        // Re-throw to notify caller
+        throw error
+      }
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),

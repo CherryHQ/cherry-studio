@@ -227,6 +227,59 @@ const assistantsSlice = createSlice({
           }
         }
       }
+    },
+    moveMultipleTopics: (
+      state,
+      action: PayloadAction<{
+        fromAssistantId: string
+        toAssistantId: string
+        topicIds: string[]
+      }>
+    ) => {
+      const { fromAssistantId, toAssistantId, topicIds } = action.payload
+
+      if (fromAssistantId === toAssistantId) {
+        return
+      }
+
+      const topicIdSet = new Set(topicIds)
+      const fromAssistant = state.assistants.find((assistant) => assistant.id === fromAssistantId)
+      const toAssistant = state.assistants.find((assistant) => assistant.id === toAssistantId)
+
+      if (!fromAssistant || !toAssistant || topicIdSet.size === 0) {
+        return
+      }
+
+      const topicsToMove = fromAssistant.topics.filter((topic) => topicIdSet.has(topic.id))
+
+      if (topicsToMove.length === 0) {
+        return
+      }
+
+      state.assistants = state.assistants.map((assistant) => {
+        if (assistant.id === fromAssistantId) {
+          const remainingTopics = assistant.topics.filter((topic) => !topicIdSet.has(topic.id))
+          return {
+            ...assistant,
+            topics: remainingTopics.length > 0 ? remainingTopics : [getDefaultTopic(fromAssistantId)]
+          }
+        }
+
+        if (assistant.id === toAssistantId) {
+          return {
+            ...assistant,
+            topics: [
+              ...assistant.topics,
+              ...topicsToMove.map((topic) => ({
+                ...topic,
+                assistantId: toAssistantId
+              }))
+            ]
+          }
+        }
+
+        return assistant
+      })
     }
   }
 })
@@ -253,7 +306,8 @@ export const {
   addAssistantPreset,
   removeAssistantPreset,
   updateAssistantPreset,
-  updateAssistantPresetSettings
+  updateAssistantPresetSettings,
+  moveMultipleTopics
 } = assistantsSlice.actions
 
 export const selectAllTopics = createSelector([(state: RootState) => state.assistants.assistants], (assistants) =>

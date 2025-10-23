@@ -284,6 +284,20 @@
       "showByList": "Exibição em Lista",
       "showByTags": "Exibição por Etiquetas"
     },
+    "move_topics": {
+      "deselect_all": "[to be translated]:取消全选",
+      "error": "[to be translated]:移动主题失败",
+      "modal_title": "[to be translated]:移动主题",
+      "move_button": "[to be translated]:移动",
+      "moving": "[to be translated]:正在移动主题...",
+      "select_all": "[to be translated]:全选",
+      "select_destination": "[to be translated]:选择目标助手",
+      "select_destination_placeholder": "[to be translated]:选择一个助手...",
+      "select_topics": "[to be translated]:选择主题",
+      "success": "[to be translated]:移动成功",
+      "summary": "[to be translated]:将 {{count}} 个主题移动到 {{destination}}",
+      "title": "[to be translated]:批量移动话题"
+    },
     "presets": {
       "add": {
         "button": "Adicionar ao assistente",

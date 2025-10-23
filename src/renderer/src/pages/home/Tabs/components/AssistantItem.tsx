@@ -2,6 +2,7 @@ import { cn } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import MoveTopicsPopup from '@renderer/components/Popups/MoveTopicsPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -22,6 +23,7 @@ import {
   ArrowUpAZ,
   BrushCleaning,
   Check,
+  FolderOpen,
   Plus,
   Save,
   Settings2,
@@ -70,6 +72,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+  const [isMoveTopicsModalOpen, setIsMoveTopicsModalOpen] = useState(false)
   const dispatch = useAppDispatch()
 
   useEffect(() => {
@@ -109,6 +112,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
         onDelete,
         removeAllTopics,
         setAssistantIconType,
+        setIsMoveTopicsModalOpen,
         sortBy,
         handleSortByChange,
         sortByPinyinAsc,
@@ -126,6 +130,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
       onDelete,
       removeAllTopics,
       setAssistantIconType,
+      setIsMoveTopicsModalOpen,
       sortBy,
       handleSortByChange,
       sortByPinyinAsc,
@@ -150,35 +155,48 @@ const AssistantItem: FC<AssistantItemProps> = ({
   )
 
   return (
-    <Dropdown
-      menu={{ items: menuItems }}
-      trigger={['contextMenu']}
-      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <Container onClick={handleSwitch} isActive={isActive}>
-        <AssistantNameRow className="name" title={fullAssistantName}>
-          {assistantIconType === 'model' ? (
-            <ModelAvatar
-              model={assistant.model || defaultModel}
-              size={24}
-              className={isPending && !isActive ? 'animation-pulse' : ''}
-            />
-          ) : (
-            assistantIconType === 'emoji' && (
-              <EmojiIcon
-                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
+    <>
+      <Dropdown
+        menu={{ items: menuItems }}
+        trigger={['contextMenu']}
+        popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+        <Container onClick={handleSwitch} isActive={isActive}>
+          <AssistantNameRow className="name" title={fullAssistantName}>
+            {assistantIconType === 'model' ? (
+              <ModelAvatar
+                model={assistant.model || defaultModel}
+                size={24}
                 className={isPending && !isActive ? 'animation-pulse' : ''}
               />
-            )
+            ) : (
+              assistantIconType === 'emoji' && (
+                <EmojiIcon
+                  emoji={assistant.emoji || getLeadingEmoji(assistantName)}
+                  className={isPending && !isActive ? 'animation-pulse' : ''}
+                />
+              )
+            )}
+            <AssistantName className="text-nowrap">{assistantName}</AssistantName>
+          </AssistantNameRow>
+          {isActive && (
+            <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
+              <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
+            </MenuButton>
           )}
-          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
-        </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          </MenuButton>
-        )}
-      </Container>
-    </Dropdown>
+        </Container>
+      </Dropdown>
+
+      {isMoveTopicsModalOpen && (
+        <MoveTopicsPopup
+          sourceAssistant={assistant}
+          onClose={() => setIsMoveTopicsModalOpen(false)}
+          onMoveComplete={() => {
+            setIsMoveTopicsModalOpen(false)
+            window.toast.success(t('assistants.move_topics.success'))
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -268,6 +286,7 @@ function getMenuItems({
   onDelete,
   removeAllTopics,
   setAssistantIconType,
+  setIsMoveTopicsModalOpen,
   sortBy,
   handleSortByChange,
   sortByPinyinAsc,
@@ -304,6 +323,13 @@ function getMenuItems({
           onOk: removeAllTopics
         })
       }
+    },
+    {
+      label: t('assistants.move_topics.title'),
+      key: 'move-topics',
+      icon: <FolderOpen size={14} />,
+      disabled: assistants.every((item) => item.id === assistant.id) || assistant.topics.length === 0,
+      onClick: () => setIsMoveTopicsModalOpen(true)
     },
     {
       label: t('assistants.save.title'),
