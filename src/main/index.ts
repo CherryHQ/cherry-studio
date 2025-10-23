@@ -35,6 +35,8 @@ import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefa
 import { dataApiService } from '@data/DataApiService'
 import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
+import { i18n } from './utils/language'
+import { defaultLanguage } from '@shared/config/constant'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -167,6 +169,22 @@ if (!app.requestSingleInstanceLock()) {
     //************FOR TESTING ONLY START****************/
 
     await preferenceService.initialize()
+
+    const userLanguage = preferenceService.get('app.language')
+    if (userLanguage) {
+      i18n.changeLanguage(userLanguage)
+      // Do not care about cleanup because it spans the whole lifecyle of the app
+      preferenceService.subscribeChange('app.language', (newLang) => {
+        if (newLang) {
+          i18n.changeLanguage(newLang)
+        } else {
+          logger.error('New langauge is null, skip.')
+        }
+      })
+    } else {
+      logger.error('No user language preference found, falling back to default language')
+      i18n.changeLanguage(defaultLanguage)
+    }
 
     // Initialize DataApiService
     await dataApiService.initialize()

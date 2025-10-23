@@ -1,6 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { isLinux, isMac, isWin } from '@main/constant'
-import { getI18n } from '@main/utils/language'
+import { t } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
@@ -72,23 +72,20 @@ export class TrayService {
   }
 
   private updateContextMenu() {
-    const i18n = getI18n()
-    const { tray: trayLocale, selection: selectionLocale } = i18n.translation
-
     const quickAssistantEnabled = preferenceService.get('feature.quick_assistant.enabled')
     const selectionAssistantEnabled = preferenceService.get('feature.selection.enabled')
 
     const template = [
       {
-        label: trayLocale.show_window,
+        label: t('tray.show_window'),
         click: () => windowService.showMainWindow()
       },
       quickAssistantEnabled && {
-        label: trayLocale.show_mini_window,
+        label: t('tray.show_mini_window'),
         click: () => windowService.showMiniWindow()
       },
       (isWin || isMac) && {
-        label: selectionLocale.name + (selectionAssistantEnabled ? ' - On' : ' - Off'),
+        label: t('selection.name') + (selectionAssistantEnabled ? ' - On' : ' - Off'),
         click: () => {
           if (selectionService) {
             selectionService.toggleEnabled()
@@ -98,7 +95,7 @@ export class TrayService {
       },
       { type: 'separator' },
       {
-        label: trayLocale.quit,
+        label: t('tray.quit'),
         click: () => this.quit()
       }
     ].filter(Boolean) as MenuItemConstructorOptions[]

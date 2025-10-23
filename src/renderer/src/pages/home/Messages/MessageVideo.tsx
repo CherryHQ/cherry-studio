@@ -27,7 +27,7 @@ const MessageVideo: FC<Props> = ({ block }) => {
   const renderLocalVideo = () => {
     if (!block.filePath) {
       logger.warn('Local video was requested but block.filePath is missing.')
-      return <div>{t('message.video.error.local_file_missing')}</div>
+      return <div>{t('message.message.video.error.local_file_missing')}</div>
     }
 
     const videoSrc = `file://${block.metadata?.video.path}`
@@ -67,7 +67,7 @@ const MessageVideo: FC<Props> = ({ block }) => {
         }
 
         logger.warn(`Unsupported video type: ${block.metadata?.type} or missing necessary data.`)
-        return <div>{t('message.video.error.unsupported_type')}</div>
+        return <div>{t('message.message.video.error.unsupported_type')}</div>
     }
   }
 
