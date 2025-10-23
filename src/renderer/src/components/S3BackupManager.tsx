@@ -2,7 +2,7 @@ import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-
 import { restoreFromS3 } from '@renderer/services/BackupService'
 import type { S3Config } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Modal, Table, Tooltip } from 'antd'
+import { Button, Modal, Space, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -253,6 +253,26 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     }
   }
 
+  const footerContent = (
+    <Space align="center">
+      <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
+        {t('settings.data.s3.manager.refresh')}
+      </Button>
+      <Button
+        key="delete"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={handleDeleteSelected}
+        disabled={selectedRowKeys.length === 0 || deleting}
+        loading={deleting}>
+        {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
+      </Button>
+      <Button key="close" onClick={onClose}>
+        {t('settings.data.s3.manager.close')}
+      </Button>
+    </Space>
+  )
+
   return (
     <Modal
       title={t('settings.data.s3.manager.title')}
@@ -261,23 +281,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
-          {t('settings.data.s3.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
-          {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('settings.data.s3.manager.close')}
-        </Button>
-      ]}>
+      footer={footerContent}>
       <Table
         rowKey="fileName"
         columns={columns}
