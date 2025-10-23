@@ -35,7 +35,7 @@ jobs:
           # 在临时目录安装依赖
           mkdir -p /tmp/translation-deps
           cd /tmp/translation-deps
-          echo '{"dependencies": {"openai": "^5.12.2", "cli-progress": "^3.12.0", "tsx": "^4.20.3", "@biomejs/biome": "2.2.4"}}' > package.json
+          echo '{"dependencies": {"@cherrystudio/openai": "^6.5.0", "cli-progress": "^3.12.0", "tsx": "^4.20.3", "@biomejs/biome": "2.2.4"}}' > package.json
           npm install --no-package-lock
 
           # 设置 NODE_PATH 让项目能找到这些依赖
