@@ -9,7 +9,7 @@ export { default as EmojiIcon } from './base/EmojiIcon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './base/ErrorBoundary'
 export { ErrorBoundary } from './base/ErrorBoundary'
 export { default as IndicatorLight } from './base/IndicatorLight'
-export { default as Spinner } from './base/Spinner'
+export { default as SearchSpinner } from './base/Spinner'
 export type { StatusTagProps, StatusType } from './base/StatusTag'
 export { ErrorTag, InfoTag, StatusTag, SuccessTag, WarnTag } from './base/StatusTag'
 export { DescriptionSwitch, Switch } from './base/Switch'
@@ -87,6 +87,8 @@ export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './
 export { default as ImageToolButton } from './interactive/ImageToolButton'
 // Sortable
 export { Sortable } from './interactive/Sortable'
+// BlockingOverlay
+export { BlockingOverlay } from './interactive/BlockingOverlay'
 
 // Composite Components (复合组件)
 // 暂无复合组件
@@ -97,3 +99,4 @@ export * from './ui/command'
 export * from './ui/dialog'
 export * from './ui/popover'
 export * from './ui/shadcn-io/dropzone'
+export * from './ui/shadcn-io/spinner'
