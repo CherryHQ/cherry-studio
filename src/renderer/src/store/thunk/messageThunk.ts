@@ -1500,10 +1500,15 @@ export const cloneMessagesToNewTopicThunk =
       const filesToUpdateCount: FileMetadata[] = []
       const originalToNewMsgIdMap = new Map<string, string>() // Map original message ID -> new message ID
 
-      // 3. Clone Messages and Blocks with New IDs
+      // 3. First pass: Create ID mappings for all messages
       for (const oldMessage of messagesToClone) {
         const newMsgId = uuid()
         originalToNewMsgIdMap.set(oldMessage.id, newMsgId) // Store mapping for all cloned messages
+      }
+
+      // 4. Second pass: Clone Messages and Blocks with New IDs using complete mapping
+      for (const oldMessage of messagesToClone) {
+        const newMsgId = originalToNewMsgIdMap.get(oldMessage.id)!
 
         let newAskId: string | undefined = undefined // Initialize newAskId
         if (oldMessage.role === 'assistant' && oldMessage.askId) {
@@ -1564,7 +1569,7 @@ export const cloneMessagesToNewTopicThunk =
         clonedMessages.push(newMessage)
       }
 
-      // 4. Update Database (Atomic Transaction)
+      // 5. Update Database (Atomic Transaction)
       await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
         // Update the NEW topic with the cloned messages
         // Assumes topic entry was added by caller, so we UPDATE.
