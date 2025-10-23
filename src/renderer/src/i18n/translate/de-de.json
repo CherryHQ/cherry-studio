@@ -2656,11 +2656,11 @@
             "go_to_settings": "Zu Einstellungen",
             "open_accessibility_settings": "Bedienungshilfen-Einstellungen öffnen"
           },
-          "description": [
-            "Der Textauswahl-Assistent benötigt <strong>Bedienungshilfen-Berechtigungen</strong>, um ordnungsgemäß zu funktionieren.",
-            "Klicken Sie auf <strong>Zu Einstellungen</strong> und anschließend im Berechtigungsdialog auf <strong>Systemeinstellungen öffnen</strong>. Suchen Sie danach in der App-Liste <strong>Cherry Studio</strong> und aktivieren Sie den Schalter.",
-            "Nach Abschluss der Einrichtung Textauswahl-Assistent erneut aktivieren."
-          ],
+          "description": {
+            "0": "Der Textauswahl-Assistent benötigt <strong>Bedienungshilfen-Berechtigungen</strong>, um ordnungsgemäß zu funktionieren.",
+            "1": "Klicken Sie auf <strong>Zu Einstellungen</strong> und anschließend im Berechtigungsdialog auf <strong>Systemeinstellungen öffnen</strong>. Suchen Sie danach in der App-Liste <strong>Cherry Studio</strong> und aktivieren Sie den Schalter.",
+            "2": "Nach Abschluss der Einrichtung Textauswahl-Assistent erneut aktivieren."
+          },
           "title": "Bedienungshilfen-Berechtigung"
         },
         "title": "Aktivieren"
