@@ -2,6 +2,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { app, Menu, MenuItemConstructorOptions } from 'electron'
 
 import { isMac } from '../constant'
+import { windowService } from './WindowService'
 
 export class AppMenuService {
   public setupApplicationMenu(): void {
@@ -17,10 +18,10 @@ export class AppMenuService {
             label: 'About ' + app.name,
             click: () => {
               // Emit event to navigate to About page
-              const mainWindow = require('./WindowService').windowService.getMainWindow()
+              const mainWindow = windowService.getMainWindow()
               if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.webContents.send(IpcChannel.Windows_NavigateToAbout)
-                require('./WindowService').windowService.showMainWindow()
+                windowService.showMainWindow()
               }
             }
           },
