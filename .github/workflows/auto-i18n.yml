@@ -42,7 +42,7 @@ jobs:
           echo "NODE_PATH=/tmp/translation-deps/node_modules" >> $GITHUB_ENV
 
       - name: 🏃‍♀️ Translate
-        run: npx tsx scripts/auto-translate-i18n.ts
+        run: npx tsx scripts/sync-i18n.ts && npx tsx scripts/auto-translate-i18n.ts
 
       - name: 🔍 Format
         run: cd /tmp/translation-deps && npx biome format --config-path /home/runner/work/cherry-studio/cherry-studio/biome.jsonc --write /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/
