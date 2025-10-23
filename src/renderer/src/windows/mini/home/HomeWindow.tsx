@@ -267,12 +267,14 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         newAssistant.webSearchProviderId = undefined
         newAssistant.mcpServers = undefined
         newAssistant.knowledge_bases = undefined
+        // replace prompt vars
+        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
+        // logger.debug('newAssistant', newAssistant)
+
         const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
           messagesForContext,
           newAssistant
         )
-        // replace prompt vars
-        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
 
         await fetchChatCompletion({
           messages: modelMessages,
