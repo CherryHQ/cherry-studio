@@ -275,11 +275,11 @@ const McpSettings: React.FC = () => {
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
         longRunning: values.longRunning,
-        // Preserve existing advanced properties if not set in the form
-        provider: values.provider || server.provider,
-        providerUrl: values.providerUrl || server.providerUrl,
-        logoUrl: values.logoUrl || server.logoUrl,
-        tags: values.tags || server.tags
+        // Use nullish coalescing to allow empty strings (for deletion)
+        provider: values.provider ?? server.provider,
+        providerUrl: values.providerUrl ?? server.providerUrl,
+        logoUrl: values.logoUrl ?? server.logoUrl,
+        tags: values.tags ?? server.tags
       }
 
       // set stdio or sse server

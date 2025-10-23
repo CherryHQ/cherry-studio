@@ -4231,7 +4231,7 @@
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
       },
-      "tip": "支援模糊匹配（*.test.com,192.168.0.0/16）"
+      "tip": "支援模糊匹配（*.test.com，192.168.0.0/16）"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",
