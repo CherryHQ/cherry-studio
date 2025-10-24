@@ -30,5 +30,5 @@ export function getSelectedText(): string {
   // Get the text content
   const tempDiv = document.createElement('div')
   tempDiv.appendChild(fragment)
-  return tempDiv.textContent.trim()
+  return tempDiv.textContent?.trim() || ''
 }
