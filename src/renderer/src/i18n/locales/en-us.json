@@ -838,7 +838,7 @@
         "label": "Context",
         "tip": "The number of previous messages to keep in the context."
       },
-      "max": "Max",
+      "max": "Unlimited",
       "max_tokens": {
         "confirm": "Set max tokens",
         "confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
