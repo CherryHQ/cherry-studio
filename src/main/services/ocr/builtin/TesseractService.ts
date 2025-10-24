@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
-import type { ImageFileMetadata, OcrResult, OcrTesseractConfig, SupportedOcrFile } from '@types'
-import { isImageFileMetadata } from '@types'
+import type { ImageFileMetadata, OcrProviderConfig, OcrResult, OcrTesseractConfig, SupportedOcrFile } from '@types'
+import { isImageFileMetadata, isOcrTesseractConfig } from '@types'
 import { app } from 'electron'
 import fs from 'fs'
 import { isEqual } from 'lodash'
@@ -70,8 +70,8 @@ export class TesseractService extends OcrBaseService {
     return this.worker
   }
 
-  private async imageOcr(file: ImageFileMetadata, options?: OcrTesseractConfig): Promise<OcrResult> {
-    const worker = await this.getWorker(options)
+  private async imageOcr(file: ImageFileMetadata, config?: OcrTesseractConfig): Promise<OcrResult> {
+    const worker = await this.getWorker(config)
     const stat = await fs.promises.stat(file.path)
     if (stat.size > MB_SIZE_THRESHOLD * MB) {
       throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
@@ -81,11 +81,14 @@ export class TesseractService extends OcrBaseService {
     return { text: result.data.text }
   }
 
-  public ocr = async (file: SupportedOcrFile, options?: OcrTesseractConfig): Promise<OcrResult> => {
+  public ocr = async (file: SupportedOcrFile, config?: OcrProviderConfig): Promise<OcrResult> => {
+    if (!isOcrTesseractConfig(config)) {
+      throw new Error('Invalid Tesseract config')
+    }
     if (!isImageFileMetadata(file)) {
       throw new Error('Only image files are supported currently')
     }
-    return this.imageOcr(file, options)
+    return this.imageOcr(file, config)
   }
 
   private async _getLangPath(): Promise<string> {

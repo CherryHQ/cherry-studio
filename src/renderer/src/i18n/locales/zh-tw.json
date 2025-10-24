@@ -538,7 +538,7 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新話題 {{Command}}",
-      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
+      "paste_text_file_confirm": "貼到輸入框？",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
@@ -2054,6 +2054,7 @@
         "cannot_remove_builtin": "不能刪除內建提供者",
         "existing": "提供者已存在",
         "get_providers": "取得可用提供者失敗",
+        "not_availabel": "提供商 {{provider}} 不可用",
         "not_found": "OCR 提供者不存在",
         "update_failed": "更新配置失敗"
       },
@@ -2063,6 +2064,40 @@
       "not_supported": "不支持的文件類型 {{type}}"
     },
     "processing": "OCR 處理中...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "更新配置失敗"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "創建提供商失敗"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "刪除提供商 {{provider}} 失敗"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "獲取提供商 {{provider}} 失敗"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "列出提供商失敗"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "更新提供商失敗"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "已回退到 {{name}}，這可能導致問題"
@@ -4230,7 +4265,7 @@
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "支援模糊匹配 (*.test.com,192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",

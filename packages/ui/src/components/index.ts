@@ -96,4 +96,7 @@ export * from './ui/button'
 export * from './ui/command'
 export * from './ui/dialog'
 export * from './ui/popover'
+// May group them in shadcn-io/index.ts ?
 export * from './ui/shadcn-io/dropzone'
+export * from './ui/shadcn-io/skeleton'
+export * from './ui/shadcn-io/tabs'

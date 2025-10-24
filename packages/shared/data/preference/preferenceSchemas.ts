@@ -351,6 +351,8 @@ export interface PreferenceSchemas {
     'feature.translate.model_prompt': string
     // redux/settings/targetLanguage
     'feature.translate.target_language': string
+    // redux/ocr/imageProviderId
+    'ocr.settings.image_provider_id': string | null
     // redux/shortcuts/shortcuts.exit_fullscreen
     'shortcut.app.exit_fullscreen': Record<string, unknown>
     // redux/shortcuts/shortcuts.search_message
@@ -612,6 +614,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.selection.trigger_mode': PreferenceTypes.SelectionTriggerMode.Selected,
     'feature.translate.model_prompt': TRANSLATE_PROMPT,
     'feature.translate.target_language': 'en-us',
+    'ocr.settings.image_provider_id': null,
     'shortcut.app.exit_fullscreen': { editable: false, enabled: true, key: ['Escape'], system: true },
     'shortcut.app.search_message': {
       editable: true,

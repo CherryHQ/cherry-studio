@@ -5,13 +5,13 @@
     "src/main/**/*",
     "src/preload/**/*",
     "src/main/env.d.ts",
-    "src/renderer/src/types/*",
+    "src/renderer/src/types/**/*",
     "packages/shared/**/*",
     "scripts",
     "packages/mcp-trace/**/*",
     "src/renderer/src/services/traceApi.ts",
     "tests/__mocks__/**/*"
-  ],
+, "src/renderer/src/types/ocr/base.ts"  ],
   "compilerOptions": {
     "composite": true,
     "incremental": true,

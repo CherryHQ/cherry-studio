@@ -3,6 +3,9 @@ import type { PaginationParams, ServiceOptions } from '@shared/data/api/apiTypes
 /**
  * Standard service interface for data operations
  * Defines the contract that all services should implement
+ * @template T - Type of the entity returned by service methods
+ * @template TCreate - Type of the data required to create a new entity
+ * @template TUpdate - Type of the data required to update an existing entity
  */
 export interface IBaseService<T = any, TCreate = any, TUpdate = any> {
   /**

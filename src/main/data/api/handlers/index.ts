@@ -5,6 +5,7 @@
  * TypeScript will error if any endpoint is missing.
  */
 
+import { ocrService } from '@main/services/ocr/OcrService'
 import type { ApiImplementation } from '@shared/data/api/apiSchemas'
 
 import { TestService } from '../services/TestService'
@@ -12,6 +13,7 @@ import { TestService } from '../services/TestService'
 // Service instances
 const testService = TestService.getInstance()
 
+// Defining all handlers here feels a bit bloated; perhaps we should modularize things?
 /**
  * Complete API handlers implementation
  * Must implement every path+method combination from ApiSchemas
@@ -206,6 +208,41 @@ export const apiHandlers: ApiImplementation = {
         status: 200,
         data: { executed: true, timestamp: new Date().toISOString() }
       }))
+    }
+  },
+
+  '/ocr/providers': {
+    GET: async ({ query }) => {
+      const result = await ocrService.listProviders(query)
+      return { data: result }
+    },
+    POST: async ({ body }) => {
+      const result = await ocrService.createProvider(body)
+      return { data: result }
+    }
+  },
+
+  '/ocr/providers/:id': {
+    GET: async ({ params }) => {
+      const result = await ocrService.getProvider(params.id)
+      return { data: result }
+    },
+    PATCH: async ({ params, body }) => {
+      if (params.id !== body.id) {
+        throw new Error('Provider ID in path does not match ID in body')
+      }
+      const result = await ocrService.updateProvider(params.id, body)
+      return { data: result }
+    },
+    PUT: async ({ params, body }) => {
+      if (params.id !== body.id) {
+        throw new Error('Provider ID in path does not match ID in body')
+      }
+      const result = await ocrService.replaceProvider(body)
+      return { data: result }
+    },
+    DELETE: async ({ params }) => {
+      return ocrService.deleteProvider(params.id)
     }
   }
 }

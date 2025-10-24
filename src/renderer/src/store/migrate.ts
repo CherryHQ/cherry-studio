@@ -11,7 +11,6 @@ import {
   isNotSupportedTextDelta,
   SYSTEM_MODELS
 } from '@renderer/config/models'
-import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
@@ -33,7 +32,10 @@ import type {
 } from '@renderer/types'
 import { isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import { getDefaultOcrProvider } from '@renderer/utils/ocr'
 import { defaultByPassRules } from '@shared/config/constant'
+import { BUILTIN_OCR_PROVIDERS } from '@shared/config/ocr'
+import { INITIAL_BUILTIN_OCR_PROVIDER_MAP } from '@shared/config/ocr'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -2235,7 +2237,7 @@ const migrateConfig = {
     try {
       state.ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
-        imageProviderId: DEFAULT_OCR_PROVIDER.image.id
+        imageProviderId: getDefaultOcrProvider('image').id
       }
       state.translate.translateInput = ''
       return state
@@ -2246,7 +2248,7 @@ const migrateConfig = {
   },
   '138': (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
+      addOcrProvider(state, INITIAL_BUILTIN_OCR_PROVIDER_MAP.system)
       return state
     } catch (error) {
       logger.error('migrate 138 error', error as Error)
@@ -2426,7 +2428,7 @@ const migrateConfig = {
   },
   '148': (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
+      addOcrProvider(state, INITIAL_BUILTIN_OCR_PROVIDER_MAP.paddleocr)
       return state
     } catch (error) {
       logger.error('migrate 148 error', error as Error)
@@ -2675,7 +2677,7 @@ const migrateConfig = {
   },
   '163': (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      addOcrProvider(state, INITIAL_BUILTIN_OCR_PROVIDER_MAP.ovocr)
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'cherryin') {
           provider.anthropicApiHost = 'https://open.cherryin.net'

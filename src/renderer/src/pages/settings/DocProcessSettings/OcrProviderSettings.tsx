@@ -1,13 +1,23 @@
 // import { loggerService } from '@logger'
-import { Flex } from '@cherrystudio/ui'
+import { Avatar, Flex } from '@cherrystudio/ui'
+import IntelLogo from '@renderer/assets/images/providers/intel.png'
+import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
+import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
-import type { OcrProvider } from '@renderer/types'
-import { isBuiltinOcrProvider, isOcrSystemProvider } from '@renderer/types'
+import { useOcrProviders } from '@renderer/hooks/ocr/useOcrProviders'
+import type { OcrProvider, OcrProviderConfig } from '@renderer/types'
+import {
+  isBuiltinOcrProvider,
+  isOcrOVProvider,
+  isOcrPpocrProvider,
+  isOcrSystemProvider,
+  isOcrTesseractProvider
+} from '@renderer/types'
 import { Divider } from 'antd'
-import styled from 'styled-components'
+import { FileQuestionMarkIcon, MonitorIcon } from 'lucide-react'
+import { useMemo } from 'react'
 
 import { SettingGroup, SettingTitle } from '..'
 import { OcrOVSettings } from './OcrOVSettings'
@@ -18,34 +28,37 @@ import { OcrTesseractSettings } from './OcrTesseractSettings'
 // const logger = loggerService.withContext('OcrTesseractSettings')
 
 type Props = {
-  provider: OcrProvider
+  provider: OcrProvider | undefined | null
+  updateConfig: (config: Partial<OcrProviderConfig>) => Promise<void>
 }
 
-const OcrProviderSettings = ({ provider }: Props) => {
+const OcrProviderSettings = ({ provider, updateConfig }: Props) => {
   const { theme: themeMode } = useTheme()
-  const { OcrProviderLogo, getOcrProviderName } = useOcrProviders()
+  const { getOcrProviderName } = useOcrProviders()
 
-  if (!isWin && !isMac && isOcrSystemProvider(provider)) {
-    return null
-  }
-
-  const ProviderSettings = () => {
+  const settings = useMemo(() => {
+    if (!provider) return null
     if (isBuiltinOcrProvider(provider)) {
-      switch (provider.id) {
-        case 'tesseract':
-          return <OcrTesseractSettings />
-        case 'system':
-          return <OcrSystemSettings />
-        case 'paddleocr':
-          return <OcrPpocrSettings />
-        case 'ovocr':
-          return <OcrOVSettings />
-        default:
-          return null
+      if (isOcrTesseractProvider(provider)) {
+        return <OcrTesseractSettings provider={provider} updateConfig={updateConfig} />
       }
+      if (isOcrSystemProvider(provider)) {
+        return <OcrSystemSettings provider={provider} updateConfig={updateConfig} />
+      }
+      if (isOcrPpocrProvider(provider)) {
+        return <OcrPpocrSettings provider={provider} updateConfig={updateConfig} />
+      }
+      if (isOcrOVProvider(provider)) {
+        return <OcrOVSettings />
+      }
+      return null
     } else {
       throw new Error('Not supported OCR provider')
     }
+  }, [provider, updateConfig])
+
+  if (!provider || (!isWin && !isMac && isOcrSystemProvider(provider))) {
+    return null
   }
 
   return (
@@ -53,20 +66,29 @@ const OcrProviderSettings = ({ provider }: Props) => {
       <SettingTitle>
         <Flex className="items-center gap-2">
           <OcrProviderLogo provider={provider} />
-          <ProviderName> {getOcrProviderName(provider)}</ProviderName>
+          <span className="font-semibold text-sm"> {getOcrProviderName(provider)}</span>
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <ErrorBoundary>
-        <ProviderSettings />
-      </ErrorBoundary>
+      <ErrorBoundary>{settings}</ErrorBoundary>
     </SettingGroup>
   )
 }
 
-const ProviderName = styled.span`
-  font-size: 14px;
-  font-weight: 500;
-`
+const OcrProviderLogo = ({ provider: p, size = 14 }: { provider: OcrProvider; size?: number }) => {
+  if (isBuiltinOcrProvider(p)) {
+    switch (p.id) {
+      case 'tesseract':
+        return <Avatar src={TesseractLogo} style={{ width: size, height: size }} />
+      case 'system':
+        return <MonitorIcon size={size} />
+      case 'paddleocr':
+        return <Avatar src={PaddleocrLogo} style={{ width: size, height: size }} />
+      case 'ovocr':
+        return <Avatar src={IntelLogo} style={{ width: size, height: size }} />
+    }
+  }
+  return <FileQuestionMarkIcon size={size} />
+}
 
 export default OcrProviderSettings
