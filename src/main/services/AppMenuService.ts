@@ -36,7 +36,7 @@ export class AppMenuService {
         ]
       },
       {
-        role:'fileMenu'
+        role: 'fileMenu'
       },
       {
         role: 'editMenu'
@@ -73,8 +73,7 @@ export class AppMenuService {
             click: () => {
               shell.openExternal('https://github.com/CherryHQ/cherry-studio/releases')
             }
-          },
-
+          }
         ]
       }
     ]
