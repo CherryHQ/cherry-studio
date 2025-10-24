@@ -23,7 +23,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!external/**"],
+    "includes": ["**"],
     "maxSize": 2097152
   },
   "formatter": {
