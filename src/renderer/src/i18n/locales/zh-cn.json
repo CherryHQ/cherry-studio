@@ -4102,6 +4102,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS 访问密钥 ID",
         "access_key_id_help": "您的 AWS 访问密钥 ID，用于访问 AWS Bedrock 服务",
+        "api_key": "Bedrock API 密钥",
+        "api_key_help": "您的 AWS Bedrock API 密钥，用于身份验证",
+        "auth_type": "认证方式",
+        "auth_type_api_key": "Bedrock API 密钥",
+        "auth_type_help": "选择使用 IAM 凭证或 Bedrock API 密钥进行身份验证",
+        "auth_type_iam": "IAM 凭证",
         "description": "AWS Bedrock 是亚马逊提供的全托管基础模型服务，支持多种先进的大语言模型",
         "region": "AWS 区域",
         "region_help": "您的 AWS 服务区域，例如 us-east-1",

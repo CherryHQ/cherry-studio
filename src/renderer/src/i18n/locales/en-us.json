@@ -4102,6 +4102,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",
         "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "api_key": "Bedrock API Key",
+        "api_key_help": "Your AWS Bedrock API Key for authentication",
+        "auth_type": "Authentication Type",
+        "auth_type_api_key": "Bedrock API Key",
+        "auth_type_help": "Choose between IAM credentials or Bedrock API Key authentication",
+        "auth_type_iam": "IAM Credentials",
         "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
         "region": "AWS Region",
         "region_help": "Your AWS service region, e.g., us-east-1",
