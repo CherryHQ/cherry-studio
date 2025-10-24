@@ -1,10 +1,13 @@
 import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
-import type { MCPTool, Message, Model, Provider } from '@renderer/types'
+import { isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
+import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
+import type { Assistant, MCPTool, Message, Model, Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
 
 import { noThinkMiddleware } from './noThinkMiddleware'
+import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
 import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
@@ -17,6 +20,7 @@ export interface AiSdkMiddlewareConfig {
   onChunk?: (chunk: Chunk) => void
   model?: Model
   provider?: Provider
+  assistant?: Assistant
   enableReasoning: boolean
   // 是否开启提示词工具调用
   isPromptToolUse: boolean
@@ -213,8 +217,23 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
 /**
  * 添加模型特定的中间件
  */
-function addModelSpecificMiddlewares(_: AiSdkMiddlewareBuilder, config: AiSdkMiddlewareConfig): void {
+function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: AiSdkMiddlewareConfig): void {
   if (!config.model) return
+
+  // Qwen models on providers that don't support enable_thinking parameter (like Ollama, LM Studio, NVIDIA)
+  // Use /think or /no_think suffix to control thinking mode
+  if (
+    config.provider &&
+    isSupportedThinkingTokenQwenModel(config.model) &&
+    !isSupportEnableThinkingProvider(config.provider)
+  ) {
+    const enableThinking = config.assistant?.settings?.reasoning_effort !== undefined
+    builder.add({
+      name: 'qwen-thinking-control',
+      middleware: qwenThinkingMiddleware(enableThinking)
+    })
+    logger.debug(`Added Qwen thinking middleware with thinking ${enableThinking ? 'enabled' : 'disabled'}`)
+  }
 
   // 可以根据模型ID或特性添加特定中间件
   // 例如：图像生成模型、多模态模型等

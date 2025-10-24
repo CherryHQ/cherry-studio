@@ -653,9 +653,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
         if (lastUserMsg) {
           if (isSupportedThinkingTokenQwenModel(model) && !isSupportEnableThinkingProvider(this.provider)) {
-            // For Qwen models on providers like Ollama that don't support enable_thinking parameter,
-            // use /think or /no_think suffix to control thinking mode
-            const qwenThinkModeEnabled = assistant.settings?.reasoning_effort !== undefined
+            const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
             const currentContent = lastUserMsg.content
 
             lastUserMsg.content = processPostsuffixQwen3Model(currentContent, qwenThinkModeEnabled)
