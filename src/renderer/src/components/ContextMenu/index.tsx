@@ -1,8 +1,7 @@
+import { getSelectedText } from '@renderer/utils/selection'
 import { Dropdown } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { getSelectedText } from '@renderer/utils/selection'
 
 interface ContextMenuProps {
   children: React.ReactNode
