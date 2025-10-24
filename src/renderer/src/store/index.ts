@@ -17,6 +17,7 @@ import memory from './memory'
 import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
+import modelGroupsReducer from './modelGroups'
 import newMessagesReducer from './newMessage'
 import { setNotesPath } from './note'
 import note from './note'
@@ -58,7 +59,8 @@ const rootReducer = combineReducers({
   inputTools: inputToolsReducer,
   translate,
   ocr,
-  note
+  note,
+  modelGroups: modelGroupsReducer
 })
 
 const persistedReducer = persistReducer(

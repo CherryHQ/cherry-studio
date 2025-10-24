@@ -468,6 +468,11 @@
     "whole_word": "全字匹配"
   },
   "chat": {
+    "mention": {
+      "title": "提及模型或分组",
+      "groups": "分组",
+      "models": "模型"
+    },
     "add": {
       "assistant": {
         "title": "添加助手"
@@ -2800,6 +2805,22 @@
     }
   },
   "settings": {
+    "modelGroup": {
+      "title": "模型分组",
+      "subtitle": "管理模型分组，方便进行多模型对话",
+      "create": "创建分组",
+      "edit": "编辑分组",
+      "delete": "删除分组",
+      "name": "分组名称",
+      "description": "描述",
+      "models": "模型",
+      "selectModels": "选择模型",
+      "confirmDelete": "确定要删除这个模型分组吗？",
+      "namePlaceholder": "请输入分组名称",
+      "descriptionPlaceholder": "请输入描述（可选）",
+      "noGroups": "还没有创建任何模型分组",
+      "createFirst": "创建您的第一个模型分组开始使用"
+    },
     "about": {
       "checkUpdate": {
         "available": "立即更新",

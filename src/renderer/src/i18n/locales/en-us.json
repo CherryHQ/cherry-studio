@@ -3859,6 +3859,22 @@
       "visible": "Visible Mini Apps"
     },
     "model": "Default Model",
+    "modelGroup": {
+      "title": "Model Groups",
+      "subtitle": "Manage model groups for easier multi-model conversations",
+      "create": "Create Group",
+      "edit": "Edit Group",
+      "delete": "Delete Group",
+      "name": "Group Name",
+      "description": "Description",
+      "models": "Models",
+      "selectModels": "Select Models",
+      "confirmDelete": "Are you sure you want to delete this model group?",
+      "namePlaceholder": "Enter group name",
+      "descriptionPlaceholder": "Enter description (optional)",
+      "noGroups": "No model groups created yet",
+      "createFirst": "Create your first model group to get started"
+    },
     "models": {
       "add": {
         "add_model": "Add Model",
