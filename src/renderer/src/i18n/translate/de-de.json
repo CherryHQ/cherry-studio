@@ -23,7 +23,7 @@
     "get": {
       "error": {
         "failed": "Agent abrufen fehlgeschlagen",
-        "null_id": "智能体 ID 为空。"
+        "null_id": "Agent ID ist leer."
       }
     },
     "list": {
@@ -75,7 +75,7 @@
       "get": {
         "error": {
           "failed": "Sitzung abrufen fehlgeschlagen",
-          "null_id": "会话 ID 为空"
+          "null_id": "Sitzung ID ist leer."
         }
       },
       "label_one": "Sitzung",
@@ -538,7 +538,7 @@
         "context": "Kontext löschen {{Command}}"
       },
       "new_topic": "Neues Thema {{Command}}",
-      "paste_text_file_confirm": "粘贴到输入框？",
+      "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
@@ -1963,12 +1963,12 @@
     "rename_changed": "Aus Sicherheitsgründen wurde der Dateiname von {{original}} zu {{final}} geändert",
     "save": "In Notizen speichern",
     "search": {
-      "both": "名称+内容",
-      "content": "内容",
-      "found_results": "找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
-      "more_matches": "个匹配",
+      "both": "Name + Inhalt",
+      "content": "Inhalt",
+      "found_results": "{{count}} Ergebnisse gefunden (Name: {{nameCount}}, Inhalt: {{contentCount}})",
+      "more_matches": " Treffer",
       "searching": "Searching...",
-      "show_less": "收起"
+      "show_less": "Weniger anzeigen"
     },
     "settings": {
       "data": {
@@ -2323,40 +2323,40 @@
   "provider": {
     "302ai": "302.AI",
     "aihubmix": "AiHubMix",
-    "aionly": "唯一AI (AiOnly)",
+    "aionly": "Einzige KI (AiOnly)",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
-    "baichuan": "百川",
-    "baidu-cloud": "百度云千帆",
+    "baichuan": "Baichuan",
+    "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
-    "dashscope": "阿里云百炼",
-    "deepseek": "深度求索",
+    "dashscope": "Alibaba Cloud Bailian",
+    "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
-    "doubao": "火山引擎",
+    "doubao": "Volcano Engine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
-    "gitee-ai": "模力方舟",
+    "gitee-ai": "Modellkraft Arche",
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
-    "hunyuan": "腾讯混元",
+    "hunyuan": "Tencent Hunyuan",
     "hyperbolic": "Hyperbolic",
-    "infini": "无问芯穹",
+    "infini": "Infini-AI",
     "jina": "Jina",
-    "lanyun": "蓝耘科技",
+    "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
     "minimax": "MiniMax",
     "mistral": "Mistral",
-    "modelscope": "ModelScope 魔搭",
-    "moonshot": "月之暗面",
+    "modelscope": "ModelScope",
+    "moonshot": "Moonshot AI",
     "new-api": "New API",
-    "nvidia": "英伟达",
+    "nvidia": "NVIDIA",
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
@@ -2364,22 +2364,22 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 大模型开放平台",
+    "ph8": "PH8 Großmodell-Plattform",
     "poe": "Poe",
-    "ppio": "PPIO 派欧云",
-    "qiniu": "七牛云 AI 推理",
+    "ppio": "PPIO Cloud",
+    "qiniu": "Qiniu Cloud KI-Inferenz",
     "qwenlm": "QwenLM",
-    "silicon": "硅基流动",
-    "stepfun": "阶跃星辰",
-    "tencent-cloud-ti": "腾讯云 TI",
+    "silicon": "SiliconFlow",
+    "stepfun": "StepFun",
+    "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
-    "xirang": "天翼云息壤",
-    "yi": "零一万物",
-    "zhinao": "360 智脑",
-    "zhipu": "智谱开放平台"
+    "xirang": "China Telecom Cloud Xirang",
+    "yi": "01.AI",
+    "zhinao": "360 Zhinao",
+    "zhipu": "Zhipu AI"
   },
   "restore": {
     "confirm": {
@@ -4231,7 +4231,7 @@
         "system": "System-Proxy",
         "title": "Proxy-Modus"
       },
-      "tip": "支持模糊匹配（*.test.com，192.168.0.0/16）"
+      "tip": "Unterstützt Fuzzy-Matching (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",
