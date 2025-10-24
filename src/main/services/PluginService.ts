@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { getResourcePath } from '@main/utils'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
 import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
 import type {
@@ -13,6 +12,7 @@ import type {
   UninstallPluginOptions
 } from '@types'
 import * as crypto from 'crypto'
+import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -543,7 +543,10 @@ export class PluginService {
    */
   private getPluginsBasePath(): string {
     // Use the utility function which handles both dev and production correctly
-    return path.join(getResourcePath(), 'data', 'claude-code-plugins')
+    if(app.isPackaged) {
+      return path.join(process.resourcesPath, 'claude-code-plugins')
+    }
+    return path.join(__dirname, '../../node_modules/claude-code-plugins/plugins')
   }
 
   /**

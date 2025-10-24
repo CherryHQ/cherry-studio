@@ -14000,6 +14000,7 @@ __metadata:
     check-disk-space: "npm:3.4.0"
     cheerio: "npm:^1.1.2"
     chokidar: "npm:^4.0.3"
+    claude-code-plugins: "npm:1.0.0"
     cli-progress: "npm:^3.12.0"
     clsx: "npm:^2.1.1"
     code-inspector-plugin: "npm:^0.20.14"
@@ -15624,6 +15625,13 @@ __metadata:
   version: 2.5.1
   resolution: "classnames@npm:2.5.1"
   checksum: 10c0/afff4f77e62cea2d79c39962980bf316bacb0d7c49e13a21adaadb9221e1c6b9d3cdb829d8bb1b23c406f4e740507f37e1dcf506f7e3b7113d17c5bab787aa69
+  languageName: node
+  linkType: hard
+
+"claude-code-plugins@npm:1.0.0":
+  version: 1.0.0
+  resolution: "claude-code-plugins@npm:1.0.0"
+  checksum: 10c0/0b885a1849191f256a8d7bf697b3b162673d03b5e93b9b35a841695267e5d11b5c9b9d9b7cbfc852fb5f967efa60d4709e26a70b4bac7f2110b4b59dbe1aeed1
   languageName: node
   linkType: hard
 

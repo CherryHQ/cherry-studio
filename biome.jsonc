@@ -23,7 +23,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!external/**", "!resources/data/claude-code-plugins/**"],
+    "includes": ["**", "!external/**"],
     "maxSize": 2097152
   },
   "formatter": {
