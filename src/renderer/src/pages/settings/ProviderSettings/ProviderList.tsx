@@ -1,4 +1,5 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Popover, PopoverContent, PopoverTrigger, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -16,7 +17,7 @@ import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Input, Tag } from 'antd'
-import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
+import { GripVertical, PlusIcon, Search, SettingsIcon, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +31,6 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 
 const logger = loggerService.withContext('ProviderList')
 
-const BUTTON_WRAPPER_HEIGHT = 50
 const systemType = await window.api.system.getDeviceType()
 const cpuName = await window.api.system.getCpuName()
 
@@ -45,6 +45,7 @@ const ProviderList: FC = () => {
   const [dragging, setDragging] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
+  const [showDisabled, setShowDisabled] = usePreference('ui.provider.show_disabled')
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
@@ -283,6 +284,10 @@ const ProviderList: FC = () => {
       return false
     }
 
+    if (!showDisabled && !provider.enabled) {
+      return false
+    }
+
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
     const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
@@ -311,12 +316,12 @@ const ProviderList: FC = () => {
   return (
     <Container className="selectable">
       <ProviderListContainer>
-        <AddButtonWrapper>
+        <header className="flex h-11 gap-1 p-1">
           <Input
             type="text"
             placeholder={t('settings.provider.search')}
             value={searchText}
-            style={{ borderRadius: 'var(--list-item-border-radius)', height: 35 }}
+            style={{ borderRadius: 'var(--list-item-border-radius)' }}
             suffix={<Search size={14} />}
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
@@ -328,7 +333,29 @@ const ProviderList: FC = () => {
             allowClear
             disabled={dragging}
           />
-        </AddButtonWrapper>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="light"
+                startContent={<SettingsIcon size={18} />}
+                isIconOnly
+                className="h-full min-h-0 w-9 min-w-0"
+              />
+            </PopoverTrigger>
+            <PopoverContent>
+              <ul className="flex h-full w-full flex-col">
+                <li className="flex flex-row items-center justify-between">
+                  <Switch
+                    isSelected={showDisabled}
+                    onValueChange={setShowDisabled}
+                    classNames={{ base: 'flex-1 flex-row-reverse justify-between max-w-full' }}>
+                    {t('settings.provider.list.settings.show_disabled')}
+                  </Switch>
+                </li>
+              </ul>
+            </PopoverContent>
+          </Popover>
+        </header>
         <DraggableVirtualList
           ref={listRef}
           list={filteredProviders}
@@ -338,7 +365,8 @@ const ProviderList: FC = () => {
           itemKey={itemKey}
           overscan={3}
           style={{
-            height: `calc(100% - 2 * ${BUTTON_WRAPPER_HEIGHT}px)`
+            flex: 1,
+            overflow: 'hidden'
           }}
           scrollerStyle={{
             padding: 8,
@@ -372,7 +400,7 @@ const ProviderList: FC = () => {
             </Dropdown>
           )}
         </DraggableVirtualList>
-        <AddButtonWrapper>
+        <footer className="h-12">
           <Button
             size="sm"
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
@@ -381,7 +409,7 @@ const ProviderList: FC = () => {
             isDisabled={dragging}>
             {t('button.add')}
           </Button>
-        </AddButtonWrapper>
+        </footer>
       </ProviderListContainer>
       <ProviderSetting providerId={selectedProvider.id} key={selectedProvider.id} />
     </Container>
@@ -449,14 +477,6 @@ const DragHandle = styled.div`
 const ProviderItemName = styled.div`
   margin-left: 10px;
   font-weight: 500;
-`
-
-const AddButtonWrapper = styled.div`
-  height: ${BUTTON_WRAPPER_HEIGHT}px;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 10px 8px;
 `
 
 export default ProviderList

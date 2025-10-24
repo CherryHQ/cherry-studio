@@ -4176,6 +4176,11 @@
       "docs_check": "Check",
       "docs_more_details": "for more details",
       "get_api_key": "Get API Key",
+      "list": {
+        "settings": {
+          "show_disabled": "Show disabled providers"
+        }
+      },
       "misc": "Other",
       "no_models_for_check": "No models available for checking (e.g. chat models)",
       "not_checked": "Not Checked",
@@ -4230,7 +4235,7 @@
         "system": "System Proxy",
         "title": "Proxy Mode"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "Supports fuzzy matching (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
