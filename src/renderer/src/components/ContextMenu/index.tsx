@@ -2,6 +2,8 @@ import { Dropdown } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { getSelectedText } from '@renderer/utils/selection'
+
 interface ContextMenuProps {
   children: React.ReactNode
 }
@@ -45,7 +47,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
 
   const onOpenChange = (open: boolean) => {
     if (open) {
-      const selectedText = window.getSelection()?.toString()
+      const selectedText = getSelectedText()
       setSelectedText(selectedText)
     }
   }

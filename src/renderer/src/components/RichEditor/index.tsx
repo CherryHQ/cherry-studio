@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
 import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
+import { getSelectedText } from '@renderer/utils/selection'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
 import { Tooltip } from 'antd'
@@ -254,7 +255,7 @@ const RichEditor = ({
       const isModF = (event.metaKey || event.ctrlKey) && (event.key === 'f' || event.key === 'F')
       if (isModF) {
         event.preventDefault()
-        const selectedText = window.getSelection()?.toString().trim()
+        const selectedText = getSelectedText()
         contentSearchRef.current?.enable(selectedText)
         return
       }
@@ -270,7 +271,7 @@ const RichEditor = ({
     (event) => {
       if (!enableContentSearch) return
       event.preventDefault()
-      const selectedText = window.getSelection()?.toString().trim()
+      const selectedText = getSelectedText()
       contentSearchRef.current?.enable(selectedText)
     },
     { enableOnContentEditable: true, preventDefault: true, enabled: enableContentSearch },
