@@ -9,7 +9,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -31,7 +31,7 @@ const logger = loggerService.withContext('ActionTranslate')
 
 const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const { t } = useTranslation()
-  const { translateModelPrompt, language } = useSettings()
+  const { language } = useSettings()
 
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(LanguagesEnum.enUS)
   const [alterLanguage, setAlterLanguage] = useState<TranslateLanguage>(LanguagesEnum.zhCN)
@@ -41,13 +41,19 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
   const [isContented, setIsContented] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [contentToCopy, setContentToCopy] = useState('')
+  // use default assistant.
+  // FIXME: this component create a new topic every time, but related data would not be cleared.
+  const [topic] = useState<Topic>(getDefaultTopic('default'))
   const { getLanguageByLangcode } = useTranslate()
 
   // Use useRef for values that shouldn't trigger re-renders
-  const initialized = useRef(false)
-  const assistantRef = useRef<Assistant | null>(null)
-  const topicRef = useRef<Topic | null>(null)
+  const topicRef = useRef<Topic | null>(topic)
   const askId = useRef('')
+
+  // Sync ref
+  useEffect(() => {
+    topicRef.current = topic
+  }, [topic])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -79,22 +85,8 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     })
   }, [getLanguageByLangcode, language])
 
-  // Initialize values only once when action changes
-  useEffect(() => {
-    if (initialized.current || !action.selectedText) return
-    initialized.current = true
-
-    // Initialize assistant
-    const currentAssistant = getDefaultTranslateAssistant(targetLanguage, action.selectedText)
-
-    assistantRef.current = currentAssistant
-
-    // Initialize topic
-    topicRef.current = getDefaultTopic(currentAssistant.id)
-  }, [action, targetLanguage, translateModelPrompt])
-
   const fetchResult = useCallback(async () => {
-    if (!assistantRef.current || !topicRef.current || !action.selectedText) return
+    if (!topicRef.current || !action.selectedText) return
 
     const setAskId = (id: string) => {
       askId.current = id
@@ -111,8 +103,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       setIsLoading(false)
       setError(error.message)
     }
-
-    setIsLoading(true)
 
     let sourceLanguageCode: TranslateLanguageCode
 
@@ -139,7 +129,6 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     }
 
     const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
-    assistantRef.current = assistant
     processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom])
 
@@ -147,7 +136,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     fetchResult()
   }, [fetchResult])
 
-  const allMessages = useTopicMessages(topicRef.current?.id || '')
+  const allMessages = useTopicMessages(topic?.id || '')
 
   const messageContent = useMemo(() => {
     const assistantMessages = allMessages.filter((message) => message.role === 'assistant')
