@@ -91,7 +91,7 @@ export const SUPPORTED_ENDPOINT_LIST = [
   'generateContent',
   'streamGenerateContent',
   ...SUPPORTED_IMAGE_ENDPOINT_LIST
-]
+] as const
 
 export function routeToEndpoint(apiHost: string): { baseURL: string; endpoint: string } {
   const trimmedHost = trim(apiHost)
