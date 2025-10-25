@@ -21,7 +21,9 @@ export function formatApiKeys(value: string): string {
 export function hasAPIVersion(host?: string): boolean {
   if (!host) return false
 
-  const versionRegex = /\/v\d+(alpha|beta)?$/i
+  // 匹配路径中以 `/v<number>` 开头并可选跟随 `alpha` 或 `beta` 的版本段，
+  // 该段后面可以跟 `/` 或字符串结束（用于匹配诸如 `/v3alpha/resources` 的情况）。
+  const versionRegex = /\/v\d+(?:alpha|beta)?(?=\/|$)/i
 
   try {
     const url = new URL(host)
