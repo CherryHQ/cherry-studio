@@ -22,12 +22,18 @@
     },
     "get": {
       "error": {
-        "failed": "Agent abrufen fehlgeschlagen"
+        "failed": "Agent abrufen fehlgeschlagen",
+        "null_id": "Agent ID ist leer."
       }
     },
     "list": {
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "API server is enabled but not running properly."
       }
     },
     "session": {
@@ -68,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Sitzung abrufen fehlgeschlagen"
+          "failed": "Sitzung abrufen fehlgeschlagen",
+          "null_id": "Sitzung ID ist leer."
         }
       },
       "label_one": "Sitzung",
@@ -237,6 +244,7 @@
     "messages": {
       "apiKeyCopied": "API-Schlüssel in die Zwischenablage kopiert",
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
+      "notEnabled": "API server is not enabled.",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
       "restartError": "API-Server-Neustart fehlgeschlagen:",
       "restartFailed": "API-Server-Neustart fehlgeschlagen:",
@@ -530,6 +538,7 @@
         "context": "Kontext löschen {{Command}}"
       },
       "new_topic": "Neues Thema {{Command}}",
+      "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
@@ -943,6 +952,7 @@
     }
   },
   "common": {
+    "about": "About",
     "add": "Hinzufügen",
     "add_success": "Erfolgreich hinzugefügt",
     "advanced_settings": "Erweiterte Einstellungen",
@@ -1795,6 +1805,7 @@
     "title": "Mini-Apps"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baixiaoying",
     "baidu-ai-search": "Baidu AI Suche",
     "chatglm": "ChatGLM",
@@ -1951,6 +1962,14 @@
     "rename": "Umbenennen",
     "rename_changed": "Aus Sicherheitsgründen wurde der Dateiname von {{original}} zu {{final}} geändert",
     "save": "In Notizen speichern",
+    "search": {
+      "both": "Name + Inhalt",
+      "content": "Inhalt",
+      "found_results": "{{count}} Ergebnisse gefunden (Name: {{nameCount}}, Inhalt: {{contentCount}})",
+      "more_matches": " Treffer",
+      "searching": "Searching...",
+      "show_less": "Weniger anzeigen"
+    },
     "settings": {
       "data": {
         "apply": "Anwenden",
@@ -2035,6 +2054,7 @@
       "provider": {
         "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
         "existing": "Anbieter existiert bereits",
+        "get_providers": "Failed to obtain available providers",
         "not_found": "OCR-Anbieter nicht gefunden",
         "update_failed": "Konfiguration aktualisieren fehlgeschlagen"
       },
@@ -2098,6 +2118,8 @@
       "install_code_103": "OVMS Runtime herunterladen fehlgeschlagen",
       "install_code_104": "OVMS Runtime entpacken fehlgeschlagen",
       "install_code_105": "OVMS Runtime bereinigen fehlgeschlagen",
+      "install_code_106": "Failed to create run.bat",
+      "install_code_110": "Failed to clean up old OVMS runtime",
       "run": "OVMS ausführen fehlgeschlagen:",
       "stop": "OVMS stoppen fehlgeschlagen:"
     },
@@ -2301,40 +2323,40 @@
   "provider": {
     "302ai": "302.AI",
     "aihubmix": "AiHubMix",
-    "aionly": "唯一AI (AiOnly)",
+    "aionly": "Einzige KI (AiOnly)",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
-    "baichuan": "百川",
-    "baidu-cloud": "百度云千帆",
+    "baichuan": "Baichuan",
+    "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
-    "dashscope": "阿里云百炼",
-    "deepseek": "深度求索",
+    "dashscope": "Alibaba Cloud Bailian",
+    "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
-    "doubao": "火山引擎",
+    "doubao": "Volcano Engine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
-    "gitee-ai": "模力方舟",
+    "gitee-ai": "Modellkraft Arche",
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
-    "hunyuan": "腾讯混元",
+    "hunyuan": "Tencent Hunyuan",
     "hyperbolic": "Hyperbolic",
-    "infini": "无问芯穹",
+    "infini": "Infini-AI",
     "jina": "Jina",
-    "lanyun": "蓝耘科技",
+    "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
     "minimax": "MiniMax",
     "mistral": "Mistral",
-    "modelscope": "ModelScope 魔搭",
-    "moonshot": "月之暗面",
+    "modelscope": "ModelScope",
+    "moonshot": "Moonshot AI",
     "new-api": "New API",
-    "nvidia": "英伟达",
+    "nvidia": "NVIDIA",
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
@@ -2342,22 +2364,22 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 大模型开放平台",
+    "ph8": "PH8 Großmodell-Plattform",
     "poe": "Poe",
-    "ppio": "PPIO 派欧云",
-    "qiniu": "七牛云 AI 推理",
+    "ppio": "PPIO Cloud",
+    "qiniu": "Qiniu Cloud KI-Inferenz",
     "qwenlm": "QwenLM",
-    "silicon": "硅基流动",
-    "stepfun": "阶跃星辰",
-    "tencent-cloud-ti": "腾讯云 TI",
+    "silicon": "SiliconFlow",
+    "stepfun": "StepFun",
+    "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
-    "xirang": "天翼云息壤",
-    "yi": "零一万物",
-    "zhinao": "360 智脑",
-    "zhipu": "智谱开放平台"
+    "xirang": "China Telecom Cloud Xirang",
+    "yi": "01.AI",
+    "zhinao": "360 Zhinao",
+    "zhipu": "Zhipu AI"
   },
   "restore": {
     "confirm": {
@@ -2656,11 +2678,11 @@
             "go_to_settings": "Zu Einstellungen",
             "open_accessibility_settings": "Bedienungshilfen-Einstellungen öffnen"
           },
-          "description": [
-            "Der Textauswahl-Assistent benötigt <strong>Bedienungshilfen-Berechtigungen</strong>, um ordnungsgemäß zu funktionieren.",
-            "Klicken Sie auf <strong>Zu Einstellungen</strong> und anschließend im Berechtigungsdialog auf <strong>Systemeinstellungen öffnen</strong>. Suchen Sie danach in der App-Liste <strong>Cherry Studio</strong> und aktivieren Sie den Schalter.",
-            "Nach Abschluss der Einrichtung Textauswahl-Assistent erneut aktivieren."
-          ],
+          "description": {
+            "0": "Der Textauswahl-Assistent benötigt <strong>Bedienungshilfen-Berechtigungen</strong>, um ordnungsgemäß zu funktionieren.",
+            "1": "Klicken Sie auf <strong>Zu Einstellungen</strong> und anschließend im Berechtigungsdialog auf <strong>Systemeinstellungen öffnen</strong>. Suchen Sie danach in der App-Liste <strong>Cherry Studio</strong> und aktivieren Sie den Schalter.",
+            "2": "Nach Abschluss der Einrichtung Textauswahl-Assistent erneut aktivieren."
+          },
           "title": "Bedienungshilfen-Berechtigung"
         },
         "title": "Aktivieren"
@@ -3568,6 +3590,7 @@
       "builtinServers": "Integrierter Server",
       "builtinServersDescriptions": {
         "brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
+        "didi_mcp": "An integrated Didi MCP server implementation that provides ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in mainland China. Requires the DIDI_API_KEY environment variable to be configured.",
         "dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
         "fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
         "filesystem": "MCP-Server für Dateisystemoperationen (Node.js), der den Zugriff auf bestimmte Verzeichnisse ermöglicht",
@@ -4207,7 +4230,8 @@
         "none": "Keinen Proxy verwenden",
         "system": "System-Proxy",
         "title": "Proxy-Modus"
-      }
+      },
+      "tip": "Unterstützt Fuzzy-Matching (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",

@@ -2697,6 +2697,15 @@ const migrateConfig = {
       logger.error('migrate 164 error', error as Error)
       return state
     }
+  },
+  '165': (state: RootState) => {
+    try {
+      addMiniApp(state, 'huggingchat')
+      return state
+    } catch (error) {
+      logger.error('migrate 165 error', error as Error)
+      return state
+    }
   }
 }
 

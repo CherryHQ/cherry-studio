@@ -538,7 +538,7 @@
         "context": "Limpiar contexto {{Command}}"
       },
       "new_topic": "Nuevo tema {{Command}}",
-      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
+      "paste_text_file_confirm": "¿Pegar en el cuadro de entrada?",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
@@ -952,6 +952,7 @@
     }
   },
   "common": {
+    "about": "sobre",
     "add": "Agregar",
     "add_success": "Añadido con éxito",
     "advanced_settings": "Configuración avanzada",
@@ -1962,12 +1963,12 @@
     "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "save": "Guardar en notas",
     "search": {
-      "both": "[to be translated]:名称+内容",
-      "content": "[to be translated]:内容",
-      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
-      "more_matches": "[to be translated]:个匹配",
-      "searching": "[to be translated]:搜索中...",
-      "show_less": "[to be translated]:收起"
+      "both": "Nombre + Contenido",
+      "content": "contenido",
+      "found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",
+      "more_matches": "Una coincidencia",
+      "searching": "Buscando...",
+      "show_less": "Recoger"
     },
     "settings": {
       "data": {
@@ -2117,8 +2118,8 @@
       "install_code_103": "Error al descargar el tiempo de ejecución de OVMS",
       "install_code_104": "Error al descomprimir el tiempo de ejecución de OVMS",
       "install_code_105": "Error al limpiar el tiempo de ejecución de OVMS",
-      "install_code_106": "[to be translated]:创建 run.bat 失败",
-      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
+      "install_code_106": "Error al crear run.bat",
+      "install_code_110": "Error al limpiar el antiguo runtime de OVMS",
       "run": "Error al ejecutar OVMS:",
       "stop": "Error al detener OVMS:"
     },
@@ -4230,7 +4231,7 @@
         "system": "Proxy del sistema",
         "title": "Modo de proxy"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "Admite coincidencia parcial (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Haz clic en el icono de la bandeja para iniciar",
