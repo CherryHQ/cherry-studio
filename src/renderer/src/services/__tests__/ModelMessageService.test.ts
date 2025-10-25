@@ -226,28 +226,28 @@ describe('processPostsuffixQwen3Model', () => {
     it('should append /think suffix when thinking mode is enabled', () => {
       const content = 'Hello?'
       const result = processPostsuffixQwen3Model(content, true)
-      
+
       expect(result).toBe('Hello? /think')
     })
 
     it('should append /no_think suffix when thinking mode is disabled', () => {
       const content = 'Hello?'
       const result = processPostsuffixQwen3Model(content, false)
-      
+
       expect(result).toBe('Hello? /no_think')
     })
 
     it('should not append /think suffix if already present', () => {
       const content = 'Hello? /think'
       const result = processPostsuffixQwen3Model(content, true)
-      
+
       expect(result).toBe('Hello? /think')
     })
 
     it('should not append /no_think suffix if already present', () => {
       const content = 'Hello? /no_think'
       const result = processPostsuffixQwen3Model(content, false)
-      
+
       expect(result).toBe('Hello? /no_think')
     })
   })
@@ -259,7 +259,7 @@ describe('processPostsuffixQwen3Model', () => {
         { type: 'text', text: 'World?' }
       ] as any[]
       const result = processPostsuffixQwen3Model(content, true) as any[]
-      
+
       expect(result[0].text).toBe('Hello')
       expect(result[1].text).toBe('World?/think')
     })
@@ -270,36 +270,30 @@ describe('processPostsuffixQwen3Model', () => {
         { type: 'text', text: 'World?' }
       ] as any[]
       const result = processPostsuffixQwen3Model(content, false) as any[]
-      
+
       expect(result[0].text).toBe('Hello')
       expect(result[1].text).toBe('World?/no_think')
     })
 
     it('should not append suffix if already present in array content', () => {
-      const content = [
-        { type: 'text', text: 'Hello /think' }
-      ] as any[]
+      const content = [{ type: 'text', text: 'Hello /think' }] as any[]
       const result = processPostsuffixQwen3Model(content, true) as any[]
-      
+
       expect(result[0].text).toBe('Hello /think')
     })
 
     it('should add a new text part if no text part exists and thinking mode is enabled', () => {
-      const content = [
-        { type: 'image_url', image_url: { url: 'http://example.com/image.jpg' } }
-      ] as any[]
+      const content = [{ type: 'image_url', image_url: { url: 'http://example.com/image.jpg' } }] as any[]
       const result = processPostsuffixQwen3Model(content, true) as any[]
-      
+
       expect(result.length).toBe(2)
       expect(result[1]).toEqual({ type: 'text', text: '/think' })
     })
 
     it('should add a new text part if no text part exists and thinking mode is disabled', () => {
-      const content = [
-        { type: 'image_url', image_url: { url: 'http://example.com/image.jpg' } }
-      ] as any[]
+      const content = [{ type: 'image_url', image_url: { url: 'http://example.com/image.jpg' } }] as any[]
       const result = processPostsuffixQwen3Model(content, false) as any[]
-      
+
       expect(result.length).toBe(2)
       expect(result[1]).toEqual({ type: 'text', text: '/no_think' })
     })
