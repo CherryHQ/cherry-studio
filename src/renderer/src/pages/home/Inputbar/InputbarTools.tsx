@@ -1,6 +1,7 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import { MdiLightbulbOn } from '@renderer/components/Icons'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import {
   isGeminiModel,
@@ -215,6 +216,15 @@ const InputbarTools = ({
         isMenu: true,
         action: () => {
           quickPhrasesButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: t('assistants.settings.reasoning_effort.label'),
+        description: '',
+        icon: <MdiLightbulbOn />,
+        isMenu: true,
+        action: () => {
+          thinkingButtonRef.current?.openQuickPanel()
         }
       },
       {
