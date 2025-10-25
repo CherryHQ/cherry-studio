@@ -2,11 +2,13 @@ import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
-import type { Assistant, MCPTool, Message, Model, Provider } from '@renderer/types'
+import { type Assistant, MCPTool, type Message, type Model, type Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
 
+import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { noThinkMiddleware } from './noThinkMiddleware'
+import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
 import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
 import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
@@ -218,7 +220,7 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
  * 添加模型特定的中间件
  */
 function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: AiSdkMiddlewareConfig): void {
-  if (!config.model) return
+  if (!config.model || !config.provider) return
 
   // Qwen models on providers that don't support enable_thinking parameter (like Ollama, LM Studio, NVIDIA)
   // Use /think or /no_think suffix to control thinking mode
@@ -237,10 +239,11 @@ function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: Ai
 
   // 可以根据模型ID或特性添加特定中间件
   // 例如：图像生成模型、多模态模型等
-
-  // 示例：某些模型需要特殊处理
-  if (config.model.id.includes('dalle') || config.model.id.includes('midjourney')) {
-    // 图像生成相关中间件
+  if (isOpenRouterGeminiGenerateImageModel(config.model, config.provider)) {
+    builder.add({
+      name: 'openrouter-gemini-image-generation',
+      middleware: openrouterGenerateImageMiddleware()
+    })
   }
 }
 
