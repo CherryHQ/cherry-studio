@@ -111,7 +111,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
-  const configedApiHost = providerConfig?.api?.url
+  const configuredApiHost = providerConfig?.api?.url
 
   const fancyProviderName = getFancyProviderName(provider)
 
@@ -264,13 +264,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }
 
   const onReset = useCallback(() => {
-    setApiHost(configedApiHost)
-    updateProvider({ apiHost: configedApiHost })
-  }, [configedApiHost, updateProvider])
+    setApiHost(configuredApiHost)
+    updateProvider({ apiHost: configuredApiHost })
+  }, [configuredApiHost, updateProvider])
 
   const isApiHostResettable = useMemo(() => {
-    return !isEmpty(configedApiHost) && apiHost !== configedApiHost
-  }, [configedApiHost, apiHost])
+    return !isEmpty(configuredApiHost) && apiHost !== configuredApiHost
+  }, [configuredApiHost, apiHost])
 
   const hostPreview = () => {
     if (apiHost.endsWith('#')) {
