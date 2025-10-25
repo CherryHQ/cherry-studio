@@ -27,8 +27,9 @@ export const FUNCTION_CALLING_MODELS = [
   'doubao-seed-1[.-]6(?:-[\\w-]+)?',
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
-  'ring-\\w+(?:-[\\w-]+)?'
-]
+  'ring-\\w+(?:-[\\w-]+)?',
+  'minimax-m2'
+] as const
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'aqa(?:-[\\w-]+)?',
