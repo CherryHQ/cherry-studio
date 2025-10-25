@@ -4092,7 +4092,7 @@
         }
       },
       "api_host": "APIホスト",
-      "api_host_no_valid": "[to be translated]:API 地址不合法",
+      "api_host_no_valid": "APIアドレスが無効です",
       "api_host_preview": "プレビュー：{{url}}",
       "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {

@@ -4092,7 +4092,7 @@
         }
       },
       "api_host": "Διεύθυνση API",
-      "api_host_no_valid": "[to be translated]:API 地址不合法",
+      "api_host_no_valid": "Η διεύθυνση API δεν είναι έγκυρη",
       "api_host_preview": "Προεπισκόπηση: {{url}}",
       "api_host_tooltip": "Αντικατάσταση μόνο όταν ο πάροχος απαιτεί προσαρμοσμένη διεύθυνση συμβατή με OpenAI.",
       "api_key": {

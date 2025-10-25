@@ -4092,7 +4092,7 @@
         }
       },
       "api_host": "Dirección API",
-      "api_host_no_valid": "[to be translated]:API 地址不合法",
+      "api_host_no_valid": "La dirección de la API no es válida",
       "api_host_preview": "Vista previa: {{url}}",
       "api_host_tooltip": "Sobrescribir solo cuando el proveedor necesite una dirección compatible con OpenAI personalizada.",
       "api_key": {
