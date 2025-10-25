@@ -2704,6 +2704,10 @@ const migrateConfig = {
   },
   '166': (state: RootState) => {
     try {
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+
       state.llm.providers.forEach((provider) => {
         if (
           (provider.id === SystemProviderIds.cherryin || provider.id === SystemProviderIds['new-api']) &&
