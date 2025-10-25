@@ -64,6 +64,12 @@ asarUnpack:
   - resources/**
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
+
+# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
+extraResources:
+  - from: "./node_modules/claude-code-plugins/plugins/"
+    to: "claude-code-plugins"
+
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
