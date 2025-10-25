@@ -165,16 +165,6 @@ Welcome PR for more themes
 
 # 🤝 Contributing
 
-> [!WARNING]
->
-> **important Notice Regarding Feature PRs (Effective Immediately)**
->
-> To ensure stability and focus during our current development phase, we are temporarily not accepting feature Pull Requests that involve changes of data of Redux or IndexedDB.
->
-> We appreciate your enthusiasm to contribute and encourage you to continue submitting PRs for bug fixes, performance improvements, documentation updates, and features that do not alter Redux state or IndexedDB structures.
->
-> Once version 2.0.0 is released, we will resume reviewing feature PRs.
-
 We welcome contributions to Cherry Studio! Here are some ways you can contribute:
 
 1. **Contribute Code**: Develop new features or optimize existing code.
