@@ -1,4 +1,4 @@
-import { ModelGroup, ModelReference } from '@renderer/types'
+import { ModelGroup } from '@renderer/types'
 import { Form, Input, Modal } from 'antd'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'

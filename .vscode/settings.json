@@ -51,5 +51,6 @@
   "tailwindCSS.classAttributes": [
     "className",
     "classNames",
-  ]
+  ],
+  "github-actions.workflows.pinned.workflows": []
 }

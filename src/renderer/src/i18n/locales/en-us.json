@@ -607,6 +607,11 @@
         "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
+    "mention": {
+      "groups": "[to be translated]:分组",
+      "models": "[to be translated]:模型",
+      "title": "[to be translated]:提及模型或分组"
+    },
     "message": {
       "new": {
         "branch": {
@@ -3860,20 +3865,20 @@
     },
     "model": "Default Model",
     "modelGroup": {
-      "title": "Model Groups",
-      "subtitle": "Manage model groups for easier multi-model conversations",
-      "create": "Create Group",
-      "edit": "Edit Group",
-      "delete": "Delete Group",
-      "name": "Group Name",
-      "description": "Description",
-      "models": "Models",
-      "selectModels": "Select Models",
       "confirmDelete": "Are you sure you want to delete this model group?",
-      "namePlaceholder": "Enter group name",
+      "create": "Create Group",
+      "createFirst": "Create your first model group to get started",
+      "delete": "Delete Group",
+      "description": "Description",
       "descriptionPlaceholder": "Enter description (optional)",
+      "edit": "Edit Group",
+      "models": "Models",
+      "name": "Group Name",
+      "namePlaceholder": "Enter group name",
       "noGroups": "No model groups created yet",
-      "createFirst": "Create your first model group to get started"
+      "selectModels": "Select Models",
+      "subtitle": "Manage model groups for easier multi-model conversations",
+      "title": "Model Groups"
     },
     "models": {
       "add": {

@@ -1,6 +1,5 @@
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, ModelReference } from '@renderer/types'
+import { ModelReference } from '@renderer/types'
 import { Select, Tag } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,29 +56,21 @@ const ModelGroupSelector: FC<Props> = ({ value = [], onChange }) => {
       tagRender={(props) => {
         const { label, value, closable, onClose } = props
         const modelKey = value as string
-        
+
         if (!modelKey || typeof modelKey !== 'string') {
           return (
-            <Tag
-              color="blue"
-              closable={closable}
-              onClose={onClose}
-              style={{ marginRight: 3, marginBottom: 3 }}>
+            <Tag color="blue" closable={closable} onClose={onClose} style={{ marginRight: 3, marginBottom: 3 }}>
               {label}
             </Tag>
           )
         }
-        
+
         const [providerId, modelId] = modelKey.split(':')
         const provider = providers.find((p) => p.id === providerId)
         const model = provider?.models.find((m) => m.id === modelId)
 
         return (
-          <Tag
-            color="blue"
-            closable={closable}
-            onClose={onClose}
-            style={{ marginRight: 3, marginBottom: 3 }}>
+          <Tag color="blue" closable={closable} onClose={onClose} style={{ marginRight: 3, marginBottom: 3 }}>
             {model?.name || label}
           </Tag>
         )

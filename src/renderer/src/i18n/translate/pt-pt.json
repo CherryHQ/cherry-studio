@@ -607,6 +607,11 @@
         "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
       }
     },
+    "mention": {
+      "groups": "[to be translated]:分组",
+      "models": "[to be translated]:模型",
+      "title": "[to be translated]:提及模型或分组"
+    },
     "message": {
       "new": {
         "branch": {
@@ -3859,6 +3864,22 @@
       "visible": "Mini Aplicativos Visíveis"
     },
     "model": "Modelo padrão",
+    "modelGroup": {
+      "confirmDelete": "[to be translated]:确定要删除这个模型分组吗？",
+      "create": "[to be translated]:创建分组",
+      "createFirst": "[to be translated]:创建您的第一个模型分组开始使用",
+      "delete": "[to be translated]:删除分组",
+      "description": "[to be translated]:描述",
+      "descriptionPlaceholder": "[to be translated]:请输入描述（可选）",
+      "edit": "[to be translated]:编辑分组",
+      "models": "[to be translated]:模型",
+      "name": "[to be translated]:分组名称",
+      "namePlaceholder": "[to be translated]:请输入分组名称",
+      "noGroups": "[to be translated]:还没有创建任何模型分组",
+      "selectModels": "[to be translated]:选择模型",
+      "subtitle": "[to be translated]:管理模型分组，方便进行多模型对话",
+      "title": "[to be translated]:模型分组"
+    },
     "models": {
       "add": {
         "add_model": "Adicionar modelo",
