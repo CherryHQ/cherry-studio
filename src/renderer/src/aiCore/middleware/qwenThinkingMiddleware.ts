@@ -1,7 +1,4 @@
-import { loggerService } from '@logger'
 import { LanguageModelMiddleware } from 'ai'
-
-const logger = loggerService.withContext('qwenThinkingMiddleware')
 
 /**
  * Qwen Thinking Middleware
@@ -27,7 +24,6 @@ export function qwenThinkingMiddleware(enableThinking: boolean): LanguageModelMi
             if (Array.isArray(message.content)) {
               for (const part of message.content) {
                 if (part.type === 'text' && !part.text.endsWith('/think') && !part.text.endsWith('/no_think')) {
-                  logger.debug(`Adding ${suffix} to user message part`)
                   part.text += suffix
                 }
               }
