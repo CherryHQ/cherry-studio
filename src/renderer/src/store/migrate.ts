@@ -2709,10 +2709,7 @@ const migrateConfig = {
       }
 
       state.llm.providers.forEach((provider) => {
-        if (
-          (provider.id === SystemProviderIds.cherryin || provider.id === SystemProviderIds['new-api']) &&
-          provider.type !== 'new-api'
-        ) {
+        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
           provider.type = 'new-api'
         }
         if (provider.id === SystemProviderIds.longcat) {
@@ -2724,7 +2721,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 163 error', error as Error)
+      logger.error('migrate 166 error', error as Error)
       return state
     }
   }

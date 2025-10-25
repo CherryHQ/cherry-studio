@@ -85,7 +85,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
   cherryin: {
     id: 'cherryin',
     name: 'CherryIN',
-    type: 'new-api',
+    type: 'openai',
     apiKey: '',
     apiHost: 'https://open.cherryin.net',
     anthropicApiHost: 'https://open.cherryin.net',
@@ -1455,7 +1455,7 @@ export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpen
 }
 
 export function isOpenAIProvider(provider: Provider): boolean {
-  return ['openai-response'].includes(provider.type)
+  return provider.type === 'openai-response'
 }
 
 export function isAnthropicProvider(provider: Provider): boolean {

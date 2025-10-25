@@ -4043,7 +4043,6 @@
       },
       "anthropic_api_host": "Adresse API Anthropic",
       "anthropic_api_host_preview": "Aperçu Anthropic : {{url}}",
-      "anthropic_api_host_tip": "Remplir seulement si le fournisseur propose une adresse compatible Anthropic. Se terminant par / ignore le v1 ajouté automatiquement, se terminant par # force l'utilisation de l'adresse originale.",
       "anthropic_api_host_tooltip": "Remplir seulement lorsque le fournisseur propose une adresse de base compatible Claude.",
       "api": {
         "key": {
@@ -4088,7 +4087,7 @@
         "url": {
           "preview": "Aperçu : {{url}}",
           "reset": "Réinitialiser",
-          "tip": "Ignorer la version API si terminé par /, forcer l'utilisation de l'adresse d'entrée si terminé par #"
+          "tip": "forcer l'utilisation de l'adresse d'entrée si terminé par #"
         }
       },
       "api_host": "Adresse API",

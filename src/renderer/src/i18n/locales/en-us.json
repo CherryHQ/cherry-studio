@@ -4043,7 +4043,6 @@
       },
       "anthropic_api_host": "Anthropic API Host",
       "anthropic_api_host_preview": "Anthropic preview: {{url}}",
-      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores API version, ending with # forces use of input address.",
       "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
       "api": {
         "key": {
@@ -4092,7 +4091,7 @@
         }
       },
       "api_host": "API Host",
-      "api_host_no_valid": "[to be translated]:API 地址不合法",
+      "api_host_no_valid": "API address is invalid",
       "api_host_preview": "Preview: {{url}}",
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {

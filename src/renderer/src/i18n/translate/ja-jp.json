@@ -4043,7 +4043,6 @@
       },
       "anthropic_api_host": "Anthropic APIアドレス",
       "anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
-      "anthropic_api_host_tip": "サービスプロバイダーがAnthropic互換のアドレスを提供する場合のみ入力してください。/で終わる場合は自動追加されるv1を無視し、#で終わる場合は元のアドレスを強制的に使用します。",
       "anthropic_api_host_tooltip": "サービスプロバイダーがClaude互換のベースアドレスを提供する場合のみ入力してください。",
       "api": {
         "key": {
@@ -4088,7 +4087,7 @@
         "url": {
           "preview": "プレビュー: {{url}}",
           "reset": "リセット",
-          "tip": "/で終わる場合、APIバージョンを無視します。#で終わる場合、入力されたアドレスを強制的に使用します"
+          "tip": "#で終わる場合、入力されたアドレスを強制的に使用します"
         }
       },
       "api_host": "APIホスト",

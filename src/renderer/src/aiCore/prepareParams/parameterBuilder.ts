@@ -145,24 +145,29 @@ export async function buildStreamTextParams(
     if (!tools) {
       tools = {}
     }
-    if (aiSdkProviderId === 'google-vertex') {
-      tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
-    }
-    if (aiSdkProviderId === 'google') {
-      tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
-    }
     const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
-    if (aiSdkProviderId === 'anthropic') {
-      tools.web_fetch = anthropic.tools.webFetch_20250910({
-        maxUses: webSearchConfig.maxResults,
-        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-      }) as ProviderDefinedTool
-    }
-    if (aiSdkProviderId === 'google-vertex-anthropic') {
-      tools.web_fetch = vertexAnthropic.tools.webFetch_20250910({
-        maxUses: webSearchConfig.maxResults,
-        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
-      }) as ProviderDefinedTool
+
+    switch (aiSdkProviderId) {
+      case 'google-vertex':
+        tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'google':
+        tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'anthropic':
+      case 'google-vertex-anthropic':
+        tools.web_fetch = (
+          aiSdkProviderId === 'anthropic'
+            ? anthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+            : vertexAnthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+        ) as ProviderDefinedTool
+        break
     }
   }
 

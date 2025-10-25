@@ -93,6 +93,15 @@ describe('api', () => {
       expect(hasAPIVersion('')).toBe(false)
       expect(hasAPIVersion(undefined)).toBe(false)
     })
+
+    it('return flase when starting without v character', () => {
+      expect(hasAPIVersion('https://api.example.com/a1v')).toBe(false)
+      expect(hasAPIVersion('/av1/users')).toBe(false)
+    })
+
+    it('return flase when starting with v- word', () => {
+      expect(hasAPIVersion('https://api.example.com/vendor')).toBe(false)
+    })
   })
 
   describe('maskApiKey', () => {

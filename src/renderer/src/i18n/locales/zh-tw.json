@@ -4043,7 +4043,6 @@
       },
       "anthropic_api_host": "Anthropic API 主機地址",
       "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
-      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
       "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
       "api": {
         "key": {
@@ -4088,7 +4087,7 @@
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
-          "tip": "/ 結尾忽略 API 版本，# 結尾強制使用輸入位址"
+          "tip": "# 結尾強制使用輸入位址"
         }
       },
       "api_host": "API 主機地址",
