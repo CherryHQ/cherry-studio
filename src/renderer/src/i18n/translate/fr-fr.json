@@ -538,6 +538,7 @@
         "context": "Effacer le contexte {{Command}}"
       },
       "new_topic": "Nouveau sujet {{Command}}",
+      "paste_text_file_confirm": "Coller dans la zone de saisie ?",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
@@ -951,6 +952,7 @@
     }
   },
   "common": {
+    "about": "À propos",
     "add": "Ajouter",
     "add_success": "Ajout réussi",
     "advanced_settings": "Paramètres avancés",
@@ -1803,6 +1805,7 @@
     "title": "Mini-programme"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
@@ -1960,12 +1963,12 @@
     "rename_changed": "En raison de la politique de sécurité, le nom du fichier a été changé de {{original}} à {{final}}",
     "save": "sauvegarder dans les notes",
     "search": {
-      "both": "[to be translated]:名称+内容",
-      "content": "[to be translated]:内容",
-      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
-      "more_matches": "[to be translated]:个匹配",
-      "searching": "[to be translated]:搜索中...",
-      "show_less": "[to be translated]:收起"
+      "both": "Nom + Contenu",
+      "content": "contenu",
+      "found_results": "{{count}} résultat(s) trouvé(s) (nom : {{nameCount}}, contenu : {{contentCount}})",
+      "more_matches": "Correspondance",
+      "searching": "Recherche en cours...",
+      "show_less": "Replier"
     },
     "settings": {
       "data": {
@@ -2115,8 +2118,8 @@
       "install_code_103": "Échec du téléchargement du runtime OVMS",
       "install_code_104": "Échec de la décompression du runtime OVMS",
       "install_code_105": "Échec du nettoyage du runtime OVMS",
-      "install_code_106": "[to be translated]:创建 run.bat 失败",
-      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
+      "install_code_106": "Échec de la création de run.bat",
+      "install_code_110": "Échec du nettoyage de l'ancien runtime OVMS",
       "run": "Échec de l'exécution d'OVMS :",
       "stop": "Échec de l'arrêt d'OVMS :"
     },
@@ -4228,7 +4231,8 @@
         "none": "Ne pas utiliser de proxy",
         "system": "Proxy système",
         "title": "Mode de proxy"
-      }
+      },
+      "tip": "Prise en charge de la correspondance floue (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Cliquez sur l'icône dans la barre d'état système pour démarrer",

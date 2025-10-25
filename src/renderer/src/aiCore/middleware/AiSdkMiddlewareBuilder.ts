@@ -1,10 +1,13 @@
 import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
-import type { MCPTool, Message, Model, Provider } from '@renderer/types'
+import { type MCPTool, type Message, type Model, type Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
 
+import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { noThinkMiddleware } from './noThinkMiddleware'
+import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
+import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
 
@@ -31,6 +34,8 @@ export interface AiSdkMiddlewareConfig {
   uiMessages?: Message[]
   // 内置搜索配置
   webSearchPluginConfig?: WebSearchPluginConfig
+  // 知识库识别开关，默认开启
+  knowledgeRecognition?: 'off' | 'on'
 }
 
 /**
@@ -121,6 +126,15 @@ export class AiSdkMiddlewareBuilder {
 export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageModelMiddleware[] {
   const builder = new AiSdkMiddlewareBuilder()
 
+  // 0. 知识库强制调用中间件（必须在最前面，确保第一轮强制调用知识库）
+  if (config.knowledgeRecognition === 'off') {
+    builder.add({
+      name: 'force-knowledge-first',
+      middleware: toolChoiceMiddleware('builtin_knowledge_search')
+    })
+    logger.debug('Added toolChoice middleware to force knowledge base search on first round')
+  }
+
   // 1. 根据provider添加特定中间件
   if (config.provider) {
     addProviderSpecificMiddlewares(builder, config)
@@ -201,15 +215,16 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
 /**
  * 添加模型特定的中间件
  */
-function addModelSpecificMiddlewares(_: AiSdkMiddlewareBuilder, config: AiSdkMiddlewareConfig): void {
-  if (!config.model) return
+function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: AiSdkMiddlewareConfig): void {
+  if (!config.model || !config.provider) return
 
   // 可以根据模型ID或特性添加特定中间件
   // 例如：图像生成模型、多模态模型等
-
-  // 示例：某些模型需要特殊处理
-  if (config.model.id.includes('dalle') || config.model.id.includes('midjourney')) {
-    // 图像生成相关中间件
+  if (isOpenRouterGeminiGenerateImageModel(config.model, config.provider)) {
+    builder.add({
+      name: 'openrouter-gemini-image-generation',
+      middleware: openrouterGenerateImageMiddleware()
+    })
   }
 }
 

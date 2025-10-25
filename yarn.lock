@@ -2664,6 +2664,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@cherrystudio/openai@npm:^6.5.0, openai@npm:@cherrystudio/openai@6.5.0":
+  version: 6.5.0
+  resolution: "@cherrystudio/openai@npm:6.5.0"
+  peerDependencies:
+    ws: ^8.18.0
+    zod: ^3.25 || ^4.0
+  peerDependenciesMeta:
+    ws:
+      optional: true
+    zod:
+      optional: true
+  bin:
+    openai: bin/cli
+  checksum: 10c0/0f6cafb97aec17037d5ddcccc88e4b4a9c8de77a989a35bab2394b682a1a69e8a9343e8ee5eb8107d5c495970dbf3567642f154c033f7afc3bf078078666a92e
+  languageName: node
+  linkType: hard
+
 "@chevrotain/cst-dts-gen@npm:11.0.3":
   version: 11.0.3
   resolution: "@chevrotain/cst-dts-gen@npm:11.0.3"
@@ -7086,13 +7103,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openrouter/ai-sdk-provider@npm:^1.1.2":
-  version: 1.1.2
-  resolution: "@openrouter/ai-sdk-provider@npm:1.1.2"
+"@openrouter/ai-sdk-provider@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "@openrouter/ai-sdk-provider@npm:1.2.0"
   peerDependencies:
     ai: ^5.0.0
     zod: ^3.24.1 || ^v4
-  checksum: 10c0/1ad50804189910d52c2c10e479bec40dfbd2109820e43135d001f4f8706be6ace532d4769a8c30111f5870afdfa97b815c7334b2e4d8d36ca68b1578ce5d9a41
+  checksum: 10c0/4ca7c471ec46bdd48eea9c56d94778a06ca4b74b6ef2ab892ab7eadbd409e3530ac0c5791cd80e88cafc44a49a76585e59707104792e3e3124237fed767104ef
   languageName: node
   linkType: hard
 
@@ -7294,27 +7311,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opeoginni/github-copilot-openai-compatible@npm:0.1.18":
-  version: 0.1.18
-  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.18"
+"@opeoginni/github-copilot-openai-compatible@npm:0.1.19":
+  version: 0.1.19
+  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.19"
   dependencies:
     "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.1.0-beta.4"
     "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/31b87ed150883bbdd33a0203e45831859560fdf174f0285384fdcb1d01fc4a56ca15f31d648e8d6d3a2d4d5c6e327ddecbf422543eeefaa7e8fdd7dc2f2a3b08
-  languageName: node
-  linkType: hard
-
-"@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch":
-  version: 0.1.18
-  resolution: "@opeoginni/github-copilot-openai-compatible@patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch::version=0.1.18&hash=1cf9d0"
-  dependencies:
-    "@ai-sdk/openai": "npm:^2.0.42"
-    "@ai-sdk/openai-compatible": "npm:^1.0.19"
-    "@ai-sdk/provider": "npm:^2.1.0-beta.4"
-    "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/cfffc031d2742068d20baed0e0ade6e9182c29ee7a425fa64262c04023ae75220b8b944ad2c9554255681e325fa1a70ec5e1f961b5f7370c871e70cbaeac0e79
+  checksum: 10c0/dfb01832d7c704b2eb080fc09d31b07fc26e5ac4e648ce219dc0d80cf044ef3cae504427781ec2ce3c5a2459c9c81d043046a255642108d5b3de0f83f4a9f20a
   languageName: node
   linkType: hard
 
@@ -13859,6 +13864,7 @@ __metadata:
     "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@cherrystudio/extension-table-plus": "workspace:^"
+    "@cherrystudio/openai": "npm:^6.5.0"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
@@ -13883,14 +13889,14 @@ __metadata:
     "@mozilla/readability": "npm:^0.6.0"
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch"
     "@notionhq/client": "npm:^2.2.15"
-    "@openrouter/ai-sdk-provider": "npm:^1.1.2"
+    "@openrouter/ai-sdk-provider": "npm:^1.2.0"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/core": "npm:2.0.0"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.200.0"
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
-    "@opeoginni/github-copilot-openai-compatible": "patch:@opeoginni/github-copilot-openai-compatible@npm%3A0.1.18#~/.yarn/patches/@opeoginni-github-copilot-openai-compatible-npm-0.1.18-3f65760532.patch"
+    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.19"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
     "@reduxjs/toolkit": "npm:^2.2.5"
@@ -13984,13 +13990,13 @@ __metadata:
     dotenv-cli: "npm:^7.4.2"
     drizzle-kit: "npm:^0.31.4"
     drizzle-orm: "npm:^0.44.5"
-    electron: "npm:37.6.0"
+    electron: "npm:38.4.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-reload: "npm:^2.0.0-alpha.1"
     electron-store: "npm:^8.2.0"
     electron-updater: "npm:6.6.4"
-    electron-vite: "npm:4.0.0"
+    electron-vite: "npm:4.0.1"
     electron-window-state: "npm:^5.0.3"
     emittery: "npm:^1.0.3"
     emoji-picker-element: "npm:^1.22.1"
@@ -14020,6 +14026,7 @@ __metadata:
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
     iconv-lite: "npm:^0.6.3"
+    ipaddr.js: "npm:^2.2.0"
     isbinaryfile: "npm:5.0.4"
     jaison: "npm:^2.0.2"
     jest-styled-components: "npm:^7.2.0"
@@ -14039,14 +14046,13 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
-    openai: "patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch"
     os-proxy-config: "npm:^1.1.2"
     oxlint: "npm:^1.22.0"
     oxlint-tsgolint: "npm:^0.2.0"
     p-queue: "npm:^8.1.0"
     pdf-lib: "npm:^1.17.1"
     pdf-parse: "npm:^1.1.1"
-    playwright: "npm:^1.52.0"
+    playwright: "npm:^1.55.1"
     proxy-agent: "npm:^6.5.0"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"
@@ -14099,7 +14105,7 @@ __metadata:
     undici: "npm:6.21.2"
     unified: "npm:^11.0.5"
     uuid: "npm:^13.0.0"
-    vite: "npm:rolldown-vite@latest"
+    vite: "npm:rolldown-vite@7.1.5"
     vitest: "npm:^3.2.4"
     webdav: "npm:^5.8.0"
     winston: "npm:^3.17.0"
@@ -17600,9 +17606,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-vite@npm:4.0.0":
-  version: 4.0.0
-  resolution: "electron-vite@npm:4.0.0"
+"electron-vite@npm:4.0.1":
+  version: 4.0.1
+  resolution: "electron-vite@npm:4.0.1"
   dependencies:
     "@babel/core": "npm:^7.27.7"
     "@babel/plugin-transform-arrow-functions": "npm:^7.27.1"
@@ -17618,7 +17624,7 @@ __metadata:
       optional: true
   bin:
     electron-vite: bin/electron-vite.js
-  checksum: 10c0/6f12f25971a3ec33615f2979b6fc47189f3c23778bd0f7ec6d23213f0ffdec6d616a7c4a844a56a253a28e9b563916d7d0f65590340e8be59e4b62aae8b1a842
+  checksum: 10c0/4e81ac4e4ede6060ffec56ba9b1d5ff95bb263496e62527345e8c79542924c54c54def39de9b466a81ed250b68774792c2106b93274c790b4cd8e7be448f6af8
   languageName: node
   linkType: hard
 
@@ -17632,16 +17638,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:37.6.0":
-  version: 37.6.0
-  resolution: "electron@npm:37.6.0"
+"electron@npm:38.4.0":
+  version: 38.4.0
+  resolution: "electron@npm:38.4.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/d67b7f0ff902f9184c2a7445507746343f8b39f3616d9d26128e7515e0184252cfc8ac97a3f1458f9ea9b4af6ab5b3208282014e8d91c0e1505ff21f5fa57ce6
+  checksum: 10c0/3458409151d12f1fcd5e95374aa36e0d2f4aa0d3421c9f57dc521c606070294f33b24a681b3f93b49b02f4a3a07eb0070100ebda51b1198efd4b49dbf1260713
   languageName: node
   linkType: hard
 
@@ -20318,6 +20324,13 @@ __metadata:
   version: 1.9.1
   resolution: "ipaddr.js@npm:1.9.1"
   checksum: 10c0/0486e775047971d3fdb5fb4f063829bac45af299ae0b82dcf3afa2145338e08290563a2a70f34b732d795ecc8311902e541a8530eeb30d75860a78ff4e94ce2a
+  languageName: node
+  linkType: hard
+
+"ipaddr.js@npm:^2.2.0":
+  version: 2.2.0
+  resolution: "ipaddr.js@npm:2.2.0"
+  checksum: 10c0/e4ee875dc1bd92ac9d27e06cfd87cdb63ca786ff9fd7718f1d4f7a8ef27db6e5d516128f52d2c560408cbb75796ac2f83ead669e73507c86282d45f84c5abbb6
   languageName: node
   linkType: hard
 
@@ -23881,40 +23894,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:5.12.2":
-  version: 5.12.2
-  resolution: "openai@npm:5.12.2"
-  peerDependencies:
-    ws: ^8.18.0
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    ws:
-      optional: true
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/7737b9b24edc81fcf9e6dcfb18a196cc0f8e29b6e839adf06a2538558c03908e3aa4cd94901b1a7f4a9dd62676fe9e34d6202281b2395090d998618ea1614c0c
-  languageName: node
-  linkType: hard
-
-"openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch":
-  version: 5.12.2
-  resolution: "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch::version=5.12.2&hash=ad5d10"
-  peerDependencies:
-    ws: ^8.18.0
-    zod: ^3.23.8
-  peerDependenciesMeta:
-    ws:
-      optional: true
-    zod:
-      optional: true
-  bin:
-    openai: bin/cli
-  checksum: 10c0/2964a1c88a98cf169c9b73e8cd6776c03c8f3103fee30961c6953e5d995ad57a697e2179615999356809349186df6496abae105928ff7ce0229e5016dec87cb3
-  languageName: node
-  linkType: hard
-
 "openapi-types@npm:^12.1.3":
   version: 12.1.3
   resolution: "openapi-types@npm:12.1.3"
@@ -24605,7 +24584,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright@npm:1.52.0, playwright@npm:^1.52.0":
+"playwright-core@npm:1.56.1":
+  version: 1.56.1
+  resolution: "playwright-core@npm:1.56.1"
+  bin:
+    playwright-core: cli.js
+  checksum: 10c0/ffd40142b99c68678b387445d5b42f1fee4ab0b65d983058c37f342e5629f9cdbdac0506ea80a0dfd41a8f9f13345bad54e9a8c35826ef66dc765f4eb3db8da7
+  languageName: node
+  linkType: hard
+
+"playwright@npm:1.52.0":
   version: 1.52.0
   resolution: "playwright@npm:1.52.0"
   dependencies:
@@ -24617,6 +24605,21 @@ __metadata:
   bin:
     playwright: cli.js
   checksum: 10c0/2c6edf1e15e59bbaf77f3fa0fe0ac975793c17cff835d9c8b8bc6395a3b6f1c01898b3058ab37891b2e4d424bcc8f1b4844fe70d943e0143d239d7451408c579
+  languageName: node
+  linkType: hard
+
+"playwright@npm:^1.55.1":
+  version: 1.56.1
+  resolution: "playwright@npm:1.56.1"
+  dependencies:
+    fsevents: "npm:2.3.2"
+    playwright-core: "npm:1.56.1"
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    playwright: cli.js
+  checksum: 10c0/8e9965aede86df0f4722063385748498977b219630a40a10d1b82b8bd8d4d4e9b6b65ecbfa024331a30800163161aca292fb6dd7446c531a1ad25f4155625ab4
   languageName: node
   linkType: hard
 
@@ -29322,7 +29325,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"vite@npm:rolldown-vite@latest":
+"vite@npm:rolldown-vite@7.1.5":
   version: 7.1.5
   resolution: "rolldown-vite@npm:7.1.5"
   dependencies:

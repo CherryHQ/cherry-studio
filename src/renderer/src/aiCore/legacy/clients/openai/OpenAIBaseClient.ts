@@ -1,3 +1,4 @@
+import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
 import {
@@ -25,7 +26,6 @@ import {
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
 import { formatApiHost } from '@renderer/utils/api'
-import OpenAI, { AzureOpenAI } from 'openai'
 
 import { BaseApiClient } from '../BaseApiClient'
 

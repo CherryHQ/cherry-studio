@@ -1,7 +1,7 @@
 import type { LanguageModelV2Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type OpenAI from '@cherrystudio/openai'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
-import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
 export * from './file'
@@ -79,6 +79,7 @@ export type AssistantSettingCustomParameters = {
 const ThinkModelTypes = [
   'default',
   'o',
+  'openai_deep_research',
   'gpt5',
   'gpt5_codex',
   'grok',
@@ -278,7 +279,7 @@ export type PaintingParams = {
   providerId?: string
 }
 
-export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -378,8 +379,18 @@ export interface TokenFluxPainting extends PaintingParams {
   status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
 }
 
+export interface OvmsPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  size?: string
+  num_inference_steps?: number
+  rng_seed?: number
+  safety_check?: boolean
+  response_format?: 'url' | 'b64_json'
+}
+
 export type PaintingAction = Partial<
-  GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting
+  GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting & OvmsPainting
 > &
   PaintingParams
 
@@ -400,6 +411,8 @@ export interface PaintingsState {
   // OpenAI
   openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
   openai_image_edit: Partial<EditPainting> & PaintingParams[]
+  // OVMS
+  ovms_paintings: OvmsPainting[]
 }
 
 export type MinAppType = {
@@ -421,7 +434,17 @@ export enum ThemeMode {
 }
 
 /** 有限的UI语言 */
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
+export type LanguageVarious =
+  | 'zh-CN'
+  | 'zh-TW'
+  | 'de-DE'
+  | 'el-GR'
+  | 'en-US'
+  | 'es-ES'
+  | 'fr-FR'
+  | 'ja-JP'
+  | 'pt-PT'
+  | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
 

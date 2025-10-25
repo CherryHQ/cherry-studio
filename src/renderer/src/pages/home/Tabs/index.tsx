@@ -29,7 +29,7 @@ interface Props {
   style?: React.CSSProperties
 }
 
-let _tab: any = ''
+let _tab: Tab | null = null
 
 const HomeTabs: FC<Props> = ({
   activeAssistant,
@@ -103,7 +103,7 @@ const HomeTabs: FC<Props> = ({
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
       setTab('topic')
     }
-    if (position === 'left' && topicPosition === 'right' && tab === 'topic') {
+    if (position === 'left' && topicPosition === 'right' && (tab === 'topic' || tab === 'settings')) {
       setTab('assistants')
     }
   }, [position, tab, topicPosition, forceToSeeAllTab])

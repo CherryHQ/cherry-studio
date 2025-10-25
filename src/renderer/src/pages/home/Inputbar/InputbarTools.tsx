@@ -385,7 +385,8 @@ const InputbarTools = ({
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} />,
         condition:
-          (isGeminiModel(model) || isAnthropicModel(model)) && isSupportUrlContextProvider(getProviderByModel(model))
+          (isGeminiModel(model) || isAnthropicModel(model)) &&
+          (isSupportUrlContextProvider(getProviderByModel(model)) || model.endpoint_type === 'gemini')
       },
       {
         key: 'knowledge_base',

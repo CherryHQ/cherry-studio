@@ -2315,7 +2315,8 @@ const migrateConfig = {
         // @ts-ignore upscale
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
-        openai_image_edit: state?.paintings?.openai_image_edit || []
+        openai_image_edit: state?.paintings?.openai_image_edit || [],
+        ovms_paintings: []
       }
 
       return state
@@ -2676,6 +2677,7 @@ const migrateConfig = {
           provider.anthropicApiHost = 'https://open.cherryin.net'
         }
       })
+      state.paintings.ovms_paintings = []
       return state
     } catch (error) {
       logger.error('migrate 163 error', error as Error)
@@ -2683,6 +2685,24 @@ const migrateConfig = {
     }
   },
   '164': (state: RootState) => {
+    try {
+      addMiniApp(state, 'ling')
+      return state
+    } catch (error) {
+      logger.error('migrate 164 error', error as Error)
+      return state
+    }
+  },
+  '165': (state: RootState) => {
+    try {
+      addMiniApp(state, 'huggingchat')
+      return state
+    } catch (error) {
+      logger.error('migrate 165 error', error as Error)
+      return state
+    }
+  },
+  '166': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (
@@ -2696,9 +2716,6 @@ const migrateConfig = {
           if (!provider.anthropicApiHost) {
             provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
           }
-        }
-        if (provider.id === SystemProviderIds.dashscope) {
-          provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
         }
       })
       return state

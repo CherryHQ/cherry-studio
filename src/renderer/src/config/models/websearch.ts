@@ -27,6 +27,22 @@ export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-deep-research'
 ]
 
+const OPENAI_DEEP_RESEARCH_MODEL_REGEX = /deep[-_]?research/
+
+export function isOpenAIDeepResearchModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const providerId = model.provider
+  if (providerId !== 'openai' && providerId !== 'openai-chat') {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return OPENAI_DEEP_RESEARCH_MODEL_REGEX.test(modelId)
+}
+
 export function isWebSearchModel(model: Model): boolean {
   if (
     !model ||

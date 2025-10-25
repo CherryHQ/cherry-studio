@@ -11,6 +11,9 @@ import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
+import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
+import { ChatCompletionContentPartImage } from '@cherrystudio/openai/resources'
+import { Stream } from '@cherrystudio/openai/streaming'
 import {
   Content,
   CreateChatParameters,
@@ -19,11 +22,9 @@ import {
   GoogleGenAI,
   Model as GeminiModel,
   SendMessageParameters,
+  ThinkingConfig,
   Tool
 } from '@google/genai'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { ChatCompletionContentPartImage } from 'openai/resources'
-import { Stream } from 'openai/streaming'
 
 import { EndpointType } from './index'
 
@@ -90,10 +91,7 @@ export type ReasoningEffortOptionalParams = {
   }
   extra_body?: {
     google?: {
-      thinking_config: {
-        thinking_budget: number
-        include_thoughts?: boolean
-      }
+      thinking_config: ThinkingConfig
     }
   }
   // Add any other potential reasoning-related keys here if they exist

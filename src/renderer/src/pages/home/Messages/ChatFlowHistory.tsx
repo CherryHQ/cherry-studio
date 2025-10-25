@@ -3,7 +3,7 @@ import '@xyflow/react/dist/style.css'
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo, getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -49,6 +49,7 @@ const TooltipFooter = styled.div`
 `
 
 // 自定义节点组件
+// FIXME: no any plz...
 const CustomNode: FC<{ data: any }> = ({ data }) => {
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
@@ -87,7 +88,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
     if (data.modelInfo) {
       avatar = <ModelAvatar model={data.modelInfo} size={32} />
     } else if (data.modelId) {
-      const modelLogo = getModelLogo(data.modelId)
+      const modelLogo = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
       avatar = (
         <Avatar
           src={modelLogo}
@@ -181,6 +182,7 @@ interface ChatFlowHistoryProps {
 }
 
 // 定义节点和边的类型
+// FIXME: No any plz
 type FlowNode = Node<any>
 type FlowEdge = Edge<any>
 
@@ -202,6 +204,7 @@ const defaultEdgeOptions = {
 
 const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const { t } = useTranslation()
+  // FIXME: no any plz
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
@@ -408,6 +411,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
         const assistantNodeId = `orphan-assistant-${aMsg.id}`
 
         // 获取模型数据
+        // FIXME: No any plz
         const aMsgAny = aMsg as any
 
         // 获取模型名称
