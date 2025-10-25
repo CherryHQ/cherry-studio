@@ -9,7 +9,7 @@ import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { LanguageModelV2 } from '@ai-sdk/provider'
+import { LanguageModelV2, LanguageModelV3 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider, Provider } from 'ai'
@@ -48,7 +48,7 @@ export const isBaseProvider = (id: ProviderId): id is BaseProviderId => {
 type BaseProvider = {
   id: BaseProviderId
   name: string
-  creator: (options: any) => Provider | LanguageModelV2
+  creator: (options: any) => Provider | LanguageModelV2 | LanguageModelV3
   supportsImageGeneration: boolean
 }
 

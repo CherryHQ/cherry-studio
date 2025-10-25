@@ -11,7 +11,7 @@ export type { RuntimeConfig } from './types'
 
 // === 便捷工厂函数 ===
 
-import { LanguageModelV2Middleware } from '@ai-sdk/provider'
+import { LanguageModelV3Middleware } from '@ai-sdk/provider'
 
 import { type AiPlugin } from '../plugins'
 import { type ProviderId, type ProviderSettingsMap } from '../providers/types'
@@ -48,7 +48,7 @@ export async function streamText<T extends ProviderId>(
   options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
   params: Parameters<RuntimeExecutor<T>['streamText']>[0],
   plugins?: AiPlugin[],
-  middlewares?: LanguageModelV2Middleware[]
+  middlewares?: LanguageModelV3Middleware[]
 ): Promise<ReturnType<RuntimeExecutor<T>['streamText']>> {
   const executor = createExecutor(providerId, options, plugins)
   return executor.streamText(params, { middlewares })
@@ -62,7 +62,7 @@ export async function generateText<T extends ProviderId>(
   options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
   params: Parameters<RuntimeExecutor<T>['generateText']>[0],
   plugins?: AiPlugin[],
-  middlewares?: LanguageModelV2Middleware[]
+  middlewares?: LanguageModelV3Middleware[]
 ): Promise<ReturnType<RuntimeExecutor<T>['generateText']>> {
   const executor = createExecutor(providerId, options, plugins)
   return executor.generateText(params, { middlewares })
@@ -76,7 +76,7 @@ export async function generateObject<T extends ProviderId>(
   options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
   params: Parameters<RuntimeExecutor<T>['generateObject']>[0],
   plugins?: AiPlugin[],
-  middlewares?: LanguageModelV2Middleware[]
+  middlewares?: LanguageModelV3Middleware[]
 ): Promise<ReturnType<RuntimeExecutor<T>['generateObject']>> {
   const executor = createExecutor(providerId, options, plugins)
   return executor.generateObject(params, { middlewares })
@@ -90,7 +90,7 @@ export async function streamObject<T extends ProviderId>(
   options: ProviderSettingsMap[T] & { mode?: 'chat' | 'responses' },
   params: Parameters<RuntimeExecutor<T>['streamObject']>[0],
   plugins?: AiPlugin[],
-  middlewares?: LanguageModelV2Middleware[]
+  middlewares?: LanguageModelV3Middleware[]
 ): Promise<ReturnType<RuntimeExecutor<T>['streamObject']>> {
   const executor = createExecutor(providerId, options, plugins)
   return executor.streamObject(params, { middlewares })

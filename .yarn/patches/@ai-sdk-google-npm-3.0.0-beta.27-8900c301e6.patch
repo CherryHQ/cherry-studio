@@ -1,0 +1,22 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index e89ff0185a2e317165abdeab9fa544f676386564..776237576e80f2afbda4e638dafff1544fdcf586 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -477,7 +477,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+@@ -599,7 +599,7 @@ function prepareTools({
+     "gemini-flash-latest",
+     "gemini-flash-lite-latest",
+     "gemini-pro-latest"
+-  ].some((id) => id === modelId);
++  ].some((id) => modelId.includes(id));
+   const isGemini2 = modelId.includes("gemini-2") || isLatest;
+   const supportsDynamicRetrieval = modelId.includes("gemini-1.5-flash") && !modelId.includes("-8b");
+   if (tools == null) {

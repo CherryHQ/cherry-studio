@@ -1,4 +1,4 @@
-import { ImageModelV2 } from '@ai-sdk/provider'
+import { ImageModelV3 } from '@ai-sdk/provider'
 import { experimental_generateImage as aiGenerateImage, NoImageGeneratedError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +28,7 @@ vi.mock('../../providers/RegistryManagement', () => ({
 
 describe('RuntimeExecutor.generateImage', () => {
   let executor: RuntimeExecutor<'openai'>
-  let mockImageModel: ImageModelV2
+  let mockImageModel: ImageModelV3
   let mockGenerateImageResult: any
 
   beforeEach(() => {
@@ -44,7 +44,7 @@ describe('RuntimeExecutor.generateImage', () => {
     mockImageModel = {
       modelId: 'dall-e-3',
       provider: 'openai'
-    } as ImageModelV2
+    } as ImageModelV3
 
     // Mock generateImage result
     mockGenerateImageResult = {
@@ -256,7 +256,7 @@ describe('RuntimeExecutor.generateImage', () => {
       const customImageModel = {
         modelId: 'custom-model',
         provider: 'openai'
-      } as ImageModelV2
+      } as ImageModelV3
 
       const modelResolutionPlugin: AiPlugin = {
         name: 'model-resolver',

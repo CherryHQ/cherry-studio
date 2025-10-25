@@ -5,7 +5,7 @@
  * 集成了来自 ModelCreator 的特殊处理逻辑
  */
 
-import { EmbeddingModelV2, ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import { EmbeddingModelV3, ImageModelV3, LanguageModelV3, LanguageModelV3Middleware } from '@ai-sdk/provider'
 
 import { wrapModelWithMiddlewares } from '../middleware/wrapper'
 import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../providers/RegistryManagement'
@@ -23,10 +23,10 @@ export class ModelResolver {
     modelId: string,
     fallbackProviderId: string,
     providerOptions?: any,
-    middlewares?: LanguageModelV2Middleware[]
-  ): Promise<LanguageModelV2> {
+    middlewares?: LanguageModelV3Middleware[]
+  ): Promise<LanguageModelV3> {
     let finalProviderId = fallbackProviderId
-    let model: LanguageModelV2
+    let model: LanguageModelV3
     // 🎯 处理 OpenAI 模式选择逻辑 (从 ModelCreator 迁移)
     if ((fallbackProviderId === 'openai' || fallbackProviderId === 'azure') && providerOptions?.mode === 'chat') {
       finalProviderId = `${fallbackProviderId}-chat`
@@ -51,7 +51,7 @@ export class ModelResolver {
   /**
    * 解析文本嵌入模型
    */
-  async resolveTextEmbeddingModel(modelId: string, fallbackProviderId: string): Promise<EmbeddingModelV2<string>> {
+  async resolveTextEmbeddingModel(modelId: string, fallbackProviderId: string): Promise<EmbeddingModelV3<string>> {
     if (modelId.includes(DEFAULT_SEPARATOR)) {
       return this.resolveNamespacedEmbeddingModel(modelId)
     }
@@ -62,7 +62,7 @@ export class ModelResolver {
   /**
    * 解析图像模型
    */
-  async resolveImageModel(modelId: string, fallbackProviderId: string): Promise<ImageModelV2> {
+  async resolveImageModel(modelId: string, fallbackProviderId: string): Promise<ImageModelV3> {
     if (modelId.includes(DEFAULT_SEPARATOR)) {
       return this.resolveNamespacedImageModel(modelId)
     }
@@ -74,7 +74,7 @@ export class ModelResolver {
    * 解析命名空间格式的语言模型
    * aihubmix:anthropic:claude-3 -> globalRegistryManagement.languageModel('aihubmix:anthropic:claude-3')
    */
-  private resolveNamespacedModel(modelId: string): LanguageModelV2 {
+  private resolveNamespacedModel(modelId: string): LanguageModelV3 {
     return globalRegistryManagement.languageModel(modelId as any)
   }
 
@@ -82,7 +82,7 @@ export class ModelResolver {
    * 解析传统格式的语言模型
    * providerId: 'openai', modelId: 'gpt-4' -> globalRegistryManagement.languageModel('openai:gpt-4')
    */
-  private resolveTraditionalModel(providerId: string, modelId: string): LanguageModelV2 {
+  private resolveTraditionalModel(providerId: string, modelId: string): LanguageModelV3 {
     const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
     return globalRegistryManagement.languageModel(fullModelId as any)
   }
@@ -90,14 +90,14 @@ export class ModelResolver {
   /**
    * 解析命名空间格式的嵌入模型
    */
-  private resolveNamespacedEmbeddingModel(modelId: string): EmbeddingModelV2<string> {
+  private resolveNamespacedEmbeddingModel(modelId: string): EmbeddingModelV3<string> {
     return globalRegistryManagement.textEmbeddingModel(modelId as any)
   }
 
   /**
    * 解析传统格式的嵌入模型
    */
-  private resolveTraditionalEmbeddingModel(providerId: string, modelId: string): EmbeddingModelV2<string> {
+  private resolveTraditionalEmbeddingModel(providerId: string, modelId: string): EmbeddingModelV3<string> {
     const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
     return globalRegistryManagement.textEmbeddingModel(fullModelId as any)
   }
@@ -105,14 +105,14 @@ export class ModelResolver {
   /**
    * 解析命名空间格式的图像模型
    */
-  private resolveNamespacedImageModel(modelId: string): ImageModelV2 {
+  private resolveNamespacedImageModel(modelId: string): ImageModelV3 {
     return globalRegistryManagement.imageModel(modelId as any)
   }
 
   /**
    * 解析传统格式的图像模型
    */
-  private resolveTraditionalImageModel(providerId: string, modelId: string): ImageModelV2 {
+  private resolveTraditionalImageModel(providerId: string, modelId: string): ImageModelV3 {
     const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
     return globalRegistryManagement.imageModel(fullModelId as any)
   }

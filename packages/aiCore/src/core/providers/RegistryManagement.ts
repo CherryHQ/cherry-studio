@@ -4,10 +4,15 @@
  * 基于 AI SDK 原生的 createProviderRegistry
  */
 
-import { EmbeddingModelV2, ImageModelV2, LanguageModelV2, ProviderV2 } from '@ai-sdk/provider'
+import {
+  EmbeddingModelV3 as EmbeddingModel,
+  ImageModelV3 as ImageModel,
+  LanguageModelV3 as LanguageModel,
+  ProviderV3 as Provider
+} from '@ai-sdk/provider'
 import { createProviderRegistry, type ProviderRegistryProvider } from 'ai'
 
-type PROVIDERS = Record<string, ProviderV2>
+type PROVIDERS = Record<string, Provider>
 
 export const DEFAULT_SEPARATOR = '|'
 
@@ -26,7 +31,7 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 注册已配置好的 provider 实例
    */
-  registerProvider(id: string, provider: ProviderV2, aliases?: string[]): this {
+  registerProvider(id: string, provider: Provider, aliases?: string[]): this {
     // 注册主provider
     this.providers[id] = provider
 
@@ -45,14 +50,14 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取已注册的provider实例
    */
-  getProvider(id: string): ProviderV2 | undefined {
+  getProvider(id: string): Provider | undefined {
     return this.providers[id]
   }
 
   /**
    * 批量注册 providers
    */
-  registerProviders(providers: Record<string, ProviderV2>): this {
+  registerProviders(providers: Record<string, Provider>): this {
     Object.assign(this.providers, providers)
     this.rebuildRegistry()
     return this
@@ -106,7 +111,7 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取语言模型 - AI SDK 原生方法
    */
-  languageModel(id: `${string}${SEPARATOR}${string}`): LanguageModelV2 {
+  languageModel(id: `${string}${SEPARATOR}${string}`): LanguageModel {
     if (!this.registry) {
       throw new Error('No providers registered')
     }
@@ -116,7 +121,7 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取文本嵌入模型 - AI SDK 原生方法
    */
-  textEmbeddingModel(id: `${string}${SEPARATOR}${string}`): EmbeddingModelV2<string> {
+  textEmbeddingModel(id: `${string}${SEPARATOR}${string}`): EmbeddingModel<string> {
     if (!this.registry) {
       throw new Error('No providers registered')
     }
@@ -126,7 +131,7 @@ export class RegistryManagement<SEPARATOR extends string = typeof DEFAULT_SEPARA
   /**
    * 获取图像模型 - AI SDK 原生方法
    */
-  imageModel(id: `${string}${SEPARATOR}${string}`): ImageModelV2 {
+  imageModel(id: `${string}${SEPARATOR}${string}`): ImageModel {
     if (!this.registry) {
       throw new Error('No providers registered')
     }
