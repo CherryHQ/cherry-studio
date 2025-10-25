@@ -65,7 +65,6 @@ The Test Plan aims to provide users with a more stable application experience an
 ### Other Suggestions
 
 - **Contact Developers**: Before submitting a PR, you can contact the developers first to discuss or get help.
-- **Become a Core Developer**: If you contribute to the project consistently, congratulations, you can become a core developer and gain project membership status. Please check our [Membership Guide](https://github.com/CherryHQ/community/blob/main/docs/membership.en.md).
 
 ## Important Contribution Guidelines & Focus Areas
 

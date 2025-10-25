@@ -69,7 +69,6 @@ git commit --signoff -m "Your commit message"
 ### 其他建议
 
 - **联系开发者**：在提交 PR 之前，您可以先和开发者进行联系，共同探讨或者获取帮助。
-- **成为核心开发者**：如果您能够稳定为项目贡献，恭喜您可以成为项目核心开发者，获取到项目成员身份。请查看我们的[成员指南](https://github.com/CherryHQ/community/blob/main/membership.md)
 
 ## 重要贡献指南与关注点
 
