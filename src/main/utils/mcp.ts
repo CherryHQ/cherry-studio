@@ -1,4 +1,4 @@
-export function buildFunctionCallToolName(serverName: string, toolName: string) {
+export function buildFunctionCallToolName(serverName: string, toolName: string, serverId?: string) {
   const sanitizedServer = serverName.trim().replace(/-/g, '_')
   const sanitizedTool = toolName.trim().replace(/-/g, '_')
 
@@ -6,6 +6,14 @@ export function buildFunctionCallToolName(serverName: string, toolName: string) 
   let name = sanitizedTool
   if (!sanitizedTool.includes(sanitizedServer.slice(0, 7))) {
     name = `${sanitizedServer.slice(0, 7) || ''}-${sanitizedTool || ''}`
+  }
+
+  // If serverId is provided, append a short hash of it to ensure uniqueness
+  // This is critical when multiple instances of the same server type exist
+  if (serverId) {
+    // Take the last 6 characters of the serverId for brevity
+    const serverIdSuffix = serverId.slice(-6).replace(/[^a-zA-Z0-9]/g, '')
+    name = `${name}_${serverIdSuffix}`
   }
 
   // Replace invalid characters with underscores or dashes
