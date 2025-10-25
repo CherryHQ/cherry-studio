@@ -66,7 +66,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         isGrokReasoningModel(model) ||
         isOpenAIReasoningModel(model) ||
         isQwenAlwaysThinkModel(model) ||
-        model.id.includes('seed-oss')
+        model.id.includes('seed-oss') ||
+        model.id.includes('minimax-m2')
       ) {
         return {}
       }
@@ -199,7 +200,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
   }
 
-  // OpenRouter models, use thinking
+  // OpenRouter models, use reasoning
   if (model.provider === SystemProviderIds.openrouter) {
     if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
       return {
