@@ -6,7 +6,6 @@ export const ProviderTypeSchema = z.enum([
   'openai-response',
   'anthropic',
   'gemini',
-  'qwenlm',
   'azure-openai',
   'vertexai',
   'mistral',
@@ -37,6 +36,8 @@ export type ProviderApiOptions = {
   isSupportServiceTier?: boolean
   /** 是否不支持 enable_thinking 参数 */
   isNotSupportEnableThinking?: boolean
+  /** 是否不支持 APIVersion */
+  isNotSupportAPIVersion?: boolean
 }
 
 export const OpenAIServiceTiers = {
@@ -184,6 +185,11 @@ export type VertexProvider = Provider & {
   }
   project: string
   location: string
+}
+
+export type AzureOpenAIProvider = Provider & {
+  type: 'azure-openai'
+  apiVersion: string
 }
 
 /**

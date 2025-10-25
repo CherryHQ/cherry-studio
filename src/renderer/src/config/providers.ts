@@ -57,6 +57,7 @@ import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import {
   AtLeast,
+  AzureOpenAIProvider,
   isSystemProvider,
   OpenAIServiceTiers,
   Provider,
@@ -354,7 +355,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'VertexAI',
     type: 'vertexai',
     apiKey: '',
-    apiHost: 'https://aiplatform.googleapis.com',
+    apiHost: '',
     models: SYSTEM_MODELS.vertexai,
     isSystem: true,
     enabled: false,
@@ -1283,7 +1284,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   vertexai: {
     api: {
-      url: 'https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/overview'
+      url: ''
     },
     websites: {
       official: 'https://cloud.google.com/vertex-ai',
@@ -1352,7 +1353,8 @@ const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
   'baichuan',
   'minimax',
   'xirang',
-  'poe'
+  'poe',
+  'cephalon'
 ] as const satisfies SystemProviderId[]
 
 /**
@@ -1417,10 +1419,15 @@ export const isSupportServiceTierProvider = (provider: Provider) => {
   )
 }
 
-const SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES = ['gemini', 'vertexai'] as const satisfies ProviderType[]
+const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
+  'gemini',
+  'vertexai',
+  'anthropic',
+  'new-api'
+] as const satisfies ProviderType[]
 
 export const isSupportUrlContextProvider = (provider: Provider) => {
-  return SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+  return SUPPORT_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
 }
 
 const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]
@@ -1432,4 +1439,38 @@ export const isGeminiWebSearchProvider = (provider: Provider) => {
 
 export const isNewApiProvider = (provider: Provider) => {
   return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
+}
+
+/**
+ * 判断是否为 OpenAI 兼容的提供商
+ * @param {Provider} provider 提供商对象
+ * @returns {boolean} 是否为 OpenAI 兼容提供商
+ */
+export function isOpenAICompatibleProvider(provider: Provider): boolean {
+  return ['openai', 'new-api', 'mistral'].includes(provider.type)
+}
+
+export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpenAIProvider {
+  return provider.type === 'azure-openai'
+}
+
+export function isOpenAIProvider(provider: Provider): boolean {
+  return provider.type === 'openai-response'
+}
+
+export function isAnthropicProvider(provider: Provider): boolean {
+  return provider.type === 'anthropic'
+}
+
+export function isGeminiProvider(provider: Provider): boolean {
+  return provider.type === 'gemini'
+}
+
+const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+
+export const isSupportAPIVersionProvider = (provider: Provider) => {
+  if (isSystemProvider(provider)) {
+    return !NOT_SUPPORT_API_VERSION_PROVIDERS.some((pid) => pid === provider.id)
+  }
+  return provider.apiOptions?.isNotSupportAPIVersion !== false
 }

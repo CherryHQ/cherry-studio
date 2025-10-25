@@ -114,7 +114,7 @@ export async function handleGeminiFileUpload(file: FileMetadata, model: Model): 
 }
 
 /**
- * 处理OpenAI大文件上传
+ * 处理OpenAI兼容大文件上传
  */
 export async function handleOpenAILargeFileUpload(
   file: FileMetadata,

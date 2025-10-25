@@ -1,18 +1,13 @@
 import { HStack } from '@renderer/components/Layout'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Alert, Input, Space } from 'antd'
-import { FC, useState } from 'react'
+import { Alert, Input } from 'antd'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-interface Props {
-  providerId: string
-}
-
-const VertexAISettings: FC<Props> = ({ providerId }) => {
+const VertexAISettings = () => {
   const { t } = useTranslation()
   const {
     projectId,
@@ -27,15 +22,8 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const [localProjectId, setLocalProjectId] = useState(projectId)
   const [localLocation, setLocalLocation] = useState(location)
 
-  const { provider, updateProvider } = useProvider(providerId)
-  const [apiHost, setApiHost] = useState(provider.apiHost)
-
   const providerConfig = PROVIDER_URLS['vertexai']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
-
-  const onUpdateApiHost = () => {
-    updateProvider({ apiHost })
-  }
 
   const handleProjectIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLocalProjectId(e.target.value)
@@ -72,18 +60,6 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input
-          value={apiHost}
-          placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setApiHost(e.target.value)}
-          onBlur={onUpdateApiHost}
-        />
-      </Space.Compact>
-      <SettingHelpTextRow>
-        <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>
-      </SettingHelpTextRow>
       <SettingSubtitle style={{ marginTop: 5 }}>
         {t('settings.provider.vertex_ai.service_account.title')}
       </SettingSubtitle>

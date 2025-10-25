@@ -3,6 +3,7 @@ import { Span } from '@opentelemetry/api'
 import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
+import { isGeminiProvider } from '@renderer/config/providers'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import {
@@ -40,7 +41,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
 
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
-  if (provider.type === 'gemini') {
+  if (isGeminiProvider(provider)) {
     host = host + '/v1beta/openai/'
   }
 
