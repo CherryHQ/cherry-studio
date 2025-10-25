@@ -99,9 +99,7 @@ function syncTranslations() {
   // Check if base locale has duplicate keys
   const duplicateKeys = checkDuplicateKeys(baseJson)
   if (duplicateKeys.length > 0) {
-    throw new Error(
-      `Base locale file ${baseFileName} has the following duplicate keys:\n${duplicateKeys.join('\n')}`
-    )
+    throw new Error(`Base locale file ${baseFileName} has the following duplicate keys:\n${duplicateKeys.join('\n')}`)
   }
 
   // Sort base locale
