@@ -9,16 +9,15 @@ import {
   LanguageVarious,
   MathEngine,
   OpenAIServiceTier,
-  OpenAISummaryText,
   PaintingProvider,
   S3Config,
   SidebarIcon,
   ThemeMode,
   TranslateLanguageCode
 } from '@renderer/types'
+import { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import { OpenAIVerbosity } from '@types'
 
 import { RemoteSyncState } from './backup'
 
@@ -374,7 +373,7 @@ export const initialState: SettingsState = {
   },
   // OpenAI
   openAI: {
-    summaryText: 'off',
+    summaryText: null,
     serviceTier: 'auto',
     verbosity: 'medium'
   },

@@ -23,13 +23,13 @@ import {
   MemoryItem,
   Model,
   OpenAIServiceTiers,
-  OpenAIVerbosity,
   Provider,
   SystemProviderIds,
   ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
+import { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { Message } from '@renderer/types/newMessage'
 import {
   RequestOptions,

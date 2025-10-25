@@ -1013,6 +1013,7 @@
     "name": "Nom",
     "no_results": "Aucun résultat",
     "none": "Aucun",
+    "off": "Arrêt",
     "open": "Ouvrir",
     "paste": "Coller",
     "placeholders": {
@@ -3985,7 +3986,6 @@
         "default": "Par défaut",
         "flex": "Flexible",
         "on_demand": "à la demande",
-        "performance": "performance",
         "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"

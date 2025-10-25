@@ -1013,6 +1013,7 @@
     "name": "名前",
     "no_results": "検索結果なし",
     "none": "無",
+    "off": "オフ",
     "open": "開く",
     "paste": "貼り付け",
     "placeholders": {
@@ -3985,7 +3986,6 @@
         "default": "デフォルト",
         "flex": "フレックス",
         "on_demand": "オンデマンド",
-        "performance": "性能",
         "priority": "優先",
         "tip": "リクエスト処理に使用するレイテンシティアを指定します",
         "title": "サービスティア"

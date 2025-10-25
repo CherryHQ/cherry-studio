@@ -1013,6 +1013,7 @@
     "name": "Name",
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
+    "off": "Aus",
     "open": "Öffnen",
     "paste": "Einfügen",
     "placeholders": {
@@ -3985,7 +3986,6 @@
         "default": "Standard",
         "flex": "Flexibel",
         "on_demand": "Auf Anfrage",
-        "performance": "Leistung",
         "priority": "Priorität",
         "tip": "Latenz-Ebene für Anfrageverarbeitung festlegen",
         "title": "Service-Tier"
