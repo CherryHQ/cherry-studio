@@ -2687,11 +2687,6 @@ const migrateConfig = {
   '164': (state: RootState) => {
     try {
       addMiniApp(state, 'ling')
-
-      if (state.assistants.presets === undefined) {
-        state.assistants.presets = []
-      }
-
       return state
     } catch (error) {
       logger.error('migrate 164 error', error as Error)
@@ -2704,6 +2699,18 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 165 error', error as Error)
+      return state
+    }
+  },
+  '166': (state: RootState) => {
+    // added after 1.6.5 and 1.7.0-beta.2
+    try {
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 166 error', error as Error)
       return state
     }
   }
