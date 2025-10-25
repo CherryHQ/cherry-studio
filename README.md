@@ -37,7 +37,7 @@
 <p align="center">English | <a href="./docs/README.zh.md">中文</a> | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us">Documents</a> | <a href="./docs/dev.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
 
 <div align="center">
-  
+
 [![][deepwiki-shield]][deepwiki-link]
 [![][twitter-shield]][twitter-link]
 [![][discord-shield]][discord-link]
@@ -45,7 +45,7 @@
 
 </div>
 <div align="center">
-  
+
 [![][github-release-shield]][github-release-link]
 [![][github-nightly-shield]][github-nightly-link]
 [![][github-contributors-shield]][github-contributors-link]
@@ -165,6 +165,16 @@ Welcome PR for more themes
 
 # 🤝 Contributing
 
+> [!WARNING]
+>
+> **important Notice Regarding Feature PRs (Effective Immediately)**
+>
+> To ensure stability and focus during our current development phase, we are temporarily not accepting feature Pull Requests that involve changes of data of Redux or IndexedDB.
+>
+> We appreciate your enthusiasm to contribute and encourage you to continue submitting PRs for bug fixes, performance improvements, documentation updates, and features that do not alter Redux state or IndexedDB structures.
+>
+> Once version 2.0.0 is released, we will resume reviewing feature PRs.
+
 We welcome contributions to Cherry Studio! Here are some ways you can contribute:
 
 1. **Contribute Code**: Develop new features or optimize existing code.
@@ -248,10 +258,10 @@ The Enterprise Edition addresses core challenges in team collaboration by centra
 
 | Feature           | Community Edition                          | Enterprise Edition                                                                                                                      |
 | :---------------- | :----------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open Source**   | ✅ Yes                                     | ⭕️ Partially released to customers                                                                                                      |
+| **Open Source**   | ✅ Yes                                      | ⭕️ Partially released to customers                                                                                                       |
 | **Cost**          | Free for Personal Use / Commercial License | Buyout / Subscription Fee                                                                                                               |
 | **Admin Backend** | —                                          | ● Centralized **Model** Access<br>● **Employee** Management<br>● Shared **Knowledge Base**<br>● **Access** Control<br>● **Data** Backup |
-| **Server**        | —                                          | ✅ Dedicated Private Deployment                                                                                                         |
+| **Server**        | —                                          | ✅ Dedicated Private Deployment                                                                                                          |
 
 ## Get the Enterprise Edition
 
