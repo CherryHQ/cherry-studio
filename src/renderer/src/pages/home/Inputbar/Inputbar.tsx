@@ -15,6 +15,7 @@ import {
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -33,7 +34,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Model, ModelGroup, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, filterSupportedFiles } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
@@ -72,11 +73,13 @@ interface Props {
 let _text = ''
 let _files: FileType[] = []
 let _mentionedModelsCache: Model[] = []
+let _mentionedGroupsCache: ModelGroup[] = []
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { providers } = useProviders()
   const {
     targetLanguage,
     sendMessageShortcut,
@@ -105,7 +108,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionedModels, setMentionedModels] = useState<Model[]>(_mentionedModelsCache)
+  const [mentionedGroups, setMentionedGroups] = useState<ModelGroup[]>(_mentionedGroupsCache)
   const mentionedModelsRef = useRef(mentionedModels)
+  const mentionedGroupsRef = useRef(mentionedGroups)
   const [isDragging, setIsDragging] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
@@ -119,6 +124,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     mentionedModelsRef.current = mentionedModels
   }, [mentionedModels])
+
+  useEffect(() => {
+    mentionedGroupsRef.current = mentionedGroups
+  }, [mentionedGroups])
 
   const isVisionSupported = useMemo(
     () =>
@@ -203,6 +212,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     // 利用useEffect清理函数在卸载组件时更新状态缓存
     return () => {
       _mentionedModelsCache = mentionedModelsRef.current
+      _mentionedGroupsCache = mentionedGroupsRef.current
     }
   }, [])
 
@@ -253,8 +263,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.files = uploadedFiles
       }
 
-      if (mentionedModels) {
-        baseUserMessage.mentions = mentionedModels
+      // Expand groups to models and combine with individually mentioned models
+      const groupModels = mentionedGroups.flatMap((group) =>
+        group.models
+          .map((ref) => {
+            const provider = providers.find((p) => p.id === ref.providerId)
+            return provider?.models.find((m) => m.id === ref.modelId)
+          })
+          .filter((model): model is Model => model !== undefined)
+      )
+
+      // Combine with individually mentioned models (avoid duplicates)
+      const allMentionedModels = [...mentionedModels]
+      groupModels.forEach((groupModel) => {
+        if (!allMentionedModels.find((m) => m.id === groupModel.id && m.provider === groupModel.provider)) {
+          allMentionedModels.push(groupModel)
+        }
+      })
+
+      if (allMentionedModels.length > 0) {
+        baseUserMessage.mentions = allMentionedModels
       }
 
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
@@ -274,7 +302,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, mentionedModels, resizeTextArea, setTimeoutTimer, text, topic])
+  }, [
+    assistant,
+    dispatch,
+    files,
+    inputEmpty,
+    mentionedModels,
+    mentionedGroups,
+    providers,
+    resizeTextArea,
+    setTimeoutTimer,
+    text,
+    topic
+  ])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -808,6 +848,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
   }
 
+  const handleRemoveGroup = (group: ModelGroup) => {
+    setMentionedGroups(mentionedGroups.filter((g) => g.id !== group.id))
+  }
+
   const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
     const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
     updateAssistant({
@@ -887,8 +931,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
             />
           )}
-          {mentionedModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
+          {(mentionedModels.length > 0 || mentionedGroups.length > 0) && (
+            <MentionModelsInput
+              selectedModels={mentionedModels}
+              selectedGroups={mentionedGroups}
+              onRemoveModel={handleRemoveModel}
+              onRemoveGroup={handleRemoveGroup}
+            />
           )}
           <Textarea
             value={text}
@@ -940,6 +989,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               setSelectedKnowledgeBases={setSelectedKnowledgeBases}
               mentionedModels={mentionedModels}
               setMentionedModels={setMentionedModels}
+              mentionedGroups={mentionedGroups}
+              setMentionedGroups={setMentionedGroups}
               couldAddImageFile={couldAddImageFile}
               isExpanded={isExpanded}
               onToggleExpanded={onToggleExpanded}

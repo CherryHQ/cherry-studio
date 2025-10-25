@@ -607,6 +607,11 @@
         "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
       }
     },
+    "mention": {
+      "groups": "分组",
+      "models": "模型",
+      "title": "提及模型或分组"
+    },
     "message": {
       "new": {
         "branch": {
@@ -3859,6 +3864,22 @@
       "visible": "显示的小程序"
     },
     "model": "默认模型",
+    "modelGroup": {
+      "confirmDelete": "确定要删除这个模型分组吗？",
+      "create": "创建分组",
+      "createFirst": "创建您的第一个模型分组开始使用",
+      "delete": "删除分组",
+      "description": "描述",
+      "descriptionPlaceholder": "请输入描述（可选）",
+      "edit": "编辑分组",
+      "models": "模型",
+      "name": "分组名称",
+      "namePlaceholder": "请输入分组名称",
+      "noGroups": "还没有创建任何模型分组",
+      "selectModels": "选择模型",
+      "subtitle": "管理模型分组，方便进行多模型对话",
+      "title": "模型分组"
+    },
     "models": {
       "add": {
         "add_model": "添加模型",

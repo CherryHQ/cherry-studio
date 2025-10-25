@@ -18,7 +18,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
-import { FileType, FileTypes, KnowledgeBase, Model } from '@renderer/types'
+import { FileType, FileTypes, KnowledgeBase, Model, ModelGroup } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { Divider, Dropdown, Tooltip } from 'antd'
@@ -75,6 +75,8 @@ export interface InputbarToolsProps {
   setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
   mentionedModels: Model[]
   setMentionedModels: Dispatch<SetStateAction<Model[]>>
+  mentionedGroups: ModelGroup[]
+  setMentionedGroups: Dispatch<SetStateAction<ModelGroup[]>>
   couldAddImageFile: boolean
   isExpanded: boolean
   onToggleExpanded: () => void
@@ -109,6 +111,8 @@ const InputbarTools = ({
   setSelectedKnowledgeBases,
   mentionedModels,
   setMentionedModels,
+  mentionedGroups,
+  setMentionedGroups,
   couldAddImageFile,
   isExpanded: isExpended,
   onToggleExpanded: onToggleExpended,
@@ -428,8 +432,10 @@ const InputbarTools = ({
           <MentionModelsButton
             ref={mentionModelsButtonRef}
             mentionedModels={mentionedModels}
+            mentionedGroups={mentionedGroups}
             onMentionModel={onMentionModel}
             onClearMentionModels={onClearMentionModels}
+            setMentionedGroups={setMentionedGroups}
             couldMentionNotVisionModel={couldMentionNotVisionModel}
             files={files}
             setText={setText}
@@ -495,6 +501,7 @@ const InputbarTools = ({
     files,
     handleKnowledgeBaseSelect,
     isExpended,
+    mentionedGroups,
     mentionedModels,
     model,
     newTopicShortcut,
@@ -506,6 +513,7 @@ const InputbarTools = ({
     resizeTextArea,
     selectedKnowledgeBases,
     setFiles,
+    setMentionedGroups,
     setText,
     showKnowledgeBaseButton,
     showMcpServerButton,

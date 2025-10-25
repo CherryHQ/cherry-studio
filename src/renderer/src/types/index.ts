@@ -875,6 +875,26 @@ export type S3Config = {
   maxBackups: number
 }
 
+/**
+ * Reference to a model within a group
+ */
+export type ModelReference = {
+  modelId: string
+  providerId: string
+}
+
+/**
+ * Represents a model group with multiple models
+ */
+export type ModelGroup = {
+  id: string
+  name: string
+  description?: string
+  models: ModelReference[]
+  createdAt: string
+  updatedAt: string
+}
+
 export type { Message } from './newMessage'
 export * from './tool'
 

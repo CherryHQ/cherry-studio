@@ -32,6 +32,7 @@ import DocProcessSettings from './DocProcessSettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
+import ModelGroupSettings from './ModelGroupSettings'
 import NotesSettings from './NotesSettings'
 import { ProviderList } from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
@@ -64,6 +65,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/model')}>
               <Package size={18} />
               {t('settings.model')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/model-group">
+            <MenuItem className={isRoute('/settings/model-group')}>
+              <Package size={18} />
+              {t('settings.modelGroup.title')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
@@ -159,6 +166,7 @@ const SettingsPage: FC = () => {
           <Routes>
             <Route path="provider" element={<ProviderList />} />
             <Route path="model" element={<ModelSettings />} />
+            <Route path="model-group" element={<ModelGroupSettings />} />
             <Route path="websearch" element={<WebSearchSettings />} />
             <Route path="api-server" element={<ApiServerSettings />} />
             <Route path="docprocess" element={<DocProcessSettings />} />

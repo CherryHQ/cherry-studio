@@ -2,15 +2,17 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import { Model, ModelGroup } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { FC } from 'react'
 import styled from 'styled-components'
 
 const MentionModelsInput: FC<{
   selectedModels: Model[]
+  selectedGroups?: ModelGroup[]
   onRemoveModel: (model: Model) => void
-}> = ({ selectedModels, onRemoveModel }) => {
+  onRemoveGroup?: (group: ModelGroup) => void
+}> = ({ selectedModels, selectedGroups = [], onRemoveModel, onRemoveGroup }) => {
   const { providers } = useProviders()
 
   const getProviderName = (model: Model) => {
@@ -20,7 +22,20 @@ const MentionModelsInput: FC<{
 
   return (
     <Container>
-      <HorizontalScrollContainer dependencies={[selectedModels]} expandable>
+      <HorizontalScrollContainer dependencies={[selectedModels, selectedGroups]} expandable>
+        {/* Render groups first */}
+        {selectedGroups.map((group) => (
+          <CustomTag
+            icon={<i className="iconfont icon-folder" />}
+            color="#52c41a"
+            key={group.id}
+            closable
+            onClose={() => onRemoveGroup?.(group)}>
+            @{group.name}
+          </CustomTag>
+        ))}
+
+        {/* Then render individual models */}
         {selectedModels.map((model) => (
           <CustomTag
             icon={<i className="iconfont icon-at" />}

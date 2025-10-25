@@ -5,12 +5,13 @@ import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@r
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { FileType, Model } from '@renderer/types'
+import { useAppSelector } from '@renderer/store'
+import { FileType, Model, ModelGroup } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
-import { AtSign, CircleX, Plus } from 'lucide-react'
+import { AtSign, CircleX, Folder, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -23,8 +24,10 @@ export interface MentionModelsButtonRef {
 interface Props {
   ref?: React.RefObject<MentionModelsButtonRef | null>
   mentionedModels: Model[]
+  mentionedGroups: ModelGroup[]
   onMentionModel: (model: Model) => void
   onClearMentionModels: () => void
+  setMentionedGroups: React.Dispatch<React.SetStateAction<ModelGroup[]>>
   couldMentionNotVisionModel: boolean
   files: FileType[]
   setText: React.Dispatch<React.SetStateAction<string>>
@@ -33,8 +36,10 @@ interface Props {
 const MentionModelsButton: FC<Props> = ({
   ref,
   mentionedModels,
+  mentionedGroups,
   onMentionModel,
   onClearMentionModels,
+  setMentionedGroups,
   couldMentionNotVisionModel,
   files,
   setText
@@ -43,6 +48,7 @@ const MentionModelsButton: FC<Props> = ({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
+  const modelGroups = useAppSelector((state) => state.modelGroups.groups)
 
   // 记录是否有模型被选择的动作发生
   const hasModelActionRef = useRef<boolean>(false)
@@ -116,8 +122,40 @@ const MentionModelsButton: FC<Props> = ({
     []
   )
 
+  const onMentionGroup = useCallback(
+    (group: ModelGroup) => {
+      setMentionedGroups((prev) => {
+        const exists = prev.some((g) => g.id === group.id)
+        return exists ? prev.filter((g) => g.id !== group.id) : [...prev, group]
+      })
+    },
+    [setMentionedGroups]
+  )
+
   const modelItems = useMemo(() => {
     const items: QuickPanelListItem[] = []
+
+    // Add model groups first
+    if (modelGroups.length > 0) {
+      const groupItems = modelGroups.map((group) => ({
+        label: (
+          <>
+            <ProviderName>@{group.name}</ProviderName>
+            {group.description && <span style={{ opacity: 0.6, fontSize: 12 }}> - {group.description}</span>}
+          </>
+        ),
+        description: `${group.models.length} ${group.models.length === 1 ? 'model' : 'models'}`,
+        icon: <Folder size={20} color="#52c41a" />,
+        filterText: group.name + (group.description || ''),
+        action: () => {
+          hasModelActionRef.current = true
+          onMentionGroup(group)
+        },
+        isSelected: mentionedGroups.some((g) => g.id === group.id)
+      }))
+
+      items.push(...sortBy(groupItems, ['label']))
+    }
 
     if (pinnedModels.length > 0) {
       const pinnedItems = providers.flatMap((p) =>
@@ -202,6 +240,7 @@ const MentionModelsButton: FC<Props> = ({
       isSelected: false,
       action: ({ context: ctx }) => {
         onClearMentionModels()
+        setMentionedGroups([])
 
         // 只有输入触发时才需要删除 @ 与搜索文本（未知搜索词，按光标就近删除）
         if (triggerInfoRef.current?.type === 'input') {
@@ -218,6 +257,9 @@ const MentionModelsButton: FC<Props> = ({
 
     return items
   }, [
+    modelGroups,
+    mentionedGroups,
+    onMentionGroup,
     pinnedModels,
     providers,
     t,
@@ -226,6 +268,7 @@ const MentionModelsButton: FC<Props> = ({
     onMentionModel,
     navigate,
     onClearMentionModels,
+    setMentionedGroups,
     setText,
     removeAtSymbolAndText
   ])
@@ -289,13 +332,13 @@ const MentionModelsButton: FC<Props> = ({
     }
   }, [files, quickPanel])
 
-  // 监听 mentionedModels 变化，动态更新已打开的 QuickPanel 列表状态
+  // 监听 mentionedModels 和 mentionedGroups 变化，动态更新已打开的 QuickPanel 列表状态
   useEffect(() => {
     if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
       // 直接使用重新计算的 modelItems，因为它已经包含了最新的 isSelected 状态
       quickPanel.updateList(modelItems)
     }
-  }, [mentionedModels, quickPanel, modelItems])
+  }, [mentionedModels, mentionedGroups, quickPanel, modelItems])
 
   useImperativeHandle(ref, () => ({
     openQuickPanel
@@ -303,7 +346,9 @@ const MentionModelsButton: FC<Props> = ({
 
   return (
     <Tooltip placement="top" title={t('assistants.presets.edit.model.select.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={mentionedModels.length > 0}>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={mentionedModels.length > 0 || mentionedGroups.length > 0}>
         <AtSign size={18} />
       </ActionIconButton>
     </Tooltip>
