@@ -198,10 +198,12 @@ export function providerToAiSdkConfig(
     }
   }
   // azure
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
   if (aiSdkProviderId === 'azure' || actualProvider.type === 'azure-openai') {
-    extraOptions.apiVersion = actualProvider.apiVersion
+    extraOptions.apiVersion = actualProvider.apiVersion === 'preview' ? 'v1' : actualProvider.apiVersion
     baseConfig.baseURL += '/openai'
-    if (actualProvider.apiVersion === 'preview') {
+    if (actualProvider.apiVersion === 'preview' || actualProvider.apiVersion === 'v1') {
       extraOptions.mode = 'responses'
     } else {
       extraOptions.mode = 'chat'
