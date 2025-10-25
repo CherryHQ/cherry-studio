@@ -232,6 +232,7 @@ const InputbarTools = ({
         icon: <FileSearch />,
         isMenu: true,
         disabled: files.length > 0,
+        hidden: !showKnowledgeBaseButton,
         action: () => {
           knowledgeBaseButtonRef.current?.openQuickPanel()
         }
@@ -299,7 +300,7 @@ const InputbarTools = ({
           translate()
         }
       }
-    ]
+    ] satisfies QuickPanelListItem[]
   }
 
   const handleDragEnd = (result: DropResult) => {
