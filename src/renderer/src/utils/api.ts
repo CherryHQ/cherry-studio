@@ -32,8 +32,8 @@ export function hasAPIVersion(host?: string): boolean {
   }
 }
 
-export function withoutTrailingSlash(url: string | undefined) {
-  return url?.replace(/(\/|:)$/, '')
+export function withoutTrailingSlash<T extends string | undefined>(url: T): T {
+  return url?.replace(/(\/|:)$/, '') as T
 }
 
 /**
