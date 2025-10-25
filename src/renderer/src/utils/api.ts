@@ -83,7 +83,7 @@ export function formatVertexApiHost(provider: VertexProvider): string {
 }
 
 // 目前对话界面只支持这些端点
-export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict']
+export const SUPPORTED_IMAGE_ENDPOINT_LIST = ['images/generations', 'images/edits', 'predict'] as const
 export const SUPPORTED_ENDPOINT_LIST = [
   'chat/completions',
   'responses',
