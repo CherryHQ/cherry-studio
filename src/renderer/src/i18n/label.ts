@@ -88,7 +88,9 @@ const providerKeyMap = {
   zhinao: 'provider.zhinao',
   zhipu: 'provider.zhipu',
   poe: 'provider.poe',
-  aionly: 'provider.aionly'
+  aionly: 'provider.aionly',
+  longcat: 'provider.longcat',
+  huggingface: 'provider.huggingface'
 } as const
 
 /**

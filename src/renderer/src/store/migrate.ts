@@ -2713,6 +2713,15 @@ const migrateConfig = {
       logger.error('migrate 166 error', error as Error)
       return state
     }
+  },
+  '167': (state: RootState) => {
+    try {
+      addProvider(state, 'huggingface')
+      return state
+    } catch (error) {
+      logger.error('migrate 167 error', error as Error)
+      return state
+    }
   }
 }
 
