@@ -15,6 +15,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { getSelectedText } from '@renderer/utils/selection'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
@@ -65,7 +66,7 @@ const Chat: FC<Props> = (props) => {
 
   useShortcut('search_message_in_chat', () => {
     try {
-      const selectedText = window.getSelection()?.toString().trim()
+      const selectedText = getSelectedText()
       contentSearchRef.current?.enable(selectedText)
     } catch (error) {
       logger.error('Error enabling content search:', error as Error)
