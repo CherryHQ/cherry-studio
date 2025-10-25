@@ -212,7 +212,6 @@ const RichEditor = ({
     tableOfContentsItems,
     linkEditor,
     setMarkdown,
-    setHtml,
     clear,
     getPreviewText
   } = useRichEditor({
@@ -419,8 +418,8 @@ const RichEditor = ({
           const { from, to, $from } = selection
 
           // 如果当前已经是链接，则取消链接
-          if (editor.isActive('enhancedLink')) {
-            editor.chain().focus().unsetEnhancedLink().run()
+          if (editor.isActive('link')) {
+            editor.chain().focus().unsetLink().run()
           } else {
             // 获取当前段落的文本内容
             if (from !== to) {
@@ -429,7 +428,7 @@ const RichEditor = ({
                 const url = selectedText.trim().startsWith('http')
                   ? selectedText.trim()
                   : `https://${selectedText.trim()}`
-                editor.chain().focus().setTextSelection({ from, to }).setEnhancedLink({ href: url }).run()
+                editor.chain().focus().setTextSelection({ from, to }).setLink({ href: url }).run()
               }
             } else {
               const paragraphText = $from.parent.textContent
@@ -444,13 +443,13 @@ const RichEditor = ({
                   const { $from } = selection
                   const start = $from.start()
                   const end = $from.end()
-                  editor.chain().focus().setTextSelection({ from: start, to: end }).setEnhancedLink({ href: url }).run()
+                  editor.chain().focus().setTextSelection({ from: start, to: end }).setLink({ href: url }).run()
                 } catch (error) {
-                  logger.warn('Failed to set enhanced link:', error as Error)
-                  editor.chain().focus().toggleEnhancedLink({ href: '' }).run()
+                  logger.warn('Failed to set link:', error as Error)
+                  editor.chain().focus().toggleLink({ href: '' }).run()
                 }
               } else {
-                editor.chain().focus().toggleEnhancedLink({ href: '' }).run()
+                editor.chain().focus().toggleLink({ href: '' }).run()
               }
             }
           }
@@ -476,6 +475,10 @@ const RichEditor = ({
           break
         case 'taskList':
           editor.chain().focus().toggleTaskList().run()
+          break
+        case 'highlight':
+          editor.chain().focus().toggleHighlight().run()
+          break
       }
     },
     [editor]
@@ -489,10 +492,7 @@ const RichEditor = ({
       getHtml: () => html,
       getMarkdown: () => markdown,
       setContent: (content: string) => {
-        editor?.commands.setContent(content)
-      },
-      setHtml: (htmlContent: string) => {
-        setHtml(htmlContent)
+        editor?.commands.setContent(content, { contentType: 'markdown' })
       },
       setMarkdown: (markdownContent: string) => {
         setMarkdown(markdownContent)
@@ -513,7 +513,7 @@ const RichEditor = ({
         }
       },
       getPreviewText: (maxLength?: number) => {
-        return getPreviewText(markdown, maxLength)
+        return getPreviewText(maxLength)
       },
       getScrollTop: () => {
         return scrollContainerRef.current?.scrollTop ?? 0
@@ -548,7 +548,7 @@ const RichEditor = ({
       getAllCommands,
       getToolbarCommands
     }),
-    [editor, html, markdown, setHtml, setMarkdown, clear, getPreviewText]
+    [editor, html, markdown, setMarkdown, clear, getPreviewText]
   )
 
   return (
