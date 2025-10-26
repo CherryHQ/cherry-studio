@@ -172,9 +172,6 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const assistantContextCount = assistant?.settings?.contextCount || 20
-  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
-
   const model = assistant.model || getDefaultModel()
 
   const isOpenAI = isOpenAIModel(model)
@@ -232,15 +229,20 @@ const SettingsTab: FC<Props> = (props) => {
                 {t('chat.settings.context_count.label')}
                 <HelpTooltip title={t('chat.settings.context_count.tip')} />
               </SettingRowTitleSmall>
+              <CurrentValueDisplay>
+                <ValueText>
+                  {t('common.current')}: {contextCount === 100 ? t('chat.settings.max') : contextCount}
+                </ValueText>
+              </CurrentValueDisplay>
             </Row>
             <Row align="middle" gutter={10}>
-              <Col span={23}>
+              <Col span={24}>
                 <Slider
                   min={0}
-                  max={maxContextCount}
+                  max={20}
                   onChange={setContextCount}
                   onChangeComplete={onContextCountChange}
-                  value={typeof contextCount === 'number' ? contextCount : 0}
+                  value={typeof contextCount === 'number' ? Math.min(contextCount, 20) : 0}
                   step={1}
                 />
               </Col>
@@ -734,6 +736,20 @@ const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-top: 0;
   border-radius: 8px;
   margin-bottom: 10px;
+`
+
+const CurrentValueDisplay = styled.div`
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+`
+
+const ValueText = styled.span`
+  font-size: 13px;
+  color: var(--color-text-2);
+  font-weight: 500;
+  min-width: 30px;
+  text-align: right;
 `
 
 export default SettingsTab
