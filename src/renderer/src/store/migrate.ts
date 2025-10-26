@@ -2715,6 +2715,14 @@ const migrateConfig = {
           preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
         }
       })
+      state.llm.providers.forEach((provider) => {
+        if (
+          provider.id === 'dashscope' &&
+          provider.anthropicApiHost === 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+        ) {
+          provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 166 error', error as Error)
