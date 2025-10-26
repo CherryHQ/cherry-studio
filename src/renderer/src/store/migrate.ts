@@ -2715,6 +2715,11 @@ const migrateConfig = {
           preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
         }
       })
+      // 更新阿里云百炼的 Anthropic API 地址
+      const dashscopeProvider = state.llm.providers.find((provider) => provider.id === 'dashscope')
+      if (dashscopeProvider) {
+        dashscopeProvider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
+      }
       return state
     } catch (error) {
       logger.error('migrate 166 error', error as Error)
