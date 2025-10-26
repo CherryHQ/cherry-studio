@@ -45,6 +45,7 @@ import WanZhiAppLogo from '@renderer/assets/images/apps/wanzhi.jpg?url'
 import WPSLingXiLogo from '@renderer/assets/images/apps/wpslingxi.webp?url'
 import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
+import ZaiwenAppLogo from '@renderer/assets/images/apps/zaiwen.png?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
@@ -482,6 +483,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 6
     }
+  },
+  {
+    id: 'zaiwen',
+    name: i18n.t('minapps.zaiwen'),
+    url: 'https://www.zaiwenai.com',
+    logo: ZaiwenAppLogo,
+    bodered: true
   }
 ]
 
