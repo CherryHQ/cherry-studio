@@ -7,6 +7,7 @@ import {
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Button, Drawer, Tooltip } from 'antd'
@@ -38,7 +39,8 @@ interface ChatNavigationProps {
 const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
-  const hideTimerRef = useRef<NodeJS.Timeout>(undefined)
+  const timerKey = 'hide'
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
@@ -49,17 +51,20 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const showRightTopics = topicPosition === 'right' && showTopics
 
   const clearHideTimer = useCallback(() => {
-    clearTimeout(hideTimerRef.current)
-  }, [])
+    clearTimeoutTimer(timerKey)
+  }, [clearTimeoutTimer])
 
   const scheduleHide = useCallback(
     (delay: number) => {
-      clearHideTimer()
-      hideTimerRef.current = setTimeout(() => {
-        setIsVisible(false)
-      }, delay)
+      setTimeoutTimer(
+        timerKey,
+        () => {
+          setIsVisible(false)
+        },
+        delay
+      )
     },
-    [clearHideTimer]
+    [setTimeoutTimer]
   )
 
   const showNavigation = useCallback(() => {
@@ -322,9 +327,9 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       container.removeEventListener('scroll', handleScroll)
       window.removeEventListener('mousemove', handleMouseMove)
       messagesContainer?.removeEventListener('mouseleave', handleMessagesMouseLeave)
-      clearTimeout(hideTimerRef.current)
+      clearHideTimer()
     }
-  }, [containerId, showRightTopics, manuallyClosedUntil, scheduleHide, showNavigation])
+  }, [containerId, showRightTopics, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
 
   return (
     <>
