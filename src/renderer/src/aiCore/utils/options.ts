@@ -78,6 +78,7 @@ export function buildProviderOptions(
   providerSpecificOptions.serviceTier = serviceTierSetting
   // 根据 provider 类型分离构建逻辑
   const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(rawProviderId)
+  console.log(rawProviderId, baseProviderId)
   if (success) {
     // 应该覆盖所有类型
     switch (baseProviderId) {
@@ -90,7 +91,9 @@ export function buildProviderOptions(
           serviceTier: serviceTierSetting
         }
         break
-
+      case 'huggingface':
+        providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
+        break
       case 'anthropic':
         providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
         break
@@ -174,6 +177,7 @@ function buildOpenAIProviderOptions(
   // OpenAI 推理参数
   if (enableReasoning) {
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
+    console.log('reasoningParam', reasoningParams)
     providerOptions = {
       ...providerOptions,
       ...reasoningParams

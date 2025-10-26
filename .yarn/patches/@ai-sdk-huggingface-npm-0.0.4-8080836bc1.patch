@@ -1,8 +1,24 @@
 diff --git a/dist/index.mjs b/dist/index.mjs
-index b3f018730a93639aad7c203f15fb1aeb766c73f4..826190cf4ff9db70a3cc8773b23a4f04d1beff15 100644
+index b3f018730a93639aad7c203f15fb1aeb766c73f4..ade2a43d66e9184799d072153df61ef7be4ea110 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -365,6 +365,20 @@ var HuggingFaceResponsesLanguageModel = class {
+@@ -296,7 +296,14 @@ var HuggingFaceResponsesLanguageModel = class {
+       metadata: huggingfaceOptions == null ? void 0 : huggingfaceOptions.metadata,
+       instructions: huggingfaceOptions == null ? void 0 : huggingfaceOptions.instructions,
+       ...preparedTools && { tools: preparedTools },
+-      ...preparedToolChoice && { tool_choice: preparedToolChoice }
++      ...preparedToolChoice && { tool_choice: preparedToolChoice },
++      ...(huggingfaceOptions?.reasoningEffort != null && {
++        reasoning: {
++          ...(huggingfaceOptions?.reasoningEffort != null && {
++            effort: huggingfaceOptions.reasoningEffort,
++          }),
++        },
++      }),
+     };
+     return { args: baseArgs, warnings };
+   }
+@@ -365,6 +372,20 @@ var HuggingFaceResponsesLanguageModel = class {
            }
            break;
          }
@@ -23,7 +39,7 @@ index b3f018730a93639aad7c203f15fb1aeb766c73f4..826190cf4ff9db70a3cc8773b23a4f04
          case "mcp_call": {
            content.push({
              type: "tool-call",
-@@ -519,6 +533,11 @@ var HuggingFaceResponsesLanguageModel = class {
+@@ -519,6 +540,11 @@ var HuggingFaceResponsesLanguageModel = class {
                    id: value.item.call_id,
                    toolName: value.item.name
                  });
@@ -35,7 +51,7 @@ index b3f018730a93639aad7c203f15fb1aeb766c73f4..826190cf4ff9db70a3cc8773b23a4f04
                }
                return;
              }
-@@ -570,6 +589,22 @@ var HuggingFaceResponsesLanguageModel = class {
+@@ -570,6 +596,22 @@ var HuggingFaceResponsesLanguageModel = class {
                });
                return;
              }
@@ -58,7 +74,17 @@ index b3f018730a93639aad7c203f15fb1aeb766c73f4..826190cf4ff9db70a3cc8773b23a4f04
            },
            flush(controller) {
              controller.enqueue({
-@@ -727,12 +762,31 @@ var responseCreatedChunkSchema = z2.object({
+@@ -593,7 +635,8 @@ var HuggingFaceResponsesLanguageModel = class {
+ var huggingfaceResponsesProviderOptionsSchema = z2.object({
+   metadata: z2.record(z2.string(), z2.string()).optional(),
+   instructions: z2.string().optional(),
+-  strictJsonSchema: z2.boolean().optional()
++  strictJsonSchema: z2.boolean().optional(),
++  reasoningEffort: z2.string().optional(),
+ });
+ var huggingfaceResponsesResponseSchema = z2.object({
+   id: z2.string(),
+@@ -727,12 +770,31 @@ var responseCreatedChunkSchema = z2.object({
      model: z2.string()
    })
  });
@@ -90,7 +116,7 @@ index b3f018730a93639aad7c203f15fb1aeb766c73f4..826190cf4ff9db70a3cc8773b23a4f04
    z2.object({ type: z2.string() }).loose()
    // fallback for unknown chunks
  ]);
-@@ -751,6 +805,12 @@ function isResponseCompletedChunk(chunk) {
+@@ -751,6 +813,12 @@ function isResponseCompletedChunk(chunk) {
  function isResponseCreatedChunk(chunk) {
    return chunk.type === "response.created";
  }

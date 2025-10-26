@@ -195,14 +195,14 @@ __metadata:
 
 "@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch":
   version: 0.0.4
-  resolution: "@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch::version=0.0.4&hash=dd4ea7"
+  resolution: "@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch::version=0.0.4&hash=ceb48e"
   dependencies:
     "@ai-sdk/openai-compatible": "npm:1.0.22"
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.12"
   peerDependencies:
     zod: ^3.25.76 || ^4
-  checksum: 10c0/52ebbed791970c6c1e66e21dd7bb428efcff84abeb4ea4b9aa8b6696a7835f52707016a3e297eeeddd4c415889adbe147ff0349768b030fd3018025186a52f0a
+  checksum: 10c0/4726a10de7a6fd554b58d62f79cd6514c2cc5166052e035ba1517e224a310ddb355a5d2922ee8507fb8d928d6d5b2b102d3d221af5a44b181e436e6b64382087
   languageName: node
   linkType: hard
 
