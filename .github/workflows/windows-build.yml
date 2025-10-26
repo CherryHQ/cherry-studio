@@ -19,7 +19,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci || npm install
 
       - name: Rebuild native modules (if any)
         run: npx electron-rebuild || echo "no native modules or rebuild needed"
