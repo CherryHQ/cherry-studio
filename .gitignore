@@ -57,8 +57,6 @@ local
 .codebuddy/*
 .zed/*
 CLAUDE.local.md
-tall
-.zed
 
 # vitest
 coverage
