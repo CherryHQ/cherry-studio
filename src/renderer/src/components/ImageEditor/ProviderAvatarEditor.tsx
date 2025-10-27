@@ -7,8 +7,6 @@ import React, { useCallback, useRef, useState } from 'react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import { useTranslation } from 'react-i18next'
 
-import styles from './ProviderAvatarEditor.module.css'
-
 const logger = loggerService.withContext('ProviderAvatarEditor')
 
 interface ProviderAvatarEditorProps {
@@ -111,7 +109,7 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
 
   const handleConfirm = useCallback(async () => {
     if (!cropperRef.current?.cropper) {
-      window.message.error(t('settings.general.avatar.editor_not_ready'))
+      window.toast.error(t('settings.general.avatar.editor_not_ready'))
       return
     }
 
@@ -129,7 +127,7 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
           if (blob) {
             onConfirm(blob)
           } else {
-            window.message.error(t('settings.general.avatar.processing_failed'))
+            window.toast.error(t('settings.general.avatar.processing_failed'))
           }
         },
         'image/png',
@@ -137,7 +135,7 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
       )
     } catch (error) {
       logger.error('Image editing failed:', error as Error)
-      window.message.error(t('settings.general.avatar.editing_failed'))
+      window.toast.error(t('settings.general.avatar.editing_failed'))
     }
   }, [maxWidth, maxHeight, onConfirm, t])
 
