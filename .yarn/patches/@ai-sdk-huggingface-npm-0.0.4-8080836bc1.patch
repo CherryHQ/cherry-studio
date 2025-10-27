@@ -1,0 +1,131 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index b3f018730a93639aad7c203f15fb1aeb766c73f4..ade2a43d66e9184799d072153df61ef7be4ea110 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -296,7 +296,14 @@ var HuggingFaceResponsesLanguageModel = class {
+       metadata: huggingfaceOptions == null ? void 0 : huggingfaceOptions.metadata,
+       instructions: huggingfaceOptions == null ? void 0 : huggingfaceOptions.instructions,
+       ...preparedTools && { tools: preparedTools },
+-      ...preparedToolChoice && { tool_choice: preparedToolChoice }
++      ...preparedToolChoice && { tool_choice: preparedToolChoice },
++      ...(huggingfaceOptions?.reasoningEffort != null && {
++        reasoning: {
++          ...(huggingfaceOptions?.reasoningEffort != null && {
++            effort: huggingfaceOptions.reasoningEffort,
++          }),
++        },
++      }),
+     };
+     return { args: baseArgs, warnings };
+   }
+@@ -365,6 +372,20 @@ var HuggingFaceResponsesLanguageModel = class {
+           }
+           break;
+         }
++        case 'reasoning': {
++          for (const contentPart of part.content) {
++            content.push({
++              type: 'reasoning',
++              text: contentPart.text,
++              providerMetadata: {
++                huggingface: {
++                  itemId: part.id,
++                },
++              },
++            });
++          }
++          break;
++        }
+         case "mcp_call": {
+           content.push({
+             type: "tool-call",
+@@ -519,6 +540,11 @@ var HuggingFaceResponsesLanguageModel = class {
+                   id: value.item.call_id,
+                   toolName: value.item.name
+                 });
++              } else if (value.item.type === 'reasoning') {
++                controller.enqueue({
++                  type: 'reasoning-start',
++                  id: value.item.id,
++                });
+               }
+               return;
+             }
+@@ -570,6 +596,22 @@ var HuggingFaceResponsesLanguageModel = class {
+               });
+               return;
+             }
++            if (isReasoningDeltaChunk(value)) {
++              controller.enqueue({
++                type: 'reasoning-delta',
++                id: value.item_id,
++                delta: value.delta,
++              });
++              return;
++            }
++
++            if (isReasoningEndChunk(value)) {
++              controller.enqueue({
++                type: 'reasoning-end',
++                id: value.item_id,
++              });
++              return;
++            }
+           },
+           flush(controller) {
+             controller.enqueue({
+@@ -593,7 +635,8 @@ var HuggingFaceResponsesLanguageModel = class {
+ var huggingfaceResponsesProviderOptionsSchema = z2.object({
+   metadata: z2.record(z2.string(), z2.string()).optional(),
+   instructions: z2.string().optional(),
+-  strictJsonSchema: z2.boolean().optional()
++  strictJsonSchema: z2.boolean().optional(),
++  reasoningEffort: z2.string().optional(),
+ });
+ var huggingfaceResponsesResponseSchema = z2.object({
+   id: z2.string(),
+@@ -727,12 +770,31 @@ var responseCreatedChunkSchema = z2.object({
+     model: z2.string()
+   })
+ });
++var reasoningTextDeltaChunkSchema = z2.object({
++  type: z2.literal('response.reasoning_text.delta'),
++  item_id: z2.string(),
++  output_index: z2.number(),
++  content_index: z2.number(),
++  delta: z2.string(),
++  sequence_number: z2.number(),
++});
++
++var reasoningTextEndChunkSchema = z2.object({
++  type: z2.literal('response.reasoning_text.done'),
++  item_id: z2.string(),
++  output_index: z2.number(),
++  content_index: z2.number(),
++  text: z2.string(),
++  sequence_number: z2.number(),
++});
+ var huggingfaceResponsesChunkSchema = z2.union([
+   responseOutputItemAddedSchema,
+   responseOutputItemDoneSchema,
+   textDeltaChunkSchema,
+   responseCompletedChunkSchema,
+   responseCreatedChunkSchema,
++  reasoningTextDeltaChunkSchema,
++  reasoningTextEndChunkSchema,
+   z2.object({ type: z2.string() }).loose()
+   // fallback for unknown chunks
+ ]);
+@@ -751,6 +813,12 @@ function isResponseCompletedChunk(chunk) {
+ function isResponseCreatedChunk(chunk) {
+   return chunk.type === "response.created";
+ }
++function isReasoningDeltaChunk(chunk) {
++  return chunk.type === 'response.reasoning_text.delta';
++}
++function isReasoningEndChunk(chunk) {
++  return chunk.type === 'response.reasoning_text.done';
++}
+ 
+ // src/huggingface-provider.ts
+ function createHuggingFace(options = {}) {

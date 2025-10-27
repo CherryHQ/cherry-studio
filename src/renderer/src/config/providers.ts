@@ -22,6 +22,7 @@ import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import GPUStackProviderLogo from '@renderer/assets/images/providers/gpustack.svg'
 import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
+import HuggingfaceProviderLogo from '@renderer/assets/images/providers/huggingface.webp'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import IntelOvmsLogo from '@renderer/assets/images/providers/intel.png'
@@ -653,6 +654,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS.longcat,
     isSystem: true,
     enabled: false
+  },
+  huggingface: {
+    id: 'huggingface',
+    name: 'Hugging Face',
+    type: 'openai-response',
+    apiKey: '',
+    apiHost: 'https://router.huggingface.co/v1/',
+    models: [],
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -717,7 +728,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   'aws-bedrock': AwsProviderLogo,
   poe: 'poe', // use svg icon component
   aionly: AiOnlyProviderLogo,
-  longcat: LongCatProviderLogo
+  longcat: LongCatProviderLogo,
+  huggingface: HuggingfaceProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1343,6 +1355,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://longcat.chat/platform/api_keys',
       docs: 'https://longcat.chat/platform/docs/zh/',
       models: 'https://longcat.chat/platform/docs/zh/APIDocs.html'
+    }
+  },
+  huggingface: {
+    api: {
+      url: 'https://router.huggingface.co/v1/'
+    },
+    websites: {
+      official: 'https://huggingface.co/',
+      apiKey: 'https://huggingface.co/settings/tokens',
+      docs: 'https://huggingface.co/docs',
+      models: 'https://huggingface.co/models'
     }
   }
 }
