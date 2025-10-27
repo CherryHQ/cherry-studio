@@ -34,7 +34,7 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (isNotSupportTemperatureAndTopP(model) && isClaude45ReasoningModel(model)) {
+  if (isNotSupportTemperatureAndTopP(model) || isClaude45ReasoningModel(model)) {
     return undefined
   }
   const assistantSettings = getAssistantSettings(assistant)
