@@ -1,8 +1,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { InputBarToolType } from '@renderer/types/chat'
 
-export type ToolOrder = {
-  visible: string[]
-  hidden: string[]
+type ToolOrder = {
+  visible: InputBarToolType[]
+  hidden: InputBarToolType[]
 }
 
 export const DEFAULT_TOOL_ORDER: ToolOrder = {
@@ -20,7 +21,7 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
   hidden: ['quick_phrases', 'clear_topic', 'toggle_expand', 'new_context']
 }
 
-export type InputToolsState = {
+type InputToolsState = {
   toolOrder: ToolOrder
   isCollapsed: boolean
 }

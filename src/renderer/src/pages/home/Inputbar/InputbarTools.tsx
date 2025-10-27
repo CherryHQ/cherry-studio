@@ -20,6 +20,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { FileType, FileTypes, KnowledgeBase, Model } from '@renderer/types'
+import { InputBarToolType } from '@renderer/types/chat'
 import { classNames } from '@renderer/utils'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { Divider, Dropdown, Tooltip } from 'antd'
@@ -86,7 +87,7 @@ export interface InputbarToolsProps {
 }
 
 interface ToolButtonConfig {
-  key: string
+  key: InputBarToolType
   component: ReactNode
   condition?: boolean
   visible?: boolean
@@ -185,7 +186,7 @@ const InputbarTools = ({
   const clearTopicShortcut = useShortcutDisplay('clear_topic')
 
   const toggleToolVisibility = useCallback(
-    (toolKey: string, isVisible: boolean | undefined) => {
+    (toolKey: InputBarToolType, isVisible: boolean | undefined) => {
       const newToolOrder = {
         visible: [...toolOrder.visible],
         hidden: [...toolOrder.hidden]

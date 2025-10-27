@@ -2707,6 +2707,13 @@ const migrateConfig = {
       if (state.assistants.presets === undefined) {
         state.assistants.presets = []
       }
+      state.assistants.presets.forEach((preset) => {
+        if (!preset.settings) {
+          preset.settings = DEFAULT_ASSISTANT_SETTINGS
+        } else if (!preset.settings.toolUseMode) {
+          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+        }
+      })
 
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
@@ -2722,6 +2729,15 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 166 error', error as Error)
+      return state
+    }
+  },
+  '167': (state: RootState) => {
+    try {
+      addProvider(state, 'huggingface')
+      return state
+    } catch (error) {
+      logger.error('migrate 167 error', error as Error)
       return state
     }
   }
