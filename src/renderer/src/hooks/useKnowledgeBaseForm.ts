@@ -14,11 +14,7 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
   items: [],
   created_at: Date.now(),
   updated_at: Date.now(),
-  version: 1,
-  framework: 'langchain',
-  retriever: {
-    mode: 'hybrid'
-  }
+  version: 1
 })
 
 /**
@@ -126,7 +122,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
         setNewBase((prev) => ({ ...prev, chunkOverlap: value || undefined }))
       } else {
-        window.message.error(t('message.error.chunk_overlap_too_large'))
+        window.toast.error(t('message.error.chunk_overlap_too_large'))
       }
     },
     [newBase.chunkSize, t]

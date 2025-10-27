@@ -330,7 +330,7 @@ const MemorySettings = () => {
         setAllMemories(result.results || [])
       } catch (error) {
         logger.error('Failed to load memories:', error as Error)
-        window.message.error(t('memory.load_failed'))
+        window.toast.error(t('memory.load_failed'))
       } finally {
         setLoading(false)
       }
@@ -390,25 +390,25 @@ const MemorySettings = () => {
     try {
       // The memory service will automatically use the current user from its state
       await memoryService.add(memory, {})
-      window.message.success(t('memory.add_success'))
+      window.toast.success(t('memory.add_success'))
       // Go to first page to see the newly added memory
       setCurrentPage(1)
       await loadMemories(currentUser)
     } catch (error) {
       logger.error('Failed to add memory:', error as Error)
-      window.message.error(t('memory.add_failed'))
+      window.toast.error(t('memory.add_failed'))
     }
   }
 
   const handleDeleteMemory = async (id: string) => {
     try {
       await memoryService.delete(id)
-      window.message.success(t('memory.delete_success'))
+      window.toast.success(t('memory.delete_success'))
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
       logger.error('Failed to delete memory:', error as Error)
-      window.message.error(t('memory.delete_failed'))
+      window.toast.error(t('memory.delete_failed'))
     }
   }
 
@@ -419,13 +419,13 @@ const MemorySettings = () => {
   const handleUpdateMemory = async (id: string, memory: string, metadata?: Record<string, any>) => {
     try {
       await memoryService.update(id, memory, metadata)
-      window.message.success(t('memory.update_success'))
+      window.toast.success(t('memory.update_success'))
       setEditingMemory(null)
       // Reload all memories
       await loadMemories(currentUser)
     } catch (error) {
       logger.error('Failed to update memory:', error as Error)
-      window.message.error(t('memory.update_failed'))
+      window.toast.error(t('memory.update_failed'))
     }
   }
 
@@ -445,12 +445,12 @@ const MemorySettings = () => {
       // Explicitly load memories for the new user
       await loadMemories(userId)
 
-      window.message.success(
+      window.toast.success(
         t('memory.user_switched', { user: userId === DEFAULT_USER_ID ? t('memory.default_user') : userId })
       )
     } catch (error) {
       logger.error('Failed to switch user:', error as Error)
-      window.message.error(t('memory.user_switch_failed'))
+      window.toast.error(t('memory.user_switch_failed'))
     }
   }
 
@@ -466,11 +466,11 @@ const MemorySettings = () => {
 
       // Switch to the newly created user
       await handleUserSwitch(userId)
-      window.message.success(t('memory.user_created', { user: userId }))
+      window.toast.success(t('memory.user_created', { user: userId }))
       setAddUserModalVisible(false)
     } catch (error) {
       logger.error('Failed to add user:', error as Error)
-      window.message.error(t('memory.add_user_failed'))
+      window.toast.error(t('memory.add_user_failed'))
     }
   }
 
@@ -501,13 +501,13 @@ const MemorySettings = () => {
       onOk: async () => {
         try {
           await memoryService.deleteAllMemoriesForUser(userId)
-          window.message.success(t('memory.memories_reset_success', { user: getUserDisplayName(userId) }))
+          window.toast.success(t('memory.memories_reset_success', { user: getUserDisplayName(userId) }))
 
           // Reload memories to show the empty state
           await loadMemories(currentUser)
         } catch (error) {
           logger.error('Failed to reset memories:', error as Error)
-          window.message.error(t('memory.reset_memories_failed'))
+          window.toast.error(t('memory.reset_memories_failed'))
         }
       }
     })
@@ -515,7 +515,7 @@ const MemorySettings = () => {
 
   const handleDeleteUser = async (userId: string) => {
     if (userId === DEFAULT_USER_ID) {
-      window.message.error(t('memory.cannot_delete_default_user'))
+      window.toast.error(t('memory.cannot_delete_default_user'))
       return
     }
 
@@ -528,7 +528,7 @@ const MemorySettings = () => {
       onOk: async () => {
         try {
           await memoryService.deleteUser(userId)
-          window.message.success(t('memory.user_deleted', { user: userId }))
+          window.toast.success(t('memory.user_deleted', { user: userId }))
 
           // Refresh the users list from database after deletion
           await loadUniqueUsers()
@@ -541,7 +541,7 @@ const MemorySettings = () => {
           }
         } catch (error) {
           logger.error('Failed to delete user:', error as Error)
-          window.message.error(t('memory.delete_user_failed'))
+          window.toast.error(t('memory.delete_user_failed'))
         }
       }
     })
@@ -572,7 +572,7 @@ const MemorySettings = () => {
       })
     }
 
-    window.message.success(t('memory.global_memory_disabled_title'))
+    window.toast.success(t('memory.global_memory_disabled_title'))
   }
 
   const { theme } = useTheme()

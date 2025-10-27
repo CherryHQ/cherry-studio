@@ -1,6 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
-import Scrollbar from '@renderer/components/Scrollbar'
+import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -12,11 +13,11 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import { ThemeMode } from '@renderer/types'
+import { MinAppType, ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
+import { LRUCache } from 'lru-cache'
 import {
-  ChevronRight,
   FileSearch,
   Folder,
   Hammer,
@@ -33,32 +34,59 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import MinAppIcon from '../Icons/MinAppIcon'
+import MinAppTabsPool from '../MinApp/MinAppTabsPool'
 import WindowControls from '../WindowControls'
 
 interface TabsContainerProps {
   children: React.ReactNode
 }
 
-const getTabIcon = (tabId: string, minapps: any[]): React.ReactNode | undefined => {
+const logger = loggerService.withContext('TabContainer')
+
+const getTabIcon = (
+  tabId: string,
+  minapps: MinAppType[],
+  minAppsCache?: LRUCache<string, MinAppType>
+): React.ReactNode | undefined => {
   // Check if it's a minapp tab (format: apps:appId)
   if (tabId.startsWith('apps:')) {
     const appId = tabId.replace('apps:', '')
-    const app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+    let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+
+    // If not found in permanent apps, search in temporary apps cache
+    // The cache stores apps opened via openSmartMinapp() for top navbar mode
+    // These are temporary MinApps that were opened but not yet saved to user's config
+    // The cache is LRU (Least Recently Used) with max size from settings
+    // Cache validity: Apps in cache are currently active/recently used, not outdated
+    if (!app && minAppsCache) {
+      app = minAppsCache.get(appId)
+
+      // Defensive programming: If app not found in cache but tab exists,
+      // the cache entry may have been evicted due to LRU policy
+      // Log warning for debugging potential sync issues
+      if (!app) {
+        logger.warn(`MinApp ${appId} not found in cache, using fallback icon`)
+      }
+    }
+
     if (app) {
       return <MinAppIcon size={14} app={app} />
     }
+
+    // Fallback: If no app found (cache evicted), show default icon
+    return <LayoutGrid size={14} />
   }
 
   switch (tabId) {
     case 'home':
       return <Home size={14} />
-    case 'agents':
+    case 'store':
       return <Sparkle size={14} />
     case 'translate':
       return <Languages size={14} />
@@ -94,11 +122,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
   const { settedTheme, toggleTheme } = useTheme()
-  const { hideMinappPopup } = useMinappPopup()
+  const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
   const { t } = useTranslation()
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScroll, setCanScroll] = useState(false)
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -114,8 +140,23 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     // Check if it's a minapp tab
     if (tabId.startsWith('apps:')) {
       const appId = tabId.replace('apps:', '')
-      const app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
-      return app ? app.name : 'MinApp'
+      let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+
+      // If not found in permanent apps, search in temporary apps cache
+      // This ensures temporary MinApps display proper titles while being used
+      // The LRU cache automatically manages app lifecycle and prevents memory leaks
+      if (!app && minAppsCache) {
+        app = minAppsCache.get(appId)
+
+        // Defensive programming: If app not found in cache but tab exists,
+        // the cache entry may have been evicted due to LRU policy
+        if (!app) {
+          logger.warn(`MinApp ${appId} not found in cache, using fallback title`)
+        }
+      }
+
+      // Return app name if found, otherwise use fallback with appId
+      return app ? app.name : `MinApp-${appId}`
     }
     return getTitleLabel(tabId)
   }
@@ -174,31 +215,6 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
-  const handleScrollRight = () => {
-    scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })
-  }
-
-  useEffect(() => {
-    const scrollElement = scrollRef.current
-    if (!scrollElement) return
-
-    const checkScrollability = () => {
-      setCanScroll(scrollElement.scrollWidth > scrollElement.clientWidth)
-    }
-
-    checkScrollability()
-
-    const resizeObserver = new ResizeObserver(checkScrollability)
-    resizeObserver.observe(scrollElement)
-
-    window.addEventListener('resize', checkScrollability)
-
-    return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', checkScrollability)
-    }
-  }, [tabs])
-
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
 
   const { onSortEnd } = useDndReorder<Tab>({
@@ -211,46 +227,49 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
-        <TabsArea>
-          <TabsScroll ref={scrollRef}>
-            <Sortable
-              items={visibleTabs}
-              itemKey="id"
-              layout="list"
-              horizontal
-              gap={'6px'}
-              onSortEnd={onSortEnd}
-              className="tabs-sortable"
-              renderItem={(tab) => (
-                <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
-                  <TabHeader>
-                    {tab.id && <TabIcon>{getTabIcon(tab.id, minapps)}</TabIcon>}
-                    <TabTitle>{getTabTitle(tab.id)}</TabTitle>
-                  </TabHeader>
-                  {tab.id !== 'home' && (
-                    <CloseButton
-                      className="close-button"
-                      data-no-dnd
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        closeTab(tab.id)
-                      }}>
-                      <X size={12} />
-                    </CloseButton>
-                  )}
-                </Tab>
-              )}
-            />
-          </TabsScroll>
-          {canScroll && (
-            <ScrollButton onClick={handleScrollRight} className="scroll-right-button" shape="circle" size="small">
-              <ChevronRight size={16} />
-            </ScrollButton>
-          )}
+        <HorizontalScrollContainer dependencies={[tabs]} gap="6px" className="tab-scroll-container">
+          <Sortable
+            items={visibleTabs}
+            itemKey="id"
+            layout="list"
+            horizontal
+            gap={'6px'}
+            onSortEnd={onSortEnd}
+            className="tabs-sortable"
+            renderItem={(tab) => (
+              <Tab
+                key={tab.id}
+                active={tab.id === activeTabId}
+                onClick={() => handleTabClick(tab)}
+                onAuxClick={(e) => {
+                  if (e.button === 1 && tab.id !== 'home') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    closeTab(tab.id)
+                  }
+                }}>
+                <TabHeader>
+                  {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
+                  <TabTitle>{getTabTitle(tab.id)}</TabTitle>
+                </TabHeader>
+                {tab.id !== 'home' && (
+                  <CloseButton
+                    className="close-button"
+                    data-no-dnd
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      closeTab(tab.id)
+                    }}>
+                    <X size={12} />
+                  </CloseButton>
+                )}
+              </Tab>
+            )}
+          />
           <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
             <PlusOutlined />
           </AddTabButton>
-        </TabsArea>
+        </HorizontalScrollContainer>
         <RightButtonsContainer>
           <Tooltip
             title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
@@ -269,10 +288,14 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
           </SettingsButton>
-          <WindowControls />
         </RightButtonsContainer>
+        <WindowControls />
       </TabsBar>
-      <TabContent>{children}</TabContent>
+      <TabContent>
+        {/* MiniApp WebView 池（Tab 模式保活） */}
+        <MinAppTabsPool />
+        {children}
+      </TabContent>
     </Container>
   )
 }
@@ -289,7 +312,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-x)' : '15px')};
+  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'calc(env(titlebar-area-x) + 4px)' : '15px')};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   min-height: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-height)' : '')};
@@ -302,33 +325,13 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
     z-index: 1;
     -webkit-app-region: no-drag;
   }
-`
 
-const TabsArea = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  gap: 6px;
-  padding-right: 2rem;
-  position: relative;
+  .tab-scroll-container {
+    -webkit-app-region: drag;
 
-  -webkit-app-region: drag;
-
-  > * {
-    -webkit-app-region: no-drag;
-  }
-
-  &:hover {
-    .scroll-right-button {
-      opacity: 1;
+    > * {
+      -webkit-app-region: no-drag;
     }
-  }
-`
-
-const TabsScroll = styled(Scrollbar)`
-  &::-webkit-scrollbar {
-    display: none;
   }
 `
 
@@ -409,22 +412,6 @@ const AddTabButton = styled.div`
   }
 `
 
-const ScrollButton = styled(Button)`
-  position: absolute;
-  right: 4rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-
-  border: none;
-  box-shadow:
-    0 6px 16px 0 rgba(0, 0, 0, 0.08),
-    0 3px 6px -4px rgba(0, 0, 0, 0.12),
-    0 9px 28px 8px rgba(0, 0, 0, 0.05);
-`
-
 const RightButtonsContainer = styled.div`
   display: flex;
   align-items: center;
@@ -473,6 +460,7 @@ const TabContent = styled.div`
   margin-top: 0;
   border-radius: 8px;
   overflow: hidden;
+  position: relative; /* 约束 MinAppTabsPool 绝对定位范围 */
 `
 
 export default TabsContainer

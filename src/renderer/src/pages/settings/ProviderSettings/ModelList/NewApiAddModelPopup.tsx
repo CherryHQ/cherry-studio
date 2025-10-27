@@ -1,6 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { isNotSupportedTextDelta } from '@renderer/config/models'
+import { isNewApiProvider } from '@renderer/config/providers'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -51,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
     const id = values.id.trim()
 
     if (find(models, { id })) {
-      window.message.error(t('error.model.exists'))
+      window.toast.error(t('error.model.exists'))
       return
     }
 
@@ -60,7 +61,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
       group: values.group ?? getDefaultGroupName(id),
-      endpoint_type: provider.id === 'new-api' ? values.endpointType : undefined
+      endpoint_type: isNewApiProvider(provider) ? values.endpointType : undefined
     }
 
     addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })

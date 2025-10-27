@@ -53,6 +53,7 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
+  --icon: #00000099;
 }
 
 .dark {
@@ -87,6 +88,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+  --icon: #ffffff99;
 }
 
 @theme inline {
@@ -128,6 +130,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+  --color-icon: var(--icon);
   @keyframes marquee {
     from {
       transform: translateX(0);
@@ -153,4 +156,13 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* To disable drag title bar on toast. tailwind css doesn't provide such class name. */
+  .hero-toast {
+    -webkit-app-region: no-drag;
+  }
+}
+
+:root {
+  background-color: unset;
 }

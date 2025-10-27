@@ -18,7 +18,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, ColorPicker, Segmented, Switch } from 'antd'
+import { Button, ColorPicker, Segmented, Select, Switch } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,6 +78,7 @@ const DisplaySettings: FC = () => {
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
+  const [fontList, setFontList] = useState<string[]>([])
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
@@ -136,6 +137,11 @@ const DisplaySettings: FC = () => {
   )
 
   useEffect(() => {
+    // 初始化获取所有系统字体
+    window.api.getSystemFonts().then((fonts: string[]) => {
+      setFontList(fonts)
+    })
+
     // 初始化获取当前缩放值
     window.api.handleZoomFactor(0).then((factor) => {
       setCurrentZoom(factor)
@@ -159,6 +165,26 @@ const DisplaySettings: FC = () => {
     const zoomFactor = await window.api.handleZoomFactor(delta, reset)
     setCurrentZoom(zoomFactor)
   }
+
+  const handleUserFontChange = useCallback(
+    (value: string) => {
+      setUserTheme({
+        ...userTheme,
+        userFontFamily: value
+      })
+    },
+    [setUserTheme, userTheme]
+  )
+
+  const handleUserCodeFontChange = useCallback(
+    (value: string) => {
+      setUserTheme({
+        ...userTheme,
+        userCodeFontFamily: value
+      })
+    },
+    [setUserTheme, userTheme]
+  )
 
   const assistantIconTypeOptions = useMemo(
     () => [
@@ -194,6 +220,7 @@ const DisplaySettings: FC = () => {
               ))}
             </HStack>
             <ColorPicker
+              style={{ fontFamily: 'inherit' }}
               className="color-picker"
               value={userTheme.colorPrimary}
               onChange={(color) => handleColorPrimaryChange(color.toHexString())}
@@ -253,6 +280,75 @@ const DisplaySettings: FC = () => {
               variant="text"
             />
           </ZoomButtonGroup>
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
+          {t('settings.display.font.title')} <TextBadge text="New" />
+        </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
+          <SelectRow>
+            <Select
+              style={{ width: 200 }}
+              placeholder={t('settings.display.font.select')}
+              options={[
+                {
+                  label: (
+                    <span style={{ fontFamily: 'Ubuntu, -apple-system, system-ui, Arial, sans-serif' }}>
+                      {t('settings.display.font.default')}
+                    </span>
+                  ),
+                  value: ''
+                },
+                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+              ]}
+              value={userTheme.userFontFamily || ''}
+              onChange={(font) => handleUserFontChange(font)}
+              showSearch
+              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+            />
+            <Button
+              onClick={() => handleUserFontChange('')}
+              style={{ marginLeft: 8 }}
+              icon={<ResetIcon size="14" />}
+              color="default"
+              variant="text"
+            />
+          </SelectRow>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
+          <SelectRow>
+            <Select
+              style={{ width: 200 }}
+              placeholder={t('settings.display.font.select')}
+              options={[
+                {
+                  label: (
+                    <span style={{ fontFamily: 'Ubuntu, -apple-system, system-ui, Arial, sans-serif' }}>
+                      {t('settings.display.font.default')}
+                    </span>
+                  ),
+                  value: ''
+                },
+                ...fontList.map((font) => ({ label: <span style={{ fontFamily: font }}>{font}</span>, value: font }))
+              ]}
+              value={userTheme.userCodeFontFamily || ''}
+              onChange={(font) => handleUserCodeFontChange(font)}
+              showSearch
+              getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
+            />
+            <Button
+              onClick={() => handleUserCodeFontChange('')}
+              style={{ marginLeft: 8 }}
+              icon={<ResetIcon size="14" />}
+              color="default"
+              variant="text"
+            />
+          </SelectRow>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -377,6 +473,13 @@ const ZoomValue = styled.span`
   width: 40px;
   text-align: center;
   margin: 0 5px;
+`
+
+const SelectRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 300px;
 `
 
 export default DisplaySettings

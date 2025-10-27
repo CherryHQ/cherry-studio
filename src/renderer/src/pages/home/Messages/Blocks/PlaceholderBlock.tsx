@@ -1,4 +1,4 @@
-import { LoadingIcon } from '@renderer/components/Icons'
+import { Spinner } from '@heroui/react'
 import { MessageBlockStatus, MessageBlockType, type PlaceholderMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 import styled from 'styled-components'
@@ -10,7 +10,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ block }) => {
   if (block.status === MessageBlockStatus.PROCESSING && block.type === MessageBlockType.UNKNOWN) {
     return (
       <MessageContentLoading>
-        <LoadingIcon />
+        <Spinner color="current" variant="dots" />
       </MessageContentLoading>
     )
   }

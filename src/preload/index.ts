@@ -1,16 +1,18 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
-import { UpgradeChannel } from '@shared/config/constant'
+import { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type { FileChangeEvent } from '@shared/config/types'
+import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { Notification } from '@types'
 import {
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
   FileMetadata,
   FileUploadResponse,
+  GetApiServerStatusResult,
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
@@ -21,14 +23,16 @@ import {
   OcrProvider,
   OcrResult,
   Provider,
+  RestartApiServerStatusResult,
   S3Config,
   Shortcut,
+  StartApiServerStatusResult,
+  StopApiServerStatusResult,
   SupportedOcrFile,
   ThemeMode,
   WebDavConfig
 } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
@@ -44,11 +48,14 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
+  getDiskInfo: (directoryPath: string): Promise<{ free: number; size: number } | null> =>
+    ipcRenderer.invoke(IpcChannel.App_GetDiskInfo, directoryPath),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
+  quit: () => ipcRenderer.invoke(IpcChannel.App_Quit),
   setProxy: (proxy: string | undefined, bypassRules?: string) =>
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
-  showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
+  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
@@ -82,6 +89,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
+  getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
@@ -91,7 +99,8 @@ const api = {
   },
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
-    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
+    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
+    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
@@ -163,7 +172,8 @@ const api = {
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
-    selectFolder: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
+    selectFolder: (options?: OpenDialogOptions): Promise<string | null> =>
+      ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string): Promise<{ mime: string; base64: string; data: string }> =>
@@ -194,7 +204,8 @@ const api = {
       }
       ipcRenderer.on('file-change', listener)
       return () => ipcRenderer.off('file-change', listener)
-    }
+    },
+    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
@@ -216,7 +227,7 @@ const api = {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (base: KnowledgeBaseParams, id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, base, id),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
     add: ({
       base,
       item,
@@ -280,6 +291,16 @@ const api = {
       ipcRenderer.invoke(IpcChannel.VertexAI_GetAccessToken, params),
     clearAuthCache: (projectId: string, clientEmail?: string) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
+  },
+  ovms: {
+    addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
+      ipcRenderer.invoke(IpcChannel.Ovms_AddModel, modelName, modelId, modelSource, task),
+    stopAddModel: () => ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
+    getModels: () => ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
+    isRunning: () => ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
+    getStatus: () => ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
+    runOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
+    stopOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
   },
   config: {
     set: (key: string, value: any, isNotify: boolean = false) =>
@@ -346,6 +367,7 @@ const api = {
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
   installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
+  installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
@@ -372,7 +394,16 @@ const api = {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
       ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
     setSpellCheckEnabled: (webviewId: number, isEnable: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable)
+      ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable),
+    onFindShortcut: (callback: (payload: WebviewKeyEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: WebviewKeyEvent) => {
+        callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.Webview_SearchHotkey, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.Webview_SearchHotkey, listener)
+      }
+    }
   },
   storeSync: {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
@@ -436,16 +467,25 @@ const api = {
       model: string,
       directory: string,
       env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options)
+      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    getAvailableTerminals: (): Promise<TerminalConfig[]> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
+    setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_SetCustomTerminalPath, terminalId, path),
+    getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
+    removeCustomTerminalPath: (terminalId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider)
+      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
+    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
-  cherryin: {
+  cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
+      ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
   },
   windowControls: {
     minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Minimize),
@@ -455,11 +495,18 @@ const api = {
     isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
     onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
       const channel = IpcChannel.Windows_MaximizedChanged
-      ipcRenderer.on(channel, (_, isMaximized: boolean) => callback(isMaximized))
+      const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
+      ipcRenderer.on(channel, listener)
       return () => {
-        ipcRenderer.removeAllListeners(channel)
+        ipcRenderer.removeListener(channel, listener)
       }
     }
+  },
+  apiServer: {
+    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
+    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
+    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
+    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
   }
 }
 
@@ -471,13 +518,10 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
-    // eslint-disable-next-line no-restricted-syntax
     console.error('[Preload]Failed to expose APIs:', error as Error)
   }
 } else {
-  // @ts-ignore (define in dts)
   window.electron = electronAPI
-  // @ts-ignore (define in dts)
   window.api = api
 }
 

@@ -59,7 +59,7 @@ export function useAssistants() {
           dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
         } catch (e) {
           logger.error('Failed to insert assistant', e as Error)
-          window.message.error(t('message.error.copy'))
+          window.toast.error(t('message.error.copy'))
         }
       }
       return _assistant
@@ -172,7 +172,10 @@ export function useAssistant(id: string) {
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]
     ),
-    updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
+    updateAssistant: useCallback(
+      (update: Partial<Omit<Assistant, 'id'>>) => dispatch(updateAssistant({ id, ...update })),
+      [dispatch, id]
+    ),
     updateAssistantSettings
   }
 }

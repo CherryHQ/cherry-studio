@@ -12,7 +12,7 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -170,8 +170,6 @@ const MinappPopupContainer: React.FC = () => {
 
   const { isLeftNavbar } = useNavbarPosition()
 
-  const isInDevelopment = process.env.NODE_ENV === 'development'
-
   const { setTimeoutTimer } = useTimer()
 
   useBridge()
@@ -283,13 +281,6 @@ const MinappPopupContainer: React.FC = () => {
 
   /** the callback function to set the webviews ref */
   const handleWebviewSetRef = (appid: string, element: WebviewTag | null) => {
-    webviewRefs.current.set(appid, element)
-
-    if (!webviewRefs.current.has(appid)) {
-      webviewRefs.current.set(appid, null)
-      return
-    }
-
     if (element) {
       webviewRefs.current.set(appid, element)
     } else {
@@ -401,10 +392,10 @@ const MinappPopupContainer: React.FC = () => {
       navigator.clipboard
         .writeText(url)
         .then(() => {
-          window.message.success('URL ' + t('message.copy.success'))
+          window.toast.success('URL ' + t('message.copy.success'))
         })
         .catch(() => {
-          window.message.error('URL ' + t('message.copy.failed'))
+          window.toast.error('URL ' + t('message.copy.failed'))
         })
     }
 
@@ -484,7 +475,7 @@ const MinappPopupContainer: React.FC = () => {
               <LinkOutlined />
             </TitleButton>
           </Tooltip>
-          {isInDevelopment && (
+          {isDev && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
               <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />
@@ -550,12 +541,15 @@ const MinappPopupContainer: React.FC = () => {
         },
         content: {
           backgroundColor: window.root.style.background
+        },
+        body: {
+          borderTopLeftRadius: '10px'
         }
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
-        <EmptyView>
+        <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
           <Avatar
             src={currentAppInfo?.logo}
             size={80}

@@ -1,4 +1,5 @@
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setAssistantsTabSortType,
   setShowAssistants,
@@ -38,4 +39,8 @@ export function useAssistantsTabSortType() {
     assistantsTabSortType,
     setAssistantsTabSortType: (sortType: AssistantsSortType) => dispatch(setAssistantsTabSortType(sortType))
   }
+}
+
+export function getStoreProviders() {
+  return store.getState().llm.providers.concat([CHERRYAI_PROVIDER])
 }

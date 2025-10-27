@@ -23,6 +23,7 @@ import {
   setCodeCollapsible,
   setCodeEditor,
   setCodeExecution,
+  setCodeFancyBlock,
   setCodeImageTools,
   setCodeShowLineNumbers,
   setCodeViewer,
@@ -99,6 +100,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeViewer,
     codeImageTools,
     codeExecution,
+    codeFancyBlock,
     mathEngine,
     mathEnableSingleDollar,
     autoTranslateWithSpace,
@@ -179,128 +181,130 @@ const SettingsTab: FC<Props> = (props) => {
 
   return (
     <Container className="settings-tab">
-      <CollapsibleSettingGroup
-        title={t('assistants.settings.title')}
-        defaultExpanded={true}
-        extra={
-          <HStack alignItems="center" gap={2}>
-            <Button
-              type="text"
-              size="small"
-              icon={<Settings2 size={16} />}
-              onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
-            />
-          </HStack>
-        }>
-        <SettingGroup style={{ marginTop: 5 }}>
-          <Row align="middle">
-            <SettingRowTitleSmall>
-              {t('chat.settings.temperature.label')}
-              <HelpTooltip title={t('chat.settings.temperature.tip')} />
-            </SettingRowTitleSmall>
-            <Switch
-              size="small"
-              style={{ marginLeft: 'auto' }}
-              checked={enableTemperature}
-              onChange={(enabled) => {
-                setEnableTemperature(enabled)
-                onUpdateAssistantSettings({ enableTemperature: enabled })
-              }}
-            />
-          </Row>
-          {enableTemperature ? (
+      {props.assistant.id !== 'fake' && (
+        <CollapsibleSettingGroup
+          title={t('assistants.settings.title')}
+          defaultExpanded={true}
+          extra={
+            <HStack alignItems="center" gap={2}>
+              <Button
+                type="text"
+                size="small"
+                icon={<Settings2 size={16} />}
+                onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
+              />
+            </HStack>
+          }>
+          <SettingGroup style={{ marginTop: 5 }}>
+            <Row align="middle">
+              <SettingRowTitleSmall>
+                {t('chat.settings.temperature.label')}
+                <HelpTooltip title={t('chat.settings.temperature.tip')} />
+              </SettingRowTitleSmall>
+              <Switch
+                size="small"
+                style={{ marginLeft: 'auto' }}
+                checked={enableTemperature}
+                onChange={(enabled) => {
+                  setEnableTemperature(enabled)
+                  onUpdateAssistantSettings({ enableTemperature: enabled })
+                }}
+              />
+            </Row>
+            {enableTemperature ? (
+              <Row align="middle" gutter={10}>
+                <Col span={23}>
+                  <Slider
+                    min={0}
+                    max={2}
+                    onChange={setTemperature}
+                    onChangeComplete={onTemperatureChange}
+                    value={typeof temperature === 'number' ? temperature : 0}
+                    step={0.1}
+                  />
+                </Col>
+              </Row>
+            ) : (
+              <SettingDivider />
+            )}
+            <Row align="middle">
+              <SettingRowTitleSmall>
+                {t('chat.settings.context_count.label')}
+                <HelpTooltip title={t('chat.settings.context_count.tip')} />
+              </SettingRowTitleSmall>
+            </Row>
             <Row align="middle" gutter={10}>
               <Col span={23}>
                 <Slider
                   min={0}
-                  max={2}
-                  onChange={setTemperature}
-                  onChangeComplete={onTemperatureChange}
-                  value={typeof temperature === 'number' ? temperature : 0}
-                  step={0.1}
+                  max={maxContextCount}
+                  onChange={setContextCount}
+                  onChangeComplete={onContextCountChange}
+                  value={typeof contextCount === 'number' ? contextCount : 0}
+                  step={1}
                 />
               </Col>
             </Row>
-          ) : (
             <SettingDivider />
-          )}
-          <Row align="middle">
-            <SettingRowTitleSmall>
-              {t('chat.settings.context_count.label')}
-              <HelpTooltip title={t('chat.settings.context_count.tip')} />
-            </SettingRowTitleSmall>
-          </Row>
-          <Row align="middle" gutter={10}>
-            <Col span={23}>
-              <Slider
-                min={0}
-                max={maxContextCount}
-                onChange={setContextCount}
-                onChangeComplete={onContextCountChange}
-                value={typeof contextCount === 'number' ? contextCount : 0}
-                step={1}
+            <SettingRow>
+              <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={streamOutput}
+                onChange={(checked) => {
+                  setStreamOutput(checked)
+                  onUpdateAssistantSettings({ streamOutput: checked })
+                }}
               />
-            </Col>
-          </Row>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={streamOutput}
-              onChange={(checked) => {
-                setStreamOutput(checked)
-                onUpdateAssistantSettings({ streamOutput: checked })
-              }}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <Row align="middle">
-              <SettingRowTitleSmall>
-                {t('chat.settings.max_tokens.label')}
-                <HelpTooltip title={t('chat.settings.max_tokens.tip')} />
-              </SettingRowTitleSmall>
-            </Row>
-            <Switch
-              size="small"
-              checked={enableMaxTokens}
-              onChange={async (enabled) => {
-                if (enabled) {
-                  const confirmed = await modalConfirm({
-                    title: t('chat.settings.max_tokens.confirm'),
-                    content: t('chat.settings.max_tokens.confirm_content'),
-                    okButtonProps: {
-                      danger: true
-                    }
-                  })
-                  if (!confirmed) return
-                }
-                setEnableMaxTokens(enabled)
-                onUpdateAssistantSettings({ enableMaxTokens: enabled })
-              }}
-            />
-          </SettingRow>
-          {enableMaxTokens && (
-            <Row align="middle" gutter={10} style={{ marginTop: 10 }}>
-              <Col span={24}>
-                <InputNumber
-                  disabled={!enableMaxTokens}
-                  min={0}
-                  max={10000000}
-                  step={100}
-                  value={typeof maxTokens === 'number' ? maxTokens : 0}
-                  changeOnBlur
-                  onChange={(value) => value && setMaxTokens(value)}
-                  onBlur={() => onMaxTokensChange(maxTokens)}
-                  style={{ width: '100%' }}
-                />
-              </Col>
-            </Row>
-          )}
-          <SettingDivider />
-        </SettingGroup>
-      </CollapsibleSettingGroup>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <Row align="middle">
+                <SettingRowTitleSmall>
+                  {t('chat.settings.max_tokens.label')}
+                  <HelpTooltip title={t('chat.settings.max_tokens.tip')} />
+                </SettingRowTitleSmall>
+              </Row>
+              <Switch
+                size="small"
+                checked={enableMaxTokens}
+                onChange={async (enabled) => {
+                  if (enabled) {
+                    const confirmed = await modalConfirm({
+                      title: t('chat.settings.max_tokens.confirm'),
+                      content: t('chat.settings.max_tokens.confirm_content'),
+                      okButtonProps: {
+                        danger: true
+                      }
+                    })
+                    if (!confirmed) return
+                  }
+                  setEnableMaxTokens(enabled)
+                  onUpdateAssistantSettings({ enableMaxTokens: enabled })
+                }}
+              />
+            </SettingRow>
+            {enableMaxTokens && (
+              <Row align="middle" gutter={10} style={{ marginTop: 10 }}>
+                <Col span={24}>
+                  <InputNumber
+                    disabled={!enableMaxTokens}
+                    min={0}
+                    max={10000000}
+                    step={100}
+                    value={typeof maxTokens === 'number' ? maxTokens : 0}
+                    changeOnBlur
+                    onChange={(value) => value && setMaxTokens(value)}
+                    onBlur={() => onMaxTokensChange(maxTokens)}
+                    style={{ width: '100%' }}
+                  />
+                </Col>
+              </Row>
+            )}
+            <SettingDivider />
+          </SettingGroup>
+        </CollapsibleSettingGroup>
+      )}
       {isOpenAI && (
         <OpenAISettingsGroup
           model={model}
@@ -408,7 +412,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
-      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={true}>
+      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
@@ -437,7 +441,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
-      <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={true}>
+      <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
@@ -448,6 +452,18 @@ const SettingsTab: FC<Props> = (props) => {
                 value: theme,
                 label: theme
               }))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('chat.settings.code_fancy_block.label')}
+              <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeFancyBlock}
+              onChange={(checked) => dispatch(setCodeFancyBlock(checked))}
             />
           </SettingRow>
           <SettingDivider />
@@ -569,7 +585,7 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingGroup>
         <SettingDivider />
       </CollapsibleSettingGroup>
-      <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={true}>
+      <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>

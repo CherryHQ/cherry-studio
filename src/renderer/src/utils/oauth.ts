@@ -26,7 +26,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 }
 
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
+  const authUrl = ` https://console.aihubmix.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
 
   const popup = window.open(
     authUrl,
@@ -52,7 +52,7 @@ export const oauthWithAihubmix = async (setKey) => {
       } catch (error) {
         logger.error('[oauthWithAihubmix] error', error as Error)
         popup?.close()
-        window.message.error(i18n.t('settings.provider.oauth.error'))
+        window.toast.error(i18n.t('settings.provider.oauth.error'))
       }
     }
   }
@@ -140,7 +140,7 @@ export const oauthWithTokenFlux = async () => {
   const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
   const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
   if (!resp.ok) {
-    window.message.error(i18n.t('settings.provider.oauth.error'))
+    window.toast.error(i18n.t('settings.provider.oauth.error'))
     return
   }
   const data = await resp.json()
@@ -163,6 +163,27 @@ export const oauthWith302AI = async (setKey) => {
   const messageHandler = (event) => {
     if (event.data && event.data.data.apikey !== undefined) {
       setKey(event.data.data.apikey)
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
+export const oauthWithAiOnly = async (setKey) => {
+  const authUrl = `https://www.aiionly.com/login?inviteCode=1755481173663DrZBBOC0&cherryCode=01`
+
+  const popup = window.open(
+    authUrl,
+    'login',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data.length > 0 && event.data[0]['secretKey'] !== undefined) {
+      setKey(event.data[0]['secretKey'])
       popup?.close()
       window.removeEventListener('message', messageHandler)
     }
@@ -196,6 +217,11 @@ export const providerCharge = async (provider: string) => {
     },
     '302ai': {
       url: 'https://dash.302.ai/charge',
+      width: 900,
+      height: 700
+    },
+    aionly: {
+      url: `https://www.aiionly.com/recharge`,
       width: 900,
       height: 700
     }
@@ -234,6 +260,11 @@ export const providerBills = async (provider: string) => {
     },
     '302ai': {
       url: 'https://dash.302.ai/charge',
+      width: 900,
+      height: 700
+    },
+    aionly: {
+      url: `https://www.aiionly.com/billManagement`,
       width: 900,
       height: 700
     }

@@ -28,7 +28,8 @@ const STATIC_PROVIDER_MAPPING: Record<string, ProviderId> = {
   gemini: 'google', // Google Gemini -> google
   'azure-openai': 'azure', // Azure OpenAI -> azure
   'openai-response': 'openai', // OpenAI Responses -> openai
-  grok: 'xai' // Grok -> xai
+  grok: 'xai', // Grok -> xai
+  copilot: 'github-copilot-openai-compatible'
 }
 
 /**
@@ -68,6 +69,9 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
     if (resolvedFromType) {
       return resolvedFromType
     }
+  }
+  if (provider.apiHost.includes('api.openai.com')) {
+    return 'openai-chat'
   }
   // 3. 最后的fallback（通常会成为openai-compatible）
   return provider.id as ProviderId

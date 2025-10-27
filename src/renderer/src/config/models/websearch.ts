@@ -7,13 +7,16 @@ import { isAnthropicModel } from './utils'
 import { isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
   'i'
 )
 
-export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')
+export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$')
 
-export const GEMINI_SEARCH_REGEX = new RegExp('gemini-2\\..*', 'i')
+export const GEMINI_SEARCH_REGEX = new RegExp(
+  'gemini-(?:2.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
+  'i'
+)
 
 export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-pro',
@@ -22,6 +25,22 @@ export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-reasoning-pro',
   'sonar-deep-research'
 ]
+
+const OPENAI_DEEP_RESEARCH_MODEL_REGEX = /deep[-_]?research/
+
+export function isOpenAIDeepResearchModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const providerId = model.provider
+  if (providerId !== 'openai' && providerId !== 'openai-chat') {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return OPENAI_DEEP_RESEARCH_MODEL_REGEX.test(modelId)
+}
 
 export function isWebSearchModel(model: Model): boolean {
   if (

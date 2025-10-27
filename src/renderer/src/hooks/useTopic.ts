@@ -48,6 +48,17 @@ export function useActiveTopic(assistantId: string, topic?: Topic) {
     }
   }, [activeTopic?.id, assistant])
 
+  useEffect(() => {
+    if (!assistant?.topics?.length || !activeTopic) {
+      return
+    }
+
+    const latestTopic = assistant.topics.find((item) => item.id === activeTopic.id)
+    if (latestTopic && latestTopic !== activeTopic) {
+      setActiveTopic(latestTopic)
+    }
+  }, [assistant?.topics, activeTopic])
+
   return { activeTopic, setActiveTopic }
 }
 

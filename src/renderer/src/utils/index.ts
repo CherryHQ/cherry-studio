@@ -205,6 +205,10 @@ export function isOpenAIProvider(provider: Provider): boolean {
   return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
 }
 
+export function isAnthropicProvider(provider: Provider): boolean {
+  return provider.type === 'anthropic'
+}
+
 /**
  * 判断模型是否为用户手动选择
  * @param {Model} model 模型对象
@@ -222,6 +226,7 @@ export function uniqueObjectArray<T>(array: T[]): T[] {
 
 export * from './api'
 export * from './collection'
+export * from './dataLimit'
 export * from './file'
 export * from './image'
 export * from './json'

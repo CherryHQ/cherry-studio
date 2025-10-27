@@ -1,6 +1,7 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
@@ -12,16 +13,21 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
+  const isFullscreen = useFullscreen()
   const { isTopNavbar } = useNavbarPosition()
+  const { minappShow } = useRuntime()
 
   if (isTopNavbar) {
     return null
   }
 
   return (
-    <NavbarContainer {...props} style={{ backgroundColor }}>
-      {children}
-    </NavbarContainer>
+    <>
+      <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
+        {children}
+      </NavbarContainer>
+      {!isTopNavbar && !minappShow && <WindowControls />}
+    </>
   )
 }
 
@@ -30,17 +36,7 @@ export const NavbarLeft: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
-  return (
-    <NavbarCenterContainer {...props}>
-      {children}
-      {/* Add WindowControls for Windows and Linux in NavbarCenter */}
-      {(isWin || isLinux) && (
-        <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
-          <WindowControls />
-        </div>
-      )}
-    </NavbarCenterContainer>
-  )
+  return <NavbarCenterContainer {...props}>{children}</NavbarCenterContainer>
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
@@ -65,19 +61,20 @@ export const NavbarHeader: FC<Props> = ({ children, ...props }) => {
   return <NavbarHeaderContent {...props}>{children}</NavbarHeaderContent>
 }
 
-const NavbarContainer = styled.div`
+const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
   min-width: 100%;
   display: flex;
   flex-direction: row;
   min-height: ${isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
   max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'env(titlebar-area-x)' : 0};
+  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
+  padding-left: ${({ $isFullScreen }) =>
+    isMac ? ($isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0};
   -webkit-app-region: drag;
 `
 
 const NavbarLeftContainer = styled.div`
-  min-width: var(--assistants-width);
+  /* min-width: ${isMac ? 'calc(var(--assistants-width) - 20px)' : 'var(--assistants-width)'}; */
   padding: 0 10px;
   display: flex;
   flex-direction: row;
@@ -91,6 +88,7 @@ const NavbarCenterContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 ${isMac ? '20px' : 0};
+  padding-left: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   position: relative;
@@ -101,8 +99,8 @@ const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   align-items: center;
   padding: 0 12px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   justify-content: flex-end;
+  flex: 1;
 `
 
 const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
@@ -111,7 +109,8 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 0 ${isMac ? '20px' : 0};
+  padding-right: ${isMac ? '20px' : 0};
+  padding-left: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};

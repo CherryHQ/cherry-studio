@@ -3,6 +3,10 @@
  * 构建AI SDK的流式和非流式参数
  */
 
+import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
+import { vertex } from '@ai-sdk/google-vertex/edge'
+import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
   isGenerateImageModel,
@@ -14,17 +18,25 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
+import store from '@renderer/store'
+import { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import type { ModelMessage } from 'ai'
+import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { replacePromptVariables } from '@renderer/utils/prompt'
+import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
+import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
+import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
+
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
 
 /**
  * 构建 AI SDK 流式参数
@@ -37,6 +49,7 @@ export async function buildStreamTextParams(
   options: {
     mcpTools?: MCPTool[]
     webSearchProviderId?: string
+    webSearchConfig?: CherryWebSearchConfig
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
@@ -52,10 +65,12 @@ export async function buildStreamTextParams(
     enableGenerateImage: boolean
     enableUrlContext: boolean
   }
+  webSearchPluginConfig?: WebSearchPluginConfig
 }> {
   const { mcpTools } = options
 
   const model = assistant.model || getDefaultModel()
+  const aiSdkProviderId = getAiSdkProviderId(provider)
 
   let { maxTokens } = getAssistantSettings(assistant)
 
@@ -80,13 +95,19 @@ export async function buildStreamTextParams(
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  const tools = setupToolsConfig(mcpTools)
+  let tools = setupToolsConfig(mcpTools)
 
   // if (webSearchProviderId) {
   //   tools['builtin_web_search'] = webSearchTool(webSearchProviderId)
   // }
 
   // 构建真正的 providerOptions
+  const webSearchConfig: CherryWebSearchConfig = {
+    maxResults: store.getState().websearch.maxResults,
+    excludeDomains: store.getState().websearch.excludeDomains,
+    searchWithTime: store.getState().websearch.searchWithTime
+  }
+
   const providerOptions = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
     enableWebSearch,
@@ -103,6 +124,33 @@ export async function buildStreamTextParams(
     maxTokens -= getAnthropicThinkingBudget(assistant, model)
   }
 
+  let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
+  if (enableWebSearch) {
+    if (isBaseProvider(aiSdkProviderId)) {
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+    }
+    if (!tools) {
+      tools = {}
+    }
+    if (aiSdkProviderId === 'google-vertex') {
+      tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'google-vertex-anthropic') {
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      tools.web_search = vertexAnthropic.tools.webSearch_20250305({
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+      }) as ProviderDefinedTool
+    }
+  }
+
+  // google-vertex
+  if (enableUrlContext && aiSdkProviderId === 'google-vertex') {
+    if (!tools) {
+      tools = {}
+    }
+    tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
@@ -112,18 +160,21 @@ export async function buildStreamTextParams(
     abortSignal: options.requestOptions?.signal,
     headers: options.requestOptions?.headers,
     providerOptions,
-    tools,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(20),
     maxRetries: 0
   }
+  if (tools) {
+    params.tools = tools
+  }
   if (assistant.prompt) {
-    params.system = assistant.prompt
+    params.system = await replacePromptVariables(assistant.prompt, model.name)
   }
   logger.debug('params', params)
   return {
     params,
     modelId: model.id,
-    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext }
+    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
+    webSearchPluginConfig
   }
 }
 

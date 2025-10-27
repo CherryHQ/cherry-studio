@@ -1,0 +1,1 @@
+ALTER TABLE `session_messages` ADD `agent_session_id` text DEFAULT '';

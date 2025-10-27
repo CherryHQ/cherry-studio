@@ -19,6 +19,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { replacePromptVariables } from '@renderer/utils/prompt'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -266,6 +267,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         newAssistant.webSearchProviderId = undefined
         newAssistant.mcpServers = undefined
         newAssistant.knowledge_bases = undefined
+        // replace prompt vars
+        newAssistant.prompt = await replacePromptVariables(currentAssistant.prompt, currentAssistant?.model.name)
+        // logger.debug('newAssistant', newAssistant)
+
         const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
           messagesForContext,
           newAssistant
@@ -465,7 +470,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (lastMessage) {
       const content = getMainTextContent(lastMessage)
       navigator.clipboard.writeText(content)
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     }
   }, [currentTopic, t])
 

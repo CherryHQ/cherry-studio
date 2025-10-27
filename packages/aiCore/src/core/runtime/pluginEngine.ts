@@ -1,6 +1,6 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
 import { ImageModelV2 } from '@ai-sdk/provider'
-import { LanguageModel } from 'ai'
+import { experimental_generateImage, generateObject, generateText, LanguageModel, streamObject, streamText } from 'ai'
 
 import { type AiPlugin, createContext, PluginManager } from '../plugins'
 import { type ProviderId } from '../providers/types'
@@ -62,17 +62,19 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 执行带插件的操作（非流式）
    * 提供给AiExecutor使用
    */
-  async executeWithPlugins<TParams, TResult>(
+  async executeWithPlugins<
+    TParams extends Parameters<typeof generateText | typeof generateObject>[0],
+    TResult extends ReturnType<typeof generateText | typeof generateObject>
+  >(
     methodName: string,
-    model: LanguageModel,
     params: TParams,
-    executor: (model: LanguageModel, transformedParams: TParams) => Promise<TResult>,
+    executor: (model: LanguageModel, transformedParams: TParams) => TResult,
     _context?: ReturnType<typeof createContext>
   ): Promise<TResult> {
     // 统一处理模型解析
     let resolvedModel: LanguageModel | undefined
     let modelId: string
-
+    const { model } = params
     if (typeof model === 'string') {
       // 字符串：需要通过插件解析
       modelId = model
@@ -83,13 +85,13 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     }
 
     // 使用正确的createContext创建请求上下文
-    const context = _context ? _context : createContext(this.providerId, modelId, params)
+    const context = _context ? _context : createContext(this.providerId, model, params)
 
     // 🔥 为上下文添加递归调用能力
     context.recursiveCall = async (newParams: any): Promise<TResult> => {
       // 递归调用自身，重新走完整的插件流程
       context.isRecursiveCall = true
-      const result = await this.executeWithPlugins(methodName, model, newParams, executor, context)
+      const result = await this.executeWithPlugins(methodName, newParams, executor, context)
       context.isRecursiveCall = false
       return result
     }
@@ -138,17 +140,19 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 执行带插件的图像生成操作
    * 提供给AiExecutor使用
    */
-  async executeImageWithPlugins<TParams, TResult>(
+  async executeImageWithPlugins<
+    TParams extends Omit<Parameters<typeof experimental_generateImage>[0], 'model'> & { model: string | ImageModelV2 },
+    TResult extends ReturnType<typeof experimental_generateImage>
+  >(
     methodName: string,
-    model: ImageModelV2 | string,
     params: TParams,
-    executor: (model: ImageModelV2, transformedParams: TParams) => Promise<TResult>,
+    executor: (model: ImageModelV2, transformedParams: TParams) => TResult,
     _context?: ReturnType<typeof createContext>
   ): Promise<TResult> {
     // 统一处理模型解析
     let resolvedModel: ImageModelV2 | undefined
     let modelId: string
-
+    const { model } = params
     if (typeof model === 'string') {
       // 字符串：需要通过插件解析
       modelId = model
@@ -159,13 +163,13 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     }
 
     // 使用正确的createContext创建请求上下文
-    const context = _context ? _context : createContext(this.providerId, modelId, params)
+    const context = _context ? _context : createContext(this.providerId, model, params)
 
     // 🔥 为上下文添加递归调用能力
     context.recursiveCall = async (newParams: any): Promise<TResult> => {
       // 递归调用自身，重新走完整的插件流程
       context.isRecursiveCall = true
-      const result = await this.executeImageWithPlugins(methodName, model, newParams, executor, context)
+      const result = await this.executeImageWithPlugins(methodName, newParams, executor, context)
       context.isRecursiveCall = false
       return result
     }
@@ -214,17 +218,19 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
    * 执行流式调用的通用逻辑（支持流转换器）
    * 提供给AiExecutor使用
    */
-  async executeStreamWithPlugins<TParams, TResult>(
+  async executeStreamWithPlugins<
+    TParams extends Parameters<typeof streamText | typeof streamObject>[0],
+    TResult extends ReturnType<typeof streamText | typeof streamObject>
+  >(
     methodName: string,
-    model: LanguageModel,
     params: TParams,
-    executor: (model: LanguageModel, transformedParams: TParams, streamTransforms: any[]) => Promise<TResult>,
+    executor: (model: LanguageModel, transformedParams: TParams, streamTransforms: any[]) => TResult,
     _context?: ReturnType<typeof createContext>
   ): Promise<TResult> {
     // 统一处理模型解析
     let resolvedModel: LanguageModel | undefined
     let modelId: string
-
+    const { model } = params
     if (typeof model === 'string') {
       // 字符串：需要通过插件解析
       modelId = model
@@ -235,13 +241,13 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     }
 
     // 创建请求上下文
-    const context = _context ? _context : createContext(this.providerId, modelId, params)
+    const context = _context ? _context : createContext(this.providerId, model, params)
 
     // 🔥 为上下文添加递归调用能力
     context.recursiveCall = async (newParams: any): Promise<TResult> => {
       // 递归调用自身，重新走完整的插件流程
       context.isRecursiveCall = true
-      const result = await this.executeStreamWithPlugins(methodName, model, newParams, executor, context)
+      const result = await this.executeStreamWithPlugins(methodName, newParams, executor, context)
       context.isRecursiveCall = false
       return result
     }

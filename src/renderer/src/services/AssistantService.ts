@@ -7,13 +7,15 @@ import {
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
 import { isQwenMTModel } from '@renderer/config/models'
+import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { UNKNOWN } from '@renderer/config/translate'
+import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
 import type {
-  Agent,
   Assistant,
+  AssistantPreset,
   AssistantSettings,
   Model,
   Provider,
@@ -33,7 +35,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxTokens: 0,
   streamOutput: true,
   topP: 1,
-  enableTopP: true,
+  enableTopP: false,
   toolUseMode: 'prompt',
   customParameters: []
 }
@@ -70,24 +72,23 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     temperature: 0.7
   }
 
-  let prompt: string
-  let content: string
-  if (isQwenMTModel(model)) {
-    content = text
-    prompt = ''
-  } else {
-    content = 'follow system instruction'
-    prompt = store
+  const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
+    if (isQwenMTModel(model)) {
+      return text // QwenMT models handle raw text directly
+    }
+
+    return store
       .getState()
       .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
       .replaceAll('{{text}}', text)
   }
 
+  const content = getTranslateContent(model, text, targetLanguage)
   const translateAssistant = {
     ...assistant,
     model,
     settings,
-    prompt,
+    prompt: '',
     targetLanguage,
     content
   } satisfies TranslateAssistant
@@ -127,26 +128,28 @@ export function getTranslateModel() {
 }
 
 export function getAssistantProvider(assistant: Assistant): Provider {
-  const providers = store.getState().llm.providers
+  const providers = getStoreProviders()
   const provider = providers.find((p) => p.id === assistant.model?.provider)
   return provider || getDefaultProvider()
 }
 
+// FIXME: This function fails in silence.
+// TODO: Refactor it to make it return exactly valid value or null, and update all usage.
 export function getProviderByModel(model?: Model): Provider {
-  const providers = store.getState().llm.providers
+  const providers = getStoreProviders()
   const provider = providers.find((p) => p.id === model?.provider)
 
   if (!provider) {
     const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
-    const cherryinProvider = providers.find((p) => p.id === 'cherryin')
-    return defaultProvider || cherryinProvider || providers[0]
+    return defaultProvider || CHERRYAI_PROVIDER || providers[0]
   }
 
   return provider
 }
 
+// FIXME: This function may return undefined but as Provider
 export function getProviderByModelId(modelId?: string) {
-  const providers = store.getState().llm.providers
+  const providers = getStoreProviders()
   const _modelId = modelId || getDefaultModel().id
   return providers.find((p) => p.models.find((m) => m.id === _modelId)) as Provider
 }
@@ -169,7 +172,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     enableTemperature: assistant?.settings?.enableTemperature ?? true,
     topP: assistant?.settings?.topP ?? 1,
-    enableTopP: assistant?.settings?.enableTopP ?? true,
+    enableTopP: assistant?.settings?.enableTopP ?? false,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
@@ -185,7 +188,7 @@ export function getAssistantById(id: string) {
   return assistants.find((a) => a.id === id)
 }
 
-export async function createAssistantFromAgent(agent: Agent) {
+export async function createAssistantFromAgent(agent: AssistantPreset) {
   const assistantId = uuid()
   const topic = getDefaultTopic(assistantId)
 
@@ -203,10 +206,7 @@ export async function createAssistantFromAgent(agent: Agent) {
 
   store.dispatch(addAssistant(assistant))
 
-  window.message.success({
-    content: i18n.t('message.assistant.added.content'),
-    key: 'assistant-added'
-  })
+  window.toast.success(i18n.t('message.assistant.added.content'))
 
   return assistant
 }

@@ -2,7 +2,7 @@ import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-
 import { restoreFromS3 } from '@renderer/services/BackupService'
 import type { S3Config } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Modal, Table, Tooltip } from 'antd'
+import { Button, Modal, Space, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +37,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const fetchBackupFiles = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -61,7 +61,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         total: files.length
       }))
     } catch (error: any) {
-      window.message.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+      window.toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
     } finally {
       setLoading(false)
     }
@@ -84,12 +84,12 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      window.message.warning(t('settings.data.s3.manager.select.warning'))
+      window.toast.warning(t('settings.data.s3.manager.select.warning'))
       return
     }
 
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -118,13 +118,11 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
               maxBackups: 0
             })
           }
-          window.message.success(
-            t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length })
-          )
+          window.toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
           setSelectedRowKeys([])
           await fetchBackupFiles()
         } catch (error: any) {
-          window.message.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+          window.toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
         } finally {
           setDeleting(false)
         }
@@ -134,7 +132,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleDeleteSingle = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -160,10 +158,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             syncInterval: 0,
             maxBackups: 0
           })
-          window.message.success(t('settings.data.s3.manager.delete.success.single'))
+          window.toast.success(t('settings.data.s3.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
-          window.message.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+          window.toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
         } finally {
           setDeleting(false)
         }
@@ -173,7 +171,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleRestore = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -188,10 +186,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         setRestoring(true)
         try {
           await (restoreMethod || restoreFromS3)(fileName)
-          window.message.success(t('settings.data.s3.restore.success'))
+          window.toast.success(t('settings.data.s3.restore.success'))
           onClose() // 关闭模态框
         } catch (error: any) {
-          window.message.error(t('settings.data.s3.restore.error', { message: error.message }))
+          window.toast.error(t('settings.data.s3.restore.error', { message: error.message }))
         } finally {
           setRestoring(false)
         }
@@ -255,6 +253,26 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
     }
   }
 
+  const footerContent = (
+    <Space align="center">
+      <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
+        {t('settings.data.s3.manager.refresh')}
+      </Button>
+      <Button
+        key="delete"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={handleDeleteSelected}
+        disabled={selectedRowKeys.length === 0 || deleting}
+        loading={deleting}>
+        {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
+      </Button>
+      <Button key="close" onClick={onClose}>
+        {t('settings.data.s3.manager.close')}
+      </Button>
+    </Space>
+  )
+
   return (
     <Modal
       title={t('settings.data.s3.manager.title')}
@@ -263,23 +281,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
-          {t('settings.data.s3.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
-          {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('settings.data.s3.manager.close')}
-        </Button>
-      ]}>
+      footer={footerContent}>
       <Table
         rowKey="fileName"
         columns={columns}

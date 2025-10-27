@@ -144,6 +144,18 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI'
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/didi-mcp',
+    reference: 'https://mcp.didichuxing.com/',
+    type: 'inMemory',
+    isActive: false,
+    env: {
+      DIDI_API_KEY: 'YOUR_DIDI_API_KEY'
+    },
+    shouldConfig: true,
+    provider: 'CherryAI'
   }
 ] as const
 

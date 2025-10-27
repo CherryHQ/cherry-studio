@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
@@ -274,11 +275,11 @@ const McpSettings: React.FC = () => {
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
         longRunning: values.longRunning,
-        // Preserve existing advanced properties if not set in the form
-        provider: values.provider || server.provider,
-        providerUrl: values.providerUrl || server.providerUrl,
-        logoUrl: values.logoUrl || server.logoUrl,
-        tags: values.tags || server.tags
+        // Use nullish coalescing to allow empty strings (for deletion)
+        provider: values.provider ?? server.provider,
+        providerUrl: values.providerUrl ?? server.providerUrl,
+        logoUrl: values.logoUrl ?? server.logoUrl,
+        tags: values.tags ?? server.tags
       }
 
       // set stdio or sse server
@@ -302,7 +303,7 @@ const McpSettings: React.FC = () => {
         try {
           await window.api.mcp.restartServer(mcpServer)
           updateMCPServer({ ...mcpServer, isActive: true })
-          window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+          window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
           updateMCPServer({ ...mcpServer, isActive: false })
@@ -314,7 +315,7 @@ const McpSettings: React.FC = () => {
         }
       } else {
         updateMCPServer({ ...mcpServer, isActive: false })
-        window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+        window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
       setLoading(false)
@@ -381,15 +382,12 @@ const McpSettings: React.FC = () => {
           onOk: async () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
-            window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+            window.toast.success(t('settings.mcp.deleteSuccess'))
             navigate('/settings/mcp')
           }
         })
       } catch (error: any) {
-        window.message.error({
-          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
-          key: 'mcp-list'
-        })
+        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -427,7 +425,7 @@ const McpSettings: React.FC = () => {
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
-        content: formatMcpError(error),
+        content: formatMcpError(error as McpError),
         centered: true
       })
       updateMCPServer({ ...server, isActive: oldActiveState })

@@ -20,6 +20,7 @@ import {
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
@@ -96,7 +97,7 @@ const GeneralSettings: FC = () => {
 
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
-      window.message.error({ content: t('message.error.invalid.proxy.url'), key: 'proxy-error' })
+      window.toast.error(t('message.error.invalid.proxy.url'))
       return
     }
 
@@ -121,6 +122,7 @@ const GeneralSettings: FC = () => {
     { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
+    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
     { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
@@ -146,7 +148,8 @@ const GeneralSettings: FC = () => {
     { value: 'pt', label: 'Português', flag: '🇵🇹' },
     { value: 'ru', label: 'Русский', flag: '🇷🇺' },
     { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
+    { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+    { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
   ]
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
@@ -165,10 +168,7 @@ const GeneralSettings: FC = () => {
         try {
           setDisableHardwareAcceleration(checked)
         } catch (error) {
-          window.message.error({
-            content: (error as Error).message,
-            key: 'disable-hardware-acceleration-error'
-          })
+          window.toast.error(formatErrorMessage(error))
           return
         }
 
@@ -234,7 +234,12 @@ const GeneralSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
+              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>{t('settings.proxy.bypass')}</span>
+                <Tooltip title={t('settings.proxy.tip')} placement="right">
+                  <InfoCircleOutlined style={{ cursor: 'pointer' }} />
+                </Tooltip>
+              </SettingRowTitle>
               <Input
                 spellCheck={false}
                 placeholder={defaultByPassRules}

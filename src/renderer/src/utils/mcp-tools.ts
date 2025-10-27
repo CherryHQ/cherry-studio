@@ -1,4 +1,11 @@
 import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import OpenAI from '@cherrystudio/openai'
+import {
+  ChatCompletionContentPart,
+  ChatCompletionMessageParam,
+  ChatCompletionMessageToolCall,
+  ChatCompletionTool
+} from '@cherrystudio/openai/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
 import { loggerService } from '@logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
@@ -21,13 +28,6 @@ import { ChunkType } from '@renderer/types/chunk'
 import { AwsBedrockSdkMessageParam, AwsBedrockSdkTool, AwsBedrockSdkToolCall } from '@renderer/types/sdk'
 import { t } from 'i18next'
 import { nanoid } from 'nanoid'
-import OpenAI from 'openai'
-import {
-  ChatCompletionContentPart,
-  ChatCompletionMessageParam,
-  ChatCompletionMessageToolCall,
-  ChatCompletionTool
-} from 'openai/resources'
 
 import { isToolUseModeFunction } from './assistant'
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
@@ -85,7 +85,7 @@ export function openAIToolsToMcpTool(
     }
   } catch (error) {
     logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
-    window.message.error(t('chat.mcp.error.parse_tool_call', { toolCall: toolCall }))
+    window.toast.error(t('chat.mcp.error.parse_tool_call', { toolCall: toolCall }))
     return undefined
   }
   const tools = mcpTools.filter((mcpTool) => {
@@ -93,12 +93,12 @@ export function openAIToolsToMcpTool(
   })
   if (tools.length > 1) {
     logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
-    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+    window.toast.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
   }
 
   if (tools.length === 0) {
     logger.warn(`No MCP Tool found for tool call: ${toolName}`)
-    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
+    window.toast.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
 
@@ -108,7 +108,12 @@ export function openAIToolsToMcpTool(
 export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
   logger.info(`[BuiltIn] Calling Built-in Tool: ${toolResponse.tool.name}`, toolResponse.tool)
 
-  if (toolResponse.tool.name === 'think') {
+  if (
+    toolResponse.tool.name === 'think' &&
+    typeof toolResponse.arguments === 'object' &&
+    toolResponse.arguments !== null &&
+    !Array.isArray(toolResponse.arguments)
+  ) {
     const thought = toolResponse.arguments?.thought
     return {
       isError: false,
@@ -197,12 +202,12 @@ export function anthropicToolUseToMcpTool(mcpTools: MCPTool[] | undefined, toolU
   const tools = mcpTools.filter((tool) => tool.id === toolUse.name)
   if (tools.length === 0) {
     logger.warn(`No MCP Tool found for tool call: ${toolUse.name}`)
-    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolUse.name }))
+    window.toast.warning(t('chat.mcp.warning.no_tool', { tool: toolUse.name }))
     return undefined
   }
   if (tools.length > 1) {
     logger.warn(`Multiple MCP Tools found for tool call: ${toolUse.name}`)
-    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+    window.toast.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
   }
   return tools[0]
 }
@@ -243,12 +248,12 @@ export function geminiFunctionCallToMcpTool(
   const tools = mcpTools.filter((tool) => tool.id.includes(toolName) || tool.name.includes(toolName))
   if (tools.length > 1) {
     logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
-    window.message.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
+    window.toast.warning(t('chat.mcp.warning.multiple_tools', { tool: tools[0].name }))
   }
 
   if (tools.length === 0) {
     logger.warn(`No MCP Tool found for tool call: ${toolName}`)
-    window.message.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
+    window.toast.warning(t('chat.mcp.warning.no_tool', { tool: toolName }))
     return undefined
   }
 
@@ -369,7 +374,7 @@ export function parseToolUse(
     const mcpTool = mcpTools.find((tool) => tool.id === toolName || tool.name === toolName)
     if (!mcpTool) {
       logger.error(`Tool "${toolName}" not found in MCP tools`)
-      window.message.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
+      window.toast.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
       continue
     }
 
@@ -826,9 +831,7 @@ export function mcpToolCallResponseToAwsBedrockMessage(
 }
 
 /**
- * 是否启用工具使用
- * 1. 如果模型支持函数调用，则启用工具使用
- * 2. 如果工具使用模式为 prompt，则启用工具使用
+ * 是否启用工具使用(function call)
  * @param assistant
  * @returns 是否启用工具使用
  */

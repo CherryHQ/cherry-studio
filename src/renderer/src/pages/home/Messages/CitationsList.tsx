@@ -126,7 +126,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       .writeText(content)
       .then(() => {
         setCopied(true)
-        window.message.success(t('common.copied'))
+        window.toast.success(t('common.copied'))
       })
       .catch(() => {
         message.error(t('message.copy.failed'))
@@ -185,7 +185,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>
-        <WebSearchCardContent className="selectable-text">{citation.content && citation.content}</WebSearchCardContent>
+        <WebSearchCardContent className="selectable-text">{citation.content ?? ''}</WebSearchCardContent>
       </WebSearchCard>
     </ContextMenu>
   )

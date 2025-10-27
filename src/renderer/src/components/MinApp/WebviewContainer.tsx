@@ -25,7 +25,7 @@ const WebviewContainer = memo(
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
-    const { enableSpellCheck } = useSettings()
+    const { enableSpellCheck, minappsOpenLinkExternal } = useSettings()
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -76,6 +76,8 @@ const WebviewContainer = memo(
         const webviewId = webviewRef.current?.getWebContentsId()
         if (webviewId) {
           window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          // Set link opening behavior for this webview
+          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
         }
       }
 
@@ -104,6 +106,22 @@ const WebviewContainer = memo(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appid, url])
 
+    // Update webview settings when they change
+    useEffect(() => {
+      if (!webviewRef.current) return
+
+      try {
+        const webviewId = webviewRef.current.getWebContentsId()
+        if (webviewId) {
+          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+          window.api?.webview?.setOpenLinkExternal?.(webviewId, minappsOpenLinkExternal)
+        }
+      } catch (error) {
+        // WebView may not be ready yet, settings will be applied in dom-ready event
+        logger.debug(`WebView ${appid} not ready for settings update`)
+      }
+    }, [appid, minappsOpenLinkExternal, enableSpellCheck])
+
     const WebviewStyle: React.CSSProperties = {
       width: '100%',
       height: '100%',
@@ -115,6 +133,7 @@ const WebviewContainer = memo(
       <webview
         key={appid}
         ref={setRef(appid)}
+        data-minapp-id={appid}
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"

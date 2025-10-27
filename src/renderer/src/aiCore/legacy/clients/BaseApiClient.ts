@@ -46,6 +46,7 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
+import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
 import { CompletionsContext } from '../middleware/types'
@@ -69,13 +70,19 @@ export abstract class BaseApiClient<
 {
   public provider: Provider
   protected host: string
-  protected apiKey: string
   protected sdkInstance?: TSdkInstance
 
   constructor(provider: Provider) {
     this.provider = provider
     this.host = this.getBaseURL()
-    this.apiKey = this.getApiKey()
+  }
+
+  /**
+   * Get the current API key with rotation support
+   * This getter ensures API keys rotate on each access when multiple keys are configured
+   */
+  protected get apiKey(): string {
+    return this.getApiKey()
   }
 
   /**
@@ -83,7 +90,7 @@ export abstract class BaseApiClient<
    * 用于判断客户端是否支持特定功能，避免instanceof检查的类型收窄问题
    * 对于装饰器模式的客户端（如AihubmixAPIClient），应该返回其内部实际使用的客户端类型
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   public getClientCompatibilityType(_model?: Model): string[] {
     // 默认返回类的名称
     return [this.constructor.name]
@@ -179,8 +186,7 @@ export abstract class BaseApiClient<
 
   public defaultHeaders() {
     return {
-      'HTTP-Referer': 'https://cherry-ai.com',
-      'X-Title': 'Cherry Studio',
+      ...defaultAppHeaders(),
       'X-Api-Key': this.apiKey
     }
   }

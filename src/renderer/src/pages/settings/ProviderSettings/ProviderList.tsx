@@ -27,6 +27,8 @@ import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
+const systemType = await window.api.system.getDeviceType()
+const cpuName = await window.api.system.getCpuName()
 
 const ProviderList: FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -113,7 +115,7 @@ const ProviderList: FC = () => {
       }
 
       setSelectedProvider(updatedProvider)
-      window.message.success(t('settings.models.provider_key_added', { provider: displayName }))
+      window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
     // 检查 URL 参数
@@ -125,14 +127,14 @@ const ProviderList: FC = () => {
     try {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
-        window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         window.navigate('/settings/provider')
         return
       }
 
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
-      window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+      window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       window.navigate('/settings/provider')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,7 +169,7 @@ const ProviderList: FC = () => {
         setProviderLogos(updatedLogos)
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
-        window.message.error('保存Provider Logo失败')
+        window.toast.error('保存Provider Logo失败')
       }
     }
 
@@ -202,7 +204,7 @@ const ProviderList: FC = () => {
                 }))
               } catch (error) {
                 logger.error('Failed to save logo', error as Error)
-                window.message.error('更新Provider Logo失败')
+                window.toast.error('更新Provider Logo失败')
               }
             } else if (logo === undefined && logoFile === undefined) {
               try {
@@ -273,6 +275,10 @@ const ProviderList: FC = () => {
   }
 
   const filteredProviders = providers.filter((provider) => {
+    if (provider.id === 'ovms' && (systemType !== 'windows' || !cpuName.toLowerCase().includes('intel'))) {
+      return false
+    }
+
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
     const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import HighlightText from '@renderer/components/HighlightText'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,10 +7,16 @@ import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
-import { useAppSelector } from '@renderer/store'
+import { fetchNoteSummary } from '@renderer/services/ApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { SearchMatch, SearchResult } from '@renderer/services/NotesSearchService'
+import { RootState, useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import { exportNote } from '@renderer/utils/export'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Dropdown, Input, InputRef, MenuProps } from 'antd'
+import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import {
   ChevronDown,
   ChevronRight,
@@ -19,16 +26,23 @@ import {
   FileSearch,
   Folder,
   FolderOpen,
+  Loader2,
+  Sparkles,
   Star,
-  StarOff
+  StarOff,
+  UploadIcon,
+  X
 } from 'lucide-react'
-import { FC, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, memo, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
+import { useFullTextSearch } from './hooks/useFullTextSearch'
+
 interface NotesSidebarProps {
-  onCreateFolder: (name: string, parentId?: string) => void
-  onCreateNote: (name: string, parentId?: string) => void
+  onCreateFolder: (name: string, targetFolderId?: string) => void
+  onCreateNote: (name: string, targetFolderId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
   onDeleteNode: (nodeId: string) => void
   onRenameNode: (nodeId: string, newName: string) => void
@@ -42,6 +56,276 @@ interface NotesSidebarProps {
 }
 
 const logger = loggerService.withContext('NotesSidebar')
+
+interface TreeNodeProps {
+  node: NotesTreeNode | SearchResult
+  depth: number
+  selectedFolderId?: string | null
+  activeNodeId?: string
+  editingNodeId: string | null
+  renamingNodeIds: Set<string>
+  newlyRenamedNodeIds: Set<string>
+  draggedNodeId: string | null
+  dragOverNodeId: string | null
+  dragPosition: 'before' | 'inside' | 'after'
+  inPlaceEdit: any
+  getMenuItems: (node: NotesTreeNode) => any[]
+  onSelectNode: (node: NotesTreeNode) => void
+  onToggleExpanded: (nodeId: string) => void
+  onDragStart: (e: React.DragEvent, node: NotesTreeNode) => void
+  onDragOver: (e: React.DragEvent, node: NotesTreeNode) => void
+  onDragLeave: () => void
+  onDrop: (e: React.DragEvent, node: NotesTreeNode) => void
+  onDragEnd: () => void
+  renderChildren?: boolean // 控制是否渲染子节点
+  searchKeyword?: string // 搜索关键词,用于高亮
+  showMatches?: boolean // 是否显示匹配预览
+  openDropdownKey: string | null
+  onDropdownOpenChange: (key: string | null) => void
+}
+
+const TreeNode = memo<TreeNodeProps>(
+  ({
+    node,
+    depth,
+    selectedFolderId,
+    activeNodeId,
+    editingNodeId,
+    renamingNodeIds,
+    newlyRenamedNodeIds,
+    draggedNodeId,
+    dragOverNodeId,
+    dragPosition,
+    inPlaceEdit,
+    getMenuItems,
+    onSelectNode,
+    onToggleExpanded,
+    onDragStart,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    onDragEnd,
+    renderChildren = true,
+    searchKeyword = '',
+    showMatches = false,
+    openDropdownKey,
+    onDropdownOpenChange
+  }) => {
+    const { t } = useTranslation()
+    const [showAllMatches, setShowAllMatches] = useState(false)
+
+    // 检查是否是搜索结果
+    const searchResult = 'matchType' in node ? (node as SearchResult) : null
+    const hasMatches = searchResult && searchResult.matches && searchResult.matches.length > 0
+
+    // 处理匹配项点击
+    const handleMatchClick = useCallback(
+      (match: SearchMatch) => {
+        // 发送定位事件
+        EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
+          noteId: node.id,
+          lineNumber: match.lineNumber,
+          lineContent: match.lineContent
+        })
+      },
+      [node]
+    )
+
+    const isActive = selectedFolderId
+      ? node.type === 'folder' && node.id === selectedFolderId
+      : node.id === activeNodeId
+    const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
+    const isRenaming = renamingNodeIds.has(node.id)
+    const isNewlyRenamed = newlyRenamedNodeIds.has(node.id)
+    const hasChildren = node.children && node.children.length > 0
+    const isDragging = draggedNodeId === node.id
+    const isDragOver = dragOverNodeId === node.id
+    const isDragBefore = isDragOver && dragPosition === 'before'
+    const isDragInside = isDragOver && dragPosition === 'inside'
+    const isDragAfter = isDragOver && dragPosition === 'after'
+
+    const getNodeNameClassName = () => {
+      if (isRenaming) return 'shimmer'
+      if (isNewlyRenamed) return 'typing'
+      return ''
+    }
+
+    const displayName = useMemo(() => {
+      if (!searchKeyword) {
+        return node.name
+      }
+
+      const name = node.name ?? ''
+      if (!name) {
+        return name
+      }
+
+      const keyword = searchKeyword
+      const nameLower = name.toLowerCase()
+      const keywordLower = keyword.toLowerCase()
+      const matchStart = nameLower.indexOf(keywordLower)
+
+      if (matchStart === -1) {
+        return name
+      }
+
+      const matchEnd = matchStart + keyword.length
+      const beforeMatch = Math.min(2, matchStart)
+      const contextStart = matchStart - beforeMatch
+      const contextLength = 50
+      const contextEnd = Math.min(name.length, matchEnd + contextLength)
+
+      const prefix = contextStart > 0 ? '...' : ''
+      const suffix = contextEnd < name.length ? '...' : ''
+
+      return prefix + name.substring(contextStart, contextEnd) + suffix
+    }, [node.name, searchKeyword])
+
+    return (
+      <div key={node.id}>
+        <Dropdown
+          menu={{ items: getMenuItems(node) }}
+          trigger={['contextMenu']}
+          open={openDropdownKey === node.id}
+          onOpenChange={(open) => onDropdownOpenChange(open ? node.id : null)}>
+          <div onContextMenu={(e) => e.stopPropagation()}>
+            <TreeNodeContainer
+              active={isActive}
+              depth={depth}
+              isDragging={isDragging}
+              isDragOver={isDragOver}
+              isDragBefore={isDragBefore}
+              isDragInside={isDragInside}
+              isDragAfter={isDragAfter}
+              draggable={!isEditing}
+              data-node-id={node.id}
+              onDragStart={(e) => onDragStart(e, node)}
+              onDragOver={(e) => onDragOver(e, node)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, node)}
+              onDragEnd={onDragEnd}>
+              <TreeNodeContent onClick={() => onSelectNode(node)}>
+                <NodeIndent depth={depth} />
+
+                {node.type === 'folder' && (
+                  <ExpandIcon
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleExpanded(node.id)
+                    }}
+                    title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
+                    {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </ExpandIcon>
+                )}
+
+                <NodeIcon>
+                  {node.type === 'folder' ? (
+                    node.expanded ? (
+                      <FolderOpen size={16} />
+                    ) : (
+                      <Folder size={16} />
+                    )
+                  ) : (
+                    <File size={16} />
+                  )}
+                </NodeIcon>
+
+                {isEditing ? (
+                  <EditInput
+                    ref={inPlaceEdit.inputRef as Ref<InputRef>}
+                    value={inPlaceEdit.editValue}
+                    onChange={inPlaceEdit.handleInputChange}
+                    onBlur={inPlaceEdit.saveEdit}
+                    onKeyDown={inPlaceEdit.handleKeyDown}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    size="small"
+                  />
+                ) : (
+                  <NodeNameContainer>
+                    <NodeName className={getNodeNameClassName()}>
+                      {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
+                    </NodeName>
+                    {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
+                      <MatchBadge matchType={searchResult.matchType}>
+                        {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
+                      </MatchBadge>
+                    )}
+                  </NodeNameContainer>
+                )}
+              </TreeNodeContent>
+            </TreeNodeContainer>
+          </div>
+        </Dropdown>
+
+        {showMatches && hasMatches && (
+          <SearchMatchesContainer depth={depth}>
+            {(showAllMatches ? searchResult!.matches! : searchResult!.matches!.slice(0, 3)).map((match, idx) => (
+              <MatchItem key={idx} onClick={() => handleMatchClick(match)}>
+                <MatchLineNumber>{match.lineNumber}</MatchLineNumber>
+                <MatchContext>
+                  <HighlightText text={match.context} keyword={searchKeyword} />
+                </MatchContext>
+              </MatchItem>
+            ))}
+            {searchResult!.matches!.length > 3 && (
+              <MoreMatches
+                depth={depth}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowAllMatches(!showAllMatches)
+                }}>
+                {showAllMatches ? (
+                  <>
+                    <ChevronDown size={12} style={{ marginRight: 4 }} />
+                    {t('notes.search.show_less')}
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight size={12} style={{ marginRight: 4 }} />+{searchResult!.matches!.length - 3}{' '}
+                    {t('notes.search.more_matches')}
+                  </>
+                )}
+              </MoreMatches>
+            )}
+          </SearchMatchesContainer>
+        )}
+
+        {renderChildren && node.type === 'folder' && node.expanded && hasChildren && (
+          <div>
+            {node.children!.map((child) => (
+              <TreeNode
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                selectedFolderId={selectedFolderId}
+                activeNodeId={activeNodeId}
+                editingNodeId={editingNodeId}
+                renamingNodeIds={renamingNodeIds}
+                newlyRenamedNodeIds={newlyRenamedNodeIds}
+                draggedNodeId={draggedNodeId}
+                dragOverNodeId={dragOverNodeId}
+                dragPosition={dragPosition}
+                inPlaceEdit={inPlaceEdit}
+                getMenuItems={getMenuItems}
+                onSelectNode={onSelectNode}
+                onToggleExpanded={onToggleExpanded}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                onDragEnd={onDragEnd}
+                renderChildren={renderChildren}
+                openDropdownKey={openDropdownKey}
+                onDropdownOpenChange={onDropdownOpenChange}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+)
 
 const NotesSidebar: FC<NotesSidebarProps> = ({
   onCreateFolder,
@@ -61,7 +345,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { bases } = useKnowledgeBases()
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
+  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
+  const [renamingNodeIds, setRenamingNodeIds] = useState<Set<string>>(new Set())
+  const [newlyRenamedNodeIds, setNewlyRenamedNodeIds] = useState<Set<string>>(new Set())
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<'before' | 'inside' | 'after'>('inside')
@@ -69,8 +356,34 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
+  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const scrollbarRef = useRef<any>(null)
+  const notesTreeRef = useRef<NotesTreeNode[]>(notesTree)
+  const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
+  const hasSearchKeyword = trimmedSearchKeyword.length > 0
+
+  // 全文搜索配置
+  const searchOptions = useMemo(
+    () => ({
+      debounceMs: 300,
+      maxResults: 100,
+      contextLength: 50,
+      caseSensitive: false,
+      maxFileSize: 10 * 1024 * 1024, // 10MB
+      enabled: isShowSearch
+    }),
+    [isShowSearch]
+  )
+
+  const {
+    search,
+    cancel,
+    reset,
+    isSearching,
+    results: searchResults,
+    stats: searchStats
+  } = useFullTextSearch(searchOptions)
 
   const inPlaceEdit = useInPlaceEdit({
     onSave: (newName: string) => {
@@ -111,7 +424,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
               const targetScrollTop = elementOffsetTop - (containerHeight - elementHeight) / 2
               scrollContainer.scrollTo({
                 top: Math.max(0, targetScrollTop),
-                behavior: 'smooth'
+                behavior: 'instant'
               })
             }
           }
@@ -167,21 +480,81 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     async (note: NotesTreeNode) => {
       try {
         if (bases.length === 0) {
-          window.message.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
+          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
           return
         }
 
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
-          window.message.success(t('notes.export_success', { count: result.savedCount }))
+          window.toast.success(t('notes.export_success', { count: result.savedCount }))
         }
       } catch (error) {
-        window.message.error(t('notes.export_failed'))
+        window.toast.error(t('notes.export_failed'))
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
     [bases.length, t]
+  )
+
+  const handleImageAction = useCallback(
+    async (node: NotesTreeNode, platform: 'copyImage' | 'exportImage') => {
+      try {
+        if (activeNode?.id !== node.id) {
+          onSelectNode(node)
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        }
+
+        await exportNote({ node, platform })
+      } catch (error) {
+        logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
+        window.toast.error(t('common.copy_failed'))
+      }
+    },
+    [activeNode, onSelectNode, t]
+  )
+
+  const handleAutoRename = useCallback(
+    async (note: NotesTreeNode) => {
+      if (note.type !== 'file') return
+
+      setRenamingNodeIds((prev) => new Set(prev).add(note.id))
+      try {
+        const content = await window.api.file.readExternal(note.externalPath)
+        if (!content || content.trim().length === 0) {
+          window.toast.warning(t('notes.auto_rename.empty_note'))
+          return
+        }
+
+        const summaryText = await fetchNoteSummary({ content })
+        if (summaryText) {
+          onRenameNode(note.id, summaryText)
+          window.toast.success(t('notes.auto_rename.success'))
+        } else {
+          window.toast.error(t('notes.auto_rename.failed'))
+        }
+      } catch (error) {
+        window.toast.error(t('notes.auto_rename.failed'))
+        logger.error(`Failed to auto-rename note: ${error}`)
+      } finally {
+        setRenamingNodeIds((prev) => {
+          const next = new Set(prev)
+          next.delete(note.id)
+          return next
+        })
+
+        setNewlyRenamedNodeIds((prev) => new Set(prev).add(note.id))
+
+        setTimeout(() => {
+          setNewlyRenamedNodeIds((prev) => {
+            const next = new Set(prev)
+            next.delete(note.id)
+            return next
+          })
+        }, 700)
+      }
+    },
+    [onRenameNode, t]
   )
 
   const handleDragStart = useCallback((e: React.DragEvent, node: NotesTreeNode) => {
@@ -268,34 +641,136 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     setIsShowSearch(!isShowSearch)
   }, [isShowSearch])
 
-  const filteredTree = useMemo(() => {
-    if (!isShowStarred && !isShowSearch) return notesTree
-    const flattenNodes = (nodes: NotesTreeNode[]): NotesTreeNode[] => {
-      let result: NotesTreeNode[] = []
+  // 同步 notesTree 到 ref
+  useEffect(() => {
+    notesTreeRef.current = notesTree
+  }, [notesTree])
+
+  // 触发全文搜索
+  useEffect(() => {
+    if (!isShowSearch) {
+      reset()
+      return
+    }
+
+    if (hasSearchKeyword) {
+      search(notesTreeRef.current, trimmedSearchKeyword)
+    } else {
+      reset()
+    }
+  }, [isShowSearch, hasSearchKeyword, trimmedSearchKeyword, search, reset])
+
+  // Flatten tree nodes for virtualization and filtering
+  const flattenedNodes = useMemo(() => {
+    const flattenForVirtualization = (
+      nodes: NotesTreeNode[],
+      depth: number = 0
+    ): Array<{ node: NotesTreeNode; depth: number }> => {
+      let result: Array<{ node: NotesTreeNode; depth: number }> = []
 
       for (const node of nodes) {
-        if (isShowSearch && searchKeyword) {
-          if (node.type === 'file' && node.name.toLowerCase().includes(searchKeyword.toLowerCase())) {
-            result.push(node)
-          }
-        } else if (isShowStarred) {
-          if (node.type === 'file' && node.isStarred) {
-            result.push(node)
-          }
-        }
-        if (node.children && node.children.length > 0) {
-          result = [...result, ...flattenNodes(node.children)]
+        result.push({ node, depth })
+
+        // Include children only if the folder is expanded
+        if (node.type === 'folder' && node.expanded && node.children && node.children.length > 0) {
+          result = [...result, ...flattenForVirtualization(node.children, depth + 1)]
         }
       }
       return result
     }
 
-    return flattenNodes(notesTree)
-  }, [notesTree, isShowStarred, isShowSearch, searchKeyword])
+    const flattenForFiltering = (nodes: NotesTreeNode[]): NotesTreeNode[] => {
+      let result: NotesTreeNode[] = []
+
+      for (const node of nodes) {
+        if (isShowStarred) {
+          if (node.type === 'file' && node.isStarred) {
+            result.push(node)
+          }
+        }
+        if (node.children && node.children.length > 0) {
+          result = [...result, ...flattenForFiltering(node.children)]
+        }
+      }
+      return result
+    }
+
+    if (isShowSearch) {
+      if (hasSearchKeyword) {
+        return searchResults.map((result) => ({ node: result, depth: 0 }))
+      }
+      return [] // 搜索关键词为空
+    }
+
+    if (isShowStarred) {
+      // For filtered views, return flat list without virtualization for simplicity
+      const filteredNodes = flattenForFiltering(notesTree)
+      return filteredNodes.map((node) => ({ node, depth: 0 }))
+    }
+
+    // For normal tree view, use hierarchical flattening for virtualization
+    return flattenForVirtualization(notesTree)
+  }, [notesTree, isShowStarred, isShowSearch, hasSearchKeyword, searchResults])
+
+  // Use virtualization only for normal tree view with many items
+  const shouldUseVirtualization = !isShowStarred && !isShowSearch && flattenedNodes.length > 100
+
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  const virtualizer = useVirtualizer({
+    count: flattenedNodes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 28, // Estimated height of each tree item
+    overscan: 10
+  })
+
+  const filteredTree = useMemo(() => {
+    if (isShowStarred || isShowSearch) {
+      return flattenedNodes.map(({ node }) => node)
+    }
+    return notesTree
+  }, [flattenedNodes, isShowStarred, isShowSearch, notesTree])
 
   const getMenuItems = useCallback(
     (node: NotesTreeNode) => {
-      const baseMenuItems: MenuProps['items'] = [
+      const baseMenuItems: MenuProps['items'] = []
+
+      // only show auto rename for file for now
+      if (node.type !== 'folder') {
+        baseMenuItems.push({
+          label: t('notes.auto_rename.label'),
+          key: 'auto-rename',
+          icon: <Sparkles size={14} />,
+          disabled: renamingNodeIds.has(node.id),
+          onClick: () => {
+            handleAutoRename(node)
+          }
+        })
+      }
+
+      if (node.type === 'folder') {
+        baseMenuItems.push(
+          {
+            label: t('notes.new_note'),
+            key: 'new_note',
+            icon: <FilePlus size={14} />,
+            onClick: () => {
+              onCreateNote(t('notes.untitled_note'), node.id)
+            }
+          },
+          {
+            label: t('notes.new_folder'),
+            key: 'new_folder',
+            icon: <Folder size={14} />,
+            onClick: () => {
+              onCreateFolder(t('notes.untitled_folder'), node.id)
+            }
+          },
+          { type: 'divider' }
+        )
+      }
+
+      baseMenuItems.push(
         {
           label: t('notes.rename'),
           key: 'rename',
@@ -312,7 +787,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             window.api.openPath(node.externalPath)
           }
         }
-      ]
+      )
       if (node.type !== 'folder') {
         baseMenuItems.push(
           {
@@ -330,6 +805,58 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             onClick: () => {
               handleExportKnowledge(node)
             }
+          },
+          {
+            label: t('chat.topics.export.title'),
+            key: 'export',
+            icon: <UploadIcon size={14} />,
+            children: [
+              exportMenuOptions.image && {
+                label: t('chat.topics.copy.image'),
+                key: 'copy-image',
+                onClick: () => handleImageAction(node, 'copyImage')
+              },
+              exportMenuOptions.image && {
+                label: t('chat.topics.export.image'),
+                key: 'export-image',
+                onClick: () => handleImageAction(node, 'exportImage')
+              },
+              exportMenuOptions.markdown && {
+                label: t('chat.topics.export.md.label'),
+                key: 'markdown',
+                onClick: () => exportNote({ node, platform: 'markdown' })
+              },
+              exportMenuOptions.docx && {
+                label: t('chat.topics.export.word'),
+                key: 'word',
+                onClick: () => exportNote({ node, platform: 'docx' })
+              },
+              exportMenuOptions.notion && {
+                label: t('chat.topics.export.notion'),
+                key: 'notion',
+                onClick: () => exportNote({ node, platform: 'notion' })
+              },
+              exportMenuOptions.yuque && {
+                label: t('chat.topics.export.yuque'),
+                key: 'yuque',
+                onClick: () => exportNote({ node, platform: 'yuque' })
+              },
+              exportMenuOptions.obsidian && {
+                label: t('chat.topics.export.obsidian'),
+                key: 'obsidian',
+                onClick: () => exportNote({ node, platform: 'obsidian' })
+              },
+              exportMenuOptions.joplin && {
+                label: t('chat.topics.export.joplin'),
+                key: 'joplin',
+                onClick: () => exportNote({ node, platform: 'joplin' })
+              },
+              exportMenuOptions.siyuan && {
+                label: t('chat.topics.export.siyuan'),
+                key: 'siyuan',
+                onClick: () => exportNote({ node, platform: 'siyuan' })
+              }
+            ].filter(Boolean) as ItemType<MenuItemType>[]
           }
         )
       }
@@ -348,131 +875,114 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
       return baseMenuItems
     },
-    [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode]
-  )
-
-  const renderTreeNode = useCallback(
-    (node: NotesTreeNode, depth: number = 0) => {
-      const isActive = selectedFolderId
-        ? node.type === 'folder' && node.id === selectedFolderId
-        : node.id === activeNode?.id
-      const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
-      const hasChildren = node.children && node.children.length > 0
-      const isDragging = draggedNodeId === node.id
-      const isDragOver = dragOverNodeId === node.id
-      const isDragBefore = isDragOver && dragPosition === 'before'
-      const isDragInside = isDragOver && dragPosition === 'inside'
-      const isDragAfter = isDragOver && dragPosition === 'after'
-
-      return (
-        <div key={node.id}>
-          <Dropdown menu={{ items: getMenuItems(node) }} trigger={['contextMenu']}>
-            <div>
-              <TreeNodeContainer
-                active={isActive}
-                depth={depth}
-                isDragging={isDragging}
-                isDragOver={isDragOver}
-                isDragBefore={isDragBefore}
-                isDragInside={isDragInside}
-                isDragAfter={isDragAfter}
-                draggable={!isEditing}
-                data-node-id={node.id}
-                onDragStart={(e) => handleDragStart(e, node)}
-                onDragOver={(e) => handleDragOver(e, node)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, node)}
-                onDragEnd={handleDragEnd}>
-                <TreeNodeContent onClick={() => onSelectNode(node)}>
-                  <NodeIndent depth={depth} />
-
-                  {node.type === 'folder' && (
-                    <ExpandIcon
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onToggleExpanded(node.id)
-                      }}
-                      title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
-                      {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </ExpandIcon>
-                  )}
-
-                  <NodeIcon>
-                    {node.type === 'folder' ? (
-                      node.expanded ? (
-                        <FolderOpen size={16} />
-                      ) : (
-                        <Folder size={16} />
-                      )
-                    ) : (
-                      <File size={16} />
-                    )}
-                  </NodeIcon>
-
-                  {isEditing ? (
-                    <EditInput
-                      ref={inPlaceEdit.inputRef as Ref<InputRef>}
-                      value={inPlaceEdit.editValue}
-                      onChange={inPlaceEdit.handleInputChange}
-                      onPressEnter={inPlaceEdit.saveEdit}
-                      onBlur={inPlaceEdit.saveEdit}
-                      onKeyDown={inPlaceEdit.handleKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                      size="small"
-                    />
-                  ) : (
-                    <NodeName>{node.name}</NodeName>
-                  )}
-                </TreeNodeContent>
-              </TreeNodeContainer>
-            </div>
-          </Dropdown>
-
-          {node.type === 'folder' && node.expanded && hasChildren && (
-            <div>{node.children!.map((child) => renderTreeNode(child, depth + 1))}</div>
-          )}
-        </div>
-      )
-    },
     [
-      selectedFolderId,
-      activeNode?.id,
-      editingNodeId,
-      inPlaceEdit.isEditing,
-      inPlaceEdit.inputRef,
-      inPlaceEdit.editValue,
-      inPlaceEdit.handleInputChange,
-      inPlaceEdit.saveEdit,
-      inPlaceEdit.handleKeyDown,
-      draggedNodeId,
-      dragOverNodeId,
-      dragPosition,
-      getMenuItems,
-      handleDragLeave,
-      handleDragEnd,
       t,
-      handleDragStart,
-      handleDragOver,
-      handleDrop,
-      onSelectNode,
-      onToggleExpanded
+      handleStartEdit,
+      onToggleStar,
+      handleExportKnowledge,
+      handleImageAction,
+      handleDeleteNode,
+      renamingNodeIds,
+      handleAutoRename,
+      exportMenuOptions,
+      onCreateNote,
+      onCreateFolder
     ]
   )
 
   const handleDropFiles = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault()
       setIsDragOverSidebar(false)
 
-      const files = Array.from(e.dataTransfer.files)
+      // 处理文件夹拖拽：从 dataTransfer.items 获取完整的文件路径信息
+      const items = Array.from(e.dataTransfer.items)
+      const files: File[] = []
 
-      if (files.length > 0) {
-        onUploadFiles(files)
+      const processEntry = async (entry: FileSystemEntry, path: string = '') => {
+        if (entry.isFile) {
+          const fileEntry = entry as FileSystemFileEntry
+          return new Promise<void>((resolve) => {
+            fileEntry.file((file) => {
+              // 手动设置 webkitRelativePath 以保持文件夹结构
+              Object.defineProperty(file, 'webkitRelativePath', {
+                value: path + file.name,
+                writable: false
+              })
+              files.push(file)
+              resolve()
+            })
+          })
+        } else if (entry.isDirectory) {
+          const dirEntry = entry as FileSystemDirectoryEntry
+          const reader = dirEntry.createReader()
+          return new Promise<void>((resolve) => {
+            reader.readEntries(async (entries) => {
+              const promises = entries.map((subEntry) => processEntry(subEntry, path + entry.name + '/'))
+              await Promise.all(promises)
+              resolve()
+            })
+          })
+        }
+      }
+
+      // 如果支持 DataTransferItem API（文件夹拖拽）
+      if (items.length > 0 && items[0].webkitGetAsEntry()) {
+        const promises = items.map((item) => {
+          const entry = item.webkitGetAsEntry()
+          return entry ? processEntry(entry) : Promise.resolve()
+        })
+
+        await Promise.all(promises)
+
+        if (files.length > 0) {
+          onUploadFiles(files)
+        }
+      } else {
+        const regularFiles = Array.from(e.dataTransfer.files)
+        if (regularFiles.length > 0) {
+          onUploadFiles(regularFiles)
+        }
       }
     },
     [onUploadFiles]
   )
+
+  const handleClickToSelectFiles = useCallback(() => {
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.multiple = true
+    fileInput.accept = '.md,.markdown'
+    fileInput.webkitdirectory = false
+
+    fileInput.onchange = (e) => {
+      const target = e.target as HTMLInputElement
+      if (target.files && target.files.length > 0) {
+        const selectedFiles = Array.from(target.files)
+        onUploadFiles(selectedFiles)
+      }
+      fileInput.remove()
+    }
+
+    fileInput.click()
+  }, [onUploadFiles])
+
+  const getEmptyAreaMenuItems = useCallback((): MenuProps['items'] => {
+    return [
+      {
+        label: t('notes.new_note'),
+        key: 'new_note',
+        icon: <FilePlus size={14} />,
+        onClick: handleCreateNote
+      },
+      {
+        label: t('notes.new_folder'),
+        key: 'new_folder',
+        icon: <Folder size={14} />,
+        onClick: handleCreateFolder
+      }
+    ]
+  }, [t, handleCreateNote, handleCreateFolder])
 
   return (
     <SidebarContainer
@@ -502,23 +1012,176 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       />
 
       <NotesTreeContainer>
-        <StyledScrollbar ref={scrollbarRef}>
-          <TreeContent>
-            {filteredTree.map((node) => renderTreeNode(node))}
-            {!isShowStarred && !isShowSearch && (
-              <DropHintNode>
-                <TreeNodeContainer active={false} depth={0}>
-                  <TreeNodeContent>
-                    <NodeIcon>
-                      <FilePlus size={16} />
-                    </NodeIcon>
-                    <DropHintText>{t('notes.drop_markdown_hint')}</DropHintText>
-                  </TreeNodeContent>
-                </TreeNodeContainer>
-              </DropHintNode>
-            )}
-          </TreeContent>
-        </StyledScrollbar>
+        {isShowSearch && isSearching && (
+          <SearchStatusBar>
+            <Loader2 size={14} className="animate-spin" />
+            <span>{t('notes.search.searching')}</span>
+            <CancelButton onClick={cancel} title={t('common.cancel')}>
+              <X size={14} />
+            </CancelButton>
+          </SearchStatusBar>
+        )}
+        {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
+          <SearchStatusBar>
+            <span>
+              {t('notes.search.found_results', {
+                count: searchStats.total,
+                nameCount: searchStats.fileNameMatches,
+                contentCount: searchStats.contentMatches + searchStats.bothMatches
+              })}
+            </span>
+          </SearchStatusBar>
+        )}
+        {shouldUseVirtualization ? (
+          <Dropdown
+            menu={{ items: getEmptyAreaMenuItems() }}
+            trigger={['contextMenu']}
+            open={openDropdownKey === 'empty-area'}
+            onOpenChange={(open) => setOpenDropdownKey(open ? 'empty-area' : null)}>
+            <VirtualizedTreeContainer ref={parentRef}>
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative'
+                }}>
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const { node, depth } = flattenedNodes[virtualItem.index]
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      ref={virtualizer.measureElement}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualItem.start}px)`
+                      }}>
+                      <div style={{ padding: '0 8px' }}>
+                        <TreeNode
+                          node={node}
+                          depth={depth}
+                          selectedFolderId={selectedFolderId}
+                          activeNodeId={activeNode?.id}
+                          editingNodeId={editingNodeId}
+                          renamingNodeIds={renamingNodeIds}
+                          newlyRenamedNodeIds={newlyRenamedNodeIds}
+                          draggedNodeId={draggedNodeId}
+                          dragOverNodeId={dragOverNodeId}
+                          dragPosition={dragPosition}
+                          inPlaceEdit={inPlaceEdit}
+                          getMenuItems={getMenuItems}
+                          onSelectNode={onSelectNode}
+                          onToggleExpanded={onToggleExpanded}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          renderChildren={false}
+                          openDropdownKey={openDropdownKey}
+                          onDropdownOpenChange={setOpenDropdownKey}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {!isShowStarred && !isShowSearch && (
+                <DropHintNode>
+                  <TreeNodeContainer active={false} depth={0}>
+                    <TreeNodeContent>
+                      <NodeIcon>
+                        <FilePlus size={16} />
+                      </NodeIcon>
+                      <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
+                    </TreeNodeContent>
+                  </TreeNodeContainer>
+                </DropHintNode>
+              )}
+            </VirtualizedTreeContainer>
+          </Dropdown>
+        ) : (
+          <Dropdown
+            menu={{ items: getEmptyAreaMenuItems() }}
+            trigger={['contextMenu']}
+            open={openDropdownKey === 'empty-area'}
+            onOpenChange={(open) => setOpenDropdownKey(open ? 'empty-area' : null)}>
+            <StyledScrollbar ref={scrollbarRef}>
+              <TreeContent>
+                {isShowStarred || isShowSearch
+                  ? filteredTree.map((node) => (
+                      <TreeNode
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        selectedFolderId={selectedFolderId}
+                        activeNodeId={activeNode?.id}
+                        editingNodeId={editingNodeId}
+                        renamingNodeIds={renamingNodeIds}
+                        newlyRenamedNodeIds={newlyRenamedNodeIds}
+                        draggedNodeId={draggedNodeId}
+                        dragOverNodeId={dragOverNodeId}
+                        dragPosition={dragPosition}
+                        inPlaceEdit={inPlaceEdit}
+                        getMenuItems={getMenuItems}
+                        onSelectNode={onSelectNode}
+                        onToggleExpanded={onToggleExpanded}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        openDropdownKey={openDropdownKey}
+                        onDropdownOpenChange={setOpenDropdownKey}
+                        searchKeyword={isShowSearch ? trimmedSearchKeyword : ''}
+                        showMatches={isShowSearch}
+                      />
+                    ))
+                  : notesTree.map((node) => (
+                      <TreeNode
+                        key={node.id}
+                        node={node}
+                        depth={0}
+                        selectedFolderId={selectedFolderId}
+                        activeNodeId={activeNode?.id}
+                        editingNodeId={editingNodeId}
+                        renamingNodeIds={renamingNodeIds}
+                        newlyRenamedNodeIds={newlyRenamedNodeIds}
+                        draggedNodeId={draggedNodeId}
+                        dragOverNodeId={dragOverNodeId}
+                        dragPosition={dragPosition}
+                        inPlaceEdit={inPlaceEdit}
+                        getMenuItems={getMenuItems}
+                        onSelectNode={onSelectNode}
+                        onToggleExpanded={onToggleExpanded}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        openDropdownKey={openDropdownKey}
+                        onDropdownOpenChange={setOpenDropdownKey}
+                      />
+                    ))}
+                {!isShowStarred && !isShowSearch && (
+                  <DropHintNode>
+                    <TreeNodeContainer active={false} depth={0}>
+                      <TreeNodeContent>
+                        <NodeIcon>
+                          <FilePlus size={16} />
+                        </NodeIcon>
+                        <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
+                      </TreeNodeContent>
+                    </TreeNodeContainer>
+                  </DropHintNode>
+                )}
+              </TreeContent>
+            </StyledScrollbar>
+          </Dropdown>
+        )}
       </NotesTreeContainer>
 
       {isDragOverSidebar && <DragOverIndicator />}
@@ -529,7 +1192,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 const SidebarContainer = styled.div`
   width: 250px;
   min-width: 250px;
-  height: 100vh;
+  height: calc(100vh - var(--navbar-height));
   background-color: var(--color-background);
   border-right: 0.5px solid var(--color-border);
   border-top-left-radius: 10px;
@@ -543,7 +1206,15 @@ const NotesTreeContainer = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 45px);
+  height: calc(100vh - var(--navbar-height) - 45px);
+`
+
+const VirtualizedTreeContainer = styled.div`
+  flex: 1;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+  padding-top: 10px;
 `
 
 const StyledScrollbar = styled(Scrollbar)`
@@ -669,17 +1340,49 @@ const NodeName = styled.div`
   text-overflow: ellipsis;
   font-size: 13px;
   color: var(--color-text);
+  position: relative;
+  will-change: background-position, width;
+
+  --color-shimmer-mid: var(--color-text-1);
+  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+
+  &.shimmer {
+    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
+    background-size: 200% 100%;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 3s linear infinite;
+  }
+
+  &.typing {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    animation: typewriter 0.5s steps(40, end);
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes typewriter {
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
+  }
 `
 
 const EditInput = styled(Input)`
   flex: 1;
   font-size: 13px;
-
-  .ant-input {
-    font-size: 13px;
-    padding: 2px 6px;
-    border: 0.5px solid var(--color-primary);
-  }
 `
 
 const DragOverIndicator = styled.div`
@@ -695,7 +1398,8 @@ const DragOverIndicator = styled.div`
 `
 
 const DropHintNode = styled.div`
-  margin-top: 8px;
+  margin: 6px 0;
+  margin-bottom: 20px;
 
   ${TreeNodeContainer} {
     background-color: transparent;
@@ -716,4 +1420,148 @@ const DropHintText = styled.div`
   font-style: italic;
 `
 
-export default NotesSidebar
+// 搜索相关样式
+const SearchStatusBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--color-background-soft);
+  border-bottom: 0.5px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-text-2);
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`
+
+const CancelButton = styled.button`
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-3);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background-color: var(--color-background-mute);
+    color: var(--color-text);
+  }
+
+  &:active {
+    background-color: var(--color-active);
+  }
+`
+
+const NodeNameContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+`
+
+const MatchBadge = styled.span<{ matchType: string }>`
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 2px;
+  background-color: ${(props) =>
+    props.matchType === 'both' ? 'var(--color-primary-soft)' : 'var(--color-background-mute)'};
+  color: ${(props) => (props.matchType === 'both' ? 'var(--color-primary)' : 'var(--color-text-3)')};
+  font-weight: 500;
+  flex-shrink: 0;
+`
+
+const SearchMatchesContainer = styled.div<{ depth: number }>`
+  margin-left: ${(props) => props.depth * 16 + 40}px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background-color: var(--color-background-mute);
+  border-radius: 4px;
+  border-left: 2px solid var(--color-primary-soft);
+`
+
+const MatchItem = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+    transform: translateX(2px);
+  }
+
+  &:active {
+    background-color: var(--color-active);
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+`
+
+const MatchLineNumber = styled.span`
+  color: var(--color-text-3);
+  font-family: monospace;
+  flex-shrink: 0;
+  width: 30px;
+`
+
+const MatchContext = styled.div`
+  color: var(--color-text-2);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+`
+
+const MoreMatches = styled.div<{ depth: number }>`
+  margin-top: 4px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  font-size: 11px;
+  color: var(--color-text-3);
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--color-text-2);
+    background-color: var(--color-background-soft);
+  }
+`
+
+export default memo(NotesSidebar)

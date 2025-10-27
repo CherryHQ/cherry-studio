@@ -1,13 +1,13 @@
 import { KnowledgeSearchToolInput, KnowledgeSearchToolOutput } from '@renderer/aiCore/tools/KnowledgeSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n'
-import { MCPToolResponse } from '@renderer/types'
+import { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
 import { FileSearch } from 'lucide-react'
 import styled from 'styled-components'
 
 const { Text } = Typography
-export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: MCPToolResponse }) {
+export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolInput = toolResponse.arguments as KnowledgeSearchToolInput
   const toolOutput = toolResponse.response as KnowledgeSearchToolOutput
 
@@ -23,17 +23,17 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
   ) : (
     <MessageWebSearchToolTitleTextWrapper type="secondary">
       <FileSearch size={16} style={{ color: 'unset' }} />
-      {i18n.t('message.websearch.fetch_complete', { count: toolOutput.knowledgeReferences.length ?? 0 })}
+      {i18n.t('message.websearch.fetch_complete', { count: toolOutput.length ?? 0 })}
     </MessageWebSearchToolTitleTextWrapper>
   )
 }
 
-export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: MCPToolResponse }) {
+export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const toolOutput = toolResponse.response as KnowledgeSearchToolOutput
 
   return toolResponse.status === 'done' ? (
     <MessageWebSearchToolBodyUlWrapper>
-      {toolOutput.knowledgeReferences.map((result) => (
+      {toolOutput.map((result) => (
         <li key={result.id}>
           <span>{result.id}</span>
           <span>{result.content}</span>

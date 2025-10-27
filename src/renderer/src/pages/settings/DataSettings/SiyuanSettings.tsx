@@ -1,6 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
@@ -16,7 +17,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const logger = loggerService.withContext('SiyuanSettings')
 
 const SiyuanSettings: FC = () => {
-  const { openMinapp } = useMinappPopup()
+  const { openSmartMinapp } = useMinappPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
@@ -43,17 +44,18 @@ const SiyuanSettings: FC = () => {
   }
 
   const handleSiyuanHelpClick = () => {
-    openMinapp({
+    openSmartMinapp({
       id: 'siyuan-help',
       name: 'Siyuan Help',
-      url: 'https://docs.cherry-ai.com/advanced-basic/siyuan'
+      url: 'https://docs.cherry-ai.com/advanced-basic/siyuan',
+      logo: AppLogo
     })
   }
 
   const handleCheckConnection = async () => {
     try {
       if (!siyuanApiUrl || !siyuanToken) {
-        window.message.error(t('settings.data.siyuan.check.empty_config'))
+        window.toast.error(t('settings.data.siyuan.check.empty_config'))
         return
       }
 
@@ -66,20 +68,20 @@ const SiyuanSettings: FC = () => {
       })
 
       if (!response.ok) {
-        window.message.error(t('settings.data.siyuan.check.fail'))
+        window.toast.error(t('settings.data.siyuan.check.fail'))
         return
       }
 
       const data = await response.json()
       if (data.code !== 0) {
-        window.message.error(t('settings.data.siyuan.check.fail'))
+        window.toast.error(t('settings.data.siyuan.check.fail'))
         return
       }
 
-      window.message.success(t('settings.data.siyuan.check.success'))
+      window.toast.success(t('settings.data.siyuan.check.success'))
     } catch (error) {
       logger.error('Check Siyuan connection failed:', error as Error)
-      window.message.error(t('settings.data.siyuan.check.error'))
+      window.toast.error(t('settings.data.siyuan.check.error'))
     }
   }
 

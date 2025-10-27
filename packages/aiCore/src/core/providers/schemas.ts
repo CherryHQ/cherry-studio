@@ -7,11 +7,14 @@ import { createAzure } from '@ai-sdk/azure'
 import { type AzureOpenAIProviderSettings } from '@ai-sdk/azure'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createHuggingFace } from '@ai-sdk/huggingface'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { LanguageModelV2 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider, Provider } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 基础 Provider IDs
@@ -25,7 +28,9 @@ export const baseProviderIds = [
   'xai',
   'azure',
   'azure-responses',
-  'deepseek'
+  'deepseek',
+  'openrouter',
+  'huggingface'
 ] as const
 
 /**
@@ -38,10 +43,14 @@ export const baseProviderIdSchema = z.enum(baseProviderIds)
  */
 export type BaseProviderId = z.infer<typeof baseProviderIdSchema>
 
+export const isBaseProvider = (id: ProviderId): id is BaseProviderId => {
+  return baseProviderIdSchema.safeParse(id).success
+}
+
 type BaseProvider = {
   id: BaseProviderId
   name: string
-  creator: (options: any) => Provider
+  creator: (options: any) => Provider | LanguageModelV2
   supportsImageGeneration: boolean
 }
 
@@ -119,6 +128,18 @@ export const baseProviders = [
     name: 'DeepSeek',
     creator: createDeepSeek,
     supportsImageGeneration: false
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    creator: createOpenRouter,
+    supportsImageGeneration: true
+  },
+  {
+    id: 'huggingface',
+    name: 'HuggingFace',
+    creator: createHuggingFace,
+    supportsImageGeneration: true
   }
 ] as const satisfies BaseProvider[]
 

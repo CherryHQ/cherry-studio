@@ -5,9 +5,10 @@ export enum IpcChannel {
   App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
+  App_QuitAndInstall = 'app:quit-and-install',
   App_Reload = 'app:reload',
+  App_Quit = 'app:quit',
   App_Info = 'app:info',
   App_Proxy = 'app:proxy',
   App_SetLaunchToTray = 'app:set-launch-to-tray',
@@ -33,10 +34,13 @@ export enum IpcChannel {
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+  App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_SaveData = 'app:save-data',
+  App_GetDiskInfo = 'app:get-disk-info',
   App_SetFullScreen = 'app:set-full-screen',
   App_IsFullScreen = 'app:is-full-screen',
+  App_GetSystemFonts = 'app:get-system-fonts',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -49,6 +53,7 @@ export enum IpcChannel {
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
   Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
+  Webview_SearchHotkey = 'webview:search-hotkey',
 
   // Open
   Open_Path = 'open:path',
@@ -86,6 +91,10 @@ export enum IpcChannel {
   Mcp_Progress = 'mcp:progress',
   // Python
   Python_Execute = 'python:execute',
+
+  // agent messages
+  AgentMessage_PersistExchange = 'agent-message:persist-exchange',
+  AgentMessage_GetHistory = 'agent-message:get-history',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -129,6 +138,7 @@ export enum IpcChannel {
   Windows_Close = 'window:close',
   Windows_IsMaximized = 'window:is-maximized',
   Windows_MaximizedChanged = 'window:maximized-changed',
+  Windows_NavigateToAbout = 'window:navigate-to-about',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
@@ -180,6 +190,7 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_StartWatcher = 'file:startWatcher',
   File_StopWatcher = 'file:stopWatcher',
+  File_ShowInFolder = 'file:showInFolder',
 
   // file service
   FileService_Upload = 'file-service:upload',
@@ -217,6 +228,7 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+  System_GetCpuName = 'system:getCpuName',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -224,7 +236,6 @@ export enum IpcChannel {
   // events
   BackupProgress = 'backup-progress',
   ThemeUpdated = 'theme:updated',
-  UpdateDownloadedCancelled = 'update-downloaded-cancelled',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',
@@ -302,6 +313,14 @@ export enum IpcChannel {
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
   TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
+  // API Server
+  ApiServer_Start = 'api-server:start',
+  ApiServer_Stop = 'api-server:stop',
+  ApiServer_Restart = 'api-server:restart',
+  ApiServer_GetStatus = 'api-server:get-status',
+  // NOTE: This api is not be used.
+  ApiServer_GetConfig = 'api-server:get-config',
+
   // Anthropic OAuth
   Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
   Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',
@@ -312,10 +331,24 @@ export enum IpcChannel {
 
   // CodeTools
   CodeTools_Run = 'code-tools:run',
+  CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
+  CodeTools_SetCustomTerminalPath = 'code-tools:set-custom-terminal-path',
+  CodeTools_GetCustomTerminalPath = 'code-tools:get-custom-terminal-path',
+  CodeTools_RemoveCustomTerminalPath = 'code-tools:remove-custom-terminal-path',
 
   // OCR
   OCR_ocr = 'ocr:ocr',
+  OCR_ListProviders = 'ocr:list-providers',
 
-  // Cherryin
-  Cherryin_GetSignature = 'cherryin:get-signature'
+  // OVMS
+  Ovms_AddModel = 'ovms:add-model',
+  Ovms_StopAddModel = 'ovms:stop-addmodel',
+  Ovms_GetModels = 'ovms:get-models',
+  Ovms_IsRunning = 'ovms:is-running',
+  Ovms_GetStatus = 'ovms:get-status',
+  Ovms_RunOVMS = 'ovms:run-ovms',
+  Ovms_StopOVMS = 'ovms:stop-ovms',
+
+  // CherryAI
+  Cherryai_GetSignature = 'cherryai:get-signature'
 }

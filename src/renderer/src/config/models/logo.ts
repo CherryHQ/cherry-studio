@@ -61,6 +61,7 @@ import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.pn
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
 import GPT5ModelLogo from '@renderer/assets/images/models/gpt-5.png'
 import GPT5ChatModelLogo from '@renderer/assets/images/models/gpt-5-chat.png'
+import GPT5CodexModelLogo from '@renderer/assets/images/models/gpt-5-codex.png'
 import GPT5MiniModelLogo from '@renderer/assets/images/models/gpt-5-mini.png'
 import GPT5NanoModelLogo from '@renderer/assets/images/models/gpt-5-nano.png'
 import GrokModelLogo from '@renderer/assets/images/models/grok.png'
@@ -83,6 +84,7 @@ import JinaModelLogo from '@renderer/assets/images/models/jina.png'
 import JinaModelLogoDark from '@renderer/assets/images/models/jina_dark.png'
 import KeLingModelLogo from '@renderer/assets/images/models/keling.png'
 import KeLingModelLogoDark from '@renderer/assets/images/models/keling_dark.png'
+import LingModelLogo from '@renderer/assets/images/models/ling.png'
 import LlamaModelLogo from '@renderer/assets/images/models/llama.png'
 import LlamaModelLogoDark from '@renderer/assets/images/models/llama_dark.png'
 import LLavaModelLogo from '@renderer/assets/images/models/llava.png'
@@ -154,14 +156,16 @@ import ZhipuModelLogoDark from '@renderer/assets/images/models/zhipu_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import { Model } from '@renderer/types'
 
-export function getModelLogo(modelId: string) {
+export function getModelLogoById(modelId: string): string | undefined {
   const isLight = true
 
   if (!modelId) {
     return undefined
   }
 
+  // key is regex
   const logoMap = {
     pixtral: isLight ? PixtralModelLogo : PixtralModelLogoDark,
     jina: isLight ? JinaModelLogo : JinaModelLogoDark,
@@ -177,6 +181,7 @@ export function getModelLogo(modelId: string) {
     'gpt-5-mini': GPT5MiniModelLogo,
     'gpt-5-nano': GPT5NanoModelLogo,
     'gpt-5-chat': GPT5ChatModelLogo,
+    'gpt-5-codex': GPT5CodexModelLogo,
     'gpt-5': GPT5ModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
@@ -285,8 +290,10 @@ export function getModelLogo(modelId: string) {
     zhipu: isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
     longcat: LongCatAppLogo,
     bytedance: BytedanceModelLogo,
+    ling: LingModelLogo,
+    ring: LingModelLogo,
     '(V_1|V_1_TURBO|V_2|V_2A|V_2_TURBO|DESCRIBE|UPSCALE)': IdeogramModelLogo
-  }
+  } as const satisfies Record<string, string>
 
   for (const key in logoMap) {
     const regex = new RegExp(key, 'i')
@@ -296,4 +303,8 @@ export function getModelLogo(modelId: string) {
   }
 
   return undefined
+}
+
+export function getModelLogo(model: Model | undefined | null): string | undefined {
+  return model ? (getModelLogoById(model.id) ?? getModelLogoById(model.name)) : undefined
 }

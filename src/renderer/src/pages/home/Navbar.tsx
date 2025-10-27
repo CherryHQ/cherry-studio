@@ -1,9 +1,7 @@
-import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import WindowControls from '@renderer/components/WindowControls'
 import { isLinux, isWin } from '@renderer/config/constant'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -20,7 +18,6 @@ import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -29,10 +26,16 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
+  activeTopicOrSession?: 'topic' | 'session'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
-  const { assistant } = useAssistant(activeAssistant.id)
+const HeaderNavbar: FC<Props> = ({
+  activeAssistant,
+  setActiveAssistant,
+  activeTopic,
+  setActiveTopic,
+  activeTopicOrSession
+}) => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
@@ -66,36 +69,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
-  const ControlButtons: FC<{ IconComponent: typeof NavbarIcon }> = ({ IconComponent }) => (
-    <>
-      <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-        <IconComponent onClick={() => SearchPopup.show()}>
-          <Search size={18} />
-        </IconComponent>
-      </Tooltip>
-      <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-        <IconComponent onClick={handleNarrowModeToggle}>
-          <i className="iconfont icon-icon-adaptive-width"></i>
-        </IconComponent>
-      </Tooltip>
-      <UpdateAppButton />
-      {topicPosition === 'right' && !showTopics && (
-        <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-          <NavbarIcon onClick={toggleShowTopics}>
-            <PanelLeftClose size={18} />
-          </NavbarIcon>
-        </Tooltip>
-      )}
-      {topicPosition === 'right' && showTopics && (
-        <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-          <NavbarIcon onClick={toggleShowTopics}>
-            <PanelRightClose size={18} />
-          </NavbarIcon>
-        </Tooltip>
-      )}
-    </>
-  )
-
   return (
     <Navbar className="home-navbar">
       <AnimatePresence initial={false}>
@@ -116,53 +89,71 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </motion.div>
         )}
       </AnimatePresence>
+      {!showAssistants && (
+        <NavbarLeft
+          style={{
+            justifyContent: 'flex-start',
+            borderRight: 'none',
+            paddingLeft: 0,
+            paddingRight: 0,
+            minWidth: 'auto'
+          }}>
+          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={() => toggleShowAssistants()}>
+              <PanelRightClose size={18} />
+            </NavbarIcon>
+          </Tooltip>
+          <AnimatePresence initial={false}>
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
+                <Menu size={18} />
+              </NavbarIcon>
+            </motion.div>
+          </AnimatePresence>
+        </NavbarLeft>
+      )}
+      <NavbarCenter></NavbarCenter>
       <NavbarRight
-        style={{ justifyContent: 'space-between', flex: 1, position: 'relative' }}
+        style={{
+          justifyContent: 'flex-end',
+          flex: activeTopicOrSession === 'topic' ? 1 : 'none',
+          position: 'relative',
+          paddingRight: isWin || isLinux ? '144px' : '15px',
+          minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
+        }}
         className="home-navbar-right">
-        <HStack alignItems="center">
-          {!showAssistants && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-              <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8, marginLeft: -12 }}>
+        <HStack alignItems="center" gap={6}>
+          <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={() => SearchPopup.show()}>
+              <Search size={18} />
+            </NarrowIcon>
+          </Tooltip>
+          <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={handleNarrowModeToggle}>
+              <i className="iconfont icon-icon-adaptive-width"></i>
+            </NarrowIcon>
+          </Tooltip>
+          <UpdateAppButton />
+          {topicPosition === 'right' && !showTopics && (
+            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+              <NavbarIcon onClick={toggleShowTopics}>
+                <PanelLeftClose size={18} />
+              </NavbarIcon>
+            </Tooltip>
+          )}
+          {topicPosition === 'right' && showTopics && (
+            <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+              <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
-          <AnimatePresence initial={false}>
-            {!showAssistants && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'auto', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}>
-                <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
-                  <Menu size={18} />
-                </NavbarIcon>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <SelectModelButton assistant={assistant} />
         </HStack>
-        <HStack alignItems="center" gap={6}>
-          {/* For Mac, show search and expand without WindowControls */}
-          {!isWin && !isLinux && <ControlButtons IconComponent={NarrowIcon} />}
-        </HStack>
-        {/* Search, Expand and WindowControls positioned at the right edge */}
-        {(isWin || isLinux) && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}>
-            <ControlButtons IconComponent={NavbarIcon} />
-            <WindowControls />
-          </div>
-        )}
       </NavbarRight>
     </Navbar>
   )

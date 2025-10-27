@@ -14,6 +14,7 @@ import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
+import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
@@ -21,7 +22,6 @@ import LegacyAiProvider from './legacy/index'
 import { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
 import { AiSdkMiddlewareConfig, buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
-import { buildClaudeCodeSystemMessage } from './provider/config/anthropic'
 import { createAiSdkProvider } from './provider/factory'
 import {
   getActualProvider,
@@ -83,10 +83,8 @@ export default class ModernAiProvider {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
     }
 
-    // 确保配置存在
-    if (!this.config) {
-      this.config = providerToAiSdkConfig(this.actualProvider, this.model)
-    }
+    // 每次请求时重新生成配置以确保API key轮换生效
+    this.config = providerToAiSdkConfig(this.actualProvider, this.model)
 
     // 准备特殊配置
     await prepareSpecialProviderConfig(this.actualProvider, this.config)
@@ -122,13 +120,9 @@ export default class ModernAiProvider {
     }
 
     if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      const claudeCodeSystemMessage = buildClaudeCodeSystemMessage(params.system)
+      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(params.system)
       params.system = undefined // 清除原有system，避免重复
-      if (Array.isArray(params.messages)) {
-        params.messages = [...claudeCodeSystemMessage, ...params.messages]
-      } else {
-        params.messages = claudeCodeSystemMessage
-      }
+      params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
     if (config.topicId && getEnableDeveloperMode()) {
@@ -265,15 +259,15 @@ export default class ModernAiProvider {
     params: StreamTextParams,
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
-    const modelId = this.model!.id
-    logger.info('Starting modernCompletions', {
-      modelId,
-      providerId: this.config!.providerId,
-      topicId: config.topicId,
-      hasOnChunk: !!config.onChunk,
-      hasTools: !!params.tools && Object.keys(params.tools).length > 0,
-      toolCount: params.tools ? Object.keys(params.tools).length : 0
-    })
+    // const modelId = this.model!.id
+    // logger.info('Starting modernCompletions', {
+    //   modelId,
+    //   providerId: this.config!.providerId,
+    //   topicId: config.topicId,
+    //   hasOnChunk: !!config.onChunk,
+    //   hasTools: !!params.tools && Object.keys(params.tools).length > 0,
+    //   toolCount: params.tools ? Object.keys(params.tools).length : 0
+    // })
 
     // 根据条件构建插件数组
     const plugins = buildPlugins(config)
@@ -284,7 +278,7 @@ export default class ModernAiProvider {
     // 创建带有中间件的执行器
     if (config.onChunk) {
       const accumulate = this.model!.supported_text_delta !== false // true and undefined
-      const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate)
+      const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate, config.enableWebSearch)
 
       const streamResult = await executor.streamText({
         ...params,

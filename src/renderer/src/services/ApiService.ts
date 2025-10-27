@@ -99,6 +99,8 @@ export async function fetchChatCompletion({
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
     mcpTools.push(...(await fetchMcpTools(assistant)))
   }
@@ -115,7 +117,8 @@ export async function fetchChatCompletion({
   const {
     params: aiSdkParams,
     modelId,
-    capabilities
+    capabilities,
+    webSearchPluginConfig
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     webSearchProviderId: assistant.webSearchProviderId,
@@ -130,14 +133,16 @@ export async function fetchChatCompletion({
     isPromptToolUse: isPromptToolUse(assistant),
     isSupportedToolUse: isSupportedToolUse(assistant),
     isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
+    webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
+    enableUrlContext: capabilities.enableUrlContext,
     mcpTools,
-    uiMessages
+    uiMessages,
+    knowledgeRecognition: assistant.knowledgeRecognition
   }
 
   // --- Call AI Completions ---
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
     assistant,
@@ -221,6 +226,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
+    enableUrlContext: false,
     mcpTools: []
   }
   try {
@@ -237,6 +243,68 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
       ...middlewareConfig,
       assistant: summaryAssistant,
       topicId,
+      callType: 'summary'
+    })
+    const text = getText()
+    return removeSpecialCharactersForTopicName(text) || null
+  } catch (error: any) {
+    return null
+  }
+}
+
+export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
+  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  const resolvedAssistant = assistant || getDefaultAssistant()
+  const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    return null
+  }
+
+  const AI = new AiProviderNew(model)
+
+  // only 2000 char and no images
+  const truncatedContent = content.substring(0, 2000)
+  const purifiedContent = purifyMarkdownImages(truncatedContent)
+
+  const summaryAssistant = {
+    ...resolvedAssistant,
+    settings: {
+      ...resolvedAssistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    },
+    prompt,
+    model
+  }
+
+  const llmMessages = {
+    system: prompt,
+    prompt: purifiedContent
+  }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: false,
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false,
+    mcpTools: []
+  }
+
+  try {
+    const { getText } = await AI.completions(model.id, llmMessages, {
+      ...middlewareConfig,
+      assistant: summaryAssistant,
       callType: 'summary'
     })
     const text = getText()
@@ -307,7 +375,8 @@ export async function fetchGenerate({
     isSupportedToolUse: false,
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
-    enableGenerateImage: false
+    enableGenerateImage: false,
+    enableUrlContext: false
   }
 
   try {
@@ -331,7 +400,7 @@ export async function fetchGenerate({
 
 export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (['ollama', 'lmstudio', 'vertexai', 'cherryin'].includes(provider.id)) return true
+  if (['ollama', 'lmstudio', 'vertexai', 'cherryai'].includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 
@@ -362,9 +431,6 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export function checkApiProvider(provider: Provider): void {
-  const key = 'api-check'
-  const style = { marginTop: '3vh' }
-
   if (
     provider.id !== 'ollama' &&
     provider.id !== 'lmstudio' &&
@@ -372,18 +438,18 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 
   if (!provider.apiHost && provider.type !== 'vertexai') {
-    window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
+    window.toast.error(i18n.t('message.error.enter.api.host'))
     throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
-    window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
+    window.toast.error(i18n.t('message.error.enter.model'))
     throw new Error(i18n.t('message.error.enter.model'))
   }
 }
@@ -419,6 +485,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         enableWebSearch: false,
         enableGenerateImage: false,
         isPromptToolUse: false,
+        enableUrlContext: false,
         assistant,
         callType: 'check',
         onChunk: (chunk: Chunk) => {

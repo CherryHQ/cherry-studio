@@ -76,6 +76,10 @@
   list-style: initial;
 }
 
+.markdown ol {
+  list-style: decimal;
+}
+
 .markdown ul,
 .markdown ol {
   padding-left: 1.5em;
@@ -121,6 +125,7 @@
   border-radius: 5px;
   word-break: keep-all;
   white-space: pre;
+  text-wrap: wrap;
 }
 
 .markdown code {

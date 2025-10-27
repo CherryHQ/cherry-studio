@@ -14,7 +14,7 @@ export type RecursiveCallFn = (newParams: any) => Promise<any>
  */
 export interface AiRequestContext {
   providerId: ProviderId
-  modelId: string
+  model: LanguageModel | ImageModelV2
   originalParams: any
   metadata: Record<string, any>
   startTime: number
