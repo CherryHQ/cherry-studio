@@ -1,5 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setUserTheme, UserTheme } from '@renderer/store/settings'
+import { getForegroundColor } from '@renderer/utils'
 import Color from 'color'
 
 export default function useUserTheme() {
@@ -13,6 +14,7 @@ export default function useUserTheme() {
     document.body.style.setProperty('--color-primary', colorPrimary.toString())
     // overwrite hero UI primary color.
     document.body.style.setProperty('--primary', colorPrimary.toString())
+    document.body.style.setProperty('--primary-foreground', getForegroundColor(colorPrimary.hex()))
     document.body.style.setProperty('--heroui-primary', colorPrimary.toString())
     document.body.style.setProperty('--heroui-primary-900', colorPrimary.lighten(0.5).toString())
     document.body.style.setProperty('--heroui-primary-800', colorPrimary.lighten(0.4).toString())
