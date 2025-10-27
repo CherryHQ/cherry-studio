@@ -207,7 +207,7 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
                         crop={handleCrop}
                         zoom={handleZoom}
                       />
-                      <div className="flex justify-between gap-2">
+                      <div className="flex justify-between gap-2 self-center">
                         <Button
                           color="primary"
                           startContent={<RotateCcw className="text-primary-foreground" size={14} />}
