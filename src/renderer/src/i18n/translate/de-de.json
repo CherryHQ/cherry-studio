@@ -3477,7 +3477,22 @@
       },
       "avatar": {
         "builtin": "Integriertes Avatar",
-        "reset": "Avatar zurücksetzen"
+        "drag_corners_to_resize": "Ziehen Sie die Ecken des Zuschneidekästchens, um die Größe des Zuschneidebereichs anzupassen",
+        "edit": "Avatar bearbeiten",
+        "edit_tools": "Bearbeitungswerkzeuge",
+        "editing_failed": "Die Bildbearbeitung ist fehlgeschlagen",
+        "editor_not_ready": "Der Bildeditor ist nicht bereit",
+        "flip_horizontal": "Horizontal spiegeln",
+        "flip_vertical": "Vertikal spiegeln",
+        "preview": "Vorschau",
+        "processing_failed": "Die Bildverarbeitung ist fehlgeschlagen",
+        "reset": "Avatar zurücksetzen",
+        "rotate_left": "Nach links drehen",
+        "rotate_right": "Rechts drehen",
+        "save_failed": "Fehler beim Speichern des bearbeiteten Bildes",
+        "scroll_to_zoom": "Verwenden Sie das Mausrad, um das Bild zu vergrößern",
+        "usage_guide": "Gebrauchsanleitung",
+        "use_tools_for_transform": "Verwenden Sie die oben genannten Werkzeuge für Drehung und Spiegelung"
       },
       "backup": {
         "button": "Backup",
