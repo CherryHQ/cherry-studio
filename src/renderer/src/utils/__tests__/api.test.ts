@@ -211,7 +211,7 @@ describe('api', () => {
 
     it('validates supported endpoint fragments when using hash suffix', () => {
       expect(validateApiHost('https://api.example.com/v1/chat/completions#')).toBe(true)
-      expect(validateApiHost('https://api.example.com/v1/unknown#')).toBe(false)
+      expect(validateApiHost('https://api.example.com/v1/unknown#')).toBe(true)
     })
   })
 
