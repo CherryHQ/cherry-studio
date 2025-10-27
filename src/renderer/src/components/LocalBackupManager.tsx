@@ -226,7 +226,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         onClick={handleDeleteSelected}
         disabled={selectedRowKeys.length === 0 || deleting}
         loading={deleting}>
-        {t('settings.data.local.backup.manager.delete.selected', { count: selectedRowKeys.length })}
+        {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
       </Button>
       <Button key="close" onClick={onClose}>
         {t('common.close')}
