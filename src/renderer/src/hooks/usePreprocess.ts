@@ -1,6 +1,7 @@
 import { RootState } from '@renderer/store'
 import { syncPreprocessProvider as _syncPreprocessProvider } from '@renderer/store/knowledge'
 import {
+  defaultPreprocessProviders,
   setDefaultPreprocessProvider as _setDefaultPreprocessProvider,
   updatePreprocessProvider as _updatePreprocessProvider,
   updatePreprocessProviders as _updatePreprocessProviders
@@ -11,7 +12,9 @@ import { useDispatch, useSelector } from 'react-redux'
 export const usePreprocessProvider = (id: PreprocessProviderId) => {
   const dispatch = useDispatch()
   const preprocessProviders = useSelector((state: RootState) => state.preprocess.providers)
-  const provider = preprocessProviders.find((provider) => provider.id === id)
+  const provider =
+    preprocessProviders.find((provider) => provider.id === id) ||
+    defaultPreprocessProviders.find((provider) => provider.id === id)
   if (!provider) {
     throw new Error(`preprocess provider with id ${id} not found`)
   }
@@ -53,5 +56,9 @@ export const useDefaultPreprocessProvider = () => {
   const updateDefaultPreprocessProvider = (preprocessProvider: PreprocessProvider) => {
     dispatch(_updatePreprocessProvider(preprocessProvider))
   }
-  return { provider, setDefaultPreprocessProvider, updateDefaultPreprocessProvider }
+  return {
+    provider,
+    setDefaultPreprocessProvider,
+    updateDefaultPreprocessProvider
+  }
 }

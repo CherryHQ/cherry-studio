@@ -26,10 +26,19 @@ const initialState: PreprocessState = {
       model: 'mistral-ocr-latest',
       apiKey: '',
       apiHost: 'https://api.mistral.ai'
+    },
+    {
+      id: 'open-mineru',
+      name: 'Open MinerU',
+      apiKey: '',
+      apiHost: ''
     }
   ],
   defaultProvider: 'mineru'
 }
+
+export const defaultPreprocessProviders = initialState.providers
+
 const preprocessSlice = createSlice({
   name: 'preprocess',
   initialState,
@@ -47,6 +56,9 @@ const preprocessSlice = createSlice({
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
       if (index !== -1) {
         Object.assign(state.providers[index], action.payload)
+      } else {
+        // 如果没有找到，则添加新的 provider
+        state.providers.push(action.payload as PreprocessProvider)
       }
     }
   }
