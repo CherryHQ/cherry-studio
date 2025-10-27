@@ -4,6 +4,7 @@
  */
 
 import {
+  isClaude45ReasoningModel,
   isClaudeReasoningModel,
   isNotSupportTemperatureAndTopP,
   isSupportedFlexServiceTier
@@ -19,7 +20,10 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (isNotSupportTemperatureAndTopP(model)) {
+  if (
+    isNotSupportTemperatureAndTopP(model) ||
+    (isClaude45ReasoningModel(model) && assistant.settings?.enableTopP && !assistant.settings?.enableTemperature)
+  ) {
     return undefined
   }
   const assistantSettings = getAssistantSettings(assistant)
@@ -33,7 +37,10 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (isNotSupportTemperatureAndTopP(model)) {
+  if (
+    isNotSupportTemperatureAndTopP(model) ||
+    (isClaude45ReasoningModel(model) && assistant.settings?.enableTemperature)
+  ) {
     return undefined
   }
   const assistantSettings = getAssistantSettings(assistant)
