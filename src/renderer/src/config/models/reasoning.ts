@@ -363,7 +363,7 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
 
 export function isClaude45ReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /claude-4-5-(sonnet|opus|haiku)(?:-[\w-]+)?$/i
+  const regex = /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i
   return regex.test(modelId)
 }
 
