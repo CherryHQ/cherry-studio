@@ -169,13 +169,7 @@ export function validateApiHost(apiHost: string): boolean {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') {
       return false
     }
-    // 逻辑验证
-    const path = withoutTrailingSlash(trim(url.pathname))
-    if (apiHost.endsWith('#')) {
-      return SUPPORTED_ENDPOINT_LIST.some((endpoint) => path.endsWith(endpoint))
-    } else {
-      return true
-    }
+    return true
   } catch {
     return false
   }
