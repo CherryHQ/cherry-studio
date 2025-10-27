@@ -24,6 +24,10 @@
   .lucide:not(.lucide-custom) {
     color: var(--color-icon);
   }
+
+  ul {
+  list-style: none;
+}
 }
 
 *:focus {
@@ -85,10 +89,6 @@ code {
 
 a {
   -webkit-user-drag: none;
-}
-
-ul {
-  list-style: none;
 }
 
 .loader {

@@ -1,3 +1,4 @@
+import { useDisclosure } from '@heroui/react'
 import { loggerService } from '@logger'
 import ProviderAvatarEditor from '@renderer/components/ImageEditor/ProviderAvatarEditor'
 import { Center, VStack } from '@renderer/components/Layout'
@@ -29,7 +30,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logo, setLogo] = useState<string | null>(null)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [imageEditorOpen, setImageEditorOpen] = useState(false)
+  const { isOpen: isImageEditorOpen, onOpen: onImageEditorOpen, onClose: onImageEditorClose } = useDisclosure()
   const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
   const { t } = useTranslation()
   const uploadRef = useRef<HTMLDivElement>(null)
@@ -113,7 +114,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   // 处理图片编辑确认
   const handleImageEditConfirm = async (editedImageBlob: Blob) => {
     try {
-      setImageEditorOpen(false)
+      onImageEditorClose()
       setTempImageSrc(null)
 
       // 将编辑后的 Blob 转换为 File
@@ -135,13 +136,13 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
       setDropdownOpen(false)
     } catch (error: any) {
-      window.message.error(t('settings.general.avatar.save_failed') + ': ' + error.message)
+      window.toast.error(t('settings.general.avatar.save_failed') + ': ' + error.message)
     }
   }
 
   // 处理图片编辑取消
   const handleImageEditCancel = () => {
-    setImageEditorOpen(false)
+    onImageEditorClose()
     setTempImageSrc(null)
   }
 
@@ -182,7 +183,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
                 setTempImageSrc(tempUrl)
                 setDropdownOpen(false)
-                setImageEditorOpen(true)
+                onImageEditorOpen()
               }
             } catch (error: any) {
               window.toast.error(error.message)
@@ -305,7 +306,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
       {/* 图片编辑器 */}
       <ProviderAvatarEditor
-        open={imageEditorOpen}
+        isOpen={isImageEditorOpen}
+        onClose={onImageEditorClose}
         imageSrc={tempImageSrc || undefined}
         onCancel={handleImageEditCancel}
         onConfirm={handleImageEditConfirm}
