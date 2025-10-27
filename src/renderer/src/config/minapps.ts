@@ -47,6 +47,7 @@ import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
+import ZaiWenAiAppLogo from '@renderer/assets/images/apps/zaiwen.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
@@ -482,6 +483,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 6
     }
+  },
+  {
+    id: 'zaiwenai',
+    name: i18n.t('minapps.zaiwenai'),
+    logo: ZaiWenAiAppLogo,
+    url: 'https://www.zaiwenai.com',
+    bodered: true
   }
 ]
 

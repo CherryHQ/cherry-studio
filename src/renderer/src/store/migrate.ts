@@ -2729,6 +2729,15 @@ const migrateConfig = {
       logger.error('migrate 167 error', error as Error)
       return state
     }
+  },
+  '168': (state: RootState) => {
+    try {
+      addMiniApp(state, 'zaiwenai')
+      return state
+    } catch (error) {
+      logger.error('migrate 168 error', error as Error)
+      return state
+    }
   }
 }
 
