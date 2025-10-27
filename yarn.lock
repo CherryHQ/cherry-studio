@@ -14154,7 +14154,6 @@ __metadata:
     drizzle-orm: "npm:^0.44.5"
     electron: "npm:38.4.0"
     electron-builder: "npm:26.0.15"
-    electron-debug: "npm:^4.1.0"
     electron-devtools-installer: "npm:^3.2.0"
     electron-reload: "npm:^2.0.0-alpha.1"
     electron-store: "npm:^8.2.0"
@@ -14172,7 +14171,6 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     express: "npm:^5.1.0"
     express-validator: "npm:^7.2.1"
-    faiss-node: "npm:^0.5.1"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:1.3.2"
@@ -14206,7 +14204,6 @@ __metadata:
     mime: "npm:^4.0.4"
     mime-types: "npm:^3.0.1"
     motion: "npm:^12.10.5"
-    node-gyp: "npm:^11.4.2"
     node-stream-zip: "npm:^1.15.0"
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
@@ -15058,15 +15055,6 @@ __metadata:
   version: 2.3.0
   resolution: "binary-extensions@npm:2.3.0"
   checksum: 10c0/75a59cafc10fb12a11d510e77110c6c7ae3f4ca22463d52487709ca7f18f69d886aa387557cc9864fbdb10153d0bdb4caacabf11541f55e89ed6e18d12ece2b5
-  languageName: node
-  linkType: hard
-
-"bindings@npm:^1.5.0":
-  version: 1.5.0
-  resolution: "bindings@npm:1.5.0"
-  dependencies:
-    file-uri-to-path: "npm:1.0.0"
-  checksum: 10c0/3dab2491b4bb24124252a91e656803eac24292473e56554e35bbfe3cc1875332cfa77600c3bac7564049dc95075bf6fcc63a4609920ff2d64d0fe405fcf0d4ba
   languageName: node
   linkType: hard
 
@@ -16979,7 +16967,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debug@npm:4, debug@npm:^4.0.0, debug@npm:^4.0.1, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.3.4, debug@npm:^4.3.5, debug@npm:^4.3.6, debug@npm:^4.4.0, debug@npm:^4.4.1":
+"debug@npm:4, debug@npm:^4.0.0, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.3.4, debug@npm:^4.3.5, debug@npm:^4.3.6, debug@npm:^4.4.0, debug@npm:^4.4.1":
   version: 4.4.1
   resolution: "debug@npm:4.4.1"
   dependencies:
@@ -17274,17 +17262,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"detect-libc@npm:^2.0.0, detect-libc@npm:^2.0.3, detect-libc@npm:^2.0.4":
-  version: 2.0.4
-  resolution: "detect-libc@npm:2.0.4"
-  checksum: 10c0/c15541f836eba4b1f521e4eecc28eefefdbc10a94d3b8cb4c507689f332cc111babb95deda66f2de050b22122113189986d5190be97d51b5a2b23b938415e67c
-  languageName: node
-  linkType: hard
-
 "detect-libc@npm:^2.0.1":
   version: 2.0.3
   resolution: "detect-libc@npm:2.0.3"
   checksum: 10c0/88095bda8f90220c95f162bf92cad70bd0e424913e655c20578600e35b91edc261af27531cf160a331e185c0ced93944bc7e09939143225f56312d7fd800fdb7
+  languageName: node
+  linkType: hard
+
+"detect-libc@npm:^2.0.3, detect-libc@npm:^2.0.4":
+  version: 2.0.4
+  resolution: "detect-libc@npm:2.0.4"
+  checksum: 10c0/c15541f836eba4b1f521e4eecc28eefefdbc10a94d3b8cb4c507689f332cc111babb95deda66f2de050b22122113189986d5190be97d51b5a2b23b938415e67c
   languageName: node
   linkType: hard
 
@@ -17728,16 +17716,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-debug@npm:^4.1.0":
-  version: 4.1.0
-  resolution: "electron-debug@npm:4.1.0"
-  dependencies:
-    electron-is-dev: "npm:^3.0.1"
-    electron-localshortcut: "npm:^3.2.1"
-  checksum: 10c0/b781a2138dbcc2a0ee87e2dd31810c61b855203e987661786004dbc13f0ecb25c34913b9464cb73ec887e5499e262a25c28d2480ade701d349375a50b4891314
-  languageName: node
-  linkType: hard
-
 "electron-devtools-installer@npm:^3.2.0":
   version: 3.2.1
   resolution: "electron-devtools-installer@npm:3.2.1"
@@ -17747,32 +17725,6 @@ __metadata:
     tslib: "npm:^2.1.0"
     unzip-crx-3: "npm:^0.2.0"
   checksum: 10c0/cbdaeef985497f881b3f50a8d443c4064af023347534ba0564da6e8a0d26b96a6f0e60213a3443f70dbccd4f0f226f691d77e46f83f6c53850b0c45c2404b14d
-  languageName: node
-  linkType: hard
-
-"electron-is-accelerator@npm:^0.1.0":
-  version: 0.1.2
-  resolution: "electron-is-accelerator@npm:0.1.2"
-  checksum: 10c0/120da55c3b581cbca5eccdd80c9099574a7aa0a8ea8b9fd4e5dcd906dcf83308c94587ad771b066cdd073e45e68dbe4c06256602998f16ccafbcfe1cab968718
-  languageName: node
-  linkType: hard
-
-"electron-is-dev@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "electron-is-dev@npm:3.0.1"
-  checksum: 10c0/80d37d61d44b8b7af0af90eab622b09e0f165afbc2560297c760356efa93fcb54dbbd13d4d6522da6474e261d630b76b804c86385564a1f3062d28fc59c340bd
-  languageName: node
-  linkType: hard
-
-"electron-localshortcut@npm:^3.2.1":
-  version: 3.2.1
-  resolution: "electron-localshortcut@npm:3.2.1"
-  dependencies:
-    debug: "npm:^4.0.1"
-    electron-is-accelerator: "npm:^0.1.0"
-    keyboardevent-from-electron-accelerator: "npm:^2.0.0"
-    keyboardevents-areequal: "npm:^0.2.1"
-  checksum: 10c0/6490a1dd0155926d5664500d45a5acb4771ba96e3ad4a878367e24ab96096c8824197cf3e2890a4f51b0307665afe680fe5f22dae2e4ba781cf32ddab9dcc335
   languageName: node
   linkType: hard
 
@@ -18830,18 +18782,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"faiss-node@npm:^0.5.1":
-  version: 0.5.1
-  resolution: "faiss-node@npm:0.5.1"
-  dependencies:
-    bindings: "npm:^1.5.0"
-    node-addon-api: "npm:^6.0.0"
-    node-gyp: "npm:latest"
-    prebuild-install: "npm:^7.1.1"
-  checksum: 10c0/2045c4db87b39637d56c8228b26a30f4bcf49f5e0f99a7717b89030683aa8ed4d37c2f58d3b7b630fe56128fa7b8b55a0ad375ea651008bff17cb3618abc30be
-  languageName: node
-  linkType: hard
-
 "fast-deep-equal@npm:3.1.3, fast-deep-equal@npm:^3.1.1, fast-deep-equal@npm:^3.1.3":
   version: 3.1.3
   resolution: "fast-deep-equal@npm:3.1.3"
@@ -19133,13 +19073,6 @@ __metadata:
   version: 6.2.0
   resolution: "file-type@npm:6.2.0"
   checksum: 10c0/3d7fe85a10bd97ca0c35fd9a20d21f5b20849bbb70985d37c34475051433f3c6109c76a3e5893bff6773037b769be9730a2db762789ecf25def9b62a4c2ee953
-  languageName: node
-  linkType: hard
-
-"file-uri-to-path@npm:1.0.0":
-  version: 1.0.0
-  resolution: "file-uri-to-path@npm:1.0.0"
-  checksum: 10c0/3b545e3a341d322d368e880e1c204ef55f1d45cdea65f7efc6c6ce9e0c4d22d802d5629320eb779d006fe59624ac17b0e848d83cc5af7cd101f206cb704f5519
   languageName: node
   linkType: hard
 
@@ -21279,20 +21212,6 @@ __metadata:
   bin:
     katex: cli.js
   checksum: 10c0/07b8b1f07ae53171b5f1ea0cf6f18841d2055825c8b11cd81cfe039afcd3af2cfc84ad033531ee3875088329105195b039c267e0dd4b0c237807e3c3b2009913
-  languageName: node
-  linkType: hard
-
-"keyboardevent-from-electron-accelerator@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "keyboardevent-from-electron-accelerator@npm:2.0.0"
-  checksum: 10c0/94bd9da6eb80145b36f336adb3f0a55cc8fdf0138f0df3028feb30d790d0727f8de27f040278805a499cc61dba816c8fab012e7f76c2495033d2fd7c2762f309
-  languageName: node
-  linkType: hard
-
-"keyboardevents-areequal@npm:^0.2.1":
-  version: 0.2.2
-  resolution: "keyboardevents-areequal@npm:0.2.2"
-  checksum: 10c0/1612c2aa52001163b2517ef6c0ea9abf20117e206e6796ba15eb99c0ae331a8826ab60a18e7ddb8ed0e15272af64d3b14383d2ae832beaa2f68548c1c53e4fa6
   languageName: node
   linkType: hard
 
@@ -23680,13 +23599,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"napi-build-utils@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "napi-build-utils@npm:2.0.0"
-  checksum: 10c0/5833aaeb5cc5c173da47a102efa4680a95842c13e0d9cc70428bd3ee8d96bb2172f8860d2811799b5daa5cbeda779933601492a2028a6a5351c6d0fcf6de83db
-  languageName: node
-  linkType: hard
-
 "native-promise-only@npm:0.8.1":
   version: 0.8.1
   resolution: "native-promise-only@npm:0.8.1"
@@ -23786,15 +23698,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-addon-api@npm:^6.0.0":
-  version: 6.1.0
-  resolution: "node-addon-api@npm:6.1.0"
-  dependencies:
-    node-gyp: "npm:latest"
-  checksum: 10c0/d2699c4ad15740fd31482a3b6fca789af7723ab9d393adc6ac45250faaee72edad8f0b10b2b9d087df0de93f1bdc16d97afdd179b26b9ebc9ed68b569faa4bac
-  languageName: node
-  linkType: hard
-
 "node-addon-api@npm:^8.4.0":
   version: 8.4.0
   resolution: "node-addon-api@npm:8.4.0"
@@ -23860,26 +23763,6 @@ __metadata:
     node-gyp-build-optional: optional.js
     node-gyp-build-test: build-test.js
   checksum: 10c0/444e189907ece2081fe60e75368784f7782cfddb554b60123743dfb89509df89f1f29c03bbfa16b3a3e0be3f48799a4783f487da6203245fa5bed239ba7407e1
-  languageName: node
-  linkType: hard
-
-"node-gyp@npm:^11.4.2":
-  version: 11.4.2
-  resolution: "node-gyp@npm:11.4.2"
-  dependencies:
-    env-paths: "npm:^2.2.0"
-    exponential-backoff: "npm:^3.1.1"
-    graceful-fs: "npm:^4.2.6"
-    make-fetch-happen: "npm:^14.0.3"
-    nopt: "npm:^8.0.0"
-    proc-log: "npm:^5.0.0"
-    semver: "npm:^7.3.5"
-    tar: "npm:^7.4.3"
-    tinyglobby: "npm:^0.2.12"
-    which: "npm:^5.0.0"
-  bin:
-    node-gyp: bin/node-gyp.js
-  checksum: 10c0/0bfd3e96770ed70f07798d881dd37b4267708966d868a0e585986baac487d9cf5831285579fd629a83dc4e434f53e6416ce301097f2ee464cb74d377e4d8bdbe
   languageName: node
   linkType: hard
 
@@ -25009,28 +24892,6 @@ __metadata:
   bin:
     prebuild-install: bin.js
   checksum: 10c0/e24b7ea6c12fffdccad3fa40bb999277216081cbf96b768b34417aec773e9df2242df22c4529d47263713a1f02db16f5a89e909b24020c47232fe98b7efb7037
-  languageName: node
-  linkType: hard
-
-"prebuild-install@npm:^7.1.1":
-  version: 7.1.3
-  resolution: "prebuild-install@npm:7.1.3"
-  dependencies:
-    detect-libc: "npm:^2.0.0"
-    expand-template: "npm:^2.0.3"
-    github-from-package: "npm:0.0.0"
-    minimist: "npm:^1.2.3"
-    mkdirp-classic: "npm:^0.5.3"
-    napi-build-utils: "npm:^2.0.0"
-    node-abi: "npm:^3.3.0"
-    pump: "npm:^3.0.0"
-    rc: "npm:^1.2.7"
-    simple-get: "npm:^4.0.0"
-    tar-fs: "npm:^2.0.0"
-    tunnel-agent: "npm:^0.6.0"
-  bin:
-    prebuild-install: bin.js
-  checksum: 10c0/25919a42b52734606a4036ab492d37cfe8b601273d8dfb1fa3c84e141a0a475e7bad3ab848c741d2f810cef892fcf6059b8c7fe5b29f98d30e0c29ad009bedff
   languageName: node
   linkType: hard
 
@@ -27622,17 +27483,6 @@ __metadata:
     once: "npm:^1.3.1"
     simple-concat: "npm:^1.0.0"
   checksum: 10c0/438c78844ea1b1e7268d13ee0b3a39c7d644183367aec916aed3b676b45d3037a61d9f975c200a49b42eb851f29f03745118af1e13c01e60a7b4044f2fd60be7
-  languageName: node
-  linkType: hard
-
-"simple-get@npm:^4.0.0":
-  version: 4.0.1
-  resolution: "simple-get@npm:4.0.1"
-  dependencies:
-    decompress-response: "npm:^6.0.0"
-    once: "npm:^1.3.1"
-    simple-concat: "npm:^1.0.0"
-  checksum: 10c0/b0649a581dbca741babb960423248899203165769747142033479a7dc5e77d7b0fced0253c731cd57cf21e31e4d77c9157c3069f4448d558ebc96cf9e1eebcf0
   languageName: node
   linkType: hard
 
