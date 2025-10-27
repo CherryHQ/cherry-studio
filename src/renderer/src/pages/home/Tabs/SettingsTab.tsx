@@ -3,7 +3,12 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  MAX_CONTEXT_COUNT
+} from '@renderer/config/constant'
 import { isOpenAIModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -230,9 +235,7 @@ const SettingsTab: FC<Props> = (props) => {
                 <HelpTooltip title={t('chat.settings.context_count.tip')} />
               </SettingRowTitleSmall>
               <CurrentValueDisplay>
-                <ValueText>
-                  {t('common.current')}: {contextCount === 100 ? t('chat.settings.max') : contextCount}
-                </ValueText>
+                <ValueText>{contextCount === MAX_CONTEXT_COUNT ? t('chat.settings.max') : contextCount}</ValueText>
               </CurrentValueDisplay>
             </Row>
             <Row align="middle" gutter={10}>

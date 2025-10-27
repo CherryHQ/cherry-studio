@@ -359,6 +359,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
                 setTimeoutTimer('contextCount_onChange', () => updateAssistantSettings({ contextCount: value }), 500)
               }
             }}
+            formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
             style={{ width: '100%' }}
           />
         </Col>
