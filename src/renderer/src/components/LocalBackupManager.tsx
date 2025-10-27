@@ -1,7 +1,7 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { restoreFromLocal } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Button, message, Modal, Table, Tooltip } from 'antd'
+import { Button, message, Modal, Space, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -214,6 +214,26 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     }
   }
 
+  const footerContent = (
+    <Space align="center">
+      <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
+        {t('settings.data.local.backup.manager.refresh')}
+      </Button>
+      <Button
+        key="delete"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={handleDeleteSelected}
+        disabled={selectedRowKeys.length === 0 || deleting}
+        loading={deleting}>
+        {t('settings.data.local.backup.manager.delete.selected', { count: selectedRowKeys.length })}
+      </Button>
+      <Button key="close" onClick={onClose}>
+        {t('common.close')}
+      </Button>
+    </Space>
+  )
+
   return (
     <Modal
       title={t('settings.data.local.backup.manager.title')}
@@ -222,23 +242,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
-          {t('settings.data.local.backup.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
-          {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      ]}>
+      footer={footerContent}>
       <Table
         rowKey="fileName"
         columns={columns}
