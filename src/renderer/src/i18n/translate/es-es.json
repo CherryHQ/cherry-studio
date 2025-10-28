@@ -1129,8 +1129,8 @@
     "pause_placeholder": "Interrumpido",
     "prompt": "prompt",
     "provider": "proveedor",
-    "providerId": "ID del proveedor",
     "provider_disabled": "El proveedor de modelos no está habilitado",
+    "providerId": "ID del proveedor",
     "reason": "causa",
     "render": {
       "description": "Error al renderizar la fórmula, por favor, compruebe si el formato de la fórmula es correcto",
@@ -1780,9 +1780,9 @@
       "goBack": "Retroceder",
       "goForward": "Avanzar",
       "minimize": "Minimizar la aplicación",
-      "openExternal": "Abrir en el navegador",
       "open_link_external_off": "Actual: Abrir enlaces en ventana predeterminada",
       "open_link_external_on": "Actual: Abrir enlaces en el navegador",
+      "openExternal": "Abrir en el navegador",
       "refresh": "Actualizar",
       "rightclick_copyurl": "Copiar URL con clic derecho"
     },
@@ -2570,9 +2570,9 @@
       "uploadError": "La subida de la imagen falló",
       "uploadFile": "subir archivo",
       "uploadHint": "Admite formatos como JPG, PNG, GIF, entre otros, con un tamaño máximo de 10MB",
+      "uploading": "Subiendo imágenes",
       "uploadSuccess": "Imagen subida con éxito",
       "uploadText": "Haz clic o arrastra la imagen aquí para subirla",
-      "uploading": "Subiendo imágenes",
       "urlPlaceholder": "pegar el enlace de la imagen",
       "urlRequired": "Por favor, introduce la dirección del enlace de la imagen"
     },
@@ -2803,11 +2803,11 @@
   },
   "settings": {
     "about": {
+      "checkingUpdate": "Verificando actualizaciones...",
       "checkUpdate": {
         "available": "Actualizar ahora",
         "label": "Comprobar actualizaciones"
       },
-      "checkingUpdate": "Verificando actualizaciones...",
       "contact": {
         "button": "Correo electrónico",
         "title": "Contacto por correo electrónico"

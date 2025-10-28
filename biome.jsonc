@@ -8,7 +8,7 @@
         "useSortedKeys": {
           "level": "on",
           "options": {
-            "sortOrder": "lexicographic"
+            "sortOrder": "natural"
           }
         }
       }

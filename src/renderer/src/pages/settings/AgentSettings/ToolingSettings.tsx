@@ -502,22 +502,13 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                 })}
               </Chip>
               <Chip variant="flat" color="default">
-                {t('agent.settings.tooling.review.autoTools', {
-                  defaultValue: `Auto: ${autoCount}`,
-                  count: autoCount
-                })}
+                {t('agent.settings.tooling.review.autoTools')}: {autoCount}
               </Chip>
               <Chip variant="flat" color="success">
-                {t('agent.settings.tooling.review.customTools', {
-                  defaultValue: `Custom: ${customCount}`,
-                  count: customCount
-                })}
+                {t('agent.settings.tooling.review.customTools')}: {customCount}
               </Chip>
               <Chip variant="flat" color="warning">
-                {t('agent.settings.tooling.review.mcp', {
-                  defaultValue: `MCP: ${agentSummary.mcps}`,
-                  count: agentSummary.mcps
-                })}
+                {t('agent.settings.tooling.review.mcp')}: {agentSummary.mcps}
               </Chip>
             </div>
             <span className="text-foreground-500 text-xs">

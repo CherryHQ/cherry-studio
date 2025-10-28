@@ -1129,8 +1129,8 @@
     "pause_placeholder": "已中断",
     "prompt": "提示词",
     "provider": "提供商",
-    "providerId": "提供商 ID",
     "provider_disabled": "模型提供商未启用",
+    "providerId": "提供商 ID",
     "reason": "原因",
     "render": {
       "description": "消息内容渲染失败，请检查消息内容格式是否正确",
@@ -1780,9 +1780,9 @@
       "goBack": "后退",
       "goForward": "前进",
       "minimize": "最小化小程序",
-      "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
+      "openExternal": "在浏览器中打开",
       "refresh": "刷新",
       "rightclick_copyurl": "右键复制 URL"
     },
@@ -2570,9 +2570,9 @@
       "uploadError": "图片上传失败",
       "uploadFile": "上传文件",
       "uploadHint": "支持 JPG、PNG、GIF 等格式，最大 10MB",
+      "uploading": "正在上传图片",
       "uploadSuccess": "图片上传成功",
       "uploadText": "点击或拖拽图片到此处上传",
-      "uploading": "正在上传图片",
       "urlPlaceholder": "粘贴图片链接地址",
       "urlRequired": "请输入图片链接地址"
     },
@@ -2803,11 +2803,11 @@
   },
   "settings": {
     "about": {
+      "checkingUpdate": "正在检查更新...",
       "checkUpdate": {
         "available": "立即更新",
         "label": "检查更新"
       },
-      "checkingUpdate": "正在检查更新...",
       "contact": {
         "button": "邮件",
         "title": "邮件联系"

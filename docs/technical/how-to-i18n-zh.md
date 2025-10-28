@@ -23,9 +23,9 @@ i18n ally是一个强大的VSCode插件，它能在开发阶段提供实时反�
 
 ## i18n 约定
 
-### **绝对避免使用flat格式**
+### **避免使用flat格式**
 
-绝对避免使用flat格式，如`"add.button.tip": "添加"`。应采用清晰的嵌套结构：
+避免使用flat格式，如`"add.button.tip": "添加"`。应采用清晰的嵌套结构：
 
 ```json
 // 错误示例 - flat结构
@@ -101,7 +101,7 @@ export const getThemeModeLabel = (key: string): string => {
 
 项目中有一系列脚本来自动化i18n相关任务：
 
-### `check:i18n` - 检查i18n结构
+### `i18n:check` - 检查i18n结构
 
 此脚本会检查：
 
@@ -111,26 +111,28 @@ export const getThemeModeLabel = (key: string): string => {
 - 是否已经有序
 
 ```bash
-yarn check:i18n
+yarn i18n:check
 ```
 
-### `sync:i18n` - 同步json结构与排序
+### `i18n:sync` - 同步json结构与排序
 
-此脚本以`zh-cn.json`文件为基准，将结构同步到其他语言文件，包括：
+此脚本默认以`en-us.json`文件为基准，将结构同步到其他语言文件，包括：
 
 1. 添加缺失的键。缺少的翻译内容会以`[to be translated]`标记
 2. 删除多余的键
 3. 自动排序
 
+你也可以设置环境变量`BASE_LOCALE`来覆盖这一行为。
+
 ```bash
-yarn sync:i18n
+yarn i18n:auto
 ```
 
-### `auto:i18n` - 自动翻译待翻译文本
+### `i18n:auto` - 自动翻译待翻译文本
 
-次脚本自动将标记为待翻译的文本通过机器翻译填充。
+此脚本自动将标记为待翻译的文本通过机器翻译填充。与 `i18n:sync` 相同，默认以`en-us.json`文件为基准，也可以设置环境变量`BASE_LOCALE`来覆盖这一行为。
 
-通常，在`zh-cn.json`中添加所需文案后，执行`sync:i18n`即可自动完成翻译。
+通常，在`en-us.json`中添加所需文案后，执行`i18n:sync && i18n:auto`即可自动完成翻译。
 
 使用该脚本前，需要配置环境变量，例如：
 
@@ -143,29 +145,19 @@ MODEL="qwen-plus-latest"
 你也可以通过直接编辑`.env`文件来添加环境变量。
 
 ```bash
-yarn auto:i18n
-```
-
-### `update:i18n` - 对象级别翻译更新
-
-对`src/renderer/src/i18n/translate`中的语言文件进行对象级别的翻译更新，保留已有翻译，只更新新增内容。
-
-**不建议**使用该脚本，更推荐使用`auto:i18n`进行翻译。
-
-```bash
-yarn update:i18n
+yarn i18n:auto
 ```
 
 ### 工作流
 
-1. 开发阶段，先在`zh-cn.json`中添加所需文案
-2. 确认在中文环境下显示无误后，使用`yarn sync:i18n`将文案同步到其他语言文件
-3. 使用`yarn auto:i18n`进行自动翻译
+1. 开发阶段，先在`en-us.json`中添加所需文案。你可以利用 i18n-ally 插件提供的快速修复功能轻松完成这一点。
+2. 确认文案在 UI 中显示无误后，使用`yarn i18n:sync`将文案同步到其他语言文件
+3. 使用`yarn i18n:auto`进行自动翻译
 4. 喝杯咖啡，等翻译完成吧！
 
 ## 最佳实践
 
-1. **以中文为源语言**：所有开发首先使用中文，再翻译为其他语言
-2. **提交前运行检查脚本**：使用`yarn check:i18n`检查i18n是否有问题
+1. **以英文为源语言**：所有开发首先使用英文，再翻译为其他语言
+2. **提交前运行检查脚本**：使用`yarn i18n:check`检查i18n是否有问题
 3. **小步提交翻译**：避免积累大量未翻译文本
 4. **保持key语义明确**：key应能清晰表达其用途，如`user.profile.avatar.upload.error`

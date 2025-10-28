@@ -1129,8 +1129,8 @@
     "pause_placeholder": "応答を一時停止しました",
     "prompt": "プロンプトを表示する",
     "provider": "プロバイダー",
-    "providerId": "プロバイダーID",
     "provider_disabled": "モデルプロバイダーが有効になっていません",
+    "providerId": "プロバイダーID",
     "reason": "原因",
     "render": {
       "description": "メッセージの内容のレンダリングに失敗しました。メッセージの内容の形式が正しいか確認してください",
@@ -1780,9 +1780,9 @@
       "goBack": "戻る",
       "goForward": "進む",
       "minimize": "ミニアプリを最小化",
-      "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
+      "openExternal": "ブラウザで開く",
       "refresh": "更新",
       "rightclick_copyurl": "右クリックでURLをコピー"
     },
@@ -2570,9 +2570,9 @@
       "uploadError": "画像のアップロードに失敗しました",
       "uploadFile": "ファイルをアップロード",
       "uploadHint": "JPG、PNG、GIFおよびその他の形式をサポートし、最大10MB",
+      "uploading": "写真のアップロード",
       "uploadSuccess": "画像アップロードに正常にアップロードします",
       "uploadText": "画像をクリックまたはドラッグしてここにアップロードします",
-      "uploading": "写真のアップロード",
       "urlPlaceholder": "画像リンクアドレスを貼り付けます",
       "urlRequired": "画像リンクアドレスを入力してください"
     },
@@ -2803,11 +2803,11 @@
   },
   "settings": {
     "about": {
+      "checkingUpdate": "更新を確認中...",
       "checkUpdate": {
         "available": "今すぐ更新",
         "label": "更新を確認"
       },
-      "checkingUpdate": "更新を確認中...",
       "contact": {
         "button": "メール",
         "title": "連絡先"

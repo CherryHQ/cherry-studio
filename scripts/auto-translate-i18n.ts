@@ -48,7 +48,7 @@ Usage Instructions:
    - pt-pt (Portuguese)
 
 Run Command:
-yarn auto:i18n
+yarn i18n:auto
 
 Performance Optimization Recommendations:
 - For stable API services: MAX_CONCURRENT_TRANSLATIONS=8, TRANSLATION_DELAY_MS=50
@@ -257,7 +257,6 @@ const main = async () => {
   validateConfig()
 
   const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
-  const translateDir = path.join(__dirname, '../src/renderer/src/i18n/translate')
   const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
   const baseFileName = `${baseLocale}.json`
   const baseLocalePath = path.join(__dirname, '../src/renderer/src/i18n/locales', baseFileName)
@@ -272,19 +271,16 @@ const main = async () => {
   console.log('')
 
   // Process files using ES6+ array methods
-  const getFiles = (dir: string) =>
-    fs
-      .readdirSync(dir)
-      .filter((file) => {
-        const filename = file.replace('.json', '')
-        return file.endsWith('.json') && file !== baseFileName && !SCRIPT_CONFIG.SKIP_LANGUAGES.includes(filename)
-      })
-      .map((filename) => path.join(dir, filename))
-  const localeFiles = getFiles(localesDir)
-  const translateFiles = getFiles(translateDir)
-  const files = [...localeFiles, ...translateFiles]
+  const files = fs
+    .readdirSync(localesDir)
+    .filter((file) => {
+      const filename = file.replace('.json', '')
+      return file.endsWith('.json') && file !== baseFileName && !SCRIPT_CONFIG.SKIP_LANGUAGES.includes(filename)
+    })
+    .map((filename) => path.join(localesDir, filename))
 
   console.info(`📂 Base Locale: ${baseLocale}`)
+
   console.info('📂 Files to translate:')
   files.forEach((filePath) => {
     const filename = path.basename(filePath, '.json')

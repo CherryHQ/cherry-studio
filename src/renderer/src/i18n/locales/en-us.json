@@ -1129,8 +1129,8 @@
     "pause_placeholder": "Paused",
     "prompt": "Prompt",
     "provider": "Provider",
-    "providerId": "Provider ID",
     "provider_disabled": "Model provider is not enabled",
+    "providerId": "Provider ID",
     "reason": "Reason",
     "render": {
       "description": "Failed to render message content. Please check if the message content format is correct",
@@ -1780,9 +1780,9 @@
       "goBack": "Go Back",
       "goForward": "Go Forward",
       "minimize": "Minimize MinApp",
-      "openExternal": "Open in Browser",
       "open_link_external_off": "Current: Open links in default window",
       "open_link_external_on": "Current: Open links in browser",
+      "openExternal": "Open in Browser",
       "refresh": "Refresh",
       "rightclick_copyurl": "Right-click to copy URL"
     },
@@ -2570,9 +2570,9 @@
       "uploadError": "Image upload failed",
       "uploadFile": "Upload file",
       "uploadHint": "Supports JPG, PNG, GIF and other formats, max 10MB",
+      "uploading": "Uploading image",
       "uploadSuccess": "Image uploaded successfully",
       "uploadText": "Click or drag image here to upload",
-      "uploading": "Uploading image",
       "urlPlaceholder": "Paste image link",
       "urlRequired": "Please enter image URL"
     },
@@ -2803,11 +2803,11 @@
   },
   "settings": {
     "about": {
+      "checkingUpdate": "Checking for updates...",
       "checkUpdate": {
         "available": "Update",
         "label": "Check Update"
       },
-      "checkingUpdate": "Checking for updates...",
       "contact": {
         "button": "Email",
         "title": "Contact"

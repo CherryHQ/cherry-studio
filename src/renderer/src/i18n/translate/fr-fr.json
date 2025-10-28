@@ -1129,8 +1129,8 @@
     "pause_placeholder": "Прервано",
     "prompt": "mot-clé",
     "provider": "fournisseur",
-    "providerId": "ID du fournisseur",
     "provider_disabled": "Le fournisseur de modèles n'est pas activé",
+    "providerId": "ID du fournisseur",
     "reason": "raison",
     "render": {
       "description": "La formule n'a pas été rendue avec succès, veuillez vérifier si le format de la formule est correct",
@@ -1780,9 +1780,9 @@
       "goBack": "Reculer",
       "goForward": "Avancer",
       "minimize": "Свернуть мини-программу",
-      "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
+      "openExternal": "Открыть в браузере",
       "refresh": "Обновить",
       "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
     },
@@ -2570,9 +2570,9 @@
       "uploadError": "Échec du téléversement de l'image",
       "uploadFile": "télécharger un fichier",
       "uploadHint": "prend en charge les formats JPG, PNG, GIF, etc., jusqu'à 10 Mo max.",
+      "uploading": "Téléchargement de l'image en cours",
       "uploadSuccess": "L'image a été téléchargée avec succès",
       "uploadText": "Cliquez ou faites glisser l'image ici pour la télécharger",
-      "uploading": "Téléchargement de l'image en cours",
       "urlPlaceholder": "coller l'URL de l'image",
       "urlRequired": "Veuillez entrer l'URL de l'image"
     },
@@ -2803,11 +2803,11 @@
   },
   "settings": {
     "about": {
+      "checkingUpdate": "Vérification des mises à jour en cours...",
       "checkUpdate": {
         "available": "Mettre à jour maintenant",
         "label": "Vérifier les mises à jour"
       },
-      "checkingUpdate": "Vérification des mises à jour en cours...",
       "contact": {
         "button": "Courriel",
         "title": "Contactez-nous par courriel"

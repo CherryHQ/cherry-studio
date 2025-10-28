@@ -490,7 +490,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
-          window.toast.success(t('notes.export_success', { count: result.savedCount }))
+          window.toast.success(t('notes.export_success'))
         }
       } catch (error) {
         window.toast.error(t('notes.export_failed'))

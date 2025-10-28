@@ -19,7 +19,7 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Development**: `yarn dev` - Runs Electron app in development mode with hot reload
 - **Debug**: `yarn debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
 - **Build Check**: `yarn build:check` - **REQUIRED** before commits (lint + test + typecheck)
-  - If having i18n sort issues, run `yarn sync:i18n` first to sync template
+  - If having i18n sort issues, run `yarn i18n:sync` first to sync template
   - If having formatting issues, run `yarn format` first
 - **Test**: `yarn test` - Run all tests (Vitest) across main and renderer processes
 - **Single Test**:

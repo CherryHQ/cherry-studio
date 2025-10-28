@@ -1129,8 +1129,8 @@
     "pause_placeholder": "Unterbrochen",
     "prompt": "Prompt",
     "provider": "Anbieter",
-    "providerId": "Anbieter-ID",
     "provider_disabled": "Modellanbieter nicht aktiviert",
+    "providerId": "Anbieter-ID",
     "reason": "Grund",
     "render": {
       "description": "Rendering der Nachricht fehlgeschlagen. Bitte überprüfen Sie das Format des Nachrichteninhalts",
@@ -1780,9 +1780,9 @@
       "goBack": "Zurück",
       "goForward": "Vorwärts",
       "minimize": "Mini-App minimieren",
-      "openExternal": "In Browser öffnen",
       "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
       "open_link_external_on": "Aktuell: Links im Browser öffnen",
+      "openExternal": "In Browser öffnen",
       "refresh": "Aktualisieren",
       "rightclick_copyurl": "Rechtsklick zum Kopieren der URL"
     },
@@ -2570,9 +2570,9 @@
       "uploadError": "Bild-Upload fehlgeschlagen",
       "uploadFile": "Datei hochladen",
       "uploadHint": "Unterstützt JPG, PNG, GIF usw., maximal 10 MB",
+      "uploading": "Bild wird hochgeladen",
       "uploadSuccess": "Bild erfolgreich hochgeladen",
       "uploadText": "Klicken oder Bild hierher ziehen zum Hochladen",
-      "uploading": "Bild wird hochgeladen",
       "urlPlaceholder": "Bildlink-Adresse einfügen",
       "urlRequired": "Bitte Bildlink-Adresse eingeben"
     },
@@ -2803,11 +2803,11 @@
   },
   "settings": {
     "about": {
+      "checkingUpdate": "Sucht nach Updates...",
       "checkUpdate": {
         "available": "Jetzt aktualisieren",
         "label": "Auf Updates prüfen"
       },
-      "checkingUpdate": "Sucht nach Updates...",
       "contact": {
         "button": "E-Mail",
         "title": "E-Mail-Kontakt"

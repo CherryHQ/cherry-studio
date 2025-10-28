@@ -107,7 +107,7 @@ By avoiding template strings, you gain better developer experience, more reliabl
 
 The project includes several scripts to automate i18n-related tasks:
 
-### `check:i18n` - Validate i18n Structure
+### `i18n:check` - Validate i18n Structure
 
 This script checks:
 
@@ -116,28 +116,30 @@ This script checks:
 - Whether keys are properly sorted
 
 ```bash
-yarn check:i18n
+yarn i18n:check
 ```
 
-### `sync:i18n` - Synchronize JSON Structure and Sort Order
+### `i18n:sync` - Synchronize JSON Structure and Sort Order
 
-This script uses `zh-cn.json` as the source of truth to sync structure across all language files, including:
+By default, this script uses `en-us.json` as the source of truth to sync structure across all language files, including:
 
 1. Adding missing keys, with placeholder `[to be translated]`
 2. Removing obsolete keys
 3. Sorting keys automatically
 
+You can override this behavior by setting the `BASE_LOCALE` environment variable.
+
 ```bash
-yarn sync:i18n
+yarn i18n:sync
 ```
 
-### `auto:i18n` - Automatically Translate Pending Texts
+### `i18n:auto` - Automatically Translate Pending Texts
 
-This script fills in texts marked as `[to be translated]` using machine translation.
+This script automatically translates texts marked as `[to be translated]` using machine translation. Similar to `i18n:sync`, it defaults to using `en-us.json` as the base, but you can override this behavior by setting the `BASE_LOCALE` environment variable.
 
-Typically, after adding new texts in `zh-cn.json`, run `sync:i18n`, then `auto:i18n` to complete translations.
+Typically, after adding required texts to `en-us.json`, running `i18n:sync && i18n:auto` will automatically complete the translations.
 
-Before using this script, set the required environment variables:
+Before using this script, you need to configure environment variables, for example:
 
 ```bash
 API_KEY="sk-xxx"
@@ -145,33 +147,23 @@ BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1/"
 MODEL="qwen-plus-latest"
 ```
 
-Alternatively, add these variables directly to your `.env` file.
+You can also add environment variables by directly editing the `.env` file.
 
 ```bash
-yarn auto:i18n
-```
-
-### `update:i18n` - Object-level Translation Update
-
-Updates translations in language files under `src/renderer/src/i18n/translate` at the object level, preserving existing translations and only updating new content.
-
-**Not recommended** — prefer `auto:i18n` for translation tasks.
-
-```bash
-yarn update:i18n
+yarn i18n:auto
 ```
 
 ### Workflow
 
-1. During development, first add the required text in `zh-cn.json`
-2. Confirm it displays correctly in the Chinese environment
-3. Run `yarn sync:i18n` to propagate the keys to other language files
-4. Run `yarn auto:i18n` to perform machine translation
-5. Grab a coffee and let the magic happen!
+1. During development, first add the required text in `en-us.json`. You can use the quick fix functionality provided by the i18n-ally plugin to easily accomplish this.
+2. Confirm the text displays correctly in the UI
+3. Use `yarn i18n:sync` to sync the text to other language files
+4. Use `yarn i18n:auto` to perform automatic translation
+5. Grab a coffee and wait for the translation to complete!
 
 ## Best Practices
 
-1. **Use Chinese as Source Language**: All development starts in Chinese, then translates to other languages.
-2. **Run Check Script Before Commit**: Use `yarn check:i18n` to catch i18n issues early.
+1. **Use English as Source Language**: All development starts in English, then translates to other languages.
+2. **Run Check Script Before Commit**: Use `yarn i18n:check` to catch i18n issues early.
 3. **Translate in Small Increments**: Avoid accumulating a large backlog of untranslated content.
 4. **Keep Keys Semantically Clear**: Keys should clearly express their purpose, e.g., `user.profile.avatar.upload.error`
