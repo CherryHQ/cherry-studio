@@ -96,6 +96,10 @@ export enum IpcChannel {
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
   AgentMessage_GetHistory = 'agent-message:get-history',
 
+  AgentToolPermission_Request = 'agent-tool-permission:request',
+  AgentToolPermission_Response = 'agent-tool-permission:response',
+  AgentToolPermission_Result = 'agent-tool-permission:result',
+
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
   Copilot_GetCopilotToken = 'copilot:get-copilot-token',

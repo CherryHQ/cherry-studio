@@ -2,14 +2,7 @@
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
-import {
-  CanUseTool,
-  McpHttpServerConfig,
-  Options,
-  PermissionUpdate,
-  query,
-  SDKMessage
-} from '@anthropic-ai/claude-agent-sdk'
+import { CanUseTool, McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
@@ -23,6 +16,18 @@ import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
+const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
+const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
+
+type UserInputMessage = {
+  type: 'user'
+  parent_tool_use_id: string | null
+  session_id: string
+  message: {
+    role: 'user'
+    content: string
+  }
+}
 
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
@@ -107,12 +112,39 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     const errorChunks: string[] = []
 
-    const canUseTool = async (
-      toolName: string,
-      input: Record<string, unknown>,
-      options: { signal: AbortSignal; suggestions?: PermissionUpdate[] }
-    ) => {
-      return promptForToolApproval(toolName, input)
+    const sessionAllowedTools = new Set<string>(session.allowed_tools ?? [])
+    const autoAllowTools = new Set<string>([...DEFAULT_AUTO_ALLOW_TOOLS, ...sessionAllowedTools])
+    const normalizeToolName = (name: string) => (name.startsWith('builtin_') ? name.slice('builtin_'.length) : name)
+
+    const canUseTool: CanUseTool = async (toolName, input, options) => {
+      logger.info('Handling tool permission check', {
+        toolName,
+        suggestionCount: options.suggestions?.length ?? 0
+      })
+
+      if (shouldAutoApproveTools) {
+        logger.debug('Auto-approving tool due to CHERRY_AUTO_ALLOW_TOOLS flag', { toolName })
+        return { behavior: 'allow', updatedInput: input }
+      }
+
+      if (options.signal.aborted) {
+        logger.debug('Permission request signal already aborted; denying tool', { toolName })
+        return {
+          behavior: 'deny',
+          message: 'Tool request was cancelled before prompting the user'
+        }
+      }
+
+      const normalizedToolName = normalizeToolName(toolName)
+      if (autoAllowTools.has(toolName) || autoAllowTools.has(normalizedToolName)) {
+        logger.debug('Auto-allowing tool from allowed list', {
+          toolName,
+          normalizedToolName
+        })
+        return { behavior: 'allow', updatedInput: input }
+      }
+
+      return promptForToolApproval(toolName, input, options)
     }
 
     // Build SDK options from parameters
@@ -138,7 +170,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
-      canUseTool: canUseTool as CanUseTool
+      canUseTool
     }
 
     if (session.accessible_paths.length > 1) {
@@ -177,9 +209,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       resume: options.resume
     })
 
+    const { stream: userInputStream, close: closeUserStream } = this.createUserMessageStream(
+      prompt,
+      abortController.signal
+    )
+
     // Start async processing on the next tick so listeners can subscribe first
     setImmediate(() => {
-      this.processSDKQuery(prompt, options, aiStream, errorChunks).catch((error) => {
+      this.processSDKQuery(userInputStream, closeUserStream, options, aiStream, errorChunks).catch((error) => {
         logger.error('Unhandled Claude Code stream error', {
           error: error instanceof Error ? { name: error.name, message: error.message } : String(error)
         })
@@ -193,17 +230,90 @@ class ClaudeCodeService implements AgentServiceInterface {
     return aiStream
   }
 
-  private async *userMessages(prompt: string) {
-    {
-      yield {
-        type: 'user' as const,
-        parent_tool_use_id: null,
-        session_id: '',
-        message: {
-          role: 'user' as const,
-          content: prompt
+  private createUserMessageStream(initialPrompt: string, abortSignal: AbortSignal) {
+    const queue: Array<UserInputMessage | null> = []
+    const waiters: Array<(value: UserInputMessage | null) => void> = []
+    let closed = false
+
+    const flushWaiters = (value: UserInputMessage | null) => {
+      const resolve = waiters.shift()
+      if (resolve) {
+        resolve(value)
+        return true
+      }
+      return false
+    }
+
+    const enqueue = (value: UserInputMessage | null) => {
+      if (closed) return
+      if (value === null) {
+        closed = true
+      }
+      if (!flushWaiters(value)) {
+        queue.push(value)
+      }
+    }
+
+    const close = () => {
+      if (closed) return
+      enqueue(null)
+    }
+
+    const onAbort = () => {
+      close()
+    }
+
+    if (abortSignal.aborted) {
+      close()
+    } else {
+      abortSignal.addEventListener('abort', onAbort, { once: true })
+    }
+
+    const iterator = (async function* () {
+      try {
+        while (true) {
+          let value: UserInputMessage | null
+          if (queue.length > 0) {
+            value = queue.shift() ?? null
+          } else if (closed) {
+            break
+          } else {
+            // Wait for next message or close signal
+            value = await new Promise<UserInputMessage | null>((resolve) => {
+              waiters.push(resolve)
+            })
+          }
+
+          if (value === null) {
+            break
+          }
+
+          yield value
+        }
+      } finally {
+        closed = true
+        abortSignal.removeEventListener('abort', onAbort)
+        while (waiters.length > 0) {
+          const resolve = waiters.shift()
+          resolve?.(null)
         }
       }
+    })()
+
+    enqueue({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: '',
+      message: {
+        role: 'user',
+        content: initialPrompt
+      }
+    })
+
+    return {
+      stream: iterator,
+      enqueue,
+      close
     }
   }
 
@@ -211,7 +321,8 @@ class ClaudeCodeService implements AgentServiceInterface {
    * Process SDK query and emit stream events
    */
   private async processSDKQuery(
-    prompt: string,
+    promptStream: AsyncIterable<UserInputMessage>,
+    closePromptStream: () => void,
     options: Options,
     stream: ClaudeCodeStream,
     errorChunks: string[]
@@ -219,14 +330,10 @@ class ClaudeCodeService implements AgentServiceInterface {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
-
     const streamState = new ClaudeStreamState()
+
     try {
-      // Process streaming responses using SDK query
-      for await (const message of query({
-        prompt: this.userMessages(prompt),
-        options
-      })) {
+      for await (const message of query({ prompt: promptStream, options })) {
         if (hasCompleted) break
 
         jsonOutput.push(message)
@@ -237,10 +344,10 @@ class ClaudeCodeService implements AgentServiceInterface {
             content: JSON.stringify(message.message.content)
           })
         } else if (message.type === 'stream_event') {
-          logger.silly('Claude stream event', {
-            message,
-            event: JSON.stringify(message.event)
-          })
+          // logger.silly('Claude stream event', {
+          //   message,
+          //   event: JSON.stringify(message.event)
+          // })
         } else {
           logger.silly('Claude response', {
             message,
@@ -248,7 +355,6 @@ class ClaudeCodeService implements AgentServiceInterface {
           })
         }
 
-        // Transform SDKMessage to UIMessageChunks
         const chunks = transformSDKMessageToStreamParts(message, streamState)
         for (const chunk of chunks) {
           stream.emit('data', {
@@ -258,7 +364,6 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
       }
 
-      // Successfully completed
       hasCompleted = true
       const duration = Date.now() - startTime
 
@@ -267,7 +372,6 @@ class ClaudeCodeService implements AgentServiceInterface {
         messageCount: jsonOutput.length
       })
 
-      // Emit completion event
       stream.emit('data', {
         type: 'complete'
       })
@@ -276,8 +380,6 @@ class ClaudeCodeService implements AgentServiceInterface {
       hasCompleted = true
 
       const duration = Date.now() - startTime
-
-      // Check if this is an abort error
       const errorObj = error as any
       const isAborted =
         errorObj?.name === 'AbortError' ||
@@ -286,7 +388,6 @@ class ClaudeCodeService implements AgentServiceInterface {
 
       if (isAborted) {
         logger.info('SDK query aborted by client disconnect', { duration })
-        // Simply cleanup and return - don't emit error events
         stream.emit('data', {
           type: 'cancelled',
           error: new Error('Request aborted by client')
@@ -301,11 +402,13 @@ class ClaudeCodeService implements AgentServiceInterface {
         error: errorObj instanceof Error ? { name: errorObj.name, message: errorObj.message } : String(errorObj),
         stderr: errorChunks
       })
-      // Emit error event
+
       stream.emit('data', {
         type: 'error',
         error: new Error(errorMessage)
       })
+    } finally {
+      closePromptStream()
     }
   }
 }

@@ -11,6 +11,11 @@ import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
+import {
+  type ToolPermissionRequestPayload,
+  type ToolPermissionResultPayload,
+  toolPermissionsActions
+} from '@renderer/store/toolPermissions'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -147,6 +152,64 @@ export function useAppInit() {
       document.head.appendChild(customCssElement)
     }
   }, [customCss])
+
+  useEffect(() => {
+    if (!window.electron?.ipcRenderer) return
+
+    const requestListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
+      logger.debug('Renderer received tool permission request', {
+        requestId: payload.requestId,
+        toolName: payload.toolName,
+        expiresAt: payload.expiresAt,
+        suggestionCount: payload.suggestions.length
+      })
+      dispatch(toolPermissionsActions.requestReceived(payload))
+    }
+
+    const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
+      logger.debug('Renderer received tool permission result', {
+        requestId: payload.requestId,
+        behavior: payload.behavior,
+        reason: payload.reason
+      })
+      dispatch(toolPermissionsActions.requestResolved(payload))
+
+      if (payload.behavior === 'deny') {
+        const message =
+          payload.reason === 'timeout'
+            ? (payload.message ?? 'Tool request timed out before receiving approval.')
+            : (payload.message ?? 'Tool request was denied.')
+
+        if (payload.reason === 'no-window') {
+          logger.debug('Displaying deny toast for tool permission', {
+            requestId: payload.requestId,
+            behavior: payload.behavior,
+            reason: payload.reason
+          })
+          window.toast?.error?.(message)
+        } else if (payload.reason === 'timeout') {
+          logger.debug('Displaying timeout toast for tool permission', {
+            requestId: payload.requestId
+          })
+          window.toast?.warning?.(message)
+        } else {
+          logger.debug('Displaying info toast for tool permission deny', {
+            requestId: payload.requestId,
+            reason: payload.reason
+          })
+          window.toast?.info?.(message)
+        }
+      }
+    }
+
+    window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener)
+    window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+
+    return () => {
+      window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Request, requestListener)
+      window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Result, resultListener)
+    }
+  }, [dispatch])
 
   useEffect(() => {
     // TODO: init data collection

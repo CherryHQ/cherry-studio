@@ -1,0 +1,292 @@
+import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
+import {
+  Button,
+  ButtonGroup,
+  Chip,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  ScrollShadow
+} from '@heroui/react'
+import { loggerService } from '@logger'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { selectPendingPermissionByToolName, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { NormalToolResponse } from '@renderer/types'
+import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
+import { type Key, useCallback, useEffect, useMemo, useState } from 'react'
+
+const logger = loggerService.withContext('ToolPermissionRequestCard')
+
+const DEFAULT_DENY_MESSAGE = 'User denied permission for this tool.'
+const DEFAULT_DESCRIPTION =
+  'Executes code or system actions in your environment. Make sure the command looks safe before running it.'
+const CONFIRMATION_PROMPT = 'Are you sure you want to run this Claude tool?'
+
+const suggestionDestinationCopy: Record<string, string> = {
+  session: 'this session',
+  projectSettings: 'this project',
+  localSettings: 'your local settings',
+  userSettings: 'your profile'
+}
+
+const formatSuggestionLabel = (toolName: string, suggestion: PermissionUpdate, index: number) => {
+  if (suggestion.type === 'setMode') {
+    return `Switch permission mode to "${suggestion.mode}"`
+  }
+
+  if ('behavior' in suggestion) {
+    const action = suggestion.behavior === 'allow' ? 'Always allow' : 'Always deny'
+    const destination =
+      suggestion.destination && suggestionDestinationCopy[suggestion.destination]
+        ? suggestionDestinationCopy[suggestion.destination]
+        : (suggestion.destination ?? 'settings')
+
+    return `${action} ${toolName} (${destination})`
+  }
+
+  return `Apply suggestion ${index + 1}`
+}
+
+interface Props {
+  toolResponse: NormalToolResponse
+}
+
+export function ToolPermissionRequestCard({ toolResponse }: Props) {
+  const dispatch = useAppDispatch()
+  const request = useAppSelector((state) =>
+    selectPendingPermissionByToolName(state.toolPermissions, toolResponse.tool.name)
+  )
+  const [now, setNow] = useState(() => Date.now())
+  const [showDetails, setShowDetails] = useState(false)
+
+  useEffect(() => {
+    if (!request) return
+
+    logger.debug('Rendering inline tool permission card', {
+      requestId: request.requestId,
+      toolName: request.toolName,
+      expiresAt: request.expiresAt
+    })
+
+    setNow(Date.now())
+
+    const interval = window.setInterval(() => {
+      setNow(Date.now())
+    }, 500)
+
+    return () => {
+      window.clearInterval(interval)
+    }
+  }, [request])
+
+  const remainingMs = useMemo(() => {
+    if (!request) return 0
+    return Math.max(0, request.expiresAt - now)
+  }, [request, now])
+
+  const remainingSeconds = useMemo(() => Math.ceil(remainingMs / 1000), [remainingMs])
+  const isExpired = remainingMs <= 0
+
+  const isSubmittingAllow = request?.status === 'submitting-allow'
+  const isSubmittingDeny = request?.status === 'submitting-deny'
+  const isSubmitting = isSubmittingAllow || isSubmittingDeny
+  const hasSuggestions = (request?.suggestions?.length ?? 0) > 0
+
+  const handleDecision = useCallback(
+    async (
+      behavior: 'allow' | 'deny',
+      extra?: {
+        updatedInput?: Record<string, unknown>
+        updatedPermissions?: PermissionUpdate[]
+        message?: string
+      }
+    ) => {
+      if (!request) return
+
+      logger.debug('Submitting inline tool permission decision', {
+        requestId: request.requestId,
+        toolName: request.toolName,
+        behavior
+      })
+
+      dispatch(toolPermissionsActions.submissionSent({ requestId: request.requestId, behavior }))
+
+      try {
+        const payload = {
+          requestId: request.requestId,
+          behavior,
+          ...(behavior === 'allow'
+            ? {
+                updatedInput: extra?.updatedInput ?? request.input,
+                updatedPermissions: extra?.updatedPermissions
+              }
+            : {
+                message: extra?.message ?? DEFAULT_DENY_MESSAGE
+              })
+        }
+
+        const response = await window.api.agentTools.respondToPermission(payload)
+
+        if (!response?.success) {
+          throw new Error('Renderer response rejected by main process')
+        }
+
+        logger.debug('Tool permission decision acknowledged by main process', {
+          requestId: request.requestId,
+          behavior
+        })
+      } catch (error) {
+        logger.error('Failed to send tool permission response', error as Error)
+        window.toast?.error?.('Failed to send your decision. Please try again.')
+        dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
+      }
+    },
+    [dispatch, request]
+  )
+
+  const handleSuggestionSelect = useCallback(
+    (key: Key) => {
+      if (!request || isSubmitting || isExpired) return
+
+      const index = Number(key)
+      if (Number.isNaN(index)) return
+
+      const suggestion = request.suggestions[index]
+      if (!suggestion) return
+
+      handleDecision('allow', { updatedPermissions: [suggestion], updatedInput: request.input })
+    },
+    [handleDecision, isExpired, isSubmitting, request]
+  )
+
+  if (!request) {
+    return (
+      <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
+        Waiting for tool permission decision...
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1">
+            <div className="font-semibold text-default-700 text-sm">{request.toolName}</div>
+            <div className="text-default-500 text-xs">{request.description?.trim() || DEFAULT_DESCRIPTION}</div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Chip color={isExpired ? 'danger' : 'warning'} size="sm" variant="flat">
+              {isExpired ? 'Expired' : `Pending (${remainingSeconds}s)`}
+            </Chip>
+
+            <div className="flex items-center gap-1">
+              <Button
+                aria-label="Deny tool request"
+                className="h-8"
+                color="danger"
+                isDisabled={isSubmitting || isExpired}
+                isLoading={isSubmittingDeny}
+                onPress={() => handleDecision('deny')}
+                startContent={<CircleX size={16} />}
+                variant="bordered">
+                Cancel
+              </Button>
+
+              {hasSuggestions ? (
+                <ButtonGroup className="h-8">
+                  <Button
+                    className="h-8 px-3"
+                    color="success"
+                    isDisabled={isSubmitting || isExpired}
+                    isLoading={isSubmittingAllow}
+                    onPress={() => handleDecision('allow')}
+                    startContent={<CirclePlay size={16} />}>
+                    Run
+                  </Button>
+                  <Dropdown placement="bottom-end">
+                    <DropdownTrigger>
+                      <Button
+                        aria-label="Run with additional options"
+                        className="h-8 rounded-l-none"
+                        color="success"
+                        isDisabled={isSubmitting || isExpired}
+                        isIconOnly
+                        variant="solid">
+                        <ChevronDown size={16} />
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu aria-label="Tool permission suggestions" onAction={handleSuggestionSelect}>
+                      {request.suggestions.map((suggestion, index) => (
+                        <DropdownItem key={`${index}`} className="text-sm">
+                          {formatSuggestionLabel(request.toolName, suggestion, index)}
+                        </DropdownItem>
+                      ))}
+                    </DropdownMenu>
+                  </Dropdown>
+                </ButtonGroup>
+              ) : (
+                <Button
+                  aria-label="Allow tool request"
+                  className="h-8 px-3"
+                  color="success"
+                  isDisabled={isSubmitting || isExpired}
+                  isLoading={isSubmittingAllow}
+                  onPress={() => handleDecision('allow')}
+                  startContent={<CirclePlay size={16} />}>
+                  Run
+                </Button>
+              )}
+
+              <Button
+                aria-label={showDetails ? 'Hide tool details' : 'Show tool details'}
+                className="h-8"
+                isIconOnly
+                onPress={() => setShowDetails((value) => !value)}
+                variant="light">
+                <ChevronDown className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} size={16} />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {showDetails && (
+          <div className="flex flex-col gap-3 border-default-200 border-t pt-3">
+            <div className="rounded-lg bg-default-200/60 px-3 py-2 text-default-600 text-sm">{CONFIRMATION_PROMPT}</div>
+
+            <div className="rounded-md border border-default-200 bg-default-100 p-3">
+              <p className="mb-2 font-medium text-default-400 text-xs uppercase tracking-wide">Tool input preview</p>
+              <ScrollShadow className="max-h-48 font-mono text-xs" hideScrollBar>
+                <pre className="whitespace-pre-wrap break-all text-left">{request.inputPreview}</pre>
+              </ScrollShadow>
+            </div>
+
+            {request.requiresPermissions && (
+              <div className="rounded-md border border-warning-300 bg-warning-50 p-3 text-warning-700 text-xs">
+                This tool requires elevated permissions.
+              </div>
+            )}
+
+            {request.suggestions.length > 0 && (
+              <div className="rounded-md border border-default-200 bg-default-50 p-3 text-default-500 text-xs">
+                {request.suggestions.length === 1
+                  ? 'Approving may update your session permissions if you chose to always allow this tool.'
+                  : 'Approving may update multiple session permissions if you chose to always allow this tool.'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isExpired && !isSubmitting && (
+          <div className="text-center text-danger-500 text-xs">
+            Permission request expired. Waiting for new instructions...
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default ToolPermissionRequestCard
