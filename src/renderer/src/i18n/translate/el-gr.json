@@ -109,47 +109,47 @@
       "essential": "Βασικές Ρυθμίσεις",
       "plugins": {
         "available": {
-          "title": "[to be translated]:可用插件"
+          "title": "Διαθέσιμα πρόσθετα"
         },
         "confirm": {
-          "uninstall": "[to be translated]:确定要卸载此插件吗？"
+          "uninstall": "Είστε βέβαιοι ότι θέλετε να απεγκαταστήσετε αυτό το πρόσθετο;"
         },
         "empty": {
-          "available": "[to be translated]:未找到匹配的插件。请尝试调整搜索或类别筛选。"
+          "available": "Δεν βρέθηκε συμβατό πρόσθετο. Δοκιμάστε να προσαρμόσετε την αναζήτηση ή το φίλτρο κατηγοριών."
         },
         "error": {
-          "install": "[to be translated]:安装插件失败",
-          "load": "[to be translated]:加载插件失败",
-          "uninstall": "[to be translated]:卸载插件失败"
+          "install": "Η εγκατάσταση του πρόσθετου απέτυχε",
+          "load": "Η φόρτωση του πρόσθετου απέτυχε",
+          "uninstall": "Η απεγκατάσταση του πρόσθετου απέτυχε"
         },
         "filter": {
-          "all": "[to be translated]:所有类别"
+          "all": "Όλες οι κατηγορίες"
         },
-        "install": "[to be translated]:安装",
+        "install": "εγκατάσταση",
         "installed": {
-          "empty": "[to be translated]:尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "[to be translated]:已安装插件"
+          "empty": "Δεν έχει εγκατασταθεί κανένα πρόσθετο. Περιηγηθείτε στα διαθέσιμα πρόσθετα για να ξεκινήσετε.",
+          "title": "Έχει εγκατασταθεί το πρόσθετο"
         },
-        "installing": "[to be translated]:安装中...",
-        "results": "[to be translated]:找到 {{count}} 个插件",
+        "installing": "Εγκατάσταση...",
+        "results": "Βρέθηκαν {{count}} πρόσθετα",
         "search": {
-          "placeholder": "[to be translated]:搜索插件..."
+          "placeholder": "Αναζήτηση πρόσθετου..."
         },
         "success": {
-          "install": "[to be translated]:插件安装成功",
-          "uninstall": "[to be translated]:插件卸载成功"
+          "install": "Η εγκατάσταση του πρόσθετου ολοκληρώθηκε με επιτυχία",
+          "uninstall": "Η απεγκατάσταση του πρόσθετου ολοκληρώθηκε με επιτυχία"
         },
-        "tab": "[to be translated]:插件",
+        "tab": "Πρόσθετο",
         "type": {
-          "agent": "[to be translated]:代理",
-          "agents": "[to be translated]:代理",
-          "all": "[to be translated]:全部",
-          "command": "[to be translated]:命令",
-          "commands": "[to be translated]:命令",
-          "skills": "[to be translated]:技能"
+          "agent": "αντιπρόσωπος",
+          "agents": "αντιπρόσωπος",
+          "all": "όλα",
+          "command": "εντολή",
+          "commands": "εντολή",
+          "skills": "δεξιότητα"
         },
-        "uninstall": "[to be translated]:卸载",
-        "uninstalling": "[to be translated]:卸载中..."
+        "uninstall": "απεγκατάσταση",
+        "uninstalling": "Απεγκατάσταση..."
       },
       "prompt": "Ρυθμίσεις Προτροπής",
       "tooling": {
@@ -2344,30 +2344,30 @@
     }
   },
   "plugins": {
-    "actions": "[to be translated]:操作",
-    "agents": "[to be translated]:代理",
-    "all_categories": "[to be translated]:所有类别",
-    "all_types": "[to be translated]:全部",
-    "category": "[to be translated]:类别",
-    "commands": "[to be translated]:命令",
-    "confirm_uninstall": "[to be translated]:确定要卸载 {{name}} 吗？",
-    "install": "[to be translated]:安装",
-    "install_plugins_from_browser": "[to be translated]:浏览可用插件以开始使用",
-    "installing": "[to be translated]:安装中...",
-    "name": "[to be translated]:名称",
-    "no_description": "[to be translated]:无描述",
-    "no_installed_plugins": "[to be translated]:尚未安装任何插件",
-    "no_results": "[to be translated]:未找到插件",
-    "search_placeholder": "[to be translated]:搜索插件...",
-    "showing_results": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_one": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_other": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_plural": "[to be translated]:显示 {{count}} 个插件",
-    "skills": "[to be translated]:技能",
-    "try_different_search": "[to be translated]:请尝试调整搜索或类别筛选",
-    "type": "[to be translated]:类型",
-    "uninstall": "[to be translated]:卸载",
-    "uninstalling": "[to be translated]:卸载中..."
+    "actions": "Λειτουργία",
+    "agents": "αντιπρόσωπος",
+    "all_categories": "Όλες οι κατηγορίες",
+    "all_types": "ολόκληρο",
+    "category": "Κατηγορία",
+    "commands": "εντολή",
+    "confirm_uninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε το {{name}};",
+    "install": "εγκατάσταση",
+    "install_plugins_from_browser": "Περιηγηθείτε στα διαθέσιμα πρόσθετα για να ξεκινήσετε",
+    "installing": "Εγκατάσταση...",
+    "name": "Όνομα",
+    "no_description": "Χωρίς περιγραφή",
+    "no_installed_plugins": "Δεν έχει εγκατασταθεί κανένα πρόσθετο",
+    "no_results": "Δεν βρέθηκε πρόσθετο",
+    "search_placeholder": "Πρόσθετο αναζήτησης...",
+    "showing_results": "Εμφάνιση {{count}} προσθέτων",
+    "showing_results_one": "Εμφάνιση {{count}} προσθέτων",
+    "showing_results_other": "Εμφάνιση {{count}} προσθέτων",
+    "showing_results_plural": "Εμφάνιση {{count}} πρόσθετων",
+    "skills": "δεξιότητα",
+    "try_different_search": "Προσπαθήστε να προσαρμόσετε την αναζήτηση ή το φίλτρο κατηγοριών",
+    "type": "τύπος",
+    "uninstall": "κατάργηση εγκατάστασης",
+    "uninstalling": "Απεγκατάσταση..."
   },
   "preview": {
     "copy": {

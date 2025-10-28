@@ -118,37 +118,37 @@
           "available": "[to be translated]:未找到匹配的插件。请尝试调整搜索或类别筛选。"
         },
         "error": {
-          "install": "[to be translated]:安装插件失败",
-          "load": "[to be translated]:加载插件失败",
-          "uninstall": "[to be translated]:卸载插件失败"
+          "install": "プラグインのインストールに失敗しました",
+          "load": "プラグインの読み込みに失敗しました",
+          "uninstall": "プラグインのアンインストールに失敗しました"
         },
         "filter": {
-          "all": "[to be translated]:所有类别"
+          "all": "すべてのカテゴリー"
         },
-        "install": "[to be translated]:安装",
+        "install": "インストール",
         "installed": {
-          "empty": "[to be translated]:尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "[to be translated]:已安装插件"
+          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
+          "title": "インストール済みプラグイン"
         },
-        "installing": "[to be translated]:安装中...",
+        "installing": "インストール中...",
         "results": "[to be translated]:找到 {{count}} 个插件",
         "search": {
-          "placeholder": "[to be translated]:搜索插件..."
+          "placeholder": "検索プラグイン..."
         },
         "success": {
-          "install": "[to be translated]:插件安装成功",
-          "uninstall": "[to be translated]:插件卸载成功"
+          "install": "プラグインのインストールが成功しました",
+          "uninstall": "プラグインのアンインストールが成功しました"
         },
-        "tab": "[to be translated]:插件",
+        "tab": "プラグイン",
         "type": {
-          "agent": "[to be translated]:代理",
-          "agents": "[to be translated]:代理",
-          "all": "[to be translated]:全部",
-          "command": "[to be translated]:命令",
-          "commands": "[to be translated]:命令",
-          "skills": "[to be translated]:技能"
+          "agent": "代理",
+          "agents": "代理",
+          "all": "全部",
+          "command": "命令",
+          "commands": "命令",
+          "skills": "技能"
         },
-        "uninstall": "[to be translated]:卸载",
+        "uninstall": "アンインストール",
         "uninstalling": "[to be translated]:卸载中..."
       },
       "prompt": "プロンプト設定",
@@ -2344,30 +2344,30 @@
     }
   },
   "plugins": {
-    "actions": "[to be translated]:操作",
-    "agents": "[to be translated]:代理",
-    "all_categories": "[to be translated]:所有类别",
-    "all_types": "[to be translated]:全部",
-    "category": "[to be translated]:类别",
-    "commands": "[to be translated]:命令",
-    "confirm_uninstall": "[to be translated]:确定要卸载 {{name}} 吗？",
-    "install": "[to be translated]:安装",
-    "install_plugins_from_browser": "[to be translated]:浏览可用插件以开始使用",
-    "installing": "[to be translated]:安装中...",
-    "name": "[to be translated]:名称",
-    "no_description": "[to be translated]:无描述",
-    "no_installed_plugins": "[to be translated]:尚未安装任何插件",
-    "no_results": "[to be translated]:未找到插件",
-    "search_placeholder": "[to be translated]:搜索插件...",
-    "showing_results": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_one": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_other": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_plural": "[to be translated]:显示 {{count}} 个插件",
-    "skills": "[to be translated]:技能",
-    "try_different_search": "[to be translated]:请尝试调整搜索或类别筛选",
-    "type": "[to be translated]:类型",
-    "uninstall": "[to be translated]:卸载",
-    "uninstalling": "[to be translated]:卸载中..."
+    "actions": "操作",
+    "agents": "代理",
+    "all_categories": "すべてのカテゴリー",
+    "all_types": "全部",
+    "category": "カテゴリー",
+    "commands": "命令",
+    "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "install": "インストール",
+    "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
+    "installing": "インストール中...",
+    "name": "名称",
+    "no_description": "説明なし",
+    "no_installed_plugins": "まだプラグインがインストールされていません",
+    "no_results": "プラグインが見つかりません",
+    "search_placeholder": "検索プラグイン...",
+    "showing_results": "{{count}} 個のプラグインを表示",
+    "showing_results_one": "{{count}} 個のプラグインを表示",
+    "showing_results_other": "{{count}} 個のプラグインを表示",
+    "showing_results_plural": "{{count}} 個のプラグインを表示",
+    "skills": "スキル",
+    "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
+    "type": "タイプ",
+    "uninstall": "アンインストール",
+    "uninstalling": "アンインストール中..."
   },
   "preview": {
     "copy": {

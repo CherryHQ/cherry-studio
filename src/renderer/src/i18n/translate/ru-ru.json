@@ -109,47 +109,47 @@
       "essential": "Основные настройки",
       "plugins": {
         "available": {
-          "title": "[to be translated]:可用插件"
+          "title": "Доступные плагины"
         },
         "confirm": {
-          "uninstall": "[to be translated]:确定要卸载此插件吗？"
+          "uninstall": "Вы уверены, что хотите удалить этот плагин?"
         },
         "empty": {
-          "available": "[to be translated]:未找到匹配的插件。请尝试调整搜索或类别筛选。"
+          "available": "Совпадающие плагины не найдены. Попробуйте изменить поиск или фильтр категорий."
         },
         "error": {
-          "install": "[to be translated]:安装插件失败",
-          "load": "[to be translated]:加载插件失败",
-          "uninstall": "[to be translated]:卸载插件失败"
+          "install": "Ошибка установки плагина",
+          "load": "Ошибка загрузки плагина",
+          "uninstall": "Не удалось удалить плагин"
         },
         "filter": {
-          "all": "[to be translated]:所有类别"
+          "all": "Все категории"
         },
-        "install": "[to be translated]:安装",
+        "install": "установка",
         "installed": {
-          "empty": "[to be translated]:尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "[to be translated]:已安装插件"
+          "empty": "Плагины ещё не установлены. Просмотрите доступные плагины, чтобы начать.",
+          "title": "Установленный плагин"
         },
-        "installing": "[to be translated]:安装中...",
-        "results": "[to be translated]:找到 {{count}} 个插件",
+        "installing": "Установка...",
+        "results": "Найдено {{count}} плагинов",
         "search": {
-          "placeholder": "[to be translated]:搜索插件..."
+          "placeholder": "Поиск плагинов..."
         },
         "success": {
-          "install": "[to be translated]:插件安装成功",
-          "uninstall": "[to be translated]:插件卸载成功"
+          "install": "Плагин успешно установлен",
+          "uninstall": "Плагин успешно удалён"
         },
-        "tab": "[to be translated]:插件",
+        "tab": "плагин",
         "type": {
-          "agent": "[to be translated]:代理",
-          "agents": "[to be translated]:代理",
-          "all": "[to be translated]:全部",
-          "command": "[to be translated]:命令",
-          "commands": "[to be translated]:命令",
-          "skills": "[to be translated]:技能"
+          "agent": "агент",
+          "agents": "Прокси",
+          "all": "всё",
+          "command": "команда",
+          "commands": "команда",
+          "skills": "навык"
         },
-        "uninstall": "[to be translated]:卸载",
-        "uninstalling": "[to be translated]:卸载中..."
+        "uninstall": "Удаление",
+        "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
       "tooling": {
@@ -2344,30 +2344,30 @@
     }
   },
   "plugins": {
-    "actions": "[to be translated]:操作",
-    "agents": "[to be translated]:代理",
-    "all_categories": "[to be translated]:所有类别",
-    "all_types": "[to be translated]:全部",
-    "category": "[to be translated]:类别",
-    "commands": "[to be translated]:命令",
-    "confirm_uninstall": "[to be translated]:确定要卸载 {{name}} 吗？",
-    "install": "[to be translated]:安装",
-    "install_plugins_from_browser": "[to be translated]:浏览可用插件以开始使用",
-    "installing": "[to be translated]:安装中...",
-    "name": "[to be translated]:名称",
-    "no_description": "[to be translated]:无描述",
-    "no_installed_plugins": "[to be translated]:尚未安装任何插件",
-    "no_results": "[to be translated]:未找到插件",
-    "search_placeholder": "[to be translated]:搜索插件...",
-    "showing_results": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_one": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_other": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_plural": "[to be translated]:显示 {{count}} 个插件",
-    "skills": "[to be translated]:技能",
-    "try_different_search": "[to be translated]:请尝试调整搜索或类别筛选",
-    "type": "[to be translated]:类型",
-    "uninstall": "[to be translated]:卸载",
-    "uninstalling": "[to be translated]:卸载中..."
+    "actions": "Операция",
+    "agents": "агент",
+    "all_categories": "Все категории",
+    "all_types": "всё",
+    "category": "категория",
+    "commands": "команда",
+    "confirm_uninstall": "Вы уверены, что хотите удалить {{name}}?",
+    "install": "установка",
+    "install_plugins_from_browser": "Просмотрите доступные плагины, чтобы начать работу",
+    "installing": "Установка...",
+    "name": "название",
+    "no_description": "Без описания",
+    "no_installed_plugins": "Плагины ещё не установлены",
+    "no_results": "Плагин не найден",
+    "search_placeholder": "Поиск плагинов...",
+    "showing_results": "Отображено {{count}} плагинов",
+    "showing_results_one": "Отображено {{count}} плагинов",
+    "showing_results_other": "Отображено {{count}} плагинов",
+    "showing_results_plural": "Отображение {{count}} плагинов",
+    "skills": "навык",
+    "try_different_search": "Пожалуйста, попробуйте изменить поиск или фильтры категорий",
+    "type": "тип",
+    "uninstall": "Удаление",
+    "uninstalling": "Удаление..."
   },
   "preview": {
     "copy": {
