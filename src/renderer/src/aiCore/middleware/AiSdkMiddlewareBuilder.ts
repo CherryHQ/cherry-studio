@@ -5,6 +5,7 @@ import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
 import { type Assistant, MCPTool, type Message, type Model, type Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
+import { isEmpty } from 'lodash'
 
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { noThinkMiddleware } from './noThinkMiddleware'
@@ -131,7 +132,7 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
   const builder = new AiSdkMiddlewareBuilder()
 
   // 0. 知识库强制调用中间件（必须在最前面，确保第一轮强制调用知识库）
-  if (config.knowledgeRecognition === 'off') {
+  if (!isEmpty(config.assistant?.knowledge_bases?.map((base) => base.id)) && config.knowledgeRecognition !== 'on') {
     builder.add({
       name: 'force-knowledge-first',
       middleware: toolChoiceMiddleware('builtin_knowledge_search')
