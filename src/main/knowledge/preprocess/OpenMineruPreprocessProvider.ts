@@ -15,7 +15,6 @@ const logger = loggerService.withContext('MineruPreprocessProvider')
 export default class OpenMineruPreprocessProvider extends BasePreprocessProvider {
   constructor(provider: PreprocessProvider, userId?: string) {
     super(provider, userId)
-    this.provider.apiKey = this.provider.apiKey
   }
 
   public async parseFile(
