@@ -180,6 +180,32 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/huggingface@npm:0.0.4":
+  version: 0.0.4
+  resolution: "@ai-sdk/huggingface@npm:0.0.4"
+  dependencies:
+    "@ai-sdk/openai-compatible": "npm:1.0.22"
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.12"
+  peerDependencies:
+    zod: ^3.25.76 || ^4
+  checksum: 10c0/756b8f820b89bf9550c9281dfe2a1a813477dec82be5557e236e8b5eaaf0204b65a65925ad486b7576c687f33c709f6d99fd4fc87a46b1add210435b08834986
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch":
+  version: 0.0.4
+  resolution: "@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch::version=0.0.4&hash=ceb48e"
+  dependencies:
+    "@ai-sdk/openai-compatible": "npm:1.0.22"
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.12"
+  peerDependencies:
+    zod: ^3.25.76 || ^4
+  checksum: 10c0/4726a10de7a6fd554b58d62f79cd6514c2cc5166052e035ba1517e224a310ddb355a5d2922ee8507fb8d928d6d5b2b102d3d221af5a44b181e436e6b64382087
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/mistral@npm:^2.0.19":
   version: 2.0.19
   resolution: "@ai-sdk/mistral@npm:2.0.19"
@@ -13853,6 +13879,7 @@ __metadata:
     "@agentic/tavily": "npm:^7.3.3"
     "@ai-sdk/amazon-bedrock": "npm:^3.0.35"
     "@ai-sdk/google-vertex": "npm:^3.0.40"
+    "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch"
     "@ai-sdk/mistral": "npm:^2.0.19"
     "@ai-sdk/perplexity": "npm:^2.0.13"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"

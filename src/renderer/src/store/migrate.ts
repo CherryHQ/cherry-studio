@@ -2736,10 +2736,19 @@ const migrateConfig = {
   },
   '167': (state: RootState) => {
     try {
-      addPreprocessProviders(state, 'open-mineru')
+      addProvider(state, 'huggingface')
       return state
     } catch (error) {
       logger.error('migrate 167 error', error as Error)
+      return state
+    }
+  },
+  '168': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'open-mineru')
+      return state
+    } catch (error) {
+      logger.error('migrate 168 error', error as Error)
       return state
     }
   }

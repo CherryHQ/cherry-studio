@@ -10,6 +10,7 @@ import {
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIDeepResearchModel,
+  isOpenAIModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
@@ -319,6 +320,20 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
   if (!isReasoningModel(model)) {
     return {}
   }
+
+  let reasoningEffort = assistant?.settings?.reasoning_effort
+
+  if (!reasoningEffort) {
+    return {}
+  }
+
+  // 非OpenAI模型，但是Provider类型是responses/azure openai的情况
+  if (!isOpenAIModel(model)) {
+    return {
+      reasoningEffort
+    }
+  }
+
   const openAI = getStoreSetting('openAI') as SettingsState['openAI']
   const summaryText = openAI?.summaryText || 'off'
 
@@ -330,14 +345,8 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
     reasoningSummary = summaryText
   }
 
-  let reasoningEffort = assistant?.settings?.reasoning_effort
-
   if (isOpenAIDeepResearchModel(model)) {
     reasoningEffort = 'medium'
-  }
-
-  if (!reasoningEffort) {
-    return {}
   }
 
   // OpenAI 推理参数

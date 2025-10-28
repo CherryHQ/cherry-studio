@@ -103,6 +103,7 @@
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.35",
     "@ai-sdk/google-vertex": "^3.0.40",
+    "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch",
     "@ai-sdk/mistral": "^2.0.19",
     "@ai-sdk/perplexity": "^2.0.13",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
