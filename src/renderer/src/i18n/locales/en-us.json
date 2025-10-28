@@ -22,12 +22,18 @@
     },
     "get": {
       "error": {
-        "failed": "Failed to get the agent."
+        "failed": "Failed to get the agent.",
+        "null_id": "Agent ID is null."
       }
     },
     "list": {
       "error": {
         "failed": "Failed to list agents."
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "The API server is enabled but not running properly."
       }
     },
     "session": {
@@ -68,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Failed to get the session"
+          "failed": "Failed to get the session",
+          "null_id": "Session ID is null"
         }
       },
       "label_one": "Session",
@@ -237,6 +244,7 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
+      "notEnabled": "The API Server is not enabled.",
       "operationFailed": "API Server operation failed: ",
       "restartError": "Failed to restart API Server: ",
       "restartFailed": "API Server restart failed: ",
@@ -530,6 +538,7 @@
         "context": "Clear Context {{Command}}"
       },
       "new_topic": "New Topic {{Command}}",
+      "paste_text_file_confirm": "Paste into input bar?",
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
@@ -943,6 +952,7 @@
     }
   },
   "common": {
+    "about": "About",
     "add": "Add",
     "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
@@ -1795,6 +1805,7 @@
     "title": "MinApp"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
@@ -1951,6 +1962,14 @@
     "rename": "Rename",
     "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",
+    "search": {
+      "both": "Name+Content",
+      "content": "Content",
+      "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
+      "more_matches": "more matches",
+      "searching": "Searching...",
+      "show_less": "Show less"
+    },
     "settings": {
       "data": {
         "apply": "Apply",
@@ -2035,6 +2054,7 @@
       "provider": {
         "cannot_remove_builtin": "Cannot delete built-in provider",
         "existing": "The provider already exists",
+        "get_providers": "Failed to get available providers",
         "not_found": "OCR provider does not exist",
         "update_failed": "Failed to update configuration"
       },
@@ -2096,8 +2116,10 @@
       "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "Only supports Windows",
       "install_code_103": "Download OVMS runtime failed",
-      "install_code_104": "Uncompress OVMS runtime failed",
-      "install_code_105": "Clean OVMS runtime failed",
+      "install_code_104": "Failed to install OVMS runtime",
+      "install_code_105": "Failed to create ovdnd.exe",
+      "install_code_106": "Failed to create run.bat",
+      "install_code_110": "Failed to clean old OVMS runtime",
       "run": "Run OVMS failed:",
       "stop": "Stop OVMS failed:"
     },
@@ -2323,12 +2345,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
     "hyperbolic": "Hyperbolic",
     "infini": "Infini",
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "longcat": "LongCat AI",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -3568,6 +3592,7 @@
       "builtinServers": "Builtin Servers",
       "builtinServersDescriptions": {
         "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
+        "didi_mcp": "DiDi MCP server providing ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in Mainland China. Requires configuring the DIDI_API_KEY environment variable",
         "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
         "fetch": "MCP server for retrieving URL web content",
         "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
@@ -4073,7 +4098,7 @@
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
         "label": "API Key",
-        "tip": "Multiple keys separated by commas or spaces"
+        "tip": "Use commas to separate multiple keys"
       },
       "api_version": "API Version",
       "aws-bedrock": {
@@ -4207,7 +4232,8 @@
         "none": "No Proxy",
         "system": "System Proxy",
         "title": "Proxy Mode"
-      }
+      },
+      "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",

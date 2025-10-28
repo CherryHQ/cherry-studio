@@ -35,7 +35,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxTokens: 0,
   streamOutput: true,
   topP: 1,
-  enableTopP: true,
+  enableTopP: false,
   toolUseMode: 'prompt',
   customParameters: []
 }
@@ -133,6 +133,8 @@ export function getAssistantProvider(assistant: Assistant): Provider {
   return provider || getDefaultProvider()
 }
 
+// FIXME: This function fails in silence.
+// TODO: Refactor it to make it return exactly valid value or null, and update all usage.
 export function getProviderByModel(model?: Model): Provider {
   const providers = getStoreProviders()
   const provider = providers.find((p) => p.id === model?.provider)
@@ -145,6 +147,7 @@ export function getProviderByModel(model?: Model): Provider {
   return provider
 }
 
+// FIXME: This function may return undefined but as Provider
 export function getProviderByModelId(modelId?: string) {
   const providers = getStoreProviders()
   const _modelId = modelId || getDefaultModel().id
@@ -169,7 +172,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     enableTemperature: assistant?.settings?.enableTemperature ?? true,
     topP: assistant?.settings?.topP ?? 1,
-    enableTopP: assistant?.settings?.enableTopP ?? true,
+    enableTopP: assistant?.settings?.enableTopP ?? false,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,

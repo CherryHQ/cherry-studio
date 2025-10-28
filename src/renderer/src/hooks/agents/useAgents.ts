@@ -6,6 +6,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+import { useApiServer } from '../useApiServer'
 import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
 
@@ -23,11 +24,19 @@ export const useAgents = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
   const key = client.agentPaths.base
+  const { apiServerConfig, apiServerRunning } = useApiServer()
   const fetcher = useCallback(async () => {
-    const result = await client.listAgents()
+    // API server will start on startup if enabled OR there are agents
+    if (!apiServerConfig.enabled && !apiServerRunning) {
+      throw new Error(t('apiServer.messages.notEnabled'))
+    }
+    if (!apiServerRunning) {
+      throw new Error(t('agent.server.error.not_running'))
+    }
+    const result = await client.listAgents({ sortBy: 'created_at', orderBy: 'desc' })
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
-  }, [client])
+  }, [apiServerConfig.enabled, apiServerRunning, client, t])
   const { data, error, isLoading, mutate } = useSWR(key, fetcher)
   const { chat } = useRuntime()
   const { activeAgentId } = chat

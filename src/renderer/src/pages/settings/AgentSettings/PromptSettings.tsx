@@ -22,7 +22,7 @@ type AgentPromptSettingsProps =
     }
   | {
       agentBase: AgentSessionEntity | undefined | null
-      update: ReturnType<typeof useUpdateSession>
+      update: ReturnType<typeof useUpdateSession>['updateSession']
     }
 
 const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => {

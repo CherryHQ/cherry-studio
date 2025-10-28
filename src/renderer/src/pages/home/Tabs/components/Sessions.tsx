@@ -12,7 +12,7 @@ import {
 } from '@renderer/store/runtime'
 import { CreateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { memo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,7 +30,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { agent } = useAgent(agentId)
   const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
   const { chat } = useRuntime()
-  const { activeSessionId, sessionWaiting } = chat
+  const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
 
   const setActiveSessionId = useCallback(
@@ -75,24 +75,24 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     [agentId, deleteSession, dispatch, sessions, t]
   )
 
-  const currentActiveSessionId = activeSessionId[agentId]
+  const activeSessionId = activeSessionIdMap[agentId]
 
   useEffect(() => {
-    if (!isLoading && sessions.length > 0 && !currentActiveSessionId) {
+    if (!isLoading && sessions.length > 0 && !activeSessionId) {
       setActiveSessionId(agentId, sessions[0].id)
     }
-  }, [isLoading, sessions, currentActiveSessionId, agentId, setActiveSessionId])
+  }, [isLoading, sessions, activeSessionId, agentId, setActiveSessionId])
 
   useEffect(() => {
-    if (currentActiveSessionId) {
+    if (activeSessionId) {
       dispatch(
         newMessagesActions.setTopicFulfilled({
-          topicId: buildAgentSessionTopicId(currentActiveSessionId),
+          topicId: buildAgentSessionTopicId(activeSessionId),
           fulfilled: false
         })
       )
     }
-  }, [currentActiveSessionId, dispatch])
+  }, [activeSessionId, dispatch])
 
   if (isLoading) {
     return (
@@ -109,45 +109,30 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   if (error) return <Alert color="danger" content={t('agent.session.get.error.failed')} />
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="sessions-tab flex h-full w-full flex-col p-2">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <AddButton onPress={handleCreateSession} className="mb-2">
-          {t('agent.session.add.title')}
-        </AddButton>
-      </motion.div>
-      <AnimatePresence>
-        {/* h-9 */}
-        <DynamicVirtualList
-          list={sessions}
-          estimateSize={() => 9 * 4}
-          scrollerStyle={{
-            // FIXME: This component only supports CSSProperties
-            overflowX: 'hidden'
-          }}
-          autoHideScrollbar>
-          {(session) => (
-            <motion.div
-              key={session.id}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3 }}>
-              <SessionItem
-                session={session}
-                agentId={agentId}
-                isDisabled={sessionWaiting[session.id]}
-                isLoading={sessionWaiting[session.id]}
-                onDelete={() => handleDeleteSession(session.id)}
-                onPress={() => setActiveSessionId(agentId, session.id)}
-              />
-            </motion.div>
-          )}
-        </DynamicVirtualList>
-      </AnimatePresence>
-    </motion.div>
+    <div className="sessions-tab flex h-full w-full flex-col p-2">
+      <AddButton onPress={handleCreateSession} className="mb-2">
+        {t('agent.session.add.title')}
+      </AddButton>
+      {/* h-9 */}
+      <DynamicVirtualList
+        list={sessions}
+        estimateSize={() => 9 * 4}
+        scrollerStyle={{
+          // FIXME: This component only supports CSSProperties
+          overflowX: 'hidden'
+        }}
+        autoHideScrollbar>
+        {(session) => (
+          <SessionItem
+            key={session.id}
+            session={session}
+            agentId={agentId}
+            onDelete={() => handleDeleteSession(session.id)}
+            onPress={() => setActiveSessionId(agentId, session.id)}
+          />
+        )}
+      </DynamicVirtualList>
+    </div>
   )
 }
 

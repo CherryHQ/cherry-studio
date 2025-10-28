@@ -17,6 +17,7 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
+import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
@@ -122,6 +123,9 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = windowService.createMainWindow()
     new TrayService()
 
+    // Setup macOS application menu
+    appMenuService?.setupApplicationMenu()
+
     nodeTraceService.init()
 
     app.on('activate', function () {
@@ -159,11 +163,26 @@ if (!app.requestSingleInstanceLock()) {
       logger.error('Failed to initialize Agent service:', error)
     }
 
-    // Start API server if enabled
+    // Start API server if enabled or if agents exist
     try {
       const config = await apiServerService.getCurrentConfig()
       logger.info('API server config:', config)
-      if (config.enabled) {
+
+      // Check if there are any agents
+      let shouldStart = config.enabled
+      if (!shouldStart) {
+        try {
+          const { total } = await agentService.listAgents({ limit: 1 })
+          if (total > 0) {
+            shouldStart = true
+            logger.info(`Detected ${total} agent(s), auto-starting API server`)
+          }
+        } catch (error: any) {
+          logger.warn('Failed to check agent count:', error)
+        }
+      }
+
+      if (shouldStart) {
         await apiServerService.start()
       }
     } catch (error: any) {

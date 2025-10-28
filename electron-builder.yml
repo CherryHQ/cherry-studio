@@ -9,6 +9,7 @@ electronLanguages:
   - zh_CN # for macOS
   - zh_TW # for macOS
   - en # for macOS
+  - de
 directories:
   buildResources: build
 
@@ -126,112 +127,60 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.1
+    What's New in v1.7.0-beta.2
 
-    Major Features:
-    - Agent System: Introducing intelligent Agent capabilities alongside Assistants. Agents can autonomously solve complex problems using Claude Code SDK with tool calling, file operations, and multi-turn reasoning
-    - Agent Management: Create, configure, and manage agents with custom settings including model selection, tool permissions, accessible paths, and MCP server integrations
-    - Agent Sessions: Dedicated session management for agent interactions with persistent message history and context tracking
-    - Unified UI: Streamlined interface combining Assistants and Agents tabs with improved navigation and settings management
+    New Features:
+    - Session Settings: Manage session-specific settings and model configurations independently
+    - Notes Full-Text Search: Search across all notes with match highlighting
+    - Built-in DiDi MCP Server: Integration with DiDi ride-hailing services (China only)
+    - Intel OV OCR: Hardware-accelerated OCR using Intel NPU
+    - Auto-start API Server: Automatically starts when agents exist
 
-    Agent Features:
-    - Tool Support: Web search, file operations, bash commands, and custom MCP tools
-    - Advanced Configuration: Max turns, temperature, token limits
-    - Permission Control: Configurable tool approval modes (manual, automatic, none)
-    - Session Persistence: Automatic message saving with optimized streaming and database integration
-    - Model Selection: API-based model filtering with provider-specific support
-
-    UI/UX Improvements:
-    - Unified assistant/agent tabs with smooth animations
-    - In-place session name editing
-    - Virtual list rendering for improved performance
-    - Session count indicators for active agents
-    - Enhanced settings popup with tabbed interface
-    - Webview keyboard shortcut interception for search functionality
-
-    API & Infrastructure:
-    - RESTful API for agent and session management
-    - Drizzle ORM integration for agent database
-    - OAuth support for Claude Code authentication
-    - Express validator for request validation
-    - Comprehensive error handling with Zod schemas
-
-    Model Updates:
-    - Gemini 2.5 Image Flash support
-    - Grok 4 Fast with reasoning capabilities
-    - Qwen3-omni and Qwen3-vl thinking models
-    - DeepSeek, Claude 4.5, GLM 4.6 support
-    - GitHub Copilot CLI integration with gpt-5-codex
+    Improvements:
+    - Agent model selection now requires explicit user choice
+    - Added Mistral AI provider support
+    - Added NewAPI generic provider support
+    - Improved navbar layout consistency across different modes
+    - Enhanced chat component responsiveness
+    - Better code block display on small screens
+    - Updated OVMS to 2025.3 official release
+    - Added Greek language support
 
     Bug Fixes:
-    - Fix Swagger UI accessibility issues
-    - Fix AI SDK error display with syntax highlighting
-    - Fix webview search shortcut handling
-    - Fix agent model visibility for CherryIn provider
-    - Fix session message ordering and persistence
-    - Fix anthropic model visibility in agent configuration
-    - Fix knowledge base deletion and web search RAG errors
-    - Fix migration for missing providers
-
-    Technical Updates:
-    - React 19.2.0 upgrade
-    - Enhanced Claude Code service with streaming support
-    - Improved message transformation and streaming lifecycle
-    - Database migration system with automatic schema sync
-    - Optimized bundle size and dependency management
+    - Fixed GitHub Copilot gpt-5-codex streaming issues
+    - Fixed assistant creation failures
+    - Fixed translate auto-copy functionality
+    - Fixed miniapps external link opening
+    - Fixed message layout and overflow issues
+    - Fixed API key parsing to preserve spaces
+    - Fixed agent display in different navbar layouts
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.1 新特性
+    v1.7.0-beta.2 新特性
 
-    核心功能:
-    - Agent 系统：引入智能 Agent 能力,与助手(Assistant)并存。Agent 基于 Claude Code SDK 构建,具备工具调用、文件操作和多轮推理能力,可自主解决复杂问题
-    - Agent 管理：创建、配置和管理 Agent,支持自定义模型选择、工具权限、可访问路径和 MCP 服务器集成
-    - Agent 会话：专属会话管理系统,支持持久化消息历史和上下文追踪
-    - 统一界面：精简的助手和 Agent 标签页界面,改进导航和设置管理体验
+    新功能:
+    - 会话设置：独立管理会话特定的设置和模型配置
+    - 笔记全文搜索：跨所有笔记搜索并高亮匹配内容
+    - 内置滴滴 MCP 服务器：集成滴滴打车服务(仅限中国地区)
+    - Intel OV OCR：使用 Intel NPU 的硬件加速 OCR
+    - 自动启动 API 服务器：当存在 Agent 时自动启动
 
-    Agent 功能特性:
-    - 工具支持：网页搜索、文件操作、Bash 命令执行和自定义 MCP 工具
-    - 高级配置：最大轮次、温度、Token 限制
-    - 权限控制：可配置的工具批准模式(手动、自动、无需批准)
-    - 会话持久化：自动消息保存,优化的流式传输和数据库集成
-    - 模型选择：基于 API 的模型过滤,支持特定提供商
-
-    界面与交互优化:
-    - 统一的助手/Agent 标签页,带有流畅动画效果
-    - 会话名称原地编辑功能
-    - 虚拟列表渲染,提升性能表现
-    - 活跃 Agent 的会话计数指示器
-    - 增强的设置弹窗,采用标签页界面
-    - Webview 键盘快捷键拦截,支持搜索功能
-
-    API 与基础设施:
-    - RESTful API 用于 Agent 和会话管理
-    - 集成 Drizzle ORM 管理 Agent 数据库
-    - Claude Code OAuth 认证支持
-    - Express validator 请求验证
-    - 基于 Zod 模式的完善错误处理
-
-    模型更新:
-    - 支持 Gemini 2.5 Image Flash
-    - Grok 4 Fast 推理能力
-    - Qwen3-omni 和 Qwen3-vl 思考模型
-    - DeepSeek、Claude 4.5、GLM 4.6 支持
-    - GitHub Copilot CLI 集成 gpt-5-codex
+    改进:
+    - Agent 模型选择现在需要用户显式选择
+    - 添加 Mistral AI 提供商支持
+    - 添加 NewAPI 通用提供商支持
+    - 改进不同模式下的导航栏布局一致性
+    - 增强聊天组件响应式设计
+    - 优化小屏幕代码块显示
+    - 更新 OVMS 至 2025.3 正式版
+    - 添加希腊语支持
 
     问题修复:
-    - 修复 Swagger UI 无法打开
-    - 修复 AI SDK 错误显示,添加语法高亮
-    - 修复 Webview 搜索快捷键处理
-    - 修复 CherryIn 提供商的 Agent 模型可见性
-    - 修复会话消息排序和持久化
-    - 修复 Anthropic 模型在 Agent 配置中的可见性
-    - 修复知识库删除和网页搜索 RAG 错误
-    - 修复缺失提供商的迁移问题
-
-    技术更新:
-    - 升级至 React 19.2.0
-    - 增强 Claude Code 服务流式传输支持
-    - 改进消息转换和流式生命周期
-    - 数据库迁移系统,支持自动模式同步
-    - 优化打包大小和依赖管理
+    - 修复 GitHub Copilot gpt-5-codex 流式传输问题
+    - 修复助手创建失败
+    - 修复翻译自动复制功能
+    - 修复小程序外部链接打开
+    - 修复消息布局和溢出问题
+    - 修复 API 密钥解析以保留空格
+    - 修复不同导航栏布局中的 Agent 显示
     <!--LANG:END-->

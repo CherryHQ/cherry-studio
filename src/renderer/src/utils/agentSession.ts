@@ -18,7 +18,7 @@ export const getModelFilterByAgentType = (type: AgentType): ApiModelsFilter => {
   switch (type) {
     case 'claude-code':
       return {
-        supportAnthropic: true
+        providerType: 'anthropic'
       }
     default:
       return {}

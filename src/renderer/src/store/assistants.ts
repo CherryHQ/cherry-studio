@@ -1,7 +1,7 @@
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
-import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
+import { DEFAULT_ASSISTANT_SETTINGS, getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantPreset, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
 
@@ -37,7 +37,7 @@ const assistantsSlice = createSlice({
       state.assistants = action.payload
     },
     addAssistant: (state, action: PayloadAction<Assistant>) => {
-      state.assistants.push(action.payload)
+      state.assistants.unshift(action.payload)
     },
     insertAssistant: (state, action: PayloadAction<{ index: number; assistant: Assistant }>) => {
       const { index, assistant } = action.payload
@@ -193,8 +193,7 @@ const assistantsSlice = createSlice({
       })
     },
     addAssistantPreset: (state, action: PayloadAction<AssistantPreset>) => {
-      // @ts-ignore ts-2589 false positive
-      state.agents.push(action.payload)
+      state.presets.push(action.payload)
     },
     removeAssistantPreset: (state, action: PayloadAction<{ id: string }>) => {
       state.presets = state.presets.filter((c) => c.id !== action.payload.id)
@@ -216,13 +215,7 @@ const assistantsSlice = createSlice({
         if (agent.id === action.payload.assistantId) {
           for (const key in settings) {
             if (!agent.settings) {
-              agent.settings = {
-                temperature: DEFAULT_TEMPERATURE,
-                contextCount: DEFAULT_CONTEXTCOUNT,
-                enableMaxTokens: false,
-                maxTokens: 0,
-                streamOutput: true
-              }
+              agent.settings = DEFAULT_ASSISTANT_SETTINGS
             }
             agent.settings[key] = settings[key]
           }

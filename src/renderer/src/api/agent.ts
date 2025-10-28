@@ -9,6 +9,8 @@ import {
   CreateAgentRequest,
   CreateAgentResponse,
   CreateAgentResponseSchema,
+  CreateAgentSessionResponse,
+  CreateAgentSessionResponseSchema,
   CreateSessionForm,
   CreateSessionRequest,
   GetAgentResponse,
@@ -19,6 +21,7 @@ import {
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
+  ListOptions,
   objectEntries,
   objectKeys,
   UpdateAgentForm,
@@ -93,10 +96,19 @@ export class AgentApiClient {
     }
   }
 
-  public async listAgents(): Promise<ListAgentsResponse> {
+  public async listAgents(options?: ListOptions): Promise<ListAgentsResponse> {
     const url = this.agentPaths.base
     try {
-      const response = await this.axios.get(url)
+      const params = new URLSearchParams()
+      if (options?.limit !== undefined) params.append('limit', String(options.limit))
+      if (options?.offset !== undefined) params.append('offset', String(options.offset))
+      if (options?.sortBy) params.append('sortBy', options.sortBy)
+      if (options?.orderBy) params.append('orderBy', options.orderBy)
+
+      const queryString = params.toString()
+      const fullUrl = queryString ? `${url}?${queryString}` : url
+
+      const response = await this.axios.get(fullUrl)
       const result = ListAgentsResponseSchema.safeParse(response.data)
       if (!result.success) {
         throw new Error('Not a valid Agents array.')
@@ -171,12 +183,12 @@ export class AgentApiClient {
     }
   }
 
-  public async createSession(agentId: string, session: CreateSessionForm): Promise<GetAgentSessionResponse> {
+  public async createSession(agentId: string, session: CreateSessionForm): Promise<CreateAgentSessionResponse> {
     const url = this.getSessionPaths(agentId).base
     try {
       const payload = session satisfies CreateSessionRequest
       const response = await this.axios.post(url, payload)
-      const data = GetAgentSessionResponseSchema.parse(response.data)
+      const data = CreateAgentSessionResponseSchema.parse(response.data)
       return data
     } catch (error) {
       throw processError(error, 'Failed to add session.')

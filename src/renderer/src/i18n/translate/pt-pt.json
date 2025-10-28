@@ -22,12 +22,18 @@
     },
     "get": {
       "error": {
-        "failed": "Falha ao obter o agente."
+        "failed": "Falha ao obter o agente.",
+        "null_id": "O ID do agente é nulo."
       }
     },
     "list": {
       "error": {
         "failed": "Falha ao listar agentes."
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "O servidor de API está habilitado, mas não está funcionando corretamente."
       }
     },
     "session": {
@@ -68,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "Falha ao obter a sessão"
+          "failed": "Falha ao obter a sessão",
+          "null_id": "O ID da sessão é nulo"
         }
       },
       "label_one": "Sessão",
@@ -237,6 +244,7 @@
     "messages": {
       "apiKeyCopied": "Chave API copiada para a área de transferência",
       "apiKeyRegenerated": "Chave API regenerada",
+      "notEnabled": "O Servidor de API não está habilitado.",
       "operationFailed": "Operação do Servidor API falhou: ",
       "restartError": "Falha ao reiniciar o Servidor API: ",
       "restartFailed": "Reinício do Servidor API falhou: ",
@@ -530,6 +538,7 @@
         "context": "Limpar contexto {{Command}}"
       },
       "new_topic": "Novo tópico {{Command}}",
+      "paste_text_file_confirm": "Colar na caixa de entrada?",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
@@ -943,6 +952,7 @@
     }
   },
   "common": {
+    "about": "sobre",
     "add": "Adicionar",
     "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
@@ -1795,6 +1805,7 @@
     "title": "Pequeno aplicativo"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
@@ -1951,6 +1962,14 @@
     "rename": "renomear",
     "rename_changed": "Devido às políticas de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "save": "salvar em notas",
+    "search": {
+      "both": "Nome + Conteúdo",
+      "content": "conteúdo",
+      "found_results": "Encontrados {{count}} resultados (nome: {{nameCount}}, conteúdo: {{contentCount}})",
+      "more_matches": "uma correspondência",
+      "searching": "Pesquisando...",
+      "show_less": "Recolher"
+    },
     "settings": {
       "data": {
         "apply": "aplicativo",
@@ -2035,6 +2054,7 @@
       "provider": {
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
         "existing": "O provedor já existe",
+        "get_providers": "Falha ao obter provedores disponíveis",
         "not_found": "O provedor OCR não existe",
         "update_failed": "Falha ao atualizar a configuração"
       },
@@ -2098,6 +2118,8 @@
       "install_code_103": "Falha ao baixar o tempo de execução do OVMS",
       "install_code_104": "Falha ao descompactar o tempo de execução do OVMS",
       "install_code_105": "Falha ao limpar o tempo de execução do OVMS",
+      "install_code_106": "Falha ao criar run.bat",
+      "install_code_110": "Falha ao limpar o antigo runtime OVMS",
       "run": "Falha ao executar o OVMS:",
       "stop": "Falha ao parar o OVMS:"
     },
@@ -2323,12 +2345,14 @@
     "gpustack": "GPUStack",
     "grok": "Compreender",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hún Yuán",
     "hyperbolic": "Hiperbólico",
     "infini": "Infinito",
     "jina": "Jina",
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
+    "longcat": "Totoro",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
@@ -3568,6 +3592,7 @@
       "builtinServers": "Servidores integrados",
       "builtinServersDescriptions": {
         "brave_search": "uma implementação de servidor MCP integrada com a API de pesquisa Brave, fornecendo funcionalidades de pesquisa web e local. Requer a configuração da variável de ambiente BRAVE_API_KEY",
+        "didi_mcp": "Servidor DiDi MCP que fornece serviços de transporte incluindo pesquisa de mapas, estimativa de preços, gestão de pedidos e rastreamento de motoristas. Disponível apenas na China Continental. Requer configuração da variável de ambiente DIDI_API_KEY",
         "dify_knowledge": "Implementação do servidor MCP do Dify, que fornece uma API simples para interagir com o Dify. Requer a configuração da chave Dify",
         "fetch": "servidor MCP para obter o conteúdo da página web do URL",
         "filesystem": "Servidor Node.js do protocolo de contexto de modelo (MCP) para implementar operações de sistema de ficheiros. Requer configuração do diretório permitido para acesso",
@@ -4207,7 +4232,8 @@
         "none": "Não Usar Proxy",
         "system": "Proxy do Sistema",
         "title": "Modo de Proxy"
-      }
+      },
+      "tip": "suporte a correspondência fuzzy (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Clique no ícone da bandeja para iniciar",

@@ -8,6 +8,7 @@ import { Divider, Flex } from 'antd'
 import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
+import { OcrOVSettings } from './OcrOVSettings'
 import { OcrPpocrSettings } from './OcrPpocrSettings'
 import { OcrSystemSettings } from './OcrSystemSettings'
 import { OcrTesseractSettings } from './OcrTesseractSettings'
@@ -35,6 +36,8 @@ const OcrProviderSettings = ({ provider }: Props) => {
           return <OcrSystemSettings />
         case 'paddleocr':
           return <OcrPpocrSettings />
+        case 'ovocr':
+          return <OcrOVSettings />
         default:
           return null
       }

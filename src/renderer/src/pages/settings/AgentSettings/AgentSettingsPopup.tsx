@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
-import AgentEssentialSettings from './AgentEssentialSettings'
+import EssentialSettings from './EssentialSettings'
 import PromptSettings from './PromptSettings'
 import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
@@ -87,7 +87,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           />
         </LeftMenu>
         <Settings>
-          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
+          {menu === 'essential' && <EssentialSettings agentBase={agent} update={updateAgent} />}
           {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
           {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
@@ -104,7 +104,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       afterClose={afterClose}
       maskClosable={false}
       footer={null}
-      title={<AgentLabel agent={agent} classNames={{ name: 'text-lg font-extrabold' }} />}
+      title={<AgentLabel agent={agent} />}
       transitionName="animation-move-down"
       styles={{
         content: {

@@ -22,12 +22,18 @@
     },
     "get": {
       "error": {
-        "failed": "無法取得代理程式。"
+        "failed": "無法取得代理程式。",
+        "null_id": "代理程式 ID 為空。"
       }
     },
     "list": {
       "error": {
         "failed": "無法列出代理程式。"
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "API 伺服器已啟用，但運行不正常。"
       }
     },
     "session": {
@@ -68,7 +74,8 @@
       },
       "get": {
         "error": {
-          "failed": "無法取得工作階段"
+          "failed": "無法取得工作階段",
+          "null_id": "工作階段 ID 為空"
         }
       },
       "label_one": "會議",
@@ -237,6 +244,7 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新生成",
+      "notEnabled": "API 伺服器未啟用。",
       "operationFailed": "API 伺服器操作失敗：",
       "restartError": "重新啟動 API 伺服器失敗：",
       "restartFailed": "API 伺服器重新啟動失敗：",
@@ -530,6 +538,7 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新話題 {{Command}}",
+      "paste_text_file_confirm": "貼到輸入框？",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
@@ -943,6 +952,7 @@
     }
   },
   "common": {
+    "about": "關於",
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
@@ -1795,6 +1805,7 @@
     "title": "小工具"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI搜索",
     "chatglm": "智譜清言",
@@ -1951,6 +1962,14 @@
     "rename": "重命名",
     "rename_changed": "由於安全策略，文件名已從 {{original}} 更改為 {{final}}",
     "save": "儲存到筆記",
+    "search": {
+      "both": "名稱+內容",
+      "content": "內容",
+      "found_results": "找到 {{count}} 個結果 (名稱: {{nameCount}}, 內容: {{contentCount}})",
+      "more_matches": "個匹配",
+      "searching": "搜索中...",
+      "show_less": "收起"
+    },
     "settings": {
       "data": {
         "apply": "應用",
@@ -2034,8 +2053,9 @@
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能刪除內建提供者",
-        "existing": "提供商已存在",
-        "not_found": "OCR 提供商不存在",
+        "existing": "提供者已存在",
+        "get_providers": "取得可用提供者失敗",
+        "not_found": "OCR 提供者不存在",
         "update_failed": "更新配置失敗"
       },
       "unknown": "OCR過程發生錯誤"
@@ -2071,7 +2091,7 @@
     "description": "<div><p>1. 下載 OV 模型。</p><p>2. 在 'Manager' 中新增模型。</p><p>僅支援 Windows！</p><p>OVMS 安裝路徑: '%USERPROFILE%\\.cherrystudio\\ovms' 。</p><p>請參考 <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 指南</a></p></dev>",
     "download": {
       "button": "下載",
-      "error": "選擇失敗",
+      "error": "下載失敗",
       "model_id": {
         "label": "模型 ID",
         "model_id_pattern": "模型 ID 必須以 OpenVINO/ 開頭",
@@ -2096,8 +2116,10 @@
       "install_code_101": "僅支援 Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "僅支援 Windows",
       "install_code_103": "下載 OVMS runtime 失敗",
-      "install_code_104": "解壓 OVMS runtime 失敗",
-      "install_code_105": "清理 OVMS runtime 失敗",
+      "install_code_104": "安裝 OVMS runtime 失敗",
+      "install_code_105": "創建 ovdnd.exe 失敗",
+      "install_code_106": "創建 run.bat 失敗",
+      "install_code_110": "清理舊 OVMS runtime 失敗",
       "run": "執行 OVMS 失敗:",
       "stop": "停止 OVMS 失敗:"
     },
@@ -2323,12 +2345,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "騰訊混元",
     "hyperbolic": "Hyperbolic",
     "infini": "無問芯穹",
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "longcat": "龍貓",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -3568,6 +3592,7 @@
       "builtinServers": "內置伺服器",
       "builtinServersDescriptions": {
         "brave_search": "一個集成了Brave 搜索 API 的 MCP 伺服器實現，提供網頁與本地搜尋雙重功能。需要配置 BRAVE_API_KEY 環境變數",
+        "didi_mcp": "一個集成了滴滴 MCP 伺服器實現，提供網約車服務包括地圖搜尋、價格預估、訂單管理和司機追蹤。僅支援中國大陸地區。需要配置 DIDI_API_KEY 環境變數",
         "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
         "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
         "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
@@ -4073,7 +4098,7 @@
       "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
         "label": "API 金鑰",
-        "tip": "多個金鑰使用逗號或空格分隔"
+        "tip": "多個金鑰使用逗號分隔"
       },
       "api_version": "API 版本",
       "aws-bedrock": {
@@ -4207,7 +4232,8 @@
         "none": "不使用代理伺服器",
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
-      }
+      },
+      "tip": "支援模糊匹配（*.test.com，192.168.0.0/16）"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",

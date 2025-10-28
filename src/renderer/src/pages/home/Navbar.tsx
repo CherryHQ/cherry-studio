@@ -1,8 +1,7 @@
-import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { isLinux, isWin } from '@renderer/config/constant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -19,7 +18,6 @@ import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
-import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -28,10 +26,16 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   setActiveAssistant: (assistant: Assistant) => void
   position: 'left' | 'right'
+  activeTopicOrSession?: 'topic' | 'session'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
-  const { assistant } = useAssistant(activeAssistant.id)
+const HeaderNavbar: FC<Props> = ({
+  activeAssistant,
+  setActiveAssistant,
+  activeTopic,
+  setActiveTopic,
+  activeTopicOrSession
+}) => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
@@ -91,7 +95,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             justifyContent: 'flex-start',
             borderRight: 'none',
             paddingLeft: 0,
-            paddingRight: 10,
+            paddingRight: 0,
             minWidth: 'auto'
           }}>
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
@@ -113,15 +117,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </AnimatePresence>
         </NavbarLeft>
       )}
-      <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
-        <SelectModelButton assistant={assistant} />
-      </HStack>
+      <NavbarCenter></NavbarCenter>
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
-          flex: 1,
+          flex: activeTopicOrSession === 'topic' ? 1 : 'none',
           position: 'relative',
-          paddingRight: isWin || isLinux ? '144px' : '15px'
+          paddingRight: isWin || isLinux ? '144px' : '15px',
+          minWidth: activeTopicOrSession === 'topic' ? '' : 'auto'
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>

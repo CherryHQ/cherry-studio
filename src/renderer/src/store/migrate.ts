@@ -2315,7 +2315,8 @@ const migrateConfig = {
         // @ts-ignore upscale
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
-        openai_image_edit: state?.paintings?.openai_image_edit || []
+        openai_image_edit: state?.paintings?.openai_image_edit || [],
+        ovms_paintings: []
       }
 
       return state
@@ -2665,6 +2666,67 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 162 error', error as Error)
+      return state
+    }
+  },
+  '163': (state: RootState) => {
+    try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'cherryin') {
+          provider.anthropicApiHost = 'https://open.cherryin.net'
+        }
+      })
+      state.paintings.ovms_paintings = []
+      return state
+    } catch (error) {
+      logger.error('migrate 163 error', error as Error)
+      return state
+    }
+  },
+  '164': (state: RootState) => {
+    try {
+      addMiniApp(state, 'ling')
+      return state
+    } catch (error) {
+      logger.error('migrate 164 error', error as Error)
+      return state
+    }
+  },
+  '165': (state: RootState) => {
+    try {
+      addMiniApp(state, 'huggingchat')
+      return state
+    } catch (error) {
+      logger.error('migrate 165 error', error as Error)
+      return state
+    }
+  },
+  '166': (state: RootState) => {
+    // added after 1.6.5 and 1.7.0-beta.2
+    try {
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+      state.assistants.presets.forEach((preset) => {
+        if (!preset.settings) {
+          preset.settings = DEFAULT_ASSISTANT_SETTINGS
+        } else if (!preset.settings.toolUseMode) {
+          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 166 error', error as Error)
+      return state
+    }
+  },
+  '167': (state: RootState) => {
+    try {
+      addProvider(state, 'huggingface')
+      return state
+    } catch (error) {
+      logger.error('migrate 167 error', error as Error)
       return state
     }
   }

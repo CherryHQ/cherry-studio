@@ -88,7 +88,9 @@ const providerKeyMap = {
   zhinao: 'provider.zhinao',
   zhipu: 'provider.zhipu',
   poe: 'provider.poe',
-  aionly: 'provider.aionly'
+  aionly: 'provider.aionly',
+  longcat: 'provider.longcat',
+  huggingface: 'provider.huggingface'
 } as const
 
 /**
@@ -163,9 +165,21 @@ export const getThemeModeLabel = (key: string): string => {
   return getLabel(themeModeKeyMap, key)
 }
 
+// const sidebarIconKeyMap = {
+//   assistants: t('assistants.title'),
+//   store: t('assistants.presets.title'),
+//   paintings: t('paintings.title'),
+//   translate: t('translate.title'),
+//   minapp: t('minapp.title'),
+//   knowledge: t('knowledge.title'),
+//   files: t('files.title'),
+//   code_tools: t('code.title'),
+//   notes: t('notes.title')
+// } as const
+
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
-  agents: 'agents.title',
+  store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
   minapp: 'minapp.title',
@@ -329,7 +343,8 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
   [BuiltinMCPServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
   [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
   [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python'
+  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
+  [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
@@ -339,12 +354,14 @@ export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
 const builtinOcrProviderKeyMap = {
   system: 'ocr.builtin.system',
   tesseract: '',
-  paddleocr: ''
+  paddleocr: '',
+  ovocr: ''
 } as const satisfies Record<BuiltinOcrProviderId, string>
 
 export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   if (key === 'tesseract') return 'Tesseract'
   else if (key == 'paddleocr') return 'PaddleOCR'
+  else if (key == 'ovocr') return 'Intel OV(NPU) OCR'
   else return getLabel(builtinOcrProviderKeyMap, key)
 }
 

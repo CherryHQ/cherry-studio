@@ -1,10 +1,10 @@
 import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type OpenAI from '@cherrystudio/openai'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import { AISDKWebSearchResult, Citation, WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
-import type OpenAI from 'openai'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
 
@@ -242,7 +242,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
     }
   }
   // 3. Handle Knowledge Base References
-  if (block.knowledge && block.knowledge.length > 0) {
+  if (block.knowledge && Array.isArray(block.knowledge) && block.knowledge.length > 0) {
     formattedCitations.push(
       ...block.knowledge.map((result, index) => {
         const filePattern = /\[(.*?)]\(http:\/\/file\/(.*?)\)/
@@ -270,7 +270,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
     )
   }
 
-  if (block.memories && block.memories.length > 0) {
+  if (block.memories && Array.isArray(block.memories) && block.memories.length > 0) {
     // 5. Handle Memory References
     formattedCitations.push(
       ...block.memories.map((memory, index) => ({

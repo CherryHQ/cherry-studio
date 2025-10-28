@@ -1,4 +1,4 @@
-import { cn } from '@heroui/react'
+import { cn, Tooltip } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -43,10 +43,13 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
             <AgentNameWrapper>
               <AgentLabel agent={agent} />
             </AgentNameWrapper>
+            {isActive && (
+              <MenuButton>
+                <SessionCount>{sessions.length}</SessionCount>
+              </MenuButton>
+            )}
+            {!isActive && <BotIcon />}
           </AssistantNameRow>
-          <MenuButton>
-            {isActive ? <SessionCount>{sessions.length}</SessionCount> : <Bot size={14} className="text-primary" />}
-          </MenuButton>
         </Container>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -103,19 +106,27 @@ export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = 
 export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] w-[22px] flex-row items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
+      'flex h-5 min-h-5 w-5 flex-row items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)]',
       className
     )}
     {...props}
   />
 )
 
+export const BotIcon: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ ...props }) => {
+  const { t } = useTranslation()
+  return (
+    <Tooltip content={t('common.agent_one')} delay={500} closeDelay={0}>
+      <MenuButton {...props}>
+        <Bot size={14} className="text-primary" />
+      </MenuButton>
+    </Tooltip>
+  )
+}
+
 export const SessionCount: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
-    className={cn(
-      'flex flex-row items-center justify-center rounded-full text-[10px] text-[var(--color-text)]',
-      className
-    )}
+    className={cn('flex flex-row items-center justify-center rounded-full text-[var(--color-text)] text-xs', className)}
     {...props}
   />
 )
