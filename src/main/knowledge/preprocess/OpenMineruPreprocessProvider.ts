@@ -26,24 +26,24 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
       logger.info(`Open MinerU preprocess processing started: ${filePath}`)
       await this.validateFile(filePath)
 
-      // 1. 更新进度
+      // 1. Update progress
       await this.sendPreprocessProgress(sourceId, 50)
       logger.info(`File ${file.name} is starting processing...`)
 
-      // 2. 获取上传文件并解析
+      // 2. Upload file and extract
       const { path: outputPath } = await this.uploadFileAndExtract(file)
 
-      // 3. check quota
+      // 3. Check quota
       const quota = await this.checkQuota()
 
-      // 4. 创建处理后的文件信息
+      // 4. Create processed file info
       return {
         processedFile: this.createProcessedFileInfo(file, outputPath),
         quota
       }
-    } catch (error: any) {
+    } catch (error) {
       logger.error(`Open MinerU preprocess processing failed for:`, error as Error)
-      throw new Error(error.message)
+      throw error
     }
   }
 
@@ -57,11 +57,11 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
 
     const doc = await this.readPdf(pdfBuffer)
 
-    // 文件页数小于600页
+    // File page count must be less than 600 pages
     if (doc.numPages >= 600) {
       throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 600 pages`)
     }
-    // 文件大小小于200MB
+    // File size must be less than 200MB
     if (pdfBuffer.length >= 200 * 1024 * 1024) {
       const fileSizeMB = Math.round(pdfBuffer.length / (1024 * 1024))
       throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 200MB`)
@@ -69,10 +69,10 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
   }
 
   private createProcessedFileInfo(file: FileMetadata, outputPath: string): FileMetadata {
-    // 查找解压后的主要文件
+    // Find the main file after extraction
     let finalPath = ''
     let finalName = file.origin_name.replace('.pdf', '.md')
-    // 按文件名找到对应文件夹
+    // Find the corresponding folder by file name
     outputPath = path.join(outputPath, `${file.origin_name.replace('.pdf', '')}`)
     try {
       const files = fs.readdirSync(outputPath)
@@ -82,20 +82,20 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
         const originalMdPath = path.join(outputPath, mdFile)
         const newMdPath = path.join(outputPath, finalName)
 
-        // 重命名文件为原始文件名
+        // Rename file to original file name
         try {
           fs.renameSync(originalMdPath, newMdPath)
           finalPath = newMdPath
           logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
         } catch (renameError) {
           logger.warn(`Failed to rename file ${mdFile} to ${finalName}: ${renameError}`)
-          // 如果重命名失败，使用原文件
+          // If rename fails, use the original file
           finalPath = originalMdPath
           finalName = mdFile
         }
       }
     } catch (error) {
-      logger.warn(`Failed to read output directory ${outputPath}: ${error}`)
+      logger.warn(`Failed to read output directory ${outputPath}:`, error as Error)
       finalPath = path.join(outputPath, `${file.id}.md`)
     }
 
@@ -117,7 +117,7 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
 
     const endpoint = `${this.provider.apiHost}/file_parse`
 
-    // 获取文件流
+    // Get file stream
     const filePath = fileStorage.getFilePathById(file)
     const fileBuffer = await fs.promises.readFile(filePath)
 
@@ -129,6 +129,8 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
     })
 
     while (retries < maxRetries) {
+      let zipPath: string | undefined
+
       try {
         const response = await net.fetch(endpoint, {
           method: 'POST',
@@ -144,38 +146,47 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
           throw new Error(`HTTP ${response.status}: ${response.statusText}`)
         }
 
-        // 判断响应头是否是application/zip
+        // Check if response header is application/zip
         if (response.headers.get('content-type') !== 'application/zip') {
           throw new Error(`Downloaded ZIP file has unexpected content-type: ${response.headers.get('content-type')}`)
         }
 
         const dirPath = this.storageDir
 
-        const zipPath = path.join(dirPath, `${file.id}.zip`)
+        zipPath = path.join(dirPath, `${file.id}.zip`)
         const extractPath = path.join(dirPath, `${file.id}`)
 
         const arrayBuffer = await response.arrayBuffer()
         fs.writeFileSync(zipPath, Buffer.from(arrayBuffer))
         logger.info(`Downloaded ZIP file: ${zipPath}`)
 
-        // 确保提取目录存在
+        // Ensure extraction directory exists
         if (!fs.existsSync(extractPath)) {
           fs.mkdirSync(extractPath, { recursive: true })
         }
 
-        // 解压文件
+        // Extract files
         const zip = new AdmZip(zipPath)
         zip.extractAllTo(extractPath, true)
         logger.info(`Extracted files to: ${extractPath}`)
 
-        // 删除临时ZIP文件
-        fs.unlinkSync(zipPath)
-
         return { path: extractPath }
       } catch (error) {
-        logger.warn(`Failed to upload and extract file: ${error}, retry ${retries + 1}/${maxRetries}`)
+        logger.warn(
+          `Failed to upload and extract file: ${(error as Error).message}, retry ${retries + 1}/${maxRetries}`
+        )
         if (retries === maxRetries - 1) {
           throw error
+        }
+      } finally {
+        // Delete temporary ZIP file
+        if (zipPath && fs.existsSync(zipPath)) {
+          try {
+            fs.unlinkSync(zipPath)
+            logger.info(`Deleted temporary ZIP file: ${zipPath}`)
+          } catch (deleteError) {
+            logger.warn(`Failed to delete temporary ZIP file ${zipPath}:`, deleteError as Error)
+          }
         }
       }
 
