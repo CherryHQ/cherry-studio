@@ -67,6 +67,7 @@ type Props = {
   agent?: AgentWithTools
   isOpen: boolean
   onClose: () => void
+  afterSubmit?: (a: AgentEntity) => void
 }
 
 /**
@@ -78,7 +79,7 @@ type Props = {
  * @param onClose - Optional callback when modal closes. From useDisclosure.
  * @returns Modal component for agent creation/editing
  */
-export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _onClose }) => {
+export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _onClose, afterSubmit }) => {
   const { isOpen, onClose } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
@@ -301,8 +302,13 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
-        updateAgent(updatePayload)
-        logger.debug('Updated agent', updatePayload)
+        const result = await updateAgent(updatePayload)
+        if (result) {
+          logger.debug('Updated agent', result)
+          afterSubmit?.(result)
+        } else {
+          logger.error('Update failed.')
+        }
       } else {
         const newAgent = {
           type: form.type,
@@ -315,12 +321,13 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         const result = await addAgent(newAgent)
+
         if (!result.success) {
           loadingRef.current = false
           throw result.error
         }
+        afterSubmit?.(result.data)
       }
-
       loadingRef.current = false
 
       // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)

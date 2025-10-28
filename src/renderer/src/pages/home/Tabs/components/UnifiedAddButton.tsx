@@ -1,19 +1,25 @@
 import { Button, Popover, PopoverContent, PopoverTrigger, useDisclosure } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { AgentEntity, Assistant, Topic } from '@renderer/types'
 import { Bot, MessageSquare } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddButton from './AddButton'
 
 interface UnifiedAddButtonProps {
   onCreateAssistant: () => void
+  setActiveAssistant: (a: Assistant) => void
+  setActiveAgentId: (id: string) => void
 }
 
-const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant }) => {
+const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setActiveAssistant, setActiveAgentId }) => {
   const { t } = useTranslation()
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
   const { isOpen: isAgentModalOpen, onOpen: onAgentModalOpen, onClose: onAgentModalClose } = useDisclosure()
+  const dispatch = useAppDispatch()
 
   const handleAddAssistant = () => {
     setIsPopoverOpen(false)
@@ -24,6 +30,31 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant }) => {
     setIsPopoverOpen(false)
     onAgentModalOpen()
   }
+
+  const afterCreate = useCallback(
+    (a: AgentEntity) => {
+      // TODO: should allow it to be null
+      setActiveAssistant({
+        id: 'fake',
+        name: '',
+        prompt: '',
+        topics: [
+          {
+            id: 'fake',
+            assistantId: 'fake',
+            name: 'fake',
+            createdAt: '',
+            updatedAt: '',
+            messages: []
+          } as unknown as Topic
+        ],
+        type: 'chat'
+      })
+      setActiveAgentId(a.id)
+      dispatch(setActiveTopicOrSessionAction('session'))
+    },
+    [dispatch, setActiveAgentId, setActiveAssistant]
+  )
 
   return (
     <div className="mb-1">
@@ -53,7 +84,7 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant }) => {
         </PopoverContent>
       </Popover>
 
-      <AgentModal isOpen={isAgentModalOpen} onClose={onAgentModalClose} />
+      <AgentModal isOpen={isAgentModalOpen} onClose={onAgentModalClose} afterSubmit={afterCreate} />
     </div>
   )
 }

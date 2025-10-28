@@ -9,7 +9,7 @@ import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { useAppDispatch } from '@renderer/store'
 import { addIknowAction } from '@renderer/store/runtime'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import { Assistant, AssistantsSortType, Topic } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,6 +99,30 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     [setAssistantsTabSortType]
   )
 
+  const handleAgentPress = useCallback(
+    (agentId: string) => {
+      setActiveAgentId(agentId)
+      // TODO: should allow it to be null
+      setActiveAssistant({
+        id: 'fake',
+        name: '',
+        prompt: '',
+        topics: [
+          {
+            id: 'fake',
+            assistantId: 'fake',
+            name: 'fake',
+            createdAt: '',
+            updatedAt: '',
+            messages: []
+          } as unknown as Topic
+        ],
+        type: 'chat'
+      })
+    },
+    [setActiveAgentId, setActiveAssistant]
+  )
+
   return (
     <Container className="assistants-tab" ref={containerRef}>
       {!apiServerConfig.enabled && !apiServerRunning && !iknow[ALERT_KEY] && (
@@ -126,7 +150,11 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       )}
 
-      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
+      <UnifiedAddButton
+        onCreateAssistant={onCreateAssistant}
+        setActiveAssistant={setActiveAssistant}
+        setActiveAgentId={setActiveAgentId}
+      />
 
       {assistantsTabSortType === 'tags' ? (
         <UnifiedTagGroups
@@ -162,7 +190,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           onAssistantSwitch={setActiveAssistant}
           onAssistantDelete={onDeleteAssistant}
           onAgentDelete={deleteAgent}
-          onAgentPress={setActiveAgentId}
+          onAgentPress={handleAgentPress}
           addPreset={addAssistantPreset}
           copyAssistant={copyAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}

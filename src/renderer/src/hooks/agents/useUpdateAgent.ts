@@ -23,8 +23,10 @@ export const useUpdateAgent = () => {
         if (options?.showSuccessToast ?? true) {
           window.toast.success(t('common.update_success'))
         }
+        return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
+        return undefined
       }
     },
     [client, listKey, t]
