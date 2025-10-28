@@ -62,7 +62,12 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
             )}
             {activeSession && (
               <BreadcrumbItem>
-                <SelectAgentBaseModelButton agentBase={activeSession} onSelect={handleUpdateModel} />
+                <SelectAgentBaseModelButton
+                  agentBase={activeSession}
+                  onSelect={async (model) => {
+                    await handleUpdateModel(model)
+                  }}
+                />
               </BreadcrumbItem>
             )}
             {activeAgent && activeSession && (

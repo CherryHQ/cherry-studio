@@ -46,7 +46,9 @@ const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update, show
           </div>
         </SettingsItem>
       )}
-      {isAgent && <AvatarSetting agent={agentBase} update={update} />}
+      {isAgent && (
+        <AvatarSetting agent={agentBase} update={update as ReturnType<typeof useUpdateAgent>['updateAgent']} />
+      )}
       <NameSetting base={agentBase} update={update} />
       {showModelSetting && <ModelSetting base={agentBase} update={update} />}
       <AccessibleDirsSetting base={agentBase} update={update} />

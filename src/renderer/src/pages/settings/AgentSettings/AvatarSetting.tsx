@@ -7,7 +7,7 @@ import { SettingsItem, SettingsTitle } from './shared'
 
 export interface AvatarSettingsProps {
   agent: AgentEntity
-  update: (form: UpdateAgentForm) => Promise<void>
+  update: (form: UpdateAgentForm) => Promise<AgentEntity | undefined>
 }
 
 // const logger = loggerService.withContext('AvatarSetting')

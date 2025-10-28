@@ -1,6 +1,13 @@
 import { Button, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
-import { AgentBaseWithId, UpdateAgentBaseForm } from '@renderer/types'
+import {
+  AgentBaseWithId,
+  AgentEntity,
+  AgentSessionEntity,
+  UpdateAgentBaseForm,
+  UpdateAgentForm,
+  UpdateSessionForm
+} from '@renderer/types'
 import { Plus } from 'lucide-react'
 import React, { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +16,9 @@ import { SettingsItem, SettingsTitle } from './shared'
 
 export interface AccessibleDirsSettingProps {
   base: AgentBaseWithId | undefined | null
-  update: (form: UpdateAgentBaseForm) => Promise<void>
+  update:
+    | ((form: UpdateAgentForm) => Promise<AgentEntity | undefined>)
+    | ((form: UpdateSessionForm) => Promise<AgentSessionEntity | undefined>)
 }
 
 const logger = loggerService.withContext('AccessibleDirsSetting')

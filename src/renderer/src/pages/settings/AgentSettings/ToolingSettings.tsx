@@ -1,5 +1,7 @@
 import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
 import { permissionModeCards } from '@renderer/config/agent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import {
@@ -9,9 +11,7 @@ import {
   GetAgentSessionResponse,
   PermissionMode,
   Tool,
-  UpdateAgentBaseForm,
-  UpdateAgentForm,
-  UpdateSessionForm
+  UpdateAgentBaseForm
 } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
@@ -23,11 +23,11 @@ import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 type AgentToolingSettingsProps =
   | {
       agentBase: GetAgentResponse | undefined | null
-      update: (form: UpdateAgentForm) => Promise<void> | void
+      update: ReturnType<typeof useUpdateAgent>['updateAgent']
     }
   | {
       agentBase: GetAgentSessionResponse | undefined | null
-      update: (form: UpdateSessionForm) => Promise<void> | void
+      update: ReturnType<typeof useUpdateSession>['updateSession']
     }
 
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>

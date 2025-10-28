@@ -1,5 +1,12 @@
 import { Textarea } from '@heroui/react'
-import { AgentBaseWithId, UpdateAgentBaseForm } from '@renderer/types'
+import {
+  AgentBaseWithId,
+  AgentEntity,
+  AgentSessionEntity,
+  UpdateAgentBaseForm,
+  UpdateAgentForm,
+  UpdateSessionForm
+} from '@renderer/types'
 import React, { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +14,9 @@ import { SettingsItem, SettingsTitle } from './shared'
 
 export interface DescriptionSettingProps {
   base: AgentBaseWithId | undefined | null
-  update: (form: UpdateAgentBaseForm) => Promise<void>
+  update:
+    | ((form: UpdateAgentForm) => Promise<AgentEntity | undefined>)
+    | ((form: UpdateSessionForm) => Promise<AgentSessionEntity | undefined>)
 }
 
 export const DescriptionSetting: React.FC<DescriptionSettingProps> = ({ base, update }) => {

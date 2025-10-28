@@ -336,16 +336,17 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
     [
       form.type,
       form.model,
+      form.accessible_paths,
       form.name,
       form.description,
       form.instructions,
-      form.accessible_paths,
       form.allowed_tools,
       form.configuration,
       agent,
       onClose,
       t,
       updateAgent,
+      afterSubmit,
       addAgent
     ]
   )

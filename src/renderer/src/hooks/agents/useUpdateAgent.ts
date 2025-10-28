@@ -1,4 +1,4 @@
-import { ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
+import { AgentEntity, ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,7 @@ export const useUpdateAgent = () => {
   const listKey = client.agentPaths.base
 
   const updateAgent = useCallback(
-    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions) => {
+    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
         const itemKey = client.agentPaths.withId(form.id)
         // may change to optimistic update

@@ -1,12 +1,21 @@
 import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
-import { AgentBaseWithId, ApiModel, UpdateAgentBaseForm } from '@renderer/types'
+import {
+  AgentBaseWithId,
+  AgentEntity,
+  AgentSessionEntity,
+  ApiModel,
+  UpdateAgentForm,
+  UpdateSessionForm
+} from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsTitle } from './shared'
 
 export interface ModelSettingProps {
   base: AgentBaseWithId | undefined | null
-  update: (form: UpdateAgentBaseForm) => Promise<void>
+  update:
+    | ((form: UpdateAgentForm) => Promise<AgentEntity | undefined>)
+    | ((form: UpdateSessionForm) => Promise<AgentSessionEntity | undefined>)
   isDisabled?: boolean
 }
 
@@ -23,7 +32,13 @@ export const ModelSetting: React.FC<ModelSettingProps> = ({ base, update, isDisa
   return (
     <SettingsItem inline>
       <SettingsTitle id="model">{t('common.model')}</SettingsTitle>
-      <SelectAgentBaseModelButton agentBase={base} onSelect={updateModel} isDisabled={isDisabled} />
+      <SelectAgentBaseModelButton
+        agentBase={base}
+        onSelect={async (model) => {
+          await updateModel(model)
+        }}
+        isDisabled={isDisabled}
+      />
     </SettingsItem>
   )
 }

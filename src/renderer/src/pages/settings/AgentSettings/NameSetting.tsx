@@ -1,5 +1,12 @@
 import { Input } from '@heroui/react'
-import { AgentBaseWithId, UpdateAgentBaseForm } from '@renderer/types'
+import {
+  AgentBaseWithId,
+  AgentEntity,
+  AgentSessionEntity,
+  UpdateAgentBaseForm,
+  UpdateAgentForm,
+  UpdateSessionForm
+} from '@renderer/types'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +14,9 @@ import { SettingsItem, SettingsTitle } from './shared'
 
 export interface NameSettingsProps {
   base: AgentBaseWithId | undefined | null
-  update: (form: UpdateAgentBaseForm) => Promise<void>
+  update:
+    | ((form: UpdateAgentForm) => Promise<AgentEntity | undefined>)
+    | ((form: UpdateSessionForm) => Promise<AgentSessionEntity | undefined>)
 }
 
 export const NameSetting: React.FC<NameSettingsProps> = ({ base, update }) => {
