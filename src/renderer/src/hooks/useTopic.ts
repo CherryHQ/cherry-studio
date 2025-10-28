@@ -3,7 +3,7 @@ import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
-import store, { useAppSelector } from '@renderer/store'
+import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
 import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
@@ -12,6 +12,7 @@ import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { find, isEmpty } from 'lodash'
 import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
+import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
 let _activeTopic: Topic
@@ -19,10 +20,8 @@ let _setActiveTopic: Dispatch<SetStateAction<Topic>>
 
 // const logger = loggerService.withContext('useTopic')
 
-export function useActiveTopic(assistantId: string | null, topic?: Topic) {
-  const assistant = useAppSelector((state) =>
-    assistantId ? state.assistants.assistants.find((a) => a.id === assistantId) : undefined
-  )
+export function useActiveTopic(assistantId: string, topic?: Topic) {
+  const { assistant } = useAssistant(assistantId)
   const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
 
   _activeTopic = activeTopic
