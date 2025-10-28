@@ -996,6 +996,7 @@
     }
   },
   "common": {
+    "about": "关于",
     "add": "添加",
     "add_success": "添加成功",
     "advanced_settings": "高级设置",
@@ -2414,12 +2415,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "腾讯混元",
     "hyperbolic": "Hyperbolic",
     "infini": "无问芯穹",
     "jina": "Jina",
     "lanyun": "蓝耘科技",
     "lmstudio": "LM Studio",
+    "longcat": "龙猫",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -2747,11 +2750,11 @@
             "go_to_settings": "去设置",
             "open_accessibility_settings": "打开辅助功能设置"
           },
-          "description": [
-            "划词助手需「<strong>辅助功能权限</strong>」才能正常工作。",
-            "请点击「<strong>去设置</strong>」，并在稍后弹出的权限请求弹窗中点击 「<strong>打开系统设置</strong>」 按钮，然后在之后的应用列表中找到 「<strong>Cherry Studio</strong>」，并打开权限开关。",
-            "完成设置后，请再次开启划词助手。"
-          ],
+          "description": {
+            "0": "划词助手需「<strong>辅助功能权限</strong>」才能正常工作。",
+            "1": "请点击「<strong>去设置</strong>」，并在稍后弹出的权限请求弹窗中点击 「<strong>打开系统设置</strong>」 按钮，然后在之后的应用列表中找到 「<strong>Cherry Studio</strong>」，并打开权限开关。",
+            "2": "完成设置后，请再次开启划词助手。"
+          },
           "title": "辅助功能权限"
         },
         "title": "启用"

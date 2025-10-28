@@ -582,7 +582,7 @@
         "context": "Limpar contexto {{Command}}"
       },
       "new_topic": "Novo tópico {{Command}}",
-      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
+      "paste_text_file_confirm": "Colar na caixa de entrada?",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
@@ -996,6 +996,7 @@
     }
   },
   "common": {
+    "about": "sobre",
     "add": "Adicionar",
     "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
@@ -2006,12 +2007,12 @@
     "rename_changed": "Devido às políticas de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "save": "salvar em notas",
     "search": {
-      "both": "[to be translated]:名称+内容",
-      "content": "[to be translated]:内容",
-      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
-      "more_matches": "[to be translated]:个匹配",
-      "searching": "[to be translated]:搜索中...",
-      "show_less": "[to be translated]:收起"
+      "both": "Nome + Conteúdo",
+      "content": "conteúdo",
+      "found_results": "Encontrados {{count}} resultados (nome: {{nameCount}}, conteúdo: {{contentCount}})",
+      "more_matches": "uma correspondência",
+      "searching": "Pesquisando...",
+      "show_less": "Recolher"
     },
     "settings": {
       "data": {
@@ -2161,8 +2162,8 @@
       "install_code_103": "Falha ao baixar o tempo de execução do OVMS",
       "install_code_104": "Falha ao descompactar o tempo de execução do OVMS",
       "install_code_105": "Falha ao limpar o tempo de execução do OVMS",
-      "install_code_106": "[to be translated]:创建 run.bat 失败",
-      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
+      "install_code_106": "Falha ao criar run.bat",
+      "install_code_110": "Falha ao limpar o antigo runtime OVMS",
       "run": "Falha ao executar o OVMS:",
       "stop": "Falha ao parar o OVMS:"
     },
@@ -2414,12 +2415,14 @@
     "gpustack": "GPUStack",
     "grok": "Compreender",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hún Yuán",
     "hyperbolic": "Hiperbólico",
     "infini": "Infinito",
     "jina": "Jina",
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
+    "longcat": "Totoro",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
@@ -4300,7 +4303,7 @@
         "system": "Proxy do Sistema",
         "title": "Modo de Proxy"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "suporte a correspondência fuzzy (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Clique no ícone da bandeja para iniciar",
