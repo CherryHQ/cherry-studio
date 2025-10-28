@@ -29,8 +29,10 @@ jobs:
           days-before-close: 0 # Close immediately after stale
           stale-issue-label: 'inactive'
           close-issue-label: 'closed:no-response'
+          exempt-all-milestones: true
+          exempt-all-assignees: true
           stale-issue-message: |
-            This issue has been labeled as needing more information and has been inactive for ${{ env.daysBeforeStale }} days. 
+            This issue has been labeled as needing more information and has been inactive for ${{ env.daysBeforeStale }} days.
             It will be closed now due to lack of additional information.
 
             该问题被标记为"需要更多信息"且已经 ${{ env.daysBeforeStale }} 天没有任何活动，将立即关闭。
@@ -46,6 +48,8 @@ jobs:
           days-before-stale: ${{ env.daysBeforeStale }}
           days-before-close: ${{ env.daysBeforeClose }}
           stale-issue-label: 'inactive'
+          exempt-all-milestones: true
+          exempt-all-assignees: true
           stale-issue-message: |
             This issue has been inactive for a prolonged period and will be closed automatically in ${{ env.daysBeforeClose }} days.
             该问题已长时间处于闲置状态，${{ env.daysBeforeClose }} 天后将自动关闭。
