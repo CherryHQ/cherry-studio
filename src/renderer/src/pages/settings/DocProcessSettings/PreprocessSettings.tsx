@@ -1,6 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
-import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import { PreprocessProvider } from '@renderer/types'
 import { Select } from 'antd'
 import { FC, useState } from 'react'
@@ -17,9 +16,7 @@ const PreprocessSettings: FC = () => {
   const { theme: themeMode } = useTheme()
 
   function updateSelectedPreprocessProvider(providerId: string) {
-    const provider =
-      preprocessProviders.find((p) => p.id === providerId) ||
-      defaultPreprocessProviders.find((p) => p.id === providerId)
+    const provider = preprocessProviders.find((p) => p.id === providerId)
     if (!provider) {
       return
     }
@@ -40,7 +37,7 @@ const PreprocessSettings: FC = () => {
               style={{ width: '200px' }}
               onChange={(value: string) => updateSelectedPreprocessProvider(value)}
               placeholder={t('settings.tool.preprocess.provider_placeholder')}
-              options={defaultPreprocessProviders.map((p) => ({
+              options={preprocessProviders.map((p) => ({
                 value: p.id,
                 label: p.name
                 // 由于system字段实际未使用，先注释掉
