@@ -65,7 +65,7 @@ const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
   min-width: 100%;
   display: flex;
   flex-direction: row;
-  min-height: ${isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
+  min-height: ${({ $isFullScreen }) => (!$isFullScreen && isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)')};
   max-height: var(--navbar-height);
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
   padding-left: ${({ $isFullScreen }) =>
