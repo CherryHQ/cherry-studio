@@ -81,7 +81,7 @@ export async function fetchChatCompletion({
   messages,
   prompt,
   assistant,
-  options,
+  requestOptions,
   onChunkReceived,
   topicId,
   uiMessages
@@ -122,7 +122,7 @@ export async function fetchChatCompletion({
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     webSearchProviderId: assistant.webSearchProviderId,
-    requestOptions: options
+    requestOptions
   })
 
   const middlewareConfig: AiSdkMiddlewareConfig = {

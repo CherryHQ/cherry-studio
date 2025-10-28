@@ -47,7 +47,7 @@ export class OrchestrationService {
       await fetchChatCompletion({
         messages: modelMessages,
         assistant: assistant,
-        options: request.options,
+        requestOptions: request.options,
         onChunkReceived,
         topicId: request.topicId,
         uiMessages: uiMessages
@@ -79,7 +79,7 @@ export async function transformMessagesAndFetch(
     await fetchChatCompletion({
       messages: modelMessages,
       assistant: assistant,
-      options: request.options,
+      requestOptions: request.options,
       onChunkReceived,
       topicId: request.topicId,
       uiMessages

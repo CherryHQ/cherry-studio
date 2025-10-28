@@ -30,8 +30,8 @@ import {
 import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
-import { SettingsState } from '@renderer/store/settings'
 import { Assistant, EFFORT_RATIO, isSystemProvider, Model, SystemProviderIds } from '@renderer/types'
+import { OpenAIReasoningEffort, OpenAISummaryText } from '@renderer/types/aiCoreTypes'
 import { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
 import { toInteger } from 'lodash'
 
@@ -313,10 +313,14 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 }
 
 /**
- * 获取 OpenAI 推理参数
- * 从 OpenAIResponseAPIClient 和 OpenAIAPIClient 中提取的逻辑
+ * Get OpenAI reasoning parameters
+ * Extracted from OpenAIResponseAPIClient and OpenAIAPIClient logic
+ * For official OpenAI provider only
  */
-export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+export function getOpenAIReasoningParams(
+  assistant: Assistant,
+  model: Model
+): { reasoningEffort?: OpenAIReasoningEffort; reasoningSummary?: OpenAISummaryText } {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -327,6 +331,10 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
     return {}
   }
 
+  if (isOpenAIDeepResearchModel(model) || reasoningEffort === 'auto') {
+    reasoningEffort = 'medium'
+  }
+
   // 非OpenAI模型，但是Provider类型是responses/azure openai的情况
   if (!isOpenAIModel(model)) {
     return {
@@ -334,19 +342,15 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
     }
   }
 
-  const openAI = getStoreSetting('openAI') as SettingsState['openAI']
-  const summaryText = openAI?.summaryText || 'off'
+  const openAI = getStoreSetting('openAI')
+  const summaryText = openAI.summaryText
 
-  let reasoningSummary: string | undefined = undefined
+  let reasoningSummary: OpenAISummaryText = undefined
 
-  if (summaryText === 'off' || model.id.includes('o1-pro')) {
+  if (model.id.includes('o1-pro')) {
     reasoningSummary = undefined
   } else {
     reasoningSummary = summaryText
-  }
-
-  if (isOpenAIDeepResearchModel(model)) {
-    reasoningEffort = 'medium'
   }
 
   // OpenAI 推理参数
