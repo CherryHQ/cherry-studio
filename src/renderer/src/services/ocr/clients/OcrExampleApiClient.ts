@@ -1,12 +1,14 @@
-import type { OcrApiProvider, SupportedOcrFile } from '@renderer/types'
+import type { OcrApiProvider, OcrApiProviderConfig, SupportedOcrFile } from '@renderer/types'
 
 import { OcrBaseApiClient } from './OcrBaseApiClient'
 
 export type OcrExampleProvider = OcrApiProvider
 
+// Not being used for now.
+// TODO: Migrate to main in the future.
 export class OcrExampleApiClient extends OcrBaseApiClient {
-  constructor(provider: OcrApiProvider) {
-    super(provider)
+  constructor(provider: OcrApiProvider, config: OcrApiProviderConfig) {
+    super(provider, config)
   }
 
   public ocr = async (file: SupportedOcrFile) => {

@@ -1,5 +1,18 @@
 // NOTE: Types are defined inline in the schema for simplicity
 // If needed, specific types can be imported from './apiModels'
+import type {
+  CreateOcrProviderRequest,
+  CreateOcrProviderResponse,
+  GetOcrProviderResponse,
+  ListOcrProvidersQuery,
+  ListOcrProvidersResponse,
+  OcrProviderId,
+  ReplaceOcrProviderRequest,
+  ReplaceOcrProviderResponse,
+  UpdateOcrProviderRequest,
+  UpdateOcrProviderResponse
+} from '@types'
+
 import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './apiPaths'
 import type { HttpMethod, PaginatedResponse, PaginationParams } from './apiTypes'
 
@@ -343,6 +356,38 @@ export interface ApiSchemas {
         /** Error information if failed */
         error?: any
       }>
+    }
+  }
+
+  '/ocr/providers': {
+    GET: {
+      query: ListOcrProvidersQuery
+      response: ListOcrProvidersResponse
+    }
+    POST: {
+      body: CreateOcrProviderRequest
+      response: CreateOcrProviderResponse
+    }
+  }
+
+  '/ocr/providers/:id': {
+    GET: {
+      params: { id: OcrProviderId }
+      response: GetOcrProviderResponse
+    }
+    PATCH: {
+      params: { id: OcrProviderId }
+      body: UpdateOcrProviderRequest
+      response: UpdateOcrProviderResponse
+    }
+    PUT: {
+      params: { id: OcrProviderId }
+      body: ReplaceOcrProviderRequest
+      response: ReplaceOcrProviderResponse
+    }
+    DELETE: {
+      params: { id: OcrProviderId }
+      response: void
     }
   }
 }

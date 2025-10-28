@@ -2055,6 +2055,7 @@
         "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
         "existing": "プロバイダーはすでに存在します",
         "get_providers": "利用可能なプロバイダーの取得に失敗しました",
+        "not_availabel": "{{provider}}が利用できません",
         "not_found": "OCRプロバイダーが存在しません",
         "update_failed": "更新構成に失敗しました"
       },
@@ -2064,6 +2065,40 @@
       "not_supported": "サポートされていないファイルタイプ {{type}}"
     },
     "processing": "OCR処理中...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "設定の更新に失敗しました"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "プロバイダーの作成に失敗しました"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "プロバイダー {{provider}} の削除に失敗しました"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "プロバイダー {{provider}} の取得に失敗しました"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "プロバイダーの一覧取得に失敗しました"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "プロバイダーの更新に失敗しました"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"

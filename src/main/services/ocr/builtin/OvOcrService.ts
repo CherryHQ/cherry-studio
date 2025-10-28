@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
-import { isImageFileMetadata } from '@types'
+import type { OcrOvConfig, OcrProviderConfig, OcrResult, SupportedOcrFile } from '@types'
+import { isImageFileMetadata, isOcrOvConfig } from '@types'
 import { exec } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -15,18 +15,15 @@ const execAsync = promisify(exec)
 
 const PATH_BAT_FILE = path.join(os.homedir(), '.cherrystudio', 'ovms', 'ovocr', 'run.npu.bat')
 
+const isOvAvailable =
+  isWin &&
+  os.cpus()[0].model.toLowerCase().includes('intel') &&
+  os.cpus()[0].model.toLowerCase().includes('ultra') &&
+  fs.existsSync(PATH_BAT_FILE)
+
 export class OvOcrService extends OcrBaseService {
   constructor() {
     super()
-  }
-
-  public isAvailable(): boolean {
-    return (
-      isWin &&
-      os.cpus()[0].model.toLowerCase().includes('intel') &&
-      os.cpus()[0].model.toLowerCase().includes('ultra') &&
-      fs.existsSync(PATH_BAT_FILE)
-    )
   }
 
   private getOvOcrPath(): string {
@@ -81,8 +78,8 @@ export class OvOcrService extends OcrBaseService {
     }
   }
 
-  private async ocrImage(filePath: string, options?: OcrOvConfig): Promise<OcrResult> {
-    logger.info(`OV OCR called on ${filePath} with options ${JSON.stringify(options)}`)
+  private async ocrImage(filePath: string, config?: OcrOvConfig): Promise<OcrResult> {
+    logger.info(`OV OCR called on ${filePath} with options ${JSON.stringify(config)}`)
 
     try {
       // 1. Clear img directory and output directory
@@ -117,13 +114,16 @@ export class OvOcrService extends OcrBaseService {
     }
   }
 
-  public ocr = async (file: SupportedOcrFile, options?: OcrOvConfig): Promise<OcrResult> => {
+  public ocr = async (file: SupportedOcrFile, config?: OcrProviderConfig): Promise<OcrResult> => {
+    if (!isOcrOvConfig(config)) {
+      throw new Error('Invalid OCR OV config')
+    }
     if (isImageFileMetadata(file)) {
-      return this.ocrImage(file.path, options)
+      return this.ocrImage(file.path, config)
     } else {
       throw new Error('Unsupported file type, currently only image files are supported')
     }
   }
 }
 
-export const ovOcrService = new OvOcrService()
+export const ovOcrService = isOvAvailable ? new OvOcrService() : undefined

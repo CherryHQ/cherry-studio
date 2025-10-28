@@ -369,8 +369,7 @@ export enum IpcChannel {
   CodeTools_RemoveCustomTerminalPath = 'code-tools:remove-custom-terminal-path',
 
   // OCR
-  OCR_ocr = 'ocr:ocr',
-  OCR_ListProviders = 'ocr:list-providers',
+  OCR_Ocr = 'ocr:ocr',
 
   // OVMS
   Ovms_AddModel = 'ovms:add-model',

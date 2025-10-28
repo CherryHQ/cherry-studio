@@ -1,18 +1,21 @@
 import { loggerService } from '@logger'
 import * as OcrService from '@renderer/services/ocr/OcrService'
-import type { ImageFileMetadata, SupportedOcrFile } from '@renderer/types'
+import type { ImageFileMetadata, OcrProvider, SupportedOcrFile } from '@renderer/types'
 import { isImageFileMetadata } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useOcrProviders } from './useOcrProvider'
+import { useOcrImageProvider } from './useOcrImageProvider'
 
 const logger = loggerService.withContext('useOcr')
 
+const isProviderAvailable = (provider: OcrProvider | undefined | null): provider is OcrProvider =>
+  provider !== undefined
+
 export const useOcr = () => {
   const { t } = useTranslation()
-  const { imageProvider } = useOcrProviders()
+  const { imageProvider, imageProviderId } = useOcrImageProvider()
 
   /**
    * 对图片文件进行OCR识别
@@ -22,10 +25,16 @@ export const useOcr = () => {
    */
   const ocrImage = useCallback(
     async (image: ImageFileMetadata) => {
-      logger.debug('ocrImage', { config: imageProvider.config })
-      return OcrService.ocr(image, imageProvider)
+      if (isProviderAvailable(imageProvider)) {
+        logger.debug('ocrImage', { provider: imageProvider })
+        return OcrService.ocr(image, {
+          providerId: imageProvider.id
+        })
+      } else {
+        throw new Error(t('ocr.error.provider.not_availabel', { provider: imageProviderId }))
+      }
     },
-    [imageProvider]
+    [imageProvider, imageProviderId, t]
   )
 
   /**

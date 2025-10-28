@@ -2055,6 +2055,7 @@
         "cannot_remove_builtin": "Eingebauter Anbieter kann nicht entfernt werden",
         "existing": "Anbieter existiert bereits",
         "get_providers": "Failed to obtain available providers",
+        "not_availabel": "{{provider}} ist nicht verfügbar",
         "not_found": "OCR-Anbieter nicht gefunden",
         "update_failed": "Konfiguration aktualisieren fehlgeschlagen"
       },
@@ -2064,6 +2065,40 @@
       "not_supported": "Nicht unterstützter Dateityp {{type}}"
     },
     "processing": "OCR wird verarbeitet...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "Fehler beim Aktualisieren der Konfiguration"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "Fehler beim Erstellen des Anbieters"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "Fehler beim Löschen des Anbieters {{provider}}"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "Fehler beim Abrufen des Anbieters {{provider}}"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "Anbieter konnten nicht aufgelistet werden"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "Fehler beim Aktualisieren des Anbieters"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "Auf {{name}} zurückgefallen, dies kann zu Problemen führen"

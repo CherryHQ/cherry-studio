@@ -14,6 +14,7 @@ import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
+import { type TranslateLanguage } from './translate'
 
 export * from './agent'
 export * from './apiModels'
@@ -23,6 +24,7 @@ export * from './mcp'
 export * from './notification'
 export * from './ocr'
 export * from './provider'
+export * from './translate'
 
 export type Assistant = {
   id: string
@@ -492,48 +494,6 @@ export type GenerateImageParams = {
 export type GenerateImageResponse = {
   type: 'url' | 'base64'
   images: string[]
-}
-
-// 为了支持自定义语言，设置为string别名
-/** zh-cn, en-us, etc. */
-export type TranslateLanguageCode = string
-
-// langCode应当能够唯一确认一种语言
-export type TranslateLanguage = {
-  value: string
-  langCode: TranslateLanguageCode
-  label: () => string
-  emoji: string
-}
-
-export interface TranslateHistory {
-  id: string
-  sourceText: string
-  targetText: string
-  sourceLanguage: TranslateLanguageCode
-  targetLanguage: TranslateLanguageCode
-  createdAt: string
-  /** 收藏状态 */
-  star?: boolean
-}
-
-export type CustomTranslateLanguage = {
-  id: string
-  langCode: TranslateLanguageCode
-  value: string
-  emoji: string
-}
-
-export const AutoDetectionMethods = {
-  franc: 'franc',
-  llm: 'llm',
-  auto: 'auto'
-} as const
-
-export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
-
-export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
-  return Object.hasOwn(AutoDetectionMethods, method)
 }
 
 // by fullex @ data refactor

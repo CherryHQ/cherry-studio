@@ -1,6 +1,6 @@
 import { loadOcrImage } from '@main/utils/ocr'
 import type { ImageFileMetadata, OcrPpocrConfig, OcrResult, SupportedOcrFile } from '@types'
-import { isImageFileMetadata } from '@types'
+import { isImageFileMetadata, isOcrPpocrConfig } from '@types'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -40,14 +40,17 @@ const OcrResponseSchema = z.object({
 })
 
 export class PpocrService extends OcrBaseService {
-  public ocr = async (file: SupportedOcrFile, options?: OcrPpocrConfig): Promise<OcrResult> => {
+  public ocr = async (file: SupportedOcrFile, config?: OcrPpocrConfig): Promise<OcrResult> => {
+    if (!isOcrPpocrConfig(config)) {
+      throw new Error('Invalid OCR config')
+    }
     if (!isImageFileMetadata(file)) {
       throw new Error('Only image files are supported currently')
     }
-    if (!options) {
+    if (!config) {
       throw new Error('config is required')
     }
-    return this.imageOcr(file, options)
+    return this.imageOcr(file, config)
   }
 
   private async imageOcr(file: ImageFileMetadata, options: OcrPpocrConfig): Promise<OcrResult> {

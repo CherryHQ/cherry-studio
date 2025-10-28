@@ -9,10 +9,10 @@ import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/c
 import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
+import { useOcr } from '@renderer/hooks/ocr/useOcr'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
-import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -29,7 +29,7 @@ import {
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
-import { getFileExtension, isTextFile, runAsyncFunction, uuid } from '@renderer/utils'
+import { getErrorMessage, getFileExtension, isTextFile, runAsyncFunction, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -671,7 +671,7 @@ const TranslatePage: FC = () => {
           await processFile(selectedFile)
         } catch (error) {
           logger.error('onPaste:', error as Error)
-          window.toast.error(t('chat.input.file_error'))
+          window.toast.error({ title: t('chat.input.file_error'), description: getErrorMessage(error) })
         }
       }
       setIsProcessing(false)

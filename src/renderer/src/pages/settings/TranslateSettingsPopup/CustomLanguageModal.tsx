@@ -144,6 +144,9 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           rules={[
             { required: true, message: t('settings.translate.custom.error.langCode.empty') },
             {
+              // TODO: use TranslateLanguageCodeSchema here. Modify it when migrating to new UI.
+              // NOTE: Since any uppercase will be converted to lowercase before it's save to indexedDB,
+              //       it's safe to replace it with case sensitive TranslateLanguageCodeSchema.
               pattern: /^[a-zA-Z]{2,3}(-[a-zA-Z]{2,3})?$/,
               message: t('settings.translate.custom.error.langCode.invalid')
             },

@@ -3,10 +3,8 @@ import { Flex } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
 import { isMac, isWin } from '@renderer/config/constant'
-import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
-import type { TranslateLanguageCode } from '@renderer/types'
-import { BuiltinOcrProviderIds, isOcrSystemProvider } from '@renderer/types'
+import type { OcrProviderConfig, OcrSystemConfig, OcrSystemProvider, TranslateLanguageCode } from '@renderer/types'
 import { Select } from 'antd'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,21 +13,24 @@ import { SettingRow, SettingRowTitle } from '..'
 
 // const logger = loggerService.withContext('OcrSystemSettings')
 
-export const OcrSystemSettings = () => {
+export const OcrSystemSettings = ({
+  provider,
+  updateConfig: _updateConfig
+}: {
+  provider: OcrSystemProvider
+  updateConfig: (config: Partial<OcrProviderConfig>) => Promise<void>
+}) => {
+  const updateConfig = _updateConfig as (config: Partial<OcrSystemConfig>) => Promise<void>
+
   const { t } = useTranslation()
   // 和翻译自定义语言耦合了，应该还ok
   const { translateLanguages } = useTranslate()
-  const { provider, updateConfig } = useOcrProvider(BuiltinOcrProviderIds.system)
-
-  if (!isOcrSystemProvider(provider)) {
-    throw new Error('Not system provider.')
-  }
 
   if (!isWin && !isMac) {
     throw new Error('Only Windows and MacOS is supported.')
   }
 
-  const [langs, setLangs] = useState<TranslateLanguageCode[]>(provider.config?.langs ?? [])
+  const [langs, setLangs] = useState<TranslateLanguageCode[]>(provider.config.langs ?? [])
 
   // currently static
   const options = useMemo(

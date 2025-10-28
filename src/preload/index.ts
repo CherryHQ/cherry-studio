@@ -12,7 +12,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Notification } from '@types'
+import type { Notification, OcrParams } from '@types'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -27,7 +27,6 @@ import type {
   MemoryConfig,
   MemoryListOptions,
   MemorySearchOptions,
-  OcrProvider,
   OcrResult,
   Provider,
   RestartApiServerStatusResult,
@@ -476,9 +475,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
-    listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
+    ocr: (file: SupportedOcrFile, params: OcrParams): Promise<OcrResult> =>
+      ipcRenderer.invoke(IpcChannel.OCR_Ocr, file, params)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

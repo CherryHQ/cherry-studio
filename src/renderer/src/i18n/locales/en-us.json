@@ -2055,6 +2055,7 @@
         "cannot_remove_builtin": "Cannot delete built-in provider",
         "existing": "The provider already exists",
         "get_providers": "Failed to get available providers",
+        "not_availabel": "Provide {{provider}} is not available",
         "not_found": "OCR provider does not exist",
         "update_failed": "Failed to update configuration"
       },
@@ -2064,6 +2065,40 @@
       "not_supported": "Unsupported file type {{type}}"
     },
     "processing": "OCR processing...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "Failed to update config"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "Failed to create provider"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "Failed to delete provider {{provider}}"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "Failed to get provider {{provider}}"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "Failed to list providers"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "Failed to update the provider"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "Reverted to {{name}}, which may cause issues"

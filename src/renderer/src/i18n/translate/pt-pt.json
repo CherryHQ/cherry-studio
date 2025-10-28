@@ -2055,6 +2055,7 @@
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
         "existing": "O provedor já existe",
         "get_providers": "Falha ao obter provedores disponíveis",
+        "not_availabel": "Fornecedor {{provider}} não está disponível",
         "not_found": "O provedor OCR não existe",
         "update_failed": "Falha ao atualizar a configuração"
       },
@@ -2064,6 +2065,40 @@
       "not_supported": "Tipo de arquivo não suportado {{type}}"
     },
     "processing": "Processamento OCR em andamento...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "Falha ao atualizar a configuração"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "Falha ao criar o provedor"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "Falha ao excluir o provedor {{provider}}"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "Falha ao obter o provedor {{provider}}"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "Falha ao listar provedores"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "Falha ao atualizar o provedor"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "Revertido para {{name}}, o que pode causar problemas"

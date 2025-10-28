@@ -2055,6 +2055,7 @@
         "cannot_remove_builtin": "不能删除内置提供商",
         "existing": "提供商已存在",
         "get_providers": "获取可用提供商失败",
+        "not_availabel": "{{provider}} 暂不可用",
         "not_found": "OCR 提供商不存在",
         "update_failed": "更新配置失败"
       },
@@ -2064,6 +2065,40 @@
       "not_supported": "不支持的文件类型 {{type}}"
     },
     "processing": "OCR 处理中...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "更新配置失败"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "创建提供商失败"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "删除提供商 {{provider}} 失败"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "获取提供商 {{provider}} 失败"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "获取提供商列表失败"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "更新提供商失败"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "已回退到 {{name}}，这可能导致问题"

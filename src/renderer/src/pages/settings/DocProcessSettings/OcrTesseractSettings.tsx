@@ -2,11 +2,10 @@
 import { Flex } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
-import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
-import type { TesseractLangCode } from '@renderer/types'
-import { BuiltinOcrProviderIds, isOcrTesseractProvider } from '@renderer/types'
+import type { OcrProviderConfig, OcrTesseractConfig, OcrTesseractProvider, TesseractLangCode } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
+import { TESSERACT_LANG_MAP } from '@shared/config/ocr'
 import { Select } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,15 +14,18 @@ import { SettingRow, SettingRowTitle } from '..'
 
 // const logger = loggerService.withContext('OcrTesseractSettings')
 
-export const OcrTesseractSettings = () => {
+export const OcrTesseractSettings = ({
+  provider,
+  updateConfig: _updateConfig
+}: {
+  provider: OcrTesseractProvider
+  updateConfig: (config: Partial<OcrProviderConfig>) => Promise<void>
+}) => {
+  const updateConfig = _updateConfig as (config: Partial<OcrTesseractConfig>) => Promise<void>
+
   const { t } = useTranslation()
-  const { provider, updateConfig } = useOcrProvider(BuiltinOcrProviderIds.tesseract)
 
-  if (!isOcrTesseractProvider(provider)) {
-    throw new Error('Not tesseract provider.')
-  }
-
-  const [langs, setLangs] = useState<Partial<Record<TesseractLangCode, boolean>>>(provider.config?.langs ?? {})
+  const [langs, setLangs] = useState<OcrTesseractConfig['langs'] | undefined>(provider?.config.langs)
   const { translateLanguages } = useTranslate()
 
   const options = useMemo(
@@ -37,14 +39,12 @@ export const OcrTesseractSettings = () => {
     [translateLanguages]
   )
 
-  // TODO: type safe objectKeys
-  const value = useMemo(
-    () =>
-      Object.entries(langs)
-        .filter(([, enabled]) => enabled)
-        .map(([lang]) => lang) as TesseractLangCode[],
-    [langs]
-  )
+  const selectedLangs = useMemo(() => {
+    if (!langs) return
+    return objectEntries(langs)
+      .filter(([, enabled]) => enabled)
+      .map(([lang]) => lang) as TesseractLangCode[]
+  }, [langs])
 
   const onChange = useCallback((values: TesseractLangCode[]) => {
     setLangs(() => {
@@ -69,11 +69,11 @@ export const OcrTesseractSettings = () => {
             <InfoTooltip content={t('settings.tool.ocr.tesseract.langs_tooltip')} />
           </Flex>
         </SettingRowTitle>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div className="flex gap-2">
           <Select
             mode="multiple"
             style={{ minWidth: 200 }}
-            value={value}
+            value={selectedLangs}
             options={options}
             maxTagCount={1}
             onChange={onChange}

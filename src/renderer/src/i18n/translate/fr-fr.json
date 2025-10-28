@@ -2055,6 +2055,7 @@
         "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
         "existing": "Le fournisseur existe déjà",
         "get_providers": "Échec de l'obtention des fournisseurs disponibles",
+        "not_availabel": "Fournir {{provider}} n’est pas disponible",
         "not_found": "Le fournisseur OCR n'existe pas",
         "update_failed": "Échec de la mise à jour de la configuration"
       },
@@ -2064,6 +2065,40 @@
       "not_supported": "Type de fichier non pris en charge {{type}}"
     },
     "processing": "Traitement OCR en cours...",
+    "provider": {
+      "config": {
+        "patch": {
+          "error": {
+            "failed": "Échec de la mise à jour de la configuration"
+          }
+        }
+      },
+      "create": {
+        "error": {
+          "failed": "Échec de la création du fournisseur"
+        }
+      },
+      "delete": {
+        "error": {
+          "failed": "Échec de la suppression du fournisseur {{provider}}"
+        }
+      },
+      "get": {
+        "error": {
+          "failed": "Échec de l'obtention du fournisseur {{provider}}"
+        }
+      },
+      "list": {
+        "error": {
+          "failed": "Échec de la liste des fournisseurs"
+        }
+      },
+      "update": {
+        "error": {
+          "failed": "Échec de la mise à jour du fournisseur"
+        }
+      }
+    },
     "warning": {
       "provider": {
         "fallback": "Revenu à {{name}}, ce qui pourrait entraîner des problèmes"
