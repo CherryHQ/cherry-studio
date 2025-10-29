@@ -276,23 +276,38 @@ class WebSocketService {
       const filename = path.basename(filePath)
       const stream = fs.createReadStream(filePath)
       let bytesSent = 0
+      const startTime = Date.now()
 
-      logger.info(`Starting to send file ${filename} (${totalSize} bytes)`)
+      logger.info(`Starting file transfer: ${filename} (${this.formatFileSize(totalSize)})`)
+
       // 向客户端发送文件开始的信号，包含文件名和总大小
       this.io!.emit('zip-file-start', { filename, totalSize })
 
       stream.on('data', (chunk) => {
         bytesSent += chunk.length
         const progress = (bytesSent / totalSize) * 100
+
         // 向客户端发送文件块
         this.io!.emit('zip-file-chunk', chunk)
 
         // 向渲染进程发送进度更新
         mainWindow?.webContents.send('file-send-progress', { progress })
+
+        // 每10%记录一次进度
+        if (Math.floor(progress) % 10 === 0) {
+          const elapsed = (Date.now() - startTime) / 1000
+          const speed = elapsed > 0 ? bytesSent / elapsed : 0
+          logger.info(`Transfer progress: ${Math.floor(progress)}% (${this.formatFileSize(speed)}/s)`)
+        }
       })
 
       stream.on('end', () => {
-        logger.info(`File ${filename} sent successfully.`)
+        const totalTime = (Date.now() - startTime) / 1000
+        const avgSpeed = totalTime > 0 ? totalSize / totalTime : 0
+        logger.info(
+          `File transfer completed: ${filename} in ${totalTime.toFixed(1)}s (${this.formatFileSize(avgSpeed)}/s)`
+        )
+
         // 确保发送100%的进度
         mainWindow?.webContents.send('file-send-progress', { progress: 100 })
         // 向客户端发送文件结束的信号
@@ -301,13 +316,21 @@ class WebSocketService {
       })
 
       stream.on('error', (error) => {
-        logger.error('Failed to read and send file:', error)
+        logger.error(`File transfer failed: ${filename}`, error)
         reject({
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error'
         })
       })
     })
+  }
+
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
   }
 }
 
