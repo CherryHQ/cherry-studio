@@ -1024,4 +1024,5 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.WebSocket_Stop, WebSocketService.stop)
   ipcMain.handle(IpcChannel.WebSocket_Status, WebSocketService.getStatus)
   ipcMain.handle(IpcChannel.WebSocket_SendFile, WebSocketService.sendFile)
+  ipcMain.handle(IpcChannel.WebSocket_GetAllCandidates, WebSocketService.getAllCandidates)
 }
