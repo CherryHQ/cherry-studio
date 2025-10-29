@@ -235,6 +235,39 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Permitir solicitud de herramienta",
+        "denyRequest": "Denegar solicitud de herramienta",
+        "hideDetails": "Ocultar detalles de la herramienta",
+        "runWithOptions": "Ejecutar con opciones adicionales",
+        "showDetails": "Mostrar detalles de la herramienta"
+      },
+      "button": {
+        "cancel": "Cancelar",
+        "run": "Correr"
+      },
+      "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
+      "defaultDenyMessage": "El usuario denegó el permiso para esta herramienta.",
+      "defaultDescription": "Ejecuta código o acciones del sistema en tu entorno. Asegúrate de que el comando parezca seguro antes de ejecutarlo.",
+      "error": {
+        "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo."
+      },
+      "expired": "Caducado",
+      "inputPreview": "Vista previa de entrada de herramienta",
+      "pending": "Pendiente ({{seconds}}s)",
+      "permissionExpired": "Solicitud de permiso expirada. Esperando nuevas instrucciones...",
+      "requiresElevatedPermissions": "Esta herramienta requiere permisos elevados.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Aprobar puede actualizar varios permisos de sesión si elegiste permitir siempre esta herramienta.",
+        "permissionUpdateSingle": "Aprobar puede actualizar los permisos de tu sesión si elegiste permitir siempre esta herramienta."
+      },
+      "toast": {
+        "denied": "La solicitud de herramienta fue denegada.",
+        "timeout": "La solicitud de herramienta expiró antes de recibir la aprobación."
+      },
+      "waiting": "Esperando la decisión de permiso de la herramienta..."
+    },
     "type": {
       "label": "Tipo de Agente",
       "unknown": "Tipo desconocido"

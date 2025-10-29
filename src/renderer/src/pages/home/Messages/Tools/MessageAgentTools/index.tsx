@@ -6,6 +6,7 @@ import { NormalToolResponse } from '@renderer/types'
 export * from './types'
 
 // 导入所有渲染器
+import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
 import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
 import { EditTool } from './EditTool'
@@ -77,12 +78,16 @@ function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: 
 
 // 统一的组件渲染入口
 export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolResponse }) {
-  const { arguments: args, response, tool } = toolResponse
+  const { arguments: args, response, tool, status } = toolResponse
   logger.info('Rendering agent tool response', {
     tool: tool,
     arguments: args,
     response
   })
+
+  if (status === 'pending') {
+    return <ToolPermissionRequestCard toolResponse={toolResponse} />
+  }
 
   return renderToolContent(tool.name as AgentToolsType, args as ToolInput, response as ToolOutput)
 }

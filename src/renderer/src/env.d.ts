@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 
+import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
 import type KeyvStorage from '@kangfenmao/keyv-storage'
 import { HookAPI } from 'antd/es/modal/useModal'
@@ -33,6 +34,15 @@ declare global {
       warning: typeof warning
       info: typeof info
       loading: typeof loading
+    }
+    agentTools: {
+      respondToPermission: (payload: {
+        requestId: string
+        behavior: 'allow' | 'deny'
+        updatedInput?: Record<string, unknown>
+        message?: string
+        updatedPermissions?: PermissionUpdate[]
+      }) => Promise<{ success: boolean }>
     }
   }
 }

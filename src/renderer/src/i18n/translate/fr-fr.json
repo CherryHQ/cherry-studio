@@ -235,6 +235,39 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Autoriser la demande d'outil",
+        "denyRequest": "Refuser la demande d'outil",
+        "hideDetails": "Masquer les détails de l'outil",
+        "runWithOptions": "Exécuter avec des options supplémentaires",
+        "showDetails": "Afficher les détails de l'outil"
+      },
+      "button": {
+        "cancel": "Annuler",
+        "run": "Courir"
+      },
+      "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
+      "defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
+      "defaultDescription": "Exécute du code ou des actions système dans votre environnement. Assurez-vous que la commande semble sûre avant de l’exécuter.",
+      "error": {
+        "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
+      },
+      "expired": "Expiré",
+      "inputPreview": "Aperçu de l'entrée de l'outil",
+      "pending": "En attente ({{seconds}}s)",
+      "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
+      "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Approuver peut mettre à jour plusieurs autorisations de session si vous avez choisi de toujours autoriser cet outil.",
+        "permissionUpdateSingle": "Approuver peut mettre à jour vos permissions de session si vous avez choisi de toujours autoriser cet outil."
+      },
+      "toast": {
+        "denied": "La demande d'outil a été refusée.",
+        "timeout": "La demande d'outil a expiré avant d'obtenir l'approbation."
+      },
+      "waiting": "En attente de la décision d'autorisation de l'outil..."
+    },
     "type": {
       "label": "Type d'agent",
       "unknown": "Type inconnu"
