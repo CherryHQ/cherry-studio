@@ -419,7 +419,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://dashscope.aliyuncs.com/compatible-mode/v1/',
-    anthropicApiHost: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy',
+    anthropicApiHost: 'https://dashscope.aliyuncs.com/apps/anthropic',
     models: SYSTEM_MODELS.dashscope,
     isSystem: true,
     enabled: false

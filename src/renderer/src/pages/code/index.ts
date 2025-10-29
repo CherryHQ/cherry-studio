@@ -72,7 +72,7 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     },
     dashscope: {
       anthropic: {
-        api_base_url: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+        api_base_url: 'https://dashscope.aliyuncs.com/apps/anthropic'
       }
     },
     modelscope: {
