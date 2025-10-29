@@ -80,8 +80,9 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
     agentBase?.configuration ?? defaultConfiguration
   )
   const selectedMode = agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode
+  const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
+  const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
 
-  const [autoToolIds, setAutoToolIds] = useState<string[]>([])
   const [approvedToolIds, setApprovedToolIds] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingMode, setIsUpdatingMode] = useState(false)
@@ -89,14 +90,12 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
 
-  const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const availableServers = useMemo(() => allServers ?? [], [allServers])
 
   useEffect(() => {
     if (!agentBase) {
       setConfiguration(defaultConfiguration)
       setApprovedToolIds([])
-      setAutoToolIds([])
       setSelectedMcpIds([])
       return
     }
@@ -104,7 +103,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
     setConfiguration(parsed)
 
     const defaults = computeModeDefaults(parsed.permission_mode, availableTools)
-    setAutoToolIds(defaults)
     const allowed = agentBase.allowed_tools ?? []
     setApprovedToolIds((prev) => {
       const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
@@ -155,7 +153,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
             allowed_tools: merged
           } satisfies UpdateAgentBaseForm)
           setConfiguration(nextConfiguration)
-          setAutoToolIds(defaults)
           setApprovedToolIds(merged)
         } finally {
           setIsUpdatingMode(false)
