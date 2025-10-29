@@ -229,14 +229,28 @@ const SettingsTab: FC<Props> = (props) => {
             ) : (
               <SettingDivider />
             )}
-            <Row align="middle">
+            <Row align="middle" gutter={10} justify="space-between">
               <SettingRowTitleSmall>
                 {t('chat.settings.context_count.label')}
                 <HelpTooltip title={t('chat.settings.context_count.tip')} />
               </SettingRowTitleSmall>
-              <CurrentValueDisplay>
-                <ValueText>{contextCount === MAX_CONTEXT_COUNT ? t('chat.settings.max') : contextCount}</ValueText>
-              </CurrentValueDisplay>
+              <Col span={8}>
+                <EditableNumber
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={contextCount}
+                  changeOnBlur
+                  onChange={(value) => {
+                    if (value !== null && value >= 0 && value <= 20) {
+                      setContextCount(value)
+                      onContextCountChange(value)
+                    }
+                  }}
+                  formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
+                  style={{ width: '100%' }}
+                />
+              </Col>
             </Row>
             <Row align="middle" gutter={10}>
               <Col span={24}>
@@ -246,7 +260,13 @@ const SettingsTab: FC<Props> = (props) => {
                   onChange={setContextCount}
                   onChangeComplete={onContextCountChange}
                   value={Math.min(contextCount, 20)}
+                  tooltip={{ open: false }}
                   step={1}
+                  marks={{
+                    0: '0',
+                    10: '10',
+                    20: '20'
+                  }}
                 />
               </Col>
             </Row>
@@ -739,20 +759,6 @@ const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-top: 0;
   border-radius: 8px;
   margin-bottom: 10px;
-`
-
-const CurrentValueDisplay = styled.div`
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-`
-
-const ValueText = styled.span`
-  font-size: 13px;
-  color: var(--color-text-2);
-  font-weight: 500;
-  min-width: 30px;
-  text-align: right;
 `
 
 export default SettingsTab

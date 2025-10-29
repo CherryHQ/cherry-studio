@@ -374,7 +374,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             value={typeof contextCount === 'number' ? contextCount : 0}
             marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
             step={1}
-            tooltip={{ formatter: formatSliderTooltip }}
+            tooltip={{ formatter: formatSliderTooltip, open: false }}
           />
         </Col>
       </Row>
