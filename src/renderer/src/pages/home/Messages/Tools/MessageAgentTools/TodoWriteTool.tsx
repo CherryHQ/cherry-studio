@@ -72,7 +72,6 @@ export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType
           )
         })}
       </div>
-      {output}
     </AccordionItem>
   )
 }
