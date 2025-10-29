@@ -81,7 +81,7 @@ git commit --signoff -m "Your commit message"
 我们的核心团队目前正专注于涉及这些数据结构的关键架构更新和基础工作。为确保在此期间的稳定性与专注，此类贡献将暂时由内部进行管理。
 
 *   **需要更改 Redux 状态结构或 IndexedDB schema 的 PR 将会被关闭。**
-*   **此限制是临时性的，并将在 `v2.0.0` 版本发布后解除。** 您可以通过 Issue [#10162](https://github.com/YOUR_ORG/YOUR_REPO/issues/10162) (请替换为您的实际仓库链接) 跟踪 `v2.0.0` 的进展及相关讨论。
+*   **此限制是临时性的，并将在 `v2.0.0` 版本发布后解除。** 您可以通过 Issue [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162) 跟踪 `v2.0.0` 的进展及相关讨论。
 
 我们非常鼓励以下类型的贡献：
 *   错误修复 🐞

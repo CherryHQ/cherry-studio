@@ -77,7 +77,7 @@ Please review the following critical information before submitting your Pull Req
 Our core team is currently focused on significant architectural updates that involve these data structures. To ensure stability and focus during this period, contributions of this nature will be temporarily managed internally.
 
 *   **PRs that require changes to Redux state shape or IndexedDB schemas will be closed.**
-*   **This restriction is temporary and will be lifted with the release of `v2.0.0`.** You can track the progress of `v2.0.0` and its related discussions on issue [#10162](https://github.com/YOUR_ORG/YOUR_REPO/issues/10162) (please replace with your actual repo link).
+*   **This restriction is temporary and will be lifted with the release of `v2.0.0`.** You can track the progress of `v2.0.0` and its related discussions on issue [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
 
 We highly encourage contributions for:
 *   Bug fixes 🐞
