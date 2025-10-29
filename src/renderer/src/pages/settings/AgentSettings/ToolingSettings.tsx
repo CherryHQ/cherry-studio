@@ -80,7 +80,10 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
     () => agentBase?.configuration ?? defaultConfiguration,
     [agentBase?.configuration]
   )
-  const selectedMode = agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode
+  const selectedMode = useMemo(
+    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    [agentBase?.configuration?.permission_mode]
+  )
   const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
   const approvedToolIds = useMemo(() => {
