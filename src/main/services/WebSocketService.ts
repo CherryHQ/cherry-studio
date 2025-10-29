@@ -11,7 +11,7 @@ const logger = loggerService.withContext('WebSocketService')
 class WebSocketService {
   private io: Server | null = null
   private isStarted = false
-  private port = 3000
+  private port = 11451
   private connectedClients = new Set<string>()
 
   private getLocalIpAddress(): string | undefined {
