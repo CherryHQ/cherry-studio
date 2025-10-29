@@ -16,16 +16,67 @@ class WebSocketService {
 
   private getLocalIpAddress(): string | undefined {
     const interfaces = networkInterfaces()
-    for (const name of Object.keys(interfaces)) {
-      for (const iface of interfaces[name] || []) {
+
+    // 按优先级排序的网络接口名称模式
+    const interfacePriority = [
+      // macOS: 以太网/Wi-Fi 优先
+      /^en[0-9]+$/, // en0, en1 (以太网/Wi-Fi)
+      /^(en|eth)[0-9]+$/, // 以太网接口
+      /^wlan[0-9]+$/, // 无线接口
+      // Windows: 以太网/Wi-Fi 优先
+      /^(Ethernet|Wi-Fi|Local Area Connection)/,
+      /^(Wi-Fi|无线网络连接)/,
+      // Linux: 以太网/Wi-Fi 优先
+      /^(eth|enp|wlp|wlan)[0-9]+/,
+      // 虚拟化接口（低优先级）
+      /^bridge[0-9]+$/, // Docker bridge
+      /^veth[0-9]+$/, // Docker veth
+      /^docker[0-9]+/, // Docker interfaces
+      /^br-[0-9a-f]+/, // Docker bridge
+      /^vmnet[0-9]+$/, // VMware
+      /^vboxnet[0-9]+$/, // VirtualBox
+      // VPN 隧道接口（低优先级）
+      /^utun[0-9]+$/, // macOS VPN
+      /^tun[0-9]+$/, // Linux/Unix VPN
+      /^tap[0-9]+$/ // TAP interfaces
+    ]
+
+    const candidates: Array<{ interface: string; address: string; priority: number }> = []
+
+    for (const [name, ifaces] of Object.entries(interfaces)) {
+      for (const iface of ifaces || []) {
         if (iface.family === 'IPv4' && !iface.internal) {
-          logger.info(`获取局域网 IP: ${iface.address}`)
-          return iface.address
+          // 计算接口优先级
+          let priority = 999 // 默认最低优先级
+          for (let i = 0; i < interfacePriority.length; i++) {
+            if (interfacePriority[i].test(name)) {
+              priority = i
+              break
+            }
+          }
+
+          candidates.push({
+            interface: name,
+            address: iface.address,
+            priority
+          })
+
+          logger.debug(`Found interface: ${name} -> ${iface.address} (priority: ${priority})`)
         }
       }
     }
-    logger.warn('无法获取局域网 IP，使用默认 IP: 127.0.0.1')
-    return '127.0.0.1'
+
+    if (candidates.length === 0) {
+      logger.warn('无法获取局域网 IP，使用默认 IP: 127.0.0.1')
+      return '127.0.0.1'
+    }
+
+    // 按优先级排序，选择优先级最高的
+    candidates.sort((a, b) => a.priority - b.priority)
+    const best = candidates[0]
+
+    logger.info(`获取局域网 IP: ${best.address} (interface: ${best.interface})`)
+    return best.address
   }
 
   public start = async (): Promise<{ success: boolean; port?: number; error?: string }> => {
@@ -37,8 +88,7 @@ class WebSocketService {
       this.io = new Server(this.port, {
         cors: {
           origin: '*'
-        },
-        transports: ['websocket']
+        }
       })
 
       this.io.on('connection', (socket: Socket) => {
@@ -84,7 +134,7 @@ class WebSocketService {
       })
 
       // 添加更多引擎级别的事件监听
-      this.io.engine.on('initial_headers', (headers, request) => {
+      this.io.engine.on('initial_headers', (_headers, request) => {
         logger.info('Received connection attempt:', {
           url: request.url,
           headers: request.headers
