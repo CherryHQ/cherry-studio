@@ -107,6 +107,50 @@
         "title": "Erweiterte Einstellungen"
       },
       "essential": "Grundeinstellungen",
+      "plugins": {
+        "available": {
+          "title": "Verfügbare Plugins"
+        },
+        "confirm": {
+          "uninstall": "Sind Sie sicher, dass Sie dieses Plugin deinstallieren möchten?"
+        },
+        "empty": {
+          "available": "Keine Plugins gefunden, die deinen Filtern entsprechen. Versuche, deine Such- oder Kategoriefilter anzupassen."
+        },
+        "error": {
+          "install": "Fehler beim Installieren des Plugins",
+          "load": "Fehler beim Laden der Plugins",
+          "uninstall": "Fehler beim Deinstallieren des Plugins"
+        },
+        "filter": {
+          "all": "Alle Kategorien"
+        },
+        "install": "Installieren",
+        "installed": {
+          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
+          "title": "Installierte Plugins"
+        },
+        "installing": "Wird installiert...",
+        "results": "{{count}} Plugin(s) gefunden",
+        "search": {
+          "placeholder": "Such-Plugins..."
+        },
+        "success": {
+          "install": "Plugin erfolgreich installiert",
+          "uninstall": "Plugin erfolgreich deinstalliert"
+        },
+        "tab": "Plugins",
+        "type": {
+          "agent": "Agent",
+          "agents": "Agenten",
+          "all": "Alle",
+          "command": "Befehl",
+          "commands": "Befehle",
+          "skills": "Fähigkeiten"
+        },
+        "uninstall": "Deinstallieren",
+        "uninstalling": "Deinstallation läuft..."
+      },
       "prompt": "Prompt-Einstellungen",
       "tooling": {
         "mcp": {
@@ -2298,6 +2342,32 @@
       "resemblance_tip": "Ähnlichkeitsgrad des Upscale-Ergebnisses zum Originalbild kontrollieren",
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
     }
+  },
+  "plugins": {
+    "actions": "Aktionen",
+    "agents": "Agenten",
+    "all_categories": "Alle Kategorien",
+    "all_types": "Alle",
+    "category": "Kategorie",
+    "commands": "Befehle",
+    "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
+    "install": "Installieren",
+    "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
+    "installing": "Installiere…",
+    "name": "Name",
+    "no_description": "Keine Beschreibung verfügbar",
+    "no_installed_plugins": "Noch keine Plugins installiert",
+    "no_results": "Keine Plugins gefunden",
+    "search_placeholder": "Such-Plugins...",
+    "showing_results": "{{count}} Plugin anzeigen",
+    "showing_results_one": "{{count}} Plugin anzeigen",
+    "showing_results_other": "Zeige {{count}} Plugins",
+    "showing_results_plural": "{{count}} Plugins anzeigen",
+    "skills": "Fähigkeiten",
+    "try_different_search": "Versuchen Sie, Ihre Suche oder die Kategoriefilter anzupassen.",
+    "type": "Typ",
+    "uninstall": "Deinstallieren",
+    "uninstalling": "Deinstallation läuft..."
   },
   "preview": {
     "copy": {

@@ -11,6 +11,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { PluginError } from '@types'
 import {
   AgentPersistedMessage,
   FileMetadata,
@@ -46,6 +47,7 @@ import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import OvmsManager from './services/OvmsManager'
+import { PluginService } from './services/PluginService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -93,6 +95,18 @@ const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
 const ovmsManager = new OvmsManager()
+const pluginService = PluginService.getInstance()
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function extractPluginError(error: unknown): PluginError | null {
+  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
+    return error as PluginError
+  }
+  return null
+}
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
@@ -890,4 +904,117 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
+
+  // Claude Code Plugins
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListAvailable, async () => {
+    try {
+      const data = await pluginService.listAvailable()
+      return { success: true, data }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to list available plugins', pluginError)
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to list available plugins', err)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-available',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+    try {
+      const data = await pluginService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+    try {
+      await pluginService.uninstall(options)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to uninstall plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
+    try {
+      const data = await pluginService.listInstalled(agentId)
+      return { success: true, data }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to list installed plugins', { agentId, error: pluginError })
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to list installed plugins', { agentId, error: err })
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-installed',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InvalidateCache, async () => {
+    try {
+      pluginService.invalidateCache()
+      return { success: true, data: undefined }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to invalidate plugin cache', pluginError)
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to invalidate plugin cache', err)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'invalidate-cache',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ReadContent, async (_, sourcePath: string) => {
+    try {
+      const data = await pluginService.readContent(sourcePath)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to read plugin content', { sourcePath, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
+    try {
+      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to write plugin content', { options, error })
+      return { success: false, error }
+    }
+  })
 }
