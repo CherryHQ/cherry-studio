@@ -303,7 +303,7 @@ export class PluginService {
   async listInstalled(agentId: string): Promise<InstalledPlugin[]> {
     logger.debug('Listing installed plugins', { agentId })
 
-    // Get agent
+    // Get agent (includes installed_plugins loaded from cache)
     const agent = await AgentService.getInstance().getAgent(agentId)
     if (!agent) {
       throw {
@@ -314,7 +314,7 @@ export class PluginService {
       } as PluginError
     }
 
-    const installedPlugins = agent.configuration?.installed_plugins || []
+    const installedPlugins = agent.installed_plugins || []
     const workdir = agent.accessible_paths?.[0]
 
     if (!workdir) {
@@ -335,43 +335,23 @@ export class PluginService {
       }
 
       try {
-        const stats = await fs.promises.stat(pluginPath)
+        // Verify plugin file/folder exists
+        await fs.promises.stat(pluginPath)
 
         // For files (agents/commands), verify file hash if stored
-        if (plugin.type !== 'skill' && plugin.contentHash) {
+        if (plugin.type !== 'skill' && plugin.metadata.contentHash) {
           const currentHash = await this.calculateFileHash(pluginPath)
-          if (currentHash !== plugin.contentHash) {
+          if (currentHash !== plugin.metadata.contentHash) {
             logger.warn('Plugin file hash mismatch', {
               filename: plugin.filename,
-              expected: plugin.contentHash,
+              expected: plugin.metadata.contentHash,
               actual: currentHash
             })
           }
         }
 
-        // For skills, stats.size is folder size (handled differently)
-        // For files, stats.size is file size
-        validatedPlugins.push({
-          filename: plugin.filename,
-          type: plugin.type,
-          metadata: {
-            sourcePath: plugin.sourcePath,
-            filename: plugin.filename,
-            name: plugin.name,
-            description: plugin.description,
-            allowed_tools: plugin.allowed_tools,
-            tools: plugin.tools,
-            category: plugin.category || '',
-            type: plugin.type,
-            tags: plugin.tags,
-            version: plugin.version,
-            author: plugin.author,
-            size: stats.size,
-            contentHash: plugin.contentHash,
-            installedAt: plugin.installedAt,
-            updatedAt: plugin.updatedAt
-          }
-        })
+        // Plugin already has correct structure, just return it
+        validatedPlugins.push(plugin)
       } catch (error) {
         logger.warn('Plugin not found on filesystem', {
           filename: plugin.filename,
