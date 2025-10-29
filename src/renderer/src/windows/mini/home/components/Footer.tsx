@@ -33,14 +33,14 @@ const Footer: FC<FooterProps> = ({
     onEsc()
   })
 
-  useHotkeys('c', () => {
-    handleCopy()
-  })
-
   const handleCopy = () => {
     if (loading || !onCopy) return
     onCopy()
   }
+
+  useHotkeys('c', () => {
+    handleCopy()
+  })
 
   return (
     <WindowFooter className="drag">

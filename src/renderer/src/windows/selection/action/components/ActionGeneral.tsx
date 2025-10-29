@@ -36,31 +36,37 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const [isContented, setIsContented] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [contentToCopy, setContentToCopy] = useState('')
+  const [assistant] = useState<Assistant>(() => {
+    const assistant = action.assistantId
+      ? getAssistantById(action.assistantId) || getDefaultAssistant()
+      : getDefaultAssistant()
+    if (!assistant.model) {
+      return { ...assistant, model: getDefaultModel() }
+    } else {
+      return assistant
+    }
+  })
+  const [topic] = useState<Topic | null>(getDefaultTopic(assistant.id))
   const initialized = useRef(false)
 
   // Use useRef for values that shouldn't trigger re-renders
   const assistantRef = useRef<Assistant | null>(null)
-  const topicRef = useRef<Topic | null>(null)
+  const topicRef = useRef<Topic | null>(topic)
   const promptContentRef = useRef('')
   const askId = useRef('')
+
+  // Sync refs
+  useEffect(() => {
+    assistantRef.current = assistant
+  }, [assistant])
+  useEffect(() => {
+    topicRef.current = topic
+  }, [assistant, topic])
 
   // Initialize values only once when action changes
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
-
-    // Initialize assistant
-    const currentAssistant = action.assistantId
-      ? getAssistantById(action.assistantId) || getDefaultAssistant()
-      : getDefaultAssistant()
-
-    assistantRef.current = {
-      ...currentAssistant,
-      model: currentAssistant.model || getDefaultModel()
-    }
-
-    // Initialize topic
-    topicRef.current = getDefaultTopic(currentAssistant.id)
 
     // Initialize prompt content
     let userContent = ''
@@ -128,7 +134,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     fetchResult()
   }, [fetchResult])
 
-  const allMessages = useTopicMessages(topicRef.current?.id || '')
+  const allMessages = useTopicMessages(topic?.id || '')
 
   // Memoize the messages to prevent unnecessary re-renders
   const messageContent = useMemo(() => {

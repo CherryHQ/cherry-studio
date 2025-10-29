@@ -12,7 +12,7 @@ export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
   eslintReact.configs['recommended-typescript'],
-  reactHooks.configs['recommended-latest'],
+  reactHooks.configs.flat.recommended,
   {
     plugins: {
       'simple-import-sort': simpleImportSort,

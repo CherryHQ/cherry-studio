@@ -8,14 +8,14 @@ import { useTranslation } from 'react-i18next'
 type FoundInPageResult = Electron.FoundInPageResult
 
 interface WebviewSearchProps {
-  webviewRef: React.RefObject<WebviewTag | null>
+  activeWebview: WebviewTag | null
   isWebviewReady: boolean
   appId: string
 }
 
 const logger = loggerService.withContext('WebviewSearch')
 
-const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, appId }) => {
+const WebviewSearch: FC<WebviewSearchProps> = ({ activeWebview, isWebviewReady, appId }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [query, setQuery] = useState('')
@@ -25,7 +25,6 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
-  const activeWebview = webviewRef.current ?? null
 
   const focusInput = useCallback(() => {
     if (focusFrameRef.current !== null) {
@@ -81,7 +80,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   )
 
   const getUsableWebview = useCallback(() => {
-    const candidates = [webviewRef.current, attachedWebviewRef.current]
+    const candidates = [activeWebview, attachedWebviewRef.current]
 
     for (const candidate of candidates) {
       const usable = ensureWebviewReady(candidate)
@@ -91,7 +90,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     }
 
     return null
-  }, [ensureWebviewReady, webviewRef])
+  }, [ensureWebviewReady, activeWebview])
 
   const stopSearch = useCallback(() => {
     const target = getUsableWebview()

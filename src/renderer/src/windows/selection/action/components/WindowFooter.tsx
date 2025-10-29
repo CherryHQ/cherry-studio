@@ -31,19 +31,6 @@ const WindowFooter: FC<FooterProps> = ({
   const { setTimeoutTimer } = useTimer()
 
   useEffect(() => {
-    window.addEventListener('focus', handleWindowFocus)
-    window.addEventListener('blur', handleWindowBlur)
-
-    return () => {
-      window.removeEventListener('focus', handleWindowFocus)
-      window.removeEventListener('blur', handleWindowBlur)
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
     hideTimerRef.current = setTimeout(() => {
       setIsShowMe(false)
       hideTimerRef.current = null
@@ -68,21 +55,6 @@ const WindowFooter: FC<FooterProps> = ({
     }, 2000)
   }
 
-  useHotkeys('c', () => {
-    showMePeriod()
-    handleCopy()
-  })
-
-  useHotkeys('r', () => {
-    showMePeriod()
-    handleRegenerate()
-  })
-
-  useHotkeys('esc', () => {
-    showMePeriod()
-    handleEsc()
-  })
-
   const handleEsc = () => {
     setIsEscHovered(true)
     setTimeoutTimer(
@@ -99,6 +71,11 @@ const WindowFooter: FC<FooterProps> = ({
       window.api.selection.closeActionWindow()
     }
   }
+
+  useHotkeys('esc', () => {
+    showMePeriod()
+    handleEsc()
+  })
 
   const handleRegenerate = () => {
     setIsRegenerateHovered(true)
@@ -126,6 +103,11 @@ const WindowFooter: FC<FooterProps> = ({
     }
   }
 
+  useHotkeys('r', () => {
+    showMePeriod()
+    handleRegenerate()
+  })
+
   const handleCopy = () => {
     if (!content || loading) return
 
@@ -147,6 +129,11 @@ const WindowFooter: FC<FooterProps> = ({
       })
   }
 
+  useHotkeys('c', () => {
+    showMePeriod()
+    handleCopy()
+  })
+
   const handleWindowFocus = () => {
     setIsWindowFocus(true)
   }
@@ -154,6 +141,19 @@ const WindowFooter: FC<FooterProps> = ({
   const handleWindowBlur = () => {
     setIsWindowFocus(false)
   }
+
+  useEffect(() => {
+    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('blur', handleWindowBlur)
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('blur', handleWindowBlur)
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+      }
+    }
+  }, [])
 
   return (
     <Container

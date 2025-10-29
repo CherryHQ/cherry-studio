@@ -263,7 +263,7 @@
     "eslint": "^9.22.0",
     "eslint-plugin-import-zod": "^1.2.0",
     "eslint-plugin-oxlint": "^1.15.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
     "express-validator": "^7.2.1",

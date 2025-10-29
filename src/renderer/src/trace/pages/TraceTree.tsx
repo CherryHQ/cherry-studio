@@ -1,7 +1,8 @@
 import { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { Divider } from 'antd/lib'
+import dayjs from 'dayjs'
 import * as React from 'react'
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Box, GridItem, HStack, IconButton, SimpleGrid, Text } from './Component'
 import { ProgressBar } from './ProgressBar'
@@ -38,12 +39,10 @@ export const convertTime = (time: number | null): string => {
 const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 2 }) => {
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
-  const [usedTime, setUsedTime] = useState('--')
-
   // 只在 endTime 或 node 变化时更新 usedTime
-  useEffect(() => {
-    const endTime = node.endTime || Date.now()
-    setUsedTime(convertTime(endTime - node.startTime))
+  const usedTime = useMemo(() => {
+    const endTime = node.endTime || dayjs().valueOf()
+    return convertTime(endTime - node.startTime)
   }, [node])
 
   return (

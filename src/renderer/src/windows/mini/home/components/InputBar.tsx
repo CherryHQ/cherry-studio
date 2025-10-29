@@ -3,7 +3,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant } from '@renderer/types'
 import { Input as AntdInput } from 'antd'
 import { InputRef } from 'rc-input/lib/interface'
-import React, { useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 interface InputBarProps {
@@ -27,9 +27,13 @@ const InputBar = ({
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const inputRef = useRef<InputRef>(null)
   const { setTimeoutTimer } = useTimer()
-  if (!loading) {
-    setTimeoutTimer('focus', () => inputRef.current?.input?.focus(), 0)
-  }
+
+  useEffect(() => {
+    if (!loading) {
+      setTimeoutTimer('focus', () => inputRef.current?.input?.focus(), 0)
+    }
+  })
+
   return (
     <InputWrapper ref={ref}>
       {assistant.model && <ModelAvatar model={assistant.model} size={30} />}
