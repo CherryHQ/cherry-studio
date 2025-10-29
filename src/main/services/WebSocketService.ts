@@ -42,14 +42,23 @@ class WebSocketService {
       })
 
       this.io.on('connection', (socket: Socket) => {
-        logger.info(`Client connected: ${socket.id}`)
+        logger.info(`=== Client connected: ${socket.id} ===`)
+        logger.info(`Socket transport: ${socket.conn.transport.name}`)
         this.connectedClients.add(socket.id)
+        logger.info(`Total connected clients: ${this.connectedClients.size}`)
 
         const mainWindow = windowService.getMainWindow()
-        mainWindow?.webContents.send('websocket-client-connected', {
-          connected: true,
-          clientId: socket.id
-        })
+
+        if (!mainWindow) {
+          logger.error('Main window is null, cannot send connection event')
+        } else {
+          logger.info('Main window found, sending websocket-client-connected event to renderer')
+          mainWindow.webContents.send('websocket-client-connected', {
+            connected: true,
+            clientId: socket.id
+          })
+          logger.info('Event sent successfully')
+        }
 
         socket.on('message', (data) => {
           logger.info('Received message from mobile:', data)

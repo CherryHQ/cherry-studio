@@ -31,8 +31,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   useEffect(() => {
     const initWebSocket = async () => {
       try {
+        logger.info('=== Starting WebSocket initialization ===')
         await window.api.webSocket.start()
+        logger.info('WebSocket start completed')
+
         const { port, ip } = await window.api.webSocket.status()
+        logger.info(`WebSocket status - IP: ${ip}, Port: ${port}`)
 
         if (ip && port) {
           const connectionInfo = {
@@ -42,6 +46,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             timestamp: Date.now()
           }
           setQrCodeValue(JSON.stringify(connectionInfo))
+          logger.info('QR code value set successfully')
         } else {
           logger.error('Failed to get IP address or port.')
         }
@@ -49,12 +54,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         logger.error('Failed to initialize WebSocket:', error as Error)
       } finally {
         setIsLoading(false)
+        logger.info('WebSocket initialization completed')
       }
     }
 
     initWebSocket()
 
     const handleClientConnected = (_event: any, data: { connected: boolean }) => {
+      logger.info('=== Received websocket-client-connected event ===', data)
+      logger.info(`Setting connection status to: ${data.connected ? 'connected' : 'disconnected'}`)
       setConnectionStatus(data.connected ? 'connected' : 'disconnected')
     }
 
