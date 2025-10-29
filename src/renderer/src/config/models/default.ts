@@ -1741,6 +1741,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       id: 'DeepSeek-R1',
       provider: 'cephalon',
       name: 'DeepSeek-R1满血版',
+      capabilities: [{ type: 'reasoning' }],
       group: 'DeepSeek'
     }
   ],

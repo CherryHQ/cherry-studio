@@ -4148,7 +4148,6 @@
       },
       "anthropic_api_host": "Anthropic API-Adresse",
       "anthropic_api_host_preview": "Anthropic-Vorschau: {{url}}",
-      "anthropic_api_host_tip": "Nur bei Anbietern, die ein Anthropic-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "anthropic_api_host_tooltip": "Nur bei Anbietern, die ein Claude-kompatibles Basis-Endpunkt anbieten.",
       "api": {
         "key": {
@@ -4193,10 +4192,11 @@
         "url": {
           "preview": "Vorschau: {{url}}",
           "reset": "Zurücksetzen",
-          "tip": "/ am Ende ignorieren v1-Version, # am Ende erzwingt die Verwendung der Eingabe-Adresse"
+          "tip": "# am Ende erzwingt die Verwendung der Eingabe-Adresse"
         }
       },
       "api_host": "API-Adresse",
+      "api_host_no_valid": "API-Adresse ist ungültig",
       "api_host_preview": "Vorschau: {{url}}",
       "api_host_tooltip": "Nur bei Anbietern, die ein OpenAI-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "api_key": {

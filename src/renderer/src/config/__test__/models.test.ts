@@ -18,6 +18,15 @@ describe('Qwen Model Detection', () => {
     vi.mock('@renderer/services/AssistantService', () => ({
       getProviderByModel: vi.fn().mockReturnValue({ id: 'cherryai' })
     }))
+    vi.mock('@renderer/store', () => ({
+      default: {
+        getState: () => ({
+          llm: {
+            settings: {}
+          }
+        })
+      }
+    }))
   })
   test('isQwenReasoningModel', () => {
     expect(isQwenReasoningModel({ id: 'qwen3-thinking' } as Model)).toBe(true)

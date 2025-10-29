@@ -4148,7 +4148,6 @@
       },
       "anthropic_api_host": "Endereço da API Anthropic",
       "anthropic_api_host_preview": "Pré-visualização Anthropic: {{url}}",
-      "anthropic_api_host_tip": "Preencher apenas se o fornecedor oferecer um endereço compatível com Anthropic. Terminar com / ignora o v1 adicionado automaticamente, terminar com # força o uso do endereço original.",
       "anthropic_api_host_tooltip": "Preencher apenas quando o fornecedor fornece um endereço base compatível com Claude.",
       "api": {
         "key": {
@@ -4193,10 +4192,11 @@
         "url": {
           "preview": "Pré-visualização: {{url}}",
           "reset": "Redefinir",
-          "tip": "Ignorar v1 na versão finalizada com /, usar endereço de entrada forçado se terminar com #"
+          "tip": "e forçar o uso do endereço original quando terminar com '#'"
         }
       },
       "api_host": "Endereço API",
+      "api_host_no_valid": "O endereço da API é inválido",
       "api_host_preview": "Pré-visualização: {{url}}",
       "api_host_tooltip": "Substituir apenas quando o fornecedor necessita de um endereço compatível com OpenAI personalizado.",
       "api_key": {

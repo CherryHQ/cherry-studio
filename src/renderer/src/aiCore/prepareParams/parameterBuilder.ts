@@ -3,6 +3,8 @@
  * 构建AI SDK的流式和非流式参数
  */
 
+import { anthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
 import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
@@ -97,10 +99,6 @@ export async function buildStreamTextParams(
 
   let tools = setupToolsConfig(mcpTools)
 
-  // if (webSearchProviderId) {
-  //   tools['builtin_web_search'] = webSearchTool(webSearchProviderId)
-  // }
-
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
     maxResults: store.getState().websearch.maxResults,
@@ -143,12 +141,34 @@ export async function buildStreamTextParams(
     }
   }
 
-  // google-vertex
-  if (enableUrlContext && aiSdkProviderId === 'google-vertex') {
+  if (enableUrlContext) {
     if (!tools) {
       tools = {}
     }
-    tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+    const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+
+    switch (aiSdkProviderId) {
+      case 'google-vertex':
+        tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'google':
+        tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'anthropic':
+      case 'google-vertex-anthropic':
+        tools.web_fetch = (
+          aiSdkProviderId === 'anthropic'
+            ? anthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+            : vertexAnthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+        ) as ProviderDefinedTool
+        break
+    }
   }
 
   // 构建基础参数

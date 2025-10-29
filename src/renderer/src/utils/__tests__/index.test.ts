@@ -1,7 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { runAsyncFunction } from '../index'
 import { hasPath, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
+
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
 
 describe('Unclassified Utils', () => {
   describe('runAsyncFunction', () => {

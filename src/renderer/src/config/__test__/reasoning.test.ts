@@ -2,6 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { isDoubaoSeedAfter251015, isDoubaoThinkingAutoModel, isLingReasoningModel } from '../models/reasoning'
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
 // FIXME: Idk why it's imported. Maybe circular dependency somewhere
 vi.mock('@renderer/services/AssistantService.ts', () => ({
   getDefaultAssistant: () => {

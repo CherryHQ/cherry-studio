@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DraggableVirtualList } from '../'
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
 // Mock 依赖项
 vi.mock('@hello-pangea/dnd', () => ({
   __esModule: true,

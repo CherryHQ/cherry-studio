@@ -32,7 +32,8 @@ const AIHUBMIX_RULES: RuleSet = {
       match: (model) =>
         (startsWith('gemini')(model) || startsWith('imagen')(model)) &&
         !model.id.endsWith('-nothink') &&
-        !model.id.endsWith('-search'),
+        !model.id.endsWith('-search') &&
+        !model.id.includes('embedding'),
       provider: (provider: Provider) => {
         return extraProviderConfig({
           ...provider,

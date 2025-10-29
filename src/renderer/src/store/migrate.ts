@@ -2716,7 +2716,6 @@ const migrateConfig = {
     }
   },
   '166': (state: RootState) => {
-    // added after 1.6.5 and 1.7.0-beta.2
     try {
       if (state.assistants.presets === undefined) {
         state.assistants.presets = []
@@ -2733,6 +2732,18 @@ const migrateConfig = {
       if (dashscopeProvider) {
         dashscopeProvider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
       }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
+          provider.type = 'new-api'
+        }
+        if (provider.id === SystemProviderIds.longcat) {
+          // https://longcat.chat/platform/docs/zh/#anthropic-api-%E6%A0%BC%E5%BC%8F
+          if (!provider.anthropicApiHost) {
+            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+          }
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 166 error', error as Error)
