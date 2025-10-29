@@ -6,19 +6,16 @@ import { selectPendingPermissionByToolName, toolPermissionsActions } from '@rend
 import { NormalToolResponse } from '@renderer/types'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ToolPermissionRequestCard')
-
-const DEFAULT_DENY_MESSAGE = 'User denied permission for this tool.'
-const DEFAULT_DESCRIPTION =
-  'Executes code or system actions in your environment. Make sure the command looks safe before running it.'
-const CONFIRMATION_PROMPT = 'Are you sure you want to run this Claude tool?'
 
 interface Props {
   toolResponse: NormalToolResponse
 }
 
 export function ToolPermissionRequestCard({ toolResponse }: Props) {
+  const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const request = useAppSelector((state) =>
     selectPendingPermissionByToolName(state.toolPermissions, toolResponse.tool.name)
@@ -88,7 +85,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                 updatedPermissions: extra?.updatedPermissions
               }
             : {
-                message: extra?.message ?? DEFAULT_DENY_MESSAGE
+                message: extra?.message ?? t('agent.toolPermission.defaultDenyMessage')
               })
         }
 
@@ -104,17 +101,17 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
         })
       } catch (error) {
         logger.error('Failed to send tool permission response', error as Error)
-        window.toast?.error?.('Failed to send your decision. Please try again.')
+        window.toast?.error?.(t('agent.toolPermission.error.sendFailed'))
         dispatch(toolPermissionsActions.submissionFailed({ requestId: request.requestId }))
       }
     },
-    [dispatch, request]
+    [dispatch, request, t]
   )
 
   if (!request) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
-        Waiting for tool permission decision...
+        {t('agent.toolPermission.waiting')}
       </div>
     )
   }
@@ -125,17 +122,21 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-1">
             <div className="font-semibold text-default-700 text-sm">{request.toolName}</div>
-            <div className="text-default-500 text-xs">{request.description?.trim() || DEFAULT_DESCRIPTION}</div>
+            <div className="text-default-500 text-xs">
+              {request.description?.trim() || t('agent.toolPermission.defaultDescription')}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Chip color={isExpired ? 'danger' : 'warning'} size="sm" variant="flat">
-              {isExpired ? 'Expired' : `Pending (${remainingSeconds}s)`}
+              {isExpired
+                ? t('agent.toolPermission.expired')
+                : t('agent.toolPermission.pending', { seconds: remainingSeconds })}
             </Chip>
 
             <div className="flex items-center gap-1">
               <Button
-                aria-label="Deny tool request"
+                aria-label={t('agent.toolPermission.aria.denyRequest')}
                 className="h-8"
                 color="danger"
                 isDisabled={isSubmitting || isExpired}
@@ -143,7 +144,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                 onPress={() => handleDecision('deny')}
                 startContent={<CircleX size={16} />}
                 variant="bordered">
-                Cancel
+                {t('agent.toolPermission.button.cancel')}
               </Button>
 
               {hasSuggestions ? (
@@ -155,10 +156,10 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                     isLoading={isSubmittingAllow}
                     onPress={() => handleDecision('allow')}
                     startContent={<CirclePlay size={16} />}>
-                    Run
+                    {t('agent.toolPermission.button.run')}
                   </Button>
                   <Button
-                    aria-label="Run with additional options"
+                    aria-label={t('agent.toolPermission.aria.runWithOptions')}
                     className="h-8 rounded-l-none"
                     color="success"
                     isDisabled={isSubmitting || isExpired}
@@ -167,19 +168,21 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                 </ButtonGroup>
               ) : (
                 <Button
-                  aria-label="Allow tool request"
+                  aria-label={t('agent.toolPermission.aria.allowRequest')}
                   className="h-8 px-3"
                   color="success"
                   isDisabled={isSubmitting || isExpired}
                   isLoading={isSubmittingAllow}
                   onPress={() => handleDecision('allow')}
                   startContent={<CirclePlay size={16} />}>
-                  Run
+                  {t('agent.toolPermission.button.run')}
                 </Button>
               )}
 
               <Button
-                aria-label={showDetails ? 'Hide tool details' : 'Show tool details'}
+                aria-label={
+                  showDetails ? t('agent.toolPermission.aria.hideDetails') : t('agent.toolPermission.aria.showDetails')
+                }
                 className="h-8"
                 isIconOnly
                 onPress={() => setShowDetails((value) => !value)}
@@ -192,10 +195,14 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
 
         {showDetails && (
           <div className="flex flex-col gap-3 border-default-200 border-t pt-3">
-            <div className="rounded-lg bg-default-200/60 px-3 py-2 text-default-600 text-sm">{CONFIRMATION_PROMPT}</div>
+            <div className="rounded-lg bg-default-200/60 px-3 py-2 text-default-600 text-sm">
+              {t('agent.toolPermission.confirmation')}
+            </div>
 
             <div className="rounded-md border border-default-200 bg-default-100 p-3">
-              <p className="mb-2 font-medium text-default-400 text-xs uppercase tracking-wide">Tool input preview</p>
+              <p className="mb-2 font-medium text-default-400 text-xs uppercase tracking-wide">
+                {t('agent.toolPermission.inputPreview')}
+              </p>
               <ScrollShadow className="max-h-48 font-mono text-xs" hideScrollBar>
                 <pre className="whitespace-pre-wrap break-all text-left">{request.inputPreview}</pre>
               </ScrollShadow>
@@ -203,24 +210,22 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
 
             {request.requiresPermissions && (
               <div className="rounded-md border border-warning-300 bg-warning-50 p-3 text-warning-700 text-xs">
-                This tool requires elevated permissions.
+                {t('agent.toolPermission.requiresElevatedPermissions')}
               </div>
             )}
 
             {request.suggestions.length > 0 && (
               <div className="rounded-md border border-default-200 bg-default-50 p-3 text-default-500 text-xs">
                 {request.suggestions.length === 1
-                  ? 'Approving may update your session permissions if you chose to always allow this tool.'
-                  : 'Approving may update multiple session permissions if you chose to always allow this tool.'}
+                  ? t('agent.toolPermission.suggestion.permissionUpdateSingle')
+                  : t('agent.toolPermission.suggestion.permissionUpdateMultiple')}
               </div>
             )}
           </div>
         )}
 
         {isExpired && !isSubmitting && (
-          <div className="text-center text-danger-500 text-xs">
-            Permission request expired. Waiting for new instructions...
-          </div>
+          <div className="text-center text-danger-500 text-xs">{t('agent.toolPermission.permissionExpired')}</div>
         )}
       </div>
     </div>

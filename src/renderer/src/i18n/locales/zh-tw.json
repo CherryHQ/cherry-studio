@@ -191,6 +191,39 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "允許工具請求",
+        "denyRequest": "拒絕工具請求",
+        "hideDetails": "隱藏工具詳情",
+        "runWithOptions": "帶選項執行",
+        "showDetails": "顯示工具詳情"
+      },
+      "button": {
+        "cancel": "取消",
+        "run": "執行"
+      },
+      "confirmation": "確定要執行此 Claude 工具嗎？",
+      "defaultDenyMessage": "使用者拒絕了該工具的權限。",
+      "defaultDescription": "在您的環境中執行程式碼或系統操作。執行前請確保指令安全。",
+      "error": {
+        "sendFailed": "傳送您的決定失敗，請重試。"
+      },
+      "expired": "已過期",
+      "inputPreview": "工具輸入預覽",
+      "pending": "等待中 ({{seconds}}秒)",
+      "permissionExpired": "權限請求已過期。等待新指令...",
+      "requiresElevatedPermissions": "此工具需要提升的權限。",
+      "suggestion": {
+        "permissionUpdateMultiple": "如果您選擇總是允許此工具，核准可能會更新多個工作階段權限。",
+        "permissionUpdateSingle": "如果您選擇總是允許此工具，核准可能會更新您的工作階段權限。"
+      },
+      "toast": {
+        "denied": "工具請求已被拒絕。",
+        "timeout": "工具請求在收到核准前逾時。"
+      },
+      "waiting": "等待工具權限決定..."
+    },
     "type": {
       "label": "代理類型",
       "unknown": "未知類型"

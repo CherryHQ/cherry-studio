@@ -191,6 +191,39 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "允许工具请求",
+        "denyRequest": "拒绝工具请求",
+        "hideDetails": "隐藏工具详情",
+        "runWithOptions": "带选项运行",
+        "showDetails": "显示工具详情"
+      },
+      "button": {
+        "cancel": "取消",
+        "run": "运行"
+      },
+      "confirmation": "确定要运行此 Claude 工具吗?",
+      "defaultDenyMessage": "用户拒绝了该工具的权限。",
+      "defaultDescription": "在您的环境中执行代码或系统操作。运行前请确保命令安全。",
+      "error": {
+        "sendFailed": "发送您的决定失败，请重试。"
+      },
+      "expired": "已过期",
+      "inputPreview": "工具输入预览",
+      "pending": "等待中 ({{seconds}}秒)",
+      "permissionExpired": "权限请求已过期。等待新指令...",
+      "requiresElevatedPermissions": "此工具需要更高权限。",
+      "suggestion": {
+        "permissionUpdateMultiple": "如果您选择总是允许此工具,批准可能会更新多个会话权限。",
+        "permissionUpdateSingle": "如果您选择总是允许此工具,批准可能会更新您的会话权限。"
+      },
+      "toast": {
+        "denied": "工具请求已被拒绝。",
+        "timeout": "工具请求在收到批准前超时。"
+      },
+      "waiting": "等待工具权限决定..."
+    },
     "type": {
       "label": "智能体类型",
       "unknown": "未知类型"

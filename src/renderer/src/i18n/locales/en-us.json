@@ -191,6 +191,39 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Allow tool request",
+        "denyRequest": "Deny tool request",
+        "hideDetails": "Hide tool details",
+        "runWithOptions": "Run with additional options",
+        "showDetails": "Show tool details"
+      },
+      "button": {
+        "cancel": "Cancel",
+        "run": "Run"
+      },
+      "confirmation": "Are you sure you want to run this Claude tool?",
+      "defaultDenyMessage": "User denied permission for this tool.",
+      "defaultDescription": "Executes code or system actions in your environment. Make sure the command looks safe before running it.",
+      "error": {
+        "sendFailed": "Failed to send your decision. Please try again."
+      },
+      "expired": "Expired",
+      "inputPreview": "Tool input preview",
+      "pending": "Pending ({{seconds}}s)",
+      "permissionExpired": "Permission request expired. Waiting for new instructions...",
+      "requiresElevatedPermissions": "This tool requires elevated permissions.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Approving may update multiple session permissions if you chose to always allow this tool.",
+        "permissionUpdateSingle": "Approving may update your session permissions if you chose to always allow this tool."
+      },
+      "toast": {
+        "denied": "Tool request was denied.",
+        "timeout": "Tool request timed out before receiving approval."
+      },
+      "waiting": "Waiting for tool permission decision..."
+    },
     "type": {
       "label": "Agent Type",
       "unknown": "Unknown Type"

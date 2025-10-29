@@ -22,6 +22,7 @@ import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
@@ -32,6 +33,7 @@ import useUpdateHandler from './useUpdateHandler'
 const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
+  const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const {
     proxyUrl,
@@ -177,8 +179,8 @@ export function useAppInit() {
       if (payload.behavior === 'deny') {
         const message =
           payload.reason === 'timeout'
-            ? (payload.message ?? 'Tool request timed out before receiving approval.')
-            : (payload.message ?? 'Tool request was denied.')
+            ? (payload.message ?? t('agent.toolPermission.toast.timeout'))
+            : (payload.message ?? t('agent.toolPermission.toast.denied'))
 
         if (payload.reason === 'no-window') {
           logger.debug('Displaying deny toast for tool permission', {
@@ -209,7 +211,7 @@ export function useAppInit() {
       window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Request, requestListener)
       window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Result, resultListener)
     }
-  }, [dispatch])
+  }, [dispatch, t])
 
   useEffect(() => {
     // TODO: init data collection
