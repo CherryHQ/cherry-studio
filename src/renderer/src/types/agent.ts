@@ -381,3 +381,15 @@ export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 export const CreateSessionMessageRequestSchema = z.object({
   content: z.string().min(1, 'Content must be a valid string')
 })
+
+export type PermissionModeCard = {
+  mode: PermissionMode
+  titleKey: string
+  titleFallback: string
+  descriptionKey: string
+  descriptionFallback: string
+  behaviorKey: string
+  behaviorFallback: string
+  caution?: boolean
+  unsupported?: boolean
+}
