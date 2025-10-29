@@ -59,15 +59,18 @@ export default class S3Storage {
       }
     })()
 
-    // Create a direct dispatcher for S3 to bypass proxy
-    // This prevents proxy interference with large file uploads that can cause incomplete transfers
+    // Fix for S3 backup failure when using proxy
+    // Issue: When proxy is enabled, S3 uploads can fail with incomplete writes
+    // Error: "Io error: put_object write size < data.size(), w_size=15728640, data.size=16396159"
+    // Root cause: AWS SDK uses global fetch/undici dispatcher which routes through proxy,
+    //             causing data corruption or incomplete transfers for large files
+    // Solution: Configure S3Client with a direct dispatcher that bypasses the global proxy
     const directDispatcher = new UndiciAgent({
       connect: {
         timeout: 60000 // 60 second connection timeout
       }
     })
 
-    // Use FetchHttpHandler with direct dispatcher to bypass global proxy settings
     const requestHandler = new FetchHttpHandler({
       requestTimeout: 300000, // 5 minute request timeout for large files
       dispatcher: directDispatcher
