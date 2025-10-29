@@ -78,6 +78,12 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           const options = { signal, timeout: defaultTimeout }
 
           if (imageFiles.length > 0) {
+            const model = assistant.model
+            const provider = context.apiClientInstance.provider
+            // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/dall-e?tabs=gpt-image-1#call-the-image-edit-api
+            if (model.id.toLowerCase().includes('gpt-image-1-mini') && provider.type === 'azure-openai') {
+              throw new Error('Azure OpenAI GPT-Image-1-Mini model does not support image editing.')
+            }
             response = await sdk.images.edit(
               {
                 model: assistant.model.id,

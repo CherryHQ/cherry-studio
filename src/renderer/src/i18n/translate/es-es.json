@@ -109,47 +109,47 @@
       "essential": "Configuraciones esenciales",
       "plugins": {
         "available": {
-          "title": "[to be translated]:可用插件"
+          "title": "Complementos disponibles"
         },
         "confirm": {
-          "uninstall": "[to be translated]:确定要卸载此插件吗？"
+          "uninstall": "¿Estás seguro de que quieres desinstalar este complemento?"
         },
         "empty": {
-          "available": "[to be translated]:未找到匹配的插件。请尝试调整搜索或类别筛选。"
+          "available": "No se encontró ningún complemento que coincida. Intenta ajustar la búsqueda o los filtros de categoría."
         },
         "error": {
-          "install": "[to be translated]:安装插件失败",
-          "load": "[to be translated]:加载插件失败",
-          "uninstall": "[to be translated]:卸载插件失败"
+          "install": "Error al instalar el complemento",
+          "load": "Error al cargar el complemento",
+          "uninstall": "Error al desinstalar el complemento"
         },
         "filter": {
-          "all": "[to be translated]:所有类别"
+          "all": "Todas las categorías"
         },
-        "install": "[to be translated]:安装",
+        "install": "instalación",
         "installed": {
-          "empty": "[to be translated]:尚未安装任何插件。浏览可用插件以开始使用。",
-          "title": "[to be translated]:已安装插件"
+          "empty": "Aún no se ha instalado ningún complemento. Explora los complementos disponibles para comenzar.",
+          "title": "Complemento instalado"
         },
-        "installing": "[to be translated]:安装中...",
-        "results": "[to be translated]:找到 {{count}} 个插件",
+        "installing": "Instalando...",
+        "results": "Encontrados {{count}} complementos",
         "search": {
-          "placeholder": "[to be translated]:搜索插件..."
+          "placeholder": "Buscar complemento..."
         },
         "success": {
-          "install": "[to be translated]:插件安装成功",
-          "uninstall": "[to be translated]:插件卸载成功"
+          "install": "Complemento instalado con éxito",
+          "uninstall": "Complemento desinstalado correctamente"
         },
-        "tab": "[to be translated]:插件",
+        "tab": "complemento",
         "type": {
-          "agent": "[to be translated]:代理",
-          "agents": "[to be translated]:代理",
-          "all": "[to be translated]:全部",
-          "command": "[to be translated]:命令",
-          "commands": "[to be translated]:命令",
-          "skills": "[to be translated]:技能"
+          "agent": "agente",
+          "agents": "Agente",
+          "all": "todo",
+          "command": "comando",
+          "commands": "comando",
+          "skills": "habilidad"
         },
-        "uninstall": "[to be translated]:卸载",
-        "uninstalling": "[to be translated]:卸载中..."
+        "uninstall": "Desinstalar",
+        "uninstalling": "Desinstalando..."
       },
       "prompt": "Configuración de indicaciones",
       "tooling": {
@@ -582,7 +582,7 @@
         "context": "Limpiar contexto {{Command}}"
       },
       "new_topic": "Nuevo tema {{Command}}",
-      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
+      "paste_text_file_confirm": "¿Pegar en el cuadro de entrada?",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
@@ -996,6 +996,7 @@
     }
   },
   "common": {
+    "about": "sobre",
     "add": "Agregar",
     "add_success": "Añadido con éxito",
     "advanced_settings": "Configuración avanzada",
@@ -2006,12 +2007,12 @@
     "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "save": "Guardar en notas",
     "search": {
-      "both": "[to be translated]:名称+内容",
-      "content": "[to be translated]:内容",
-      "found_results": "[to be translated]:找到 {{count}} 个结果 (名称: {{nameCount}}, 内容: {{contentCount}})",
-      "more_matches": "[to be translated]:个匹配",
-      "searching": "[to be translated]:搜索中...",
-      "show_less": "[to be translated]:收起"
+      "both": "Nombre + Contenido",
+      "content": "contenido",
+      "found_results": "Se encontraron {{count}} resultados (nombre: {{nameCount}}, contenido: {{contentCount}})",
+      "more_matches": "Una coincidencia",
+      "searching": "Buscando...",
+      "show_less": "Recoger"
     },
     "settings": {
       "data": {
@@ -2161,8 +2162,8 @@
       "install_code_103": "Error al descargar el tiempo de ejecución de OVMS",
       "install_code_104": "Error al descomprimir el tiempo de ejecución de OVMS",
       "install_code_105": "Error al limpiar el tiempo de ejecución de OVMS",
-      "install_code_106": "[to be translated]:创建 run.bat 失败",
-      "install_code_110": "[to be translated]:清理旧 OVMS runtime 失败",
+      "install_code_106": "Error al crear run.bat",
+      "install_code_110": "Error al limpiar el antiguo runtime de OVMS",
       "run": "Error al ejecutar OVMS:",
       "stop": "Error al detener OVMS:"
     },
@@ -2343,30 +2344,30 @@
     }
   },
   "plugins": {
-    "actions": "[to be translated]:操作",
-    "agents": "[to be translated]:代理",
-    "all_categories": "[to be translated]:所有类别",
-    "all_types": "[to be translated]:全部",
-    "category": "[to be translated]:类别",
-    "commands": "[to be translated]:命令",
-    "confirm_uninstall": "[to be translated]:确定要卸载 {{name}} 吗？",
-    "install": "[to be translated]:安装",
-    "install_plugins_from_browser": "[to be translated]:浏览可用插件以开始使用",
-    "installing": "[to be translated]:安装中...",
-    "name": "[to be translated]:名称",
-    "no_description": "[to be translated]:无描述",
-    "no_installed_plugins": "[to be translated]:尚未安装任何插件",
-    "no_results": "[to be translated]:未找到插件",
-    "search_placeholder": "[to be translated]:搜索插件...",
-    "showing_results": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_one": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_other": "[to be translated]:显示 {{count}} 个插件",
-    "showing_results_plural": "[to be translated]:显示 {{count}} 个插件",
-    "skills": "[to be translated]:技能",
-    "try_different_search": "[to be translated]:请尝试调整搜索或类别筛选",
-    "type": "[to be translated]:类型",
-    "uninstall": "[to be translated]:卸载",
-    "uninstalling": "[to be translated]:卸载中..."
+    "actions": "Operación",
+    "agents": "Agente",
+    "all_categories": "Todas las categorías",
+    "all_types": "todo",
+    "category": "Categoría",
+    "commands": "comando",
+    "confirm_uninstall": "¿Estás seguro de que quieres desinstalar {{name}}?",
+    "install": "instalación",
+    "install_plugins_from_browser": "Explora los complementos disponibles para empezar a usar",
+    "installing": "Instalando...",
+    "name": "Nombre",
+    "no_description": "Sin descripción",
+    "no_installed_plugins": "Aún no se ha instalado ningún complemento",
+    "no_results": "No se encontró el complemento",
+    "search_placeholder": "Buscar complemento...",
+    "showing_results": "Mostrar {{count}} complementos",
+    "showing_results_one": "Mostrar {{count}} complementos",
+    "showing_results_other": "Mostrar {{count}} complementos",
+    "showing_results_plural": "Mostrar {{count}} complementos",
+    "skills": "habilidad",
+    "try_different_search": "Por favor, intenta ajustar la búsqueda o los filtros de categoría.",
+    "type": "tipo",
+    "uninstall": "Desinstalar",
+    "uninstalling": "Desinstalando..."
   },
   "preview": {
     "copy": {
@@ -2414,12 +2415,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hùnyuán",
     "hyperbolic": "Hiperbólico",
     "infini": "Infini",
     "jina": "Jina",
     "lanyun": "Tecnología Lanyun",
     "lmstudio": "Estudio LM",
+    "longcat": "Totoro",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope Módulo",
@@ -4300,7 +4303,7 @@
         "system": "Proxy del sistema",
         "title": "Modo de proxy"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "Admite coincidencia parcial (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Haz clic en el icono de la bandeja para iniciar",

@@ -582,7 +582,7 @@
         "context": "清除上下文 {{Command}}"
       },
       "new_topic": "新話題 {{Command}}",
-      "paste_text_file_confirm": "[to be translated]:粘贴到输入框？",
+      "paste_text_file_confirm": "貼到輸入框？",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
@@ -996,6 +996,7 @@
     }
   },
   "common": {
+    "about": "關於",
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
@@ -2414,12 +2415,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "騰訊混元",
     "hyperbolic": "Hyperbolic",
     "infini": "無問芯穹",
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "longcat": "龍貓",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -4300,7 +4303,7 @@
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "支援模糊匹配（*.test.com，192.168.0.0/16）"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",

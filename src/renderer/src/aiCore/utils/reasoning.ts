@@ -10,6 +10,7 @@ import {
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIDeepResearchModel,
+  isOpenAIModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
@@ -32,6 +33,7 @@ import { getAssistantSettings, getProviderByModel } from '@renderer/services/Ass
 import { SettingsState } from '@renderer/store/settings'
 import { Assistant, EFFORT_RATIO, isSystemProvider, Model, SystemProviderIds } from '@renderer/types'
 import { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import { toInteger } from 'lodash'
 
 const logger = loggerService.withContext('reasoning')
 
@@ -65,7 +67,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         isGrokReasoningModel(model) ||
         isOpenAIReasoningModel(model) ||
         isQwenAlwaysThinkModel(model) ||
-        model.id.includes('seed-oss')
+        model.id.includes('seed-oss') ||
+        model.id.includes('minimax-m2')
       ) {
         return {}
       }
@@ -94,7 +97,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           extra_body: {
             google: {
               thinking_config: {
-                thinking_budget: 0
+                thinkingBudget: 0
               }
             }
           }
@@ -112,9 +115,54 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // reasoningEffort有效的情况
+
+  // OpenRouter models
+  if (model.provider === SystemProviderIds.openrouter) {
+    // Grok 4 Fast doesn't support effort levels, always use enabled: true
+    if (isGrok4FastReasoningModel(model)) {
+      return {
+        reasoning: {
+          enabled: true // Ignore effort level, just enable reasoning
+        }
+      }
+    }
+
+    // Other OpenRouter models that support effort levels
+    if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
+      return {
+        reasoning: {
+          effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
+        }
+      }
+    }
+  }
+
+  const effortRatio = EFFORT_RATIO[reasoningEffort]
+  const tokenLimit = findTokenLimit(model.id)
+  let budgetTokens: number | undefined
+  if (tokenLimit) {
+    budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+  }
+
+  // See https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions
+  if (model.provider === SystemProviderIds.silicon) {
+    if (
+      isDeepSeekHybridInferenceModel(model) ||
+      isSupportedThinkingTokenZhipuModel(model) ||
+      isSupportedThinkingTokenQwenModel(model) ||
+      isSupportedThinkingTokenHunyuanModel(model)
+    ) {
+      return {
+        enable_thinking: true,
+        // Hard-encoded maximum, only for silicon
+        thinking_budget: budgetTokens ? toInteger(Math.max(budgetTokens, 32768)) : undefined
+      }
+    }
+    return {}
+  }
+
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
   // 不同的 provider 有不同的思考控制方式，在这里统一解决
-
   if (isDeepSeekHybridInferenceModel(model)) {
     if (isSystemProvider(provider)) {
       switch (provider.id) {
@@ -122,10 +170,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           return {
             enable_thinking: true,
             incremental_output: true
-          }
-        case SystemProviderIds.silicon:
-          return {
-            enable_thinking: true
           }
         case SystemProviderIds.hunyuan:
         case SystemProviderIds['tencent-cloud-ti']:
@@ -151,54 +195,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           logger.warn(
             `Skipping thinking options for provider ${provider.name} as DeepSeek v3.1 thinking control method is unknown`
           )
+        case SystemProviderIds.silicon:
+        // specially handled before
       }
     }
   }
 
-  // OpenRouter models
-  if (model.provider === SystemProviderIds.openrouter) {
-    // Grok 4 Fast doesn't support effort levels, always use enabled: true
-    if (isGrok4FastReasoningModel(model)) {
-      return {
-        reasoning: {
-          enabled: true // Ignore effort level, just enable reasoning
-        }
-      }
-    }
-
-    // Other OpenRouter models that support effort levels
-    if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
-      return {
-        reasoning: {
-          effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
-        }
-      }
-    }
-  }
-
-  // Doubao 思考模式支持
-  if (isSupportedThinkingTokenDoubaoModel(model)) {
-    if (isDoubaoSeedAfter251015(model)) {
-      return { reasoningEffort }
-    }
-    // Comment below this line seems weird. reasoning is high instead of null/undefined. Who wrote this?
-    // reasoningEffort 为空，默认开启 enabled
-    if (reasoningEffort === 'high') {
-      return { thinking: { type: 'enabled' } }
-    }
-    if (reasoningEffort === 'auto' && isDoubaoThinkingAutoModel(model)) {
-      return { thinking: { type: 'auto' } }
-    }
-    // 其他情况不带 thinking 字段
-    return {}
-  }
-
-  const effortRatio = EFFORT_RATIO[reasoningEffort]
-  const budgetTokens = Math.floor(
-    (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
-  )
-
-  // OpenRouter models, use thinking
+  // OpenRouter models, use reasoning
   if (model.provider === SystemProviderIds.openrouter) {
     if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
       return {
@@ -255,8 +258,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         extra_body: {
           google: {
             thinking_config: {
-              thinking_budget: -1,
-              include_thoughts: true
+              thinkingBudget: -1,
+              includeThoughts: true
             }
           }
         }
@@ -266,8 +269,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       extra_body: {
         google: {
           thinking_config: {
-            thinking_budget: budgetTokens,
-            include_thoughts: true
+            thinkingBudget: budgetTokens,
+            includeThoughts: true
           }
         }
       }
@@ -280,22 +283,26 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {
       thinking: {
         type: 'enabled',
-        budget_tokens: Math.floor(
-          Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
-        )
+        budget_tokens: budgetTokens
+          ? Math.floor(Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio)))
+          : undefined
       }
     }
   }
 
   // Use thinking, doubao, zhipu, etc.
   if (isSupportedThinkingTokenDoubaoModel(model)) {
-    if (assistant.settings?.reasoning_effort === 'high') {
-      return {
-        thinking: {
-          type: 'enabled'
-        }
-      }
+    if (isDoubaoSeedAfter251015(model)) {
+      return { reasoningEffort }
     }
+    if (reasoningEffort === 'high') {
+      return { thinking: { type: 'enabled' } }
+    }
+    if (reasoningEffort === 'auto' && isDoubaoThinkingAutoModel(model)) {
+      return { thinking: { type: 'auto' } }
+    }
+    // 其他情况不带 thinking 字段
+    return {}
   }
   if (isSupportedThinkingTokenZhipuModel(model)) {
     return { thinking: { type: 'enabled' } }
@@ -313,6 +320,20 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
   if (!isReasoningModel(model)) {
     return {}
   }
+
+  let reasoningEffort = assistant?.settings?.reasoning_effort
+
+  if (!reasoningEffort) {
+    return {}
+  }
+
+  // 非OpenAI模型，但是Provider类型是responses/azure openai的情况
+  if (!isOpenAIModel(model)) {
+    return {
+      reasoningEffort
+    }
+  }
+
   const openAI = getStoreSetting('openAI') as SettingsState['openAI']
   const summaryText = openAI?.summaryText || 'off'
 
@@ -324,14 +345,8 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
     reasoningSummary = summaryText
   }
 
-  let reasoningEffort = assistant?.settings?.reasoning_effort
-
   if (isOpenAIDeepResearchModel(model)) {
     reasoningEffort = 'medium'
-  }
-
-  if (!reasoningEffort) {
-    return {}
   }
 
   // OpenAI 推理参数

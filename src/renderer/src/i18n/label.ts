@@ -88,7 +88,9 @@ const providerKeyMap = {
   zhinao: 'provider.zhinao',
   zhipu: 'provider.zhipu',
   poe: 'provider.poe',
-  aionly: 'provider.aionly'
+  aionly: 'provider.aionly',
+  longcat: 'provider.longcat',
+  huggingface: 'provider.huggingface'
 } as const
 
 /**
@@ -163,9 +165,21 @@ export const getThemeModeLabel = (key: string): string => {
   return getLabel(themeModeKeyMap, key)
 }
 
+// const sidebarIconKeyMap = {
+//   assistants: t('assistants.title'),
+//   store: t('assistants.presets.title'),
+//   paintings: t('paintings.title'),
+//   translate: t('translate.title'),
+//   minapp: t('minapp.title'),
+//   knowledge: t('knowledge.title'),
+//   files: t('files.title'),
+//   code_tools: t('code.title'),
+//   notes: t('notes.title')
+// } as const
+
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
-  agents: 'agents.title',
+  store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
   minapp: 'minapp.title',

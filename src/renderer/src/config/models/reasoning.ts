@@ -361,6 +361,12 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
   return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
 }
 
+export function isClaude45ReasoningModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  const regex = /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i
+  return regex.test(modelId)
+}
+
 export function isClaudeReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -455,6 +461,14 @@ export const isStepReasoningModel = (model?: Model): boolean => {
   return modelId.includes('step-3') || modelId.includes('step-r1-v-mini')
 }
 
+export const isMiniMaxReasoningModel = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return (['minimax-m1', 'minimax-m2'] as const).some((id) => modelId.includes(id))
+}
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
@@ -489,8 +503,8 @@ export function isReasoningModel(model?: Model): boolean {
     isStepReasoningModel(model) ||
     isDeepSeekHybridInferenceModel(model) ||
     isLingReasoningModel(model) ||
+    isMiniMaxReasoningModel(model) ||
     modelId.includes('magistral') ||
-    modelId.includes('minimax-m1') ||
     modelId.includes('pangu-pro-moe') ||
     modelId.includes('seed-oss')
   ) {
