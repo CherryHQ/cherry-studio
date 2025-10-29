@@ -35,6 +35,7 @@ class WebSocketService {
 
     try {
       this.io = new Server(this.port, {
+        path: this.getLocalIpAddress(),
         cors: {
           origin: '*'
         }
