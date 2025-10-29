@@ -1,6 +1,5 @@
 import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
-import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
+import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import {
@@ -16,9 +15,8 @@ import {
 } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
-import { FC, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { mutate } from 'swr'
 
 import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
@@ -36,6 +34,13 @@ type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
 const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
 
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ *
+ * @param mode - The permission mode to compute defaults for.
+ * @param tools - The full list of available tools.
+ * @returns An array of tool IDs that are approved by default for the specified mode.
+ */
 const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
   const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
   switch (mode) {
@@ -65,51 +70,33 @@ const unique = (values: string[]) => Array.from(new Set(values))
 export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, update }) => {
   const { containerRef, handleScroll } = useScrollPosition('AgentToolingSettings', 100)
   const { t } = useTranslation()
-  const client = useAgentClient()
   const { mcpServers: allServers } = useMCPServers()
   const [modal, contextHolder] = Modal.useModal()
 
-  const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
-  const [selectedMode, setSelectedMode] = useState<PermissionMode>(defaultConfiguration.permission_mode)
-  const [autoToolIds, setAutoToolIds] = useState<string[]>([])
-  const [approvedToolIds, setApprovedToolIds] = useState<string[]>([])
+  const configuration: AgentConfigurationState = useMemo(
+    () => agentBase?.configuration ?? defaultConfiguration,
+    [agentBase?.configuration]
+  )
+  const selectedMode = useMemo(
+    () => agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode,
+    [agentBase?.configuration?.permission_mode]
+  )
+  const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
+  const autoToolIds = useMemo(() => computeModeDefaults(selectedMode, availableTools), [availableTools, selectedMode])
+  const approvedToolIds = useMemo(() => {
+    const allowed = agentBase?.allowed_tools ?? []
+    const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
+    // Ensure defaults are included even if backend omitted them
+    const merged = unique([...sanitized, ...autoToolIds])
+    return merged
+  }, [agentBase?.allowed_tools, autoToolIds, availableTools])
+  const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingMode, setIsUpdatingMode] = useState(false)
   const [isUpdatingTools, setIsUpdatingTools] = useState(false)
-  const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
 
-  const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const availableServers = useMemo(() => allServers ?? [], [allServers])
-
-  useEffect(() => {
-    if (!agentBase) {
-      setConfiguration(defaultConfiguration)
-      setSelectedMode(defaultConfiguration.permission_mode)
-      setApprovedToolIds([])
-      setAutoToolIds([])
-      setSelectedMcpIds([])
-      return
-    }
-    const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
-    setConfiguration(parsed)
-    setSelectedMode(parsed.permission_mode)
-
-    const defaults = computeModeDefaults(parsed.permission_mode, availableTools)
-    setAutoToolIds(defaults)
-    const allowed = agentBase.allowed_tools ?? []
-    setApprovedToolIds((prev) => {
-      const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
-      const isSame = sanitized.length === prev.length && sanitized.every((id) => prev.includes(id))
-      if (isSame) {
-        return prev
-      }
-      // Ensure defaults are included even if backend omitted them
-      const merged = unique([...sanitized, ...defaults])
-      return merged
-    })
-    setSelectedMcpIds(agentBase.mcps ?? [])
-  }, [agentBase, availableTools])
 
   const filteredTools = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -146,10 +133,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
             configuration: nextConfiguration,
             allowed_tools: merged
           } satisfies UpdateAgentBaseForm)
-          setConfiguration(nextConfiguration)
-          setSelectedMode(nextMode)
-          setAutoToolIds(defaults)
-          setApprovedToolIds(merged)
         } finally {
           setIsUpdatingMode(false)
         }
@@ -211,33 +194,25 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   )
 
   const handleToggleTool = useCallback(
-    (toolId: string, isApproved: boolean) => {
+    async (toolId: string, isApproved: boolean) => {
       if (!agentBase || isUpdatingTools) {
         return
       }
-      startTransition(() => {
-        setApprovedToolIds((prev) => {
-          const exists = prev.includes(toolId)
-          if (isApproved === exists) {
-            return prev
-          }
-          const next = isApproved ? [...prev, toolId] : prev.filter((id) => id !== toolId)
-          const sanitized = unique(
-            next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds)
-          )
-          setIsUpdatingTools(true)
-          void (async () => {
-            try {
-              await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
-            } finally {
-              setIsUpdatingTools(false)
-            }
-          })()
-          return sanitized
-        })
-      })
+
+      const exists = approvedToolIds.includes(toolId)
+      if (isApproved === exists) {
+        return
+      }
+      setIsUpdatingTools(true)
+      const next = isApproved ? [...approvedToolIds, toolId] : approvedToolIds.filter((id) => id !== toolId)
+      const sanitized = unique(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
+      try {
+        await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
+      } finally {
+        setIsUpdatingTools(false)
+      }
     },
-    [agentBase, isUpdatingTools, availableTools, autoToolIds, update]
+    [agentBase, isUpdatingTools, approvedToolIds, autoToolIds, availableTools, update]
   )
 
   const { agentSummary, autoCount, customCount } = useMemo(() => {
@@ -257,31 +232,24 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   }, [selectedMode, autoToolIds, userAddedIds, availableTools.length, selectedMcpIds.length])
 
   const handleToggleMcp = useCallback(
-    (serverId: string, enabled: boolean) => {
+    async (serverId: string, enabled: boolean) => {
       if (!agentBase || isUpdatingMcp) {
         return
       }
-      setSelectedMcpIds((prev) => {
-        const exists = prev.includes(serverId)
-        if (enabled === exists) {
-          return prev
-        }
-        const next = enabled ? [...prev, serverId] : prev.filter((id) => id !== serverId)
-        setIsUpdatingMcp(true)
-        void (async () => {
-          try {
-            await update({ id: agentBase.id, mcps: next } satisfies UpdateAgentBaseForm)
-            const refreshed = await client.getAgent(agentBase.id)
-            const key = client.agentPaths.withId(agentBase.id)
-            mutate(key, refreshed, false)
-          } finally {
-            setIsUpdatingMcp(false)
-          }
-        })()
-        return next
-      })
+      const exists = selectedMcpIds.includes(serverId)
+      if (enabled === exists) {
+        return
+      }
+      const next = enabled ? [...selectedMcpIds, serverId] : selectedMcpIds.filter((id) => id !== serverId)
+
+      setIsUpdatingMcp(true)
+      try {
+        await update({ id: agentBase.id, mcps: next } satisfies UpdateAgentBaseForm)
+      } finally {
+        setIsUpdatingMcp(false)
+      }
     },
-    [agentBase, isUpdatingMcp, client, update]
+    [agentBase, isUpdatingMcp, selectedMcpIds, update]
   )
 
   if (!agentBase) {
