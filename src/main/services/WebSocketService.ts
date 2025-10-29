@@ -83,8 +83,24 @@ class WebSocketService {
         logger.error('WebSocket connection error:', err)
       })
 
+      // 添加更多引擎级别的事件监听
+      this.io.engine.on('initial_headers', (headers, request) => {
+        logger.info('Received connection attempt:', {
+          url: request.url,
+          headers: request.headers
+        })
+      })
+
+      this.io.engine.on('connection', (rawSocket) => {
+        logger.info('Engine level connection established:', {
+          remoteAddress: rawSocket.request.connection.remoteAddress
+        })
+      })
+
       this.isStarted = true
       logger.info(`WebSocket server started on port ${this.port}`)
+      logger.info(`Server is listening on 0.0.0.0:${this.port}`)
+      logger.info(`Allowed transports: ${JSON.stringify(this.io.engine.opts.transports)}`)
 
       return { success: true, port: this.port }
     } catch (error) {
