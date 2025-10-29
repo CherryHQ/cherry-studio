@@ -1,5 +1,5 @@
 import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
+import { permissionModeCards } from '@renderer/config/agent'
 import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
@@ -69,8 +69,11 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   const { mcpServers: allServers } = useMCPServers()
   const [modal, contextHolder] = Modal.useModal()
 
-  const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
-  const [selectedMode, setSelectedMode] = useState<PermissionMode>(defaultConfiguration.permission_mode)
+  const [configuration, setConfiguration] = useState<AgentConfigurationState>(
+    agentBase?.configuration ?? defaultConfiguration
+  )
+  const selectedMode = agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode
+
   const [autoToolIds, setAutoToolIds] = useState<string[]>([])
   const [approvedToolIds, setApprovedToolIds] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -85,7 +88,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   useEffect(() => {
     if (!agentBase) {
       setConfiguration(defaultConfiguration)
-      setSelectedMode(defaultConfiguration.permission_mode)
       setApprovedToolIds([])
       setAutoToolIds([])
       setSelectedMcpIds([])
@@ -93,7 +95,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
     }
     const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
-    setSelectedMode(parsed.permission_mode)
 
     const defaults = computeModeDefaults(parsed.permission_mode, availableTools)
     setAutoToolIds(defaults)
@@ -147,7 +148,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
             allowed_tools: merged
           } satisfies UpdateAgentBaseForm)
           setConfiguration(nextConfiguration)
-          setSelectedMode(nextMode)
           setAutoToolIds(defaults)
           setApprovedToolIds(merged)
         } finally {
