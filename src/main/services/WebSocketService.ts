@@ -202,6 +202,72 @@ class WebSocketService {
     }
   }
 
+  public getAllCandidates = async (): Promise<
+    Array<{
+      host: string
+      interface: string
+      priority: number
+    }>
+  > => {
+    const interfaces = networkInterfaces()
+
+    // 按优先级排序的网络接口名称模式
+    const interfacePriority = [
+      // macOS: 以太网/Wi-Fi 优先
+      /^en[0-9]+$/, // en0, en1 (以太网/Wi-Fi)
+      /^(en|eth)[0-9]+$/, // 以太网接口
+      /^wlan[0-9]+$/, // 无线接口
+      // Windows: 以太网/Wi-Fi 优先
+      /^(Ethernet|Wi-Fi|Local Area Connection)/,
+      /^(Wi-Fi|无线网络连接)/,
+      // Linux: 以太网/Wi-Fi 优先
+      /^(eth|enp|wlp|wlan)[0-9]+/,
+      // 虚拟化接口（低优先级）
+      /^bridge[0-9]+$/, // Docker bridge
+      /^veth[0-9]+$/, // Docker veth
+      /^docker[0-9]+/, // Docker interfaces
+      /^br-[0-9a-f]+/, // Docker bridge
+      /^vmnet[0-9]+$/, // VMware
+      /^vboxnet[0-9]+$/, // VirtualBox
+      // VPN 隧道接口（低优先级）
+      /^utun[0-9]+$/, // macOS VPN
+      /^tun[0-9]+$/, // Linux/Unix VPN
+      /^tap[0-9]+$/, // TAP interfaces
+      /^tailscale[0-9]*$/, // Tailscale VPN
+      /^wg[0-9]+$/ // WireGuard VPN
+    ]
+
+    const candidates: Array<{ host: string; interface: string; priority: number }> = []
+
+    for (const [name, ifaces] of Object.entries(interfaces)) {
+      for (const iface of ifaces || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          // 计算接口优先级
+          let priority = 999 // 默认最低优先级
+          for (let i = 0; i < interfacePriority.length; i++) {
+            if (interfacePriority[i].test(name)) {
+              priority = i
+              break
+            }
+          }
+
+          candidates.push({
+            host: iface.address,
+            interface: name,
+            priority
+          })
+
+          logger.debug(`Found interface: ${name} -> ${iface.address} (priority: ${priority})`)
+        }
+      }
+    }
+
+    // 按优先级排序返回
+    candidates.sort((a, b) => a.priority - b.priority)
+    logger.info(`Returning ${candidates.length} IP candidates for QR code`)
+    return candidates
+  }
+
   public sendFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string

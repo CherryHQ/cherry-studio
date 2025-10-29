@@ -39,14 +39,17 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         logger.info(`WebSocket status - IP: ${ip}, Port: ${port}`)
 
         if (ip && port) {
+          // 获取所有候选 IP 地址信息
+          const candidates = await window.api.webSocket.getAllCandidates()
           const connectionInfo = {
             type: 'cherry-studio-app',
-            host: ip,
+            candidates: candidates,
+            selectedHost: ip,
             port: port,
             timestamp: Date.now()
           }
           setQrCodeValue(JSON.stringify(connectionInfo))
-          logger.info('QR code value set successfully')
+          logger.info(`QR code set with ${candidates.length} IP candidates, selected: ${ip}`)
         } else {
           logger.error('Failed to get IP address or port.')
         }
