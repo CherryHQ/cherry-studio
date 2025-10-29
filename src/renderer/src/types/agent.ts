@@ -250,6 +250,25 @@ export type SessionForm = CreateSessionForm | UpdateSessionForm
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
+// --------------------- Components & Hooks ----------------------
+
+export type UpdateAgentBaseOptions = {
+  /** Whether to show success toast after updating. Defaults to true. */
+  showSuccessToast?: boolean
+}
+
+export type UpdateAgentFunction = (
+  form: UpdateAgentForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentEntity | undefined>
+
+export type UpdateAgentSessionFunction = (
+  form: UpdateSessionForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentSessionEntity | undefined>
+
+export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
+
 // ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {
   type: AgentType

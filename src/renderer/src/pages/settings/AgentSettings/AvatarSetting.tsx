@@ -1,5 +1,11 @@
 import { EmojiAvatarWithPicker } from '@renderer/components/Avatar/EmojiAvatarWithPicker'
-import { AgentConfigurationSchema, AgentEntity, isAgentType, UpdateAgentForm } from '@renderer/types'
+import {
+  AgentConfigurationSchema,
+  AgentEntity,
+  isAgentType,
+  UpdateAgentForm,
+  UpdateAgentFunction
+} from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -7,7 +13,7 @@ import { SettingsItem, SettingsTitle } from './shared'
 
 export interface AvatarSettingsProps {
   agent: AgentEntity
-  update: (form: UpdateAgentForm) => Promise<AgentEntity | undefined>
+  update: UpdateAgentFunction
 }
 
 // const logger = loggerService.withContext('AvatarSetting')

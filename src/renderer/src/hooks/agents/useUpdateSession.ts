@@ -1,17 +1,17 @@
 import { AgentSessionEntity, ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
+import { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
-import { UpdateAgentBaseOptions } from './types'
 import { useAgentClient } from './useAgentClient'
 
 export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
 
-  const updateSession = useCallback(
+  const updateSession: UpdateAgentSessionFunction = useCallback(
     async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
       if (!agentId) return
       const paths = client.getSessionPaths(agentId)

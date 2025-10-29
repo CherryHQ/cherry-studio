@@ -1,25 +1,16 @@
 import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
-import {
-  AgentBaseWithId,
-  AgentEntity,
-  AgentSessionEntity,
-  ApiModel,
-  UpdateAgentForm,
-  UpdateSessionForm
-} from '@renderer/types'
+import { AgentBaseWithId, ApiModel, UpdateAgentFunctionUnion } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsTitle } from './shared'
 
 export interface ModelSettingProps {
   base: AgentBaseWithId | undefined | null
-  update:
-    | ((form: UpdateAgentForm) => Promise<AgentEntity | undefined>)
-    | ((form: UpdateSessionForm) => Promise<AgentSessionEntity | undefined>)
+  update: UpdateAgentFunctionUnion
   isDisabled?: boolean
 }
 
-export const ModelSetting: React.FC<ModelSettingProps> = ({ base, update, isDisabled }) => {
+export const ModelSetting = ({ base, update, isDisabled }: ModelSettingProps) => {
   const { t } = useTranslation()
 
   const updateModel = async (model: ApiModel) => {
