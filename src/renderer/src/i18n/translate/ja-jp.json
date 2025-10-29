@@ -109,13 +109,13 @@
       "essential": "必須設定",
       "plugins": {
         "available": {
-          "title": "[to be translated]:可用插件"
+          "title": "利用可能なプラグイン"
         },
         "confirm": {
-          "uninstall": "[to be translated]:确定要卸载此插件吗？"
+          "uninstall": "このプラグインをアンインストールしてもよろしいですか？"
         },
         "empty": {
-          "available": "[to be translated]:未找到匹配的插件。请尝试调整搜索或类别筛选。"
+          "available": "一致するプラグインが見つかりませんでした。検索キーワードやカテゴリフィルターを調整してみてください。"
         },
         "error": {
           "install": "プラグインのインストールに失敗しました",
@@ -131,7 +131,7 @@
           "title": "インストール済みプラグイン"
         },
         "installing": "インストール中...",
-        "results": "[to be translated]:找到 {{count}} 个插件",
+        "results": "{{count}} 個のプラグインが見つかりました",
         "search": {
           "placeholder": "検索プラグイン..."
         },
@@ -149,7 +149,7 @@
           "skills": "技能"
         },
         "uninstall": "アンインストール",
-        "uninstalling": "[to be translated]:卸载中..."
+        "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
       "tooling": {
