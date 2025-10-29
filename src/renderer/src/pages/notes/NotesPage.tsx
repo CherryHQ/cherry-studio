@@ -80,6 +80,7 @@ const NotesPage: FC = () => {
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
   const pendingScrollRef = useRef<{ lineNumber: number; lineContent?: string } | null>(null)
+  const noteHistoryRef = useRef<string[]>([]) // Track recently opened notes for smart navigation
 
   const activeFilePathRef = useRef<string | undefined>(activeFilePath)
   const currentContentRef = useRef(currentContent)
@@ -112,6 +113,31 @@ const NotesPage: FC = () => {
       }
     },
     [dispatch, store]
+  )
+
+  // Find the previous valid note from history, excluding the current path
+  const findPreviousNote = useCallback(
+    (excludePath: string): string | undefined => {
+      const normalizedExclude = normalizePathValue(excludePath)
+      // Iterate through history in reverse order (most recent first)
+      for (let i = noteHistoryRef.current.length - 1; i >= 0; i--) {
+        const historicalPath = noteHistoryRef.current[i]
+        const normalizedHistorical = normalizePathValue(historicalPath)
+
+        // Skip if it's the excluded path or if it's inside a deleted folder
+        if (normalizedHistorical === normalizedExclude || normalizedHistorical.startsWith(`${normalizedExclude}/`)) {
+          continue
+        }
+
+        // Check if the note still exists in the tree
+        const node = findNodeByPath(notesTree, normalizedHistorical)
+        if (node && node.type === 'file') {
+          return historicalPath
+        }
+      }
+      return undefined
+    },
+    [notesTree]
   )
 
   const mergeTreeState = useCallback(
@@ -214,6 +240,26 @@ const NotesPage: FC = () => {
 
   useEffect(() => {
     activeFilePathRef.current = activeFilePath
+
+    // Track note history for smart navigation
+    if (activeFilePath) {
+      const normalized = normalizePathValue(activeFilePath)
+      const history = noteHistoryRef.current
+      const existingIndex = history.findIndex((p) => normalizePathValue(p) === normalized)
+
+      // Remove if already exists (to move to end)
+      if (existingIndex !== -1) {
+        history.splice(existingIndex, 1)
+      }
+
+      // Add to end (most recent)
+      history.push(activeFilePath)
+
+      // Keep only last 20 notes
+      if (history.length > 20) {
+        history.shift()
+      }
+    }
   }, [activeFilePath])
 
   useEffect(() => {
@@ -537,6 +583,21 @@ const NotesPage: FC = () => {
         const nodeToDelete = findNode(notesTree, nodeId)
         if (!nodeToDelete) return
 
+        // Cancel any pending debounced saves before deleting files
+        // to prevent the deleted file from being recreated
+        const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
+        const normalizedLastPath = lastFilePathRef.current ? normalizePathValue(lastFilePathRef.current) : undefined
+
+        if (nodeToDelete.type === 'file' && normalizedLastPath === normalizedDeletePath) {
+          debouncedSaveRef.current?.cancel()
+          lastFilePathRef.current = undefined
+          lastContentRef.current = ''
+        } else if (nodeToDelete.type === 'folder' && normalizedLastPath?.startsWith(`${normalizedDeletePath}/`)) {
+          debouncedSaveRef.current?.cancel()
+          lastFilePathRef.current = undefined
+          lastContentRef.current = ''
+        }
+
         await delNode(nodeToDelete)
 
         updateStarredPaths((prev) => removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder'))
@@ -545,7 +606,6 @@ const NotesPage: FC = () => {
         )
 
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
-        const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
         const isActiveNode = normalizedActivePath === normalizedDeletePath
         const isActiveDescendant =
           nodeToDelete.type === 'folder' &&
@@ -553,8 +613,17 @@ const NotesPage: FC = () => {
           normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
 
         if (isActiveNode || isActiveDescendant) {
-          dispatch(setActiveFilePath(undefined))
-          editorRef.current?.clear()
+          // Try to find the previous note from history
+          const previousNote = findPreviousNote(nodeToDelete.externalPath)
+          if (previousNote) {
+            // Navigate to previous note
+            dispatch(setActiveFilePath(previousNote))
+            invalidateFileContent(previousNote)
+          } else {
+            // No previous note available, clear editor
+            dispatch(setActiveFilePath(undefined))
+            editorRef.current?.clear()
+          }
         }
 
         await refreshTree()
@@ -562,7 +631,16 @@ const NotesPage: FC = () => {
         logger.error('Failed to delete node:', error as Error)
       }
     },
-    [notesTree, activeFilePath, dispatch, refreshTree, updateStarredPaths, updateExpandedPaths]
+    [
+      notesTree,
+      activeFilePath,
+      dispatch,
+      refreshTree,
+      updateStarredPaths,
+      updateExpandedPaths,
+      findPreviousNote,
+      invalidateFileContent
+    ]
   )
 
   // 重命名节点
@@ -698,10 +776,24 @@ const NotesPage: FC = () => {
           return
         }
 
+        // Cancel any pending debounced saves before moving files
+        // to prevent the old path from being recreated
         if (sourceNode.type === 'file') {
+          debouncedSaveRef.current?.cancel()
           await window.api.file.move(sourceNode.externalPath, destinationPath)
+          // Update lastFilePathRef to prevent emergency save using old path
+          if (lastFilePathRef.current === sourceNode.externalPath) {
+            lastFilePathRef.current = destinationPath
+          }
         } else {
+          // For folder moves, cancel saves for all affected files
+          debouncedSaveRef.current?.cancel()
           await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
+          // Update lastFilePathRef if it's inside the moved folder
+          if (lastFilePathRef.current && lastFilePathRef.current.startsWith(`${sourceNode.externalPath}/`)) {
+            const suffix = lastFilePathRef.current.slice(sourceNode.externalPath.length)
+            lastFilePathRef.current = `${destinationPath}${suffix}`
+          }
         }
 
         updateStarredPaths((prev) =>
@@ -713,22 +805,40 @@ const NotesPage: FC = () => {
           return next
         })
 
+        // First refresh the tree to ensure the new structure is loaded
+        await refreshTree()
+
+        // Then update active file path if needed
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         if (normalizedActivePath) {
+          let newActivePath: string | undefined
           if (normalizedActivePath === sourceNode.externalPath) {
-            dispatch(setActiveFilePath(destinationPath))
+            newActivePath = destinationPath
           } else if (sourceNode.type === 'folder' && normalizedActivePath.startsWith(`${sourceNode.externalPath}/`)) {
             const suffix = normalizedActivePath.slice(sourceNode.externalPath.length)
-            dispatch(setActiveFilePath(`${destinationPath}${suffix}`))
+            newActivePath = `${destinationPath}${suffix}`
+          }
+
+          if (newActivePath) {
+            // Update active file path and invalidate cache to trigger reload
+            dispatch(setActiveFilePath(newActivePath))
+            invalidateFileContent(newActivePath)
           }
         }
-
-        await refreshTree()
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
       }
     },
-    [activeFilePath, dispatch, notesPath, notesTree, refreshTree, updateStarredPaths, updateExpandedPaths]
+    [
+      activeFilePath,
+      dispatch,
+      notesPath,
+      notesTree,
+      refreshTree,
+      updateStarredPaths,
+      updateExpandedPaths,
+      invalidateFileContent
+    ]
   )
 
   // 处理节点排序
@@ -776,6 +886,10 @@ const NotesPage: FC = () => {
     },
     [notesTree, updateExpandedPaths]
   )
+
+  const handleClearActiveFile = useCallback(() => {
+    dispatch(setActiveFilePath(undefined))
+  }, [dispatch])
 
   const getCurrentNoteContent = useCallback(() => {
     if (settings.defaultEditMode === 'source') {
@@ -870,6 +984,7 @@ const NotesPage: FC = () => {
             onToggleStar={handleToggleStar}
             onExpandPath={handleExpandPath}
             onRenameNode={handleRenameNode}
+            onClearActiveFile={handleClearActiveFile}
           />
           <NotesEditor
             activeNodeId={activeNode?.id}

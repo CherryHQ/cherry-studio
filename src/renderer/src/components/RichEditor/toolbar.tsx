@@ -71,7 +71,8 @@ const getTooltipText = (t: TFunction, command: FormattingCommand): string => {
     table: t('richEditor.toolbar.table'),
     image: t('richEditor.toolbar.image'),
     blockMath: t('richEditor.toolbar.blockMath'),
-    inlineMath: t('richEditor.toolbar.inlineMath')
+    inlineMath: t('richEditor.toolbar.inlineMath'),
+    highlight: t('richEditor.toolbar.highlight')
   }
 
   return tooltipMap[command] || command
@@ -300,6 +301,8 @@ function getFormattingState(state: FormattingState, command: FormattingCommand):
       return state?.isMath || false
     case 'inlineMath':
       return state?.isInlineMath || false
+    case 'highlight':
+      return state?.isHighlight || false
     default:
       return false
   }
