@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import {
   AgentBaseSchema,
@@ -16,6 +17,8 @@ import { asc, count, desc, eq } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
 import { AgentModelField } from '../errors'
+
+const logger = loggerService.withContext('AgentService')
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null
@@ -92,6 +95,19 @@ export class AgentService extends BaseService {
 
     const agent = this.deserializeJsonFields(result[0]) as GetAgentResponse
     agent.tools = await this.listMcpTools(agent.type, agent.mcps)
+
+    // Load installed_plugins from cache file instead of database
+    try {
+      const { PluginService } = await import('@main/services/PluginService')
+      agent.installed_plugins = await PluginService.getInstance().listInstalledFromCache(id)
+    } catch (error) {
+      // Log error but don't fail the request
+      logger.warn(`Failed to load installed plugins for agent ${id}`, {
+        error: error instanceof Error ? error.message : String(error)
+      })
+      agent.installed_plugins = []
+    }
+
     return agent
   }
 
