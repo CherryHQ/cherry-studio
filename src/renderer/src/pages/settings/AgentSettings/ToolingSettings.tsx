@@ -76,8 +76,9 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   const { mcpServers: allServers } = useMCPServers()
   const [modal, contextHolder] = Modal.useModal()
 
-  const [configuration, setConfiguration] = useState<AgentConfigurationState>(
-    agentBase?.configuration ?? defaultConfiguration
+  const configuration: AgentConfigurationState = useMemo(
+    () => agentBase?.configuration ?? defaultConfiguration,
+    [agentBase?.configuration]
   )
   const selectedMode = agentBase?.configuration?.permission_mode ?? defaultConfiguration.permission_mode
   const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
@@ -99,12 +100,9 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
 
   useEffect(() => {
     if (!agentBase) {
-      setConfiguration(defaultConfiguration)
       setSelectedMcpIds([])
       return
     }
-    const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
-    setConfiguration(parsed)
     setSelectedMcpIds(agentBase.mcps ?? [])
   }, [agentBase, availableTools])
 
@@ -143,7 +141,6 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
             configuration: nextConfiguration,
             allowed_tools: merged
           } satisfies UpdateAgentBaseForm)
-          setConfiguration(nextConfiguration)
         } finally {
           setIsUpdatingMode(false)
         }
