@@ -5,102 +5,186 @@ import { Spinner } from '@heroui/spinner'
 import { loggerService } from '@logger'
 import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
 import { QRCodeSVG } from 'qrcode.react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
 
 const logger = loggerService.withContext('ExportToPhoneLanPopup')
+
 interface Props {
   resolve: (data: any) => void
 }
 
+type ConnectionPhase = 'initializing' | 'waiting_qr_scan' | 'connecting' | 'connected' | 'disconnected' | 'error'
+type TransferPhase = 'idle' | 'preparing' | 'sending' | 'completed' | 'error'
+
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [isOpen, setIsOpen] = useState(true)
-  // 连接状态
-  const [connectionPhase, setConnectionPhase] = useState<
-    'initializing' | 'waiting_qr_scan' | 'connecting' | 'connected' | 'disconnected' | 'error'
-  >('initializing')
+  const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>('initializing')
+  const [transferPhase, setTransferPhase] = useState<TransferPhase>('idle')
   const [qrCodeValue, setQrCodeValue] = useState('')
-
-  // 传输状态
-  const [transferPhase, setTransferPhase] = useState<'idle' | 'preparing' | 'sending' | 'completed' | 'error'>('idle')
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
   const [sendProgress, setSendProgress] = useState(0)
-  const [transferSpeed, setTransferSpeed] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // 计算派生状态
+  const { t } = useTranslation()
+
+  // 派生状态
   const isConnected = connectionPhase === 'connected'
   const canSend = isConnected && selectedFolderPath && transferPhase === 'idle'
   const isLoading = connectionPhase === 'initializing'
   const isSending = transferPhase === 'preparing' || transferPhase === 'sending'
 
-  const { t } = useTranslation()
+  // 状态文本映射
+  const connectionStatusText = useMemo(() => {
+    const statusMap = {
+      initializing: t('settings.data.export_to_phone.lan.status.initializing'),
+      waiting_qr_scan: t('settings.data.export_to_phone.lan.status.waiting_qr_scan'),
+      connecting: t('settings.data.export_to_phone.lan.status.connecting'),
+      connected: t('settings.data.export_to_phone.lan.status.connected'),
+      disconnected: t('settings.data.export_to_phone.lan.status.disconnected'),
+      error: t('settings.data.export_to_phone.lan.status.error')
+    }
+    return statusMap[connectionPhase]
+  }, [connectionPhase, t])
 
-  useEffect(() => {
-    const initWebSocket = async () => {
-      try {
-        setConnectionPhase('initializing')
-        await window.api.webSocket.start()
-        const { port, ip } = await window.api.webSocket.status()
+  const transferStatusText = useMemo(() => {
+    const statusMap = {
+      idle: '',
+      preparing: t('settings.data.export_to_phone.lan.status.preparing'),
+      sending: t('settings.data.export_to_phone.lan.status.sending'),
+      completed: t('settings.data.export_to_phone.lan.status.completed'),
+      error: t('settings.data.export_to_phone.lan.status.error')
+    }
+    return statusMap[transferPhase]
+  }, [transferPhase, t])
 
-        if (ip && port) {
-          // 获取所有候选 IP 地址信息
-          const candidates = await window.api.webSocket.getAllCandidates()
-          const connectionInfo = {
-            type: 'cherry-studio-app',
-            candidates: candidates,
-            selectedHost: ip,
-            port: port,
-            timestamp: Date.now()
-          }
-          setQrCodeValue(JSON.stringify(connectionInfo))
-          setConnectionPhase('waiting_qr_scan')
-          logger.info(`QR code generated: ${ip}:${port} with ${candidates.length} IP candidates`)
-        } else {
-          setError('Failed to get IP address or port')
-          setConnectionPhase('error')
-          logger.error('Failed to get IP address or port.')
+  // 状态样式映射
+  const connectionStatusStyles = useMemo(() => {
+    const styleMap = {
+      initializing: {
+        bg: 'var(--color-background-mute)',
+        border: 'var(--color-border-mute)',
+        dot: 'var(--color-text-3)'
+      },
+      waiting_qr_scan: {
+        bg: 'var(--color-primary-mute)',
+        border: 'var(--color-primary-soft)',
+        dot: 'var(--color-primary)'
+      },
+      connecting: { bg: 'var(--color-status-warning)', border: 'var(--color-status-warning)', dot: '#faad14' },
+      connected: {
+        bg: 'var(--color-status-success)',
+        border: 'var(--color-status-success)',
+        dot: 'var(--color-status-success)'
+      },
+      disconnected: { bg: 'var(--color-error)', border: 'var(--color-error)', dot: 'var(--color-error)' },
+      error: { bg: 'var(--color-error)', border: 'var(--color-error)', dot: 'var(--color-error)' }
+    }
+    return styleMap[connectionPhase]
+  }, [connectionPhase])
+
+  const initWebSocket = useCallback(async () => {
+    try {
+      setConnectionPhase('initializing')
+      await window.api.webSocket.start()
+      const { port, ip } = await window.api.webSocket.status()
+
+      if (ip && port) {
+        const candidates = await window.api.webSocket.getAllCandidates()
+        const connectionInfo = {
+          type: 'cherry-studio-app',
+          candidates,
+          selectedHost: ip,
+          port,
+          timestamp: Date.now()
         }
-      } catch (error) {
-        setError(`Failed to initialize WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        setConnectionPhase('error')
-        logger.error('Failed to initialize WebSocket:', error as Error)
-      }
-    }
-
-    initWebSocket()
-
-    const handleClientConnected = (_event: any, data: { connected: boolean }) => {
-      logger.info(`Client connection status: ${data.connected ? 'connected' : 'disconnected'}`)
-      if (data.connected) {
-        setConnectionPhase('connected')
-        setError(null)
+        setQrCodeValue(JSON.stringify(connectionInfo))
+        setConnectionPhase('waiting_qr_scan')
+        logger.info(`QR code generated: ${ip}:${port} with ${candidates.length} IP candidates`)
       } else {
-        setConnectionPhase('disconnected')
+        setError(t('settings.data.export_to_phone.lan.error.no_ip'))
+        setConnectionPhase('error')
       }
+    } catch (error) {
+      setError(
+        `${t('settings.data.export_to_phone.lan.error.init_failed')}: ${error instanceof Error ? error.message : ''}`
+      )
+      setConnectionPhase('error')
+      logger.error('Failed to initialize WebSocket:', error as Error)
     }
+  }, [t])
 
-    const handleMessageReceived = (_event: any, data: any) => {
-      logger.info(`Received message from mobile: ${JSON.stringify(data)}`)
+  const handleClientConnected = useCallback((_event: any, data: { connected: boolean }) => {
+    logger.info(`Client connection status: ${data.connected ? 'connected' : 'disconnected'}`)
+    if (data.connected) {
+      setConnectionPhase('connected')
+      setError(null)
+    } else {
+      setConnectionPhase('disconnected')
     }
+  }, [])
 
-    const handleSendProgress = (_event: any, data: { progress: number }) => {
+  const handleMessageReceived = useCallback((_event: any, data: any) => {
+    logger.info(`Received message from mobile: ${JSON.stringify(data)}`)
+  }, [])
+
+  const handleSendProgress = useCallback(
+    (_event: any, data: { progress: number }) => {
       const progress = data.progress
       setSendProgress(progress)
 
-      // 如果传输刚开始，切换到发送状态
       if (transferPhase === 'preparing' && progress > 0) {
         setTransferPhase('sending')
       }
 
-      // 如果传输完成
       if (progress >= 100) {
         setTransferPhase('completed')
-        setTransferSpeed('')
       }
+    },
+    [transferPhase]
+  )
+
+  const handleSelectZip = useCallback(async () => {
+    const result = await window.api.file.select()
+    if (result) {
+      setSelectedFolderPath(result[0].path)
     }
+  }, [])
+
+  const handleSendZip = useCallback(async () => {
+    if (!selectedFolderPath) {
+      setError(t('settings.data.export_to_phone.lan.error.no_file'))
+      return
+    }
+
+    setTransferPhase('preparing')
+    setError(null)
+    setSendProgress(0)
+
+    try {
+      logger.info(`Starting file transfer: ${selectedFolderPath}`)
+      await window.api.webSocket.sendFile(selectedFolderPath)
+    } catch (error) {
+      setError(
+        `${t('settings.data.export_to_phone.lan.error.send_failed')}: ${error instanceof Error ? error.message : ''}`
+      )
+      setTransferPhase('error')
+      logger.error('Failed to send file:', error as Error)
+    }
+  }, [selectedFolderPath, t])
+
+  const handleCancel = useCallback(() => {
+    setIsOpen(false)
+  }, [])
+
+  const handleClose = useCallback(() => {
+    resolve({})
+  }, [resolve])
+
+  useEffect(() => {
+    initWebSocket()
 
     const removeClientConnectedListener = window.electron.ipcRenderer.on(
       'websocket-client-connected',
@@ -116,85 +200,183 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       removeClientConnectedListener()
       removeMessageReceivedListener()
       removeSendProgressListener()
-
       window.api.webSocket.stop()
     }
-  }, [])
+  }, [initWebSocket, handleClientConnected, handleMessageReceived, handleSendProgress])
 
-  const handleSelectZip = async () => {
-    const result = await window.api.file.select()
+  // 状态指示器组件
+  const StatusIndicator = useCallback(
+    () => (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 12px',
+          borderRadius: '8px',
+          backgroundColor: connectionStatusStyles.bg,
+          border: `1px solid ${connectionStatusStyles.border}`
+        }}>
+        <div
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: connectionStatusStyles.dot
+          }}
+        />
+        <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text)' }}>{connectionStatusText}</span>
+      </div>
+    ),
+    [connectionStatusStyles, connectionStatusText]
+  )
 
-    if (result) {
-      const path = result[0].path
-      setSelectedFolderPath(path)
+  // 二维码显示组件
+  const QRCodeDisplay = useCallback(() => {
+    if (isLoading) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <Spinner />
+          <span style={{ fontSize: '14px', color: 'var(--color-text-2)' }}>
+            {t('settings.data.export_to_phone.lan.generating_qr')}
+          </span>
+        </div>
+      )
     }
-  }
 
-  const handleSendZip = async () => {
-    if (!selectedFolderPath) {
-      setError('No file selected')
-      return
+    if (!isConnected && qrCodeValue) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <QRCodeSVG
+            marginSize={2}
+            value={qrCodeValue}
+            level="Q"
+            size={160}
+            imageSettings={{
+              src: '/src/assets/images/logo.png',
+              width: 40,
+              height: 40,
+              excavate: true
+            }}
+          />
+          <span style={{ fontSize: '12px', color: 'var(--color-text-2)' }}>
+            {t('settings.data.export_to_phone.lan.scan_qr')}
+          </span>
+        </div>
+      )
     }
 
-    setTransferPhase('preparing')
-    setError(null)
-    setSendProgress(0)
-    setTransferSpeed('')
-
-    try {
-      logger.info(`Starting file transfer: ${selectedFolderPath}`)
-      await window.api.webSocket.sendFile(selectedFolderPath)
-      // 进度更新通过事件处理
-    } catch (error) {
-      const errorMsg = `Failed to send file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      setError(errorMsg)
-      setTransferPhase('error')
-      logger.error('Failed to send file:', error as Error)
+    if (isConnected) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              width: '160px',
+              height: '160px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '2px dashed var(--color-status-success)',
+              borderRadius: '12px',
+              backgroundColor: 'var(--color-status-success)'
+            }}>
+            <span style={{ fontSize: '48px' }}>📱</span>
+            <span style={{ fontSize: '14px', color: 'var(--color-text)', marginTop: '8px' }}>
+              {t('settings.data.export_to_phone.lan.connected')}
+            </span>
+          </div>
+        </div>
+      )
     }
-  }
 
-  const handleCancel = () => {
-    setIsOpen(false)
-  }
-
-  const handleClose = () => {
-    resolve({})
-  }
-
-  // 状态显示函数
-  const getStatusText = () => {
-    switch (connectionPhase) {
-      case 'initializing':
-        return '正在初始化连接...'
-      case 'waiting_qr_scan':
-        return '请扫描二维码连接'
-      case 'connecting':
-        return '正在连接中...'
-      case 'connected':
-        return '连接成功'
-      case 'disconnected':
-        return '连接已断开'
-      case 'error':
-        return '连接出错'
-      default:
-        return ''
+    if (connectionPhase === 'error') {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '20px',
+            border: `1px solid var(--color-error)`,
+            borderRadius: '8px',
+            backgroundColor: 'var(--color-error)'
+          }}>
+          <span style={{ fontSize: '48px' }}>⚠️</span>
+          <span style={{ fontSize: '14px', color: 'var(--color-text)' }}>
+            {t('settings.data.export_to_phone.lan.connection_failed')}
+          </span>
+          {error && <span style={{ fontSize: '12px', color: 'var(--color-text-2)' }}>{error}</span>}
+        </div>
+      )
     }
-  }
 
-  const getTransferStatusText = () => {
-    switch (transferPhase) {
-      case 'preparing':
-        return '准备传输中...'
-      case 'sending':
-        return `传输中 ${sendProgress}%`
-      case 'completed':
-        return '传输完成'
-      case 'error':
-        return '传输失败'
-      default:
-        return ''
-    }
-  }
+    return null
+  }, [isLoading, isConnected, qrCodeValue, connectionPhase, error, t])
+
+  // 传输进度组件
+  const TransferProgress = useCallback(() => {
+    if (!isSending && transferPhase !== 'completed') return null
+
+    return (
+      <div style={{ paddingTop: '8px' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            padding: '12px',
+            border: `1px solid var(--color-border)`,
+            borderRadius: '8px',
+            backgroundColor: 'var(--color-background-mute)'
+          }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+            <span style={{ color: 'var(--color-text)' }}>
+              {t('settings.data.export_to_phone.lan.transfer_progress')}
+            </span>
+            <span
+              style={{ color: transferPhase === 'completed' ? 'var(--color-status-success)' : 'var(--color-primary)' }}>
+              {transferPhase === 'completed' ? '✅ ' + t('common.completed') : `${Math.round(sendProgress)}%`}
+            </span>
+          </div>
+
+          <Progress
+            value={Math.round(sendProgress)}
+            size="md"
+            color={transferPhase === 'completed' ? 'success' : 'primary'}
+            showValueLabel={false}
+            aria-label="Send progress"
+          />
+        </div>
+      </div>
+    )
+  }, [isSending, transferPhase, sendProgress, t])
+
+  // 错误显示组件
+  const ErrorDisplay = useCallback(() => {
+    if (!error || transferPhase !== 'error') return null
+
+    return (
+      <div
+        style={{
+          padding: '12px',
+          border: `1px solid var(--color-error)`,
+          borderRadius: '8px',
+          backgroundColor: 'var(--color-error)',
+          textAlign: 'center'
+        }}>
+        <span style={{ fontSize: '14px', color: 'var(--color-text)' }}>❌ {error}</span>
+      </div>
+    )
+  }, [error, transferPhase])
 
   return (
     <Modal
@@ -213,104 +395,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <>
             <ModalHeader>{t('settings.data.export_to_phone.lan.title')}</ModalHeader>
             <ModalBody>
-              {/* 连接状态显示 */}
               <SettingRow>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    backgroundColor:
-                      connectionPhase === 'connected' ? '#f0f9ff' : connectionPhase === 'error' ? '#fef2f2' : '#f8fafc',
-                    border: `1px solid ${
-                      connectionPhase === 'connected' ? '#0ea5e9' : connectionPhase === 'error' ? '#ef4444' : '#e2e8f0'
-                    }`
-                  }}>
-                  <div
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor:
-                        connectionPhase === 'connected'
-                          ? '#22c55e'
-                          : connectionPhase === 'connecting'
-                            ? '#f59e0b'
-                            : connectionPhase === 'error'
-                              ? '#ef4444'
-                              : connectionPhase === 'waiting_qr_scan'
-                                ? '#3b82f6'
-                                : '#94a3b8'
-                    }}
-                  />
-                  <span style={{ fontSize: '14px', fontWeight: '500' }}>{getStatusText()}</span>
-                </div>
+                <StatusIndicator />
               </SettingRow>
 
               <SettingRow>
                 <div>{t('settings.data.export_to_phone.lan.content')}</div>
               </SettingRow>
 
-              {/* 二维码区域 */}
               <SettingRow style={{ display: 'flex', justifyContent: 'center', minHeight: '180px' }}>
-                {isLoading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <Spinner />
-                    <span style={{ fontSize: '14px', color: '#64748b' }}>正在生成二维码...</span>
-                  </div>
-                ) : !isConnected && qrCodeValue ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <QRCodeSVG
-                      marginSize={2}
-                      value={qrCodeValue}
-                      level="Q"
-                      size={160}
-                      imageSettings={{
-                        src: '/src/assets/images/logo.png',
-                        width: 40,
-                        height: 40,
-                        excavate: true
-                      }}
-                    />
-                    <span style={{ fontSize: '12px', color: '#64748b' }}>请使用手机扫码连接</span>
-                  </div>
-                ) : isConnected ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                    <div
-                      style={{
-                        width: '160px',
-                        height: '160px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '2px dashed #22c55e',
-                        borderRadius: '12px',
-                        backgroundColor: '#f0fdf4'
-                      }}>
-                      <span style={{ fontSize: '48px' }}>📱</span>
-                      <span style={{ fontSize: '14px', color: '#16a34a', marginTop: '8px' }}>连接成功</span>
-                    </div>
-                  </div>
-                ) : connectionPhase === 'error' ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px',
-                      padding: '20px',
-                      border: '1px solid #fecaca',
-                      borderRadius: '8px',
-                      backgroundColor: '#fef2f2'
-                    }}>
-                    <span style={{ fontSize: '48px' }}>⚠️</span>
-                    <span style={{ fontSize: '14px', color: '#dc2626' }}>连接失败</span>
-                    {error && <span style={{ fontSize: '12px', color: '#7f1d1d' }}>{error}</span>}
-                  </div>
-                ) : null}
+                <QRCodeDisplay />
               </SettingRow>
 
               <SettingRow style={{ display: 'flex', alignItems: 'center' }}>
@@ -319,77 +413,23 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                     {t('settings.data.export_to_phone.lan.selectZip')}
                   </Button>
                   <Button color="primary" onPress={handleSendZip} isDisabled={!canSend} isLoading={isSending}>
-                    {getTransferStatusText() || t('settings.data.export_to_phone.lan.sendZip')}
+                    {transferStatusText || t('settings.data.export_to_phone.lan.sendZip')}
                   </Button>
                 </div>
               </SettingRow>
 
               <SettingHelpText
-                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  textAlign: 'center'
+                }}>
                 {selectedFolderPath || t('settings.data.export_to_phone.lan.noZipSelected')}
               </SettingHelpText>
 
-              {(isSending || transferPhase === 'completed') && (
-                <div style={{ paddingTop: 8 }}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      padding: '12px',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      backgroundColor: '#f8fafc'
-                    }}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '14px',
-                        fontWeight: '500'
-                      }}>
-                      <span style={{ color: '#475569' }}>传输进度</span>
-                      <span style={{ color: transferPhase === 'completed' ? '#16a34a' : '#0ea5e9' }}>
-                        {transferPhase === 'completed' ? '✅ 完成' : `${Math.round(sendProgress)}%`}
-                      </span>
-                    </div>
-
-                    <Progress
-                      value={Math.round(sendProgress)}
-                      size="md"
-                      color={transferPhase === 'completed' ? 'success' : 'primary'}
-                      showValueLabel={false}
-                      aria-label="Send progress"
-                    />
-
-                    {transferSpeed && (
-                      <div
-                        style={{
-                          fontSize: '12px',
-                          color: '#64748b',
-                          textAlign: 'center'
-                        }}>
-                        {transferSpeed}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 错误信息显示 */}
-              {error && transferPhase === 'error' && (
-                <div
-                  style={{
-                    padding: '12px',
-                    border: '1px solid #fecaca',
-                    borderRadius: '8px',
-                    backgroundColor: '#fef2f2',
-                    textAlign: 'center'
-                  }}>
-                  <span style={{ fontSize: '14px', color: '#dc2626' }}>❌ {error}</span>
-                </div>
-              )}
+              <TransferProgress />
+              <ErrorDisplay />
             </ModalBody>
           </>
         )}

@@ -1124,6 +1124,7 @@
     "stop": "停止",
     "success": "成功",
     "swap": "交换",
+    "completed": "完成",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
@@ -3048,11 +3049,32 @@
           "noZipSelected": "未选择压缩文件",
           "selectZip": "选择压缩文件",
           "sendZip": "开始恢复数据",
-          "title": "局域网传输"
+          "title": "局域网传输",
+          "status": {
+            "initializing": "正在初始化连接...",
+            "waiting_qr_scan": "请扫描二维码连接",
+            "connecting": "正在连接中...",
+            "connected": "连接成功",
+            "disconnected": "连接已断开",
+            "error": "连接出错",
+            "preparing": "准备传输中...",
+            "sending": "传输中 {{progress}}%",
+            "completed": "传输完成"
+          },
+          "error": {
+            "no_ip": "无法获取 IP 地址",
+            "init_failed": "初始化失败",
+            "no_file": "未选择文件",
+            "send_failed": "发送文件失败"
+          },
+          "generating_qr": "正在生成二维码...",
+          "scan_qr": "请使用手机扫码连接",
+          "connected": "连接成功",
+          "connection_failed": "连接失败",
+          "transfer_progress": "传输进度"
         },
         "title": "导出至手机"
       },
-
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
       "joplin": {

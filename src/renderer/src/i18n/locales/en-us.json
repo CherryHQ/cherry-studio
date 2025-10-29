@@ -1110,6 +1110,7 @@
     "search": "Search",
     "select": "Select",
     "selected": "Selected",
+    "completed": "Completed",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "settings": "Settings",
@@ -3047,7 +3048,29 @@
           "noZipSelected": "No compressed file selected",
           "selectZip": "Select a compressed file",
           "sendZip": "Begin data recovery",
-          "title": "LAN transmission"
+          "title": "LAN transmission",
+          "status": {
+            "initializing": "Initializing connection...",
+            "waiting_qr_scan": "Please scan QR code to connect",
+            "connecting": "Connecting...",
+            "connected": "Connected",
+            "disconnected": "Disconnected",
+            "error": "Connection error",
+            "preparing": "Preparing transfer...",
+            "sending": "Transferring {{progress}}%",
+            "completed": "Transfer completed"
+          },
+          "error": {
+            "no_ip": "Unable to get IP address",
+            "init_failed": "Initialization failed",
+            "no_file": "No file selected",
+            "send_failed": "Failed to send file"
+          },
+          "generating_qr": "Generating QR code...",
+          "scan_qr": "Please scan QR code with your phone",
+          "connected": "Connected",
+          "connection_failed": "Connection failed",
+          "transfer_progress": "Transfer progress"
         },
         "title": "Export to phone"
       },

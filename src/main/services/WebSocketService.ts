@@ -87,12 +87,28 @@ class WebSocketService {
     try {
       this.io = new Server(this.port, {
         cors: {
-          origin: '*'
-        }
+          origin: '*',
+          methods: ['GET', 'POST']
+        },
+        transports: ['websocket', 'polling'],
+        allowEIO3: true,
+        pingTimeout: 60000,
+        pingInterval: 25000
+      })
+
+      logger.info('WebSocket server configuration:', {
+        port: this.port,
+        transports: ['websocket', 'polling'],
+        cors: { origin: '*', methods: ['GET', 'POST'] }
       })
 
       this.io.on('connection', (socket: Socket) => {
-        logger.info(`Client connected: ${socket.id} via ${socket.conn.transport.name}`)
+        const remoteAddr = socket.handshake.address
+        logger.info(`✅ [Socket.IO] Client handshake completed!`)
+        logger.info(`   Socket ID: ${socket.id}`)
+        logger.info(`   Transport: ${socket.conn.transport.name}`)
+        logger.info(`   Remote address: ${remoteAddr}`)
+
         this.connectedClients.add(socket.id)
 
         const mainWindow = windowService.getMainWindow()
@@ -125,12 +141,39 @@ class WebSocketService {
         })
       })
 
+      // Engine 层面的事件监听
       this.io.engine.on('connection_error', (err) => {
-        logger.error('WebSocket connection error:', err)
+        logger.error('Engine connection error:', err)
       })
 
       this.io.engine.on('connection', (rawSocket) => {
-        logger.info(`Raw connection from: ${rawSocket.request.connection.remoteAddress}`)
+        const remoteAddr = rawSocket.request.connection.remoteAddress
+        logger.info(`[Engine] Raw connection from: ${remoteAddr}`)
+        logger.info(`[Engine] Transport: ${rawSocket.transport.name}`)
+
+        rawSocket.on('packet', (packet: { type: string; data?: any }) => {
+          logger.info(
+            `[Engine] ← Packet from ${remoteAddr}: type="${packet.type}"`,
+            packet.data ? { data: packet.data } : {}
+          )
+        })
+
+        rawSocket.on('packetCreate', (packet: { type: string; data?: any }) => {
+          logger.info(`[Engine] → Packet to ${remoteAddr}: type="${packet.type}"`)
+        })
+
+        rawSocket.on('close', (reason: string) => {
+          logger.warn(`[Engine] Connection closed from ${remoteAddr}, reason: ${reason}`)
+        })
+
+        rawSocket.on('error', (error: Error) => {
+          logger.error(`[Engine] Connection error from ${remoteAddr}:`, error)
+        })
+      })
+
+      // Socket.IO 握手失败监听
+      this.io.on('connection_error', (err) => {
+        logger.error('[Socket.IO] Connection error during handshake:', err)
       })
 
       this.isStarted = true
