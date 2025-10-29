@@ -31,12 +31,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   useEffect(() => {
     const initWebSocket = async () => {
       try {
-        logger.info('=== Starting WebSocket initialization ===')
         await window.api.webSocket.start()
-        logger.info('WebSocket start completed')
-
         const { port, ip } = await window.api.webSocket.status()
-        logger.info(`WebSocket status - IP: ${ip}, Port: ${port}`)
 
         if (ip && port) {
           // 获取所有候选 IP 地址信息
@@ -49,7 +45,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             timestamp: Date.now()
           }
           setQrCodeValue(JSON.stringify(connectionInfo))
-          logger.info(`QR code set with ${candidates.length} IP candidates, selected: ${ip}`)
+          logger.info(`QR code generated: ${ip}:${port} with ${candidates.length} IP candidates`)
         } else {
           logger.error('Failed to get IP address or port.')
         }
@@ -57,15 +53,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         logger.error('Failed to initialize WebSocket:', error as Error)
       } finally {
         setIsLoading(false)
-        logger.info('WebSocket initialization completed')
       }
     }
 
     initWebSocket()
 
     const handleClientConnected = (_event: any, data: { connected: boolean }) => {
-      logger.info('=== Received websocket-client-connected event ===', data)
-      logger.info(`Setting connection status to: ${data.connected ? 'connected' : 'disconnected'}`)
+      logger.info(`Client connection status: ${data.connected ? 'connected' : 'disconnected'}`)
       setConnectionStatus(data.connected ? 'connected' : 'disconnected')
     }
 
@@ -130,12 +124,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const isDisabled = isSending
 
-  // 临时测试：手动设置连接状态
-  const handleForceConnect = () => {
-    logger.info('手动设置连接状态为已连接')
-    setConnectionStatus('connected')
-  }
-
   return (
     <Modal
       isOpen={isOpen}
@@ -187,10 +175,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                     isDisabled={!selectedFolderPath || !isConnected || isSending}
                     isLoading={isSending}>
                     {isSending ? t('common.sending') : t('settings.data.export_to_phone.lan.sendZip')}
-                  </Button>
-                  {/* 临时测试按钮 */}
-                  <Button color="warning" variant="flat" onPress={handleForceConnect} size="sm">
-                    强制连接(测试)
                   </Button>
                 </div>
               </SettingRow>

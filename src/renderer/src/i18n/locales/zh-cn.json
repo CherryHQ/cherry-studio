@@ -1112,6 +1112,7 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
+    "sending": "发送中",
     "settings": "设置",
     "sort": {
       "pinyin": {

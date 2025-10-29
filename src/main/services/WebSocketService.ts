@@ -62,8 +62,6 @@ class WebSocketService {
             address: iface.address,
             priority
           })
-
-          logger.debug(`Found interface: ${name} -> ${iface.address} (priority: ${priority})`)
         }
       }
     }
@@ -94,22 +92,18 @@ class WebSocketService {
       })
 
       this.io.on('connection', (socket: Socket) => {
-        logger.info(`=== Client connected: ${socket.id} ===`)
-        logger.info(`Socket transport: ${socket.conn.transport.name}`)
+        logger.info(`Client connected: ${socket.id} via ${socket.conn.transport.name}`)
         this.connectedClients.add(socket.id)
-        logger.info(`Total connected clients: ${this.connectedClients.size}`)
 
         const mainWindow = windowService.getMainWindow()
-
         if (!mainWindow) {
           logger.error('Main window is null, cannot send connection event')
         } else {
-          logger.info('Main window found, sending websocket-client-connected event to renderer')
           mainWindow.webContents.send('websocket-client-connected', {
             connected: true,
             clientId: socket.id
           })
-          logger.info('Event sent successfully')
+          logger.info(`Connection event sent to renderer, total clients: ${this.connectedClients.size}`)
         }
 
         socket.on('message', (data) => {
@@ -135,35 +129,12 @@ class WebSocketService {
         logger.error('WebSocket connection error:', err)
       })
 
-      // 添加更多引擎级别的事件监听
-      this.io.engine.on('initial_headers', (_headers, request) => {
-        logger.info('Received connection attempt:', {
-          url: request.url,
-          headers: request.headers
-        })
-      })
-
       this.io.engine.on('connection', (rawSocket) => {
-        logger.info('Engine level connection established:', {
-          remoteAddress: rawSocket.request.connection.remoteAddress,
-          url: rawSocket.request.url,
-          method: rawSocket.request.method
-        })
-      })
-
-      // 监听 Socket.IO 的 upgrade 事��
-      this.io.on('connect', (socket) => {
-        logger.info('Socket.IO connect event triggered')
-      })
-
-      this.io.on('connect_error', (error) => {
-        logger.error('Socket.IO connect error:', error)
+        logger.info(`Raw connection from: ${rawSocket.request.connection.remoteAddress}`)
       })
 
       this.isStarted = true
       logger.info(`WebSocket server started on port ${this.port}`)
-      logger.info(`Server is listening on 0.0.0.0:${this.port}`)
-      logger.info(`Allowed transports: ${JSON.stringify(this.io.engine.opts.transports)}`)
 
       return { success: true, port: this.port }
     } catch (error) {
@@ -275,7 +246,9 @@ class WebSocketService {
 
     // 按优先级排序返回
     candidates.sort((a, b) => a.priority - b.priority)
-    logger.info(`Returning ${candidates.length} IP candidates for QR code`)
+    logger.info(
+      `Found ${candidates.length} IP candidates: ${candidates.map((c) => `${c.host}(${c.interface})`).join(', ')}`
+    )
     return candidates
   }
 
