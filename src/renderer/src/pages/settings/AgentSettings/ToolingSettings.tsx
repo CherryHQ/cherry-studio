@@ -16,9 +16,8 @@ import {
 } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { mutate } from 'swr'
 
 import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
@@ -93,21 +92,13 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
     const merged = unique([...sanitized, ...autoToolIds])
     return merged
   }, [agentBase?.allowed_tools, autoToolIds, availableTools])
+  const selectedMcpIds = useMemo(() => agentBase?.mcps ?? [], [agentBase?.mcps])
   const [searchTerm, setSearchTerm] = useState('')
   const [isUpdatingMode, setIsUpdatingMode] = useState(false)
   const [isUpdatingTools, setIsUpdatingTools] = useState(false)
-  const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
 
   const availableServers = useMemo(() => allServers ?? [], [allServers])
-
-  useEffect(() => {
-    if (!agentBase) {
-      setSelectedMcpIds([])
-      return
-    }
-    setSelectedMcpIds(agentBase.mcps ?? [])
-  }, [agentBase, availableTools])
 
   const filteredTools = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -243,31 +234,24 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
   }, [selectedMode, autoToolIds, userAddedIds, availableTools.length, selectedMcpIds.length])
 
   const handleToggleMcp = useCallback(
-    (serverId: string, enabled: boolean) => {
+    async (serverId: string, enabled: boolean) => {
       if (!agentBase || isUpdatingMcp) {
         return
       }
-      setSelectedMcpIds((prev) => {
-        const exists = prev.includes(serverId)
-        if (enabled === exists) {
-          return prev
-        }
-        const next = enabled ? [...prev, serverId] : prev.filter((id) => id !== serverId)
-        setIsUpdatingMcp(true)
-        void (async () => {
-          try {
-            await update({ id: agentBase.id, mcps: next } satisfies UpdateAgentBaseForm)
-            const refreshed = await client.getAgent(agentBase.id)
-            const key = client.agentPaths.withId(agentBase.id)
-            mutate(key, refreshed, false)
-          } finally {
-            setIsUpdatingMcp(false)
-          }
-        })()
-        return next
-      })
+      const exists = selectedMcpIds.includes(serverId)
+      if (enabled === exists) {
+        return
+      }
+      const next = enabled ? [...selectedMcpIds, serverId] : selectedMcpIds.filter((id) => id !== serverId)
+
+      setIsUpdatingMcp(true)
+      try {
+        await update({ id: agentBase.id, mcps: next } satisfies UpdateAgentBaseForm)
+      } finally {
+        setIsUpdatingMcp(false)
+      }
     },
-    [agentBase, isUpdatingMcp, client, update]
+    [agentBase, isUpdatingMcp, selectedMcpIds, update]
   )
 
   if (!agentBase) {
