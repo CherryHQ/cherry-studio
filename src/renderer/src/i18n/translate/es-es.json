@@ -193,36 +193,36 @@
     },
     "toolPermission": {
       "aria": {
-        "allowRequest": "[to be translated]:Allow tool request",
-        "denyRequest": "[to be translated]:Deny tool request",
-        "hideDetails": "[to be translated]:Hide tool details",
-        "runWithOptions": "[to be translated]:Run with additional options",
-        "showDetails": "[to be translated]:Show tool details"
+        "allowRequest": "Permitir solicitud de herramienta",
+        "denyRequest": "Denegar solicitud de herramienta",
+        "hideDetails": "Ocultar detalles de la herramienta",
+        "runWithOptions": "Ejecutar con opciones adicionales",
+        "showDetails": "Mostrar detalles de la herramienta"
       },
       "button": {
-        "cancel": "[to be translated]:Cancel",
-        "run": "[to be translated]:Run"
+        "cancel": "Cancelar",
+        "run": "Correr"
       },
-      "confirmation": "[to be translated]:Are you sure you want to run this Claude tool?",
-      "defaultDenyMessage": "[to be translated]:User denied permission for this tool.",
-      "defaultDescription": "[to be translated]:Executes code or system actions in your environment. Make sure the command looks safe before running it.",
+      "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
+      "defaultDenyMessage": "El usuario denegó el permiso para esta herramienta.",
+      "defaultDescription": "Ejecuta código o acciones del sistema en tu entorno. Asegúrate de que el comando parezca seguro antes de ejecutarlo.",
       "error": {
-        "sendFailed": "[to be translated]:Failed to send your decision. Please try again."
+        "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo."
       },
-      "expired": "[to be translated]:Expired",
-      "inputPreview": "[to be translated]:Tool input preview",
-      "pending": "[to be translated]:Pending ({{seconds}}s)",
-      "permissionExpired": "[to be translated]:Permission request expired. Waiting for new instructions...",
-      "requiresElevatedPermissions": "[to be translated]:This tool requires elevated permissions.",
+      "expired": "Caducado",
+      "inputPreview": "Vista previa de entrada de herramienta",
+      "pending": "Pendiente ({{seconds}}s)",
+      "permissionExpired": "Solicitud de permiso expirada. Esperando nuevas instrucciones...",
+      "requiresElevatedPermissions": "Esta herramienta requiere permisos elevados.",
       "suggestion": {
-        "permissionUpdateMultiple": "[to be translated]:Approving may update multiple session permissions if you chose to always allow this tool.",
-        "permissionUpdateSingle": "[to be translated]:Approving may update your session permissions if you chose to always allow this tool."
+        "permissionUpdateMultiple": "Aprobar puede actualizar varios permisos de sesión si elegiste permitir siempre esta herramienta.",
+        "permissionUpdateSingle": "Aprobar puede actualizar los permisos de tu sesión si elegiste permitir siempre esta herramienta."
       },
       "toast": {
-        "denied": "[to be translated]:Tool request was denied.",
-        "timeout": "[to be translated]:Tool request timed out before receiving approval."
+        "denied": "La solicitud de herramienta fue denegada.",
+        "timeout": "La solicitud de herramienta expiró antes de recibir la aprobación."
       },
-      "waiting": "[to be translated]:Waiting for tool permission decision..."
+      "waiting": "Esperando la decisión de permiso de la herramienta..."
     },
     "type": {
       "label": "Tipo de Agente",

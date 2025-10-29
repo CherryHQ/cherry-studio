@@ -193,36 +193,36 @@
     },
     "toolPermission": {
       "aria": {
-        "allowRequest": "[to be translated]:Allow tool request",
-        "denyRequest": "[to be translated]:Deny tool request",
-        "hideDetails": "[to be translated]:Hide tool details",
-        "runWithOptions": "[to be translated]:Run with additional options",
-        "showDetails": "[to be translated]:Show tool details"
+        "allowRequest": "Επίτρεψη αίτησης εργαλείου",
+        "denyRequest": "Απόρριψη αιτήματος εργαλείου",
+        "hideDetails": "Απόκρυψη λεπτομερειών εργαλείου",
+        "runWithOptions": "Εκτέλεση με επιπλέον επιλογές",
+        "showDetails": "Εμφάνιση λεπτομερειών εργαλείου"
       },
       "button": {
-        "cancel": "[to be translated]:Cancel",
-        "run": "[to be translated]:Run"
+        "cancel": "Ακύρωση",
+        "run": "Τρέξε"
       },
-      "confirmation": "[to be translated]:Are you sure you want to run this Claude tool?",
-      "defaultDenyMessage": "[to be translated]:User denied permission for this tool.",
-      "defaultDescription": "[to be translated]:Executes code or system actions in your environment. Make sure the command looks safe before running it.",
+      "confirmation": "Είσαι σίγουρος ότι θέλεις να εκτελέσεις αυτό το εργαλείο Claude;",
+      "defaultDenyMessage": "Ο χρήστης αρνήθηκε την άδεια για αυτό το εργαλείο.",
+      "defaultDescription": "Εκτελεί κώδικα ή ενέργειες συστήματος στο περιβάλλον σας. Βεβαιωθείτε ότι η εντολή φαίνεται ασφαλής πριν την εκτελέσετε.",
       "error": {
-        "sendFailed": "[to be translated]:Failed to send your decision. Please try again."
+        "sendFailed": "Αποτυχία αποστολής της απόφασής σας. Προσπαθήστε ξανά."
       },
-      "expired": "[to be translated]:Expired",
-      "inputPreview": "[to be translated]:Tool input preview",
-      "pending": "[to be translated]:Pending ({{seconds}}s)",
-      "permissionExpired": "[to be translated]:Permission request expired. Waiting for new instructions...",
-      "requiresElevatedPermissions": "[to be translated]:This tool requires elevated permissions.",
+      "expired": "Ληγμένο",
+      "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
+      "pending": "Εκκρεμεί ({{seconds}}δ)",
+      "permissionExpired": "Το αίτημα άδειας έληξε. Αναμονή για νέες οδηγίες...",
+      "requiresElevatedPermissions": "Αυτό το εργαλείο απαιτεί αυξημένα δικαιώματα.",
       "suggestion": {
-        "permissionUpdateMultiple": "[to be translated]:Approving may update multiple session permissions if you chose to always allow this tool.",
-        "permissionUpdateSingle": "[to be translated]:Approving may update your session permissions if you chose to always allow this tool."
+        "permissionUpdateMultiple": "Η έγκριση μπορεί να ενημερώσει πολλές άδειες συνεδρίας αν επιλέξατε να επιτρέπετε πάντα αυτό το εργαλείο.",
+        "permissionUpdateSingle": "Η έγκριση ενδέχεται να ενημερώσει τα δικαιώματα περιόδου σύνδεσής σας, εάν επιλέξατε να επιτρέπετε πάντα αυτό το εργαλείο."
       },
       "toast": {
-        "denied": "[to be translated]:Tool request was denied.",
-        "timeout": "[to be translated]:Tool request timed out before receiving approval."
+        "denied": "Το αίτημα για εργαλείο απορρίφθηκε.",
+        "timeout": "Το αίτημα για το εργαλείο έληξε πριν λάβει έγκριση."
       },
-      "waiting": "[to be translated]:Waiting for tool permission decision..."
+      "waiting": "Αναμονή για απόφαση άδειας εργαλείου..."
     },
     "type": {
       "label": "Τύπος Πράκτορα",
