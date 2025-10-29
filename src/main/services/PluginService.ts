@@ -3,6 +3,7 @@ import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fi
 import { findAllSkillDirectories, parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
 import type {
   AgentEntity,
+  CachedPluginsData,
   InstalledPlugin,
   InstallPluginOptions,
   ListAvailablePluginsResult,
@@ -11,6 +12,7 @@ import type {
   PluginType,
   UninstallPluginOptions
 } from '@types'
+import { CachedPluginsDataSchema } from '@types'
 import * as crypto from 'crypto'
 import { app } from 'electron'
 import * as fs from 'fs'
@@ -394,6 +396,230 @@ export class PluginService {
     this.availablePluginsCache = null
     this.cacheTimestamp = 0
     logger.info('Plugin cache invalidated')
+  }
+
+  // ============================================================================
+  // Cache File Management (for installed plugins)
+  // ============================================================================
+
+  /**
+   * Read cache file from .claude/plugins.json
+   * Returns null if cache doesn't exist or is invalid
+   */
+  private async readCacheFile(claudePath: string): Promise<CachedPluginsData | null> {
+    const cachePath = path.join(claudePath, 'plugins.json')
+    try {
+      const content = await fs.promises.readFile(cachePath, 'utf-8')
+      const data = JSON.parse(content)
+      return CachedPluginsDataSchema.parse(data)
+    } catch (err) {
+      logger.warn(`Failed to read cache file at ${cachePath}`, {
+        error: err instanceof Error ? err.message : String(err)
+      })
+      return null
+    }
+  }
+
+  /**
+   * Write cache file to .claude/plugins.json atomically
+   */
+  private async writeCacheFile(claudePath: string, data: CachedPluginsData): Promise<void> {
+    const cachePath = path.join(claudePath, 'plugins.json')
+    const tempPath = `${cachePath}.tmp`
+
+    const content = JSON.stringify(data, null, 2)
+    await fs.promises.writeFile(tempPath, content, 'utf-8')
+    await fs.promises.rename(tempPath, cachePath) // Atomic
+  }
+
+  /**
+   * Rebuild cache by scanning .claude filesystem
+   */
+  private async rebuildCache(agentId: string): Promise<InstalledPlugin[]> {
+    logger.info('Rebuilding plugin cache from filesystem', { agentId })
+
+    // Get agent and validate accessible_paths
+    const agent = await AgentService.getInstance().getAgent(agentId)
+    if (!agent) {
+      logger.warn('Agent not found, returning empty plugin list', { agentId })
+      return []
+    }
+
+    const workdir = agent.accessible_paths?.[0]
+    if (!workdir) {
+      logger.warn('Agent has no accessible paths, returning empty plugin list', { agentId })
+      return []
+    }
+
+    const claudePath = path.join(workdir, '.claude')
+
+    // Check if .claude directory exists
+    try {
+      await fs.promises.access(claudePath, fs.constants.R_OK)
+    } catch {
+      logger.warn('.claude directory not found, returning empty plugin list', { claudePath })
+      return []
+    }
+
+    const plugins: InstalledPlugin[] = []
+
+    // Scan agents directory
+    const agentsPath = path.join(claudePath, 'agents')
+    try {
+      await fs.promises.access(agentsPath, fs.constants.R_OK)
+      const files = await fs.promises.readdir(agentsPath, { withFileTypes: true })
+      for (const file of files) {
+        if (file.isFile() && this.ALLOWED_EXTENSIONS.includes(path.extname(file.name).toLowerCase())) {
+          try {
+            const filePath = path.join(agentsPath, file.name)
+            const sourcePath = path.join('agents', file.name)
+            const metadata = await parsePluginMetadata(filePath, sourcePath, 'agents', 'agent')
+            plugins.push({ filename: file.name, type: 'agent', metadata })
+          } catch (error) {
+            logger.warn(`Failed to parse agent plugin: ${file.name}`, {
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      }
+    } catch {
+      logger.debug('Agents directory not found or not accessible', { agentsPath })
+    }
+
+    // Scan commands directory
+    const commandsPath = path.join(claudePath, 'commands')
+    try {
+      await fs.promises.access(commandsPath, fs.constants.R_OK)
+      const files = await fs.promises.readdir(commandsPath, { withFileTypes: true })
+      for (const file of files) {
+        if (file.isFile() && this.ALLOWED_EXTENSIONS.includes(path.extname(file.name).toLowerCase())) {
+          try {
+            const filePath = path.join(commandsPath, file.name)
+            const sourcePath = path.join('commands', file.name)
+            const metadata = await parsePluginMetadata(filePath, sourcePath, 'commands', 'command')
+            plugins.push({ filename: file.name, type: 'command', metadata })
+          } catch (error) {
+            logger.warn(`Failed to parse command plugin: ${file.name}`, {
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
+      }
+    } catch {
+      logger.debug('Commands directory not found or not accessible', { commandsPath })
+    }
+
+    // Scan skills directory
+    const skillsPath = path.join(claudePath, 'skills')
+    try {
+      await fs.promises.access(skillsPath, fs.constants.R_OK)
+      const skillDirectories = await findAllSkillDirectories(skillsPath, claudePath)
+      for (const { folderPath, sourcePath } of skillDirectories) {
+        try {
+          const metadata = await parseSkillMetadata(folderPath, sourcePath, 'skills')
+          plugins.push({ filename: metadata.filename, type: 'skill', metadata })
+        } catch (error) {
+          logger.warn(`Failed to parse skill plugin: ${sourcePath}`, {
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
+    } catch {
+      logger.debug('Skills directory not found or not accessible', { skillsPath })
+    }
+
+    // Write cache file
+    try {
+      const cacheData: CachedPluginsData = {
+        version: 1,
+        lastUpdated: Date.now(),
+        plugins
+      }
+      await this.writeCacheFile(claudePath, cacheData)
+      logger.info(`Rebuilt cache with ${plugins.length} plugins`, { agentId })
+    } catch (error) {
+      logger.error('Failed to write cache file after rebuild', {
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    return plugins
+  }
+
+  /**
+   * List installed plugins from cache file
+   * Falls back to filesystem scan if cache is missing or corrupt
+   */
+  async listInstalledFromCache(agentId: string): Promise<InstalledPlugin[]> {
+    logger.debug('Listing installed plugins from cache', { agentId })
+
+    // Get agent and validate accessible_paths
+    const agent = await AgentService.getInstance().getAgent(agentId)
+    if (!agent) {
+      logger.warn('Agent not found, returning empty plugin list', { agentId })
+      return []
+    }
+
+    const workdir = agent.accessible_paths?.[0]
+    if (!workdir) {
+      logger.warn('Agent has no accessible paths, returning empty plugin list', { agentId })
+      return []
+    }
+
+    const claudePath = path.join(workdir, '.claude')
+
+    // Try to read cache
+    const cacheData = await this.readCacheFile(claudePath)
+    if (cacheData) {
+      logger.debug(`Loaded ${cacheData.plugins.length} plugins from cache`, { agentId })
+      return cacheData.plugins
+    }
+
+    // Cache read failed, rebuild from filesystem
+    logger.info('Cache read failed, rebuilding from filesystem', { agentId })
+    return await this.rebuildCache(agentId)
+  }
+
+  /**
+   * Update cache file with a function
+   * Reads current cache, applies updater, writes atomically
+   * @internal - Will be used by install/uninstall operations in next phase
+   */
+  // @ts-expect-error - Will be used in next implementation phase
+  private async updateCache(
+    agentId: string,
+    updater: (plugins: InstalledPlugin[]) => InstalledPlugin[]
+  ): Promise<void> {
+    logger.debug('Updating cache file', { agentId })
+
+    // Get current plugins (from cache or rebuild)
+    const currentPlugins = await this.listInstalledFromCache(agentId)
+
+    // Apply updater function
+    const updatedPlugins = updater(currentPlugins)
+
+    // Get agent and claudePath
+    const agent = await AgentService.getInstance().getAgent(agentId)
+    if (!agent) {
+      throw new Error(`Agent ${agentId} not found`)
+    }
+
+    const workdir = agent.accessible_paths?.[0]
+    if (!workdir) {
+      throw new Error(`Agent ${agentId} has no accessible paths`)
+    }
+
+    const claudePath = path.join(workdir, '.claude')
+
+    // Write updated cache
+    const cacheData: CachedPluginsData = {
+      version: 1,
+      lastUpdated: Date.now(),
+      plugins: updatedPlugins
+    }
+
+    await this.writeCacheFile(claudePath, cacheData)
+    logger.info(`Updated cache with ${updatedPlugins.length} plugins`, { agentId })
   }
 
   /**
