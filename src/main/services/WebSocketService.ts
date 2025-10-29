@@ -145,8 +145,19 @@ class WebSocketService {
 
       this.io.engine.on('connection', (rawSocket) => {
         logger.info('Engine level connection established:', {
-          remoteAddress: rawSocket.request.connection.remoteAddress
+          remoteAddress: rawSocket.request.connection.remoteAddress,
+          url: rawSocket.request.url,
+          method: rawSocket.request.method
         })
+      })
+
+      // 监听 Socket.IO 的 upgrade 事��
+      this.io.on('connect', (socket) => {
+        logger.info('Socket.IO connect event triggered')
+      })
+
+      this.io.on('connect_error', (error) => {
+        logger.error('Socket.IO connect error:', error)
       })
 
       this.isStarted = true

@@ -130,6 +130,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const isDisabled = isSending
 
+  // 临时测试：手动设置连接状态
+  const handleForceConnect = () => {
+    logger.info('手动设置连接状态为已连接')
+    setConnectionStatus('connected')
+  }
+
   return (
     <Modal
       isOpen={isOpen}
@@ -181,6 +187,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                     isDisabled={!selectedFolderPath || !isConnected || isSending}
                     isLoading={isSending}>
                     {isSending ? t('common.sending') : t('settings.data.export_to_phone.lan.sendZip')}
+                  </Button>
+                  {/* 临时测试按钮 */}
+                  <Button color="warning" variant="flat" onPress={handleForceConnect} size="sm">
+                    强制连接(测试)
                   </Button>
                 </div>
               </SettingRow>
