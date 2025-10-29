@@ -6,7 +6,7 @@ import type { GlobToolInput as GlobToolInputType, GlobToolOutput as GlobToolOutp
 
 export function GlobTool({ input, output }: { input: GlobToolInputType; output?: GlobToolOutputType }) {
   // 如果有输出，计算文件数量
-  const fileCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const lineCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
 
   return (
     <AccordionItem
@@ -17,7 +17,7 @@ export function GlobTool({ input, output }: { input: GlobToolInputType; output?:
           icon={<FolderSearch className="h-4 w-4" />}
           label="Glob"
           params={input.pattern}
-          stats={output ? `${fileCount} found` : undefined}
+          stats={output ? `${lineCount} of output` : undefined}
         />
       }>
       <div>{output}</div>
