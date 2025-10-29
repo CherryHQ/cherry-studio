@@ -2,7 +2,6 @@ import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelView } from '@renderer/components/QuickPanel'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -46,7 +45,6 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { session } = useSession(agentId, sessionId)
-  const { agent } = useAgent(agentId)
   const { apiServer } = useSettings()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
   const newTopicShortcut = useShortcutDisplay('new_topic')
@@ -184,7 +182,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
       const userMessageBlocks: MessageBlock[] = [mainBlock]
 
       // Extract the actual model ID from session.model (format: "provider:modelId")
-      const [providerId, actualModelId] = agent?.model.split(':') ?? [undefined, undefined]
+      const [providerId, actualModelId] = session?.model?.split(':') ?? [undefined, undefined]
 
       // Try to find the actual model from providers
       const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
@@ -230,7 +228,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
       logger.warn('Failed to send message:', error as Error)
     }
   }, [
-    agent?.model,
+    session?.model,
     agentId,
     dispatch,
     sendDisabled,
