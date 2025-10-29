@@ -1,20 +1,11 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
-import {
-  Button,
-  ButtonGroup,
-  Chip,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  ScrollShadow
-} from '@heroui/react'
+import { Button, ButtonGroup, Chip, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermissionByToolName, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import { NormalToolResponse } from '@renderer/types'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
-import { type Key, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const logger = loggerService.withContext('ToolPermissionRequestCard')
 
@@ -22,31 +13,6 @@ const DEFAULT_DENY_MESSAGE = 'User denied permission for this tool.'
 const DEFAULT_DESCRIPTION =
   'Executes code or system actions in your environment. Make sure the command looks safe before running it.'
 const CONFIRMATION_PROMPT = 'Are you sure you want to run this Claude tool?'
-
-const suggestionDestinationCopy: Record<string, string> = {
-  session: 'this session',
-  projectSettings: 'this project',
-  localSettings: 'your local settings',
-  userSettings: 'your profile'
-}
-
-const formatSuggestionLabel = (toolName: string, suggestion: PermissionUpdate, index: number) => {
-  if (suggestion.type === 'setMode') {
-    return `Switch permission mode to "${suggestion.mode}"`
-  }
-
-  if ('behavior' in suggestion) {
-    const action = suggestion.behavior === 'allow' ? 'Always allow' : 'Always deny'
-    const destination =
-      suggestion.destination && suggestionDestinationCopy[suggestion.destination]
-        ? suggestionDestinationCopy[suggestion.destination]
-        : (suggestion.destination ?? 'settings')
-
-    return `${action} ${toolName} (${destination})`
-  }
-
-  return `Apply suggestion ${index + 1}`
-}
 
 interface Props {
   toolResponse: NormalToolResponse
@@ -145,21 +111,6 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
     [dispatch, request]
   )
 
-  const handleSuggestionSelect = useCallback(
-    (key: Key) => {
-      if (!request || isSubmitting || isExpired) return
-
-      const index = Number(key)
-      if (Number.isNaN(index)) return
-
-      const suggestion = request.suggestions[index]
-      if (!suggestion) return
-
-      handleDecision('allow', { updatedPermissions: [suggestion], updatedInput: request.input })
-    },
-    [handleDecision, isExpired, isSubmitting, request]
-  )
-
   if (!request) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
@@ -206,26 +157,13 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                     startContent={<CirclePlay size={16} />}>
                     Run
                   </Button>
-                  <Dropdown placement="bottom-end">
-                    <DropdownTrigger>
-                      <Button
-                        aria-label="Run with additional options"
-                        className="h-8 rounded-l-none"
-                        color="success"
-                        isDisabled={isSubmitting || isExpired}
-                        isIconOnly
-                        variant="solid">
-                        <ChevronDown size={16} />
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu aria-label="Tool permission suggestions" onAction={handleSuggestionSelect}>
-                      {request.suggestions.map((suggestion, index) => (
-                        <DropdownItem key={`${index}`} className="text-sm">
-                          {formatSuggestionLabel(request.toolName, suggestion, index)}
-                        </DropdownItem>
-                      ))}
-                    </DropdownMenu>
-                  </Dropdown>
+                  <Button
+                    aria-label="Run with additional options"
+                    className="h-8 rounded-l-none"
+                    color="success"
+                    isDisabled={isSubmitting || isExpired}
+                    isIconOnly
+                    variant="solid"></Button>
                 </ButtonGroup>
               ) : (
                 <Button
