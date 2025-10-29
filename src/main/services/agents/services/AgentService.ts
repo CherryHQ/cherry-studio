@@ -97,14 +97,20 @@ export class AgentService extends BaseService {
     agent.tools = await this.listMcpTools(agent.type, agent.mcps)
 
     // Load installed_plugins from cache file instead of database
-    try {
-      const { PluginService } = await import('@main/services/PluginService')
-      agent.installed_plugins = await PluginService.getInstance().listInstalledFromCache(id)
-    } catch (error) {
-      // Log error but don't fail the request
-      logger.warn(`Failed to load installed plugins for agent ${id}`, {
-        error: error instanceof Error ? error.message : String(error)
-      })
+    const workdir = agent.accessible_paths?.[0]
+    if (workdir) {
+      try {
+        const { PluginService } = await import('@main/services/PluginService')
+        agent.installed_plugins = await PluginService.getInstance().listInstalledFromCache(workdir)
+      } catch (error) {
+        // Log error but don't fail the request
+        logger.warn(`Failed to load installed plugins for agent ${id}`, {
+          workdir,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        agent.installed_plugins = []
+      }
+    } else {
       agent.installed_plugins = []
     }
 

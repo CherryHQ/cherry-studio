@@ -435,21 +435,8 @@ export class PluginService {
   /**
    * Rebuild cache by scanning .claude filesystem
    */
-  private async rebuildCache(agentId: string): Promise<InstalledPlugin[]> {
-    logger.info('Rebuilding plugin cache from filesystem', { agentId })
-
-    // Get agent and validate accessible_paths
-    const agent = await AgentService.getInstance().getAgent(agentId)
-    if (!agent) {
-      logger.warn('Agent not found, returning empty plugin list', { agentId })
-      return []
-    }
-
-    const workdir = agent.accessible_paths?.[0]
-    if (!workdir) {
-      logger.warn('Agent has no accessible paths, returning empty plugin list', { agentId })
-      return []
-    }
+  private async rebuildCache(workdir: string): Promise<InstalledPlugin[]> {
+    logger.info('Rebuilding plugin cache from filesystem', { workdir })
 
     const claudePath = path.join(workdir, '.claude')
 
@@ -536,7 +523,7 @@ export class PluginService {
         plugins
       }
       await this.writeCacheFile(claudePath, cacheData)
-      logger.info(`Rebuilt cache with ${plugins.length} plugins`, { agentId })
+      logger.info(`Rebuilt cache with ${plugins.length} plugins`, { workdir })
     } catch (error) {
       logger.error('Failed to write cache file after rebuild', {
         error: error instanceof Error ? error.message : String(error)
@@ -550,34 +537,21 @@ export class PluginService {
    * List installed plugins from cache file
    * Falls back to filesystem scan if cache is missing or corrupt
    */
-  async listInstalledFromCache(agentId: string): Promise<InstalledPlugin[]> {
-    logger.debug('Listing installed plugins from cache', { agentId })
-
-    // Get agent and validate accessible_paths
-    const agent = await AgentService.getInstance().getAgent(agentId)
-    if (!agent) {
-      logger.warn('Agent not found, returning empty plugin list', { agentId })
-      return []
-    }
-
-    const workdir = agent.accessible_paths?.[0]
-    if (!workdir) {
-      logger.warn('Agent has no accessible paths, returning empty plugin list', { agentId })
-      return []
-    }
+  async listInstalledFromCache(workdir: string): Promise<InstalledPlugin[]> {
+    logger.debug('Listing installed plugins from cache', { workdir })
 
     const claudePath = path.join(workdir, '.claude')
 
     // Try to read cache
     const cacheData = await this.readCacheFile(claudePath)
     if (cacheData) {
-      logger.debug(`Loaded ${cacheData.plugins.length} plugins from cache`, { agentId })
+      logger.debug(`Loaded ${cacheData.plugins.length} plugins from cache`, { workdir })
       return cacheData.plugins
     }
 
     // Cache read failed, rebuild from filesystem
-    logger.info('Cache read failed, rebuilding from filesystem', { agentId })
-    return await this.rebuildCache(agentId)
+    logger.info('Cache read failed, rebuilding from filesystem', { workdir })
+    return await this.rebuildCache(workdir)
   }
 
   /**
@@ -587,27 +561,16 @@ export class PluginService {
    */
   // @ts-expect-error - Will be used in next implementation phase
   private async updateCache(
-    agentId: string,
+    workdir: string,
     updater: (plugins: InstalledPlugin[]) => InstalledPlugin[]
   ): Promise<void> {
-    logger.debug('Updating cache file', { agentId })
+    logger.debug('Updating cache file', { workdir })
 
     // Get current plugins (from cache or rebuild)
-    const currentPlugins = await this.listInstalledFromCache(agentId)
+    const currentPlugins = await this.listInstalledFromCache(workdir)
 
     // Apply updater function
     const updatedPlugins = updater(currentPlugins)
-
-    // Get agent and claudePath
-    const agent = await AgentService.getInstance().getAgent(agentId)
-    if (!agent) {
-      throw new Error(`Agent ${agentId} not found`)
-    }
-
-    const workdir = agent.accessible_paths?.[0]
-    if (!workdir) {
-      throw new Error(`Agent ${agentId} has no accessible paths`)
-    }
 
     const claudePath = path.join(workdir, '.claude')
 
@@ -619,7 +582,7 @@ export class PluginService {
     }
 
     await this.writeCacheFile(claudePath, cacheData)
-    logger.info(`Updated cache with ${updatedPlugins.length} plugins`, { agentId })
+    logger.info(`Updated cache with ${updatedPlugins.length} plugins`, { workdir })
   }
 
   /**
