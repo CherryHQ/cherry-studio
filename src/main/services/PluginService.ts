@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
-import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
+import { findAllSkillDirectories, parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
 import type {
   AgentEntity,
   InstalledPlugin,
@@ -606,7 +606,7 @@ export class PluginService {
   }
 
   /**
-   * Scan skills directory for skill folders
+   * Scan skills directory for skill folders (recursively)
    */
   private async scanSkillDirectory(): Promise<PluginMetadata[]> {
     const basePath = this.getPluginsBasePath()
@@ -623,22 +623,19 @@ export class PluginService {
         return []
       }
 
-      // Read all entries in skills directory (flat structure)
-      const entries = await fs.promises.readdir(skillsPath, { withFileTypes: true })
+      // Recursively find all directories containing SKILL.md
+      const skillDirectories = await findAllSkillDirectories(skillsPath, basePath)
 
-      for (const entry of entries) {
-        // Skip non-directories
-        if (!entry.isDirectory()) continue
+      logger.info(`Found ${skillDirectories.length} skill directories`, { skillsPath })
 
-        const skillFolderPath = path.join(skillsPath, entry.name)
-        const sourcePath = path.join('skills', entry.name)
-
+      // Parse metadata for each skill directory
+      for (const { folderPath, sourcePath } of skillDirectories) {
         try {
-          const metadata = await parseSkillMetadata(skillFolderPath, sourcePath, 'skills')
+          const metadata = await parseSkillMetadata(folderPath, sourcePath, 'skills')
           skills.push(metadata)
         } catch (error) {
-          logger.warn(`Failed to parse skill folder: ${entry.name}`, {
-            skillFolderPath,
+          logger.warn(`Failed to parse skill folder: ${sourcePath}`, {
+            folderPath,
             error: error instanceof Error ? error.message : String(error)
           })
           // Continue with other skills

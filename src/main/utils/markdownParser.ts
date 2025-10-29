@@ -98,9 +98,69 @@ export async function parsePluginMetadata(
 }
 
 /**
+ * Recursively find all directories containing SKILL.md
+ *
+ * @param dirPath - Directory to search in
+ * @param basePath - Base path for calculating relative source paths
+ * @param maxDepth - Maximum depth to search (default: 10 to prevent infinite loops)
+ * @param currentDepth - Current search depth (used internally)
+ * @returns Array of objects with absolute folder path and relative source path
+ */
+export async function findAllSkillDirectories(
+  dirPath: string,
+  basePath: string,
+  maxDepth = 10,
+  currentDepth = 0
+): Promise<Array<{ folderPath: string; sourcePath: string }>> {
+  const results: Array<{ folderPath: string; sourcePath: string }> = []
+
+  // Prevent excessive recursion
+  if (currentDepth > maxDepth) {
+    return results
+  }
+
+  // Check if current directory contains SKILL.md
+  const skillMdPath = path.join(dirPath, 'SKILL.md')
+
+  try {
+    await fs.promises.stat(skillMdPath)
+    // Found SKILL.md in this directory
+    const relativePath = path.relative(basePath, dirPath)
+    results.push({
+      folderPath: dirPath,
+      sourcePath: relativePath
+    })
+    return results
+  } catch {
+    // SKILL.md not in current directory
+  }
+
+  // Only search subdirectories if current directory doesn't have SKILL.md
+  try {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const subDirPath = path.join(dirPath, entry.name)
+        const subResults = await findAllSkillDirectories(subDirPath, basePath, maxDepth, currentDepth + 1)
+        results.push(...subResults)
+      }
+    }
+  } catch (error: any) {
+    // Ignore errors when reading subdirectories (e.g., permission denied)
+    logger.debug('Failed to read subdirectory during skill search', {
+      dirPath,
+      error: error.message
+    })
+  }
+
+  return results
+}
+
+/**
  * Parse metadata from SKILL.md within a skill folder
  *
- * @param skillFolderPath - Absolute path to skill folder (must be absolute)
+ * @param skillFolderPath - Absolute path to skill folder (must be absolute and contain SKILL.md)
  * @param sourcePath - Relative path from plugins base (e.g., "skills/my-skill")
  * @param category - Category name (typically "skills" for flat structure)
  * @returns PluginMetadata with folder name as filename (no extension)
@@ -120,14 +180,13 @@ export async function parseSkillMetadata(
     } as PluginError
   }
 
-  // Look for SKILL.md in the folder
+  // Look for SKILL.md directly in this folder (no recursion)
   const skillMdPath = path.join(skillFolderPath, 'SKILL.md')
 
   // Check if SKILL.md exists
   try {
     await fs.promises.stat(skillMdPath)
   } catch (error: any) {
-    // Only throw FILE_NOT_FOUND for ENOENT, let other errors (EACCES, etc.) propagate
     if (error.code === 'ENOENT') {
       logger.error('SKILL.md not found in skill folder', { skillMdPath })
       throw {

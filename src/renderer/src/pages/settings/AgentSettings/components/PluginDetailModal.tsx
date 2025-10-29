@@ -60,7 +60,12 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
       setIsEditing(false)
       setEditedContent('')
       try {
-        const result = await window.api.claudeCodePlugin.readContent(plugin.sourcePath)
+        let sourcePath = plugin.sourcePath
+        if (plugin.type === 'skill') {
+          sourcePath = sourcePath + '/' + 'SKILL.md'
+        }
+
+        const result = await window.api.claudeCodePlugin.readContent(sourcePath)
         if (result.success) {
           setContent(result.data)
         } else {
