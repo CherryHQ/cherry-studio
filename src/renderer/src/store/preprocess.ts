@@ -26,10 +26,19 @@ const initialState: PreprocessState = {
       model: 'mistral-ocr-latest',
       apiKey: '',
       apiHost: 'https://api.mistral.ai'
+    },
+    {
+      id: 'open-mineru',
+      name: 'Open MinerU',
+      apiKey: '',
+      apiHost: ''
     }
   ],
   defaultProvider: 'mineru'
 }
+
+export const defaultPreprocessProviders = initialState.providers
+
 const preprocessSlice = createSlice({
   name: 'preprocess',
   initialState,

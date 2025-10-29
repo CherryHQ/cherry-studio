@@ -11,6 +11,8 @@ export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
       return MistralLogo
     case 'mineru':
       return MinerULogo
+    case 'open-mineru':
+      return MinerULogo
     default:
       return undefined
   }
@@ -35,6 +37,12 @@ export const PREPROCESS_PROVIDER_CONFIG: Record<PreprocessProviderId, Preprocess
     websites: {
       official: 'https://mineru.net/',
       apiKey: 'https://mineru.net/apiManage'
+    }
+  },
+  'open-mineru': {
+    websites: {
+      official: 'https://github.com/opendatalab/MinerU/',
+      apiKey: 'https://github.com/opendatalab/MinerU/'
     }
   }
 }

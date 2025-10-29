@@ -107,7 +107,8 @@ export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 export const PreprocessProviderIds = {
   doc2x: 'doc2x',
   mistral: 'mistral',
-  mineru: 'mineru'
+  mineru: 'mineru',
+  'open-mineru': 'open-mineru'
 } as const
 
 export type PreprocessProviderId = keyof typeof PreprocessProviderIds
