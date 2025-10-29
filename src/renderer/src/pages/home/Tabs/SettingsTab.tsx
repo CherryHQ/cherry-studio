@@ -245,7 +245,7 @@ const SettingsTab: FC<Props> = (props) => {
                   max={20}
                   onChange={setContextCount}
                   onChangeComplete={onContextCountChange}
-                  value={typeof contextCount === 'number' ? Math.min(contextCount, 20) : 0}
+                  value={Math.min(contextCount, 20)}
                   step={1}
                 />
               </Col>
