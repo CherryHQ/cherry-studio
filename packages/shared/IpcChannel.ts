@@ -96,6 +96,10 @@ export enum IpcChannel {
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
   AgentMessage_GetHistory = 'agent-message:get-history',
 
+  AgentToolPermission_Request = 'agent-tool-permission:request',
+  AgentToolPermission_Response = 'agent-tool-permission:response',
+  AgentToolPermission_Result = 'agent-tool-permission:result',
+
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
   Copilot_GetCopilotToken = 'copilot:get-copilot-token',
@@ -350,5 +354,14 @@ export enum IpcChannel {
   Ovms_StopOVMS = 'ovms:stop-ovms',
 
   // CherryAI
-  Cherryai_GetSignature = 'cherryai:get-signature'
+  Cherryai_GetSignature = 'cherryai:get-signature',
+
+  // Claude Code Plugins
+  ClaudeCodePlugin_ListAvailable = 'claudeCodePlugin:list-available',
+  ClaudeCodePlugin_Install = 'claudeCodePlugin:install',
+  ClaudeCodePlugin_Uninstall = 'claudeCodePlugin:uninstall',
+  ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
+  ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache',
+  ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
+  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content'
 }

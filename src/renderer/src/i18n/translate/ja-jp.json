@@ -107,6 +107,50 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
+      "plugins": {
+        "available": {
+          "title": "利用可能なプラグイン"
+        },
+        "confirm": {
+          "uninstall": "このプラグインをアンインストールしてもよろしいですか？"
+        },
+        "empty": {
+          "available": "一致するプラグインが見つかりませんでした。検索キーワードやカテゴリフィルターを調整してみてください。"
+        },
+        "error": {
+          "install": "プラグインのインストールに失敗しました",
+          "load": "プラグインの読み込みに失敗しました",
+          "uninstall": "プラグインのアンインストールに失敗しました"
+        },
+        "filter": {
+          "all": "すべてのカテゴリー"
+        },
+        "install": "インストール",
+        "installed": {
+          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
+          "title": "インストール済みプラグイン"
+        },
+        "installing": "インストール中...",
+        "results": "{{count}} 個のプラグインが見つかりました",
+        "search": {
+          "placeholder": "検索プラグイン..."
+        },
+        "success": {
+          "install": "プラグインのインストールが成功しました",
+          "uninstall": "プラグインのアンインストールが成功しました"
+        },
+        "tab": "プラグイン",
+        "type": {
+          "agent": "代理",
+          "agents": "代理",
+          "all": "全部",
+          "command": "命令",
+          "commands": "命令",
+          "skills": "技能"
+        },
+        "uninstall": "アンインストール",
+        "uninstalling": "アンインストール中..."
+      },
       "prompt": "プロンプト設定",
       "tooling": {
         "mcp": {
@@ -190,6 +234,39 @@
         "title": "事前承認済みツール",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "ツールリクエストを許可",
+        "denyRequest": "ツールリクエストを拒否",
+        "hideDetails": "ツールの詳細を非表示",
+        "runWithOptions": "追加オプションで実行",
+        "showDetails": "ツールの詳細を表示"
+      },
+      "button": {
+        "cancel": "キャンセル",
+        "run": "走る"
+      },
+      "confirmation": "このClaudeツールを実行してもよろしいですか？",
+      "defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
+      "defaultDescription": "環境内でコードまたはシステムアクションを実行します。実行前にコマンドが安全であることを確認してください。",
+      "error": {
+        "sendFailed": "決定の送信に失敗しました。もう一度お試しください。"
+      },
+      "expired": "期限切れ",
+      "inputPreview": "ツール入力プレビュー",
+      "pending": "保留中（{{seconds}}秒）",
+      "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
+      "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
+      "suggestion": {
+        "permissionUpdateMultiple": "承認すると、このツールを常に許可することを選択した場合、複数のセッション権限が更新されることがあります。",
+        "permissionUpdateSingle": "承認すると、このツールを常に許可することを選択した場合、セッションの権限が更新されることがあります。"
+      },
+      "toast": {
+        "denied": "ツールリクエストは拒否されました。",
+        "timeout": "ツールリクエストは承認を受ける前にタイムアウトしました。"
+      },
+      "waiting": "ツールの許可決定を待っています..."
     },
     "type": {
       "label": "エージェントタイプ",
@@ -2298,6 +2375,32 @@
       "resemblance_tip": "拡大結果と原画像の類似度を制御します",
       "seed_tip": "拡大結果のランダム性を制御します"
     }
+  },
+  "plugins": {
+    "actions": "操作",
+    "agents": "代理",
+    "all_categories": "すべてのカテゴリー",
+    "all_types": "全部",
+    "category": "カテゴリー",
+    "commands": "命令",
+    "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "install": "インストール",
+    "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
+    "installing": "インストール中...",
+    "name": "名称",
+    "no_description": "説明なし",
+    "no_installed_plugins": "まだプラグインがインストールされていません",
+    "no_results": "プラグインが見つかりません",
+    "search_placeholder": "検索プラグイン...",
+    "showing_results": "{{count}} 個のプラグインを表示",
+    "showing_results_one": "{{count}} 個のプラグインを表示",
+    "showing_results_other": "{{count}} 個のプラグインを表示",
+    "showing_results_plural": "{{count}} 個のプラグインを表示",
+    "skills": "スキル",
+    "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
+    "type": "タイプ",
+    "uninstall": "アンインストール",
+    "uninstalling": "アンインストール中..."
   },
   "preview": {
     "copy": {

@@ -107,6 +107,50 @@
         "title": "Paramètres avancés"
       },
       "essential": "Paramètres essentiels",
+      "plugins": {
+        "available": {
+          "title": "Plugins disponibles"
+        },
+        "confirm": {
+          "uninstall": "Êtes-vous sûr de vouloir désinstaller ce plugin ?"
+        },
+        "empty": {
+          "available": "Aucun plugin correspondant trouvé. Veuillez essayer d’ajuster la recherche ou les filtres de catégorie."
+        },
+        "error": {
+          "install": "Échec de l'installation du plugin",
+          "load": "Échec du chargement du plugin",
+          "uninstall": "Échec de la désinstallation du plugin"
+        },
+        "filter": {
+          "all": "Toutes les catégories"
+        },
+        "install": "Installation",
+        "installed": {
+          "empty": "Aucun plugin n'est encore installé. Parcourez les plugins disponibles pour commencer.",
+          "title": "Extension installée"
+        },
+        "installing": "Installation en cours...",
+        "results": "{{count}} modules complémentaires trouvés",
+        "search": {
+          "placeholder": "Recherche de plug-ins..."
+        },
+        "success": {
+          "install": "Installation du plugin réussie",
+          "uninstall": "Désinstallation du plugin réussie"
+        },
+        "tab": "Module d'extension",
+        "type": {
+          "agent": "mandataire",
+          "agents": "mandataire",
+          "all": "Tout",
+          "command": "commande",
+          "commands": "commande",
+          "skills": "compétence"
+        },
+        "uninstall": "Désinstaller",
+        "uninstalling": "Désinstallation en cours..."
+      },
       "prompt": "Paramètres de l'invite",
       "tooling": {
         "mcp": {
@@ -190,6 +234,39 @@
         "title": "Outils pré-approuvés",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Autoriser la demande d'outil",
+        "denyRequest": "Refuser la demande d'outil",
+        "hideDetails": "Masquer les détails de l'outil",
+        "runWithOptions": "Exécuter avec des options supplémentaires",
+        "showDetails": "Afficher les détails de l'outil"
+      },
+      "button": {
+        "cancel": "Annuler",
+        "run": "Courir"
+      },
+      "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
+      "defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
+      "defaultDescription": "Exécute du code ou des actions système dans votre environnement. Assurez-vous que la commande semble sûre avant de l’exécuter.",
+      "error": {
+        "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
+      },
+      "expired": "Expiré",
+      "inputPreview": "Aperçu de l'entrée de l'outil",
+      "pending": "En attente ({{seconds}}s)",
+      "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
+      "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Approuver peut mettre à jour plusieurs autorisations de session si vous avez choisi de toujours autoriser cet outil.",
+        "permissionUpdateSingle": "Approuver peut mettre à jour vos permissions de session si vous avez choisi de toujours autoriser cet outil."
+      },
+      "toast": {
+        "denied": "La demande d'outil a été refusée.",
+        "timeout": "La demande d'outil a expiré avant d'obtenir l'approbation."
+      },
+      "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "type": {
       "label": "Type d'agent",
@@ -2298,6 +2375,32 @@
       "resemblance_tip": "Contrôle le niveau de similarité entre le résultat agrandi et l'image originale",
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
     }
+  },
+  "plugins": {
+    "actions": "Opération",
+    "agents": "mandataire",
+    "all_categories": "Toutes les catégories",
+    "all_types": "Tout",
+    "category": "Catégorie",
+    "commands": "commande",
+    "confirm_uninstall": "Êtes-vous sûr de vouloir désinstaller {{name}} ?",
+    "install": "Installation",
+    "install_plugins_from_browser": "Parcourir les plugins disponibles pour commencer",
+    "installing": "Installation en cours...",
+    "name": "Nom",
+    "no_description": "Sans description",
+    "no_installed_plugins": "Aucun plugin n’est encore installé",
+    "no_results": "Aucun plugin trouvé",
+    "search_placeholder": "Rechercher des modules d'extension...",
+    "showing_results": "Afficher {{count}} extensions",
+    "showing_results_one": "Afficher {{count}} modules d’extension",
+    "showing_results_other": "Afficher {{count}} modules d'extension",
+    "showing_results_plural": "Afficher {{count}} modules d'extension",
+    "skills": "compétence",
+    "try_different_search": "Veuillez essayer d’ajuster la recherche ou le filtre de catégorie.",
+    "type": "type",
+    "uninstall": "Désinstaller",
+    "uninstalling": "Désinstallation en cours..."
   },
   "preview": {
     "copy": {

@@ -101,7 +101,8 @@ export default class ModernAiProvider {
     // 提前构建中间件
     const middlewares = buildAiSdkMiddlewares({
       ...providerConfig,
-      provider: this.actualProvider
+      provider: this.actualProvider,
+      assistant: providerConfig.assistant
     })
     logger.debug('Built middlewares in completions', {
       middlewareCount: middlewares.length,
