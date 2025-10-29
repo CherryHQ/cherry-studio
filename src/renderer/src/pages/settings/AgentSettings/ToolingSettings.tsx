@@ -1,6 +1,5 @@
 import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
 import { permissionModeCards } from '@renderer/config/agent'
-import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import {
@@ -71,7 +70,6 @@ const unique = (values: string[]) => Array.from(new Set(values))
 export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, update }) => {
   const { containerRef, handleScroll } = useScrollPosition('AgentToolingSettings', 100)
   const { t } = useTranslation()
-  const client = useAgentClient()
   const { mcpServers: allServers } = useMCPServers()
   const [modal, contextHolder] = Modal.useModal()
 
