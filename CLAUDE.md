@@ -1,126 +1,52 @@
-# CLAUDE.md
+# AI Assistant Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding assistants when working with code in this repository. Adherence to these guidelines is crucial for maintaining code quality and consistency.
+
+## Guiding Principles (MUST FOLLOW)
+
+- **Keep it clear**: Write code that is easy to read, maintain, and explain.
+- **Match the house style**: Reuse existing patterns, naming, and conventions.
+- **Search smart**: Prefer `ast-grep` for semantic queries; fall back to `rg`/`grep` when needed.
+- **Build with HeroUI**: Use HeroUI for every new UI component; never add `antd` or `styled-components`.
+- **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
+- **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
+- **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
+- **Write conventional commits with emoji**: Commit small, focused changes using emoji-prefixed Conventional Commit messages (e.g., `✨ feat:`, `🐛 fix:`, `♻️ refactor:`, `
+📝 docs:`).
 
 ## Development Commands
 
-### Environment Setup
+- **Install**: `yarn install` - Install all project dependencies
+- **Development**: `yarn dev` - Runs Electron app in development mode with hot reload
+- **Debug**: `yarn debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
+- **Build Check**: `yarn build:check` - **REQUIRED** before commits (lint + test + typecheck)
+  - If having i18n sort issues, run `yarn sync:i18n` first to sync template
+  - If having formatting issues, run `yarn format` first
+- **Test**: `yarn test` - Run all tests (Vitest) across main and renderer processes
+- **Single Test**:
+  - `yarn test:main` - Run tests for main process only
+  - `yarn test:renderer` - Run tests for renderer process only
+- **Lint**: `yarn lint` - Fix linting issues and run TypeScript type checking
+- **Format**: `yarn format` - Auto-format code using Biome
 
-- **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
-- **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
-- **Install Dependencies**: `yarn install`
+## Project Architecture
 
-### Development
+### Electron Structure
+- **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
+- **Renderer Process** (`src/renderer/`): React UI with Redux state management
+- **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
-- **Start Development**: `yarn dev` - Runs Electron app in development mode
-- **Debug Mode**: `yarn debug` - Starts with debugging enabled, use chrome://inspect
+### Key Components
+- **AI Core** (`src/renderer/src/aiCore/`): Middleware pipeline for multiple AI providers.
+- **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
+- **Build System**: Electron-Vite with experimental rolldown-vite, yarn workspaces.
+- **State Management**: Redux Toolkit (`src/renderer/src/store/`) for predictable state.
+- **UI Components**: HeroUI (`@heroui/*`) for all new UI elements.
 
-### Testing & Quality
-
-- **Run Tests**: `yarn test` - Runs all tests (Vitest)
-- **Run E2E Tests**: `yarn test:e2e` - Playwright end-to-end tests
-- **Type Check**: `yarn typecheck` - Checks TypeScript for both node and web
-- **Lint**: `yarn lint` - ESLint with auto-fix
-- **Format**: `yarn format` - Prettier formatting
-
-### Build & Release
-
-- **Build**: `yarn build` - Builds for production (includes typecheck)
-- **Platform-specific builds**:
-  - Windows: `yarn build:win`
-  - macOS: `yarn build:mac`
-  - Linux: `yarn build:linux`
-
-## Architecture Overview
-
-### Electron Multi-Process Architecture
-
-- **Main Process** (`src/main/`): Node.js backend handling system integration, file operations, and services
-- **Renderer Process** (`src/renderer/`): React-based UI running in Chromium
-- **Preload Scripts** (`src/preload/`): Secure bridge between main and renderer processes
-
-### Key Architectural Components
-
-#### Main Process Services (`src/main/services/`)
-
-- **MCPService**: Model Context Protocol server management
-- **KnowledgeService**: Document processing and knowledge base management
-- **FileStorage/S3Storage/WebDav**: Multiple storage backends
-- **WindowService**: Multi-window management (main, mini, selection windows)
-- **ProxyManager**: Network proxy handling
-- **SearchService**: Full-text search capabilities
-
-#### AI Core (`src/renderer/src/aiCore/`)
-
-- **Middleware System**: Composable pipeline for AI request processing
-- **Client Factory**: Supports multiple AI providers (OpenAI, Anthropic, Gemini, etc.)
-- **Stream Processing**: Real-time response handling
-
-#### State Management (`src/renderer/src/store/`)
-
-- **Redux Toolkit**: Centralized state management
-- **Persistent Storage**: Redux-persist for data persistence
-- **Thunks**: Async actions for complex operations
-
-#### Knowledge Management
-
-- **Embeddings**: Vector search with multiple providers (OpenAI, Voyage, etc.)
-- **OCR**: Document text extraction (system OCR, Doc2x, Mineru)
-- **Preprocessing**: Document preparation pipeline
-- **Loaders**: Support for various file formats (PDF, DOCX, EPUB, etc.)
-
-### Build System
-
-- **Electron-Vite**: Development and build tooling (v4.0.0)
-- **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
-- **Workspaces**: Monorepo structure with `packages/` directory
-- **Multiple Entry Points**: Main app, mini window, selection toolbar
-- **Styled Components**: CSS-in-JS styling with SWC optimization
-
-### Testing Strategy
-
-- **Vitest**: Unit and integration testing
-- **Playwright**: End-to-end testing
-- **Component Testing**: React Testing Library
-- **Coverage**: Available via `yarn test:coverage`
-
-### Key Patterns
-
-- **IPC Communication**: Secure main-renderer communication via preload scripts
-- **Service Layer**: Clear separation between UI and business logic
-- **Plugin Architecture**: Extensible via MCP servers and middleware
-- **Multi-language Support**: i18n with dynamic loading
-- **Theme System**: Light/dark themes with custom CSS variables
-
-### UI Design
-
-The project is in the process of migrating from antd & styled-components to HeroUI. Please use HeroUI to build UI components. The use of antd and styled-components is prohibited.
-
-HeroUI Docs: https://www.heroui.com/docs/guide/introduction
-
-## Logging Standards
-
-### Usage
-
+### Logging
 ```typescript
-// Main process
 import { loggerService } from '@logger'
 const logger = loggerService.withContext('moduleName')
-
-// Renderer process (set window source first)
-loggerService.initWindowSource('windowName')
-const logger = loggerService.withContext('moduleName')
-
-// Logging
+// Renderer: loggerService.initWindowSource('windowName') first
 logger.info('message', CONTEXT)
-logger.error('message', new Error('error'), CONTEXT)
 ```
-
-### Log Levels (highest to lowest)
-
-- `error` - Critical errors causing crash/unusable functionality
-- `warn` - Potential issues that don't affect core functionality
-- `info` - Application lifecycle and key user actions
-- `verbose` - Detailed flow information for feature tracing
-- `debug` - Development diagnostic info (not for production)
-- `silly` - Extreme debugging, low-level information

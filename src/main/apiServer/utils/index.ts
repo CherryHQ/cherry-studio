@@ -1,46 +1,60 @@
+import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { Model, Provider } from '@types'
+import { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
-// OpenAI compatible model format
-export interface OpenAICompatibleModel {
-  id: string
-  object: 'model'
-  created: number
-  owned_by: string
-  provider?: string
-  provider_model_id?: string
-}
+// Cache configuration
+const PROVIDERS_CACHE_KEY = 'api-server:providers'
+const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
-    // Wait for store to be ready before accessing providers
+    // Try to get from cache first (faster)
+    const cachedSupportedProviders = CacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
+    if (cachedSupportedProviders && cachedSupportedProviders.length > 0) {
+      logger.debug('Providers resolved from cache', {
+        count: cachedSupportedProviders.length
+      })
+      return cachedSupportedProviders
+    }
+
+    // If cache is not available, get fresh data from Redux
     const providers = await reduxService.select('state.llm.providers')
     if (!providers || !Array.isArray(providers)) {
-      logger.warn('No providers found in Redux store, returning empty array')
+      logger.warn('No providers found in Redux store')
       return []
     }
 
-    // Only support OpenAI type providers for API server
-    const openAIProviders = providers.filter((p: Provider) => p.enabled && p.type === 'openai')
+    // Support OpenAI and Anthropic type providers for API server
+    const supportedProviders = providers.filter(
+      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
+    )
 
-    logger.info(`Filtered to ${openAIProviders.length} OpenAI providers from ${providers.length} total providers`)
+    // Cache the filtered results
+    CacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
 
-    return openAIProviders
+    logger.info('Providers filtered', {
+      supported: supportedProviders.length,
+      total: providers.length
+    })
+
+    return supportedProviders
   } catch (error: any) {
-    logger.error('Failed to get providers from Redux store:', error)
+    logger.error('Failed to get providers from Redux store', { error })
     return []
   }
 }
 
-export async function listAllAvailableModels(): Promise<Model[]> {
+export async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> {
   try {
-    const providers = await getAvailableProviders()
+    if (!providers) {
+      providers = await getAvailableProviders()
+    }
     return providers.map((p: Provider) => p.models || []).flat()
   } catch (error: any) {
-    logger.error('Failed to list available models:', error)
+    logger.error('Failed to list available models', { error })
     return []
   }
 }
@@ -48,15 +62,13 @@ export async function listAllAvailableModels(): Promise<Model[]> {
 export async function getProviderByModel(model: string): Promise<Provider | undefined> {
   try {
     if (!model || typeof model !== 'string') {
-      logger.warn(`Invalid model parameter: ${model}`)
+      logger.warn('Invalid model parameter', { model })
       return undefined
     }
 
     // Validate model format first
     if (!model.includes(':')) {
-      logger.warn(
-        `Invalid model format, must contain ':' separator. Expected format "provider:model_id", got: ${model}`
-      )
+      logger.warn('Invalid model format missing separator', { model })
       return undefined
     }
 
@@ -64,7 +76,7 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
     const modelInfo = model.split(':')
 
     if (modelInfo.length < 2 || modelInfo[0].length === 0 || modelInfo[1].length === 0) {
-      logger.warn(`Invalid model format, expected "provider:model_id" with non-empty parts, got: ${model}`)
+      logger.warn('Invalid model format with empty parts', { model })
       return undefined
     }
 
@@ -72,16 +84,17 @@ export async function getProviderByModel(model: string): Promise<Provider | unde
     const provider = providers.find((p: Provider) => p.id === providerId)
 
     if (!provider) {
-      logger.warn(
-        `Provider '${providerId}' not found or not enabled. Available providers: ${providers.map((p) => p.id).join(', ')}`
-      )
+      logger.warn('Provider not found for model', {
+        providerId,
+        available: providers.map((p) => p.id)
+      })
       return undefined
     }
 
-    logger.debug(`Found provider '${providerId}' for model: ${model}`)
+    logger.debug('Provider resolved for model', { providerId, model })
     return provider
   } catch (error: any) {
-    logger.error('Failed to get provider by model:', error)
+    logger.error('Failed to get provider by model', { error, model })
     return undefined
   }
 }
@@ -96,9 +109,12 @@ export interface ModelValidationError {
   code: string
 }
 
-export async function validateModelId(
-  model: string
-): Promise<{ valid: boolean; error?: ModelValidationError; provider?: Provider; modelId?: string }> {
+export async function validateModelId(model: string): Promise<{
+  valid: boolean
+  error?: ModelValidationError
+  provider?: Provider
+  modelId?: string
+}> {
   try {
     if (!model || typeof model !== 'string') {
       return {
@@ -169,7 +185,7 @@ export async function validateModelId(
       modelId
     }
   } catch (error: any) {
-    logger.error('Error validating model ID:', error)
+    logger.error('Error validating model ID', { error, model })
     return {
       valid: false,
       error: {
@@ -181,14 +197,44 @@ export async function validateModelId(
   }
 }
 
-export function transformModelToOpenAI(model: Model): OpenAICompatibleModel {
+export function transformModelToOpenAI(model: Model, provider?: Provider): ApiModel {
+  const providerDisplayName = provider?.name
   return {
     id: `${model.provider}:${model.id}`,
     object: 'model',
+    name: model.name,
     created: Math.floor(Date.now() / 1000),
-    owned_by: model.owned_by || model.provider,
+    owned_by: model.owned_by || providerDisplayName || model.provider,
     provider: model.provider,
+    provider_name: providerDisplayName,
+    provider_type: provider?.type,
     provider_model_id: model.id
+  }
+}
+
+export async function getProviderById(providerId: string): Promise<Provider | undefined> {
+  try {
+    if (!providerId || typeof providerId !== 'string') {
+      logger.warn('Invalid provider ID parameter', { providerId })
+      return undefined
+    }
+
+    const providers = await getAvailableProviders()
+    const provider = providers.find((p: Provider) => p.id === providerId)
+
+    if (!provider) {
+      logger.warn('Provider not found by ID', {
+        providerId,
+        available: providers.map((p) => p.id)
+      })
+      return undefined
+    }
+
+    logger.debug('Provider found by ID', { providerId })
+    return provider
+  } catch (error: any) {
+    logger.error('Failed to get provider by ID', { error, providerId })
+    return undefined
   }
 }
 
@@ -200,7 +246,7 @@ export function validateProvider(provider: Provider): boolean {
 
     // Check required fields
     if (!provider.id || !provider.type || !provider.apiKey || !provider.apiHost) {
-      logger.warn('Provider missing required fields:', {
+      logger.warn('Provider missing required fields', {
         id: !!provider.id,
         type: !!provider.type,
         apiKey: !!provider.apiKey,
@@ -211,21 +257,38 @@ export function validateProvider(provider: Provider): boolean {
 
     // Check if provider is enabled
     if (!provider.enabled) {
-      logger.debug(`Provider is disabled: ${provider.id}`)
+      logger.debug('Provider is disabled', { providerId: provider.id })
       return false
     }
 
-    // Only support OpenAI type providers
-    if (provider.type !== 'openai') {
-      logger.debug(
-        `Provider type '${provider.type}' not supported, only 'openai' type is currently supported: ${provider.id}`
-      )
+    // Support OpenAI and Anthropic type providers
+    if (provider.type !== 'openai' && provider.type !== 'anthropic') {
+      logger.debug('Provider type not supported', {
+        providerId: provider.id,
+        providerType: provider.type
+      })
       return false
     }
 
     return true
   } catch (error: any) {
-    logger.error('Error validating provider:', error)
+    logger.error('Error validating provider', {
+      error,
+      providerId: provider?.id
+    })
     return false
+  }
+}
+
+export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model) => boolean) => {
+  switch (providerId) {
+    case 'cherryin':
+    case 'new-api':
+      return (m: Model) => m.endpoint_type === 'anthropic'
+    case 'aihubmix':
+      return (m: Model) => m.id.includes('claude')
+    default:
+      // allow all models when checker not configured
+      return () => true
   }
 }

@@ -65,16 +65,16 @@ const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
   min-width: 100%;
   display: flex;
   flex-direction: row;
-  min-height: ${isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
+  min-height: ${({ $isFullScreen }) => (!$isFullScreen && isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)')};
   max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
+  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
   padding-left: ${({ $isFullScreen }) =>
     isMac ? ($isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0};
   -webkit-app-region: drag;
 `
 
 const NavbarLeftContainer = styled.div`
-  min-width: var(--assistants-width);
+  /* min-width: ${isMac ? 'calc(var(--assistants-width) - 20px)' : 'var(--assistants-width)'}; */
   padding: 0 10px;
   display: flex;
   flex-direction: row;
@@ -88,6 +88,7 @@ const NavbarCenterContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 ${isMac ? '20px' : 0};
+  padding-left: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   position: relative;
@@ -108,7 +109,8 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 0 ${isMac ? '20px' : 0};
+  padding-right: ${isMac ? '20px' : 0};
+  padding-left: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};

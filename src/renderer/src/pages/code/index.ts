@@ -19,12 +19,21 @@ export const CLI_TOOLS = [
   { value: codeTools.claudeCode, label: 'Claude Code' },
   { value: codeTools.qwenCode, label: 'Qwen Code' },
   { value: codeTools.geminiCli, label: 'Gemini CLI' },
-  { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
+  { value: codeTools.openaiCodex, label: 'OpenAI Codex' },
+  { value: codeTools.iFlowCli, label: 'iFlow CLI' },
+  { value: codeTools.githubCopilotCli, label: 'GitHub Copilot CLI' }
 ]
 
-export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
+export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
-export const CLAUDE_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS]
+export const CLAUDE_SUPPORTED_PROVIDERS = [
+  'aihubmix',
+  'dmxapi',
+  'new-api',
+  'cherryin',
+  ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
+]
+export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
@@ -33,7 +42,10 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeTools.geminiCli]: (providers) =>
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.openaiCodex]: (providers) => providers.filter((p) => p.id === 'openai')
+  [codeTools.openaiCodex]: (providers) =>
+    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+  [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai')),
+  [codeTools.githubCopilotCli]: () => []
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -60,7 +72,7 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     },
     dashscope: {
       anthropic: {
-        api_base_url: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+        api_base_url: 'https://dashscope.aliyuncs.com/apps/anthropic'
       }
     },
     modelscope: {
@@ -132,18 +144,29 @@ export const generateToolEnvironment = ({
     }
 
     case codeTools.qwenCode:
-    case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = baseUrl
       env.OPENAI_MODEL = model.id
       break
+    case codeTools.openaiCodex:
+      env.OPENAI_API_KEY = apiKey
+      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_MODEL = model.id
+      env.OPENAI_MODEL_PROVIDER = modelProvider.id
+      break
+
+    case codeTools.iFlowCli:
+      env.IFLOW_API_KEY = apiKey
+      env.IFLOW_BASE_URL = baseUrl
+      env.IFLOW_MODEL_NAME = model.id
+      break
+
+    case codeTools.githubCopilotCli:
+      env.GITHUB_TOKEN = apiKey || ''
+      break
   }
 
   return env
-}
-
-export const getClaudeSupportedProviders = (providers: Provider[]) => {
-  return providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id))
 }
 
 export { default } from './CodeToolsPage'

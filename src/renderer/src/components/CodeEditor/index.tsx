@@ -5,13 +5,14 @@ import diff from 'fast-diff'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { memo } from 'react'
 
-import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
+import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap, useScrollToLine } from './hooks'
 
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
 
 export interface CodeEditorHandles {
   save?: () => void
+  scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
 }
 
 export interface CodeEditorProps {
@@ -75,10 +76,15 @@ export interface CodeEditorProps {
   /** CSS class name appended to the default `code-editor` class. */
   className?: string
   /**
-   * Whether the editor is editable.
+   * Whether the editor view is editable.
    * @default true
    */
   editable?: boolean
+  /**
+   * Set the editor state to read only but keep some user interactions, e.g., keymaps.
+   * @default false
+   */
+  readOnly?: boolean
   /**
    * Whether the editor is expanded.
    * If true, the height and maxHeight props are ignored.
@@ -114,6 +120,7 @@ const CodeEditor = ({
   style,
   className,
   editable = true,
+  readOnly = false,
   expanded = true,
   wrapped = true
 }: CodeEditorProps) => {
@@ -175,8 +182,11 @@ const CodeEditor = ({
     ].flat()
   }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
+  const scrollToLine = useScrollToLine(editorViewRef)
+
   useImperativeHandle(ref, () => ({
-    save: handleSave
+    save: handleSave,
+    scrollToLine
   }))
 
   return (
@@ -189,6 +199,7 @@ const CodeEditor = ({
       maxHeight={expanded ? undefined : maxHeight}
       minHeight={minHeight}
       editable={editable}
+      readOnly={readOnly}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={customExtensions}

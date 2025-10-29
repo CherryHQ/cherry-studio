@@ -1,4 +1,4 @@
-import { makeSvgSizeAdaptive } from '@renderer/utils'
+import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import DOMPurify from 'dompurify'
 
 /**
@@ -18,7 +18,8 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
   // Sanitize the SVG content
   const sanitizedContent = DOMPurify.sanitize(svgContent, {
     ADD_TAGS: ['animate', 'foreignObject', 'use'],
-    ADD_ATTR: ['from', 'to']
+    ADD_ATTR: ['from', 'to'],
+    HTML_INTEGRATION_POINTS: { foreignobject: true }
   })
 
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
@@ -36,6 +37,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       border-radius: var(--shadow-host-border-radius);
       padding: 1em;
       overflow: hidden; /* Prevent scrollbars, as scaling is now handled */
+      white-space: normal;
       display: block;
       position: relative;
       width: 100%;

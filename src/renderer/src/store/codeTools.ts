@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { Model } from '@renderer/types'
-import { codeTools } from '@shared/config/constant'
+import { codeTools, terminalApps } from '@shared/config/constant'
 
 // 常量定义
 const MAX_DIRECTORIES = 10 // 最多保存10个目录
@@ -16,6 +16,8 @@ export interface CodeToolsState {
   directories: string[]
   // 当前选择的目录
   currentDirectory: string
+  // 选择的终端 ( macOS 和 Windows)
+  selectedTerminal: string
 }
 
 export const initialState: CodeToolsState = {
@@ -24,15 +26,21 @@ export const initialState: CodeToolsState = {
     [codeTools.qwenCode]: null,
     [codeTools.claudeCode]: null,
     [codeTools.geminiCli]: null,
-    [codeTools.openaiCodex]: null
+    [codeTools.openaiCodex]: null,
+    [codeTools.iFlowCli]: null,
+    [codeTools.githubCopilotCli]: null
   },
   environmentVariables: {
     'qwen-code': '',
     'claude-code': '',
-    'gemini-cli': ''
+    'gemini-cli': '',
+    'openai-codex': '',
+    'iflow-cli': '',
+    'github-copilot-cli': ''
   },
   directories: [],
-  currentDirectory: ''
+  currentDirectory: '',
+  selectedTerminal: terminalApps.systemDefault
 }
 
 const codeToolsSlice = createSlice({
@@ -42,6 +50,11 @@ const codeToolsSlice = createSlice({
     // 设置选择的 CLI 工具
     setSelectedCliTool: (state, action: PayloadAction<codeTools>) => {
       state.selectedCliTool = action.payload
+    },
+
+    // 设置选择的终端
+    setSelectedTerminal: (state, action: PayloadAction<string>) => {
+      state.selectedTerminal = action.payload
     },
 
     // 设置选择的模型（为当前 CLI 工具设置）
@@ -55,7 +68,10 @@ const codeToolsSlice = createSlice({
         state.environmentVariables = {
           'qwen-code': '',
           'claude-code': '',
-          'gemini-cli': ''
+          'gemini-cli': '',
+          'openai-codex': '',
+          'iflow-cli': '',
+          'github-copilot-cli': ''
         }
       }
       state.environmentVariables[state.selectedCliTool] = action.payload
@@ -113,12 +129,14 @@ const codeToolsSlice = createSlice({
       state.environmentVariables = initialState.environmentVariables
       state.directories = initialState.directories
       state.currentDirectory = initialState.currentDirectory
+      state.selectedTerminal = initialState.selectedTerminal
     }
   }
 })
 
 export const {
   setSelectedCliTool,
+  setSelectedTerminal,
   setSelectedModel,
   setEnvironmentVariables,
   addDirectory,

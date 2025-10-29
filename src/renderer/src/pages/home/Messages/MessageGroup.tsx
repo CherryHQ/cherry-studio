@@ -339,6 +339,7 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
   display: grid;
   overflow-y: visible;
   gap: 16px;
+
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
@@ -405,6 +406,7 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     }
   }
   &.grid {
+    display: block;
     height: 300px;
     overflow-y: hidden;
     border: 0.5px solid var(--color-border);

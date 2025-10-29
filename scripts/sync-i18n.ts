@@ -5,7 +5,7 @@ import { sortedObjectByKeys } from './sort'
 
 const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 const translateDir = path.join(__dirname, '../src/renderer/src/i18n/translate')
-const baseLocale = 'zh-cn'
+const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const baseFileName = `${baseLocale}.json`
 const baseFilePath = path.join(localesDir, baseFileName)
 
@@ -13,45 +13,45 @@ type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
 
 /**
- * 递归同步 target 对象，使其与 template 对象保持一致
- * 1. 如果 template 中存在 target 中缺少的 key，则添加（'[to be translated]'）
- * 2. 如果 target 中存在 template 中不存在的 key，则删除
- * 3. 对于子对象，递归同步
+ * Recursively sync target object to match template object structure
+ * 1. Add keys that exist in template but missing in target (with '[to be translated]')
+ * 2. Remove keys that exist in target but not in template
+ * 3. Recursively sync nested objects
  *
- * @param target 目标对象（需要更新的语言对象）
- * @param template 主模板对象（中文）
- * @returns 返回是否对 target 进行了更新
+ * @param target Target object (language object to be updated)
+ * @param template Base locale object (Chinese)
+ * @returns Returns whether target was updated
  */
 function syncRecursively(target: I18N, template: I18N): void {
-  // 添加 template 中存在但 target 中缺少的 key
+  // Add keys that exist in template but missing in target
   for (const key in template) {
     if (!(key in target)) {
       target[key] =
         typeof template[key] === 'object' && template[key] !== null ? {} : `[to be translated]:${template[key]}`
-      console.log(`添加新属性：${key}`)
+      console.log(`Added new property: ${key}`)
     }
     if (typeof template[key] === 'object' && template[key] !== null) {
       if (typeof target[key] !== 'object' || target[key] === null) {
         target[key] = {}
       }
-      // 递归同步子对象
+      // Recursively sync nested objects
       syncRecursively(target[key], template[key])
     }
   }
 
-  // 删除 target 中存在但 template 中没有的 key
+  // Remove keys that exist in target but not in template
   for (const targetKey in target) {
     if (!(targetKey in template)) {
-      console.log(`移除多余属性：${targetKey}`)
+      console.log(`Removed excess property: ${targetKey}`)
       delete target[targetKey]
     }
   }
 }
 
 /**
- * 检查 JSON 对象中是否存在重复键，并收集所有重复键
- * @param obj 要检查的对象
- * @returns 返回重复键的数组（若无重复则返回空数组）
+ * Check JSON object for duplicate keys and collect all duplicates
+ * @param obj Object to check
+ * @returns Returns array of duplicate keys (empty array if no duplicates)
  */
 function checkDuplicateKeys(obj: I18N): string[] {
   const keys = new Set<string>()
@@ -62,7 +62,7 @@ function checkDuplicateKeys(obj: I18N): string[] {
       const fullPath = path ? `${path}.${key}` : key
 
       if (keys.has(fullPath)) {
-        // 发现重复键时，添加到数组中（避免重复添加）
+        // When duplicate key found, add to array (avoid duplicate additions)
         if (!duplicateKeys.includes(fullPath)) {
           duplicateKeys.push(fullPath)
         }
@@ -70,7 +70,7 @@ function checkDuplicateKeys(obj: I18N): string[] {
         keys.add(fullPath)
       }
 
-      // 递归检查子对象
+      // Recursively check nested objects
       if (typeof obj[key] === 'object' && obj[key] !== null) {
         checkObject(obj[key], fullPath)
       }
@@ -83,7 +83,7 @@ function checkDuplicateKeys(obj: I18N): string[] {
 
 function syncTranslations() {
   if (!fs.existsSync(baseFilePath)) {
-    console.error(`主模板文件 ${baseFileName} 不存在，请检查路径或文件名`)
+    console.error(`Base locale file ${baseFileName} does not exist, please check path or filename`)
     return
   }
 
@@ -92,24 +92,24 @@ function syncTranslations() {
   try {
     baseJson = JSON.parse(baseContent)
   } catch (error) {
-    console.error(`解析 ${baseFileName} 出错。${error}`)
+    console.error(`Error parsing ${baseFileName}. ${error}`)
     return
   }
 
-  // 检查主模板是否存在重复键
+  // Check if base locale has duplicate keys
   const duplicateKeys = checkDuplicateKeys(baseJson)
   if (duplicateKeys.length > 0) {
-    throw new Error(`主模板文件 ${baseFileName} 存在以下重复键：\n${duplicateKeys.join('\n')}`)
+    throw new Error(`Base locale file ${baseFileName} has the following duplicate keys:\n${duplicateKeys.join('\n')}`)
   }
 
-  // 为主模板排序
+  // Sort base locale
   const sortedJson = sortedObjectByKeys(baseJson)
   if (JSON.stringify(baseJson) !== JSON.stringify(sortedJson)) {
     try {
       fs.writeFileSync(baseFilePath, JSON.stringify(sortedJson, null, 2) + '\n', 'utf-8')
-      console.log(`主模板已排序`)
+      console.log(`Base locale has been sorted`)
     } catch (error) {
-      console.error(`写入 ${baseFilePath} 出错。`, error)
+      console.error(`Error writing ${baseFilePath}.`, error)
       return
     }
   }
@@ -124,7 +124,7 @@ function syncTranslations() {
     .map((filename) => path.join(translateDir, filename))
   const files = [...localeFiles, ...translateFiles]
 
-  // 同步键
+  // Sync keys
   for (const filePath of files) {
     const filename = path.basename(filePath)
     let targetJson: I18N = {}
@@ -132,7 +132,7 @@ function syncTranslations() {
       const fileContent = fs.readFileSync(filePath, 'utf-8')
       targetJson = JSON.parse(fileContent)
     } catch (error) {
-      console.error(`解析 ${filename} 出错，跳过此文件。`, error)
+      console.error(`Error parsing ${filename}, skipping this file.`, error)
       continue
     }
 
@@ -142,9 +142,9 @@ function syncTranslations() {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(sortedJson, null, 2) + '\n', 'utf-8')
-      console.log(`文件 ${filename} 已排序并同步更新为主模板的内容`)
+      console.log(`File ${filename} has been sorted and synced to match base locale content`)
     } catch (error) {
-      console.error(`写入 ${filename} 出错。${error}`)
+      console.error(`Error writing ${filename}. ${error}`)
     }
   }
 }

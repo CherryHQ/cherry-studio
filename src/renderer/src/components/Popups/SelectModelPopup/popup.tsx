@@ -1,5 +1,6 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
+import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -102,16 +103,18 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
-      const isCherryin = provider.id === 'cherryin'
+      const isCherryAi = provider.id === 'cherryai'
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
         type: 'model',
         name: (
           <ModelName>
-            {model.name}
-            {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
-            {isCherryin && <FreeTrialModelTag model={model} showLabel={false} />}
+            <HStack alignItems="center">
+              {model.name}
+              {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+            </HStack>
+            {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
         tags: (
@@ -120,7 +123,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size={24}>
+          <Avatar src={getModelLogo(model)} size={24}>
             {first(model.name) || 'M'}
           </Avatar>
         ),
@@ -177,7 +180,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         key: `provider-${p.id}`,
         type: 'group',
         name: getFancyProviderName(p),
-        actions: (
+        actions: p.id !== 'cherryai' && (
           <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
             <Settings2
               size={12}
@@ -542,6 +545,7 @@ const ModelItemLeft = styled.div`
 const ModelName = styled.div`
   display: flex;
   flex-direction: row;
+  justify-content: space-between;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

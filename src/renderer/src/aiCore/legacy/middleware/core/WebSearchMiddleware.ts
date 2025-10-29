@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { ChunkType } from '@renderer/types/chunk'
-import { flushLinkConverterBuffer, smartLinkConverter } from '@renderer/utils/linkConverter'
+import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
@@ -28,8 +28,6 @@ export const WebSearchMiddleware: CompletionsMiddleware =
     }
     // 调用下游中间件
     const result = await next(ctx, params)
-
-    const model = params.assistant?.model!
     let isFirstChunk = true
 
     // 响应后处理：记录Web搜索事件
@@ -42,15 +40,9 @@ export const WebSearchMiddleware: CompletionsMiddleware =
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               if (chunk.type === ChunkType.TEXT_DELTA) {
-                const providerType = model.provider || 'openai'
                 // 使用当前可用的Web搜索结果进行链接转换
                 const text = chunk.text
-                const result = smartLinkConverter(
-                  text,
-                  providerType,
-                  isFirstChunk,
-                  ctx._internal.webSearchState!.results
-                )
+                const result = convertLinks(text, isFirstChunk)
                 if (isFirstChunk) {
                   isFirstChunk = false
                 }

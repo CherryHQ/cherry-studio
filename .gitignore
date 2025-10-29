@@ -37,6 +37,7 @@ dist
 out
 mcp_server
 stats.html
+.eslintcache
 
 # ENV
 .env
@@ -53,6 +54,8 @@ local
 .qwen/*
 .trae/*
 .claude-code-router/*
+.codebuddy/*
+.zed/*
 CLAUDE.local.md
 
 # vitest
@@ -68,3 +71,5 @@ playwright-report
 test-results
 
 YOUR_MEMORY_FILE_PATH
+
+.sessions/

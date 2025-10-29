@@ -7,6 +7,7 @@ import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
+import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -16,6 +17,7 @@ import {
   type StreamableHTTPClientTransportOptions
 } from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
+import { McpError, type Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 // Import notification schemas from MCP SDK
 import {
   CancelledNotificationSchema,
@@ -29,6 +31,7 @@ import {
 import { nanoid } from '@reduxjs/toolkit'
 import { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { defaultAppHeaders } from '@shared/utils'
 import {
   BuiltinMCPServerNames,
   type GetResourceResponse,
@@ -41,14 +44,12 @@ import {
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
-import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
-import getLoginShellEnvironment from './mcp/shell-env'
 import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
@@ -94,7 +95,7 @@ function getServerLogger(server: MCPServer, extra?: Record<string, any>) {
     baseUrl: server?.baseUrl,
     type: server?.type || (server?.command ? 'stdio' : server?.baseUrl ? 'http' : 'inmemory')
   }
-  return loggerService.withContext('MCPService', { ...base, ...(extra || {}) })
+  return loggerService.withContext('MCPService', { ...base, ...extra })
 }
 
 /**
@@ -193,8 +194,15 @@ class McpService {
           return existingClient
         }
       } catch (error: any) {
-        getServerLogger(server).error(`Error pinging server`, error as Error)
+        getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
         this.clients.delete(serverKey)
+      }
+    }
+
+    const prepareHeaders = () => {
+      return {
+        ...defaultAppHeaders(),
+        ...server.headers
       }
     }
 
@@ -226,7 +234,7 @@ class McpService {
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
-            } catch (error: Error | any) {
+            } catch (error: any) {
               getServerLogger(server).error(`Error starting in-memory server`, error as Error)
               throw new Error(`Failed to start in-memory server: ${error.message}`)
             }
@@ -235,8 +243,11 @@ class McpService {
           } else if (server.baseUrl) {
             if (server.type === 'streamableHttp') {
               const options: StreamableHTTPClientTransportOptions = {
+                fetch: async (url, init) => {
+                  return net.fetch(typeof url === 'string' ? url : url.toString(), init)
+                },
                 requestInit: {
-                  headers: server.headers || {}
+                  headers: prepareHeaders()
                 },
                 authProvider
               }
@@ -249,25 +260,11 @@ class McpService {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
                   fetch: async (url, init) => {
-                    const headers = { ...(server.headers || {}), ...(init?.headers || {}) }
-
-                    // Get tokens from authProvider to make sure using the latest tokens
-                    if (authProvider && typeof authProvider.tokens === 'function') {
-                      try {
-                        const tokens = await authProvider.tokens()
-                        if (tokens && tokens.access_token) {
-                          headers['Authorization'] = `Bearer ${tokens.access_token}`
-                        }
-                      } catch (error) {
-                        getServerLogger(server).error('Failed to fetch tokens:', error as Error)
-                      }
-                    }
-
-                    return net.fetch(typeof url === 'string' ? url : url.toString(), { ...init, headers })
+                    return net.fetch(typeof url === 'string' ? url : url.toString(), init)
                   }
                 },
                 requestInit: {
-                  headers: server.headers || {}
+                  headers: prepareHeaders()
                 },
                 authProvider
               }
@@ -337,7 +334,7 @@ class McpService {
 
             getServerLogger(server).debug(`Starting server`, { command: cmd, args })
             // Logger.info(`[MCP] Environment variables for server:`, server.env)
-            const loginShellEnv = await this.getLoginShellEnv()
+            const loginShellEnv = await getLoginShellEnvironment()
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
             if (cmd.includes('bun')) {
@@ -421,7 +418,7 @@ class McpService {
           const transport = await initTransport()
           try {
             await client.connect(transport)
-          } catch (error: Error | any) {
+          } catch (error: any) {
             if (
               error instanceof Error &&
               (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
@@ -444,9 +441,9 @@ class McpService {
 
           logger.debug(`Activated server: ${server.name}`)
           return client
-        } catch (error: any) {
-          getServerLogger(server).error(`Error activating server`, error as Error)
-          throw new Error(`[MCP] Error activating server ${server.name}: ${error.message}`)
+        } catch (error) {
+          getServerLogger(server).error(`Error activating server ${server.name}`, error as Error)
+          throw error
         }
       } finally {
         // Clean up the pending promise when done
@@ -614,12 +611,11 @@ class McpService {
   }
 
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
-    getServerLogger(server).debug(`Listing tools`)
     const client = await this.initClient(server)
     try {
       const { tools } = await client.listTools()
       const serverTools: MCPTool[] = []
-      tools.map((tool: any) => {
+      tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
           id: buildFunctionCallToolName(server.name, tool.name),
@@ -628,11 +624,12 @@ class McpService {
           type: 'mcp'
         }
         serverTools.push(serverTool)
+        getServerLogger(server).debug(`Listing tools`, { tool: serverTool })
       })
       return serverTools
-    } catch (error: any) {
+    } catch (error: unknown) {
       getServerLogger(server).error(`Failed to list tools`, error as Error)
-      return []
+      throw error
     }
   }
 
@@ -739,9 +736,9 @@ class McpService {
         serverId: server.id,
         serverName: server.name
       }))
-    } catch (error: any) {
+    } catch (error: unknown) {
       // -32601 is the code for the method not found
-      if (error?.code !== -32601) {
+      if (error instanceof McpError && error.code !== -32601) {
         getServerLogger(server).error(`Failed to list prompts`, error as Error)
       }
       return []
@@ -854,7 +851,7 @@ class McpService {
       return {
         contents: contents
       }
-    } catch (error: Error | any) {
+    } catch (error: any) {
       getServerLogger(server, { uri }).error(`Failed to get resource`, error as Error)
       throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
     }
@@ -879,20 +876,6 @@ class McpService {
     )
     return await cachedGetResource(server, uri)
   }
-
-  private getLoginShellEnv = memoize(async (): Promise<Record<string, string>> => {
-    try {
-      const loginEnv = await getLoginShellEnvironment()
-      const pathSeparator = process.platform === 'win32' ? ';' : ':'
-      const cherryBinPath = path.join(os.homedir(), '.cherrystudio', 'bin')
-      loginEnv.PATH = `${loginEnv.PATH}${pathSeparator}${cherryBinPath}`
-      logger.debug('Successfully fetched login shell environment variables:')
-      return loginEnv
-    } catch (error) {
-      logger.error('Failed to fetch login shell environment variables:', error as Error)
-      return {}
-    }
-  })
 
   // 实现 abortTool 方法
   public async abortTool(_: Electron.IpcMainInvokeEvent, callId: string) {

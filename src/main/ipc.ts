@@ -4,17 +4,29 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
-import { generateSignature } from '@main/integration/cherryin'
+import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
+import type { PluginError } from '@types'
+import {
+  AgentPersistedMessage,
+  FileMetadata,
+  Notification,
+  OcrProvider,
+  Provider,
+  Shortcut,
+  SupportedOcrFile,
+  ThemeMode
+} from '@types'
+import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
-import { Notification } from 'src/renderer/src/types/notification'
+import fontList from 'font-list'
 
+import { agentMessageRepository } from './services/agents/database'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -26,7 +38,7 @@ import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import KnowledgeService from './services/knowledge/KnowledgeService'
+import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
@@ -34,6 +46,8 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
+import OvmsManager from './services/OvmsManager'
+import { PluginService } from './services/PluginService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -81,6 +95,19 @@ const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
+const ovmsManager = new OvmsManager()
+const pluginService = PluginService.getInstance()
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function extractPluginError(error: unknown): PluginError | null {
+  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
+    return error as PluginError
+  }
+  return null
+}
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
@@ -126,10 +153,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_Reload, () => mainWindow.reload())
+  ipcMain.handle(IpcChannel.App_Quit, () => app.quit())
   ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => shell.openExternal(url))
 
   // Update
-  ipcMain.handle(IpcChannel.App_ShowUpdateDialog, () => appUpdater.showUpdateDialog(mainWindow))
+  ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
 
   // language
   ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
@@ -199,6 +227,27 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
+    try {
+      return await agentMessageRepository.persistExchange(payload)
+    } catch (error) {
+      logger.error('Failed to persist agent session messages', error as Error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(
+    IpcChannel.AgentMessage_GetHistory,
+    async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
+      try {
+        return await agentMessageRepository.getSessionHistory(sessionId)
+      } catch (error) {
+        logger.error('Failed to get agent session history', error as Error)
+        throw error
+      }
+    }
+  )
+
   //only for mac
   if (isMac) {
     ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
@@ -217,6 +266,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
     return mainWindow.isFullScreen()
+  })
+
+  // Get System Fonts
+  ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
+    try {
+      const fonts = await fontList.getFonts()
+      return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
+    } catch (error) {
+      logger.error('Failed to get system fonts:', error as Error)
+      return []
+    }
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
@@ -420,6 +480,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // system
   ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
   ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
+  ipcMain.handle(IpcChannel.System_GetCpuName, () => require('os').cpus()[0].model)
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     win && win.webContents.toggleDevTools()
@@ -483,6 +544,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StartWatcher, fileManager.startFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
@@ -698,6 +760,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
   ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
   ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
+  ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
 
   //copilot
   ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage.bind(CopilotService))
@@ -738,7 +801,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
     setOpenLinkExternal(webviewId, isExternal)
   )
-
   ipcMain.handle(IpcChannel.Webview_SetSpellCheckEnabled, (_, webviewId: number, isEnable: boolean) => {
     const webview = webContents.fromId(webviewId)
     if (!webview) return
@@ -784,6 +846,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       addStreamMessage(spanId, modelName, context, msg)
   )
 
+  ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
+    try {
+      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
+      logger.debug('disk space', diskSpace)
+      const { free, size } = diskSpace
+      return {
+        free,
+        size
+      }
+    } catch (error) {
+      logger.error('check disk space error', error as Error)
+      return null
+    }
+  })
   // API Server
   apiServerService.registerIpcHandlers()
 
@@ -799,12 +875,149 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
+  ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
+  ipcMain.handle(IpcChannel.CodeTools_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+    codeToolsService.setCustomTerminalPath(terminalId, path)
+  )
+  ipcMain.handle(IpcChannel.CodeTools_GetCustomTerminalPath, (_, terminalId: string) =>
+    codeToolsService.getCustomTerminalPath(terminalId)
+  )
+  ipcMain.handle(IpcChannel.CodeTools_RemoveCustomTerminalPath, (_, terminalId: string) =>
+    codeToolsService.removeCustomTerminalPath(terminalId)
+  )
 
   // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
+  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
+    ocrService.ocr(file, provider)
+  )
+  ipcMain.handle(IpcChannel.OCR_ListProviders, () => ocrService.listProviderIds())
 
-  // CherryIN
-  ipcMain.handle(IpcChannel.Cherryin_GetSignature, (_, params) => generateSignature(params))
+  // OVMS
+  ipcMain.handle(IpcChannel.Ovms_AddModel, (_, modelName: string, modelId: string, modelSource: string, task: string) =>
+    ovmsManager.addModel(modelName, modelId, modelSource, task)
+  )
+  ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
+  ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
+  ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
+  ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
+  ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
+  ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
+
+  // CherryAI
+  ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
+
+  // Claude Code Plugins
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListAvailable, async () => {
+    try {
+      const data = await pluginService.listAvailable()
+      return { success: true, data }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to list available plugins', pluginError)
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to list available plugins', err)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-available',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+    try {
+      const data = await pluginService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+    try {
+      await pluginService.uninstall(options)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to uninstall plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
+    try {
+      const data = await pluginService.listInstalled(agentId)
+      return { success: true, data }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to list installed plugins', { agentId, error: pluginError })
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to list installed plugins', { agentId, error: err })
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-installed',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InvalidateCache, async () => {
+    try {
+      pluginService.invalidateCache()
+      return { success: true, data: undefined }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to invalidate plugin cache', pluginError)
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to invalidate plugin cache', err)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'invalidate-cache',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ReadContent, async (_, sourcePath: string) => {
+    try {
+      const data = await pluginService.readContent(sourcePath)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to read plugin content', { sourcePath, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
+    try {
+      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to write plugin content', { options, error })
+      return { success: false, error }
+    }
+  })
 
   // WebSocket
   ipcMain.handle(IpcChannel.WebSocket_Start, WebSocketService.start)

@@ -10,6 +10,7 @@ interface SortableItemProps<T> {
   renderItem: RenderItemType<T>
   useDragOverlay?: boolean
   showGhost?: boolean
+  itemStyle?: React.CSSProperties
 }
 
 export function SortableItem<T>({
@@ -18,7 +19,8 @@ export function SortableItem<T>({
   index,
   renderItem,
   useDragOverlay = true,
-  showGhost = true
+  showGhost = true,
+  itemStyle
 }: SortableItemProps<T>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id
@@ -36,6 +38,7 @@ export function SortableItem<T>({
       transform={transform}
       transition={transition}
       listeners={listeners}
+      itemStyle={itemStyle}
       {...attributes}
     />
   )

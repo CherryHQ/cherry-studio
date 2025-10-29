@@ -1,25 +1,23 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
+import { ActionIconButton } from '@renderer/components/Buttons'
+import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
   isAutoEnableImageGenerationModel,
   isGenerateImageModel,
   isGenerateImageModels,
   isMandatoryWebSearchModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
   isVisionModel,
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -27,7 +25,6 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
@@ -36,9 +33,9 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
-import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
+import { classNames, delay, filterSupportedFiles } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import {
   getFilesFromDropEvent,
@@ -46,14 +43,12 @@ import {
   getTextFromDropEvent,
   isSendMessageKeyPressed
 } from '@renderer/utils/input'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
-import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
+import { CirclePause } from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -61,6 +56,8 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
 import InputbarTools, { InputbarToolsRef } from './InputbarTools'
+import KnowledgeBaseInput from './KnowledgeBaseInput'
+import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -74,6 +71,7 @@ interface Props {
 
 let _text = ''
 let _files: FileType[] = []
+let _mentionedModelsCache: Model[] = []
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
@@ -106,17 +104,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
-  const [mentionedModels, setMentionedModels] = useState<Model[]>([])
+  const [mentionedModels, setMentionedModels] = useState<Model[]>(_mentionedModelsCache)
+  const mentionedModelsRef = useRef(mentionedModels)
   const [isDragging, setIsDragging] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
+
+  useEffect(() => {
+    mentionedModelsRef.current = mentionedModels
+  }, [mentionedModels])
 
   const isVisionSupported = useMemo(
     () =>
@@ -131,11 +133,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       (mentionedModels.length === 0 && isGenerateImageAssistant),
     [mentionedModels, isGenerateImageAssistant]
   )
-
-  // 仅允许在不含图片文件时mention非视觉模型
-  const couldMentionNotVisionModel = useMemo(() => {
-    return !files.some((file) => file.type === FileTypes.IMAGE)
-  }, [files])
 
   // 允许在支持视觉或生成图片时添加图片文件
   const couldAddImageFile = useMemo(() => {
@@ -165,6 +162,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [tokenCount, setTokenCount] = useState(0)
 
   const inputbarToolsRef = useRef<InputbarToolsRef>(null)
+  const prevTextRef = useRef(text)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -181,14 +179,32 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     debouncedEstimate(text)
   }, [text, debouncedEstimate])
 
+  useEffect(() => {
+    prevTextRef.current = text
+  }, [text])
+
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
-  const newTopicShortcut = useShortcutDisplay('new_topic')
-  const cleanTopicShortcut = useShortcutDisplay('clear_topic')
+  const placeholderText = enableQuickPanelTriggers
+    ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
+    : t('chat.input.placeholder_without_triggers', {
+        key: getSendMessageShortcutLabel(sendMessageShortcut),
+        defaultValue: t('chat.input.placeholder', {
+          key: getSendMessageShortcutLabel(sendMessageShortcut)
+        })
+      })
+
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
   _files = files
+
+  useEffect(() => {
+    // 利用useEffect清理函数在卸载组件时更新状态缓存
+    return () => {
+      _mentionedModelsCache = mentionedModelsRef.current
+    }
+  }, [])
 
   const focusTextarea = useCallback(() => {
     textareaRef.current?.focus()
@@ -277,71 +293,52 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
 
-  const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
-      quickPanel.open({
-        title: base.name,
-        list: base.items
-          .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
-          .map((file) => {
-            const fileContent = file.content as FileType
-            return {
-              label: fileContent.origin_name || fileContent.name,
-              description:
-                formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
-              icon: <FileText />,
-              isSelected: files.some((f) => f.path === fileContent.path),
-              action: async ({ item }) => {
-                item.isSelected = !item.isSelected
-                if (fileContent.path) {
-                  setFiles((prevFiles) => {
-                    const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                    if (fileExists) {
-                      return prevFiles.filter((f) => f.path !== fileContent.path)
-                    } else {
-                      return fileContent ? [...prevFiles, fileContent] : prevFiles
-                    }
-                  })
-                }
-              }
-            }
-          }),
-        symbol: 'file',
-        multiple: true
-      })
-    },
-    [files, quickPanel]
-  )
+  const appendTxtContentToInput = useCallback(
+    async (file: FileType, event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
 
-  const openSelectFileMenu = useCallback(() => {
-    quickPanel.open({
-      title: t('chat.input.upload.label'),
-      list: [
-        {
-          label: t('chat.input.upload.upload_from_local'),
-          description: '',
-          icon: <Upload />,
-          action: () => {
-            inputbarToolsRef.current?.openAttachmentQuickPanel()
+      try {
+        const targetPath = file.path
+        const content = await window.api.file.readExternal(targetPath, true)
+        try {
+          await navigator.clipboard.writeText(content)
+        } catch (clipboardError) {
+          logger.warn('Failed to copy txt attachment content to clipboard:', clipboardError as Error)
+        }
+
+        setText((prev) => {
+          if (!prev) {
+            return content
           }
-        },
-        ...knowledgeBases.map((base) => {
-          const length = base.items?.filter(
-            (item): item is KnowledgeItem => ['file', 'note'].includes(item.type) && typeof item.content !== 'string'
-          ).length
-          return {
-            label: base.name,
-            description: `${length} ${t('files.count')}`,
-            icon: <FileSearch />,
-            disabled: length === 0,
-            isMenu: true,
-            action: () => openKnowledgeFileList(base)
-          }
+
+          const needsSeparator = !prev.endsWith('\n')
+          return needsSeparator ? `${prev}\n${content}` : prev + content
         })
-      ],
-      symbol: 'file'
-    })
-  }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
+
+        setFiles((prev) => prev.filter((currentFile) => currentFile.id !== file.id))
+
+        setTimeoutTimer(
+          'appendTxtAttachment',
+          () => {
+            const textArea = textareaRef.current?.resizableTextArea?.textArea
+            if (textArea) {
+              const end = textArea.value.length
+              textArea.focus()
+              textArea.setSelectionRange(end, end)
+            }
+
+            resizeTextArea(true)
+          },
+          0
+        )
+      } catch (error) {
+        logger.warn('Failed to append txt attachment content:', error as Error)
+        window.toast.error(t('chat.input.file_error'))
+      }
+    },
+    [resizeTextArea, setTimeoutTimer, t]
+  )
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 按下Tab键，自动选中${xxx}
@@ -404,41 +401,44 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     //other keys should be ignored
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
-      if (quickPanel.isVisible) return event.preventDefault()
-
+      // 1) 优先判断是否为“发送”（当前仅支持纯 Enter 发送；其余 Enter 组合键均换行）
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
         sendMessage()
         return event.preventDefault()
-      } else {
-        //shift+enter's default behavior is to add a new line, ignore it
-        if (!event.shiftKey) {
-          event.preventDefault()
+      }
 
-          const textArea = textareaRef.current?.resizableTextArea?.textArea
-          if (textArea) {
-            const start = textArea.selectionStart
-            const end = textArea.selectionEnd
-            const text = textArea.value
-            const newText = text.substring(0, start) + '\n' + text.substring(end)
+      // 2) 不再基于 quickPanel.isVisible 主动拦截。
+      //    纯 Enter 的处理权交由 QuickPanel 的全局捕获（其只在纯 Enter 时拦截），
+      //    其它带修饰键的 Enter 则由输入框处理为换行。
 
-            // update text by setState, not directly modify textarea.value
-            setText(newText)
+      if (event.shiftKey) {
+        return
+      }
 
-            // set cursor position in the next render cycle
-            setTimeoutTimer(
-              'handleKeyDown',
-              () => {
-                textArea.selectionStart = textArea.selectionEnd = start + 1
-                onInput() // trigger resizeTextArea
-              },
-              0
-            )
-          }
-        }
+      event.preventDefault()
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        const start = textArea.selectionStart
+        const end = textArea.selectionEnd
+        const text = textArea.value
+        const newText = text.substring(0, start) + '\n' + text.substring(end)
+
+        // update text by setState, not directly modify textarea.value
+        setText(newText)
+
+        // set cursor position in the next render cycle
+        setTimeoutTimer(
+          'handleKeyDown',
+          () => {
+            textArea.selectionStart = textArea.selectionEnd = start + 1
+            onInput() // trigger resizeTextArea
+          },
+          0
+        )
       }
     }
 
-    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
@@ -502,49 +502,93 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const newText = e.target.value
       setText(newText)
 
+      const prevText = prevTextRef.current
+      const isDeletion = newText.length < prevText.length
+
       const textArea = textareaRef.current?.resizableTextArea?.textArea
-      const cursorPosition = textArea?.selectionStart ?? 0
+      const cursorPosition = textArea?.selectionStart ?? newText.length
       const lastSymbol = newText[cursorPosition - 1]
+      const previousChar = newText[cursorPosition - 2]
+      const isCursorAtTextStart = cursorPosition <= 1
+      const hasValidTriggerBoundary = previousChar === ' ' || isCursorAtTextStart
+
+      const openRootPanelAt = (position: number) => {
+        const quickPanelMenu =
+          inputbarToolsRef.current?.getQuickPanelMenu({
+            text: newText,
+            translate
+          }) || []
+
+        quickPanel.open({
+          title: t('settings.quickPanel.title'),
+          list: quickPanelMenu,
+          symbol: QuickPanelReservedSymbol.Root,
+          triggerInfo: {
+            type: 'input',
+            position,
+            originalText: newText
+          }
+        })
+      }
+
+      const openMentionPanelAt = (position: number) => {
+        inputbarToolsRef.current?.openMentionModelsPanel({
+          type: 'input',
+          position,
+          originalText: newText
+        })
+      }
+
+      if (enableQuickPanelTriggers && !quickPanel.isVisible) {
+        const textBeforeCursor = newText.slice(0, cursorPosition)
+        const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
+        const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
+        const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
+
+        if (lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
+          const triggerChar = newText[lastTriggerIndex]
+          const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
+          const hasBoundary = lastTriggerIndex === 0 || /\s/.test(boundaryChar)
+          const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
+          const hasSearchContent = searchSegment.trim().length > 0
+
+          if (hasBoundary && (!hasSearchContent || isDeletion)) {
+            if (triggerChar === QuickPanelReservedSymbol.Root) {
+              openRootPanelAt(lastTriggerIndex)
+            } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
+              openMentionPanelAt(lastTriggerIndex)
+            }
+          }
+        }
+      }
 
       // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === '/') {
-        if (quickPanel.isVisible && quickPanel.symbol !== '/') {
+      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root && hasValidTriggerBoundary) {
+        if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           quickPanel.close('switch-symbol')
         }
-        if (!quickPanel.isVisible || quickPanel.symbol !== '/') {
-          const quickPanelMenu =
-            inputbarToolsRef.current?.getQuickPanelMenu({
-              t,
-              files,
-              couldAddImageFile,
-              text: newText,
-              openSelectFileMenu,
-              translate
-            }) || []
-
-          quickPanel.open({
-            title: t('settings.quickPanel.title'),
-            list: quickPanelMenu,
-            symbol: '/'
-          })
+        if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
+          openRootPanelAt(cursorPosition - 1)
         }
       }
 
       // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === '@') {
-        if (quickPanel.isVisible && quickPanel.symbol !== '@') {
+      if (
+        enableQuickPanelTriggers &&
+        lastSymbol === QuickPanelReservedSymbol.MentionModels &&
+        hasValidTriggerBoundary
+      ) {
+        if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
           quickPanel.close('switch-symbol')
         }
-        if (!quickPanel.isVisible || quickPanel.symbol !== '@') {
-          inputbarToolsRef.current?.openMentionModelsPanel({
-            type: 'input',
-            position: cursorPosition - 1,
-            originalText: newText
-          })
+        if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
+          openMentionPanelAt(cursorPosition - 1)
         }
       }
+
+      prevTextRef.current = newText
     },
-    [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
+    [enableQuickPanelTriggers, quickPanel, t, translate]
   )
 
   const onPaste = useCallback(
@@ -760,13 +804,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
-    updateAssistant({ ...assistant, knowledge_bases: bases })
-    setSelectedKnowledgeBases(bases ?? [])
+  const handleRemoveModel = (model: Model) => {
+    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
   }
 
-  const onEnableGenerateImage = () => {
-    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
+  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
+    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
+    updateAssistant({
+      ...assistant,
+      knowledge_bases: newKnowledgeBases
+    })
+    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
   }
 
   useEffect(() => {
@@ -787,24 +835,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
   }, [assistant, model, updateAssistant])
-
-  const onMentionModel = useCallback(
-    (model: Model) => {
-      // 我想应该没有模型是只支持视觉而不支持文本的？
-      if (isVisionModel(model) || couldMentionNotVisionModel) {
-        setMentionedModels((prev) => {
-          const modelId = getModelUniqId(model)
-          const exists = prev.some((m) => getModelUniqId(m) === modelId)
-          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
-        })
-      } else {
-        logger.error('Cannot add non-vision model when images are uploaded')
-      }
-    },
-    [couldMentionNotVisionModel]
-  )
-
-  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
 
   const onToggleExpanded = () => {
     const currentlyExpanded = expanded || !!textareaHeight
@@ -830,8 +860,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const isExpanded = expanded || !!textareaHeight
-  const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
-  const showMcpTools = isSupportedToolUse(assistant) || isPromptToolUse(assistant)
 
   if (isMultiSelectMode) {
     return null
@@ -850,16 +878,23 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
-          {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
+          {files.length > 0 && (
+            <AttachmentPreview files={files} setFiles={setFiles} onAttachmentContextMenu={appendTxtContentToInput} />
+          )}
+          {selectedKnowledgeBases.length > 0 && (
+            <KnowledgeBaseInput
+              selectedKnowledgeBases={selectedKnowledgeBases}
+              onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
+            />
+          )}
+          {mentionedModels.length > 0 && (
+            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
+          )}
           <Textarea
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={
-              isTranslating
-                ? t('chat.input.translating')
-                : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
-            }
+            placeholder={isTranslating ? t('chat.input.translating') : placeholderText}
             autoFocus
             variant="borderless"
             spellCheck={enableSpellCheck}
@@ -894,47 +929,38 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           <Toolbar>
             <InputbarTools
               ref={inputbarToolsRef}
-              assistant={assistant}
+              assistantId={assistant.id}
               model={model}
               files={files}
               extensions={supportedExts}
               setFiles={setFiles}
-              showThinkingButton={showThinkingButton}
-              showKnowledgeIcon={showKnowledgeIcon && showMcpTools}
-              showMcpTools={showMcpTools}
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              handleKnowledgeBaseSelect={handleKnowledgeBaseSelect}
               setText={setText}
               resizeTextArea={resizeTextArea}
-              mentionModels={mentionedModels}
-              onMentionModel={onMentionModel}
-              onClearMentionModels={onClearMentionModels}
-              couldMentionNotVisionModel={couldMentionNotVisionModel}
+              selectedKnowledgeBases={selectedKnowledgeBases}
+              setSelectedKnowledgeBases={setSelectedKnowledgeBases}
+              mentionedModels={mentionedModels}
+              setMentionedModels={setMentionedModels}
               couldAddImageFile={couldAddImageFile}
-              onEnableGenerateImage={onEnableGenerateImage}
               isExpanded={isExpanded}
               onToggleExpanded={onToggleExpanded}
               addNewTopic={addNewTopic}
               clearTopic={clearTopic}
               onNewContext={onNewContext}
-              newTopicShortcut={newTopicShortcut}
-              cleanTopicShortcut={cleanTopicShortcut}
             />
             <ToolbarMenu>
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
                 contextCount={contextCount}
-                ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
+                  <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
                     <CirclePause size={20} color="var(--color-error)" />
-                  </ToolbarButton>
+                  </ActionIconButton>
                 </Tooltip>
               )}
             </ToolbarMenu>
@@ -1047,47 +1073,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-export const ToolbarButton = styled(Button)`
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  color: var(--color-icon);
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  &.anticon,
-  &.iconfont {
-    transition: all 0.3s ease;
-    color: var(--color-icon);
-  }
-  .icon-a-addchat {
-    font-size: 18px;
-    margin-bottom: -2px;
-  }
-  &:hover {
-    background-color: var(--color-background-soft);
-    .anticon,
-    .iconfont {
-      color: var(--color-text-1);
-    }
-  }
-  &.active {
-    background-color: var(--color-primary) !important;
-    .anticon,
-    .iconfont,
-    .chevron-icon {
-      color: var(--color-white-soft);
-    }
-    &:hover {
-      background-color: var(--color-primary);
-    }
-  }
 `
 
 export default Inputbar

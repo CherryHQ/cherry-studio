@@ -1,6 +1,6 @@
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -25,7 +25,7 @@ interface MessageLineProps {
 
 const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   if (isLocalAi) return AppLogo
-  return modelId ? getModelLogo(modelId) : undefined
+  return modelId ? getModelLogoById(modelId) : undefined
 }
 
 const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {

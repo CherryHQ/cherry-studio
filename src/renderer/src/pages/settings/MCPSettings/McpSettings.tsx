@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
@@ -274,11 +275,11 @@ const McpSettings: React.FC = () => {
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
         longRunning: values.longRunning,
-        // Preserve existing advanced properties if not set in the form
-        provider: values.provider || server.provider,
-        providerUrl: values.providerUrl || server.providerUrl,
-        logoUrl: values.logoUrl || server.logoUrl,
-        tags: values.tags || server.tags
+        // Use nullish coalescing to allow empty strings (for deletion)
+        provider: values.provider ?? server.provider,
+        providerUrl: values.providerUrl ?? server.providerUrl,
+        logoUrl: values.logoUrl ?? server.logoUrl,
+        tags: values.tags ?? server.tags
       }
 
       // set stdio or sse server
@@ -424,7 +425,7 @@ const McpSettings: React.FC = () => {
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
-        content: formatMcpError(error),
+        content: formatMcpError(error as McpError),
         centered: true
       })
       updateMCPServer({ ...server, isActive: oldActiveState })

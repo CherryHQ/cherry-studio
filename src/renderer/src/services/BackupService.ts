@@ -89,6 +89,7 @@ export async function restore() {
       }
 
       await handleData(data)
+
       notificationService.send({
         id: uuid(),
         type: 'success',
@@ -141,7 +142,11 @@ export async function backupToWebdav({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
@@ -319,7 +324,11 @@ export async function backupToS3({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
@@ -842,6 +851,12 @@ export async function handleData(data: Record<string, any>) {
 
   if (data.version >= 2) {
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+
+    // remove notes_tree from indexedDB
+    if (data.indexedDB['notes_tree']) {
+      delete data.indexedDB['notes_tree']
+    }
+
     await restoreDatabase(data.indexedDB)
 
     if (data.version === 3) {

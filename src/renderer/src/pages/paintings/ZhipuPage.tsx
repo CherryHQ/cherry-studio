@@ -8,7 +8,6 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
@@ -24,6 +23,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -49,21 +49,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
-
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const zhipuProvider = providers.find((p) => p.id === 'zhipu')!
 
@@ -307,7 +292,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const createNewPainting = () => {
+  const handleAddPainting = () => {
     if (generating) return
     const newPainting = getNewPainting()
     const addedPainting = addPainting('zhipu_paintings', newPainting)
@@ -342,12 +327,12 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   return (
     <Container>
       <Navbar>
-        <NavbarCenter>
-          <Title>{t('title.paintings')}</Title>
-        </NavbarCenter>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
-          <NavbarRight>
-            <Button type="text" icon={<PlusOutlined />} onClick={createNewPainting} disabled={generating} />
+          <NavbarRight style={{ justifyContent: 'flex-end' }}>
+            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+              {t('paintings.button.new.image')}
+            </Button>
           </NavbarRight>
         )}
       </Navbar>
@@ -370,16 +355,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[0].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select
@@ -482,7 +458,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={createNewPainting}
+          onNewPainting={handleAddPainting}
         />
       </ContentContainer>
     </Container>
@@ -556,23 +532,11 @@ const ToolbarMenu = styled.div`
   gap: 8px;
 `
 
-const Title = styled.h1`
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-`
-
 const ProviderTitleContainer = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
-`
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 const ProviderLogo = styled(Avatar)`

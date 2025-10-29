@@ -24,7 +24,6 @@ import {
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeNoteItem,
-  MigrationModeEnum,
   ProcessingStatus
 } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
@@ -33,8 +32,8 @@ import { cloneDeep } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
-import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
+import { useAssistantPresets } from './useAssistantPresets'
 import { useTimer } from './useTimer'
 
 export const useKnowledge = (baseId: string) => {
@@ -68,7 +67,8 @@ export const useKnowledge = (baseId: string) => {
   // 添加笔记
   const addNote = async (content: string) => {
     await dispatch(addNoteThunk(baseId, content))
-    checkAllBases()
+    // 确保数据库写入完成后再触发队列检查
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 100)
   }
 
   // 添加URL
@@ -231,7 +231,7 @@ export const useKnowledge = (baseId: string) => {
   }
 
   // 迁移知识库（保留原知识库）
-  const migrateBase = async (newBase: KnowledgeBase, mode: MigrationModeEnum) => {
+  const migrateBase = async (newBase: KnowledgeBase) => {
     if (!base) return
 
     const timestamp = dayjs().format('YYMMDDHHmmss')
@@ -244,13 +244,8 @@ export const useKnowledge = (baseId: string) => {
       name: newName,
       created_at: Date.now(),
       updated_at: Date.now(),
-      items: [],
-      framework: mode === MigrationModeEnum.MigrationToLangChain ? 'langchain' : base.framework
+      items: []
     } satisfies KnowledgeBase
-
-    if (mode === MigrationModeEnum.MigrationToLangChain) {
-      await window.api.knowledgeBase.create(getKnowledgeBaseParams(migratedBase))
-    }
 
     dispatch(addBase(migratedBase))
 
@@ -352,7 +347,7 @@ export const useKnowledgeBases = () => {
   const dispatch = useDispatch()
   const bases = useSelector((state: RootState) => state.knowledge.bases)
   const { assistants, updateAssistants } = useAssistants()
-  const { agents, updateAgents } = useAgents()
+  const { presets, setAssistantPresets } = useAssistantPresets()
 
   const addKnowledgeBase = (base: KnowledgeBase) => {
     dispatch(addBase(base))
@@ -365,7 +360,7 @@ export const useKnowledgeBases = () => {
   const deleteKnowledgeBase = (baseId: string) => {
     const base = bases.find((b) => b.id === baseId)
     if (!base) return
-    dispatch(deleteBase({ baseId, baseParams: getKnowledgeBaseParams(base) }))
+    dispatch(deleteBase({ baseId }))
 
     // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {
@@ -379,7 +374,7 @@ export const useKnowledgeBases = () => {
     })
 
     // remove agent knowledge_base
-    const _agents = agents.map((agent) => {
+    const _presets = presets.map((agent) => {
       if (agent.knowledge_bases?.find((kb) => kb.id === baseId)) {
         return {
           ...agent,
@@ -390,7 +385,7 @@ export const useKnowledgeBases = () => {
     })
 
     updateAssistants(_assistants)
-    updateAgents(_agents)
+    setAssistantPresets(_presets)
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {

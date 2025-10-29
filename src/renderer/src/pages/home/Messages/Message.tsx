@@ -1,4 +1,6 @@
+import { cn } from '@heroui/react'
 import { loggerService } from '@logger'
+import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -225,20 +227,28 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </MessageContentContainer>
             {showMenubar && (
-              <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage} $messageStyle={messageStyle}>
-                <MessageMenubar
-                  message={message}
-                  assistant={assistant}
-                  model={model}
-                  index={index}
-                  topic={topic}
-                  isLastMessage={isLastMessage}
-                  isAssistantMessage={isAssistantMessage}
-                  isGrouped={isGrouped}
-                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                  setModel={setModel}
-                  onUpdateUseful={onUpdateUseful}
-                />
+              <MessageFooter className="MessageFooter">
+                <HorizontalScrollContainer
+                  classNames={{
+                    content: cn(
+                      'flex-1 items-center justify-between',
+                      isLastMessage && messageStyle === 'plain' ? 'flex-row-reverse' : 'flex-row'
+                    )
+                  }}>
+                  <MessageMenubar
+                    message={message}
+                    assistant={assistant}
+                    model={model}
+                    index={index}
+                    topic={topic}
+                    isLastMessage={isLastMessage}
+                    isAssistantMessage={isAssistantMessage}
+                    isGrouped={isGrouped}
+                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                    setModel={setModel}
+                    onUpdateUseful={onUpdateUseful}
+                  />
+                </HorizontalScrollContainer>
               </MessageFooter>
             )}
           </>
@@ -282,10 +292,8 @@ const MessageContentContainer = styled(Scrollbar)`
   overflow-y: auto;
 `
 
-const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plain' | 'bubble' }>`
+const MessageFooter = styled.div`
   display: flex;
-  flex-direction: ${({ $isLastMessage, $messageStyle }) =>
-    $isLastMessage && $messageStyle === 'plain' ? 'row-reverse' : 'row'};
   align-items: center;
   justify-content: space-between;
   gap: 10px;

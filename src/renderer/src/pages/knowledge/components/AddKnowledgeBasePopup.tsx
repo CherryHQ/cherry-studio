@@ -51,8 +51,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
       const _newBase: KnowledgeBase = {
         ...newBase,
         created_at: Date.now(),
-        updated_at: Date.now(),
-        framework: 'langchain'
+        updated_at: Date.now()
       }
 
       await window.api.knowledgeBase.create(getKnowledgeBaseParams(_newBase))

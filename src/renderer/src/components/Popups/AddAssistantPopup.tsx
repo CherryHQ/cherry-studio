@@ -1,11 +1,11 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useSystemAgents } from '@renderer/pages/agents'
+import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Agent, Assistant } from '@renderer/types'
+import { Assistant, AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Divider, Input, InputRef, Modal, Tag } from 'antd'
 import { take } from 'lodash'
@@ -25,30 +25,30 @@ interface Props {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { agents: userAgents } = useAgents()
+  const { presets: userPresets } = useAssistantPresets()
   const [searchText, setSearchText] = useState('')
   const { defaultAssistant } = useDefaultAssistant()
   const { assistants, addAssistant } = useAssistants()
   const inputRef = useRef<InputRef>(null)
-  const systemAgents = useSystemAgents()
+  const systemPresets = useSystemAssistantPresets()
   const loadingRef = useRef(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const { setTimeoutTimer } = useTimer()
 
-  const agents = useMemo(() => {
-    const allAgents = [...userAgents, ...systemAgents] as Agent[]
-    const list = [defaultAssistant, ...allAgents.filter((agent) => !assistants.map((a) => a.id).includes(agent.id))]
+  const presets = useMemo(() => {
+    const allPresets = [...userPresets, ...systemPresets] as AssistantPreset[]
+    const list = [defaultAssistant, ...allPresets.filter((preset) => !assistants.map((a) => a.id).includes(preset.id))]
     const filtered = searchText
       ? list.filter(
-          (agent) =>
-            agent.name.toLowerCase().includes(searchText.trim().toLocaleLowerCase()) ||
-            agent.description?.toLowerCase().includes(searchText.trim().toLocaleLowerCase())
+          (preset) =>
+            preset.name.toLowerCase().includes(searchText.trim().toLocaleLowerCase()) ||
+            preset.description?.toLowerCase().includes(searchText.trim().toLocaleLowerCase())
         )
       : list
 
     if (searchText.trim()) {
-      const newAgent: Agent = {
+      const newAgent: AssistantPreset = {
         id: 'new',
         name: searchText.trim(),
         prompt: '',
@@ -59,15 +59,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       return [newAgent, ...filtered]
     }
     return filtered
-  }, [assistants, defaultAssistant, searchText, systemAgents, userAgents])
+  }, [assistants, defaultAssistant, searchText, systemPresets, userPresets])
 
   // 重置选中索引当搜索或列表内容变更时
   useEffect(() => {
     setSelectedIndex(0)
-  }, [agents.length, searchText])
+  }, [presets.length, searchText])
 
   const onCreateAssistant = useCallback(
-    async (agent: Agent) => {
+    async (preset: AssistantPreset) => {
       if (loadingRef.current) {
         return
       }
@@ -75,11 +75,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       loadingRef.current = true
       let assistant: Assistant
 
-      if (agent.id === 'default') {
-        assistant = { ...agent, id: uuid() }
+      if (preset.id === 'default') {
+        assistant = { ...preset, id: uuid() }
         addAssistant(assistant)
       } else {
-        assistant = await createAssistantFromAgent(agent)
+        assistant = await createAssistantFromAgent(preset)
       }
 
       setTimeoutTimer('onCreateAssistant', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
@@ -93,28 +93,28 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (!open) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const displayedAgents = take(agents, 100)
+      const displayedPresets = take(presets, 100)
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault()
-          setSelectedIndex((prev) => (prev >= displayedAgents.length - 1 ? 0 : prev + 1))
+          setSelectedIndex((prev) => (prev >= displayedPresets.length - 1 ? 0 : prev + 1))
           break
         case 'ArrowUp':
           e.preventDefault()
-          setSelectedIndex((prev) => (prev <= 0 ? displayedAgents.length - 1 : prev - 1))
+          setSelectedIndex((prev) => (prev <= 0 ? displayedPresets.length - 1 : prev - 1))
           break
         case 'Enter':
         case 'NumpadEnter':
           // 如果焦点在输入框且有搜索内容，则默认选择第一项
           if (document.activeElement === inputRef.current?.input && searchText.trim()) {
             e.preventDefault()
-            onCreateAssistant(displayedAgents[selectedIndex])
+            onCreateAssistant(displayedPresets[selectedIndex])
           }
           // 否则选择当前选中项
-          else if (selectedIndex >= 0 && selectedIndex < displayedAgents.length) {
+          else if (selectedIndex >= 0 && selectedIndex < displayedPresets.length) {
             e.preventDefault()
-            onCreateAssistant(displayedAgents[selectedIndex])
+            onCreateAssistant(displayedPresets[selectedIndex])
           }
           break
       }
@@ -122,14 +122,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, selectedIndex, agents, searchText, onCreateAssistant])
+  }, [open, selectedIndex, presets, searchText, onCreateAssistant])
 
   // 确保选中项在可视区域
   useEffect(() => {
     if (containerRef.current) {
-      const agentItems = containerRef.current.querySelectorAll('.agent-item')
-      if (agentItems[selectedIndex]) {
-        agentItems[selectedIndex].scrollIntoView({
+      const presetItems = containerRef.current.querySelectorAll('.agent-item')
+      if (presetItems[selectedIndex]) {
+        presetItems[selectedIndex].scrollIntoView({
           behavior: 'smooth',
           block: 'nearest'
         })
@@ -193,19 +193,19 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
       <Container ref={containerRef}>
-        {take(agents, 100).map((agent, index) => (
+        {take(presets, 100).map((preset, index) => (
           <AgentItem
-            key={agent.id}
-            onClick={() => onCreateAssistant(agent)}
-            className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
+            key={preset.id}
+            onClick={() => onCreateAssistant(preset)}
+            className={`agent-item ${preset.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
             onMouseEnter={() => setSelectedIndex(index)}>
             <HStack alignItems="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
-              <EmojiIcon emoji={agent.emoji || ''} />
-              <span className="text-nowrap">{agent.name}</span>
+              <EmojiIcon emoji={preset.emoji || ''} />
+              <span className="text-nowrap">{preset.name}</span>
             </HStack>
-            {agent.id === 'default' && <Tag color="green">{t('agents.tag.system')}</Tag>}
-            {agent.type === 'agent' && <Tag color="orange">{t('agents.tag.agent')}</Tag>}
-            {agent.id === 'new' && <Tag color="green">{t('agents.tag.new')}</Tag>}
+            {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
+            {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
+            {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
           </AgentItem>
         ))}
       </Container>

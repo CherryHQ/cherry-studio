@@ -134,15 +134,22 @@ const TranslatePage: FC = () => {
   )
 
   // 控制复制行为
+  const copy = useCallback(
+    async (text: string) => {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+    },
+    [setCopied]
+  )
+
   const onCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(translatedContent)
-      setCopied(true)
+      await copy(translatedContent)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       window.toast.error(t('common.copy_failed'))
     }
-  }, [setCopied, t, translatedContent])
+  }, [copy, t, translatedContent])
 
   /**
    * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
@@ -183,7 +190,7 @@ const TranslatePage: FC = () => {
           setTimeoutTimer(
             'auto-copy',
             async () => {
-              await onCopy()
+              await copy(translated)
             },
             100
           )
@@ -200,7 +207,7 @@ const TranslatePage: FC = () => {
         window.toast.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [autoCopy, dispatch, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, copy, dispatch, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
@@ -846,7 +853,8 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
 `
 
 const AreaContainer = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   flex: 1;
   gap: 8px;
 `
@@ -917,6 +925,11 @@ const OutputContainer = styled.div`
   border-radius: 10px;
   padding: 10px 5px;
   height: calc(100vh - var(--navbar-height) - 70px);
+  overflow: hidden;
+
+  & > div > .markdown > pre {
+    background-color: var(--color-background-mute) !important;
+  }
 
   &:hover .copy-button {
     opacity: 1;

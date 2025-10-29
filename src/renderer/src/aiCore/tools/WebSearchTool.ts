@@ -3,7 +3,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 使用预提取关键词的网络搜索工具
@@ -21,16 +21,17 @@ export const webSearchToolWithPreExtractedKeywords = (
 
   return tool({
     name: 'builtin_web_search',
-    description: `Search the web and return citable sources using pre-analyzed search intent.
+    description: `Web search tool for finding current information, news, and real-time data from the internet.
 
-Pre-extracted search keywords: "${extractedKeywords.question.join(', ')}"${
-      extractedKeywords.links
+This tool has been configured with search parameters based on the conversation context:
+- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
+      extractedKeywords.links?.length
         ? `
-Relevant links: ${extractedKeywords.links.join(', ')}`
+- Relevant URLs: ${extractedKeywords.links.join(', ')}`
         : ''
     }
 
-Call this tool to execute the search. You can optionally provide additional context to refine the search.`,
+You can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`,
 
     inputSchema: z.object({
       additionalContext: z

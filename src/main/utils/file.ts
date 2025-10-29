@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import os from 'node:os'
@@ -264,11 +265,12 @@ export async function scanDir(dirPath: string, depth = 0, basePath?: string): Pr
 
     if (entry.isDirectory() && options.includeDirectories) {
       const stats = await fs.promises.stat(entryPath)
+      const externalDirPath = entryPath.replace(/\\/g, '/')
       const dirTreeNode: NotesTreeNode = {
-        id: uuidv4(),
+        id: createHash('sha1').update(externalDirPath).digest('hex'),
         name: entry.name,
         treePath: treePath,
-        externalPath: entryPath,
+        externalPath: externalDirPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
         type: 'folder',
@@ -299,11 +301,12 @@ export async function scanDir(dirPath: string, depth = 0, basePath?: string): Pr
         ? `/${dirRelativePath.replace(/\\/g, '/')}/${nameWithoutExt}`
         : `/${nameWithoutExt}`
 
+      const externalFilePath = entryPath.replace(/\\/g, '/')
       const fileTreeNode: NotesTreeNode = {
-        id: uuidv4(),
+        id: createHash('sha1').update(externalFilePath).digest('hex'),
         name: name,
         treePath: fileTreePath,
-        externalPath: entryPath,
+        externalPath: externalFilePath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
         type: 'file'
@@ -398,11 +401,15 @@ export function validateFileName(fileName: string, platform = process.platform):
  * @returns 合法的文件名
  */
 export function checkName(fileName: string): string {
-  const validation = validateFileName(fileName)
+  const baseName = path.basename(fileName)
+  const validation = validateFileName(baseName)
   if (!validation.valid) {
-    throw new Error(`Invalid file name: ${fileName}. ${validation.error}`)
+    // 自动清理非法字符，而不是抛出错误
+    const sanitized = sanitizeFilename(baseName)
+    logger.warn(`File name contains invalid characters, auto-sanitized: "${baseName}" -> "${sanitized}"`)
+    return sanitized
   }
-  return fileName
+  return baseName
 }
 
 /**
@@ -416,7 +423,7 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
 
   // 移除或替换非法字符
   let sanitized = fileName
-    // eslint-disable-next-line no-control-regex
+    // oxlint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement) // Windows 非法字符
     .replace(/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, replacement + '$2') // Windows 保留名
     .replace(/[\s.]+$/, '') // 移除末尾的空格和点

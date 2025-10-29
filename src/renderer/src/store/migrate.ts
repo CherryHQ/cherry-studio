@@ -20,6 +20,7 @@ import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import {
   Assistant,
   BuiltinOcrProvider,
@@ -51,14 +52,24 @@ const logger = loggerService.withContext('Migrate')
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
   if (state.minapps) {
-    state.minapps.enabled = state.minapps.enabled.map((app) => ({ ...app, logo: undefined }))
-    state.minapps.disabled = state.minapps.disabled.map((app) => ({ ...app, logo: undefined }))
-    state.minapps.pinned = state.minapps.pinned.map((app) => ({ ...app, logo: undefined }))
+    state.minapps.enabled = state.minapps.enabled.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
+    state.minapps.disabled = state.minapps.disabled.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
+    state.minapps.pinned = state.minapps.pinned.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
   }
 }
 
 function removeMiniAppFromState(state: RootState, id: string) {
   if (state.minapps) {
+    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
     state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
     state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
   }
@@ -85,6 +96,15 @@ function addProvider(state: RootState, id: string) {
   }
 }
 
+// Fix missing provider
+function fixMissingProvider(state: RootState) {
+  SYSTEM_PROVIDERS.forEach((p) => {
+    if (!state.llm.providers.find((provider) => provider.id === p.id)) {
+      state.llm.providers.push(p)
+    }
+  })
+}
+
 // add ocr provider
 function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
   if (!state.ocr.providers.find((p) => p.id === provider.id)) {
@@ -96,7 +116,10 @@ function updateProvider(state: RootState, id: string, provider: Partial<Provider
   if (state.llm.providers) {
     const index = state.llm.providers.findIndex((p) => p.id === id)
     if (index !== -1) {
-      state.llm.providers[index] = { ...state.llm.providers[index], ...provider }
+      state.llm.providers[index] = {
+        ...state.llm.providers[index],
+        ...provider
+      }
     }
   }
 }
@@ -175,6 +198,18 @@ function addShortcuts(state: RootState, ids: string[], afterId: string) {
     } else {
       // 如果找不到指定的快捷键，则添加到最后
       state.shortcuts.shortcuts.push(...newShortcuts)
+    }
+  }
+}
+
+// add preprocess provider
+function addPreprocessProviders(state: RootState, id: string) {
+  if (state.preprocess && state.preprocess.providers) {
+    if (!state.preprocess.providers.find((p) => p.id === id)) {
+      const provider = defaultPreprocessProviders.find((p) => p.id === id)
+      if (provider) {
+        state.preprocess.providers.push({ ...provider })
+      }
     }
   }
 }
@@ -544,7 +579,10 @@ const migrateConfig = {
           ...state.llm,
           providers: state.llm.providers.map((provider) => {
             if (provider.id === 'azure-openai') {
-              provider.models = provider.models.map((model) => ({ ...model, provider: 'azure-openai' }))
+              provider.models = provider.models.map((model) => ({
+                ...model,
+                provider: 'azure-openai'
+              }))
             }
             return provider
           })
@@ -566,6 +604,7 @@ const migrateConfig = {
     try {
       state.assistants.defaultAssistant.type = 'assistant'
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         agent.type = 'agent'
         // @ts-ignore eslint-disable-next-line
@@ -599,7 +638,10 @@ const migrateConfig = {
           runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)
             if (_topic) {
-              const messages = (_topic?.messages || []).map((message) => ({ ...message, assistantId: assistant.id }))
+              const messages = (_topic?.messages || []).map((message) => ({
+                ...message,
+                assistantId: assistant.id
+              }))
               db.topics.put({ ..._topic, messages }, topic.id)
             }
           })
@@ -1067,6 +1109,7 @@ const migrateConfig = {
         }
       })
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         const leadingEmoji = getLeadingEmoji(agent.name)
         if (leadingEmoji) {
@@ -1394,7 +1437,7 @@ const migrateConfig = {
       if (state.websearch?.providers) {
         state.websearch.providers = state.websearch.providers.map((provider) => {
           if (provider.id === 'exa' || provider.id === 'tavily') {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            // oxlint-disable-next-line @typescript-eslint/no-unused-vars
             const { basicAuthUsername, basicAuthPassword, ...rest } = provider
             return rest
           }
@@ -1715,7 +1758,10 @@ const migrateConfig = {
             cutoffLimit: state.websearch.contentLimit
           }
         } else {
-          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+          state.websearch.compressionConfig = {
+            method: 'none',
+            cutoffUnit: 'char'
+          }
         }
 
         // @ts-ignore eslint-disable-next-line
@@ -2282,7 +2328,8 @@ const migrateConfig = {
         // @ts-ignore upscale
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
-        openai_image_edit: state?.paintings?.openai_image_edit || []
+        openai_image_edit: state?.paintings?.openai_image_edit || [],
+        ovms_paintings: []
       }
 
       return state
@@ -2376,8 +2423,8 @@ const migrateConfig = {
   '147': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2398,8 +2445,8 @@ const migrateConfig = {
   '149': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2449,6 +2496,275 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 153 error', error as Error)
+      return state
+    }
+  },
+  '154': (state: RootState) => {
+    try {
+      if (state.settings.userTheme) {
+        state.settings.userTheme.userFontFamily = settingsInitialState.userTheme.userFontFamily
+        state.settings.userTheme.userCodeFontFamily = settingsInitialState.userTheme.userCodeFontFamily
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 154 error', error as Error)
+      return state
+    }
+  },
+  '155': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if ((base as any).framework) {
+          delete (base as any).framework
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 155 error', error as Error)
+      return state
+    }
+  },
+  '156': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.anthropic) {
+          if (provider.apiHost.endsWith('/')) {
+            provider.apiHost = provider.apiHost.slice(0, -1)
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 156 error', error as Error)
+      return state
+    }
+  },
+  '157': (state: RootState) => {
+    try {
+      addProvider(state, 'aionly')
+      state.llm.providers = moveProvider(state.llm.providers, 'aionly', 10)
+
+      const cherryinProvider = state.llm.providers.find((provider) => provider.id === 'cherryin')
+
+      if (cherryinProvider) {
+        updateProvider(state, 'cherryin', {
+          apiHost: 'https://open.cherryin.ai',
+          models: []
+        })
+      }
+
+      if (state.llm.defaultModel?.provider === 'cherryin') {
+        state.llm.defaultModel.provider = 'cherryai'
+      }
+
+      if (state.llm.quickModel?.provider === 'cherryin') {
+        state.llm.quickModel.provider = 'cherryai'
+      }
+
+      if (state.llm.translateModel?.provider === 'cherryin') {
+        state.llm.translateModel.provider = 'cherryai'
+      }
+
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.model?.provider === 'cherryin') {
+          assistant.model.provider = 'cherryai'
+        }
+        if (assistant.defaultModel?.provider === 'cherryin') {
+          assistant.defaultModel.provider = 'cherryai'
+        }
+      })
+
+      // @ts-ignore
+      state.agents.agents.forEach((agent) => {
+        // @ts-ignore model is not defined in Agent
+        if (agent.model?.provider === 'cherryin') {
+          // @ts-ignore model is not defined in Agent
+          agent.model.provider = 'cherryai'
+        }
+        if (agent.defaultModel?.provider === 'cherryin') {
+          agent.defaultModel.provider = 'cherryai'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 157 error', error as Error)
+      return state
+    }
+  },
+  '158': (state: RootState) => {
+    try {
+      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'cherryin')
+      addProvider(state, 'longcat')
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '159': (state: RootState) => {
+    try {
+      addProvider(state, 'ovms')
+      fixMissingProvider(state)
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '161': (state: RootState) => {
+    try {
+      removeMiniAppFromState(state, 'nm-search')
+      removeMiniAppFromState(state, 'hika')
+      removeMiniAppFromState(state, 'hugging-chat')
+      addProvider(state, 'cherryin')
+      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
+      return state
+    }
+  },
+  '162': (state: RootState) => {
+    try {
+      // @ts-ignore
+      if (state?.agents?.agents) {
+        // @ts-ignore
+        state.assistants.presets = [...state.agents.agents]
+        // @ts-ignore
+        delete state.agents.agents
+      }
+
+      if (state.settings.sidebarIcons) {
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+      }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.anthropicApiHost) {
+          return
+        }
+
+        switch (provider.id) {
+          case 'deepseek':
+            provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
+            break
+          case 'moonshot':
+            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
+            break
+          case 'zhipu':
+            provider.anthropicApiHost = 'https://open.bigmodel.cn/api/anthropic'
+            break
+          case 'dashscope':
+            provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+            break
+          case 'modelscope':
+            provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
+            break
+          case 'aihubmix':
+            provider.anthropicApiHost = 'https://aihubmix.com'
+            break
+          case 'new-api':
+            provider.anthropicApiHost = 'http://localhost:3000'
+            break
+          case 'grok':
+            provider.anthropicApiHost = 'https://api.x.ai'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 162 error', error as Error)
+      return state
+    }
+  },
+  '163': (state: RootState) => {
+    try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'cherryin') {
+          provider.anthropicApiHost = 'https://open.cherryin.net'
+        }
+      })
+      state.paintings.ovms_paintings = []
+      return state
+    } catch (error) {
+      logger.error('migrate 163 error', error as Error)
+      return state
+    }
+  },
+  '164': (state: RootState) => {
+    try {
+      addMiniApp(state, 'ling')
+      return state
+    } catch (error) {
+      logger.error('migrate 164 error', error as Error)
+      return state
+    }
+  },
+  '165': (state: RootState) => {
+    try {
+      addMiniApp(state, 'huggingchat')
+      return state
+    } catch (error) {
+      logger.error('migrate 165 error', error as Error)
+      return state
+    }
+  },
+  '166': (state: RootState) => {
+    try {
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+      state.assistants.presets.forEach((preset) => {
+        if (!preset.settings) {
+          preset.settings = DEFAULT_ASSISTANT_SETTINGS
+        } else if (!preset.settings.toolUseMode) {
+          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+        }
+      })
+      // 更新阿里云百炼的 Anthropic API 地址
+      const dashscopeProvider = state.llm.providers.find((provider) => provider.id === 'dashscope')
+      if (dashscopeProvider) {
+        dashscopeProvider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
+      }
+
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
+          provider.type = 'new-api'
+        }
+        if (provider.id === SystemProviderIds.longcat) {
+          // https://longcat.chat/platform/docs/zh/#anthropic-api-%E6%A0%BC%E5%BC%8F
+          if (!provider.anthropicApiHost) {
+            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 166 error', error as Error)
+      return state
+    }
+  },
+  '167': (state: RootState) => {
+    try {
+      addProvider(state, 'huggingface')
+      return state
+    } catch (error) {
+      logger.error('migrate 167 error', error as Error)
+      return state
+    }
+  },
+  '168': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'open-mineru')
+      return state
+    } catch (error) {
+      logger.error('migrate 168 error', error as Error)
       return state
     }
   }

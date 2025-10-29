@@ -1,0 +1,97 @@
+import { loggerService } from '@logger'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import store from '@renderer/store'
+import { AssistantPreset } from '@renderer/types'
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useSystemAgents')
+
+let _agents: AssistantPreset[] = []
+
+export const getAgentsFromSystemAgents = (systemAgents: any) => {
+  const agents: AssistantPreset[] = []
+  for (let i = 0; i < systemAgents.length; i++) {
+    for (let j = 0; j < systemAgents[i].group.length; j++) {
+      const agent = {
+        ...systemAgents[i],
+        group: systemAgents[i].group[j],
+        topics: [],
+        type: 'agent'
+      } as AssistantPreset
+      agents.push(agent)
+    }
+  }
+  return agents
+}
+
+export function useSystemAssistantPresets() {
+  const { defaultAgent: defaultPreset } = useSettings()
+  const [presets, setPresets] = useState<AssistantPreset[]>([])
+  const { resourcesPath } = useRuntime()
+  const { agentssubscribeUrl } = store.getState().settings
+  const { i18n } = useTranslation()
+  const currentLanguage = i18n.language
+
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        // 检查是否使用远程数据源
+        if (agentssubscribeUrl && agentssubscribeUrl.startsWith('http')) {
+          try {
+            await new Promise((resolve) => setTimeout(resolve, 500))
+            const response = await fetch(agentssubscribeUrl)
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`)
+            }
+            const agentsData = (await response.json()) as AssistantPreset[]
+            setPresets(agentsData)
+            return
+          } catch (error) {
+            logger.error('Failed to load remote agents:', error as Error)
+            // 远程加载失败，继续尝试加载本地数据
+          }
+        }
+
+        // 如果没有远程配置或获取失败，加载本地代理
+        if (resourcesPath) {
+          try {
+            const fileName = currentLanguage === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
+            const localAgentsData = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
+            _agents = JSON.parse(localAgentsData) as AssistantPreset[]
+          } catch (error) {
+            logger.error('Failed to load local agents:', error as Error)
+          }
+        }
+
+        setPresets(_agents)
+      } catch (error) {
+        logger.error('Failed to load agents:', error as Error)
+        // 发生错误时使用已加载的本地 agents
+        setPresets(_agents)
+      }
+    }
+
+    loadAgents()
+  }, [defaultPreset, resourcesPath, agentssubscribeUrl, currentLanguage])
+
+  return presets
+}
+
+export function groupByCategories(data: AssistantPreset[]) {
+  const groupedMap = new Map<string, AssistantPreset[]>()
+  data.forEach((item) => {
+    item.group?.forEach((category) => {
+      if (!groupedMap.has(category)) {
+        groupedMap.set(category, [])
+      }
+      groupedMap.get(category)?.push(item)
+    })
+  })
+  const result: Record<string, AssistantPreset[]> = {}
+  Array.from(groupedMap.entries()).forEach(([category, items]) => {
+    result[category] = items
+  })
+  return result
+}

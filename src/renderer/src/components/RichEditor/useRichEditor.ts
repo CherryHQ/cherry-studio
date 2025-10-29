@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css'
 
 import { TableKit } from '@cherrystudio/extension-table-plus'
 import { loggerService } from '@logger'
+import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import {
@@ -11,6 +12,7 @@ import {
   markdownToPreviewText
 } from '@renderer/utils/markdownConverter'
 import type { Editor } from '@tiptap/core'
+import { Extension } from '@tiptap/core'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
 import Mention from '@tiptap/extension-mention'
@@ -36,6 +38,31 @@ import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers
 
 const logger = loggerService.withContext('useRichEditor')
 
+// Create extension to preserve data-source-line attribute
+const SourceLineAttribute = Extension.create({
+  name: 'sourceLineAttribute',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'listItem', 'horizontalRule'],
+        attributes: {
+          dataSourceLine: {
+            default: null,
+            parseHTML: (element) => {
+              const value = element.getAttribute(MARKDOWN_SOURCE_LINE_ATTR)
+              return value
+            },
+            renderHTML: (attributes) => {
+              if (!attributes.dataSourceLine) return {}
+              return { [MARKDOWN_SOURCE_LINE_ATTR]: attributes.dataSourceLine }
+            }
+          }
+        }
+      }
+    ]
+  }
+})
+
 export interface UseRichEditorOptions {
   /** Initial markdown content */
   initialContent?: string
@@ -57,6 +84,8 @@ export interface UseRichEditorOptions {
   editable?: boolean
   /** Whether to enable table of contents functionality */
   enableTableOfContents?: boolean
+  /** Whether to enable spell check */
+  enableSpellCheck?: boolean
   /** Show table action menu (row/column) with concrete actions and position */
   onShowTableActionMenu?: (payload: {
     type: 'row' | 'column'
@@ -126,6 +155,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     previewLength = 50,
     placeholder = '',
     editable = true,
+    enableSpellCheck = false,
     onShowTableActionMenu,
     scrollParent
   } = options
@@ -193,6 +223,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   // TipTap editor extensions
   const extensions = useMemo(
     () => [
+      SourceLineAttribute,
       StarterKit.configure({
         heading: {
           levels: [1, 2, 3, 4, 5, 6]
@@ -410,7 +441,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         // Allow text selection even when not editable
         style: editable
           ? ''
-          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;'
+          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
+        // Set spellcheck attribute on the contenteditable element
+        spellcheck: enableSpellCheck ? 'true' : 'false'
       }
     },
     onUpdate: ({ editor }) => {

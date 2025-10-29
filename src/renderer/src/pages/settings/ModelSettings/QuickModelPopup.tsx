@@ -39,7 +39,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   TopicNamingModalPopup.hide = onCancel
 
-  const promptVarsContent = useMemo(() => <pre>{t('agents.add.prompt.variables.tip.content')}</pre>, [t])
+  const promptVarsContent = useMemo(() => <pre>{t('assistants.presets.add.prompt.variables.tip.content')}</pre>, [t])
 
   return (
     <Modal
@@ -64,7 +64,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <div>
           <Flex align="center" gap={4} style={{ marginBottom: 4, height: 30 }}>
             <div>{t('settings.models.topic_naming.prompt')}</div>
-            <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+            <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
             {topicNamingPrompt && <Button icon={<ResetIcon size={14} />} onClick={handleReset} type="text" />}

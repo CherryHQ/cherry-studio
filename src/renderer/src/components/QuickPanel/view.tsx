@@ -158,15 +158,22 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       const cursorPosition = textArea.selectionStart ?? 0
       const textBeforeCursor = textArea.value.slice(0, cursorPosition)
 
-      // 查找最后一个 @ 或 / 符号的位置
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-      const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
-      const lastSymbolIndex = Math.max(lastAtIndex, lastSlashIndex)
+      // 查找末尾最近的触发符号（@ 或 /），允许位于文本起始或空格后
+      const match = textBeforeCursor.match(/(^| )([@/][^\s]*)$/)
+      if (!match) return
 
-      if (lastSymbolIndex === -1) return
+      const matchIndex = match.index ?? -1
+      if (matchIndex === -1) return
+
+      const boundarySegment = match[1] ?? ''
+      const symbolSegment = match[2] ?? ''
+      if (!symbolSegment) return
+
+      const boundaryStart = matchIndex
+      const symbolStart = boundaryStart + boundarySegment.length
 
       // 根据 includeSymbol 决定是否删除符号
-      const deleteStart = includeSymbol ? lastSymbolIndex : lastSymbolIndex + 1
+      const deleteStart = includeSymbol ? boundaryStart : symbolStart + 1
       const deleteEnd = cursorPosition
 
       if (deleteStart >= deleteEnd) return
@@ -203,7 +210,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc', 'enter_empty'].includes(action)) {
+      } else if (action && !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action)) {
         clearSearchText(true)
       }
     },
@@ -222,11 +229,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         // 创建更新后的item对象用于回调
         const updatedItem = { ...item, isSelected: newSelectedState }
         const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
-          symbol: ctx.symbol,
+          context: ctx,
           action,
           item: updatedItem,
-          searchText: searchText,
-          multiple: ctx.multiple
+          searchText: searchText
         }
 
         ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -236,11 +242,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
 
       const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
-        symbol: ctx.symbol,
+        context: ctx,
         action,
         item,
-        searchText: searchText,
-        multiple: ctx.multiple
+        searchText: searchText
       }
 
       ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -343,11 +348,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     scrollTriggerRef.current = 'none'
   }, [index])
 
-  // 处理键盘事件（折叠时不拦截全局键盘）
+  // 处理键盘事件：
+  // - 可见且未折叠时：拦截 Enter 及其组合键（纯 Enter 选择项；带修饰键仅拦截不处理）。
+  // - 软隐藏/折叠时：不拦截 Enter，允许输入框处理（用于发送消息等）。
+  // - 不可见时：不拦截，输入框按常规处理。
   useEffect(() => {
-    const hasSearchTextFlag = searchText.replace(/^[/@]/, '').length > 0
-    const isCollapsed = hasSearchTextFlag && list.length === 0
-    if (!ctx.isVisible || isCollapsed) return
+    if (!ctx.isVisible) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isMac ? e.metaKey : e.ctrlKey) {
@@ -440,8 +446,29 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
-        case 'NumpadEnter':
+        case 'NumpadEnter': {
           if (isComposing.current) return
+
+          // 折叠/软隐藏时不拦截，让输入框处理（用于发送消息）
+          const hasSearch = searchText.replace(/^[/@]/, '').length > 0
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
+          const isCollapsed = hasSearch && nonPinnedCount === 0
+          if (isCollapsed) return
+
+          // 面板可见且未折叠时：拦截所有 Enter 变体；
+          // 纯 Enter 选择项，带修饰键仅拦截不处理
+          if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            // Don't prevent default or stop propagation - let it create a newline
+            setIsMouseOver(false)
+            break
+          }
+
+          if (e.ctrlKey || e.metaKey || e.altKey) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMouseOver(false)
+            break
+          }
 
           if (list?.[index]) {
             e.preventDefault()
@@ -453,6 +480,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             handleClose('enter_empty')
           }
           break
+        }
         case 'Escape':
           e.stopPropagation()
           handleClose('esc')
@@ -517,6 +545,18 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = hasSearchText && visibleNonPinnedCount === 0
+
+  useEffect(() => {
+    if (!ctx.isVisible) return
+    if (!collapsed) return
+    if (ctx.triggerInfo?.type !== 'input') return
+    if (ctx.multiple) return
+
+    const trimmedSearch = searchText.replace(/^[/@]/, '').trim()
+    if (!trimmedSearch) return
+
+    handleClose('no_result')
+  }, [collapsed, ctx.isVisible, ctx.triggerInfo, ctx.multiple, handleClose, searchText])
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 

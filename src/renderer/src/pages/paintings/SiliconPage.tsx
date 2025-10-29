@@ -18,7 +18,6 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getProviderLabel } from '@renderer/i18n/label'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
@@ -39,6 +38,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -47,6 +47,12 @@ export const TEXT_TO_IMAGES_MODELS = [
     provider: 'silicon',
     name: 'Kolors',
     group: 'Kwai-Kolors'
+  },
+  {
+    id: 'Qwen/Qwen-Image',
+    provider: 'silicon',
+    name: 'Qwen-Image',
+    group: 'qwen'
   }
 ]
 
@@ -108,22 +114,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<Painting>(siliconflow_paintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
-  const siliconflowProvider = providers.find((p) => p.id === 'silicon')
+  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -163,7 +155,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
-    await checkProviderEnabled(siliconflowProvider!, t)
+    await checkProviderEnabled(siliconFlowProvider!, t)
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
@@ -382,8 +374,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <Select value={providerOptions[2].value} onChange={handleProviderChange} options={providerOptions} />
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
+          <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
+          <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
           <Radio.Group

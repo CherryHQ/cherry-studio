@@ -14,11 +14,7 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
   items: [],
   created_at: Date.now(),
   updated_at: Date.now(),
-  version: 1,
-  framework: 'langchain',
-  retriever: {
-    mode: 'hybrid'
-  }
+  version: 1
 })
 
 /**
@@ -61,7 +57,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       label: t('settings.tool.preprocess.provider'),
       title: t('settings.tool.preprocess.provider'),
       options: preprocessProviders
-        .filter((p) => p.apiKey !== '' || p.id === 'mineru')
+        .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru'].includes(p.id))
         .map((p) => ({ value: p.id, label: p.name }))
     }
     return [preprocessOptions]

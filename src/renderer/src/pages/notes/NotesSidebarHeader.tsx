@@ -69,15 +69,15 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
       <HeaderActions>
         {!isShowStarred && !isShowSearch && (
           <>
-            <Tooltip title={t('notes.new_folder')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onCreateFolder}>
-                <FolderPlus size={18} />
-              </ActionButton>
-            </Tooltip>
-
             <Tooltip title={t('notes.new_note')} mouseEnterDelay={0.8}>
               <ActionButton onClick={onCreateNote}>
                 <FilePlus2 size={18} />
+              </ActionButton>
+            </Tooltip>
+
+            <Tooltip title={t('notes.new_folder')} mouseEnterDelay={0.8}>
+              <ActionButton onClick={onCreateFolder}>
+                <FolderPlus size={18} />
               </ActionButton>
             </Tooltip>
 
@@ -87,7 +87,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 onClick: handleSortMenuClick
               }}
               trigger={['click']}>
-              <Tooltip title={t('agents.sorting.title')} mouseEnterDelay={0.8}>
+              <Tooltip title={t('assistants.presets.sorting.title')} mouseEnterDelay={0.8}>
                 <ActionButton>
                   <ArrowUpNarrowWide size={18} />
                 </ActionButton>

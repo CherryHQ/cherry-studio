@@ -33,6 +33,8 @@ export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type UserTheme = {
   colorPrimary: string
+  userFontFamily: string
+  userCodeFontFamily: string
 }
 
 export interface SettingsState {
@@ -156,6 +158,7 @@ export interface SettingsState {
   joplinUrl: string | null
   joplinExportReasoning: boolean
   defaultObsidianVault: string | null
+  /** This state is actaully default assistant preset */
   defaultAgent: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
@@ -242,7 +245,9 @@ export const initialState: SettingsState = {
   tray: true,
   theme: ThemeMode.system,
   userTheme: {
-    colorPrimary: '#00b96b'
+    colorPrimary: '#00b96b',
+    userFontFamily: '',
+    userCodeFontFamily: ''
   },
   windowStyle: isMac ? 'transparent' : 'opaque',
   fontSize: 14,

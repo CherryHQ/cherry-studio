@@ -9,6 +9,7 @@ electronLanguages:
   - zh_CN # for macOS
   - zh_TW # for macOS
   - en # for macOS
+  - de
 directories:
   buildResources: build
 
@@ -17,52 +18,58 @@ protocols:
     schemes:
       - cherrystudio
 files:
-  - '**/*'
-  - '!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
-  - '!electron.vite.config.{js,ts,mjs,cjs}}'
-  - '!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}'
-  - '!**/{.editorconfig,.jekyll-metadata}'
-  - '!src'
-  - '!scripts'
-  - '!local'
-  - '!docs'
-  - '!packages'
-  - '!.swc'
-  - '!.bin'
-  - '!._*'
-  - '!*.log'
-  - '!stats.html'
-  - '!*.md'
-  - '!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}'
-  - '!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}'
-  - '!**/{test,tests,__tests__,powered-test,coverage}/**'
-  - '!**/{example,examples}/**'
-  - '!**/*.{spec,test}.{js,jsx,ts,tsx}'
-  - '!**/*.min.*.map'
-  - '!**/*.d.ts'
-  - '!**/dist/es6/**'
-  - '!**/dist/demo/**'
-  - '!**/amd/**'
-  - '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}'
-  - '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}'
-  - '!node_modules/rollup-plugin-visualizer'
-  - '!node_modules/js-tiktoken'
-  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
-  - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
-  - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
-  - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
-  - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
-  - '!node_modules/selection-hook/src' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}' # we don't need source files
-  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
+  - "**/*"
+  - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
+  - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+  - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
+  - "!**/{.editorconfig,.jekyll-metadata}"
+  - "!src"
+  - "!scripts"
+  - "!local"
+  - "!docs"
+  - "!packages"
+  - "!.swc"
+  - "!.bin"
+  - "!._*"
+  - "!*.log"
+  - "!stats.html"
+  - "!*.md"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}"
+  - "!**/{test,tests,__tests__,powered-test,coverage}/**"
+  - "!**/{example,examples}/**"
+  - "!**/*.{spec,test}.{js,jsx,ts,tsx}"
+  - "!**/*.min.*.map"
+  - "!**/*.d.ts"
+  - "!**/dist/es6/**"
+  - "!**/dist/demo/**"
+  - "!**/amd/**"
+  - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
+  - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
+  - "!node_modules/rollup-plugin-visualizer"
+  - "!node_modules/js-tiktoken"
+  - "!node_modules/@tavily/core/node_modules/js-tiktoken"
+  - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
+  - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
+  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
+  - "!node_modules/selection-hook/src" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
 asarUnpack:
   - resources/**
-  - '**/*.{metal,exp,lib}'
-  - 'node_modules/@img/sharp-libvips-*/**'
+  - "**/*.{metal,exp,lib}"
+  - "node_modules/@img/sharp-libvips-*/**"
+
+# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
+extraResources:
+  - from: "./node_modules/claude-code-plugins/plugins/"
+    to: "claude-code-plugins"
+
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -88,7 +95,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: '20.1.0' # 最低支持 macOS 11.0
+  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -113,7 +120,7 @@ linux:
 rpm:
   # Workaround for electron build issue on rpm package:
   # https://github.com/electron/forge/issues/3594
-  fpm: ['--rpm-rpmbuild-define=_build_id_links none']
+  fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
@@ -125,25 +132,61 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ✨ 新功能：
-    - 重构知识库模块，提升文档处理能力和搜索性能
-    - 新增 PaddleOCR 支持，增强文档识别能力
-    - 支持自定义窗口控制按钮样式
-    - 新增 AI SDK 包，扩展 AI 能力集成
-    - 支持标签页拖拽重排序功能
-    - 增强笔记编辑器的同步和日志功能
+    <!--LANG:en-->
+    What's New in v1.7.0-beta.2
 
-    🔧 性能优化：
-    - 优化 MCP 服务的日志记录和错误处理
-    - 改进 WebView 服务的 User-Agent 处理
-    - 优化迷你应用的标题栏样式和状态栏适配
-    - 重构依赖管理，清理和优化 package.json
+    New Features:
+    - Session Settings: Manage session-specific settings and model configurations independently
+    - Notes Full-Text Search: Search across all notes with match highlighting
+    - Built-in DiDi MCP Server: Integration with DiDi ride-hailing services (China only)
+    - Intel OV OCR: Hardware-accelerated OCR using Intel NPU
+    - Auto-start API Server: Automatically starts when agents exist
 
-    🐛 问题修复：
-    - 修复输入栏无限状态更新循环问题
-    - 修复窗口控制提示框的鼠标悬停延迟
-    - 修复翻译输入框粘贴多内容源的处理
-    - 修复导航服务初始化时序问题
-    - 修复 MCP 通过 JSON 添加时的参数转换
-    - 修复模型作用域服务器同步时的 URL 格式
-    - 标准化工具提示图标样式
+    Improvements:
+    - Agent model selection now requires explicit user choice
+    - Added Mistral AI provider support
+    - Added NewAPI generic provider support
+    - Improved navbar layout consistency across different modes
+    - Enhanced chat component responsiveness
+    - Better code block display on small screens
+    - Updated OVMS to 2025.3 official release
+    - Added Greek language support
+
+    Bug Fixes:
+    - Fixed GitHub Copilot gpt-5-codex streaming issues
+    - Fixed assistant creation failures
+    - Fixed translate auto-copy functionality
+    - Fixed miniapps external link opening
+    - Fixed message layout and overflow issues
+    - Fixed API key parsing to preserve spaces
+    - Fixed agent display in different navbar layouts
+
+    <!--LANG:zh-CN-->
+    v1.7.0-beta.2 新特性
+
+    新功能:
+    - 会话设置：独立管理会话特定的设置和模型配置
+    - 笔记全文搜索：跨所有笔记搜索并高亮匹配内容
+    - 内置滴滴 MCP 服务器：集成滴滴打车服务(仅限中国地区)
+    - Intel OV OCR：使用 Intel NPU 的硬件加速 OCR
+    - 自动启动 API 服务器：当存在 Agent 时自动启动
+
+    改进:
+    - Agent 模型选择现在需要用户显式选择
+    - 添加 Mistral AI 提供商支持
+    - 添加 NewAPI 通用提供商支持
+    - 改进不同模式下的导航栏布局一致性
+    - 增强聊天组件响应式设计
+    - 优化小屏幕代码块显示
+    - 更新 OVMS 至 2025.3 正式版
+    - 添加希腊语支持
+
+    问题修复:
+    - 修复 GitHub Copilot gpt-5-codex 流式传输问题
+    - 修复助手创建失败
+    - 修复翻译自动复制功能
+    - 修复小程序外部链接打开
+    - 修复消息布局和溢出问题
+    - 修复 API 密钥解析以保留空格
+    - 修复不同导航栏布局中的 Agent 显示
+    <!--LANG:END-->
