@@ -38,7 +38,9 @@ class WebSocketService {
       // VPN 隧道接口（低优先级）
       /^utun[0-9]+$/, // macOS VPN
       /^tun[0-9]+$/, // Linux/Unix VPN
-      /^tap[0-9]+$/ // TAP interfaces
+      /^tap[0-9]+$/, // TAP interfaces
+      /^tailscale[0-9]*$/, // Tailscale VPN
+      /^wg[0-9]+$/ // WireGuard VPN
     ]
 
     const candidates: Array<{ interface: string; address: string; priority: number }> = []
