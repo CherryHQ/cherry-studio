@@ -96,19 +96,7 @@ class WebSocketService {
         pingInterval: 25000
       })
 
-      logger.info('WebSocket server configuration:', {
-        port: this.port,
-        transports: ['websocket', 'polling'],
-        cors: { origin: '*', methods: ['GET', 'POST'] }
-      })
-
       this.io.on('connection', (socket: Socket) => {
-        const remoteAddr = socket.handshake.address
-        logger.info(`✅ [Socket.IO] Client handshake completed!`)
-        logger.info(`   Socket ID: ${socket.id}`)
-        logger.info(`   Transport: ${socket.conn.transport.name}`)
-        logger.info(`   Remote address: ${remoteAddr}`)
-
         this.connectedClients.add(socket.id)
 
         const mainWindow = windowService.getMainWindow()
