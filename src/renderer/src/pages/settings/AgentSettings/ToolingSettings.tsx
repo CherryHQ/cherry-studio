@@ -36,6 +36,13 @@ type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
 const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
 
+/**
+ * Computes the list of tool IDs that should be automatically approved for a given permission mode.
+ *
+ * @param mode - The permission mode to compute defaults for.
+ * @param tools - The full list of available tools.
+ * @returns An array of tool IDs that are approved by default for the specified mode.
+ */
 const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
   const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
   switch (mode) {
