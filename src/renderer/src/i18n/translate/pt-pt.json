@@ -107,6 +107,50 @@
         "title": "Configurações avançadas"
       },
       "essential": "Configurações Essenciais",
+      "plugins": {
+        "available": {
+          "title": "Plugins disponíveis"
+        },
+        "confirm": {
+          "uninstall": "Tem certeza de que deseja desinstalar este plugin?"
+        },
+        "empty": {
+          "available": "Nenhum plugin correspondente encontrado. Tente ajustar a pesquisa ou os filtros de categoria."
+        },
+        "error": {
+          "install": "Falha na instalação do plugin",
+          "load": "Falha ao carregar o plugin",
+          "uninstall": "Falha ao desinstalar o plug-in"
+        },
+        "filter": {
+          "all": "Todas as categorias"
+        },
+        "install": "Instalação",
+        "installed": {
+          "empty": "Nenhum plugin foi instalado ainda. Explore os plugins disponíveis para começar.",
+          "title": "Plugin instalado"
+        },
+        "installing": "Instalando...",
+        "results": "Encontrados {{count}} plugins",
+        "search": {
+          "placeholder": "Pesquisar extensão..."
+        },
+        "success": {
+          "install": "Plugin instalado com sucesso",
+          "uninstall": "插件 desinstalado com sucesso"
+        },
+        "tab": "plug-in",
+        "type": {
+          "agent": "agente",
+          "agents": "agente",
+          "all": "tudo",
+          "command": "comando",
+          "commands": "comando",
+          "skills": "habilidade"
+        },
+        "uninstall": "desinstalar",
+        "uninstalling": "Desinstalando..."
+      },
       "prompt": "Configurações de Prompt",
       "tooling": {
         "mcp": {
@@ -190,6 +234,39 @@
         "title": "Ferramentas pré-aprovadas",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Permitir solicitação de ferramenta",
+        "denyRequest": "Negar solicitação de ferramenta",
+        "hideDetails": "Ocultar detalhes da ferramenta",
+        "runWithOptions": "Executar com opções adicionais",
+        "showDetails": "Mostrar detalhes da ferramenta"
+      },
+      "button": {
+        "cancel": "Cancelar",
+        "run": "Correr"
+      },
+      "confirmation": "Tem certeza de que quer executar esta ferramenta Claude?",
+      "defaultDenyMessage": "Usuário negou permissão para esta ferramenta.",
+      "defaultDescription": "Executa código ou ações do sistema no seu ambiente. Certifique-se de que o comando parece seguro antes de executá-lo.",
+      "error": {
+        "sendFailed": "Falha ao enviar sua decisão. Por favor, tente novamente."
+      },
+      "expired": "Expirado",
+      "inputPreview": "Pré-visualização da entrada da ferramenta",
+      "pending": "Pendente ({{seconds}}s)",
+      "permissionExpired": "Solicitação de permissão expirou. Aguardando novas instruções...",
+      "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Aprovar pode atualizar várias permissões de sessão se você escolheu sempre permitir esta ferramenta.",
+        "permissionUpdateSingle": "Aprovar pode atualizar as permissões da sua sessão se você escolheu sempre permitir esta ferramenta."
+      },
+      "toast": {
+        "denied": "Solicitação de ferramenta foi negada.",
+        "timeout": "A solicitação da ferramenta expirou antes de receber aprovação."
+      },
+      "waiting": "Aguardando decisão de permissão da ferramenta..."
     },
     "type": {
       "label": "Tipo de Agente",
@@ -2299,6 +2376,32 @@
       "seed_tip": "Controla a aleatoriedade do resultado de ampliação"
     }
   },
+  "plugins": {
+    "actions": "Operação",
+    "agents": "agente",
+    "all_categories": "Todas as categorias",
+    "all_types": "Tudo",
+    "category": "categoria",
+    "commands": "comando",
+    "confirm_uninstall": "Tem certeza de que deseja desinstalar {{name}}?",
+    "install": "Instalação",
+    "install_plugins_from_browser": "Navegue pelos plugins disponíveis para começar a usar",
+    "installing": "Instalando...",
+    "name": "Nome",
+    "no_description": "Sem descrição",
+    "no_installed_plugins": "Nenhum plugin foi instalado ainda",
+    "no_results": "Plugin não encontrado",
+    "search_placeholder": "Pesquisar plugin...",
+    "showing_results": "Exibir {{count}} extensões",
+    "showing_results_one": "Mostrar {{count}} extensões",
+    "showing_results_other": "Exibir {{count}} extensões",
+    "showing_results_plural": "Exibir {{count}} extensões",
+    "skills": "habilidade",
+    "try_different_search": "Por favor, tente ajustar a pesquisa ou os filtros de categoria.",
+    "type": "tipo",
+    "uninstall": "Desinstalar",
+    "uninstalling": "Desinstalando..."
+  },
   "preview": {
     "copy": {
       "image": "Copiar como imagem"
@@ -2345,12 +2448,14 @@
     "gpustack": "GPUStack",
     "grok": "Compreender",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hún Yuán",
     "hyperbolic": "Hiperbólico",
     "infini": "Infinito",
     "jina": "Jina",
     "lanyun": "Lanyun Tecnologia",
     "lmstudio": "Estúdio LM",
+    "longcat": "Totoro",
     "minimax": "Minimax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MôDá",
@@ -4043,7 +4148,6 @@
       },
       "anthropic_api_host": "Endereço da API Anthropic",
       "anthropic_api_host_preview": "Pré-visualização Anthropic: {{url}}",
-      "anthropic_api_host_tip": "Preencher apenas se o fornecedor oferecer um endereço compatível com Anthropic. Terminar com / ignora o v1 adicionado automaticamente, terminar com # força o uso do endereço original.",
       "anthropic_api_host_tooltip": "Preencher apenas quando o fornecedor fornece um endereço base compatível com Claude.",
       "api": {
         "key": {
@@ -4088,10 +4192,11 @@
         "url": {
           "preview": "Pré-visualização: {{url}}",
           "reset": "Redefinir",
-          "tip": "Ignorar v1 na versão finalizada com /, usar endereço de entrada forçado se terminar com #"
+          "tip": "e forçar o uso do endereço original quando terminar com '#'"
         }
       },
       "api_host": "Endereço API",
+      "api_host_no_valid": "O endereço da API é inválido",
       "api_host_preview": "Pré-visualização: {{url}}",
       "api_host_tooltip": "Substituir apenas quando o fornecedor necessita de um endereço compatível com OpenAI personalizado.",
       "api_key": {

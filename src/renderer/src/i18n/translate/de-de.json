@@ -107,6 +107,50 @@
         "title": "Erweiterte Einstellungen"
       },
       "essential": "Grundeinstellungen",
+      "plugins": {
+        "available": {
+          "title": "Verfügbare Plugins"
+        },
+        "confirm": {
+          "uninstall": "Sind Sie sicher, dass Sie dieses Plugin deinstallieren möchten?"
+        },
+        "empty": {
+          "available": "Keine Plugins gefunden, die deinen Filtern entsprechen. Versuche, deine Such- oder Kategoriefilter anzupassen."
+        },
+        "error": {
+          "install": "Fehler beim Installieren des Plugins",
+          "load": "Fehler beim Laden der Plugins",
+          "uninstall": "Fehler beim Deinstallieren des Plugins"
+        },
+        "filter": {
+          "all": "Alle Kategorien"
+        },
+        "install": "Installieren",
+        "installed": {
+          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
+          "title": "Installierte Plugins"
+        },
+        "installing": "Wird installiert...",
+        "results": "{{count}} Plugin(s) gefunden",
+        "search": {
+          "placeholder": "Such-Plugins..."
+        },
+        "success": {
+          "install": "Plugin erfolgreich installiert",
+          "uninstall": "Plugin erfolgreich deinstalliert"
+        },
+        "tab": "Plugins",
+        "type": {
+          "agent": "Agent",
+          "agents": "Agenten",
+          "all": "Alle",
+          "command": "Befehl",
+          "commands": "Befehle",
+          "skills": "Fähigkeiten"
+        },
+        "uninstall": "Deinstallieren",
+        "uninstalling": "Deinstallation läuft..."
+      },
       "prompt": "Prompt-Einstellungen",
       "tooling": {
         "mcp": {
@@ -190,6 +234,39 @@
         "title": "Vorab autorisierte Tools",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Werkzeuganfrage zulassen",
+        "denyRequest": "Werkzeuganfrage ablehnen",
+        "hideDetails": "Werkzeugdetails ausblenden",
+        "runWithOptions": "Mit zusätzlichen Optionen ausführen",
+        "showDetails": "Zeige Werkzeugdetails"
+      },
+      "button": {
+        "cancel": "Abbrechen",
+        "run": "Laufen"
+      },
+      "confirmation": "Bist du sicher, dass du dieses Claude-Tool ausführen möchtest?",
+      "defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
+      "defaultDescription": "Führt Code oder Systemaktionen in Ihrer Umgebung aus. Vergewissern Sie sich, dass der Befehl sicher aussieht, bevor Sie ihn ausführen.",
+      "error": {
+        "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
+      },
+      "expired": "Abgelaufen",
+      "inputPreview": "Vorschau der Werkzeugeingabe",
+      "pending": "Ausstehend ({{seconds}}s)",
+      "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
+      "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Das Genehmigen kann mehrere Sitzungsberechtigungen aktualisieren, wenn Sie sich entschieden haben, dieses Tool immer zuzulassen.",
+        "permissionUpdateSingle": "Das Genehmigen kann Ihre Sitzungsberechtigungen aktualisieren, wenn Sie sich entschieden haben, dieses Tool immer zuzulassen."
+      },
+      "toast": {
+        "denied": "Tool-Anfrage wurde abgelehnt.",
+        "timeout": "Tool-Anfrage ist abgelaufen, bevor eine Genehmigung eingegangen ist."
+      },
+      "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "type": {
       "label": "Agent-Typ",
@@ -2299,6 +2376,32 @@
       "seed_tip": "Kontrolle der Zufälligkeit des Upscale-Ergebnisses"
     }
   },
+  "plugins": {
+    "actions": "Aktionen",
+    "agents": "Agenten",
+    "all_categories": "Alle Kategorien",
+    "all_types": "Alle",
+    "category": "Kategorie",
+    "commands": "Befehle",
+    "confirm_uninstall": "Sind Sie sicher, dass Sie {{name}} deinstallieren möchten?",
+    "install": "Installieren",
+    "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
+    "installing": "Installiere…",
+    "name": "Name",
+    "no_description": "Keine Beschreibung verfügbar",
+    "no_installed_plugins": "Noch keine Plugins installiert",
+    "no_results": "Keine Plugins gefunden",
+    "search_placeholder": "Such-Plugins...",
+    "showing_results": "{{count}} Plugin anzeigen",
+    "showing_results_one": "{{count}} Plugin anzeigen",
+    "showing_results_other": "Zeige {{count}} Plugins",
+    "showing_results_plural": "{{count}} Plugins anzeigen",
+    "skills": "Fähigkeiten",
+    "try_different_search": "Versuchen Sie, Ihre Suche oder die Kategoriefilter anzupassen.",
+    "type": "Typ",
+    "uninstall": "Deinstallieren",
+    "uninstalling": "Deinstallation läuft..."
+  },
   "preview": {
     "copy": {
       "image": "Als Bild kopieren"
@@ -2345,12 +2448,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
     "hyperbolic": "Hyperbolic",
     "infini": "Infini-AI",
     "jina": "Jina",
     "lanyun": "Lanyun Technologie",
     "lmstudio": "LM Studio",
+    "longcat": "Meißner Riesenhamster",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -4043,7 +4148,6 @@
       },
       "anthropic_api_host": "Anthropic API-Adresse",
       "anthropic_api_host_preview": "Anthropic-Vorschau: {{url}}",
-      "anthropic_api_host_tip": "Nur bei Anbietern, die ein Anthropic-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "anthropic_api_host_tooltip": "Nur bei Anbietern, die ein Claude-kompatibles Basis-Endpunkt anbieten.",
       "api": {
         "key": {
@@ -4088,10 +4192,11 @@
         "url": {
           "preview": "Vorschau: {{url}}",
           "reset": "Zurücksetzen",
-          "tip": "/ am Ende ignorieren v1-Version, # am Ende erzwingt die Verwendung der Eingabe-Adresse"
+          "tip": "# am Ende erzwingt die Verwendung der Eingabe-Adresse"
         }
       },
       "api_host": "API-Adresse",
+      "api_host_no_valid": "API-Adresse ist ungültig",
       "api_host_preview": "Vorschau: {{url}}",
       "api_host_tooltip": "Nur bei Anbietern, die ein OpenAI-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "api_key": {

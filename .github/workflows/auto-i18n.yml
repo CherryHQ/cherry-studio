@@ -4,6 +4,7 @@ env:
   TRANSLATION_API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
   TRANSLATION_MODEL: ${{ vars.AUTO_I18N_MODEL || 'deepseek/deepseek-v3.1'}}
   TRANSLATION_BASE_URL: ${{ vars.AUTO_I18N_BASE_URL || 'https://api.ppinfra.com/openai'}}
+  TRANSLATION_BASE_LOCALE: ${{ vars.AUTO_I18N_BASE_LOCALE || 'en-us'}}
 
 on:
   pull_request:
@@ -29,6 +30,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20
+          package-manager-cache: false
 
       - name: 📦 Install dependencies in isolated directory
         run: |

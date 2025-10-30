@@ -22,6 +22,7 @@ export * from './knowledge'
 export * from './mcp'
 export * from './notification'
 export * from './ocr'
+export * from './plugin'
 export * from './provider'
 
 export type Assistant = {
@@ -40,7 +41,7 @@ export type Assistant = {
   /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
   webSearchProviderId?: WebSearchProvider['id']
-  // enableUrlContext 是 Gemini 的特有功能
+  // enableUrlContext 是 Gemini/Anthropic 的特有功能
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
