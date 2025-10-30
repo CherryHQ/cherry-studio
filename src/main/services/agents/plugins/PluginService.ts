@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { parsePluginMetadata, parseSkillMetadata } from '@main/utils/markdownParser'
 import type {
-  AgentEntity,
+  GetAgentResponse,
   InstalledPlugin,
   InstallPluginOptions,
   ListAvailablePluginsResult,
@@ -60,7 +60,7 @@ export class PluginService {
       getClaudePluginDirectory: this.getClaudePluginDirectory.bind(this),
       getPluginsBasePath: this.getPluginsBasePath.bind(this)
     })
-    this.installer = new PluginInstaller(this.agentService.updateAgent.bind(this.agentService))
+    this.installer = new PluginInstaller()
 
     logger.info('PluginService initialized', {
       maxFileSize: this.config.maxFileSize,
@@ -138,7 +138,7 @@ export class PluginService {
   }
 
   private async prepareInstallContext(options: InstallPluginOptions): Promise<{
-    agent: AgentEntity
+    agent: GetAgentResponse
     workdir: string
     sourceAbsolutePath: string
   }> {
@@ -155,7 +155,7 @@ export class PluginService {
   private async installSkillPlugin(
     options: InstallPluginOptions,
     context: {
-      agent: AgentEntity
+      agent: GetAgentResponse
       workdir: string
       sourceAbsolutePath: string
     }
@@ -172,18 +172,24 @@ export class PluginService {
 
     metadata.filename = sanitizedFolderName
 
-    await this.installer.installSkill(agent, sourceAbsolutePath, destPath, metadata)
+    await this.installer.installSkill(agent.id, sourceAbsolutePath, destPath)
 
     const installedAt = Date.now()
-    await this.cacheStore.upsert(workdir, {
+    const metadataWithInstall: PluginMetadata = {
+      ...metadata,
+      filename: sanitizedFolderName,
+      installedAt,
+      updatedAt: metadata.updatedAt ?? installedAt,
+      type: 'skill'
+    }
+    const installedPlugin: InstalledPlugin = {
       filename: sanitizedFolderName,
       type: 'skill',
-      metadata: {
-        ...metadata,
-        filename: sanitizedFolderName,
-        installedAt
-      }
-    })
+      metadata: metadataWithInstall
+    }
+
+    await this.cacheStore.upsert(workdir, installedPlugin)
+    this.upsertAgentPlugin(agent, installedPlugin)
 
     logger.info('Skill installed successfully', {
       agentId: options.agentId,
@@ -191,17 +197,13 @@ export class PluginService {
       folderName: sanitizedFolderName
     })
 
-    return {
-      ...metadata,
-      filename: sanitizedFolderName,
-      installedAt
-    }
+    return metadataWithInstall
   }
 
   private async installFilePlugin(
     options: InstallPluginOptions,
     context: {
-      agent: AgentEntity
+      agent: GetAgentResponse
       workdir: string
       sourceAbsolutePath: string
     }
@@ -228,18 +230,24 @@ export class PluginService {
     await this.ensureClaudeDirectory(workdir, filePluginType)
     const destPath = this.getClaudePluginPath(workdir, filePluginType, sanitizedFilename)
 
-    await this.installer.installFilePlugin(agent, sourceAbsolutePath, destPath, metadata)
+    await this.installer.installFilePlugin(agent.id, sourceAbsolutePath, destPath)
 
     const installedAt = Date.now()
-    await this.cacheStore.upsert(workdir, {
+    const metadataWithInstall: PluginMetadata = {
+      ...metadata,
+      filename: sanitizedFilename,
+      installedAt,
+      updatedAt: metadata.updatedAt ?? installedAt,
+      type: filePluginType
+    }
+    const installedPlugin: InstalledPlugin = {
       filename: sanitizedFilename,
       type: filePluginType,
-      metadata: {
-        ...metadata,
-        filename: sanitizedFilename,
-        installedAt
-      }
-    })
+      metadata: metadataWithInstall
+    }
+
+    await this.cacheStore.upsert(workdir, installedPlugin)
+    this.upsertAgentPlugin(agent, installedPlugin)
 
     logger.info('Plugin installed successfully', {
       agentId: options.agentId,
@@ -247,10 +255,7 @@ export class PluginService {
       type: filePluginType
     })
 
-    return {
-      ...metadata,
-      installedAt
-    }
+    return metadataWithInstall
   }
 
   /**
@@ -268,8 +273,9 @@ export class PluginService {
       const sanitizedFolderName = this.sanitizeFolderName(options.filename)
       const skillPath = this.getClaudePluginPath(workdir, 'skill', sanitizedFolderName)
 
-      await this.installer.uninstallSkill(agent, sanitizedFolderName, skillPath)
+      await this.installer.uninstallSkill(agent.id, sanitizedFolderName, skillPath)
       await this.cacheStore.remove(workdir, sanitizedFolderName, 'skill')
+      this.removeAgentPlugin(agent, sanitizedFolderName, 'skill')
 
       logger.info('Skill uninstalled successfully', {
         agentId: options.agentId,
@@ -282,8 +288,9 @@ export class PluginService {
     const sanitizedFilename = this.sanitizeFilename(options.filename)
     const filePath = this.getClaudePluginPath(workdir, options.type, sanitizedFilename)
 
-    await this.installer.uninstallFilePlugin(agent, sanitizedFilename, options.type, filePath)
+    await this.installer.uninstallFilePlugin(agent.id, sanitizedFilename, options.type, filePath)
     await this.cacheStore.remove(workdir, sanitizedFilename, options.type)
+    this.removeAgentPlugin(agent, sanitizedFilename, options.type)
 
     logger.info('Plugin uninstalled successfully', {
       agentId: options.agentId,
@@ -370,7 +377,11 @@ export class PluginService {
     await this.validateWorkdir(agent, workdir)
 
     // Check if plugin is installed
-    const installedPlugins = agent.configuration?.installed_plugins || []
+    let installedPlugins = agent.installed_plugins ?? []
+    if (installedPlugins.length === 0) {
+      installedPlugins = await this.cacheStore.listInstalled(workdir)
+      agent.installed_plugins = installedPlugins
+    }
     const installedPlugin = installedPlugins.find((p) => p.filename === filename && p.type === type)
 
     if (!installedPlugin) {
@@ -390,13 +401,24 @@ export class PluginService {
 
     const filePluginType = type as 'agent' | 'command'
     const filePath = this.getClaudePluginPath(workdir, filePluginType, filename)
-    const newContentHash = await this.installer.updateFilePluginContent(
-      agent,
-      filePluginType,
+    const newContentHash = await this.installer.updateFilePluginContent(agent.id, filePath, content)
+
+    const updatedMetadata: PluginMetadata = {
+      ...installedPlugin.metadata,
+      contentHash: newContentHash,
+      size: Buffer.byteLength(content, 'utf8'),
+      updatedAt: Date.now(),
       filename,
-      filePath,
-      content
-    )
+      type: filePluginType
+    }
+    const updatedPlugin: InstalledPlugin = {
+      filename,
+      type: filePluginType,
+      metadata: updatedMetadata
+    }
+
+    await this.cacheStore.upsert(workdir, updatedPlugin)
+    this.upsertAgentPlugin(agent, updatedPlugin)
 
     logger.info('Plugin content updated successfully', {
       agentId,
@@ -458,7 +480,7 @@ export class PluginService {
   /**
    * Validate source path to prevent path traversal attacks
    */
-  private async getAgentOrThrow(agentId: string): Promise<AgentEntity> {
+  private async getAgentOrThrow(agentId: string): Promise<GetAgentResponse> {
     const agent = await this.agentService.getAgent(agentId)
     if (!agent) {
       throw {
@@ -471,7 +493,7 @@ export class PluginService {
     return agent
   }
 
-  private getWorkdirOrThrow(agent: AgentEntity, agentId: string): string {
+  private getWorkdirOrThrow(agent: GetAgentResponse, agentId: string): string {
     const workdir = agent.accessible_paths?.[0]
     if (!workdir) {
       throw {
@@ -487,7 +509,7 @@ export class PluginService {
   /**
    * Validate workdir against agent's accessible paths
    */
-  private async validateWorkdir(agent: AgentEntity, workdir: string): Promise<void> {
+  private async validateWorkdir(agent: GetAgentResponse, workdir: string): Promise<void> {
     // Verify workdir is in agent's accessible_paths
     if (!agent.accessible_paths?.includes(workdir)) {
       throw {
@@ -508,6 +530,20 @@ export class PluginService {
         message: 'Workdir does not exist or is not accessible'
       } as PluginError
     }
+  }
+
+  private upsertAgentPlugin(agent: GetAgentResponse, plugin: InstalledPlugin): void {
+    const existing = agent.installed_plugins ?? []
+    const filtered = existing.filter((p) => !(p.filename === plugin.filename && p.type === plugin.type))
+    agent.installed_plugins = [...filtered, plugin]
+  }
+
+  private removeAgentPlugin(agent: GetAgentResponse, filename: string, type: PluginType): void {
+    if (!agent.installed_plugins) {
+      agent.installed_plugins = []
+      return
+    }
+    agent.installed_plugins = agent.installed_plugins.filter((p) => !(p.filename === filename && p.type === type))
   }
 
   /**

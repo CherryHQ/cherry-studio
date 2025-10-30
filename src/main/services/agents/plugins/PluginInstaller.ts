@@ -1,47 +1,23 @@
 import { loggerService } from '@logger'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
-import type {
-  AgentConfiguration,
-  AgentEntity,
-  PluginError,
-  PluginMetadata,
-  PluginType,
-  UpdateAgentRequest
-} from '@types'
+import type { PluginError } from '@types'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-
-type AgentUpdater = (agentId: string, updates: UpdateAgentRequest) => Promise<AgentEntity | null>
-
-type AgentInstalledPluginRecord = NonNullable<AgentConfiguration['installed_plugins']>[number]
 
 const logger = loggerService.withContext('PluginInstaller')
 
 export class PluginInstaller {
-  constructor(private readonly updateAgent: AgentUpdater) {}
-
-  async installFilePlugin(
-    agent: AgentEntity,
-    sourceAbsolutePath: string,
-    destPath: string,
-    metadata: PluginMetadata
-  ): Promise<void> {
+  async installFilePlugin(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
     const tempPath = `${destPath}.tmp`
     let fileCopied = false
 
     try {
       await fs.promises.copyFile(sourceAbsolutePath, tempPath)
       fileCopied = true
-      logger.debug('File copied to temp location', { tempPath })
+      logger.debug('File copied to temp location', { agentId, tempPath })
 
-      const updatedPlugins = this.buildUpdatedPlugins(agent, (existing) => [
-        ...existing.filter((p) => !(p.filename === metadata.filename && p.type === metadata.type)),
-        this.createPluginRecord(metadata)
-      ])
-
-      await this.persistInstalledPlugins(agent, updatedPlugins)
       await fs.promises.rename(tempPath, destPath)
-      logger.debug('File moved to final location', { destPath })
+      logger.debug('File moved to final location', { agentId, destPath })
     } catch (error) {
       if (fileCopied) {
         await this.safeUnlink(tempPath, 'temp file')
@@ -51,46 +27,24 @@ export class PluginInstaller {
   }
 
   async uninstallFilePlugin(
-    agent: AgentEntity,
+    agentId: string,
     filename: string,
     type: 'agent' | 'command',
     filePath: string
   ): Promise<void> {
-    const originalPlugins = agent.configuration?.installed_plugins || []
-    const updatedPlugins = originalPlugins.filter((p) => !(p.filename === filename && p.type === type))
-
-    let dbUpdated = false
-
     try {
-      await this.persistInstalledPlugins(agent, updatedPlugins)
-      dbUpdated = true
-      logger.debug('Agent configuration updated', { agentId: agent.id })
-
-      try {
-        await fs.promises.unlink(filePath)
-        logger.debug('Plugin file deleted', { filePath })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code !== 'ENOENT') {
-          throw error
-        }
-        logger.warn('Plugin file already deleted', { filePath })
-      }
+      await fs.promises.unlink(filePath)
+      logger.debug('Plugin file deleted', { agentId, filename, type, filePath })
     } catch (error) {
-      if (dbUpdated) {
-        await this.rollbackInstalledPlugins(agent, originalPlugins)
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code !== 'ENOENT') {
+        throw this.toPluginError('uninstall', error)
       }
-      throw this.toPluginError('uninstall', error)
+      logger.warn('Plugin file already deleted', { agentId, filename, type, filePath })
     }
   }
 
-  async updateFilePluginContent(
-    agent: AgentEntity,
-    type: 'agent' | 'command',
-    filename: string,
-    filePath: string,
-    content: string
-  ): Promise<string> {
+  async updateFilePluginContent(agentId: string, filePath: string, content: string): Promise<string> {
     try {
       await fs.promises.access(filePath, fs.constants.W_OK)
     } catch {
@@ -103,8 +57,9 @@ export class PluginInstaller {
     try {
       await fs.promises.writeFile(filePath, content, 'utf8')
       logger.debug('Plugin content written successfully', {
+        agentId,
         filePath,
-        size: content.length
+        size: Buffer.byteLength(content, 'utf8')
       })
     } catch (error) {
       throw {
@@ -114,38 +69,10 @@ export class PluginInstaller {
       } as PluginError
     }
 
-    const newContentHash = crypto.createHash('sha256').update(content).digest('hex')
-    const updatedPlugins = this.buildUpdatedPlugins(agent, (existing) =>
-      existing.map((p) =>
-        p.filename === filename && p.type === type
-          ? {
-              ...p,
-              contentHash: newContentHash,
-              updatedAt: Date.now()
-            }
-          : p
-      )
-    )
-
-    try {
-      await this.persistInstalledPlugins(agent, updatedPlugins)
-    } catch (error) {
-      throw {
-        type: 'WRITE_FAILED',
-        path: filePath,
-        reason: error instanceof Error ? error.message : String(error)
-      } as PluginError
-    }
-
-    return newContentHash
+    return crypto.createHash('sha256').update(content).digest('hex')
   }
 
-  async installSkill(
-    agent: AgentEntity,
-    sourceAbsolutePath: string,
-    destPath: string,
-    metadata: PluginMetadata
-  ): Promise<void> {
+  async installSkill(agentId: string, sourceAbsolutePath: string, destPath: string): Promise<void> {
     const logContext = logger.withContext('installSkill')
     let folderCopied = false
     const tempPath = `${destPath}.tmp`
@@ -154,23 +81,17 @@ export class PluginInstaller {
       try {
         await fs.promises.access(destPath)
         await deleteDirectoryRecursive(destPath)
-        logContext.info('Removed existing skill folder', { destPath })
+        logContext.info('Removed existing skill folder', { agentId, destPath })
       } catch {
         // No existing folder
       }
 
       await copyDirectoryRecursive(sourceAbsolutePath, tempPath)
       folderCopied = true
-      logContext.info('Skill folder copied to temp location', { tempPath })
+      logContext.info('Skill folder copied to temp location', { agentId, tempPath })
 
-      const updatedPlugins = this.buildUpdatedPlugins(agent, (existing) => [
-        ...existing.filter((p) => !(p.filename === metadata.filename && p.type === 'skill')),
-        this.createPluginRecord(metadata)
-      ])
-
-      await this.persistInstalledPlugins(agent, updatedPlugins)
       await fs.promises.rename(tempPath, destPath)
-      logContext.info('Skill folder moved to final location', { destPath })
+      logContext.info('Skill folder moved to final location', { agentId, destPath })
     } catch (error) {
       if (folderCopied) {
         await this.safeRemoveDirectory(tempPath, 'temp folder')
@@ -179,90 +100,18 @@ export class PluginInstaller {
     }
   }
 
-  async uninstallSkill(agent: AgentEntity, folderName: string, skillPath: string): Promise<void> {
+  async uninstallSkill(agentId: string, folderName: string, skillPath: string): Promise<void> {
     const logContext = logger.withContext('uninstallSkill')
-    const originalPlugins = agent.configuration?.installed_plugins || []
-    const updatedPlugins = originalPlugins.filter((p) => !(p.filename === folderName && p.type === 'skill'))
-
-    let dbUpdated = false
 
     try {
-      await this.persistInstalledPlugins(agent, updatedPlugins)
-      dbUpdated = true
-      logContext.info('Agent configuration updated', { agentId: agent.id })
-
-      try {
-        await deleteDirectoryRecursive(skillPath)
-        logContext.info('Skill folder deleted', { skillPath })
-      } catch (error) {
-        const nodeError = error as NodeJS.ErrnoException
-        if (nodeError.code !== 'ENOENT') {
-          throw error
-        }
-        logContext.warn('Skill folder already deleted', { skillPath })
-      }
+      await deleteDirectoryRecursive(skillPath)
+      logContext.info('Skill folder deleted', { agentId, folderName, skillPath })
     } catch (error) {
-      if (dbUpdated) {
-        await this.rollbackInstalledPlugins(agent, originalPlugins)
+      const nodeError = error as NodeJS.ErrnoException
+      if (nodeError.code !== 'ENOENT') {
+        throw this.toPluginError('uninstall-skill', error)
       }
-      throw this.toPluginError('uninstall-skill', error)
-    }
-  }
-
-  private buildUpdatedPlugins(
-    agent: AgentEntity,
-    mutate: (plugins: AgentInstalledPluginRecord[]) => AgentInstalledPluginRecord[]
-  ): AgentInstalledPluginRecord[] {
-    const existing = [...(agent.configuration?.installed_plugins || [])]
-    const next = mutate(existing)
-    return next
-  }
-
-  private createPluginRecord(metadata: PluginMetadata): AgentInstalledPluginRecord {
-    return {
-      sourcePath: metadata.sourcePath,
-      filename: metadata.filename,
-      type: metadata.type as PluginType,
-      name: metadata.name,
-      description: metadata.description,
-      allowed_tools: metadata.allowed_tools,
-      tools: metadata.tools,
-      category: metadata.category,
-      tags: metadata.tags,
-      version: metadata.version,
-      author: metadata.author,
-      contentHash: metadata.contentHash,
-      installedAt: Date.now()
-    }
-  }
-
-  private async persistInstalledPlugins(
-    agent: AgentEntity,
-    installedPlugins: AgentInstalledPluginRecord[]
-  ): Promise<void> {
-    const configuration: AgentConfiguration = {
-      permission_mode: 'default',
-      max_turns: 100,
-      ...agent.configuration,
-      installed_plugins: installedPlugins
-    }
-
-    await this.updateAgent(agent.id, { configuration })
-    agent.configuration = configuration
-  }
-
-  private async rollbackInstalledPlugins(
-    agent: AgentEntity,
-    originalPlugins: AgentInstalledPluginRecord[]
-  ): Promise<void> {
-    try {
-      await this.persistInstalledPlugins(agent, originalPlugins)
-      logger.debug('Rolled back agent configuration', { agentId: agent.id })
-    } catch (rollbackError) {
-      logger.error('Failed to rollback agent configuration', {
-        agentId: agent.id,
-        error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
-      })
+      logContext.warn('Skill folder already deleted', { agentId, folderName, skillPath })
     }
   }
 
