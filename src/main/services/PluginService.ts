@@ -535,37 +535,6 @@ export class PluginService {
   }
 
   /**
-   * Update cache file with a function
-   * Reads current cache, applies updater, writes atomically
-   * @internal - Will be used by install/uninstall operations in next phase
-   */
-  // @ts-expect-error - Will be used in next implementation phase
-  private async updateCache(
-    workdir: string,
-    updater: (plugins: InstalledPlugin[]) => InstalledPlugin[]
-  ): Promise<void> {
-    logger.debug('Updating cache file', { workdir })
-
-    // Get current plugins (from cache or rebuild)
-    const currentPlugins = await this.listInstalledFromCache(workdir)
-
-    // Apply updater function
-    const updatedPlugins = updater(currentPlugins)
-
-    const claudePath = path.join(workdir, '.claude')
-
-    // Write updated cache
-    const cacheData: CachedPluginsData = {
-      version: 1,
-      lastUpdated: Date.now(),
-      plugins: updatedPlugins
-    }
-
-    await this.writeCacheFile(claudePath, cacheData)
-    logger.info(`Updated cache with ${updatedPlugins.length} plugins`, { workdir })
-  }
-
-  /**
    * Read plugin content from source (resources directory)
    */
   async readContent(sourcePath: string): Promise<string> {
