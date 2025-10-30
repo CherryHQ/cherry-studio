@@ -2,6 +2,7 @@ import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
 import { ApiClient } from '@types'
+import { net } from 'electron'
 
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 
@@ -43,7 +44,7 @@ export default class EmbeddingsFactory {
       apiKey,
       dimensions,
       batchSize,
-      configuration: { baseURL }
+      configuration: { baseURL, fetch: net.fetch as typeof fetch }
     })
   }
 }

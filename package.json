@@ -147,6 +147,8 @@
     "@heroui/react": "^2.8.3",
     "@kangfenmao/keyv-storage": "^0.1.0",
     "@langchain/community": "^0.3.50",
+    "@langchain/core": "patch:@langchain/core@npm%3A1.0.2#~/.yarn/patches/@langchain-core-npm-1.0.2-183ef83fe4.patch",
+    "@langchain/openai": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
     "@mistralai/mistralai": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.17.5",
     "@mozilla/readability": "^0.6.0",
@@ -372,9 +374,7 @@
     "@codemirror/language": "6.11.3",
     "@codemirror/lint": "6.8.5",
     "@codemirror/view": "6.38.1",
-    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch",
-    "@langchain/openai@npm:^0.3.16": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
-    "@langchain/openai@npm:>=0.1.0 <0.4.0": "patch:@langchain/openai@npm%3A0.3.16#~/.yarn/patches/@langchain-openai-npm-0.3.16-e525b59526.patch",
+    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A1.0.2#~/.yarn/patches/@langchain-core-npm-1.0.2-183ef83fe4.patch",
     "app-builder-lib@npm:26.0.13": "patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch",
     "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch",
     "atomically@npm:^1.7.0": "patch:atomically@npm%3A1.7.0#~/.yarn/patches/atomically-npm-1.7.0-e742e5293b.patch",
@@ -398,7 +398,10 @@
     "@img/sharp-linux-arm64": "0.34.3",
     "@img/sharp-linux-x64": "0.34.3",
     "@img/sharp-win32-x64": "0.34.3",
-    "openai@npm:5.12.2": "npm:@cherrystudio/openai@6.5.0"
+    "openai@npm:5.12.2": "npm:@cherrystudio/openai@6.5.0",
+    "@langchain/openai@npm:>=0.1.0 <0.6.0": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
+    "@langchain/openai@npm:^0.3.16": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
+    "@langchain/openai@npm:>=0.2.0 <0.7.0": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
