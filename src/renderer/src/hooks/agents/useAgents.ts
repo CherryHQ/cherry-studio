@@ -26,7 +26,7 @@ export const useAgents = () => {
   const key = client.agentPaths.base
   const { apiServerConfig, apiServerRunning } = useApiServer()
 
-  // Create a more dynamic SWR key that includes server running status
+  // Disable SWR fetching when server is not running by setting key to null
   const swrKey = apiServerRunning ? key : null
 
   const fetcher = useCallback(async () => {
