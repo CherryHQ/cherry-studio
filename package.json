@@ -146,7 +146,6 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@heroui/react": "^2.8.3",
     "@kangfenmao/keyv-storage": "^0.1.0",
-    "@langchain/community": "^0.3.50",
     "@langchain/core": "patch:@langchain/core@npm%3A1.0.2#~/.yarn/patches/@langchain-core-npm-1.0.2-183ef83fe4.patch",
     "@langchain/openai": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
     "@mistralai/mistralai": "^1.7.5",
