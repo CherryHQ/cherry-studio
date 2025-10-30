@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { getDataPath } from '@main/utils'
 import {
   AgentBaseSchema,
@@ -100,8 +101,7 @@ export class AgentService extends BaseService {
     const workdir = agent.accessible_paths?.[0]
     if (workdir) {
       try {
-        const { PluginService } = await import('@main/services/PluginService')
-        agent.installed_plugins = await PluginService.getInstance().listInstalledFromCache(workdir)
+        agent.installed_plugins = await pluginService.listInstalledFromCache(workdir)
       } catch (error) {
         // Log error but don't fail the request
         logger.warn(`Failed to load installed plugins for agent ${id}`, {
