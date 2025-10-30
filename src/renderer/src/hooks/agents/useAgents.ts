@@ -25,6 +25,10 @@ export const useAgents = () => {
   const client = useAgentClient()
   const key = client.agentPaths.base
   const { apiServerConfig, apiServerRunning } = useApiServer()
+
+  // Create a more dynamic SWR key that includes server running status
+  const swrKey = apiServerRunning ? key : null
+
   const fetcher = useCallback(async () => {
     // API server will start on startup if enabled OR there are agents
     if (!apiServerConfig.enabled && !apiServerRunning) {
@@ -37,7 +41,7 @@ export const useAgents = () => {
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
-  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
+  const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const dispatch = useAppDispatch()
