@@ -300,10 +300,14 @@ function handleUserMessage(
     return chunks
   }
 
+  let isIncludeSkill
   for (const block of content) {
     if (block.type === 'tool_result') {
       const toolResult = block as ToolResultContent
       const pendingCall = state.consumePendingToolCall(toolResult.tool_use_id)
+      if (pendingCall?.toolName === 'Skill') {
+        isIncludeSkill = true
+      }
       if (toolResult.is_error) {
         chunks.push({
           type: 'tool-error',
@@ -323,7 +327,7 @@ function handleUserMessage(
           providerExecuted: true
         })
       }
-    } else if (block.type === 'text') {
+    } else if (block.type === 'text' && !isIncludeSkill) {
       const id = message.uuid?.toString() || generateMessageId()
       chunks.push({
         type: 'text-start',

@@ -17,6 +17,7 @@ import { MultiEditTool } from './MultiEditTool'
 import { NotebookEditTool } from './NotebookEditTool'
 import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
+import { SkillTool } from './SkillTool'
 import { TaskTool } from './TaskTool'
 import { TodoWriteTool } from './TodoWriteTool'
 import { AgentToolsType, ToolInput, ToolOutput } from './types'
@@ -24,6 +25,7 @@ import { UnknownToolRenderer } from './UnknownToolRenderer'
 import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
 import { WriteTool } from './WriteTool'
+
 const logger = loggerService.withContext('MessageAgentTools')
 
 // 创建工具渲染器映射，这样就实现了完全的类型安全
@@ -42,7 +44,8 @@ export const toolRenderers = {
   [AgentToolsType.MultiEdit]: MultiEditTool,
   [AgentToolsType.BashOutput]: BashOutputTool,
   [AgentToolsType.NotebookEdit]: NotebookEditTool,
-  [AgentToolsType.ExitPlanMode]: ExitPlanModeTool
+  [AgentToolsType.ExitPlanMode]: ExitPlanModeTool,
+  [AgentToolsType.Skill]: SkillTool
 } as const
 
 // 类型守卫函数
