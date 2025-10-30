@@ -177,7 +177,7 @@ export class PluginService {
       await this.ensureClaudeDirectory(workdir, 'skill')
 
       // Construct destination path (folder, not file)
-      const destPath = path.join(workdir, '.claude', 'skills', sanitizedFolderName)
+      const destPath = this.getClaudePluginPath(workdir, 'skill', sanitizedFolderName)
 
       // Update metadata with sanitized folder name
       metadata.filename = sanitizedFolderName
@@ -212,8 +212,7 @@ export class PluginService {
     await this.ensureClaudeDirectory(workdir, options.type)
 
     // Get destination path
-    const destDir = path.join(workdir, '.claude', options.type === 'agent' ? 'agents' : 'commands')
-    const destPath = path.join(destDir, sanitizedFilename)
+    const destPath = this.getClaudePluginPath(workdir, options.type, sanitizedFilename)
 
     // Check for duplicate and auto-uninstall if exists
     const existingPlugins = agent.configuration?.installed_plugins || []
@@ -327,12 +326,7 @@ export class PluginService {
 
     for (const plugin of installedPlugins) {
       // Get plugin path based on type
-      let pluginPath: string
-      if (plugin.type === 'skill') {
-        pluginPath = path.join(workdir, '.claude', 'skills', plugin.filename)
-      } else {
-        pluginPath = path.join(workdir, '.claude', plugin.type === 'agent' ? 'agents' : 'commands', plugin.filename)
-      }
+      const pluginPath = this.getClaudePluginPath(workdir, plugin.type, plugin.filename)
 
       try {
         // Verify plugin file/folder exists
@@ -418,7 +412,7 @@ export class PluginService {
   private async rebuildCache(workdir: string): Promise<InstalledPlugin[]> {
     logger.info('Rebuilding plugin cache from filesystem', { workdir })
 
-    const claudePath = path.join(workdir, '.claude')
+    const claudePath = this.getClaudeBasePath(workdir)
 
     // Check if .claude directory exists
     try {
@@ -431,7 +425,7 @@ export class PluginService {
     const plugins: InstalledPlugin[] = []
 
     // Scan agents directory
-    const agentsPath = path.join(claudePath, 'agents')
+    const agentsPath = this.getClaudePluginDirectory(workdir, 'agent')
     try {
       await fs.promises.access(agentsPath, fs.constants.R_OK)
       const files = await fs.promises.readdir(agentsPath, { withFileTypes: true })
@@ -439,8 +433,13 @@ export class PluginService {
         if (file.isFile() && this.ALLOWED_EXTENSIONS.includes(path.extname(file.name).toLowerCase())) {
           try {
             const filePath = path.join(agentsPath, file.name)
-            const sourcePath = path.join('agents', file.name)
-            const metadata = await parsePluginMetadata(filePath, sourcePath, 'agents', 'agent')
+            const sourcePath = path.join(this.getPluginDirectoryName('agent'), file.name)
+            const metadata = await parsePluginMetadata(
+              filePath,
+              sourcePath,
+              this.getPluginDirectoryName('agent'),
+              'agent'
+            )
             plugins.push({ filename: file.name, type: 'agent', metadata })
           } catch (error) {
             logger.warn(`Failed to parse agent plugin: ${file.name}`, {
@@ -454,7 +453,7 @@ export class PluginService {
     }
 
     // Scan commands directory
-    const commandsPath = path.join(claudePath, 'commands')
+    const commandsPath = this.getClaudePluginDirectory(workdir, 'command')
     try {
       await fs.promises.access(commandsPath, fs.constants.R_OK)
       const files = await fs.promises.readdir(commandsPath, { withFileTypes: true })
@@ -462,8 +461,13 @@ export class PluginService {
         if (file.isFile() && this.ALLOWED_EXTENSIONS.includes(path.extname(file.name).toLowerCase())) {
           try {
             const filePath = path.join(commandsPath, file.name)
-            const sourcePath = path.join('commands', file.name)
-            const metadata = await parsePluginMetadata(filePath, sourcePath, 'commands', 'command')
+            const sourcePath = path.join(this.getPluginDirectoryName('command'), file.name)
+            const metadata = await parsePluginMetadata(
+              filePath,
+              sourcePath,
+              this.getPluginDirectoryName('command'),
+              'command'
+            )
             plugins.push({ filename: file.name, type: 'command', metadata })
           } catch (error) {
             logger.warn(`Failed to parse command plugin: ${file.name}`, {
@@ -477,7 +481,7 @@ export class PluginService {
     }
 
     // Scan skills directory
-    const skillsPath = path.join(claudePath, 'skills')
+    const skillsPath = this.getClaudePluginDirectory(workdir, 'skill')
     try {
       await fs.promises.access(skillsPath, fs.constants.R_OK)
       const skillDirectories = await findAllSkillDirectories(skillsPath, claudePath)
@@ -520,7 +524,7 @@ export class PluginService {
   async listInstalledFromCache(workdir: string): Promise<InstalledPlugin[]> {
     logger.debug('Listing installed plugins from cache', { workdir })
 
-    const claudePath = path.join(workdir, '.claude')
+    const claudePath = this.getClaudeBasePath(workdir)
 
     // Try to read cache
     const cacheData = await this.readCacheFile(claudePath)
@@ -614,8 +618,15 @@ export class PluginService {
       } as PluginError
     }
 
+    if (type === 'skill') {
+      throw {
+        type: 'INVALID_FILE_TYPE',
+        extension: type
+      } as PluginError
+    }
+
     // Get file path
-    const filePath = path.join(workdir, '.claude', type === 'agent' ? 'agents' : 'commands', filename)
+    const filePath = this.getClaudePluginPath(workdir, type, filename)
 
     // Verify file exists
     try {
@@ -677,6 +688,40 @@ export class PluginService {
   // ============================================================================
 
   /**
+   * Resolve plugin type to directory name under .claude
+   */
+  private getPluginDirectoryName(type: PluginType): 'agents' | 'commands' | 'skills' {
+    if (type === 'agent') {
+      return 'agents'
+    }
+    if (type === 'command') {
+      return 'commands'
+    }
+    return 'skills'
+  }
+
+  /**
+   * Get the base .claude directory for a workdir
+   */
+  private getClaudeBasePath(workdir: string): string {
+    return path.join(workdir, '.claude')
+  }
+
+  /**
+   * Get the directory for a specific plugin type inside .claude
+   */
+  private getClaudePluginDirectory(workdir: string, type: PluginType): string {
+    return path.join(this.getClaudeBasePath(workdir), this.getPluginDirectoryName(type))
+  }
+
+  /**
+   * Get the absolute path for a plugin file/folder inside .claude
+   */
+  private getClaudePluginPath(workdir: string, type: PluginType, filename: string): string {
+    return path.join(this.getClaudePluginDirectory(workdir, type), filename)
+  }
+
+  /**
    * Get absolute path to plugins directory (handles packaged vs dev)
    */
   private getPluginsBasePath(): string {
@@ -692,7 +737,7 @@ export class PluginService {
    */
   private async scanPluginDirectory(type: 'agent' | 'command'): Promise<PluginMetadata[]> {
     const basePath = this.getPluginsBasePath()
-    const typeDir = path.join(basePath, type === 'agent' ? 'agents' : 'commands')
+    const typeDir = path.join(basePath, this.getPluginDirectoryName(type))
 
     try {
       await fs.promises.access(typeDir, fs.constants.R_OK)
@@ -727,7 +772,7 @@ export class PluginService {
 
         try {
           const filePath = path.join(categoryPath, file.name)
-          const sourcePath = path.join(type === 'agent' ? 'agents' : 'commands', category, file.name)
+          const sourcePath = path.join(this.getPluginDirectoryName(type), category, file.name)
 
           const metadata = await parsePluginMetadata(filePath, sourcePath, category, type)
           plugins.push(metadata)
@@ -748,7 +793,7 @@ export class PluginService {
    */
   private async scanSkillDirectory(): Promise<PluginMetadata[]> {
     const basePath = this.getPluginsBasePath()
-    const skillsPath = path.join(basePath, 'skills')
+    const skillsPath = path.join(basePath, this.getPluginDirectoryName('skill'))
 
     const skills: PluginMetadata[] = []
 
@@ -960,20 +1005,7 @@ export class PluginService {
    * Ensure .claude subdirectory exists for the given plugin type
    */
   private async ensureClaudeDirectory(workdir: string, type: PluginType): Promise<void> {
-    const claudeDir = path.join(workdir, '.claude')
-
-    let subDir: string
-    if (type === 'agent') {
-      subDir = 'agents'
-    } else if (type === 'command') {
-      subDir = 'commands'
-    } else if (type === 'skill') {
-      subDir = 'skills'
-    } else {
-      throw new Error(`Unknown plugin type: ${type}`)
-    }
-
-    const typeDir = path.join(claudeDir, subDir)
+    const typeDir = this.getClaudePluginDirectory(workdir, type)
 
     try {
       await fs.promises.mkdir(typeDir, { recursive: true })
@@ -1088,7 +1120,7 @@ export class PluginService {
       } as PluginError
     }
 
-    const filePath = path.join(workdir, '.claude', type === 'agent' ? 'agents' : 'commands', filename)
+    const filePath = this.getClaudePluginPath(workdir, type, filename)
 
     // Step 1: Update database first (easier to rollback file operations)
     const originalPlugins = agent.configuration?.installed_plugins || []
@@ -1249,7 +1281,7 @@ export class PluginService {
       } as PluginError
     }
 
-    const skillPath = path.join(workdir, '.claude', 'skills', folderName)
+    const skillPath = this.getClaudePluginPath(workdir, 'skill', folderName)
 
     // Step 1: Update database first
     const originalPlugins = agent.configuration?.installed_plugins || []
