@@ -65,22 +65,19 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     const styleMap = {
       initializing: {
         bg: 'var(--color-background-mute)',
-        border: 'var(--color-border-mute)',
-        dot: 'var(--color-text-3)'
+        border: 'var(--color-border-mute)'
       },
       waiting_qr_scan: {
         bg: 'var(--color-primary-mute)',
-        border: 'var(--color-primary-soft)',
-        dot: 'var(--color-primary)'
+        border: 'var(--color-primary-soft)'
       },
-      connecting: { bg: 'var(--color-status-warning)', border: 'var(--color-status-warning)', dot: '#faad14' },
+      connecting: { bg: 'var(--color-status-warning)', border: 'var(--color-status-warning)' },
       connected: {
         bg: 'var(--color-status-success)',
-        border: 'var(--color-status-success)',
-        dot: 'var(--color-status-success)'
+        border: 'var(--color-status-success)'
       },
-      disconnected: { bg: 'var(--color-error)', border: 'var(--color-error)', dot: 'var(--color-error)' },
-      error: { bg: 'var(--color-error)', border: 'var(--color-error)', dot: 'var(--color-error)' }
+      disconnected: { bg: 'var(--color-error)', border: 'var(--color-error)' },
+      error: { bg: 'var(--color-error)', border: 'var(--color-error)' }
     }
     return styleMap[connectionPhase]
   }, [connectionPhase])
@@ -217,14 +214,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           backgroundColor: connectionStatusStyles.bg,
           border: `1px solid ${connectionStatusStyles.border}`
         }}>
-        <div
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            backgroundColor: connectionStatusStyles.dot
-          }}
-        />
         <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-text)' }}>{connectionStatusText}</span>
       </div>
     ),
