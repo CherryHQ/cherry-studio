@@ -1047,6 +1047,7 @@
     "clear": "清除",
     "close": "关闭",
     "collapse": "折叠",
+    "completed": "完成",
     "confirm": "确认",
     "copied": "已复制",
     "copy": "复制",
@@ -1113,7 +1114,6 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
-    "sending": "发送中",
     "settings": "设置",
     "sort": {
       "pinyin": {
@@ -1125,7 +1125,6 @@
     "stop": "停止",
     "success": "成功",
     "swap": "交换",
-    "completed": "完成",
     "topics": "话题",
     "unknown": "未知",
     "unnamed": "未命名",
@@ -3046,37 +3045,37 @@
         },
         "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
         "lan": {
-          "content": "请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
-          "noZipSelected": "未选择压缩文件",
-          "selectZip": "选择压缩文件",
-          "sendZip": "开始恢复数据",
-          "title": "局域网传输",
-          "status": {
-            "initializing": "正在初始化连接...",
-            "waiting_qr_scan": "请扫描二维码连接",
-            "connecting": "正在连接中...",
-            "connected": "连接成功",
-            "disconnected": "连接已断开",
-            "error": "连接出错",
-            "preparing": "准备传输中...",
-            "sending": "传输中 {{progress}}%",
-            "completed": "传输完成"
-          },
-          "error": {
-            "no_ip": "无法获取 IP 地址",
-            "init_failed": "初始化失败",
-            "no_file": "未选择文件",
-            "send_failed": "发送文件失败"
-          },
-          "generating_qr": "正在生成二维码...",
-          "scan_qr": "请使用手机扫码连接",
+          "auto_close_tip": "{{seconds}} 秒后自动关闭...",
+          "confirm_close_message": "文件正在传输中，关闭将中断传输。确定要强制关闭吗？",
+          "confirm_close_title": "确认关闭",
           "connected": "连接成功",
           "connection_failed": "连接失败",
-          "transfer_progress": "传输进度",
-          "confirm_close_title": "确认关闭",
-          "confirm_close_message": "文件正在传输中，关闭将中断传输。确定要强制关闭吗？",
+          "content": "请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "error": {
+            "init_failed": "初始化失败",
+            "no_file": "未选择文件",
+            "no_ip": "无法获取 IP 地址",
+            "send_failed": "发送文件失败"
+          },
           "force_close": "强制关闭",
-          "auto_close_tip": "{{seconds}} 秒后自动关闭..."
+          "generating_qr": "正在生成二维码...",
+          "noZipSelected": "未选择压缩文件",
+          "scan_qr": "请使用手机扫码连接",
+          "selectZip": "选择压缩文件",
+          "sendZip": "开始恢复数据",
+          "status": {
+            "completed": "传输完成",
+            "connected": "连接成功",
+            "connecting": "正在连接中...",
+            "disconnected": "连接已断开",
+            "error": "连接出错",
+            "initializing": "正在初始化连接...",
+            "preparing": "准备传输中...",
+            "sending": "传输中 {{progress}}%",
+            "waiting_qr_scan": "请扫描二维码连接"
+          },
+          "title": "局域网传输",
+          "transfer_progress": "传输进度"
         },
         "title": "导出至手机"
       },
