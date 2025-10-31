@@ -3,6 +3,7 @@ import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@herou
 import { Progress } from '@heroui/progress'
 import { Spinner } from '@heroui/spinner'
 import { loggerService } from '@logger'
+import { AppLogo } from '@renderer/config/env'
 import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
 import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -36,14 +37,14 @@ const ScanQRCode: React.FC<{ qrCodeValue: string }> = ({ qrCodeValue }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
       <QRCodeSVG
-        marginSize={4}
+        marginSize={1}
         value={qrCodeValue}
-        level="Q"
-        size={160}
+        level="L"
+        size={180}
         imageSettings={{
-          src: '/src/assets/images/logo.png',
-          width: 40,
-          height: 40,
+          src: AppLogo,
+          width: 60,
+          height: 60,
           excavate: true
         }}
       />
@@ -199,10 +200,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       if (ip && port) {
         const candidates = await window.api.webSocket.getAllCandidates()
+        // 只包含最少的连接信息以减少 QR 码复杂度
         const connectionInfo = {
           type: 'cherry-studio-app',
-          candidates,
-          selectedHost: ip,
+          ip: ip,
           port,
           timestamp: Date.now()
         }
