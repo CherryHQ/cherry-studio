@@ -3622,7 +3622,22 @@
       },
       "avatar": {
         "builtin": "Avatares embutidos",
-        "reset": "Redefinir avatar"
+        "drag_corners_to_resize": "Arraste os cantos da caixa de recorte para ajustar o tamanho da área de recorte",
+        "edit": "Editar Avatar",
+        "edit_tools": "Ferramentas de Edição",
+        "editing_failed": "Falha na edição da imagem",
+        "editor_not_ready": "O editor de imagem não está pronto",
+        "flip_horizontal": "Virar Horizontal",
+        "flip_vertical": "Virar Vertical",
+        "preview": "Pré-visualização",
+        "processing_failed": "Falha no processamento da imagem",
+        "reset": "Redefinir avatar",
+        "rotate_left": "Rodar para a Esquerda",
+        "rotate_right": "Rodar para a Direita",
+        "save_failed": "Falha ao salvar imagem editada",
+        "scroll_to_zoom": "Use a roda do mouse para ampliar a imagem",
+        "usage_guide": "Guia de Uso:",
+        "use_tools_for_transform": "Use as ferramentas acima para rotação e inversão"
       },
       "backup": {
         "button": "Backup",

@@ -3622,7 +3622,22 @@
       },
       "avatar": {
         "builtin": "内蔵アバター",
-        "reset": "アバターをリセット"
+        "drag_corners_to_resize": "切り抜き枠の角をドラッグしてサイズ調整",
+        "edit": "アバターを編集",
+        "edit_tools": "編集ツール",
+        "editing_failed": "画像編集に失敗しました",
+        "editor_not_ready": "画像エディタの準備ができていません",
+        "flip_horizontal": "水平反転",
+        "flip_vertical": "垂直反転",
+        "preview": "プレビュー",
+        "processing_failed": "画像処理に失敗しました",
+        "reset": "アバターをリセット",
+        "rotate_left": "左回転",
+        "rotate_right": "右回転",
+        "save_failed": "編集した画像の保存に失敗しました",
+        "scroll_to_zoom": "マウスホイールで画像拡大縮小",
+        "usage_guide": "使用ガイド：",
+        "use_tools_for_transform": "上記ツールで回転・反転操作"
       },
       "backup": {
         "button": "バックアップ",

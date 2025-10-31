@@ -1,4 +1,5 @@
 @import './color.css';
+@import './cropper.css';
 @import './font.css';
 @import './markdown.css';
 @import './ant.css';
@@ -22,6 +23,10 @@
 
   .lucide:not(.lucide-custom) {
     color: var(--color-icon);
+  }
+
+  ul {
+    list-style: none;
   }
 }
 
@@ -84,10 +89,6 @@ code {
 
 a {
   -webkit-user-drag: none;
-}
-
-ul {
-  list-style: none;
 }
 
 .loader {

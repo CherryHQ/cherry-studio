@@ -3626,7 +3626,22 @@
       },
       "avatar": {
         "builtin": "Builtin avatar",
-        "reset": "Reset avatar"
+        "drag_corners_to_resize": "Drag crop box corners to adjust crop area size",
+        "edit": "Edit Avatar",
+        "edit_tools": "Edit Tools",
+        "editing_failed": "Image editing failed",
+        "editor_not_ready": "Image editor is not ready",
+        "flip_horizontal": "Flip Horizontal",
+        "flip_vertical": "Flip Vertical",
+        "preview": "Preview",
+        "processing_failed": "Image processing failed",
+        "reset": "Reset avatar",
+        "rotate_left": "Rotate Left",
+        "rotate_right": "Rotate Right",
+        "save_failed": "Failed to save edited image",
+        "scroll_to_zoom": "Use mouse wheel to zoom image",
+        "usage_guide": "Usage Guide",
+        "use_tools_for_transform": "Use tools above for rotation and flipping"
       },
       "backup": {
         "button": "Backup",

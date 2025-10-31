@@ -1,4 +1,6 @@
+import { useDisclosure } from '@heroui/react'
 import { loggerService } from '@logger'
+import ProviderAvatarEditor from '@renderer/components/ImageEditor/ProviderAvatarEditor'
 import { Center, VStack } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
@@ -6,7 +8,7 @@ import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
+import { generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import React, { useEffect, useRef, useState } from 'react'
@@ -28,6 +30,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logo, setLogo] = useState<string | null>(null)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const { isOpen: isImageEditorOpen, onOpen: onImageEditorOpen, onClose: onImageEditorClose } = useDisclosure()
+  const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
   const { t } = useTranslation()
   const uploadRef = useRef<HTMLDivElement>(null)
 
@@ -107,6 +111,41 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     return name.charAt(0) || 'P'
   }
 
+  // 处理图片编辑确认
+  const handleImageEditConfirm = async (editedImageBlob: Blob) => {
+    try {
+      onImageEditorClose()
+      setTempImageSrc(null)
+
+      // 将编辑后的 Blob 转换为 File
+      const editedFile = new File([editedImageBlob], 'logo.png', { type: 'image/png' })
+
+      if (provider?.id) {
+        await ImageStorage.set(`provider-${provider.id}`, editedFile)
+        const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+        setLogo(savedLogo)
+      } else {
+        // 临时保存在内存中
+        const logoData = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.readAsDataURL(editedFile)
+        })
+        setLogo(logoData)
+      }
+
+      setDropdownOpen(false)
+    } catch (error: any) {
+      window.toast.error(t('settings.general.avatar.save_failed') + ': ' + error.message)
+    }
+  }
+
+  // 处理图片编辑取消
+  const handleImageEditCancel = () => {
+    onImageEditorClose()
+    setTempImageSrc(null)
+  }
+
   const items = [
     {
       key: 'upload',
@@ -119,33 +158,33 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           onChange={async ({ file }) => {
             try {
               const _file = file.originFileObj as File
-              let logoData: string | Blob
-
               if (_file.type === 'image/gif') {
-                logoData = _file
-              } else {
-                logoData = await compressImage(_file)
-              }
-
-              if (provider?.id) {
-                if (logoData instanceof Blob && !(logoData instanceof File)) {
-                  const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
-                  await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
-                } else {
+                const logoData = _file
+                if (provider?.id) {
                   await ImageStorage.set(`provider-${provider.id}`, logoData)
+                  const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+                  setLogo(savedLogo)
+                } else {
+                  const tempUrl = await new Promise<string>((resolve) => {
+                    const reader = new FileReader()
+                    reader.onload = () => resolve(reader.result as string)
+                    reader.readAsDataURL(logoData)
+                  })
+                  setLogo(tempUrl)
                 }
-                const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                setLogo(savedLogo)
+                setDropdownOpen(false)
               } else {
-                // 临时保存在内存中，等创建 provider 后会在调用方保存
+                // 对于其他图片格式，打开编辑器
                 const tempUrl = await new Promise<string>((resolve) => {
                   const reader = new FileReader()
                   reader.onload = () => resolve(reader.result as string)
-                  reader.readAsDataURL(logoData)
+                  reader.readAsDataURL(_file)
                 })
-                setLogo(tempUrl)
+
+                setTempImageSrc(tempUrl)
+                setDropdownOpen(false)
+                onImageEditorOpen()
               }
-              setDropdownOpen(false)
             } catch (error: any) {
               window.toast.error(error.message)
             }
@@ -264,6 +303,20 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           />
         </Form.Item>
       </Form>
+
+      {/* 图片编辑器 */}
+      <ProviderAvatarEditor
+        isOpen={isImageEditorOpen}
+        onClose={onImageEditorClose}
+        imageSrc={tempImageSrc || undefined}
+        onCancel={handleImageEditCancel}
+        onConfirm={handleImageEditConfirm}
+        title={t('settings.general.avatar.edit', '编辑头像')}
+        aspectRatio={1} // 正方形裁剪
+        maxWidth={200}
+        maxHeight={200}
+        providerName={name}
+      />
     </Modal>
   )
 }

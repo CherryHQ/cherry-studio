@@ -3626,7 +3626,22 @@
       },
       "avatar": {
         "builtin": "內置頭像",
-        "reset": "重設頭像"
+        "drag_corners_to_resize": "拖動裁剪框角落調整裁剪區域大小",
+        "edit": "編輯頭像",
+        "edit_tools": "編輯工具",
+        "editing_failed": "圖片編輯失敗",
+        "editor_not_ready": "圖片編輯器未準備就緒",
+        "flip_horizontal": "水平翻轉",
+        "flip_vertical": "垂直翻轉",
+        "preview": "預覽",
+        "processing_failed": "圖片處理失敗",
+        "reset": "重設頭像",
+        "rotate_left": "左轉",
+        "rotate_right": "右轉",
+        "save_failed": "儲存編輯後的圖片失敗",
+        "scroll_to_zoom": "滑鼠滾輪縮放圖片",
+        "usage_guide": "使用指南",
+        "use_tools_for_transform": "使用上方工具進行旋轉和翻轉"
       },
       "backup": {
         "button": "備份",
