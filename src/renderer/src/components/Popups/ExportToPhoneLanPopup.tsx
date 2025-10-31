@@ -447,7 +447,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }}
       isDismissable={false}
       isKeyboardDismissDisabled={false}
-      hideCloseButton={isSending}
       placement="center"
       onClose={handleClose}>
       <ModalContent>
