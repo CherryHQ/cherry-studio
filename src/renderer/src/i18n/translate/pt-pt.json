@@ -2923,15 +2923,14 @@
       },
       "description": "Um assistente de IA criado para criadores",
       "downloading": "Baixando atualizações...",
+      "enterprise": {
+        "title": "Empresa"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
-      "license": {
-        "button": "Ver",
-        "title": "Licença"
-      },
       "releases": {
         "button": "Ver",
         "title": "Registro de alterações"
@@ -3052,10 +3051,10 @@
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
           "error": {
-            "init_failed": "[to be translated]:Initialization failed",
+            "init_failed": "Falha na inicialização",
             "no_file": "Nenhum arquivo selecionado",
-            "no_ip": "[to be translated]:Unable to get IP address",
-            "send_failed": "[to be translated]:Failed to send file"
+            "no_ip": "Incapaz de obter endereço IP",
+            "send_failed": "Falha ao enviar arquivo"
           },
           "force_close": "Forçar Fechamento",
           "generating_qr": "Gerando código QR...",

@@ -2923,15 +2923,14 @@
       },
       "description": "Una asistente de IA creada para los creadores",
       "downloading": "Descargando actualización...",
+      "enterprise": {
+        "title": "Empresa"
+      },
       "feedback": {
         "button": "Enviar feedback",
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
-      "license": {
-        "button": "Ver",
-        "title": "Licencia"
-      },
       "releases": {
         "button": "Ver",
         "title": "Registro de cambios"

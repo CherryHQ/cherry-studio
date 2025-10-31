@@ -2923,15 +2923,14 @@
       },
       "description": "Ein KI-Assistent für Kreative",
       "downloading": "Update wird heruntergeladen...",
+      "enterprise": {
+        "title": "Unternehmen"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "Über uns",
-      "license": {
-        "button": "Anzeigen",
-        "title": "Lizenz"
-      },
       "releases": {
         "button": "Anzeigen",
         "title": "Changelog"
