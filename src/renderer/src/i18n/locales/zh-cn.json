@@ -2923,15 +2923,14 @@
       },
       "description": "一款为创造者而生的 AI 助手",
       "downloading": "正在下载更新...",
+      "enterprise": {
+        "title": "企业版"
+      },
       "feedback": {
         "button": "反馈",
         "title": "意见反馈"
       },
       "label": "关于我们",
-      "license": {
-        "button": "查看",
-        "title": "许可证"
-      },
       "releases": {
         "button": "查看",
         "title": "更新日志"

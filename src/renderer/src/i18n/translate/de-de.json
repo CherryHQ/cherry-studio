@@ -3050,17 +3050,17 @@
           "confirm_close_title": "Schließen bestätigen",
           "connected": "Verbunden",
           "connection_failed": "Verbindung fehlgeschlagen",
-          "content": "Bitte stelle sicher, dass dein Computer und dein Telefon sich im gleichen Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
+          "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
           "error": {
             "init_failed": "Initialisierung fehlgeschlagen",
             "no_file": "Keine Datei ausgewählt",
             "no_ip": "IP-Adresse kann nicht abgerufen werden",
-            "send_failed": "Datei konnte nicht gesendet werden"
+            "send_failed": "Fehler beim Senden der Datei"
           },
           "force_close": "Erzwungenes Schließen",
           "generating_qr": "QR-Code wird generiert...",
           "noZipSelected": "Keine komprimierte Datei ausgewählt",
-          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Handy.",
+          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Telefon.",
           "selectZip": "Wählen Sie eine komprimierte Datei",
           "sendZip": "Datenwiederherstellung beginnen",
           "status": {
@@ -3071,7 +3071,7 @@
             "error": "Verbindungsfehler",
             "initializing": "Verbindung wird initialisiert...",
             "preparing": "Übertragung wird vorbereitet...",
-            "sending": "Übertrage {{progress}} %",
+            "sending": "Übertrage {{progress}}%",
             "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
           },
           "title": "LAN-Übertragung",

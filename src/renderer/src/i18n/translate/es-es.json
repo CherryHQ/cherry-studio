@@ -3052,30 +3052,30 @@
           "connection_failed": "Conexión fallida",
           "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
           "error": {
-            "init_failed": "[to be translated]:Initialization failed",
-            "no_file": "[to be translated]:No file selected",
-            "no_ip": "[to be translated]:Unable to get IP address",
-            "send_failed": "[to be translated]:Failed to send file"
+            "init_failed": "Falló la inicialización",
+            "no_file": "Ningún archivo seleccionado",
+            "no_ip": "No se puede obtener la dirección IP",
+            "send_failed": "Error al enviar el archivo"
           },
-          "force_close": "Cerrar Forzosamente",
+          "force_close": "Cerrar forzosamente",
           "generating_qr": "Generando código QR...",
-          "noZipSelected": "No se ha seleccionado un archivo comprimido",
-          "scan_qr": "Por favor escanea el código QR con tu teléfono",
+          "noZipSelected": "No se ha seleccionado ningún archivo comprimido",
+          "scan_qr": "Por favor, escanea el código QR con tu teléfono",
           "selectZip": "Seleccionar archivo comprimido",
-          "sendZip": "[to be translated]:开始恢复数据",
+          "sendZip": "Comenzar la recuperación de datos",
           "status": {
-            "completed": "[to be translated]:Transfer completed",
-            "connected": "[to be translated]:Connected",
-            "connecting": "[to be translated]:Connecting...",
-            "disconnected": "[to be translated]:Disconnected",
-            "error": "[to be translated]:Connection error",
-            "initializing": "[to be translated]:Initializing connection...",
+            "completed": "Transferencia completada",
+            "connected": "Conectado",
+            "connecting": "Conectando...",
+            "disconnected": "Desconectado",
+            "error": "Error de conexión",
+            "initializing": "Inicializando conexión...",
             "preparing": "Preparando transferencia...",
-            "sending": "[to be translated]:Transferring {{progress}}%",
+            "sending": "Transfiriendo {{progress}}%",
             "waiting_qr_scan": "Por favor, escanea el código QR para conectarte"
           },
-          "title": "[to be translated]:局域网传输",
-          "transfer_progress": "[to be translated]:Transfer progress"
+          "title": "Transferencia de red local",
+          "transfer_progress": "Progreso de transferencia"
         },
         "title": "Exportar al teléfono"
       },

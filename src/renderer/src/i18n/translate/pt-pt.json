@@ -3043,7 +3043,7 @@
         "confirm": {
           "button": "Selecionar arquivo de backup"
         },
-        "content": "Exportar parte dos dados, incluindo histórico de conversas e configurações. Observe que o processo de backup pode levar algum tempo; agradecemos sua paciência.",
+        "content": "Exportar parte dos dados, incluindo registros de conversas e configurações. Observe que o processo de backup pode demorar um pouco; agradecemos sua paciência.",
         "lan": {
           "auto_close_tip": "Fechando automaticamente em {{seconds}} segundos...",
           "confirm_close_message": "Transferência de arquivo em andamento. Fechar irá interromper a transferência. Tem certeza de que deseja forçar o fechamento?",
@@ -3052,10 +3052,10 @@
           "connection_failed": "Falha na conexão",
           "content": "Certifique-se de que o computador e o telefone estejam na mesma rede para usar a transferência via LAN. Abra o aplicativo Cherry Studio e escaneie este código QR.",
           "error": {
-            "init_failed": "Falha na inicialização",
+            "init_failed": "[to be translated]:Initialization failed",
             "no_file": "Nenhum arquivo selecionado",
-            "no_ip": "Incapaz de obter endereço IP",
-            "send_failed": "Falha ao enviar arquivo"
+            "no_ip": "[to be translated]:Unable to get IP address",
+            "send_failed": "[to be translated]:Failed to send file"
           },
           "force_close": "Forçar Fechamento",
           "generating_qr": "Gerando código QR...",
@@ -3074,7 +3074,7 @@
             "sending": "Transferindo {{progress}}%",
             "waiting_qr_scan": "Por favor, escaneie o código QR para conectar-se"
           },
-          "title": "Transmissão em rede local",
+          "title": "transmissão de rede local",
           "transfer_progress": "Progresso da transferência"
         },
         "title": "Exportar para o telemóvel"

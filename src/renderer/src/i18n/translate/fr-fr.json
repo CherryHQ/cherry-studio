@@ -3043,13 +3043,13 @@
         "confirm": {
           "button": "Sélectionner le fichier de sauvegarde"
         },
-        "content": "Exporter une partie des données, y compris les historiques de chat et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps, merci pour votre patience.",
+        "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
         "lan": {
           "auto_close_tip": "Fermeture automatique dans {{seconds}} secondes...",
           "confirm_close_message": "Le transfert de fichier est en cours. Fermer interrompra le transfert. Êtes-vous sûr de vouloir forcer la fermeture ?",
           "confirm_close_title": "Confirmer la fermeture",
           "connected": "Connecté",
-          "connection_failed": "Connexion échouée",
+          "connection_failed": "Échec de la connexion",
           "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
           "error": {
             "init_failed": "Échec de l'initialisation",
@@ -3057,7 +3057,7 @@
             "no_ip": "Impossible d'obtenir l'adresse IP",
             "send_failed": "Échec de l'envoi du fichier"
           },
-          "force_close": "Fermeture forcée",
+          "force_close": "Fermer de force",
           "generating_qr": "Génération du code QR...",
           "noZipSelected": "Aucun fichier compressé sélectionné",
           "scan_qr": "Veuillez scanner le code QR avec votre téléphone",
@@ -3074,7 +3074,7 @@
             "sending": "Transfert {{progress}} %",
             "waiting_qr_scan": "Veuillez scanner le code QR pour vous connecter"
           },
-          "title": "transfert en réseau local",
+          "title": "Transmission en réseau local",
           "transfer_progress": "Progression du transfert"
         },
         "title": "Exporter vers le téléphone"

@@ -2923,15 +2923,14 @@
       },
       "description": "一款為創作者而生的強大 AI 助手",
       "downloading": "正在下載...",
+      "enterprise": {
+        "title": "企業版"
+      },
       "feedback": {
         "button": "回饋",
         "title": "回饋"
       },
       "label": "關於與回饋",
-      "license": {
-        "button": "檢視",
-        "title": "授權"
-      },
       "releases": {
         "button": "檢視",
         "title": "更新日誌"
@@ -3053,7 +3052,7 @@
           "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請打開 Cherry Studio App 掃描此 QR 碼。",
           "error": {
             "init_failed": "初始化失敗",
-            "no_file": "未選擇任何檔案",
+            "no_file": "未選擇檔案",
             "no_ip": "無法取得 IP 位址",
             "send_failed": "無法傳送檔案"
           },
@@ -3070,7 +3069,7 @@
             "disconnected": "已斷線",
             "error": "連線錯誤",
             "initializing": "正在初始化連線...",
-            "preparing": "準備傳輸中...",
+            "preparing": "正在準備傳輸...",
             "sending": "傳輸中 {{progress}}%",
             "waiting_qr_scan": "請掃描QR碼以連接"
           },
