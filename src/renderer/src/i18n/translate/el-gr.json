@@ -1047,7 +1047,7 @@
     "clear": "Καθαρισμός",
     "close": "Κλείσιμο",
     "collapse": "Σύμπτυξη",
-    "completed": "[to be translated]:Completed",
+    "completed": "Ολοκληρώθηκε",
     "confirm": "Επιβεβαίωση",
     "copied": "Αντιγράφηκε",
     "copy": "Αντιγραφή",
@@ -3041,43 +3041,43 @@
       },
       "export_to_phone": {
         "confirm": {
-          "button": "[to be translated]:选择备份文件"
+          "button": "Επιλέξτε αρχείο αντιγράφων ασφαλείας"
         },
-        "content": "[to be translated]:导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "content": "Εξαγωγή μέρους των δεδομένων, συμπεριλαμβανομένων των ιστορικών συνομιλιών και των ρυθμίσεων. Σημειώστε ότι η διαδικασία δημιουργίας αντιγράφων ασφαλείας ενδέχεται να διαρκέσει κάποιο χρονικό διάστημα, ευχαριστούμε για την υπομονή σας.",
         "lan": {
-          "auto_close_tip": "[to be translated]:Auto-closing in {{seconds}} seconds...",
-          "confirm_close_message": "[to be translated]:File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
-          "confirm_close_title": "[to be translated]:Confirm Close",
-          "connected": "[to be translated]:Connected",
-          "connection_failed": "[to be translated]:Connection failed",
-          "content": "[to be translated]:请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "auto_close_tip": "Αυτόματο κλείσιμο σε {{seconds}} δευτερόλεπτα...",
+          "confirm_close_message": "Η μεταφορά αρχείων είναι σε εξέλιξη. Το κλείσιμο θα διακόψει τη μεταφορά. Είστε σίγουροι ότι θέλετε να κλείσετε βίαια;",
+          "confirm_close_title": "Επιβεβαίωση Κλεισίματος",
+          "connected": "Συνδεδεμένος",
+          "connection_failed": "Η σύνδεση απέτυχε",
+          "content": "Βεβαιωθείτε ότι ο υπολογιστής και το κινητό βρίσκονται στο ίδιο δίκτυο για να χρησιμοποιήσετε τη μεταφορά LAN. Ανοίξτε την εφαρμογή Cherry Studio και σαρώστε αυτόν τον κωδικό QR.",
           "error": {
-            "init_failed": "[to be translated]:Initialization failed",
-            "no_file": "[to be translated]:No file selected",
-            "no_ip": "[to be translated]:Unable to get IP address",
-            "send_failed": "[to be translated]:Failed to send file"
+            "init_failed": "Η αρχικοποίηση απέτυχε",
+            "no_file": "Κανένα αρχείο δεν επιλέχθηκε",
+            "no_ip": "Αδυναμία λήψης διεύθυνσης IP",
+            "send_failed": "Αποτυχία αποστολής αρχείου"
           },
-          "force_close": "[to be translated]:Force Close",
-          "generating_qr": "[to be translated]:Generating QR code...",
-          "noZipSelected": "[to be translated]:未选择压缩文件",
-          "scan_qr": "[to be translated]:Please scan QR code with your phone",
-          "selectZip": "[to be translated]:选择压缩文件",
-          "sendZip": "[to be translated]:开始恢复数据",
+          "force_close": "Κλείσιμο με βία",
+          "generating_qr": "Δημιουργία κώδικα QR...",
+          "noZipSelected": "Δεν επιλέχθηκε συμπιεσμένο αρχείο",
+          "scan_qr": "Παρακαλώ σαρώστε τον κωδικό QR με το τηλέφωνό σας",
+          "selectZip": "Επιλέξτε συμπιεσμένο αρχείο",
+          "sendZip": "Έναρξη ανάκτησης δεδομένων",
           "status": {
-            "completed": "[to be translated]:Transfer completed",
-            "connected": "[to be translated]:Connected",
-            "connecting": "[to be translated]:Connecting...",
-            "disconnected": "[to be translated]:Disconnected",
-            "error": "[to be translated]:Connection error",
-            "initializing": "[to be translated]:Initializing connection...",
-            "preparing": "[to be translated]:Preparing transfer...",
-            "sending": "[to be translated]:Transferring {{progress}}%",
-            "waiting_qr_scan": "[to be translated]:Please scan QR code to connect"
+            "completed": "Η μεταφορά ολοκληρώθηκε",
+            "connected": "Συνδεδεμένος",
+            "connecting": "Σύνδεση...",
+            "disconnected": "Αποσυνδέθηκε",
+            "error": "Σφάλμα σύνδεσης",
+            "initializing": "Αρχικοποίηση σύνδεσης...",
+            "preparing": "Προετοιμασία μεταφοράς...",
+            "sending": "Μεταφορά {{progress}}%",
+            "waiting_qr_scan": "Παρακαλώ σαρώστε τον κωδικό QR για σύνδεση"
           },
-          "title": "[to be translated]:局域网传输",
-          "transfer_progress": "[to be translated]:Transfer progress"
+          "title": "Μεταφορά τοπικού δικτύου",
+          "transfer_progress": "Πρόοδος μεταφοράς"
         },
-        "title": "[to be translated]:导出至手机"
+        "title": "Εξαγωγή στο κινητό"
       },
       "hour_interval_one": "{{count}} ώρα",
       "hour_interval_other": "{{count}} ώρες",
