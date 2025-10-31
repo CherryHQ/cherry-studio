@@ -10,7 +10,7 @@ import {
   updateBaseItemUniqueId,
   updateItemProcessingStatus
 } from '@renderer/store/knowledge'
-import { KnowledgeItem } from '@renderer/types'
+import { FileTypes, KnowledgeItem, isKnowledgeFileItem } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import type { LoaderReturn } from '@shared/config/types'
 import { t } from 'i18next'
@@ -127,10 +127,15 @@ class KnowledgeQueue {
         throw new Error(`[KnowledgeQueue] Source item ${item.id} not found in base ${baseId}`)
       }
 
-      let result: LoaderReturn | null = null
-      let note, content
+  let result: LoaderReturn | null = null
+  let note, content
 
       logger.info(`Processing item: ${sourceItem.content}`)
+
+      const isImageItem = isKnowledgeFileItem(sourceItem) && sourceItem.content.type === FileTypes.IMAGE
+      const preprocessProviderId = base.preprocessProvider?.provider.id
+      const shouldUsePreprocessForImage =
+        isImageItem && Boolean(preprocessProviderId && ['mineru', 'open-mineru'].includes(preprocessProviderId))
 
       switch (item.type) {
         case 'note':
@@ -201,7 +206,7 @@ class KnowledgeQueue {
           updateBaseItemIsPreprocessed({
             baseId,
             itemId: item.id,
-            isPreprocessed: !!base.preprocessProvider
+            isPreprocessed: shouldUsePreprocessForImage ? true : !!base.preprocessProvider
           })
         )
       }
