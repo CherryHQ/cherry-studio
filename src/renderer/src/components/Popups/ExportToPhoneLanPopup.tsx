@@ -434,22 +434,26 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             showValueLabel={false}
             aria-label="Send progress"
           />
-
-          {transferPhase === 'completed' && autoCloseCountdown !== null && autoCloseCountdown > 0 && (
-            <div
-              style={{
-                fontSize: '12px',
-                color: 'var(--color-text-2)',
-                textAlign: 'center',
-                marginTop: '4px'
-              }}>
-              {t('settings.data.export_to_phone.lan.auto_close_tip', { seconds: autoCloseCountdown })}
-            </div>
-          )}
         </div>
       </div>
     )
-  }, [isSending, transferPhase, sendProgress, autoCloseCountdown, t])
+  }, [isSending, transferPhase, sendProgress, t])
+
+  const AutoCloseCountdown = useCallback(() => {
+    if (transferPhase !== 'completed' || autoCloseCountdown === null || autoCloseCountdown <= 0) return null
+
+    return (
+      <div
+        style={{
+          fontSize: '12px',
+          color: 'var(--color-text-2)',
+          textAlign: 'center',
+          paddingTop: '4px'
+        }}>
+        {t('settings.data.export_to_phone.lan.auto_close_tip', { seconds: autoCloseCountdown })}
+      </div>
+    )
+  }, [transferPhase, autoCloseCountdown, t])
 
   // 错误显示组件
   const ErrorDisplay = useCallback(() => {
@@ -520,6 +524,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               </SettingHelpText>
 
               <TransferProgress />
+              <AutoCloseCountdown />
               <ErrorDisplay />
             </ModalBody>
 
