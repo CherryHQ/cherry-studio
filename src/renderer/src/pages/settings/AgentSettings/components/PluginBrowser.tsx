@@ -132,13 +132,11 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   }
 
   const handleCategoryChange = (keys: Set<string>) => {
-    // 如果选中了"all"或清空了所有选择，则重置为空数组
+    // Reset if "all" selected, otherwise filter categories
     if (keys.has('all') || keys.size === 0) {
       setSelectedCategories([])
     } else {
-      // 过滤掉"all"键，只保留实际的分类
-      const categories = Array.from(keys).filter((key) => key !== 'all')
-      setSelectedCategories(categories)
+      setSelectedCategories(Array.from(keys).filter((key) => key !== 'all'))
     }
     setCurrentPage(1)
   }
