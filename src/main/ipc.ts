@@ -70,6 +70,7 @@ import {
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
+import WebSocketService from './services/WebSocketService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -1017,4 +1018,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return { success: false, error }
     }
   })
+
+  // WebSocket
+  ipcMain.handle(IpcChannel.WebSocket_Start, WebSocketService.start)
+  ipcMain.handle(IpcChannel.WebSocket_Stop, WebSocketService.stop)
+  ipcMain.handle(IpcChannel.WebSocket_Status, WebSocketService.getStatus)
+  ipcMain.handle(IpcChannel.WebSocket_SendFile, WebSocketService.sendFile)
+  ipcMain.handle(IpcChannel.WebSocket_GetAllCandidates, WebSocketService.getAllCandidates)
 }

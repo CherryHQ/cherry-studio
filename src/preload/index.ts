@@ -550,6 +550,13 @@ const api = {
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
     writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
       ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options)
+  },
+  webSocket: {
+    start: () => ipcRenderer.invoke(IpcChannel.WebSocket_Start),
+    stop: () => ipcRenderer.invoke(IpcChannel.WebSocket_Stop),
+    status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status),
+    sendFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.WebSocket_SendFile, filePath),
+    getAllCandidates: () => ipcRenderer.invoke(IpcChannel.WebSocket_GetAllCandidates)
   }
 }
 

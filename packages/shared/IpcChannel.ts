@@ -364,5 +364,12 @@ export enum IpcChannel {
   ClaudeCodePlugin_ListInstalled = 'claudeCodePlugin:list-installed',
   ClaudeCodePlugin_InvalidateCache = 'claudeCodePlugin:invalidate-cache',
   ClaudeCodePlugin_ReadContent = 'claudeCodePlugin:read-content',
-  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content'
+  ClaudeCodePlugin_WriteContent = 'claudeCodePlugin:write-content',
+
+  // WebSocket
+  WebSocket_Start = 'webSocket:start',
+  WebSocket_Stop = 'webSocket:stop',
+  WebSocket_Status = 'webSocket:status',
+  WebSocket_SendFile = 'webSocket:send-file',
+  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates'
 }
