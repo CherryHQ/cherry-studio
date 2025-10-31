@@ -105,7 +105,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
       ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
       ANTHROPIC_MODEL: modelInfo.modelId,
-      ANTHROPIC_SMALL_FAST_MODEL: modelInfo.modelId,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
+      // TODO: support set small model in UI
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1'
     }
