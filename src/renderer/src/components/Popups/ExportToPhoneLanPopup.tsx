@@ -200,16 +200,27 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       if (ip && port) {
         const candidates = await window.api.webSocket.getAllCandidates()
-        // 只包含最少的连接信息以减少 QR 码复杂度
-        const connectionInfo = {
-          type: 'cherry-studio-app',
-          ip: ip,
-          port,
-          timestamp: Date.now()
+
+        const optimizeConnectionInfo = () => {
+          const ipToNumber = (ip: string) => {
+            return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet), 0)
+          }
+
+          const compressedData = [
+            'CSA',
+            ipToNumber(ip),
+            candidates.map((candidate) => ipToNumber(candidate.host)),
+            port, // 端口号
+            Date.now() % 86400000
+          ]
+
+          return compressedData
         }
-        setQrCodeValue(JSON.stringify(connectionInfo))
+
+        const compressedData = optimizeConnectionInfo()
+        const qrCodeValue = JSON.stringify(compressedData)
+        setQrCodeValue(qrCodeValue)
         setConnectionPhase('waiting_qr_scan')
-        logger.info(`QR code generated: ${ip}:${port} with ${candidates.length} IP candidates`)
       } else {
         setError(t('settings.data.export_to_phone.lan.error.no_ip'))
         setConnectionPhase('error')
