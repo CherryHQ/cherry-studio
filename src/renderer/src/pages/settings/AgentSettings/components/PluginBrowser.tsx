@@ -194,7 +194,6 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
             aria-label="Category filter"
             closeOnSelect={false}
             className="max-h-60 overflow-y-auto"
-            shouldBlockScroll={false}
             items={[
               { key: 'all', label: t('plugins.all_categories') },
               ...allCategories.map((category) => ({ key: category, label: category }))
