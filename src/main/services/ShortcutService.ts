@@ -201,7 +201,7 @@ export function registerShortcuts(window: BrowserWindow) {
             // 移除注册时的条件检查，在处理器内部进行检查
             logger.info(`Processing mini_window shortcut, enabled: ${shortcut.enabled}`)
             showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
-            logger.info(`Mini window accelerator set to: ${showMiniWindowAccelerator}`)
+            logger.debug(`Mini window accelerator set to: ${showMiniWindowAccelerator}`)
             break
 
           case 'selection_assistant_toggle':
