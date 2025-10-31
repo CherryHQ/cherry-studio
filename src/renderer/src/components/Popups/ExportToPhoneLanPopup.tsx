@@ -5,6 +5,7 @@ import { Spinner } from '@heroui/spinner'
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
+import { WebSocketCandidatesResponse } from '@shared/config/types'
 import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -199,7 +200,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const { port, ip } = await window.api.webSocket.status()
 
       if (ip && port) {
-        const candidates = await window.api.webSocket.getAllCandidates()
+        const candidatesData = await window.api.webSocket.getAllCandidates()
 
         const optimizeConnectionInfo = () => {
           const ipToNumber = (ip: string) => {
@@ -209,7 +210,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           const compressedData = [
             'CSA',
             ipToNumber(ip),
-            candidates.map((candidate) => ipToNumber(candidate.host)),
+            candidatesData.map((candidate: WebSocketCandidatesResponse) => ipToNumber(candidate.host)),
             port, // 端口号
             Date.now() % 86400000
           ]
