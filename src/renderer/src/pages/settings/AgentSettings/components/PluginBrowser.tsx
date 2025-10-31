@@ -1,10 +1,19 @@
-import { Input, Pagination, Tab, Tabs } from '@heroui/react'
+import {
+  Button,
+  Dropdown,
+  DropdownItem,
+  DropdownMenu,
+  DropdownTrigger,
+  Input,
+  Pagination,
+  Tab,
+  Tabs
+} from '@heroui/react'
 import { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
-import { Search } from 'lucide-react'
+import { Filter, Search } from 'lucide-react'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CategoryFilter } from './CategoryFilter'
 import { PluginCard } from './PluginCard'
 import { PluginDetailModal } from './PluginDetailModal'
 
@@ -122,8 +131,15 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     setCurrentPage(1)
   }
 
-  const handleCategoryChange = (categories: string[]) => {
-    setSelectedCategories(categories)
+  const handleCategoryChange = (keys: Set<string>) => {
+    // 如果选中了"all"或清空了所有选择，则重置为空数组
+    if (keys.has('all') || keys.size === 0) {
+      setSelectedCategories([])
+    } else {
+      // 过滤掉"all"键，只保留实际的分类
+      const categories = Array.from(keys).filter((key) => key !== 'all')
+      setSelectedCategories(categories)
+    }
     setCurrentPage(1)
   }
 
@@ -144,25 +160,72 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Search Input */}
-      <Input
-        placeholder={t('plugins.search_placeholder')}
-        value={searchQuery}
-        onValueChange={handleSearchChange}
-        startContent={<Search className="h-4 w-4 text-default-400" />}
-        isClearable
-        classNames={{
-          input: 'text-small',
-          inputWrapper: 'h-10'
-        }}
-      />
+      {/* Search and Filter */}
+      <div className="flex gap-2">
+        <Input
+          placeholder={t('plugins.search_placeholder')}
+          value={searchQuery}
+          onValueChange={handleSearchChange}
+          startContent={<Search className="h-4 w-4 text-default-400" />}
+          isClearable
+          classNames={{
+            input: 'text-small',
+            inputWrapper: 'h-10'
+          }}
+          className="flex-1"
+        />
 
-      {/* Category Filter */}
-      <CategoryFilter
-        categories={allCategories}
-        selectedCategories={selectedCategories}
-        onChange={handleCategoryChange}
-      />
+        <Dropdown
+          placement="bottom-start"
+          classNames={{
+            content: 'max-h-60 overflow-y-auto p-0'
+          }}>
+          <DropdownTrigger>
+            <Button
+              isIconOnly
+              variant={selectedCategories.length > 0 ? 'solid' : 'bordered'}
+              color={selectedCategories.length > 0 ? 'primary' : 'default'}
+              size="md"
+              className="h-10 min-w-10">
+              <Filter className="h-4 w-4" />
+            </Button>
+          </DropdownTrigger>
+          <DropdownMenu
+            aria-label="Category filter"
+            closeOnSelect={false}
+            className="max-h-60 overflow-y-auto"
+            shouldBlockScroll={false}
+            items={[
+              { key: 'all', label: t('plugins.all_categories') },
+              ...allCategories.map((category) => ({ key: category, label: category }))
+            ]}>
+            {(item) => {
+              const isSelected =
+                item.key === 'all' ? selectedCategories.length === 0 : selectedCategories.includes(item.key)
+
+              return (
+                <DropdownItem
+                  key={item.key}
+                  textValue={item.label}
+                  onPress={() => {
+                    if (item.key === 'all') {
+                      handleCategoryChange(new Set(['all']))
+                    } else {
+                      const newKeys = selectedCategories.includes(item.key)
+                        ? new Set(selectedCategories.filter((c) => c !== item.key))
+                        : new Set([...selectedCategories, item.key])
+                      handleCategoryChange(newKeys)
+                    }
+                  }}
+                  className={isSelected ? 'bg-primary-50' : ''}>
+                  {item.label}
+                  {isSelected && <span className="ml-2 text-primary text-sm">✓</span>}
+                </DropdownItem>
+              )
+            }}
+          </DropdownMenu>
+        </Dropdown>
+      </div>
 
       {/* Type Tabs */}
       <Tabs selectedKey={activeType} onSelectionChange={handleTypeChange} variant="underlined">
