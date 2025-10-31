@@ -3784,10 +3784,10 @@
         "requiredField": "Υποχρεωτικό πεδίο"
       },
       "protocolInstallWarning": {
-        "command": "[to be translated]:Startup command",
-        "message": "[to be translated]:This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
-        "run": "[to be translated]:Run",
-        "title": "[to be translated]:Run external MCP?"
+        "command": "Εντολή εκκίνησης",
+        "message": "Αυτό το MCP εγκαταστάθηκε από εξωτερική πηγή μέσω πρωτοκόλλου. Η εκτέλεση άγνωστων εργαλείων ενδέχεται να βλάψει τον υπολογιστή σας.",
+        "run": "Τρέξε",
+        "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
       "providerPlaceholder": "Όνομα παρόχου",

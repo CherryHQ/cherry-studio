@@ -3784,10 +3784,10 @@
         "requiredField": "必須フィールド"
       },
       "protocolInstallWarning": {
-        "command": "[to be translated]:Startup command",
-        "message": "[to be translated]:This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
-        "run": "[to be translated]:Run",
-        "title": "[to be translated]:Run external MCP?"
+        "command": "起動コマンド",
+        "message": "このMCPは外部ソースからプロトコル経由でインストールされました。不明なツールを実行すると、コンピューターに危害を及ぼす可能性があります。",
+        "run": "走る",
+        "title": "外部のMCPを実行しますか？"
       },
       "provider": "プロバイダー",
       "providerPlaceholder": "プロバイダー名",
