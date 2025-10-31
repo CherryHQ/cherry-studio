@@ -1,5 +1,6 @@
 import { Button, Card, CardBody, CardFooter, CardHeader, Chip, Spinner } from '@heroui/react'
 import { PluginMetadata } from '@renderer/types/plugin'
+import { upperFirst } from 'lodash'
 import { Download, Trash2 } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,8 +19,9 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
 
   return (
     <Card
-      className="flex h-full w-full cursor-pointer flex-col transition-shadow hover:shadow-md"
+      className="flex h-full w-full cursor-pointer flex-col border-[0.5px] border-default-200"
       isPressable
+      shadow="none"
       onPress={onClick}>
       <CardHeader className="flex flex-col items-start gap-2 pb-2">
         <div className="flex w-full items-center justify-between gap-2">
@@ -28,9 +30,8 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
             size="sm"
             variant="solid"
             color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}
-            className="h-4 min-w-0 flex-shrink-0 px-0.5"
-            style={{ fontSize: '10px' }}>
-            {plugin.type}
+            className="h-4 min-w-0 flex-shrink-0 px-0.5 text-xs">
+            {upperFirst(plugin.type)}
           </Chip>
         </div>
         <Chip size="sm" variant="dot" color="default">

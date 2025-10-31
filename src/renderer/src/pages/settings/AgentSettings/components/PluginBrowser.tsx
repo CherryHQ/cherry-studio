@@ -1,17 +1,7 @@
-import {
-  Button,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  Input,
-  Pagination,
-  Tab,
-  Tabs
-} from '@heroui/react'
+import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs } from '@heroui/react'
 import { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
 import { Filter, Search } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PluginCard } from './PluginCard'
@@ -46,10 +36,11 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [activeType, setActiveType] = useState<PluginType>('all')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE)
   const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const observerTarget = useRef<HTMLDivElement>(null)
 
   // Combine all plugins based on active type
   const allPlugins = useMemo(() => {
@@ -95,14 +86,35 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     })
   }, [allPlugins, searchQuery, selectedCategories])
 
-  // Paginate filtered plugins
-  const paginatedPlugins = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-    return filteredPlugins.slice(startIndex, endIndex)
-  }, [filteredPlugins, currentPage])
+  // Display plugins based on displayCount
+  const displayedPlugins = useMemo(() => {
+    return filteredPlugins.slice(0, displayCount)
+  }, [filteredPlugins, displayCount])
 
-  const totalPages = Math.ceil(filteredPlugins.length / ITEMS_PER_PAGE)
+  const hasMore = displayCount < filteredPlugins.length
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE)
+  }, [filteredPlugins])
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          setDisplayCount((prev) => prev + ITEMS_PER_PAGE)
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => observer.disconnect()
+  }, [hasMore])
 
   // Check if a plugin is installed
   const isPluginInstalled = (plugin: PluginMetadata): boolean => {
@@ -125,10 +137,9 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     setActioningPlugin(null)
   }
 
-  // Reset to first page when filters change
+  // Reset display count when filters change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
-    setCurrentPage(1)
   }
 
   const handleCategoryChange = (keys: Set<string>) => {
@@ -138,12 +149,10 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     } else {
       setSelectedCategories(Array.from(keys).filter((key) => key !== 'all'))
     }
-    setCurrentPage(1)
   }
 
   const handleTypeChange = (type: string | number) => {
     setActiveType(type as PluginType)
-    setCurrentPage(1)
   }
 
   const handlePluginClick = (plugin: PluginMetadata) => {
@@ -159,32 +168,27 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Search and Filter */}
-      <div className="flex gap-2">
+      <div className="relative flex gap-0">
         <Input
           placeholder={t('plugins.search_placeholder')}
           value={searchQuery}
           onValueChange={handleSearchChange}
           startContent={<Search className="h-4 w-4 text-default-400" />}
           isClearable
-          classNames={{
-            input: 'text-small',
-            inputWrapper: 'h-10'
-          }}
+          size="md"
           className="flex-1"
-        />
-
-        <Dropdown
-          placement="bottom-start"
           classNames={{
-            content: 'max-h-60 overflow-y-auto p-0'
-          }}>
+            inputWrapper: 'pr-12'
+          }}
+        />
+        <Dropdown placement="bottom-end" classNames={{ content: 'max-h-60 overflow-y-auto p-0' }}>
           <DropdownTrigger>
             <Button
               isIconOnly
-              variant={selectedCategories.length > 0 ? 'solid' : 'bordered'}
+              variant={selectedCategories.length > 0 ? 'flat' : 'light'}
               color={selectedCategories.length > 0 ? 'primary' : 'default'}
-              size="md"
-              className="h-10 min-w-10">
+              size="sm"
+              className="-translate-y-1/2 absolute top-1/2 right-2 z-10">
               <Filter className="h-4 w-4" />
             </Button>
           </DropdownTrigger>
@@ -225,12 +229,14 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
       </div>
 
       {/* Type Tabs */}
-      <Tabs selectedKey={activeType} onSelectionChange={handleTypeChange} variant="underlined">
-        <Tab key="all" title={t('plugins.all_types')} />
-        <Tab key="agent" title={t('plugins.agents')} />
-        <Tab key="command" title={t('plugins.commands')} />
-        <Tab key="skill" title={t('plugins.skills')} />
-      </Tabs>
+      <div className="-mt-3 flex justify-center">
+        <Tabs selectedKey={activeType} onSelectionChange={handleTypeChange} variant="underlined">
+          <Tab key="all" title={t('plugins.all_types')} />
+          <Tab key="agent" title={t('plugins.agents')} />
+          <Tab key="command" title={t('plugins.commands')} />
+          <Tab key="skill" title={t('plugins.skills')} />
+        </Tabs>
+      </div>
 
       {/* Result Count */}
       <div className="flex items-center justify-between">
@@ -238,38 +244,35 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
       </div>
 
       {/* Plugin Grid */}
-      {paginatedPlugins.length === 0 ? (
+      {displayedPlugins.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <p className="text-default-400">{t('plugins.no_results')}</p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {paginatedPlugins.map((plugin) => {
-            const installed = isPluginInstalled(plugin)
-            const isActioning = actioningPlugin === plugin.sourcePath
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {displayedPlugins.map((plugin) => {
+              const installed = isPluginInstalled(plugin)
+              const isActioning = actioningPlugin === plugin.sourcePath
 
-            return (
-              <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
-                <PluginCard
-                  plugin={plugin}
-                  installed={installed}
-                  onInstall={() => handleInstall(plugin)}
-                  onUninstall={() => handleUninstall(plugin)}
-                  loading={loading || isActioning}
-                  onClick={() => handlePluginClick(plugin)}
-                />
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center">
-          <Pagination total={totalPages} page={currentPage} onChange={setCurrentPage} showControls />
-        </div>
+              return (
+                <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
+                  <PluginCard
+                    plugin={plugin}
+                    installed={installed}
+                    onInstall={() => handleInstall(plugin)}
+                    onUninstall={() => handleUninstall(plugin)}
+                    loading={loading || isActioning}
+                    onClick={() => handlePluginClick(plugin)}
+                  />
+                </div>
+              )
+            })}
+          </div>
+          {/* Infinite scroll trigger */}
+          {hasMore && <div ref={observerTarget} className="h-10" />}
+        </>
       )}
 
       {/* Plugin Detail Modal */}

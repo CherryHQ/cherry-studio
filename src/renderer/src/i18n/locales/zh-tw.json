@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "調用各種工具處理複雜任務",
       "error": {
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常對話和快速問答",
         "title": "新增助手"
+      },
+      "option": {
+        "title": "選擇新增類型"
       },
       "topic": {
         "title": "新增話題"

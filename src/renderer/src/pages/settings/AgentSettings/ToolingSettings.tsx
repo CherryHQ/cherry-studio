@@ -168,6 +168,7 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
               </div>
             </div>
           ),
+          centered: true,
           okText: t('common.confirm'),
           cancelText: t('common.cancel'),
           onOk: applyChange,
@@ -274,9 +275,10 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                 key={card.mode}
                 isPressable={!disabled}
                 isDisabled={disabled || isUpdatingMode}
+                shadow="none"
                 onPress={() => handleSelectPermissionMode(card.mode)}
                 className={`border ${
-                  isSelected ? 'border-primary shadow-lg' : 'border-default-200'
+                  isSelected ? 'border-primary' : 'border-default-200'
                 } ${disabled ? 'opacity-60' : ''}`}>
                 <CardHeader className="flex items-start justify-between gap-2">
                   <div className="flex flex-col">

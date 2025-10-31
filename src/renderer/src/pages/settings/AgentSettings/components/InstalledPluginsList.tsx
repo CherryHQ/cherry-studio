@@ -55,7 +55,7 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({ plugins, o
         <TableColumn>{t('plugins.name')}</TableColumn>
         <TableColumn>{t('plugins.type')}</TableColumn>
         <TableColumn>{t('plugins.category')}</TableColumn>
-        <TableColumn width={100}>{t('plugins.actions')}</TableColumn>
+        <TableColumn align="end">{t('plugins.actions')}</TableColumn>
       </TableHeader>
       <TableBody>
         {plugins.map((plugin) => (

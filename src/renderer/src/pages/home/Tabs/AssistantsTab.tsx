@@ -170,7 +170,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           onAssistantSwitch={setActiveAssistant}
           onAssistantDelete={onDeleteAssistant}
           onAgentDelete={deleteAgent}
-          onAgentPress={setActiveAgentId}
+          onAgentPress={handleAgentPress}
           addPreset={addAssistantPreset}
           copyAssistant={copyAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}

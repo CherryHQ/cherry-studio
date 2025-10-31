@@ -398,7 +398,8 @@ const Container = ({
   <div
     {...props}
     className={cn(
-      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent px-2 hover:bg-[var(--color-list-item-hover)]',
+      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent px-2',
+      !isActive && 'hover:bg-[var(--color-list-item-hover)]',
       isActive && 'bg-[var(--color-list-item)] shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
       className
     )}>

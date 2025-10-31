@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "调用各种工具处理复杂任务",
       "error": {
         "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常对话和快速问答",
         "title": "添加助手"
+      },
+      "option": {
+        "title": "选择添加类型"
       },
       "topic": {
         "title": "新建话题"

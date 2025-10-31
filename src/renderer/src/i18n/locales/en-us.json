@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Handle complex tasks with various tools",
       "error": {
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Daily conversations and quick Q&A",
         "title": "Add Assistant"
+      },
+      "option": {
+        "title": "Select Type"
       },
       "topic": {
         "title": "New Topic"
