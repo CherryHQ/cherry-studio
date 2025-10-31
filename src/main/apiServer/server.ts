@@ -1,8 +1,10 @@
 import { createServer } from 'node:http'
 
 import { loggerService } from '@logger'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { agentService } from '../services/agents'
+import { windowService } from '../services/WindowService'
 import { app } from './app'
 import { config } from './config'
 
@@ -43,6 +45,13 @@ export class ApiServer {
     return new Promise((resolve, reject) => {
       this.server!.listen(port, host, () => {
         logger.info('API server started', { host, port })
+
+        // Notify renderer that API server is ready
+        const mainWindow = windowService.getMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IpcChannel.ApiServer_Ready)
+        }
+
         resolve()
       })
 

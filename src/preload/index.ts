@@ -525,7 +525,16 @@ const api = {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
     start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
     restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
+    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
+    onReady: (callback: () => void): (() => void) => {
+      const listener = () => {
+        callback()
+      }
+      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
+      }
+    }
   },
   claudeCodePlugin: {
     listAvailable: (): Promise<PluginResult<ListAvailablePluginsResult>> =>

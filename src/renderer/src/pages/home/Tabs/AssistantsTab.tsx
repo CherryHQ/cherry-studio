@@ -36,7 +36,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
-  const { apiServerConfig, apiServerRunning } = useApiServer()
+  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const apiServerEnabled = apiServerConfig.enabled
   const { iknow, chat } = useRuntime()
   const dispatch = useAppDispatch()
@@ -113,8 +113,8 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       )}
 
-      {agentsLoading && <Spinner />}
-      {apiServerConfig.enabled && !apiServerRunning && (
+      {(agentsLoading || apiServerLoading) && <Spinner />}
+      {apiServerConfig.enabled && !apiServerLoading && !apiServerRunning && (
         <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
       )}
       {apiServerRunning && agentsError && (
