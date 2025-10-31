@@ -3720,12 +3720,6 @@
         "label": "Disable MCP Server"
       },
       "duplicateName": "A server with this name already exists",
-      "protocolInstallWarning": {
-        "title": "Run external MCP?",
-        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
-        "command": "Startup command",
-        "run": "Run"
-      },
       "editJson": "Edit JSON",
       "editMcpJson": "Edit MCP Configuration",
       "editServer": "Edit Server",
@@ -3788,6 +3782,12 @@
         "loadError": "Get prompts Error",
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
+      },
+      "protocolInstallWarning": {
+        "command": "Startup command",
+        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
+        "run": "Run",
+        "title": "Run external MCP?"
       },
       "provider": "Provider",
       "providerPlaceholder": "Provider name",

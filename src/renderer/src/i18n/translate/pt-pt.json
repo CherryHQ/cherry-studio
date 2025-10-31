@@ -3783,6 +3783,12 @@
         "noPromptsAvailable": "Nenhuma dica disponível",
         "requiredField": "Campo obrigatório"
       },
+      "protocolInstallWarning": {
+        "command": "[to be translated]:Startup command",
+        "message": "[to be translated]:This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
+        "run": "[to be translated]:Run",
+        "title": "[to be translated]:Run external MCP?"
+      },
       "provider": "Fornecedor",
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
