@@ -247,21 +247,22 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {paginatedPlugins.map((plugin) => {
             const installed = isPluginInstalled(plugin)
             const isActioning = actioningPlugin === plugin.sourcePath
 
             return (
-              <PluginCard
-                key={`${plugin.type}-${plugin.sourcePath}`}
-                plugin={plugin}
-                installed={installed}
-                onInstall={() => handleInstall(plugin)}
-                onUninstall={() => handleUninstall(plugin)}
-                loading={loading || isActioning}
-                onClick={() => handlePluginClick(plugin)}
-              />
+              <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
+                <PluginCard
+                  plugin={plugin}
+                  installed={installed}
+                  onInstall={() => handleInstall(plugin)}
+                  onUninstall={() => handleUninstall(plugin)}
+                  loading={loading || isActioning}
+                  onClick={() => handlePluginClick(plugin)}
+                />
+              </div>
             )
           })}
         </div>
