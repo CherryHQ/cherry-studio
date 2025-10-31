@@ -2763,6 +2763,7 @@ const migrateConfig = {
   '168': (state: RootState) => {
     try {
       addPreprocessProviders(state, 'open-mineru')
+      state.settings.autoLocalizeImages = settingsInitialState.autoLocalizeImages
       return state
     } catch (error) {
       logger.error('migrate 168 error', error as Error)

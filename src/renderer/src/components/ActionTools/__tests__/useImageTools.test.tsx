@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   },
   svgToPngBlob: vi.fn(),
   svgToSvgBlob: vi.fn(),
-  download: vi.fn(),
+  triggerClientDownload: vi.fn(),
   ImagePreviewService: {
     show: vi.fn()
   }
@@ -21,7 +21,7 @@ vi.mock('@renderer/utils/image', () => ({
 }))
 
 vi.mock('@renderer/utils/download', () => ({
-  download: mocks.download
+  triggerClientDownload: mocks.triggerClientDownload
 }))
 
 vi.mock('react-i18next', () => ({
@@ -324,7 +324,7 @@ describe('useImageTools', () => {
 
       // 验证通用的下载流程
       expect(mockCreateObjectURL).toHaveBeenCalledTimes(2)
-      expect(mocks.download).toHaveBeenCalledTimes(2)
+      expect(mocks.triggerClientDownload).toHaveBeenCalledTimes(2)
       expect(mockRevokeObjectURL).toHaveBeenCalledTimes(2)
     })
 

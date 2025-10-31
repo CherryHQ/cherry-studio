@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+import { FileType } from '@renderer/types'
 
 const logger = loggerService.withContext('Utils:download')
 
-export const download = (url: string, filename?: string) => {
+export const triggerClientDownload = (url: string, filename?: string) => {
   // 处理可直接通过 <a> 标签下载的 URL:
   // - 本地文件 ( file:// )
   // - 对象 URL ( blob: )
@@ -108,4 +109,23 @@ function getExtensionFromMimeType(mimeType: string | null): string {
   }
 
   return mimeToExtension[mimeType] || '.bin'
+}
+
+export const downloadImagesToFileStorage = async (urls: string[]) => {
+  const downloadedFiles = await Promise.all(
+    urls.map(async (url) => {
+      const trimmedUrl = url.trim()
+      if (!trimmedUrl) {
+        logger.warn('Empty URL, skipping download.')
+        return null
+      }
+      try {
+        return await window.api.file.download(trimmedUrl)
+      } catch (error) {
+        logger.error(`Failed to download image from ${trimmedUrl}:`, error as Error)
+        return null
+      }
+    })
+  )
+  return downloadedFiles.filter((file): file is FileType => file !== null)
 }
