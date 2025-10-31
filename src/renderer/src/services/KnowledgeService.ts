@@ -17,6 +17,7 @@ import {
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { routeToEndpoint } from '@renderer/utils'
 import { ExtractResults } from '@renderer/utils/extract'
+import { useKnowledgeItemMetadata } from '@renderer/utils/knowledge'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
@@ -267,13 +268,14 @@ export const processKnowledgeSearch = async (
     ).sort((a, b) => b.score - a.score)
 
     // 转换为引用格式
+    const { getSourceLink } = useKnowledgeItemMetadata()
     const result = await Promise.all(
       uniqueResults.map(
         async (item, index) =>
           ({
             id: index + 1,
             content: item.pageContent,
-            sourceUrl: await getKnowledgeSourceUrl(item),
+            sourceUrl: getSourceLink(item).href,
             metadata: item.metadata,
             type: 'file'
           }) as KnowledgeReference
