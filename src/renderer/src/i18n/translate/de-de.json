@@ -1047,7 +1047,7 @@
     "clear": "Löschen",
     "close": "Schließen",
     "collapse": "Einklappen",
-    "completed": "[to be translated]:Completed",
+    "completed": "Abgeschlossen",
     "confirm": "Bestätigen",
     "copied": "Kopiert",
     "copy": "Kopieren",
@@ -3041,43 +3041,43 @@
       },
       "export_to_phone": {
         "confirm": {
-          "button": "[to be translated]:Select backup file"
+          "button": "Sicherungsdatei auswählen"
         },
-        "content": "[to be translated]:Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
         "lan": {
-          "auto_close_tip": "[to be translated]:Auto-closing in {{seconds}} seconds...",
-          "confirm_close_message": "[to be translated]:File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
-          "confirm_close_title": "[to be translated]:Confirm Close",
-          "connected": "[to be translated]:Connected",
-          "connection_failed": "[to be translated]:Connection failed",
-          "content": "[to be translated]:Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "auto_close_tip": "Automatisches Schließen in {{seconds}} Sekunden...",
+          "confirm_close_message": "Dateiübertragung läuft. Beim Schließen wird die Übertragung unterbrochen. Möchten Sie wirklich das Schließen erzwingen?",
+          "confirm_close_title": "Schließen bestätigen",
+          "connected": "Verbunden",
+          "connection_failed": "Verbindung fehlgeschlagen",
+          "content": "Bitte stelle sicher, dass dein Computer und dein Telefon sich im gleichen Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
           "error": {
-            "init_failed": "[to be translated]:Initialization failed",
-            "no_file": "[to be translated]:No file selected",
-            "no_ip": "[to be translated]:Unable to get IP address",
-            "send_failed": "[to be translated]:Failed to send file"
+            "init_failed": "Initialisierung fehlgeschlagen",
+            "no_file": "Keine Datei ausgewählt",
+            "no_ip": "IP-Adresse kann nicht abgerufen werden",
+            "send_failed": "Datei konnte nicht gesendet werden"
           },
-          "force_close": "[to be translated]:Force Close",
-          "generating_qr": "[to be translated]:Generating QR code...",
-          "noZipSelected": "[to be translated]:No compressed file selected",
-          "scan_qr": "[to be translated]:Please scan QR code with your phone",
-          "selectZip": "[to be translated]:Select a compressed file",
-          "sendZip": "[to be translated]:Begin data recovery",
+          "force_close": "Erzwungenes Schließen",
+          "generating_qr": "QR-Code wird generiert...",
+          "noZipSelected": "Keine komprimierte Datei ausgewählt",
+          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Handy.",
+          "selectZip": "Wählen Sie eine komprimierte Datei",
+          "sendZip": "Datenwiederherstellung beginnen",
           "status": {
-            "completed": "[to be translated]:Transfer completed",
-            "connected": "[to be translated]:Connected",
-            "connecting": "[to be translated]:Connecting...",
-            "disconnected": "[to be translated]:Disconnected",
-            "error": "[to be translated]:Connection error",
-            "initializing": "[to be translated]:Initializing connection...",
-            "preparing": "[to be translated]:Preparing transfer...",
-            "sending": "[to be translated]:Transferring {{progress}}%",
-            "waiting_qr_scan": "[to be translated]:Please scan QR code to connect"
+            "completed": "Übertragung abgeschlossen",
+            "connected": "Verbunden",
+            "connecting": "Verbindung wird hergestellt...",
+            "disconnected": "Getrennt",
+            "error": "Verbindungsfehler",
+            "initializing": "Verbindung wird initialisiert...",
+            "preparing": "Übertragung wird vorbereitet...",
+            "sending": "Übertrage {{progress}} %",
+            "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
           },
-          "title": "[to be translated]:LAN transmission",
-          "transfer_progress": "[to be translated]:Transfer progress"
+          "title": "LAN-Übertragung",
+          "transfer_progress": "Übertragungsfortschritt"
         },
-        "title": "[to be translated]:Export to phone"
+        "title": "Auf Telefon exportieren"
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
