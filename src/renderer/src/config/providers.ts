@@ -50,6 +50,7 @@ import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import AIGatewayProviderLogo from '@renderer/assets/images/providers/vercel.svg'
 import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
@@ -665,6 +666,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: [],
     isSystem: true,
     enabled: false
+  },
+  'ai-gateway': {
+    id: 'ai-gateway',
+    name: 'AI Gateway',
+    type: 'ai-gateway',
+    apiKey: '',
+    apiHost: 'https://ai-gateway.vercel.sh/v1',
+    models: [],
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -730,7 +741,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   poe: 'poe', // use svg icon component
   aionly: AiOnlyProviderLogo,
   longcat: LongCatProviderLogo,
-  huggingface: HuggingfaceProviderLogo
+  huggingface: HuggingfaceProviderLogo,
+  'ai-gateway': AIGatewayProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1368,6 +1380,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       docs: 'https://huggingface.co/docs',
       models: 'https://huggingface.co/models'
     }
+  },
+  'ai-gateway': {
+    api: {
+      url: 'https://ai-gateway.vercel.sh/v1/ai'
+    },
+    websites: {
+      official: 'https://vercel.com/ai-gateway',
+      apiKey: 'https://vercel.com/',
+      docs: 'https://vercel.com/docs/ai-gateway',
+      models: 'https://vercel.com/ai-gateway/models'
+    }
   }
 }
 
@@ -1487,6 +1510,10 @@ export function isAnthropicProvider(provider: Provider): boolean {
 
 export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
+}
+
+export function isAIGatewayProvider(provider: Provider): boolean {
+  return provider.type === 'ai-gateway'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]

@@ -2427,6 +2427,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "Gateway de IA",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2923,15 +2924,14 @@
       },
       "description": "Um assistente de IA criado para criadores",
       "downloading": "Baixando atualizações...",
+      "enterprise": {
+        "title": "Empresa"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Enviar feedback"
       },
       "label": "Sobre Nós",
-      "license": {
-        "button": "Ver",
-        "title": "Licença"
-      },
       "releases": {
         "button": "Ver",
         "title": "Registro de alterações"

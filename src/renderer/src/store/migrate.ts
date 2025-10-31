@@ -2785,6 +2785,20 @@ const migrateConfig = {
       logger.error('migrate 169 error', error as Error)
       return state
     }
+  },
+  '170': (state: RootState) => {
+    try {
+      addProvider(state, 'ai-gateway')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.minimax) {
+          provider.anthropicApiHost = 'https://api.minimaxi.com/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 169 error', error as Error)
+      return state
+    }
   }
 }
 

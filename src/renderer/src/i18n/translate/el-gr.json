@@ -2427,6 +2427,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "Πύλη Τεχνητής Νοημοσύνης",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2923,15 +2924,14 @@
       },
       "description": "Ένα AI ασιστάντα που έχει σχεδιαστεί για δημιουργούς",
       "downloading": "Λήψη ενημερώσεων...",
+      "enterprise": {
+        "title": "Επιχείρηση"
+      },
       "feedback": {
         "button": "Σχόλια και Παρατηρήσεις",
         "title": "Αποστολή σχολίων"
       },
       "label": "Περί μας",
-      "license": {
-        "button": "Προβολή",
-        "title": "Licenses"
-      },
       "releases": {
         "button": "Προβολή",
         "title": "Ημερολόγιο Ενημερώσεων"

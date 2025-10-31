@@ -106,6 +106,7 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.42",
+    "@ai-sdk/gateway": "^2.0.3",
     "@ai-sdk/google-vertex": "^3.0.48",
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.4#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.4-8080836bc1.patch",
     "@ai-sdk/mistral": "^2.0.19",

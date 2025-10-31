@@ -90,7 +90,8 @@ const providerKeyMap = {
   poe: 'provider.poe',
   aionly: 'provider.aionly',
   longcat: 'provider.longcat',
-  huggingface: 'provider.huggingface'
+  huggingface: 'provider.huggingface',
+  'ai-gateway': 'provider.ai-gateway'
 } as const
 
 /**

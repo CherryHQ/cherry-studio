@@ -2427,6 +2427,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI-шлюз",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2923,15 +2924,14 @@
       },
       "description": "Мощный AI-ассистент для созидания",
       "downloading": "Загрузка...",
+      "enterprise": {
+        "title": "Предприятие"
+      },
       "feedback": {
         "button": "Обратная связь",
         "title": "Обратная связь"
       },
       "label": "О программе и обратная связь",
-      "license": {
-        "button": "Лицензия",
-        "title": "Лицензия"
-      },
       "releases": {
         "button": "Релизы",
         "title": "Заметки о релизах"
