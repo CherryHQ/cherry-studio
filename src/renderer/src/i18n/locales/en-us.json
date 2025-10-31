@@ -3071,7 +3071,10 @@
           "scan_qr": "Please scan QR code with your phone",
           "connected": "Connected",
           "connection_failed": "Connection failed",
-          "transfer_progress": "Transfer progress"
+          "transfer_progress": "Transfer progress",
+          "confirm_close_title": "Confirm Close",
+          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
+          "force_close": "Force Close"
         },
         "title": "Export to phone"
       },

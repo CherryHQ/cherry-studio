@@ -1,5 +1,5 @@
 import { Button } from '@heroui/button'
-import { Modal, ModalBody, ModalContent, ModalHeader } from '@heroui/modal'
+import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@heroui/modal'
 import { Progress } from '@heroui/progress'
 import { Spinner } from '@heroui/spinner'
 import { loggerService } from '@logger'
@@ -19,6 +19,114 @@ interface Props {
 type ConnectionPhase = 'initializing' | 'waiting_qr_scan' | 'connecting' | 'connected' | 'disconnected' | 'error'
 type TransferPhase = 'idle' | 'preparing' | 'sending' | 'completed' | 'error'
 
+const LoadingQRCode: React.FC = () => {
+  const { t } = useTranslation()
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+      <Spinner />
+      <span style={{ fontSize: '14px', color: 'var(--color-text-2)' }}>
+        {t('settings.data.export_to_phone.lan.generating_qr')}
+      </span>
+    </div>
+  )
+}
+
+const ScanQRCode: React.FC<{ qrCodeValue: string }> = ({ qrCodeValue }) => {
+  const { t } = useTranslation()
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+      <QRCodeSVG
+        marginSize={2}
+        value={qrCodeValue}
+        level="Q"
+        size={160}
+        imageSettings={{
+          src: '/src/assets/images/logo.png',
+          width: 40,
+          height: 40,
+          excavate: true
+        }}
+      />
+      <span style={{ fontSize: '12px', color: 'var(--color-text-2)' }}>
+        {t('settings.data.export_to_phone.lan.scan_qr')}
+      </span>
+    </div>
+  )
+}
+
+const ConnectingAnimation: React.FC = () => {
+  const { t } = useTranslation()
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+      <div
+        style={{
+          width: '160px',
+          height: '160px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '2px dashed var(--color-status-warning)',
+          borderRadius: '12px',
+          backgroundColor: 'var(--color-status-warning)'
+        }}>
+        <Spinner size="lg" color="warning" />
+        <span style={{ fontSize: '14px', color: 'var(--color-text)', marginTop: '12px' }}>
+          {t('settings.data.export_to_phone.lan.status.connecting')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+const ConnectedDisplay: React.FC = () => {
+  const { t } = useTranslation()
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+      <div
+        style={{
+          width: '160px',
+          height: '160px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '2px dashed var(--color-status-success)',
+          borderRadius: '12px',
+          backgroundColor: 'var(--color-status-success)'
+        }}>
+        <span style={{ fontSize: '48px' }}>📱</span>
+        <span style={{ fontSize: '14px', color: 'var(--color-text)', marginTop: '8px' }}>
+          {t('settings.data.export_to_phone.lan.connected')}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+const ErrorQRCode: React.FC<{ error: string | null }> = ({ error }) => {
+  const { t } = useTranslation()
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '20px',
+        border: `1px solid var(--color-error)`,
+        borderRadius: '8px',
+        backgroundColor: 'var(--color-error)'
+      }}>
+      <span style={{ fontSize: '48px' }}>⚠️</span>
+      <span style={{ fontSize: '14px', color: 'var(--color-text)' }}>
+        {t('settings.data.export_to_phone.lan.connection_failed')}
+      </span>
+      {error && <span style={{ fontSize: '12px', color: 'var(--color-text-2)' }}>{error}</span>}
+    </div>
+  )
+}
+
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [isOpen, setIsOpen] = useState(true)
   const [connectionPhase, setConnectionPhase] = useState<ConnectionPhase>('initializing')
@@ -27,13 +135,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null)
   const [sendProgress, setSendProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   const { t } = useTranslation()
 
   // 派生状态
   const isConnected = connectionPhase === 'connected'
   const canSend = isConnected && selectedFolderPath && transferPhase === 'idle'
-  const isLoading = connectionPhase === 'initializing'
   const isSending = transferPhase === 'preparing' || transferPhase === 'sending'
 
   // 状态文本映射
@@ -172,13 +280,39 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }, [selectedFolderPath, t])
 
+  // 尝试关闭弹窗 - 如果正在传输则显示确认
   const handleCancel = useCallback(() => {
+    if (isSending) {
+      setShowCloseConfirm(true)
+    } else {
+      setIsOpen(false)
+    }
+  }, [isSending])
+
+  // 确认强制关闭
+  const handleForceClose = useCallback(() => {
+    logger.info('Force closing popup during transfer')
     setIsOpen(false)
   }, [])
 
-  const handleClose = useCallback(() => {
+  // 取消关闭确认
+  const handleCancelClose = useCallback(() => {
+    setShowCloseConfirm(false)
+  }, [])
+
+  // 清理并关闭
+  const handleClose = useCallback(async () => {
+    try {
+      // 主动断开 WebSocket 连接
+      if (isConnected || connectionPhase !== 'disconnected') {
+        logger.info('Closing popup, stopping WebSocket')
+        await window.api.webSocket.stop()
+      }
+    } catch (error) {
+      logger.error('Failed to stop WebSocket on close:', error as Error)
+    }
     resolve({})
-  }, [resolve])
+  }, [resolve, isConnected, connectionPhase])
 
   useEffect(() => {
     initWebSocket()
@@ -199,7 +333,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       removeSendProgressListener()
       window.api.webSocket.stop()
     }
-  }, [initWebSocket, handleClientConnected, handleMessageReceived, handleSendProgress])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 状态指示器组件
   const StatusIndicator = useCallback(
@@ -220,89 +355,24 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     [connectionStatusStyles, connectionStatusText]
   )
 
-  // 二维码显示组件
+  // 二维码显示组件 - 使用显式条件渲染以避免类型不匹配
   const QRCodeDisplay = useCallback(() => {
-    if (isLoading) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <Spinner />
-          <span style={{ fontSize: '14px', color: 'var(--color-text-2)' }}>
-            {t('settings.data.export_to_phone.lan.generating_qr')}
-          </span>
-        </div>
-      )
+    switch (connectionPhase) {
+      case 'waiting_qr_scan':
+      case 'disconnected':
+        return <ScanQRCode qrCodeValue={qrCodeValue} />
+      case 'initializing':
+        return <LoadingQRCode />
+      case 'connecting':
+        return <ConnectingAnimation />
+      case 'connected':
+        return <ConnectedDisplay />
+      case 'error':
+        return <ErrorQRCode error={error} />
+      default:
+        return null
     }
-
-    if (!isConnected && qrCodeValue) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <QRCodeSVG
-            marginSize={2}
-            value={qrCodeValue}
-            level="Q"
-            size={160}
-            imageSettings={{
-              src: '/src/assets/images/logo.png',
-              width: 40,
-              height: 40,
-              excavate: true
-            }}
-          />
-          <span style={{ fontSize: '12px', color: 'var(--color-text-2)' }}>
-            {t('settings.data.export_to_phone.lan.scan_qr')}
-          </span>
-        </div>
-      )
-    }
-
-    if (isConnected) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-          <div
-            style={{
-              width: '160px',
-              height: '160px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px dashed var(--color-status-success)',
-              borderRadius: '12px',
-              backgroundColor: 'var(--color-status-success)'
-            }}>
-            <span style={{ fontSize: '48px' }}>📱</span>
-            <span style={{ fontSize: '14px', color: 'var(--color-text)', marginTop: '8px' }}>
-              {t('settings.data.export_to_phone.lan.connected')}
-            </span>
-          </div>
-        </div>
-      )
-    }
-
-    if (connectionPhase === 'error') {
-      return (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '20px',
-            border: `1px solid var(--color-error)`,
-            borderRadius: '8px',
-            backgroundColor: 'var(--color-error)'
-          }}>
-          <span style={{ fontSize: '48px' }}>⚠️</span>
-          <span style={{ fontSize: '14px', color: 'var(--color-text)' }}>
-            {t('settings.data.export_to_phone.lan.connection_failed')}
-          </span>
-          {error && <span style={{ fontSize: '12px', color: 'var(--color-text-2)' }}>{error}</span>}
-        </div>
-      )
-    }
-
-    return null
-  }, [isLoading, isConnected, qrCodeValue, connectionPhase, error, t])
+  }, [connectionPhase, qrCodeValue, error])
 
   // 传输进度组件
   const TransferProgress = useCallback(() => {
@@ -371,12 +441,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     <Modal
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open && !isSending) {
+        if (!open) {
           handleCancel()
         }
       }}
-      isDismissable={!isSending}
-      isKeyboardDismissDisabled={isSending}
+      isDismissable={false}
+      isKeyboardDismissDisabled={false}
+      hideCloseButton={isSending}
       placement="center"
       onClose={handleClose}>
       <ModalContent>
@@ -420,6 +491,40 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               <TransferProgress />
               <ErrorDisplay />
             </ModalBody>
+
+            {showCloseConfirm && (
+              <ModalFooter>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    width: '100%',
+                    gap: '12px',
+                    padding: '8px',
+                    borderRadius: '8px',
+                    backgroundColor: 'var(--color-status-warning)',
+                    border: '1px solid var(--color-status-warning)'
+                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '20px' }}>⚠️</span>
+                    <span style={{ fontSize: '14px', color: 'var(--color-text)', fontWeight: '500' }}>
+                      {t('settings.data.export_to_phone.lan.confirm_close_title')}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '13px', color: 'var(--color-text-2)', marginLeft: '28px' }}>
+                    {t('settings.data.export_to_phone.lan.confirm_close_message')}
+                  </span>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                    <Button size="sm" color="default" variant="flat" onPress={handleCancelClose}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button size="sm" color="danger" onPress={handleForceClose}>
+                      {t('settings.data.export_to_phone.lan.force_close')}
+                    </Button>
+                  </div>
+                </div>
+              </ModalFooter>
+            )}
           </>
         )}
       </ModalContent>
