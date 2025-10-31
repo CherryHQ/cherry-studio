@@ -36,7 +36,7 @@ const ScanQRCode: React.FC<{ qrCodeValue: string }> = ({ qrCodeValue }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
       <QRCodeSVG
-        marginSize={2}
+        marginSize={4}
         value={qrCodeValue}
         level="Q"
         size={160}
