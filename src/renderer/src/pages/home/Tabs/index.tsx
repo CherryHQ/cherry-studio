@@ -7,6 +7,8 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { Tab } from '@renderer/types/chat'
 import { classNames, getErrorMessage, uuid } from '@renderer/utils'
@@ -50,6 +52,7 @@ const HomeTabs: FC<Props> = ({
   const { activeTopicOrSession, activeAgentId } = chat
   const { session, isLoading: isSessionLoading, error: sessionError } = useActiveSession()
   const { updateSession } = useUpdateSession(activeAgentId)
+  const dispatch = useAppDispatch()
 
   const isSessionView = activeTopicOrSession === 'session'
   const isTopicView = activeTopicOrSession === 'topic'
@@ -69,13 +72,19 @@ const HomeTabs: FC<Props> = ({
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
-    assistant && setActiveAssistant(assistant)
+    if (assistant) {
+      setActiveAssistant(assistant)
+      dispatch(setActiveAgentId(null))
+      dispatch(setActiveTopicOrSessionAction('topic'))
+    }
   }
 
   const onCreateDefaultAssistant = () => {
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
     setActiveAssistant(assistant)
+    dispatch(setActiveAgentId(null))
+    dispatch(setActiveTopicOrSessionAction('topic'))
   }
 
   useEffect(() => {
