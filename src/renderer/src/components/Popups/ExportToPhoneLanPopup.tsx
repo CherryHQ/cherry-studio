@@ -38,14 +38,14 @@ const ScanQRCode: React.FC<{ qrCodeValue: string }> = ({ qrCodeValue }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
       <QRCodeSVG
-        marginSize={1}
+        marginSize={2}
         value={qrCodeValue}
-        level="L"
-        size={180}
+        level="H"
+        size={300}
         imageSettings={{
           src: AppLogo,
-          width: 60,
-          height: 60,
+          width: 40,
+          height: 40,
           excavate: true
         }}
       />
