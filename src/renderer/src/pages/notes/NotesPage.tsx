@@ -716,10 +716,17 @@ const NotesPage: FC = () => {
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         if (normalizedActivePath) {
           if (normalizedActivePath === sourceNode.externalPath) {
+            // Cancel debounced save to prevent saving to old path
+            debouncedSaveRef.current?.cancel()
+            lastFilePathRef.current = destinationPath
             dispatch(setActiveFilePath(destinationPath))
           } else if (sourceNode.type === 'folder' && normalizedActivePath.startsWith(`${sourceNode.externalPath}/`)) {
             const suffix = normalizedActivePath.slice(sourceNode.externalPath.length)
-            dispatch(setActiveFilePath(`${destinationPath}${suffix}`))
+            const newActivePath = `${destinationPath}${suffix}`
+            // Cancel debounced save to prevent saving to old path
+            debouncedSaveRef.current?.cancel()
+            lastFilePathRef.current = newActivePath
+            dispatch(setActiveFilePath(newActivePath))
           }
         }
 
