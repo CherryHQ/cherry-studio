@@ -3074,7 +3074,8 @@
           "transfer_progress": "Transfer progress",
           "confirm_close_title": "Confirm Close",
           "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
-          "force_close": "Force Close"
+          "force_close": "Force Close",
+          "auto_close_tip": "Auto-closing in {{seconds}} seconds..."
         },
         "title": "Export to phone"
       },

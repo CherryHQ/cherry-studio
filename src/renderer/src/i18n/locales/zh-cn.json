@@ -3075,7 +3075,8 @@
           "transfer_progress": "传输进度",
           "confirm_close_title": "确认关闭",
           "confirm_close_message": "文件正在传输中，关闭将中断传输。确定要强制关闭吗？",
-          "force_close": "强制关闭"
+          "force_close": "强制关闭",
+          "auto_close_tip": "{{seconds}} 秒后自动关闭..."
         },
         "title": "导出至手机"
       },

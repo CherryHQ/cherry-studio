@@ -136,6 +136,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [sendProgress, setSendProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  const [autoCloseCountdown, setAutoCloseCountdown] = useState<number | null>(null)
 
   const { t } = useTranslation()
 
@@ -246,6 +247,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       if (progress >= 100) {
         setTransferPhase('completed')
+        // 启动 3 秒倒计时自动关闭
+        setAutoCloseCountdown(3)
       }
     },
     [transferPhase]
@@ -336,6 +339,23 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 自动关闭倒计时
+  useEffect(() => {
+    if (autoCloseCountdown === null) return
+
+    if (autoCloseCountdown <= 0) {
+      logger.debug('Auto-closing popup after transfer completion')
+      setIsOpen(false)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setAutoCloseCountdown(autoCloseCountdown - 1)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [autoCloseCountdown])
+
   // 状态指示器组件
   const StatusIndicator = useCallback(
     () => (
@@ -414,10 +434,22 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             showValueLabel={false}
             aria-label="Send progress"
           />
+
+          {transferPhase === 'completed' && autoCloseCountdown !== null && autoCloseCountdown > 0 && (
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'var(--color-text-2)',
+                textAlign: 'center',
+                marginTop: '4px'
+              }}>
+              {t('settings.data.export_to_phone.lan.auto_close_tip', { seconds: autoCloseCountdown })}
+            </div>
+          )}
         </div>
       </div>
     )
-  }, [isSending, transferPhase, sendProgress, t])
+  }, [isSending, transferPhase, sendProgress, autoCloseCountdown, t])
 
   // 错误显示组件
   const ErrorDisplay = useCallback(() => {
