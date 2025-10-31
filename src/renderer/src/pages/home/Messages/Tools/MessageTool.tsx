@@ -10,12 +10,12 @@ import { MessageWebSearchToolTitle } from './MessageWebSearch'
 interface Props {
   block: ToolMessageBlock
 }
-const prefix = 'builtin_'
-const agentPrefix = 'mcp__'
+const builtinToolsPrefix = 'builtin_'
+const agentMcpToolsPrefix = 'mcp__'
 const agentTools = Object.values(AgentToolsType)
 
 const isAgentTool = (toolName: AgentToolsType) => {
-  if (agentTools.includes(toolName) || toolName.startsWith(agentPrefix)) {
+  if (agentTools.includes(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
     return true
   }
   return false
@@ -24,8 +24,8 @@ const isAgentTool = (toolName: AgentToolsType) => {
 const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null => {
   let toolName = toolResponse.tool.name
   const toolType = toolResponse.tool.type
-  if (toolName.startsWith(prefix)) {
-    toolName = toolName.slice(prefix.length)
+  if (toolName.startsWith(builtinToolsPrefix)) {
+    toolName = toolName.slice(builtinToolsPrefix.length)
     switch (toolName) {
       case 'web_search':
       case 'web_search_preview':
