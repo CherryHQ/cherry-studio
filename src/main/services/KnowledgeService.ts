@@ -31,10 +31,10 @@ import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles, sanitizeFilename } from '@main/utils/file'
 import { TraceMethod } from '@mcp-trace/trace-core'
-import { MB } from '@shared/config/constant'
+import { MB, imageExts } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
+import { FileMetadata, FileTypes, KnowledgeBaseParams, KnowledgeItem, KnowledgeSearchResult } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('MainKnowledgeService')
@@ -298,6 +298,12 @@ class KnowledgeService {
       this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
     )
   }
+
+  private isImageFile(file: FileMetadata): boolean {
+    const ext = (file.ext || '').toLowerCase()
+    return file.type === FileTypes.IMAGE || imageExts.some((imageExt) => imageExt === ext)
+  }
+
   private fileTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
@@ -313,23 +319,20 @@ class KnowledgeService {
             try {
               // Add preprocessing logic
               const fileToProcess: FileMetadata = await this.preprocessing(file, base, item, userId)
-
-              // Use processed file for loading
-              return addFileLoader(ragApplication, fileToProcess, base, forceReload)
-                .then((result) => {
-                  loaderTask.loaderDoneReturn = result
-                  return result
-                })
-                .catch((e) => {
-                  logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
-                  const errorResult: LoaderReturn = {
-                    ...KnowledgeService.ERROR_LOADER_RETURN,
-                    message: e.message,
-                    messageSource: 'embedding'
-                  }
-                  loaderTask.loaderDoneReturn = errorResult
-                  return errorResult
-                })
+              try {
+                const result = await addFileLoader(ragApplication, fileToProcess, base, forceReload)
+                loaderTask.loaderDoneReturn = result
+                return result
+              } catch (e: any) {
+                logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
+                const errorResult: LoaderReturn = {
+                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  message: e.message,
+                  messageSource: 'embedding'
+                }
+                loaderTask.loaderDoneReturn = errorResult
+                return errorResult
+              }
             } catch (e: any) {
               logger.error(`Preprocessing failed for ${file.name}: ${e}`)
               const errorResult: LoaderReturn = {
@@ -692,9 +695,16 @@ class KnowledgeService {
     userId: string
   ): Promise<FileMetadata> => {
     let fileToProcess: FileMetadata = file
-    if (base.preprocessProvider && file.ext.toLowerCase() === '.pdf') {
+    const ext = (file.ext || '').toLowerCase()
+    const preprocessConfig = base.preprocessProvider
+    const providerId = preprocessConfig?.provider.id
+    const supportsImagePreprocess =
+      this.isImageFile(file) && Boolean(providerId && ['mineru', 'open-mineru'].includes(providerId))
+    const shouldUsePreprocess = Boolean(preprocessConfig && (ext === '.pdf' || supportsImagePreprocess))
+
+    if (shouldUsePreprocess && preprocessConfig) {
       try {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
+        const provider = new PreprocessProvider(preprocessConfig.provider, userId)
         const filePath = fileStorage.getFilePathById(file)
         // Check if file has already been preprocessed
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)

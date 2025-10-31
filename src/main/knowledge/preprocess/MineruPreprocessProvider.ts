@@ -3,9 +3,12 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { FileMetadata, PreprocessProvider } from '@types'
+import { imageExts } from '@shared/config/constant'
+import { FileMetadata, FileTypes, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
+import { PDFDocument } from 'pdf-lib'
+import sharp from 'sharp'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
@@ -63,33 +66,54 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     sourceId: string,
     file: FileMetadata
   ): Promise<{ processedFile: FileMetadata; quota: number }> {
+    let cleanupPath: string | null = null
     try {
-      const filePath = fileStorage.getFilePathById(file)
-      logger.info(`MinerU preprocess processing started: ${filePath}`)
-      await this.validateFile(filePath)
+      const originalPath = fileStorage.getFilePathById(file)
+      logger.info(`MinerU preprocess processing started: ${originalPath}`)
+
+      let workingFile: FileMetadata = file
+      let workingFilePath = originalPath
+
+      if (this.isImageFile(file)) {
+        const converted = await this.convertImageToPdf(file, originalPath)
+        workingFile = converted.metadata
+        workingFilePath = converted.path
+        cleanupPath = converted.path
+        logger.info(`Converted image to PDF for MinerU preprocessing: ${workingFilePath}`)
+      }
+
+      await this.validateFile(workingFilePath)
 
       // 1. 获取上传URL并上传文件
-      const batchId = await this.uploadFile(file)
+      const batchId = await this.uploadFile(workingFile, workingFilePath)
       logger.info(`MinerU file upload completed: batch_id=${batchId}`)
 
       // 2. 等待处理完成并获取结果
-      const extractResult = await this.waitForCompletion(sourceId, batchId, file.origin_name)
+      const extractResult = await this.waitForCompletion(sourceId, batchId, workingFile.origin_name)
       logger.info(`MinerU processing completed for batch: ${batchId}`)
 
       // 3. 下载并解压文件
-      const { path: outputPath } = await this.downloadAndExtractFile(extractResult.full_zip_url!, file)
+      const { path: outputPath } = await this.downloadAndExtractFile(extractResult.full_zip_url!, workingFile)
 
       // 4. check quota
       const quota = await this.checkQuota()
 
       // 5. 创建处理后的文件信息
       return {
-        processedFile: this.createProcessedFileInfo(file, outputPath),
+        processedFile: this.createProcessedFileInfo(workingFile, outputPath),
         quota
       }
     } catch (error: any) {
       logger.error(`MinerU preprocess processing failed for:`, error as Error)
       throw new Error(error.message)
+    } finally {
+      if (cleanupPath) {
+        try {
+          await fs.promises.unlink(cleanupPath)
+        } catch (cleanupError) {
+          logger.warn(`Failed to cleanup temporary MinerU conversion file ${cleanupPath}:`, cleanupError as Error)
+        }
+      }
     }
   }
 
@@ -207,12 +231,11 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     }
   }
 
-  private async uploadFile(file: FileMetadata): Promise<string> {
+  private async uploadFile(file: FileMetadata, filePath: string): Promise<string> {
     try {
       // 步骤1: 获取上传URL
       const { batchId, fileUrls } = await this.getBatchUploadUrls(file)
       // 步骤2: 上传文件到获取的URL
-      const filePath = fileStorage.getFilePathById(file)
       await this.putFileToUrl(filePath, fileUrls[0])
       logger.info(`File uploaded successfully: ${filePath}`, { batchId, fileUrls })
 
@@ -220,6 +243,67 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     } catch (error: any) {
       logger.error(`Failed to upload file:`, error as Error)
       throw new Error(error.message)
+    }
+  }
+
+  private isImageFile(file: FileMetadata): boolean {
+    const ext = (file.ext || '').toLowerCase()
+    return imageExts.includes(ext)
+  }
+
+  private async convertImageToPdf(
+    file: FileMetadata,
+    sourcePath: string
+  ): Promise<{ metadata: FileMetadata; path: string }> {
+    try {
+      const ext = (file.ext || '').toLowerCase()
+      const imageBuffer = await fs.promises.readFile(sourcePath)
+
+      let convertedBuffer: Buffer
+      let embedType: 'jpg' | 'png'
+
+      if (ext === '.jpg' || ext === '.jpeg') {
+        convertedBuffer = imageBuffer
+        embedType = 'jpg'
+      } else {
+        convertedBuffer = await sharp(imageBuffer).png().toBuffer()
+        embedType = 'png'
+      }
+
+      const pdfDoc = await PDFDocument.create()
+      const embeddedImage =
+        embedType === 'jpg' ? await pdfDoc.embedJpg(convertedBuffer) : await pdfDoc.embedPng(convertedBuffer)
+      const { width, height } = embeddedImage
+
+      const page = pdfDoc.addPage([width, height])
+      page.drawImage(embeddedImage, {
+        x: 0,
+        y: 0,
+        width,
+        height
+      })
+
+      const pdfBytes = await pdfDoc.save()
+      const pdfPath = path.join(this.storageDir, `${file.id}-mineru.pdf`)
+      await fs.promises.writeFile(pdfPath, pdfBytes)
+
+      const originNameBase = path.parse(file.origin_name).name || file.origin_name
+
+      const metadata: FileMetadata = {
+        ...file,
+        path: pdfPath,
+        size: pdfBytes.length,
+        ext: '.pdf',
+        origin_name: `${originNameBase}.pdf`,
+        name: `${file.id}.pdf`,
+        type: FileTypes.DOCUMENT,
+        created_at: new Date().toISOString()
+      }
+
+      return { metadata, path: pdfPath }
+    } catch (error: any) {
+      logger.error(`Failed to convert image ${file.origin_name} to PDF: ${error.message}`)
+      throw new Error(`Failed to convert image to PDF: ${error.message}`)
     }
   }
 
