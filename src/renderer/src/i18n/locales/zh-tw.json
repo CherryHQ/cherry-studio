@@ -2923,15 +2923,14 @@
       },
       "description": "一款為創作者而生的強大 AI 助手",
       "downloading": "正在下載...",
+      "enterprise": {
+        "title": "企業版"
+      },
       "feedback": {
         "button": "回饋",
         "title": "回饋"
       },
       "label": "關於與回饋",
-      "license": {
-        "button": "檢視",
-        "title": "授權"
-      },
       "releases": {
         "button": "檢視",
         "title": "更新日誌"

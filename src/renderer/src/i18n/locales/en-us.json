@@ -2923,15 +2923,14 @@
       },
       "description": "A powerful AI assistant for producer",
       "downloading": "Downloading...",
+      "enterprise": {
+        "title": "Enterprise"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "About & Feedback",
-      "license": {
-        "button": "License",
-        "title": "License"
-      },
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
