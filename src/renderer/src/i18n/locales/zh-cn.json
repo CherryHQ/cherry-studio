@@ -3720,6 +3720,12 @@
         "label": "不使用 MCP 服务器"
       },
       "duplicateName": "已存在同名服务器",
+      "protocolInstallWarning": {
+        "title": "运行外部 MCP？",
+        "message": "该 MCP 是通过协议从外部来源安装的，运行来历不明的工具可能对您的计算机造成危害。",
+        "command": "启动命令",
+        "run": "运行"
+      },
       "editJson": "编辑 JSON",
       "editMcpJson": "编辑 MCP 配置",
       "editServer": "编辑服务器",

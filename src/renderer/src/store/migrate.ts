@@ -24,6 +24,7 @@ import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import {
   Assistant,
   BuiltinOcrProvider,
+  isBuiltinMCPServer,
   isSystemProvider,
   Model,
   Provider,
@@ -2765,6 +2766,23 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 168 error', error as Error)
+      return state
+    }
+  },
+  '169': (state: RootState) => {
+    try {
+      if (state?.mcp?.servers) {
+        state.mcp.servers = state.mcp.servers.map((server) => {
+          const inferredSource = isBuiltinMCPServer(server) ? 'builtin' : 'unknown'
+          return {
+            ...server,
+            installSource: inferredSource
+          }
+        })
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 169 error', error as Error)
       return state
     }
   }

@@ -11,7 +11,7 @@ import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
 import { KnowledgeBase, KnowledgeReference } from './knowledge'
-import { MCPConfigSample, McpServerType } from './mcp'
+import { MCPConfigSample, MCPServerInstallSource, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
@@ -697,6 +697,14 @@ export interface MCPServer {
   shouldConfig?: boolean
   /** 用于标记服务器是否运行中 */
   isActive: boolean
+  /** 标记 MCP 安装来源，例如 builtin/manual/protocol */
+  installSource?: MCPServerInstallSource
+  /** 指示用户是否已信任该 MCP */
+  isTrusted?: boolean
+  /** 首次标记为信任的时间戳 */
+  trustedAt?: number
+  /** 安装时间戳 */
+  installedAt?: number
 }
 
 export type BuiltinMCPServer = MCPServer & {
