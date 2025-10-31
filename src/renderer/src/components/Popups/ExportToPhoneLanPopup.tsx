@@ -41,11 +41,11 @@ const ScanQRCode: React.FC<{ qrCodeValue: string }> = ({ qrCodeValue }) => {
         marginSize={2}
         value={qrCodeValue}
         level="H"
-        size={300}
+        size={200}
         imageSettings={{
           src: AppLogo,
-          width: 40,
-          height: 40,
+          width: 60,
+          height: 60,
           excavate: true
         }}
       />
