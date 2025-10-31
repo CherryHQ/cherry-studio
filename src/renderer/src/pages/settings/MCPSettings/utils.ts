@@ -28,8 +28,6 @@ export async function ensureServerTrusted(
 ): Promise<MCPServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 
-  const UNUSED_VAR_TO_TEST_CI = 'UNUSED_VAR_TO_TEST_CI'
-
   logger.silly('ensureServerTrusted', {
     serverId: currentServer.id,
     installSource: currentServer.installSource,
