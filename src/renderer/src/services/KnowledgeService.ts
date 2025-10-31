@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import { Span } from '@opentelemetry/api'
-import AiProvider from '@renderer/aiCore'
+import { ModernAiProvider } from '@renderer/aiCore'
+import AiProvider from '@renderer/aiCore/legacy'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { isGeminiProvider } from '@renderer/config/providers'
+import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/config/providers'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import {
@@ -14,6 +15,7 @@ import {
   KnowledgeSearchResult
 } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { routeToEndpoint } from '@renderer/utils'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -23,9 +25,8 @@ import FileManager from './FileManager'
 const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
-  const provider = getProviderByModel(base.model)
   const rerankProvider = getProviderByModel(base.rerankModel)
-  const aiProvider = new AiProvider(provider)
+  const aiProvider = new ModernAiProvider(base.model)
   const rerankAiProvider = new AiProvider(rerankProvider)
 
   // get preprocess provider from store instead of base.preprocessProvider
@@ -39,11 +40,18 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       }
     : base.preprocessProvider
 
-  let host = aiProvider.getBaseURL()
+  const actualProvider = aiProvider.getActualProvider()
+
+  let { baseURL } = routeToEndpoint(actualProvider.apiHost)
+
   const rerankHost = rerankAiProvider.getBaseURL()
-  if (isGeminiProvider(provider)) {
-    host = host + '/v1beta/openai/'
+  if (isGeminiProvider(actualProvider)) {
+    baseURL = baseURL + '/openai'
+  } else if (isAzureOpenAIProvider(actualProvider)) {
+    baseURL = baseURL + '/v1'
   }
+
+  logger.info(`Knowledge base ${base.name} using baseURL: ${baseURL}`)
 
   let chunkSize = base.chunkSize
   const maxChunkSize = getEmbeddingMaxContext(base.model.id)
@@ -64,8 +72,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       model: base.model.id,
       provider: base.model.provider,
       apiKey: aiProvider.getApiKey() || 'secret',
-      apiVersion: provider.apiVersion,
-      baseURL: host
+      baseURL
     },
     chunkSize,
     chunkOverlap: base.chunkOverlap,
