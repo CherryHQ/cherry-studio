@@ -3071,7 +3071,7 @@
             "initializing": "Inicializando conexão...",
             "preparing": "Preparando transferência...",
             "sending": "Transferindo {{progress}}%",
-            "waiting_qr_scan": "Por favor, escaneie o código QR para conectar-se"
+            "waiting_qr_scan": "Por favor, escaneie o código QR para conectar"
           },
           "title": "transmissão de rede local",
           "transfer_progress": "Progresso da transferência"

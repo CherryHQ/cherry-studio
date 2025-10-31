@@ -1,5 +1,3 @@
-export type { CategoryFilterProps } from './CategoryFilter'
-export { CategoryFilter } from './CategoryFilter'
 export type { InstalledPluginsListProps } from './InstalledPluginsList'
 export { InstalledPluginsList } from './InstalledPluginsList'
 export type { PluginBrowserProps } from './PluginBrowser'
