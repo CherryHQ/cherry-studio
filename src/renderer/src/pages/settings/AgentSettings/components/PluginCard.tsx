@@ -17,14 +17,19 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
   const { t } = useTranslation()
 
   return (
-    <Card className="w-full cursor-pointer transition-shadow hover:shadow-md" isPressable onPress={onClick}>
+    <Card
+      className="flex h-full w-full cursor-pointer flex-col transition-shadow hover:shadow-md"
+      isPressable
+      onPress={onClick}>
       <CardHeader className="flex flex-col items-start gap-2 pb-2">
-        <div className="flex w-full items-center justify-between">
-          <h3 className="font-semibold text-medium">{plugin.name}</h3>
+        <div className="flex w-full items-center justify-between gap-2">
+          <h3 className="truncate font-medium text-small">{plugin.name}</h3>
           <Chip
             size="sm"
             variant="solid"
-            color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}>
+            color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}
+            className="h-4 min-w-0 flex-shrink-0 px-0.5"
+            style={{ fontSize: '10px' }}>
             {plugin.type}
           </Chip>
         </div>
@@ -33,7 +38,7 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
         </Chip>
       </CardHeader>
 
-      <CardBody className="py-2">
+      <CardBody className="flex-1 py-2">
         <p className="line-clamp-3 text-default-500 text-small">{plugin.description || t('plugins.no_description')}</p>
 
         {plugin.tags && plugin.tags.length > 0 && (
