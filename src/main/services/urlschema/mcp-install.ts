@@ -9,13 +9,20 @@ const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
 
 function installMCPServer(server: MCPServer) {
   const mainWindow = windowService.getMainWindow()
+  const now = Date.now()
 
-  if (!server.id) {
-    server.id = nanoid()
+  const payload: MCPServer = {
+    ...server,
+    id: server.id ?? nanoid(),
+    installSource: 'protocol',
+    isTrusted: false,
+    isActive: false,
+    trustedAt: undefined,
+    installedAt: server.installedAt ?? now
   }
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(IpcChannel.Mcp_AddServer, server)
+    mainWindow.webContents.send(IpcChannel.Mcp_AddServer, payload)
   }
 }
 

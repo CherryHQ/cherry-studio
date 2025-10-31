@@ -3784,6 +3784,12 @@
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
       },
+      "protocolInstallWarning": {
+        "command": "Startbefehl",
+        "message": "Dieses MCP wurde über ein Protokoll aus einer externen Quelle installiert. Das Ausführen unbekannter Tools kann Ihren Computer schädigen.",
+        "run": "Laufen",
+        "title": "Externes MCP ausführen?"
+      },
       "provider": "Anbieter",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",

@@ -3784,6 +3784,12 @@
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
       },
+      "protocolInstallWarning": {
+        "command": "Startup command",
+        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
+        "run": "Run",
+        "title": "Run external MCP?"
+      },
       "provider": "Provider",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",

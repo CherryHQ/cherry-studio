@@ -27,6 +27,9 @@ export const McpServerTypeSchema = z
   })
   .pipe(z.union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')])) // 大多数情况下默认使用 stdio
 
+export const MCPServerInstallSourceSchema = z.enum(['builtin', 'manual', 'protocol', 'unknown']).default('unknown')
+export type MCPServerInstallSource = z.infer<typeof MCPServerInstallSourceSchema>
+
 /**
  * 定义单个 MCP 服务器的配置。
  * FIXME: 为了兼容性，暂时允许用户编辑任意字段，这可能会导致问题。
@@ -168,7 +171,11 @@ export const McpServerConfigSchema = z
      * 是否激活
      * 可选。用于标识服务器是否处于激活状态。
      */
-    isActive: z.boolean().optional().describe('Whether the server is active')
+    isActive: z.boolean().optional().describe('Whether the server is active'),
+    installSource: MCPServerInstallSourceSchema.optional().describe('Where the MCP server was installed from'),
+    isTrusted: z.boolean().optional().describe('Whether the MCP server has been trusted by user'),
+    trustedAt: z.number().optional().describe('Timestamp when the server was trusted'),
+    installedAt: z.number().optional().describe('Timestamp when the server was installed')
   })
   .strict()
   // 在这里定义额外的校验逻辑

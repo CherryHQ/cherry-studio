@@ -3784,6 +3784,12 @@
         "noPromptsAvailable": "无可用提示",
         "requiredField": "必填字段"
       },
+      "protocolInstallWarning": {
+        "command": "启动命令",
+        "message": "该 MCP 是通过协议从外部来源安装的，运行来历不明的工具可能对您的计算机造成危害。",
+        "run": "运行",
+        "title": "运行外部 MCP？"
+      },
       "provider": "提供者",
       "providerPlaceholder": "提供者名称",
       "providerUrl": "提供者网址",
