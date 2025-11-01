@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { WebSocketCandidatesResponse, WebSocketStatusResponse } from '@shared/config/types'
+import type { WebSocketCandidatesResponse, WebSocketStatusResponse } from '@shared/config/types'
 import * as fs from 'fs'
 import { networkInterfaces } from 'os'
 import * as path from 'path'

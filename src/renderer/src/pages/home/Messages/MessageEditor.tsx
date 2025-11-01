@@ -1,10 +1,11 @@
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
@@ -19,7 +20,7 @@ import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { Space, Tooltip } from 'antd'
+import { Space } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
@@ -50,7 +51,10 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
-  const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -356,21 +360,15 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         </ActionBarLeft>
         <ActionBarMiddle />
         <ActionBarRight>
-          <Tooltip title={t('common.cancel')}>
-            <ActionIconButton onClick={onCancel}>
-              <X size={16} />
-            </ActionIconButton>
+          <Tooltip content={t('common.cancel')}>
+            <ActionIconButton onClick={onCancel} icon={<X size={16} />} />
           </Tooltip>
-          <Tooltip title={t('common.save')}>
-            <ActionIconButton onClick={handleSave}>
-              <Save size={16} />
-            </ActionIconButton>
+          <Tooltip content={t('common.save')}>
+            <ActionIconButton onClick={handleSave} icon={<Save size={16} />} />
           </Tooltip>
           {message.role === 'user' && (
-            <Tooltip title={t('chat.resend')}>
-              <ActionIconButton onClick={handleResend}>
-                <Send size={16} />
-              </ActionIconButton>
+            <Tooltip content={t('chat.resend')}>
+              <ActionIconButton onClick={handleResend} icon={<Send size={16} />} />
             </Tooltip>
           )}
         </ActionBarRight>

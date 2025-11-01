@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectApiModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { agentModelFilter } from '@renderer/config/models'
@@ -38,10 +38,10 @@ const SelectAgentBaseModelButton: FC<Props> = ({ agentBase: agent, onSelect, isD
   return (
     <Button
       size="sm"
-      variant="light"
+      variant="ghost"
       className="nodrag h-[28px] rounded-2xl px-1"
-      onPress={onSelectModel}
-      isDisabled={isDisabled}>
+      onClick={onSelectModel}
+      disabled={isDisabled}>
       <div className="flex items-center gap-1.5 overflow-x-hidden">
         <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={20} />
         <span className="truncate text-[var(--color-text)]">

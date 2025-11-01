@@ -1,7 +1,8 @@
+import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
@@ -9,7 +10,7 @@ import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
-import { Button, Dropdown, Empty } from 'antd'
+import { Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -238,7 +239,8 @@ const McpServersList: FC = () => {
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
-          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
+          <Button variant="default" className="rounded-full" onClick={() => EditMcpJsonPopup.show()}>
+            <EditIcon size={14} />
             {t('common.edit')}
           </Button>
           <Dropdown
@@ -246,11 +248,13 @@ const McpServersList: FC = () => {
               items: menuItems
             }}
             trigger={['click']}>
-            <Button icon={<Plus size={16} />} type="default" shape="round">
+            <Button variant="default" className="rounded-full">
+              <Plus size={16} />
               {t('common.add')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshIcon size={14} />} type="default" onClick={onSyncServers} shape="round">
+          <Button variant="default" onClick={onSyncServers} className="rounded-full">
+            <RefreshIcon size={14} />
             {t('settings.mcp.sync.button')}
           </Button>
         </ButtonGroup>

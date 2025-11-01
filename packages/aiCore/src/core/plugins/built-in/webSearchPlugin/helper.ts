@@ -1,8 +1,7 @@
 import type { anthropic } from '@ai-sdk/anthropic'
 import type { google } from '@ai-sdk/google'
 import type { openai } from '@ai-sdk/openai'
-import type { InferToolInput, InferToolOutput } from 'ai'
-import { type Tool } from 'ai'
+import type { InferToolInput, InferToolOutput, Tool } from 'ai'
 
 import type { ProviderOptionsMap } from '../../../options/types'
 import type { OpenRouterSearchConfig } from './openrouter'

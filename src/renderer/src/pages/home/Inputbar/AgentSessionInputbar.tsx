@@ -15,15 +15,13 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Message, Model, Topic } from '@renderer/types'
-import type { MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { type MessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
+import TextArea, { type TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty } from 'lodash'
 import { CirclePause, MessageSquareDiff } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
@@ -313,18 +311,18 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
                 <ActionIconButton
                   onClick={handleCreateSession}
                   disabled={createSessionDisabled}
-                  loading={creatingSession}>
-                  <MessageSquareDiff size={19} />
-                </ActionIconButton>
+                  icon={<MessageSquareDiff size={19} />}></ActionIconButton>
               </Tooltip>
             </ToolbarGroup>
             <ToolbarGroup>
               <SendMessageButton sendMessage={sendMessage} disabled={sendDisabled} />
               {canAbort && (
                 <Tooltip placement="top" content={t('chat.input.pause')}>
-                  <ActionIconButton onClick={abortAgentSession} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ActionIconButton>
+                  <ActionIconButton
+                    onClick={abortAgentSession}
+                    className="-mr-0.5"
+                    icon={<CirclePause size={20} color="var(--color-error)" />}
+                  />
                 </Tooltip>
               )}
             </ToolbarGroup>

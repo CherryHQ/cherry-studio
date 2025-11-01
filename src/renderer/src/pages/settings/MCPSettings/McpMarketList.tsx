@@ -74,7 +74,7 @@ const McpMarketList: FC = () => {
 
   return (
     <>
-      <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.findMore')}</SettingTitle>
+      <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.findMore')}</SettingTitle>
       <MarketGrid>
         {mcpMarkets.map((resource) => (
           <MarketCard key={resource.name} onClick={() => window.open(resource.url, '_blank', 'noopener,noreferrer')}>

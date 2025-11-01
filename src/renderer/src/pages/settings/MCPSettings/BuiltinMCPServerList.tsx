@@ -1,8 +1,9 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
-import { Button, Popover, Tag } from 'antd'
+import { Popover, Tag } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -15,7 +16,7 @@ const BuiltinMCPServerList: FC = () => {
 
   return (
     <>
-      <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
+      <SettingTitle style={{ marginBottom: 10 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
       <ServersGrid>
         {builtinMCPServers.map((server) => {
           const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
@@ -28,9 +29,8 @@ const BuiltinMCPServerList: FC = () => {
                 </ServerName>
                 <StatusIndicator>
                   <Button
-                    type="text"
-                    icon={isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
-                    size="small"
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => {
                       if (isInstalled) {
                         return
@@ -39,8 +39,9 @@ const BuiltinMCPServerList: FC = () => {
                       addMCPServer(server)
                       window.toast.success(t('settings.mcp.addSuccess'))
                     }}
-                    disabled={isInstalled}
-                  />
+                    disabled={isInstalled}>
+                    {isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
+                  </Button>
                 </StatusIndicator>
               </ServerHeader>
               <Popover

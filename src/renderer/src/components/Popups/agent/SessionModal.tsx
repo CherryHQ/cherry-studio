@@ -305,7 +305,7 @@ export const SessionModal: React.FC<Props> = ({
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>
                 <ModalFooter className="w-full">
-                  <Button onPress={onClose}>{t('common.close')}</Button>
+                  <Button onClick={onClose}>{t('common.close')}</Button>
                   <Button color="primary" type="submit" isLoading={loadingRef.current}>
                     {isEditing(session) ? t('common.confirm') : t('common.add')}
                   </Button>

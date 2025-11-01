@@ -370,7 +370,7 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
                   <div className="flex gap-2">
                     <Select
                       isRequired
-                      isDisabled={isEditing(agent)}
+                      disabled={isEditing(agent)}
                       selectionMode="single"
                       selectedKeys={[form.type]}
                       disallowEmptySelection
@@ -443,7 +443,7 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
                       <span className="font-medium text-foreground text-sm">
                         {t('agent.session.accessible_paths.label')}
                       </span>
-                      <Button size="sm" variant="flat" onPress={addAccessiblePath}>
+                      <Button size="sm" variant="ghost" onClick={addAccessiblePath}>
                         {t('agent.session.accessible_paths.add')}
                       </Button>
                     </div>
@@ -456,7 +456,7 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
                             <span className="truncate text-sm" title={path}>
                               {path}
                             </span>
-                            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
+                            <Button size="sm" variant="ghost" color="danger" onClick={() => removeAccessiblePath(path)}>
                               {t('common.delete')}
                             </Button>
                           </div>
@@ -474,7 +474,7 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
                   />
                 </ModalBody>
                 <ModalFooter className="w-full">
-                  <Button onPress={onClose}>{t('common.close')}</Button>
+                  <Button onClick={onClose}>{t('common.close')}</Button>
                   <Button color="primary" type="submit" isLoading={loadingRef.current}>
                     {isEditing(agent) ? t('common.confirm') : t('common.add')}
                   </Button>

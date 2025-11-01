@@ -1,20 +1,21 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { useDisclosure } from '@heroui/react'
+import { Avatar, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { Radio, RadioGroup, useDisclosure } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import { HStack } from '@renderer/components/Layout'
 import UpdateDialog from '@renderer/components/UpdateDialog'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
+// import { useRuntime } from '@renderer/hooks/useRuntime'
 import i18n from '@renderer/i18n'
-import { useAppDispatch } from '@renderer/store'
-import { setUpdateState } from '@renderer/store/runtime'
-import { ThemeMode } from '@renderer/types'
+// import { handleSaveData } from '@renderer/store'
+// import { setUpdateState as setAppUpdateState } from '@renderer/store/runtime'
 import { runAsyncFunction } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/config/constant'
-import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { Progress, Row, Tag } from 'antd'
 import type { UpdateInfo } from 'builder-util-runtime'
 import { debounce } from 'lodash'
 import { Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
@@ -29,31 +30,36 @@ import styled from 'styled-components'
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
 
 const AboutSettings: FC = () => {
+  const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
+  const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
+  const [testChannel, setTestChannel] = usePreference('app.dist.test_plan.channel')
+
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const [updateDialogInfo, setUpdateDialogInfo] = useState<UpdateInfo | null>(null)
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { update } = useRuntime()
+  // const dispatch = useAppDispatch()
+  // const { update } = useRuntime()
   const { openSmartMinapp } = useMinappPopup()
+
+  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 
   const onCheckUpdate = debounce(
     async () => {
-      if (update.checking || update.downloading) {
+      if (appUpdateState.checking || appUpdateState.downloading) {
         return
       }
 
-      if (update.downloaded) {
+      if (appUpdateState.downloaded) {
         // Open update dialog directly in renderer
-        setUpdateDialogInfo(update.info || null)
+        setUpdateDialogInfo(appUpdateState.info || null)
         onOpen()
         return
       }
 
-      dispatch(setUpdateState({ checking: true }))
+      updateAppUpdateState({ checking: true })
 
       try {
         await window.api.checkForUpdate()
@@ -61,7 +67,7 @@ const AboutSettings: FC = () => {
         window.toast.error(t('settings.about.updateError'))
       }
 
-      dispatch(setUpdateState({ checking: false }))
+      updateAppUpdateState({ checking: false })
     },
     2000,
     { leading: true, trailing: false }
@@ -110,16 +116,14 @@ const AboutSettings: FC = () => {
     }
     setTestChannel(value)
     // Clear update info when switching upgrade channel
-    dispatch(
-      setUpdateState({
-        available: false,
-        info: null,
-        downloaded: false,
-        checking: false,
-        downloading: false,
-        downloadProgress: 0
-      })
-    )
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0
+    })
   }
 
   // Get available test version options based on current version
@@ -140,16 +144,14 @@ const AboutSettings: FC = () => {
 
   const handleSetTestPlan = (value: boolean) => {
     setTestPlan(value)
-    dispatch(
-      setUpdateState({
-        available: false,
-        info: null,
-        downloaded: false,
-        checking: false,
-        downloading: false,
-        downloadProgress: 0
-      })
-    )
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0
+    })
 
     if (value === true) {
       setTestChannel(getTestChannel())
@@ -184,27 +186,27 @@ const AboutSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.about.title')}
-          <HStack alignItems="center">
+          <RowFlex className="items-center">
             <Link to="https://github.com/CherryHQ/cherry-studio">
               <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
             </Link>
-          </HStack>
+          </RowFlex>
         </SettingTitle>
         <SettingDivider />
         <AboutHeader>
           <Row align="middle">
             <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
-              {update.downloadProgress > 0 && (
+              {appUpdateState.downloadProgress > 0 && (
                 <ProgressCircle
                   type="circle"
                   size={84}
-                  percent={update.downloadProgress}
+                  percent={appUpdateState.downloadProgress}
                   showInfo={false}
                   strokeLinecap="butt"
                   strokeColor="#67ad5b"
                 />
               )}
-              <Avatar src={AppLogo} size={80} style={{ minHeight: 80 }} />
+              <Avatar src={AppLogo} className="h-20 min-h-[80px] w-20" />
             </AvatarWrapper>
             <VersionWrapper>
               <Title>{APP_NAME}</Title>
@@ -218,13 +220,10 @@ const AboutSettings: FC = () => {
             </VersionWrapper>
           </Row>
           {!isPortable && (
-            <CheckUpdateButton
-              onClick={onCheckUpdate}
-              loading={update.checking}
-              disabled={update.downloading || update.checking}>
-              {update.downloading
+            <CheckUpdateButton onClick={onCheckUpdate} disabled={appUpdateState.downloading || appUpdateState.checking}>
+              {appUpdateState.downloading
                 ? t('settings.about.downloading')
-                : update.available
+                : appUpdateState.available
                   ? t('settings.about.checkUpdate.available')
                   : t('settings.about.checkUpdate.label')}
             </CheckUpdateButton>
@@ -235,13 +234,13 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-              <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+              <Switch isSelected={autoCheckUpdate} onValueChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
+              <Tooltip content={t('settings.general.test_plan.tooltip')}>
+                <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
             {testPlan && (
@@ -249,36 +248,36 @@ const AboutSettings: FC = () => {
                 <SettingDivider />
                 <SettingRow>
                   <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <Radio.Group
-                    size="small"
-                    buttonStyle="solid"
+                  <RadioGroup
+                    size="sm"
+                    orientation="horizontal"
                     value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}>
+                    onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
                     {getAvailableTestChannels().map((option) => (
-                      <Tooltip key={option.value} title={option.tooltip}>
-                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                      <Tooltip key={option.value} content={option.tooltip}>
+                        <Radio value={option.value}>{option.label}</Radio>
                       </Tooltip>
                     ))}
-                  </Radio.Group>
+                  </RadioGroup>
                 </SettingRow>
               </>
             )}
           </>
         )}
       </SettingGroup>
-      {update.info && update.available && (
+      {appUpdateState.info && appUpdateState.available && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>
-              {t('settings.about.updateAvailable', { version: update.info.version })}
+              {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
           <UpdateNotesWrapper className="markdown">
             <Markdown>
-              {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
-                : update.info.releaseNotes?.map((note) => note.note).join('\n')}
+              {typeof appUpdateState.info.releaseNotes === 'string'
+                ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
+                : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </UpdateNotesWrapper>
         </SettingGroup>

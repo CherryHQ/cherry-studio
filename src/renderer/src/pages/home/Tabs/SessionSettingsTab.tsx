@@ -33,7 +33,7 @@ const SessionSettingsTab: FC<Props> = ({ session, update }) => {
       <EssentialSettings agentBase={session} update={update} showModelSetting={false} />
       <AdvancedSettings agentBase={session} update={update} />
       <Divider className="my-2" />
-      <Button size="sm" fullWidth onPress={onMoreSetting}>
+      <Button size="sm" fullWidth onClick={onMoreSetting}>
         {t('settings.moresetting.label')}
       </Button>
     </div>

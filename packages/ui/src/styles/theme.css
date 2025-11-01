@@ -1,0 +1,433 @@
+/**
+ * CherryStudio Theme - Tailwind CSS 主题配置
+ *
+ * 用途：映射设计师的设计系统（--cs-*）到 Tailwind 标准命名
+ * 使用场景：
+ * - 主包：完全使用设计系统
+ * - npm 用户：可选择导入，会覆盖 Tailwind 默认主题
+ *
+ * 生成的工具类：bg-primary, bg-red-500, p-md 等（无前缀）
+ */
+
+@import 'tailwindcss';
+@import './tokens.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* ==================== */
+  /* 语义化颜色（覆盖 Tailwind 标准命名） */
+  /* ==================== */
+  --color-primary: var(--cs-primary);
+  --color-primary-foreground: var(--cs-white);
+
+  --color-destructive: var(--cs-destructive);
+  --color-destructive-foreground: var(--cs-white);
+
+  --color-success: var(--cs-success);
+  --color-success-foreground: var(--cs-white);
+
+  --color-warning: var(--cs-warning);
+  --color-warning-foreground: var(--cs-black);
+
+  --color-background: var(--cs-background);
+  --color-foreground: var(--cs-foreground);
+
+  --color-card: var(--cs-card);
+  --color-card-foreground: var(--cs-foreground);
+
+  --color-popover: var(--cs-popover);
+  --color-popover-foreground: var(--cs-foreground);
+
+  --color-secondary: var(--cs-secondary);
+  --color-secondary-foreground: var(--cs-foreground);
+
+  --color-muted: var(--cs-muted);
+  --color-muted-foreground: var(--cs-foreground-muted);
+
+  --color-accent: var(--cs-accent);
+  --color-accent-foreground: var(--cs-foreground);
+
+  --color-border: var(--cs-border);
+  --color-input: var(--cs-border);
+  --color-ring: var(--cs-ring);
+
+  /* 侧边栏 */
+  --color-sidebar: var(--cs-sidebar);
+  --color-sidebar-foreground: var(--cs-foreground);
+  --color-sidebar-primary: var(--cs-primary);
+  --color-sidebar-primary-foreground: var(--cs-white);
+  --color-sidebar-accent: var(--cs-sidebar-accent);
+  --color-sidebar-accent-foreground: var(--cs-foreground);
+  --color-sidebar-border: var(--cs-border);
+  --color-sidebar-ring: var(--cs-ring);
+
+  /* 图表颜色 */
+  --color-chart-1: var(--cs-blue-500);
+  --color-chart-2: var(--cs-emerald-500);
+  --color-chart-3: var(--cs-purple-500);
+  --color-chart-4: var(--cs-amber-500);
+  --color-chart-5: var(--cs-orange-500);
+
+  /* ==================== */
+  /* Primitive 颜色（覆盖 Tailwind 默认色板） */
+  /* ==================== */
+
+  /* Neutral */
+  --color-neutral-50: var(--cs-neutral-50);
+  --color-neutral-100: var(--cs-neutral-100);
+  --color-neutral-200: var(--cs-neutral-200);
+  --color-neutral-300: var(--cs-neutral-300);
+  --color-neutral-400: var(--cs-neutral-400);
+  --color-neutral-500: var(--cs-neutral-500);
+  --color-neutral-600: var(--cs-neutral-600);
+  --color-neutral-700: var(--cs-neutral-700);
+  --color-neutral-800: var(--cs-neutral-800);
+  --color-neutral-900: var(--cs-neutral-900);
+  --color-neutral-950: var(--cs-neutral-950);
+
+  /* Stone */
+  --color-stone-50: var(--cs-stone-50);
+  --color-stone-100: var(--cs-stone-100);
+  --color-stone-200: var(--cs-stone-200);
+  --color-stone-300: var(--cs-stone-300);
+  --color-stone-400: var(--cs-stone-400);
+  --color-stone-500: var(--cs-stone-500);
+  --color-stone-600: var(--cs-stone-600);
+  --color-stone-700: var(--cs-stone-700);
+  --color-stone-800: var(--cs-stone-800);
+  --color-stone-900: var(--cs-stone-900);
+  --color-stone-950: var(--cs-stone-950);
+
+  /* Zinc */
+  --color-zinc-50: var(--cs-zinc-50);
+  --color-zinc-100: var(--cs-zinc-100);
+  --color-zinc-200: var(--cs-zinc-200);
+  --color-zinc-300: var(--cs-zinc-300);
+  --color-zinc-400: var(--cs-zinc-400);
+  --color-zinc-500: var(--cs-zinc-500);
+  --color-zinc-600: var(--cs-zinc-600);
+  --color-zinc-700: var(--cs-zinc-700);
+  --color-zinc-800: var(--cs-zinc-800);
+  --color-zinc-900: var(--cs-zinc-900);
+  --color-zinc-950: var(--cs-zinc-950);
+
+  /* Slate */
+  --color-slate-50: var(--cs-slate-50);
+  --color-slate-100: var(--cs-slate-100);
+  --color-slate-200: var(--cs-slate-200);
+  --color-slate-300: var(--cs-slate-300);
+  --color-slate-400: var(--cs-slate-400);
+  --color-slate-500: var(--cs-slate-500);
+  --color-slate-600: var(--cs-slate-600);
+  --color-slate-700: var(--cs-slate-700);
+  --color-slate-800: var(--cs-slate-800);
+  --color-slate-900: var(--cs-slate-900);
+  --color-slate-950: var(--cs-slate-950);
+
+  /* Gray */
+  --color-gray-50: var(--cs-gray-50);
+  --color-gray-100: var(--cs-gray-100);
+  --color-gray-200: var(--cs-gray-200);
+  --color-gray-300: var(--cs-gray-300);
+  --color-gray-400: var(--cs-gray-400);
+  --color-gray-500: var(--cs-gray-500);
+  --color-gray-600: var(--cs-gray-600);
+  --color-gray-700: var(--cs-gray-700);
+  --color-gray-800: var(--cs-gray-800);
+  --color-gray-900: var(--cs-gray-900);
+  --color-gray-950: var(--cs-gray-950);
+
+  /* Red */
+  --color-red-50: var(--cs-red-50);
+  --color-red-100: var(--cs-red-100);
+  --color-red-200: var(--cs-red-200);
+  --color-red-300: var(--cs-red-300);
+  --color-red-400: var(--cs-red-400);
+  --color-red-500: var(--cs-red-500);
+  --color-red-600: var(--cs-red-600);
+  --color-red-700: var(--cs-red-700);
+  --color-red-800: var(--cs-red-800);
+  --color-red-900: var(--cs-red-900);
+  --color-red-950: var(--cs-red-950);
+
+  /* Orange */
+  --color-orange-50: var(--cs-orange-50);
+  --color-orange-100: var(--cs-orange-100);
+  --color-orange-200: var(--cs-orange-200);
+  --color-orange-300: var(--cs-orange-300);
+  --color-orange-400: var(--cs-orange-400);
+  --color-orange-500: var(--cs-orange-500);
+  --color-orange-600: var(--cs-orange-600);
+  --color-orange-700: var(--cs-orange-700);
+  --color-orange-800: var(--cs-orange-800);
+  --color-orange-900: var(--cs-orange-900);
+  --color-orange-950: var(--cs-orange-950);
+
+  /* Amber */
+  --color-amber-50: var(--cs-amber-50);
+  --color-amber-100: var(--cs-amber-100);
+  --color-amber-200: var(--cs-amber-200);
+  --color-amber-300: var(--cs-amber-300);
+  --color-amber-400: var(--cs-amber-400);
+  --color-amber-500: var(--cs-amber-500);
+  --color-amber-600: var(--cs-amber-600);
+  --color-amber-700: var(--cs-amber-700);
+  --color-amber-800: var(--cs-amber-800);
+  --color-amber-900: var(--cs-amber-900);
+  --color-amber-950: var(--cs-amber-950);
+
+  /* Yellow */
+  --color-yellow-50: var(--cs-yellow-50);
+  --color-yellow-100: var(--cs-yellow-100);
+  --color-yellow-200: var(--cs-yellow-200);
+  --color-yellow-300: var(--cs-yellow-300);
+  --color-yellow-400: var(--cs-yellow-400);
+  --color-yellow-500: var(--cs-yellow-500);
+  --color-yellow-600: var(--cs-yellow-600);
+  --color-yellow-700: var(--cs-yellow-700);
+  --color-yellow-800: var(--cs-yellow-800);
+  --color-yellow-900: var(--cs-yellow-900);
+  --color-yellow-950: var(--cs-yellow-950);
+
+  /* Lime (品牌主色) */
+  --color-lime-50: var(--cs-lime-50);
+  --color-lime-100: var(--cs-lime-100);
+  --color-lime-200: var(--cs-lime-200);
+  --color-lime-300: var(--cs-lime-300);
+  --color-lime-400: var(--cs-lime-400);
+  --color-lime-500: var(--cs-lime-500);
+  --color-lime-600: var(--cs-lime-600);
+  --color-lime-700: var(--cs-lime-700);
+  --color-lime-800: var(--cs-lime-800);
+  --color-lime-900: var(--cs-lime-900);
+  --color-lime-950: var(--cs-lime-950);
+
+  /* Green */
+  --color-green-50: var(--cs-green-50);
+  --color-green-100: var(--cs-green-100);
+  --color-green-200: var(--cs-green-200);
+  --color-green-300: var(--cs-green-300);
+  --color-green-400: var(--cs-green-400);
+  --color-green-500: var(--cs-green-500);
+  --color-green-600: var(--cs-green-600);
+  --color-green-700: var(--cs-green-700);
+  --color-green-800: var(--cs-green-800);
+  --color-green-900: var(--cs-green-900);
+  --color-green-950: var(--cs-green-950);
+
+  /* Emerald */
+  --color-emerald-50: var(--cs-emerald-50);
+  --color-emerald-100: var(--cs-emerald-100);
+  --color-emerald-200: var(--cs-emerald-200);
+  --color-emerald-300: var(--cs-emerald-300);
+  --color-emerald-400: var(--cs-emerald-400);
+  --color-emerald-500: var(--cs-emerald-500);
+  --color-emerald-600: var(--cs-emerald-600);
+  --color-emerald-700: var(--cs-emerald-700);
+  --color-emerald-800: var(--cs-emerald-800);
+  --color-emerald-900: var(--cs-emerald-900);
+  --color-emerald-950: var(--cs-emerald-950);
+
+  /* Teal */
+  --color-teal-50: var(--cs-teal-50);
+  --color-teal-100: var(--cs-teal-100);
+  --color-teal-200: var(--cs-teal-200);
+  --color-teal-300: var(--cs-teal-300);
+  --color-teal-400: var(--cs-teal-400);
+  --color-teal-500: var(--cs-teal-500);
+  --color-teal-600: var(--cs-teal-600);
+  --color-teal-700: var(--cs-teal-700);
+  --color-teal-800: var(--cs-teal-800);
+  --color-teal-900: var(--cs-teal-900);
+  --color-teal-950: var(--cs-teal-950);
+
+  /* Cyan */
+  --color-cyan-50: var(--cs-cyan-50);
+  --color-cyan-100: var(--cs-cyan-100);
+  --color-cyan-200: var(--cs-cyan-200);
+  --color-cyan-300: var(--cs-cyan-300);
+  --color-cyan-400: var(--cs-cyan-400);
+  --color-cyan-500: var(--cs-cyan-500);
+  --color-cyan-600: var(--cs-cyan-600);
+  --color-cyan-700: var(--cs-cyan-700);
+  --color-cyan-800: var(--cs-cyan-800);
+  --color-cyan-900: var(--cs-cyan-900);
+  --color-cyan-950: var(--cs-cyan-950);
+
+  /* Sky */
+  --color-sky-50: var(--cs-sky-50);
+  --color-sky-100: var(--cs-sky-100);
+  --color-sky-200: var(--cs-sky-200);
+  --color-sky-300: var(--cs-sky-300);
+  --color-sky-400: var(--cs-sky-400);
+  --color-sky-500: var(--cs-sky-500);
+  --color-sky-600: var(--cs-sky-600);
+  --color-sky-700: var(--cs-sky-700);
+  --color-sky-800: var(--cs-sky-800);
+  --color-sky-900: var(--cs-sky-900);
+  --color-sky-950: var(--cs-sky-950);
+
+  /* Blue */
+  --color-blue-50: var(--cs-blue-50);
+  --color-blue-100: var(--cs-blue-100);
+  --color-blue-200: var(--cs-blue-200);
+  --color-blue-300: var(--cs-blue-300);
+  --color-blue-400: var(--cs-blue-400);
+  --color-blue-500: var(--cs-blue-500);
+  --color-blue-600: var(--cs-blue-600);
+  --color-blue-700: var(--cs-blue-700);
+  --color-blue-800: var(--cs-blue-800);
+  --color-blue-900: var(--cs-blue-900);
+  --color-blue-950: var(--cs-blue-950);
+
+  /* Indigo */
+  --color-indigo-50: var(--cs-indigo-50);
+  --color-indigo-100: var(--cs-indigo-100);
+  --color-indigo-200: var(--cs-indigo-200);
+  --color-indigo-300: var(--cs-indigo-300);
+  --color-indigo-400: var(--cs-indigo-400);
+  --color-indigo-500: var(--cs-indigo-500);
+  --color-indigo-600: var(--cs-indigo-600);
+  --color-indigo-700: var(--cs-indigo-700);
+  --color-indigo-800: var(--cs-indigo-800);
+  --color-indigo-900: var(--cs-indigo-900);
+  --color-indigo-950: var(--cs-indigo-950);
+
+  /* Violet */
+  --color-violet-50: var(--cs-violet-50);
+  --color-violet-100: var(--cs-violet-100);
+  --color-violet-200: var(--cs-violet-200);
+  --color-violet-300: var(--cs-violet-300);
+  --color-violet-400: var(--cs-violet-400);
+  --color-violet-500: var(--cs-violet-500);
+  --color-violet-600: var(--cs-violet-600);
+  --color-violet-700: var(--cs-violet-700);
+  --color-violet-800: var(--cs-violet-800);
+  --color-violet-900: var(--cs-violet-900);
+  --color-violet-950: var(--cs-violet-950);
+
+  /* Purple */
+  --color-purple-50: var(--cs-purple-50);
+  --color-purple-100: var(--cs-purple-100);
+  --color-purple-200: var(--cs-purple-200);
+  --color-purple-300: var(--cs-purple-300);
+  --color-purple-400: var(--cs-purple-400);
+  --color-purple-500: var(--cs-purple-500);
+  --color-purple-600: var(--cs-purple-600);
+  --color-purple-700: var(--cs-purple-700);
+  --color-purple-800: var(--cs-purple-800);
+  --color-purple-900: var(--cs-purple-900);
+  --color-purple-950: var(--cs-purple-950);
+
+  /* Fuchsia */
+  --color-fuchsia-50: var(--cs-fuchsia-50);
+  --color-fuchsia-100: var(--cs-fuchsia-100);
+  --color-fuchsia-200: var(--cs-fuchsia-200);
+  --color-fuchsia-300: var(--cs-fuchsia-300);
+  --color-fuchsia-400: var(--cs-fuchsia-400);
+  --color-fuchsia-500: var(--cs-fuchsia-500);
+  --color-fuchsia-600: var(--cs-fuchsia-600);
+  --color-fuchsia-700: var(--cs-fuchsia-700);
+  --color-fuchsia-800: var(--cs-fuchsia-800);
+  --color-fuchsia-900: var(--cs-fuchsia-900);
+  --color-fuchsia-950: var(--cs-fuchsia-950);
+
+  /* Pink */
+  --color-pink-50: var(--cs-pink-50);
+  --color-pink-100: var(--cs-pink-100);
+  --color-pink-200: var(--cs-pink-200);
+  --color-pink-300: var(--cs-pink-300);
+  --color-pink-400: var(--cs-pink-400);
+  --color-pink-500: var(--cs-pink-500);
+  --color-pink-600: var(--cs-pink-600);
+  --color-pink-700: var(--cs-pink-700);
+  --color-pink-800: var(--cs-pink-800);
+  --color-pink-900: var(--cs-pink-900);
+  --color-pink-950: var(--cs-pink-950);
+
+  /* Rose */
+  --color-rose-50: var(--cs-rose-50);
+  --color-rose-100: var(--cs-rose-100);
+  --color-rose-200: var(--cs-rose-200);
+  --color-rose-300: var(--cs-rose-300);
+  --color-rose-400: var(--cs-rose-400);
+  --color-rose-500: var(--cs-rose-500);
+  --color-rose-600: var(--cs-rose-600);
+  --color-rose-700: var(--cs-rose-700);
+  --color-rose-800: var(--cs-rose-800);
+  --color-rose-900: var(--cs-rose-900);
+  --color-rose-950: var(--cs-rose-950);
+
+  /* Black & White */
+  --color-black: var(--cs-black);
+  --color-white: var(--cs-white);
+
+  /* ==================== */
+  /* Spacing & Sizing（自定义尺寸，额外扩展） */
+  /* ==================== */
+
+  --spacing-5xs: var(--cs-size-5xs);
+  --spacing-4xs: var(--cs-size-4xs);
+  --spacing-3xs: var(--cs-size-3xs);
+  --spacing-2xs: var(--cs-size-2xs);
+  --spacing-xs: var(--cs-size-xs);
+  --spacing-sm: var(--cs-size-sm);
+  --spacing-md: var(--cs-size-md);
+  --spacing-lg: var(--cs-size-lg);
+  --spacing-xl: var(--cs-size-xl);
+  --spacing-2xl: var(--cs-size-2xl);
+  --spacing-3xl: var(--cs-size-3xl);
+  --spacing-4xl: var(--cs-size-4xl);
+  --spacing-5xl: var(--cs-size-5xl);
+  --spacing-6xl: var(--cs-size-6xl);
+  --spacing-7xl: var(--cs-size-7xl);
+  --spacing-8xl: var(--cs-size-8xl);
+
+  /* ==================== */
+  /* Border Radius（自定义圆角，额外扩展） */
+  /* ==================== */
+
+  --radius-4xs: var(--cs-radius-4xs);
+  --radius-3xs: var(--cs-radius-3xs);
+  --radius-2xs: var(--cs-radius-2xs);
+  --radius-xs: var(--cs-radius-xs);
+  --radius-sm: var(--cs-radius-sm);
+  --radius-md: var(--cs-radius-md);
+  --radius-lg: var(--cs-radius-lg);
+  --radius-xl: var(--cs-radius-xl);
+  --radius-2xl: var(--cs-radius-2xl);
+  --radius-3xl: var(--cs-radius-3xl);
+  --radius-round: var(--cs-radius-round);
+}
+
+/* ==================== */
+/* Dark Mode 覆盖 */
+/* ==================== */
+
+@theme dark {
+  --color-background: var(--cs-background);
+  --color-foreground: var(--cs-foreground);
+  --color-card: var(--cs-card);
+  --color-popover: var(--cs-popover);
+  --color-border: var(--cs-border);
+  --color-input: var(--cs-border);
+  --color-secondary: var(--cs-secondary);
+  --color-muted: var(--cs-muted);
+  --color-accent: var(--cs-accent);
+  --color-sidebar: var(--cs-sidebar);
+  --color-sidebar-accent: var(--cs-sidebar-accent);
+}
+
+/* ==================== */
+/* Base Styles（可选） */
+/* ==================== */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

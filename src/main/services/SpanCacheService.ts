@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { Attributes, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core'
@@ -6,8 +7,6 @@ import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 import fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
-
-import { configManager } from './ConfigManager'
 
 const logger = loggerService.withContext('SpanCacheService')
 
@@ -22,7 +21,7 @@ class SpanCacheService implements TraceCache {
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!configManager.getEnableDeveloperMode()) {
+    if (!preferenceService.get('app.developer_mode.enabled')) {
       return
     }
     const spanEntity = convertSpanToSpanEntity(span)
@@ -32,7 +31,7 @@ class SpanCacheService implements TraceCache {
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
-    if (!configManager.getEnableDeveloperMode()) {
+    if (!preferenceService.get('app.developer_mode.enabled')) {
       return
     }
     const spanId = span.spanContext().spanId
@@ -88,7 +87,7 @@ class SpanCacheService implements TraceCache {
   }
 
   async saveSpans(topicId: string) {
-    if (!configManager.getEnableDeveloperMode()) {
+    if (!preferenceService.get('app.developer_mode.enabled')) {
       return
     }
     let traceId: string | undefined
@@ -139,7 +138,7 @@ class SpanCacheService implements TraceCache {
   }
 
   saveEntity(entity: SpanEntity) {
-    if (!configManager.getEnableDeveloperMode()) {
+    if (!preferenceService.get('app.developer_mode.enabled')) {
       return
     }
     if (this.cache.has(entity.id)) {

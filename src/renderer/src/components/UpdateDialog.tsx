@@ -77,13 +77,13 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ isOpen, onClose, releaseInf
             </ModalBody>
 
             <ModalFooter>
-              <Button variant="light" onPress={onModalClose} isDisabled={isInstalling}>
+              <Button variant="ghost" onClick={onModalClose} disabled={isInstalling}>
                 {t('update.later')}
               </Button>
 
               <Button
                 color="primary"
-                onPress={async () => {
+                onClick={async () => {
                   await handleInstall()
                   onModalClose()
                 }}

@@ -96,7 +96,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
 
   return (
     <div className="sessions-tab flex h-full w-full flex-col p-2">
-      <AddButton onPress={createDefaultSession} className="mb-2" isDisabled={creatingSession}>
+      <AddButton onClick={createDefaultSession} className="mb-2" disabled={creatingSession}>
         {t('agent.session.add.title')}
       </AddButton>
       {/* h-9 */}

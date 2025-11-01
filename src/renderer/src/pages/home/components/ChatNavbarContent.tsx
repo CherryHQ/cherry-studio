@@ -42,7 +42,7 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
         <HorizontalScrollContainer className="ml-2 flex-initial">
           <Breadcrumbs classNames={{ base: 'flex', list: 'flex-nowrap' }}>
             <BreadcrumbItem
-              onPress={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
+              onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
               classNames={{ base: 'self-stretch', item: 'h-full' }}>
               <AgentLabel
                 agent={activeAgent}
@@ -51,7 +51,7 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
             </BreadcrumbItem>
             {activeSession && (
               <BreadcrumbItem
-                onPress={() =>
+                onClick={() =>
                   SessionSettingsPopup.show({
                     agentId: activeAgent.id,
                     sessionId: activeSession.id

@@ -1,6 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -72,7 +72,8 @@ const CodeViewer = ({
   expanded = true,
   wrapped = true
 }: CodeViewerProps) => {
-  const { codeShowLineNumbers: _lineNumbers, fontSize: _fontSize } = useSettings()
+  const [_lineNumbers] = usePreference('chat.code.show_line_numbers')
+  const [_fontSize] = usePreference('chat.message.font_size')
   const { getShikiPreProperties, isShikiThemeDark } = useCodeStyle()
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)

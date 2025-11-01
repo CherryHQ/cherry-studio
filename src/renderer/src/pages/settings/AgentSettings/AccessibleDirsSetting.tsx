@@ -66,7 +66,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
       <SettingsTitle
         actions={
           <Tooltip content={t('agent.session.accessible_paths.add')}>
-            <Button variant="light" size="sm" startContent={<Plus />} isIconOnly onPress={addAccessiblePath} />
+            <Button variant="ghost" size="sm" startContent={<Plus />} isIconOnly onClick={addAccessiblePath} />
           </Tooltip>
         }>
         {t('agent.session.accessible_paths.label')}
@@ -79,7 +79,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
             <span className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm" title={path}>
               {path}
             </span>
-            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
+            <Button size="sm" variant="ghost" color="danger" onClick={() => removeAccessiblePath(path)}>
               {t('common.delete')}
             </Button>
           </li>

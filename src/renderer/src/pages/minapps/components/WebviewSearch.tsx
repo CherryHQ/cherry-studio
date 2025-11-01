@@ -1,4 +1,5 @@
-import { Button, Input } from '@heroui/react'
+import { Button } from '@cherrystudio/ui'
+import { Input } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
@@ -119,7 +120,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         return
       }
       try {
-        target.findInPage(text, options)
+        target.findInPage(text, options || {})
       } catch (error) {
         logger.error('findInPage failed', { error })
         window.toast?.error(t('common.error'))
@@ -339,36 +340,30 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
       </span>
       <div className="h-4 w-px bg-default-200" />
       <Button
-        size="sm"
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={goToPrevious}
-        isDisabled={disableNavigation}
+        size="icon-sm"
+        variant="ghost"
+        onClick={goToPrevious}
+        disabled={disableNavigation}
         aria-label="Previous match"
-        className="text-default-500 hover:text-default-900">
+        className="rounded-full text-default-500 hover:text-default-900">
         <ChevronUp size={16} />
       </Button>
       <Button
-        size="sm"
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={goToNext}
-        isDisabled={disableNavigation}
+        size="icon-sm"
+        variant="ghost"
+        onClick={goToNext}
+        disabled={disableNavigation}
         aria-label="Next match"
-        className="text-default-500 hover:text-default-900">
+        className="rounded-full text-default-500 hover:text-default-900">
         <ChevronDown size={16} />
       </Button>
       <div className="h-4 w-px bg-default-200" />
       <Button
-        size="sm"
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={closeSearch}
+        size="icon-sm"
+        variant="ghost"
+        onClick={closeSearch}
         aria-label={t('common.close')}
-        className="text-default-500 hover:text-default-900">
+        className="rounded-full text-default-500 hover:text-default-900">
         <X size={16} />
       </Button>
     </div>

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "declaration": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES2021"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noFallthroughCasesInSwitch": true,
+    "outDir": "./dist",
+    "paths": {
+      "@cherrystudio/ui/*": ["./src/*"]
+    },
+    "resolveJsonModule": true,
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2020"
+  },
+  "exclude": ["node_modules", "dist", "**/*.test.*", "**/__tests__/**"],
+  "include": ["src/**/*", "stories/components/**/*"]
+}

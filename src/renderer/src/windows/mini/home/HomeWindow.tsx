@@ -1,8 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -13,7 +13,6 @@ import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/stor
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
 import type { Topic } from '@renderer/types'
-import { ThemeMode } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
@@ -23,6 +22,7 @@ import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messag
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 import { defaultLanguage } from '@shared/config/constant'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { cloneDeep, isEmpty } from 'lodash'
@@ -43,7 +43,9 @@ import InputBar from './components/InputBar'
 const logger = loggerService.withContext('HomeWindow')
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
-  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
+  const [language] = usePreference('app.language')
+  const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
 

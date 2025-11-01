@@ -19,6 +19,15 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+// mock @cherrystudio/ui Button component to handle onClick
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, onClick, disabled, ...props }: any) => (
+    <button type="button" onClick={onClick} disabled={disabled} {...props}>
+      {children}
+    </button>
+  )
+}))
+
 const createWebviewMock = () => {
   const listeners = new Map<string, Set<(event: Event & { result?: Electron.FoundInPageResult }) => void>>()
   const findInPageMock = vi.fn()
@@ -255,7 +264,7 @@ describe('WebviewSearch', () => {
     await user.type(input, 'Cherry')
 
     await waitFor(() => {
-      expect(findInPageMock).toHaveBeenCalledWith('Cherry', undefined)
+      expect(findInPageMock).toHaveBeenCalledWith('Cherry', {})
     })
 
     await act(async () => {
@@ -307,7 +316,7 @@ describe('WebviewSearch', () => {
     await user.type(input, 'Cherry')
 
     await waitFor(() => {
-      expect(findInPageMock).toHaveBeenCalledWith('Cherry', undefined)
+      expect(findInPageMock).toHaveBeenCalledWith('Cherry', {})
     })
     findInPageMock.mockClear()
 

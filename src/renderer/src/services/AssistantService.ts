@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import {
   DEFAULT_CONTEXTCOUNT,
@@ -54,7 +55,10 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
+export async function getDefaultTranslateAssistant(
+  targetLanguage: TranslateLanguage,
+  text: string
+): Promise<TranslateAssistant> {
   const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
 
@@ -72,18 +76,20 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     temperature: 0.7
   }
 
-  const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
+  const getTranslateContent = async (
+    model: Model,
+    text: string,
+    targetLanguage: TranslateLanguage
+  ): Promise<string> => {
     if (isQwenMTModel(model)) {
       return text // QwenMT models handle raw text directly
     }
 
-    return store
-      .getState()
-      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
-      .replaceAll('{{text}}', text)
+    const translateModelPrompt = await preferenceService.get('feature.translate.model_prompt')
+    return translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value).replaceAll('{{text}}', text)
   }
 
-  const content = getTranslateContent(model, text, targetLanguage)
+  const content = await getTranslateContent(model, text, targetLanguage)
   const translateAssistant = {
     ...assistant,
     model,

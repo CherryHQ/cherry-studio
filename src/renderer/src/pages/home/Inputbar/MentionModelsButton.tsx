@@ -1,3 +1,4 @@
+import { Avatar, Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { type QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -7,7 +8,6 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileType, Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
-import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, CircleX, Plus } from 'lucide-react'
@@ -135,7 +135,7 @@ const MentionModelsButton: FC<Props> = ({
             ),
             description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
             icon: (
-              <Avatar src={getModelLogo(m)} size={20}>
+              <Avatar src={getModelLogo(m)} className="h-5 w-5">
                 {first(m.name)}
               </Avatar>
             ),
@@ -171,7 +171,7 @@ const MentionModelsButton: FC<Props> = ({
         ),
         description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
         icon: (
-          <Avatar src={getModelLogo(m)} size={20}>
+          <Avatar src={getModelLogo(m)} className="h-5 w-5">
             {first(m.name)}
           </Avatar>
         ),
@@ -303,10 +303,12 @@ const MentionModelsButton: FC<Props> = ({
   }))
 
   return (
-    <Tooltip placement="top" title={t('assistants.presets.edit.model.select.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={mentionedModels.length > 0}>
-        <AtSign size={18} />
-      </ActionIconButton>
+    <Tooltip content={t('assistants.presets.edit.model.select.title')} closeDelay={0}>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={mentionedModels.length > 0}
+        icon={<AtSign size={18} />}
+      />
     </Tooltip>
   )
 }

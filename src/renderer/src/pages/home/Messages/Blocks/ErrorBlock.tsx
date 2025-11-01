@@ -1,4 +1,4 @@
-import { Button } from '@heroui/button'
+import { Button } from '@cherrystudio/ui'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -144,7 +144,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         onClick={showErrorDetail}
         style={{ cursor: 'pointer' }}
         action={
-          <Button size="sm" className="p-0" variant="light" onPress={showErrorDetail}>
+          <Button size="sm" className="p-0" variant="ghost" onClick={showErrorDetail}>
             {t('common.detail')}
           </Button>
         }
@@ -198,10 +198,10 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="copy" size="sm" variant="light" onPress={copyErrorDetails}>
+        <Button key="copy" size="sm" variant="ghost" onClick={copyErrorDetails}>
           {t('common.copy')}
         </Button>,
-        <Button key="close" size="sm" variant="light" onPress={onClose}>
+        <Button key="close" size="sm" variant="ghost" onClick={onClose}>
           {t('common.close')}
         </Button>
       ]}
