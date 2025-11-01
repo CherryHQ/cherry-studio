@@ -1,5 +1,6 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { PreprocessProvider } from '@renderer/types'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { PreprocessProvider } from '@renderer/types'
 
 export interface PreprocessState {
   providers: PreprocessProvider[]

@@ -1,5 +1,5 @@
-import { AgentEntity, ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
-import { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
+import type { AgentEntity, ListAgentsResponse, UpdateAgentForm } from '@renderer/types'
+import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

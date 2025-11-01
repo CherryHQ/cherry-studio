@@ -1,9 +1,10 @@
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import { Stream } from '@cherrystudio/openai/streaming'
 import { loggerService } from '@logger'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
-import { Context, context, Span, SpanStatusCode, trace } from '@opentelemetry/api'
+import type { Context, Span } from '@opentelemetry/api'
+import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { isAsyncIterable } from '@renderer/aiCore/legacy/middleware/utils'
 import { db } from '@renderer/databases'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
@@ -12,11 +13,12 @@ import { handleAsyncIterable } from '@renderer/trace/dataHandler/AsyncIterableHa
 import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
 import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHandler'
 import { handleStream } from '@renderer/trace/dataHandler/StreamHandler'
-import { EndSpanParams, ModelSpanEntity, StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
-import { Model, Topic } from '@renderer/types'
+import type { EndSpanParams, StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
+import { ModelSpanEntity } from '@renderer/trace/types/ModelSpanEntity'
+import type { Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
-import { SdkRawChunk } from '@renderer/types/sdk'
+import type { SdkRawChunk } from '@renderer/types/sdk'
 
 const logger = loggerService.withContext('SpanManagerService')
 

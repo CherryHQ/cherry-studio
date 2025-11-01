@@ -1,4 +1,4 @@
-import { MultiModalDocument, RerankStrategy } from './RerankStrategy'
+import type { MultiModalDocument, RerankStrategy } from './RerankStrategy'
 export class VoyageAIStrategy implements RerankStrategy {
   buildUrl(baseURL?: string): string {
     if (baseURL && baseURL.endsWith('/')) {

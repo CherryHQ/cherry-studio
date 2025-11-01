@@ -1,4 +1,4 @@
-import { GroundingMetadata } from '@google/genai'
+import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'

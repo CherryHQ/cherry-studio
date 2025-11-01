@@ -2,13 +2,17 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { getConfigDir } from '@main/utils/file'
-import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
-import { OAuthClientInformation, OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth'
+import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
+import type {
+  OAuthClientInformation,
+  OAuthClientInformationFull,
+  OAuthTokens
+} from '@modelcontextprotocol/sdk/shared/auth'
 import open from 'open'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { JsonFileStorage } from './storage'
-import { OAuthProviderOptions } from './types'
+import type { OAuthProviderOptions } from './types'
 
 const logger = loggerService.withContext('MCP:OAuthClientProvider')
 

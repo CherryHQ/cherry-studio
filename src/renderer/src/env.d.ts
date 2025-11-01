@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
-import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
+import type { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
 import type KeyvStorage from '@kangfenmao/keyv-storage'
-import { HookAPI } from 'antd/es/modal/useModal'
-import { NavigateFunction } from 'react-router-dom'
+import type { HookAPI } from 'antd/es/modal/useModal'
+import type { NavigateFunction } from 'react-router-dom'
 
-import { error, info, loading, success, warning } from './components/TopView/toast'
+import type { error, info, loading, success, warning } from './components/TopView/toast'
 
 interface ImportMetaEnv {
   VITE_RENDERER_INTEGRATED_MODEL: string

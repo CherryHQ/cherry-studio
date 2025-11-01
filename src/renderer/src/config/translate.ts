@@ -1,5 +1,5 @@
 import i18n from '@renderer/i18n'
-import { TranslateLanguage } from '@renderer/types'
+import type { TranslateLanguage } from '@renderer/types'
 
 export const UNKNOWN: TranslateLanguage = {
   value: 'Unknown',

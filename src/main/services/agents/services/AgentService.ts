@@ -3,8 +3,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { getDataPath } from '@main/utils'
-import {
-  AgentBaseSchema,
+import type {
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -13,11 +12,12 @@ import {
   UpdateAgentRequest,
   UpdateAgentResponse
 } from '@types'
+import { AgentBaseSchema } from '@types'
 import { asc, count, desc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
-import { AgentModelField } from '../errors'
+import type { AgentModelField } from '../errors'
 
 const logger = loggerService.withContext('AgentService')
 

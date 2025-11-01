@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createVideoBlock } from '@renderer/utils/messageUtils/create'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('VideoCallbacks')
 

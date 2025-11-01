@@ -1,8 +1,9 @@
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
-import { Painting } from '@renderer/types'
+import type { Painting } from '@renderer/types'
 import { Button, Spin } from 'antd'
-import React, { FC } from 'react'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

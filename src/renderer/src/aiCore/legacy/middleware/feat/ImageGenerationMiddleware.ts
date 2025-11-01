@@ -1,4 +1,4 @@
-import OpenAI from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
 import { toFile } from '@cherrystudio/openai/uploads'
 import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
@@ -6,9 +6,9 @@ import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
 
-import { BaseApiClient } from '../../clients/BaseApiClient'
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { BaseApiClient } from '../../clients/BaseApiClient'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'ImageGenerationMiddleware'
 

@@ -1,7 +1,7 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { processKnowledgeSearch } from '@renderer/services/KnowledgeService'
 import type { Assistant, KnowledgeReference } from '@renderer/types'
-import { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/extract'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import { isEmpty } from 'lodash'
 import * as z from 'zod'

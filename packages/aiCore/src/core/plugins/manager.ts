@@ -1,4 +1,4 @@
-import { AiPlugin, AiRequestContext } from './types'
+import type { AiPlugin, AiRequestContext } from './types'
 
 /**
  * 插件管理器

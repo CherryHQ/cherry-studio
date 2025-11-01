@@ -1,5 +1,5 @@
 import { getStoreProviders } from '@renderer/hooks/useStore'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 
 export function getProviderName(model?: Model) {

@@ -1,8 +1,9 @@
 import { DraggableList } from '@renderer/components/DraggableList'
-import { Assistant, AssistantsSortType } from '@renderer/types'
-import { FC, useCallback } from 'react'
+import type { Assistant, AssistantsSortType } from '@renderer/types'
+import type { FC } from 'react'
+import { useCallback } from 'react'
 
-import { UnifiedItem } from '../hooks/useUnifiedItems'
+import type { UnifiedItem } from '../hooks/useUnifiedItems'
 import AgentItem from './AgentItem'
 import AssistantItem from './AssistantItem'
 

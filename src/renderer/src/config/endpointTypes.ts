@@ -1,4 +1,4 @@
-import { EndpointType } from '@renderer/types'
+import type { EndpointType } from '@renderer/types'
 
 export const endpointTypeOptions: { label: string; value: EndpointType }[] = [
   { value: 'openai', label: 'endpoint_type.openai' },

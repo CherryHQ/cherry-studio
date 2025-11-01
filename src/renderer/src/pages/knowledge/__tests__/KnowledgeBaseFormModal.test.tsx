@@ -2,7 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import KnowledgeBaseFormModal, { PanelConfig } from '../components/KnowledgeSettings/KnowledgeBaseFormModal'
+import type { PanelConfig } from '../components/KnowledgeSettings/KnowledgeBaseFormModal'
+import KnowledgeBaseFormModal from '../components/KnowledgeSettings/KnowledgeBaseFormModal'
 
 // Mock dependencies
 const mocks = vi.hoisted(() => ({

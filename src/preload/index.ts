@@ -1,13 +1,13 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { SpanContext } from '@opentelemetry/api'
-import { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanContext } from '@opentelemetry/api'
+import type { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
-import {
+import type {
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
@@ -33,8 +33,9 @@ import {
   ThemeMode,
   WebDavConfig
 } from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { CreateDirectoryOptions } from 'webdav'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
 
 import type {
   InstalledPlugin,

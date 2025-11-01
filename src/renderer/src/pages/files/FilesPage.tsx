@@ -8,7 +8,8 @@ import { getFileFieldLabel } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileMetadata, FileTypes } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Checkbox, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
@@ -21,7 +22,8 @@ import {
   FileText,
   FileType as FileTypeIcon
 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

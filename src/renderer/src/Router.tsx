@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
-import { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import { useMemo } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 
 import Sidebar from './components/app/Sidebar'

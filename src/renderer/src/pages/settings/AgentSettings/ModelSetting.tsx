@@ -1,5 +1,5 @@
 import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
-import { AgentBaseWithId, ApiModel, UpdateAgentFunctionUnion } from '@renderer/types'
+import type { AgentBaseWithId, ApiModel, UpdateAgentFunctionUnion } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsTitle } from './shared'

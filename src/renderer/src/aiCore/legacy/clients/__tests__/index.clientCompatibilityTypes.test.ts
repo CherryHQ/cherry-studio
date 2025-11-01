@@ -6,7 +6,7 @@ import { VertexAPIClient } from '@renderer/aiCore/legacy/clients/gemini/VertexAP
 import { NewAPIClient } from '@renderer/aiCore/legacy/clients/newapi/NewAPIClient'
 import { OpenAIAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIResponseAPIClient'
-import { EndpointType, Model, Provider } from '@renderer/types'
+import type { EndpointType, Model, Provider } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/config/models', () => ({

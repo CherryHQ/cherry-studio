@@ -7,21 +7,17 @@ import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
-import type { Response } from '@renderer/types/newMessage'
-import {
-  AssistantMessageStatus,
-  MessageBlockStatus,
-  MessageBlockType,
-  PlaceholderMessageBlock
-} from '@renderer/types/newMessage'
+import type { PlaceholderMessageBlock, Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { isAbortError, serializeError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
-import { AISDKError, NoOutputGeneratedError } from 'ai'
+import type { AISDKError } from 'ai'
+import { NoOutputGeneratedError } from 'ai'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('BaseCallbacks')
 interface BaseCallbacksDependencies {

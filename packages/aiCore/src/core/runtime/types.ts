@@ -1,8 +1,8 @@
 /**
  * Runtime 层类型定义
  */
-import { ImageModelV2 } from '@ai-sdk/provider'
-import { experimental_generateImage, generateObject, generateText, streamObject, streamText } from 'ai'
+import type { ImageModelV2 } from '@ai-sdk/provider'
+import type { experimental_generateImage, generateObject, generateText, streamObject, streamText } from 'ai'
 
 import { type ModelConfig } from '../models/types'
 import { type AiPlugin } from '../plugins'

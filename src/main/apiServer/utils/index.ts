@@ -1,7 +1,7 @@
 import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { ApiModel, Model, Provider } from '@types'
+import type { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 

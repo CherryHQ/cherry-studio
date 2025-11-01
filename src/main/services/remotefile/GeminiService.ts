@@ -1,7 +1,8 @@
-import { File, Files, FileState, GoogleGenAI } from '@google/genai'
+import type { File, Files } from '@google/genai'
+import { FileState, GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
+import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { CacheService } from '../CacheService'

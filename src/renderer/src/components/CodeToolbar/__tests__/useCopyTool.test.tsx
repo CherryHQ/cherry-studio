@@ -1,5 +1,5 @@
 import { useCopyTool } from '@renderer/components/CodeToolbar/hooks/useCopyTool'
-import { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

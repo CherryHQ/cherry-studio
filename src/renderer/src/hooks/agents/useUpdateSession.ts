@@ -1,5 +1,5 @@
-import { AgentSessionEntity, ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
-import { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
+import type { AgentSessionEntity, ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
+import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

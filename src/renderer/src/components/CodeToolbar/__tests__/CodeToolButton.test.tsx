@@ -1,4 +1,4 @@
-import { ActionTool } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

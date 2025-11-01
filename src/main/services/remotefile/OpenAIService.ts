@@ -1,7 +1,7 @@
 import OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
+import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 import * as fs from 'fs'
 
 import { CacheService } from '../CacheService'

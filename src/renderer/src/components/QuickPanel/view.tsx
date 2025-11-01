@@ -13,7 +13,7 @@ import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
 import { QuickPanelContext } from './provider'
-import {
+import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelListItem,

@@ -1,6 +1,6 @@
-import { NotesSettings } from '@renderer/store/note'
+import type { NotesSettings } from '@renderer/store/note'
 import { Copy, MonitorSpeaker, Type } from 'lucide-react'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 export interface MenuItem {
   key: string

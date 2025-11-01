@@ -1,6 +1,6 @@
 import { Avatar, cn } from '@heroui/react'
 import { getModelLogoById } from '@renderer/config/models'
-import { ApiModel } from '@renderer/types'
+import type { ApiModel } from '@renderer/types'
 import React from 'react'
 
 import Ellipsis from './Ellipsis'

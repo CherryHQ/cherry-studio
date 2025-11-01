@@ -1,4 +1,4 @@
-import { ActionTool } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
 import { Dropdown, Tooltip } from 'antd'
 import { memo, useMemo } from 'react'
 

@@ -1,9 +1,10 @@
 import OpenAI from '@cherrystudio/openai'
-import { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
-import { Provider } from '@types'
+import type { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from '@cherrystudio/openai/resources'
+import type { Provider } from '@types'
 
 import { loggerService } from '../../services/LoggerService'
-import { ModelValidationError, validateModelId } from '../utils'
+import type { ModelValidationError } from '../utils'
+import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
 

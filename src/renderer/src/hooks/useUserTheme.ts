@@ -1,5 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setUserTheme, UserTheme } from '@renderer/store/settings'
+import type { UserTheme } from '@renderer/store/settings'
+import { setUserTheme } from '@renderer/store/settings'
 import Color from 'color'
 
 export default function useUserTheme() {

@@ -1,6 +1,6 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { Assistant, Topic } from '@renderer/types'
-import { FC } from 'react'
+import type { Assistant, Topic } from '@renderer/types'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 import Messages from './components/Messages'

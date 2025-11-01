@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
-import { AgentEntity, Assistant } from '@renderer/types'
+import type { AgentEntity, Assistant } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 
 export type UnifiedItem = { type: 'agent'; data: AgentEntity } | { type: 'assistant'; data: Assistant }

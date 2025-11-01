@@ -1,4 +1,4 @@
-import { LanguageModelMiddleware } from 'ai'
+import type { LanguageModelMiddleware } from 'ai'
 
 /**
  * Returns a LanguageModelMiddleware that ensures the OpenRouter provider is configured to support both

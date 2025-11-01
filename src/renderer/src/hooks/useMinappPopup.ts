@@ -10,7 +10,7 @@ import {
   setOpenedKeepAliveMinapps,
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'

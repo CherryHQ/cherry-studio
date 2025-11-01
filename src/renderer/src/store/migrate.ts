@@ -21,24 +21,22 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
-import {
+import type {
   Assistant,
   BuiltinOcrProvider,
-  isBuiltinMCPServer,
-  isSystemProvider,
   Model,
   Provider,
   ProviderApiOptions,
-  SystemProviderIds,
   TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
+import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
-import { RootState } from '.'
+import type { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'

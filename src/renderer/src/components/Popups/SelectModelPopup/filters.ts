@@ -6,7 +6,8 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { Model, ModelTag, objectEntries } from '@renderer/types'
+import type { Model, ModelTag } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils/model'
 import { useCallback, useMemo, useState } from 'react'
 

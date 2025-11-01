@@ -6,7 +6,7 @@
 
 import { loggerService } from '@logger'
 import { processKnowledgeReferences } from '@renderer/services/KnowledgeService'
-import {
+import type {
   BaseTool,
   MCPCallToolResponse,
   MCPTool,
@@ -14,7 +14,8 @@ import {
   MCPToolResultContent,
   NormalToolResponse
 } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import type { ToolSet, TypedToolCall, TypedToolError, TypedToolResult } from 'ai'
 
 const logger = loggerService.withContext('ToolCallChunkHandler')

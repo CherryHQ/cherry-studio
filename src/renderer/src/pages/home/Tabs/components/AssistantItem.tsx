@@ -11,10 +11,11 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant, AssistantsSortType } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import { Dropdown, MenuProps } from 'antd'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
 import { omit } from 'lodash'
 import {
   AlignJustify,
@@ -29,7 +30,8 @@ import {
   Tag,
   Tags
 } from 'lucide-react'
-import { FC, memo, PropsWithChildren, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC, PropsWithChildren } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as tinyPinyin from 'tiny-pinyin'
 

@@ -1,5 +1,5 @@
 import store from '@renderer/store'
-import { VertexProvider } from '@renderer/types'
+import type { VertexProvider } from '@renderer/types'
 import { trim } from 'lodash'
 
 /**

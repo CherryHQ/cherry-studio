@@ -4,7 +4,8 @@ import React from 'react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { defaultComputePositionConfig } from '../extensions/plus-button'
-import { PlusButtonPlugin, plusButtonPluginDefaultKey, PlusButtonPluginOptions } from '../plugins/plusButtonPlugin'
+import type { PlusButtonPluginOptions } from '../plugins/plusButtonPlugin'
+import { PlusButtonPlugin, plusButtonPluginDefaultKey } from '../plugins/plusButtonPlugin'
 
 type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>
 

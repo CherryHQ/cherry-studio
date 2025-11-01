@@ -1,4 +1,4 @@
-import { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 
 import { MessageAgentTools } from './MessageAgentTools'

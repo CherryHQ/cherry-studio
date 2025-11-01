@@ -14,7 +14,8 @@ import {
 import { matchKeywordsInString } from '@renderer/utils'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Button, Select, Switch, Tooltip } from 'antd'
-import { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

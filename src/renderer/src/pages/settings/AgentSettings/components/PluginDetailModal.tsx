@@ -9,9 +9,10 @@ import {
   Spinner,
   Textarea
 } from '@heroui/react'
-import { PluginMetadata } from '@renderer/types/plugin'
+import type { PluginMetadata } from '@renderer/types/plugin'
 import { Download, Edit, Save, Trash2, X } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 

@@ -2,9 +2,9 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 const MentionModelsInput: FC<{

@@ -11,7 +11,7 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'

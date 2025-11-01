@@ -4,11 +4,11 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { MCPToolResponse } from '@renderer/types'
+import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { MCPProgressEvent } from '@shared/config/types'
+import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   Button,
@@ -35,7 +35,8 @@ import {
   TriangleAlert,
   X
 } from 'lucide-react'
-import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

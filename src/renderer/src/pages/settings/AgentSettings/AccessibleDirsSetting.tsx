@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
-import { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
+import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
 import { Plus } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

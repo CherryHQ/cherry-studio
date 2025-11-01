@@ -2,7 +2,8 @@ import { Button, Input } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type FoundInPageResult = Electron.FoundInPageResult

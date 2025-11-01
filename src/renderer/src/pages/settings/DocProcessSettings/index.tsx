@@ -1,5 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { FC } from 'react'
+import type { FC } from 'react'
 
 import { SettingContainer } from '..'
 import OcrSettings from './OcrSettings'

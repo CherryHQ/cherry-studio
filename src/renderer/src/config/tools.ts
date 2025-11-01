@@ -1,5 +1,5 @@
-import { ChatCompletionTool } from '@cherrystudio/openai/resources'
-import { Model } from '@renderer/types'
+import type { ChatCompletionTool } from '@cherrystudio/openai/resources'
+import type { Model } from '@renderer/types'
 
 import { WEB_SEARCH_PROMPT_FOR_ZHIPU } from './prompts'
 

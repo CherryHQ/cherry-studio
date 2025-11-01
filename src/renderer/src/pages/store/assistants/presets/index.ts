@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
-import { AssistantPreset } from '@renderer/types'
+import type { AssistantPreset } from '@renderer/types'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,4 +1,4 @@
-import { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode } from '@renderer/types/note'
 
 export function normalizePathValue(path: string): string {
   return path.replace(/\\/g, '/')

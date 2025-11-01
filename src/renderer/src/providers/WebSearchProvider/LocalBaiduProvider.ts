@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 
-import LocalSearchProvider, { SearchItem } from './LocalSearchProvider'
+import type { SearchItem } from './LocalSearchProvider'
+import LocalSearchProvider from './LocalSearchProvider'
 
 const logger = loggerService.withContext('LocalBaiduProvider')
 

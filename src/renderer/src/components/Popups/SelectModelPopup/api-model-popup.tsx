@@ -7,7 +7,8 @@ import { getModelLogoById } from '@renderer/config/models'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType, objectEntries } from '@renderer/types'
+import type { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords } from '@renderer/utils'
 import { apiModelAdapter, getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal } from 'antd'
@@ -27,7 +28,7 @@ import styled from 'styled-components'
 import { useModelTagFilter } from './filters'
 import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
-import { FlatListApiItem, FlatListApiModel } from './types'
+import type { FlatListApiItem, FlatListApiModel } from './types'
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36

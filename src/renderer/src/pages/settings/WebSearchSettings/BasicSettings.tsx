@@ -5,7 +5,7 @@ import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import { Slider, Switch, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Info } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 

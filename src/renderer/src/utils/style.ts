@@ -1,4 +1,5 @@
-import { HexColor, isHexColor } from '@renderer/types'
+import type { HexColor } from '@renderer/types'
+import { isHexColor } from '@renderer/types'
 
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 

@@ -1,5 +1,5 @@
-import { Provider } from '@renderer/types'
-import { TFunction } from 'i18next'
+import type { Provider } from '@renderer/types'
+import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 
 export function checkProviderEnabled(provider: Provider, t: TFunction): Promise<boolean> {

@@ -1,5 +1,6 @@
 import { cn } from '@heroui/react'
-import { Button, ButtonProps } from 'antd'
+import type { ButtonProps } from 'antd'
+import { Button } from 'antd'
 import React, { memo } from 'react'
 
 interface ActionIconButtonProps extends ButtonProps {

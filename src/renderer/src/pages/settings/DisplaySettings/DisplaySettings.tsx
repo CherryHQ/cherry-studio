@@ -8,8 +8,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
+import type { AssistantIconType } from '@renderer/store/settings'
 import {
-  AssistantIconType,
   setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
@@ -20,7 +20,8 @@ import {
 import { ThemeMode } from '@renderer/types'
 import { Button, ColorPicker, Segmented, Select, Switch } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

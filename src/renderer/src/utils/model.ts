@@ -6,7 +6,8 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { AdaptedApiModel, ApiModel, Model, ModelTag, objectKeys } from '@renderer/types'
+import type { AdaptedApiModel, ApiModel, Model, ModelTag } from '@renderer/types'
+import { objectKeys } from '@renderer/types'
 
 /**
  * 获取模型标签的状态

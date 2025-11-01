@@ -1,7 +1,7 @@
 import { convertMessagesToSdkMessages } from '@renderer/aiCore/prepareParams'
-import { Assistant, Message } from '@renderer/types'
+import type { Assistant, Message } from '@renderer/types'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
-import { ModelMessage } from 'ai'
+import type { ModelMessage } from 'ai'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import { getAssistantSettings, getDefaultModel } from './AssistantService'

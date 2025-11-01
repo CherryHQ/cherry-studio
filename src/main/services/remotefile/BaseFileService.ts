@@ -1,4 +1,4 @@
-import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
+import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 
 export abstract class BaseFileService {
   protected readonly provider: Provider

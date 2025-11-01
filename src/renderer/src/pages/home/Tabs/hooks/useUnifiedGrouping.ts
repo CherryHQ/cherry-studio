@@ -1,11 +1,12 @@
 import { createSelector } from '@reduxjs/toolkit'
-import { RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
-import { AgentEntity, Assistant } from '@renderer/types'
+import type { AgentEntity, Assistant } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { UnifiedItem } from './useUnifiedItems'
+import type { UnifiedItem } from './useUnifiedItems'
 
 interface UseUnifiedGroupingOptions {
   unifiedItems: UnifiedItem[]

@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express'
+import type { Request, Response } from 'express'
+import express from 'express'
 
 import { loggerService } from '../../services/LoggerService'
 import { mcpApiService } from '../services/mcp'

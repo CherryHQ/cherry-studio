@@ -5,12 +5,8 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { SelectModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
-import {
-  DEFAULT_MESSAGE_MENUBAR_SCOPE,
-  getMessageMenubarConfig,
-  MessageMenubarButtonId,
-  MessageMenubarScope
-} from '@renderer/config/registry/messageMenubar'
+import type { MessageMenubarButtonId, MessageMenubarScope } from '@renderer/config/registry/messageMenubar'
+import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenubarConfig } from '@renderer/config/registry/messageMenubar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -21,7 +17,8 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import store, { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
@@ -63,8 +60,8 @@ import {
   ThumbsUp,
   Upload
 } from 'lucide-react'
-import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { FC, Fragment, memo, useCallback, useMemo, useState } from 'react'
+import type { Dispatch, FC, ReactNode, SetStateAction } from 'react'
+import { Fragment, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'

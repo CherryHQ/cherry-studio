@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types'
 import { GB, MB } from '@shared/config/constant'
 import { t } from 'i18next'
 

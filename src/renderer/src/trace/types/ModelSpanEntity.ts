@@ -1,4 +1,4 @@
-import { Span } from '@opentelemetry/api'
+import type { Span } from '@opentelemetry/api'
 
 export interface StartSpanParams {
   topicId: string

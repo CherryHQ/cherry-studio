@@ -1,7 +1,7 @@
 import { ArrowLeftOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Tag as AntdTag, Tooltip } from 'antd'
 import { CircleArrowLeft, Copy, Pin } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'

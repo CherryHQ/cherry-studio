@@ -1,16 +1,10 @@
 import { CloseOutlined } from '@ant-design/icons'
-import {
-  DragDropContext,
-  Draggable,
-  DraggableProvided,
-  Droppable,
-  DroppableProvided,
-  DropResult
-} from '@hello-pangea/dnd'
+import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
-import { SidebarIcon } from '@renderer/types'
+import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import {
   Code,
@@ -23,7 +17,8 @@ import {
   Palette,
   Sparkle
 } from 'lucide-react'
-import { FC, ReactNode, useCallback, useMemo } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

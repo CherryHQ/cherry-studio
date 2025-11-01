@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
-import { MCPCallToolResponse, MCPTool, MCPToolResponse, Model } from '@renderer/types'
-import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
-import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
+import type { MCPCallToolResponse, MCPTool, MCPToolResponse, Model } from '@renderer/types'
+import type { MCPToolCreatedChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
 import {
   callBuiltInTool,
   callMCPTool,
@@ -12,8 +13,8 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { confirmSameNameTools, requestToolConfirmation, setToolIdToNameMapping } from '@renderer/utils/userConfirmation'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'McpToolChunkMiddleware'
 const MAX_TOOL_RECURSION_DEPTH = 20 // 防止无限递归

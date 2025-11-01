@@ -8,10 +8,11 @@ import { useModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { selectMemoryConfig, updateMemoryConfig } from '@renderer/store/memory'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { Flex, Form, Modal } from 'antd'
 import { t } from 'i18next'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 const logger = loggerService.withContext('MemoriesSettingsModal')

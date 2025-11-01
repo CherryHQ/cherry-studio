@@ -1,5 +1,6 @@
-import { NextFunction, Request, Response } from 'express'
-import { ZodError, ZodType } from 'zod'
+import type { NextFunction, Request, Response } from 'express'
+import type { ZodType } from 'zod'
+import { ZodError } from 'zod'
 
 export interface ValidationRequest extends Request {
   validatedBody?: any

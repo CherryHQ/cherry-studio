@@ -1,4 +1,4 @@
-import { Model } from '@types'
+import type { Model } from '@types'
 import * as z from 'zod'
 
 export const ProviderTypeSchema = z.enum([

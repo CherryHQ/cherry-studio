@@ -1,4 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { WEB_SEARCH_PROVIDERS } from '@renderer/config/webSearchProviders'
 import type { Model, WebSearchProvider } from '@renderer/types'
 export interface SubscribeSource {

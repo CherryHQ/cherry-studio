@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { Provider } from '@renderer/types'
-import { AutoComplete, Button, Flex, Form, FormProps, Input, Modal, Progress, Select } from 'antd'
+import type { Provider } from '@renderer/types'
+import type { FormProps } from 'antd'
+import { AutoComplete, Button, Flex, Form, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

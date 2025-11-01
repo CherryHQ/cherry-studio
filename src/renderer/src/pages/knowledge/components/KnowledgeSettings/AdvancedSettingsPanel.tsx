@@ -1,5 +1,5 @@
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { Alert, InputNumber } from 'antd'
 import { TriangleAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

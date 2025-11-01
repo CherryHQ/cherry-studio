@@ -1,6 +1,6 @@
 import { useAppSelector } from '@renderer/store'
 import { selectActiveFilePath } from '@renderer/store/note'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode } from '@renderer/types/note'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
 

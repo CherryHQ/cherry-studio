@@ -5,7 +5,7 @@ import { memo, useImperativeHandle } from 'react'
 
 import ImageToolbar from './ImageToolbar'
 import { PreviewContainer, PreviewError } from './styles'
-import { BasicPreviewHandles } from './types'
+import type { BasicPreviewHandles } from './types'
 
 interface ImagePreviewLayoutProps {
   children: React.ReactNode

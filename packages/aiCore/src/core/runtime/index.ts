@@ -11,7 +11,7 @@ export type { RuntimeConfig } from './types'
 
 // === 便捷工厂函数 ===
 
-import { LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { LanguageModelV2Middleware } from '@ai-sdk/provider'
 
 import { type AiPlugin } from '../plugins'
 import { type ProviderId, type ProviderSettingsMap } from '../providers/types'

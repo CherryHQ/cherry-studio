@@ -1,4 +1,4 @@
-import { SidebarIcon } from '@renderer/types'
+import type { SidebarIcon } from '@renderer/types'
 
 /**
  * 默认显示的侧边栏图标

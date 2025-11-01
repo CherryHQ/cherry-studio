@@ -20,12 +20,11 @@ import { saveTranslateHistory, translateText } from '@renderer/services/Translat
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
+import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import {
   type AutoDetectionMethod,
-  FileMetadata,
   isSupportedOcrFile,
   type Model,
-  SupportedOcrFile,
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
@@ -42,10 +41,12 @@ import {
 } from '@renderer/utils/translate'
 import { imageExts, MB, textExts } from '@shared/config/constant'
 import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
 import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

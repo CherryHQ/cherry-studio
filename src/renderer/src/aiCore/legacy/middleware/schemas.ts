@@ -1,9 +1,9 @@
-import { Assistant, MCPTool } from '@renderer/types'
-import { Chunk } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import { SdkRawChunk, SdkRawOutput } from '@renderer/types/sdk'
+import type { Assistant, MCPTool } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
+import type { SdkRawChunk, SdkRawOutput } from '@renderer/types/sdk'
 
-import { ProcessingState } from './types'
+import type { ProcessingState } from './types'
 
 // ============================================================================
 // Core Request Types - 核心请求结构

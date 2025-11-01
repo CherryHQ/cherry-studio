@@ -4,7 +4,7 @@ import { defaultActionItems } from '@renderer/store/selectionStore'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import { Row } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup } from '../..'

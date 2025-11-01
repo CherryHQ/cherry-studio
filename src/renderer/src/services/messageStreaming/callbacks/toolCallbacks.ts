@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import type { MCPToolResponse } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
-import { MessageBlockStatus, MessageBlockType, ToolMessageBlock } from '@renderer/types/newMessage'
+import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('ToolCallbacks')
 

@@ -1,4 +1,4 @@
-import { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 
 type WebSearchProviderConfig = {
   websites: {

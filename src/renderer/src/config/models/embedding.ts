@@ -1,4 +1,4 @@
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 // Embedding models

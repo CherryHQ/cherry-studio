@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import axios from 'axios'
-import { app, ProxyConfig, session } from 'electron'
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'

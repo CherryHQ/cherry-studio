@@ -1,4 +1,4 @@
-import { ApiServerConfig } from '@types'
+import type { ApiServerConfig } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { loggerService } from '../services/LoggerService'

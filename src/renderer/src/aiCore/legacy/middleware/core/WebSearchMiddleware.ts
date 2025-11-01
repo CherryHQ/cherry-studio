@@ -2,8 +2,8 @@ import { loggerService } from '@logger'
 import { ChunkType } from '@renderer/types/chunk'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 const logger = loggerService.withContext('WebSearchMiddleware')
 

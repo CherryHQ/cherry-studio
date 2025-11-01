@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { Drawer } from 'antd'
 import { useState } from 'react'
 

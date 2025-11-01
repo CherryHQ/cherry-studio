@@ -1,6 +1,6 @@
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { MinAppType } from '@renderer/types'
-import { FC } from 'react'
+import type { MinAppType } from '@renderer/types'
+import type { FC } from 'react'
 
 interface Props {
   app: MinAppType

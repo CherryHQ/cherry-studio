@@ -1,7 +1,7 @@
 import Doc2xLogo from '@renderer/assets/images/ocr/doc2x.png'
 import MinerULogo from '@renderer/assets/images/ocr/mineru.jpg'
 import MistralLogo from '@renderer/assets/images/providers/mistral.png'
-import { PreprocessProviderId } from '@renderer/types'
+import type { PreprocessProviderId } from '@renderer/types'
 
 export function getPreprocessProviderLogo(providerId: PreprocessProviderId) {
   switch (providerId) {

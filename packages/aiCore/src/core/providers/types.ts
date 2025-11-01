@@ -4,7 +4,7 @@ import { type DeepSeekProviderSettings } from '@ai-sdk/deepseek'
 import { type GoogleGenerativeAIProviderSettings } from '@ai-sdk/google'
 import { type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { type OpenAICompatibleProviderSettings } from '@ai-sdk/openai-compatible'
-import {
+import type {
   EmbeddingModelV2 as EmbeddingModel,
   ImageModelV2 as ImageModel,
   LanguageModelV2 as LanguageModel,

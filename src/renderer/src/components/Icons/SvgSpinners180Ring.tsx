@@ -1,4 +1,4 @@
-import { SVGProps } from 'react'
+import type { SVGProps } from 'react'
 
 export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement> & { size?: number | string }) {
   const { size = '1em', ...svgProps } = props

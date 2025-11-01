@@ -1,5 +1,6 @@
-import { ActionTool, TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
-import { ViewMode } from '@renderer/components/CodeBlockView/types'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import type { ViewMode } from '@renderer/components/CodeBlockView/types'
 import { CodeXml, Eye, SquarePen } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'

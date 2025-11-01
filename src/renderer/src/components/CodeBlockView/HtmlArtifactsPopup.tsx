@@ -1,4 +1,5 @@
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import CodeEditor from '@renderer/components/CodeEditor'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'

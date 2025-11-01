@@ -1,4 +1,5 @@
-import { Key, useCallback, useMemo } from 'react'
+import type { Key } from 'react'
+import { useCallback, useMemo } from 'react'
 
 interface UseDndReorderParams<T> {
   /** 原始的、完整的数据列表 */

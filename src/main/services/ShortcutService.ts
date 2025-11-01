@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { Shortcut } from '@types'
-import { BrowserWindow, globalShortcut } from 'electron'
+import type { Shortcut } from '@types'
+import type { BrowserWindow } from 'electron'
+import { globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'

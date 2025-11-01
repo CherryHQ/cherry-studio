@@ -8,11 +8,12 @@ import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { UpgradeChannel } from '@shared/config/constant'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { PluginError } from '@types'
-import {
+import type {
   AgentPersistedMessage,
   FileMetadata,
   Notification,
@@ -23,7 +24,8 @@ import {
   ThemeMode
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
+import type { ProxyConfig } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'

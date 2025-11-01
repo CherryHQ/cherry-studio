@@ -10,10 +10,11 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createHuggingFace } from '@ai-sdk/huggingface'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { LanguageModelV2 } from '@ai-sdk/provider'
+import type { LanguageModelV2 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { customProvider, Provider } from 'ai'
+import type { Provider } from 'ai'
+import { customProvider } from 'ai'
 import * as z from 'zod'
 
 /**

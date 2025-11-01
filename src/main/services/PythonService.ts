@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
-import { BrowserWindow, ipcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { ipcMain } from 'electron'
 
 interface PythonExecutionRequest {
   id: string

@@ -20,7 +20,7 @@ import {
   TextCursorInput,
   Zap
 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import styled from 'styled-components'

@@ -1,9 +1,11 @@
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http'
-import { BatchSpanProcessor, ConsoleSpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base'
+import type { SpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { BatchSpanProcessor, ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base'
 import { WebTracerProvider } from '@opentelemetry/sdk-trace-web'
 
-import { defaultConfig, TraceConfig } from '../trace-core/types/config'
+import type { TraceConfig } from '../trace-core/types/config'
+import { defaultConfig } from '../trace-core/types/config'
 import { TopicContextManager } from './TopicContextManager'
 
 export const contextManager = new TopicContextManager()

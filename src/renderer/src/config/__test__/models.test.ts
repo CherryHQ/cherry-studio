@@ -6,7 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 // Suggested test cases

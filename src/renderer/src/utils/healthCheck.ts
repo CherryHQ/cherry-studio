@@ -1,5 +1,6 @@
 import i18n from '@renderer/i18n'
-import { ApiKeyWithStatus, HealthStatus, ModelWithStatus } from '@renderer/types/healthCheck'
+import type { ApiKeyWithStatus, ModelWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 
 /**
  * 聚合多个 API 密钥检查结果，得到模型健康检查的整体状态

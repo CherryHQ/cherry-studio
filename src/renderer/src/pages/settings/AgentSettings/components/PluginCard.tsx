@@ -1,8 +1,8 @@
 import { Button, Card, CardBody, CardFooter, CardHeader, Chip, Spinner } from '@heroui/react'
-import { PluginMetadata } from '@renderer/types/plugin'
+import type { PluginMetadata } from '@renderer/types/plugin'
 import { upperFirst } from 'lodash'
 import { Download, Trash2 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface PluginCardProps {

@@ -7,7 +7,7 @@ import {
   updateAssistantPreset,
   updateAssistantPresetSettings
 } from '@renderer/store/assistants'
-import { AssistantPreset, AssistantSettings } from '@renderer/types'
+import type { AssistantPreset, AssistantSettings } from '@renderer/types'
 
 const logger = loggerService.withContext('useAssistantPresets')
 

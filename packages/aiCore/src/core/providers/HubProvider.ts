@@ -5,7 +5,7 @@
  * 例如: aihubmix:anthropic:claude-3.5-sonnet
  */
 
-import { ProviderV2 } from '@ai-sdk/provider'
+import type { ProviderV2 } from '@ai-sdk/provider'
 import { customProvider } from 'ai'
 
 import { globalRegistryManagement } from './RegistryManagement'

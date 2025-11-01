@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { Span } from '@opentelemetry/api'
+import type { Span } from '@opentelemetry/api'
 import { ModernAiProvider } from '@renderer/aiCore'
 import AiProvider from '@renderer/aiCore/legacy'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
@@ -7,16 +7,17 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/config/providers'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import {
+import type {
   FileMetadata,
   KnowledgeBase,
   KnowledgeBaseParams,
   KnowledgeReference,
   KnowledgeSearchResult
 } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { routeToEndpoint } from '@renderer/utils'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'

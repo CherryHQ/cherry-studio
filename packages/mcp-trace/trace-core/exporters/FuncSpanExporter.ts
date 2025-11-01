@@ -1,5 +1,6 @@
-import { ExportResult, ExportResultCode } from '@opentelemetry/core'
-import { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import type { ExportResult } from '@opentelemetry/core'
+import { ExportResultCode } from '@opentelemetry/core'
+import type { ReadableSpan, SpanExporter } from '@opentelemetry/sdk-trace-base'
 
 export type SaveFunction = (spans: ReadableSpan[]) => Promise<void>
 

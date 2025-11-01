@@ -1,5 +1,6 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 
 export type ToolPermissionRequestPayload = {
   requestId: string

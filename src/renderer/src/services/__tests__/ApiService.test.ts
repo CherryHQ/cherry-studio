@@ -1,35 +1,36 @@
-import { ToolUseBlock } from '@anthropic-ai/sdk/resources'
-import {
+import type { ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import type {
   TextBlock,
   TextDelta,
   Usage,
   WebSearchResultBlock,
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
-import OpenAI from '@cherrystudio/openai'
-import { ChatCompletionChunk } from '@cherrystudio/openai/resources'
+import type OpenAI from '@cherrystudio/openai'
+import type { ChatCompletionChunk } from '@cherrystudio/openai/resources'
+import type { FunctionCall } from '@google/genai'
 import { FinishReason, MediaModality } from '@google/genai'
-import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
-import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/legacy/clients'
-import { AnthropicAPIClient } from '@renderer/aiCore/legacy/clients/anthropic/AnthropicAPIClient'
+import type { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/legacy/clients'
+import type { AnthropicAPIClient } from '@renderer/aiCore/legacy/clients/anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '@renderer/aiCore/legacy/clients/ApiClientFactory'
-import { GeminiAPIClient } from '@renderer/aiCore/legacy/clients/gemini/GeminiAPIClient'
-import { OpenAIResponseAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIResponseAPIClient'
-import { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
+import type { GeminiAPIClient } from '@renderer/aiCore/legacy/clients/gemini/GeminiAPIClient'
+import type { OpenAIResponseAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIResponseAPIClient'
+import type { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
 import { isVisionModel } from '@renderer/config/models'
-import { LlmState } from '@renderer/store/llm'
-import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
-import {
+import type { LlmState } from '@renderer/store/llm'
+import type { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
+import type {
   Chunk,
-  ChunkType,
   LLMResponseCompleteChunk,
   LLMWebSearchCompleteChunk,
   TextDeltaChunk,
   TextStartChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
-import {
+import { ChunkType } from '@renderer/types/chunk'
+import type {
   AnthropicSdkRawChunk,
   GeminiSdkMessageParam,
   GeminiSdkRawChunk,

@@ -13,10 +13,11 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import { MinAppType, ThemeMode } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
-import { LRUCache } from 'lru-cache'
+import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
   Folder,

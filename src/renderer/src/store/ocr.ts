@@ -1,6 +1,7 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { OcrProvider, OcrProviderConfig } from '@renderer/types'
+import type { OcrProvider, OcrProviderConfig } from '@renderer/types'
 
 export interface OcrState {
   providers: OcrProvider[]

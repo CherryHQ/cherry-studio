@@ -1,7 +1,7 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
 import { cn } from '@heroui/react'
 import { Tooltip } from 'antd'
-import { FC, ReactNode } from 'react'
+import type { FC, ReactNode } from 'react'
 
 interface TagGroupProps {
   tag: string
