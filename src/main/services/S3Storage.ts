@@ -6,9 +6,11 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import { FetchHttpHandler } from '@smithy/fetch-http-handler'
 import { loggerService } from '@logger'
 import type { S3Config } from '@types'
 import * as net from 'net'
+import { Agent as UndiciAgent } from 'undici'
 import { Readable } from 'stream'
 
 const logger = loggerService.withContext('S3Storage')
@@ -57,6 +59,23 @@ export default class S3Storage {
       }
     })()
 
+    // Fix for S3 backup failure when using proxy
+    // Issue: When proxy is enabled, S3 uploads can fail with incomplete writes
+    // Error: "Io error: put_object write size < data.size(), w_size=15728640, data.size=16396159"
+    // Root cause: AWS SDK uses global fetch/undici dispatcher which routes through proxy,
+    //             causing data corruption or incomplete transfers for large files
+    // Solution: Configure S3Client with a direct dispatcher that bypasses the global proxy
+    const directDispatcher = new UndiciAgent({
+      connect: {
+        timeout: 60000 // 60 second connection timeout
+      }
+    })
+
+    const requestHandler = new FetchHttpHandler({
+      requestTimeout: 300000, // 5 minute request timeout for large files
+      dispatcher: directDispatcher
+    })
+
     this.client = new S3Client({
       region,
       endpoint: endpoint || undefined,
@@ -64,7 +83,8 @@ export default class S3Storage {
         accessKeyId: accessKeyId,
         secretAccessKey: secretAccessKey
       },
-      forcePathStyle: usePathStyle
+      forcePathStyle: usePathStyle,
+      requestHandler
     })
 
     this.bucket = bucket
