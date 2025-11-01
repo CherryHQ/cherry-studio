@@ -1,14 +1,11 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { Button, InfoTooltip, ResetIcon, RowFlex, Tooltip } from '@cherrystudio/ui'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { DEFAULT_MODEL_MAP, isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import type { Model } from '@renderer/types'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,14 +18,21 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    quickModel,
+    translateModel,
+    setDefaultModel,
+    setQuickModel,
+    setTranslateModel,
+    resetDefaultAssistantModel,
+    resetQuickModel,
+    resetTranslateModel
+  } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
-
-  const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
 
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
@@ -46,10 +50,6 @@ const ModelSettings: FC = () => {
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
     [translateModel]
   )
-
-  const onResetTranslatePrompt = () => {
-    setTranslateModelPrompt(TRANSLATE_PROMPT)
-  }
 
   return (
     <SettingContainer theme={theme}>
@@ -73,6 +73,13 @@ const ModelSettings: FC = () => {
           <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
             <Settings2 size={16} />
           </Button>
+          {defaultModelValue !== getModelUniqId(DEFAULT_MODEL_MAP.assistant) && (
+            <Tooltip title={t('common.reset')}>
+              <Button style={{ marginLeft: 8 }} onClick={resetDefaultAssistantModel}>
+                <ResetIcon size={16} />
+              </Button>
+            </Tooltip>
+          )}
         </RowFlex>
         <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
       </SettingGroup>
@@ -97,6 +104,13 @@ const ModelSettings: FC = () => {
           <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
             <Settings2 size={16} />
           </Button>
+          {defaultQuickModel !== getModelUniqId(DEFAULT_MODEL_MAP.quick) && (
+            <Tooltip title={t('common.reset')}>
+              <Button style={{ marginLeft: 8 }} onClick={resetQuickModel}>
+                <ResetIcon size={16} />
+              </Button>
+            </Tooltip>
+          )}
         </RowFlex>
         <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
       </SettingGroup>
@@ -120,10 +134,10 @@ const ModelSettings: FC = () => {
           <Button className="ml-2" onClick={() => TranslateSettingsPopup.show()} size="icon">
             <Settings2 size={16} />
           </Button>
-          {translateModelPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip content={t('common.reset')}>
-              <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
-                <RedoOutlined />
+          {defaultTranslateModel !== getModelUniqId(DEFAULT_MODEL_MAP.translate) && (
+            <Tooltip title={t('common.reset')}>
+              <Button style={{ marginLeft: 8 }} onClick={resetTranslateModel}>
+                <ResetIcon size={16} />
               </Button>
             </Tooltip>
           )}

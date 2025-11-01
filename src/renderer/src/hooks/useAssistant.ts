@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import {
+  DEFAULT_MODEL_MAP,
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
@@ -24,7 +25,11 @@ import {
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
-import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
+import {
+  setDefaultModel as setDefaultModelAction,
+  setQuickModel as setQuickModelAction,
+  setTranslateModel as setTranslateModelAction
+} from '@renderer/store/llm'
 import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -198,12 +203,31 @@ export function useDefaultModel() {
   const { defaultModel, quickModel, translateModel } = useAppSelector((state) => state.llm)
   const dispatch = useAppDispatch()
 
+  const setDefaultModel = useCallback((model: Model) => dispatch(setDefaultModelAction({ model })), [dispatch])
+  const setQuickModel = useCallback((model: Model) => dispatch(setQuickModelAction({ model })), [dispatch])
+  const setTranslateModel = useCallback((model: Model) => dispatch(setTranslateModelAction({ model })), [dispatch])
+
+  const resetDefaultAssistantModel = useCallback(() => {
+    setDefaultModel(DEFAULT_MODEL_MAP.assistant)
+  }, [setDefaultModel])
+
+  const resetTranslateModel = useCallback(() => {
+    setTranslateModel(DEFAULT_MODEL_MAP.translate)
+  }, [setTranslateModel])
+
+  const resetQuickModel = useCallback(() => {
+    setQuickModel(DEFAULT_MODEL_MAP.quick)
+  }, [setQuickModel])
+
   return {
     defaultModel,
+    setDefaultModel,
+    resetDefaultAssistantModel,
     quickModel,
+    resetQuickModel,
+    setQuickModel,
     translateModel,
-    setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
-    setQuickModel: (model: Model) => dispatch(setQuickModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
+    setTranslateModel,
+    resetTranslateModel
   }
 }

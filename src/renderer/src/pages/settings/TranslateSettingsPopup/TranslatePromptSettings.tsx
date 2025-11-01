@@ -1,5 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { ResetIcon, RowFlex } from '@cherrystudio/ui'
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -31,7 +30,7 @@ const TranslatePromptSettings = () => {
           {localPrompt !== TRANSLATE_PROMPT && (
             <Tooltip content={t('common.reset')}>
               <ResetButton type="reset" onClick={onResetTranslatePrompt}>
-                <RedoOutlined size={16} />
+                <ResetIcon size={16} />
               </ResetButton>
             </Tooltip>
           )}
@@ -48,6 +47,7 @@ const TranslatePromptSettings = () => {
   )
 }
 
+// TODO: Should be migrated to consistent button component
 const ResetButton = styled.button`
   background-color: transparent;
   border: none;
@@ -56,9 +56,12 @@ const ResetButton = styled.button`
   padding: 0;
   width: 30px;
   height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 
   &:hover {
-    background: var(--color-list-item);
+    background: color-mix(in srgb, var(--color-list-item) 95%, #000);
     border-radius: 8px;
   }
 `

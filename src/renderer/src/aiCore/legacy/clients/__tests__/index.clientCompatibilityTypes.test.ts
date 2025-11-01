@@ -10,12 +10,12 @@ import type { EndpointType, Model, Provider } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/config/models', () => ({
+  DEFAULT_MODEL_MAP: {
+    assistant: { id: 'gpt-4', name: 'GPT-4' },
+    quick: { id: 'gpt-4', name: 'GPT-4' },
+    translate: { id: 'gpt-4', name: 'GPT-4' }
+  },
   SYSTEM_MODELS: {
-    defaultModel: [
-      { id: 'gpt-4', name: 'GPT-4' },
-      { id: 'gpt-4', name: 'GPT-4' },
-      { id: 'gpt-4', name: 'GPT-4' }
-    ],
     zhipu: [],
     silicon: [],
     openai: [],

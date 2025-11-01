@@ -14,6 +14,7 @@ export default function useUserTheme() {
     const colorPrimary = Color(theme.colorPrimary)
 
     document.body.style.setProperty('--color-primary', colorPrimary.toString())
+    document.body.style.setProperty('--color-primary-foreground', getForegroundColor(colorPrimary.hex()))
     // overwrite hero UI primary color.
     document.body.style.setProperty('--primary', colorPrimary.toString())
     document.body.style.setProperty('--primary-foreground', getForegroundColor(colorPrimary.hex()))

@@ -1,7 +1,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
-import { SYSTEM_MODELS } from '@renderer/config/models'
+import { DEFAULT_MODEL_MAP } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import type { Model, Provider } from '@renderer/types'
 import { uniqBy } from 'lodash'
@@ -43,10 +43,10 @@ export interface LlmState {
 }
 
 export const initialState: LlmState = {
-  defaultModel: SYSTEM_MODELS.defaultModel[0],
-  topicNamingModel: SYSTEM_MODELS.defaultModel[1],
-  quickModel: SYSTEM_MODELS.defaultModel[1],
-  translateModel: SYSTEM_MODELS.defaultModel[2],
+  defaultModel: DEFAULT_MODEL_MAP.assistant,
+  topicNamingModel: DEFAULT_MODEL_MAP.quick,
+  quickModel: DEFAULT_MODEL_MAP.quick,
+  translateModel: DEFAULT_MODEL_MAP.translate,
   quickAssistantId: '',
   providers: SYSTEM_PROVIDERS,
   settings: {
