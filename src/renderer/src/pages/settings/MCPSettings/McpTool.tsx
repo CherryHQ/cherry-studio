@@ -146,7 +146,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       width: 150, // Fixed width might be good for alignment
       align: 'center',
       render: (_, tool) => (
-        <Switch isSelected={isToolEnabled(tool)} onValueChange={(checked) => handleToggle(tool, checked)} size="sm" />
+        <Switch checked={isToolEnabled(tool)} onCheckedChange={(checked) => handleToggle(tool, checked)} />
       )
     },
     {
@@ -169,10 +169,9 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
           }>
           <Switch
-            isSelected={isToolAutoApproved(tool, server)}
+            checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}
-            onValueChange={(checked) => handleAutoApproveToggle(tool, checked)}
-            size="sm"
+            onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
           />
         </Tooltip>
       )

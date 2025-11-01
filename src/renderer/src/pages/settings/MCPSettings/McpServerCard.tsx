@@ -116,11 +116,10 @@ const McpServerCard: FC<McpServerCardProps> = ({
           </ServerNameWrapper>
           <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
             <Switch
-              isSelected={server.isActive}
+              checked={server.isActive}
               key={server.id}
               disabled={isLoading}
-              onValueChange={onToggle}
-              size="sm"
+              onCheckedChange={onToggle}
               data-no-dnd
             />
             <Button size="sm" variant="destructive" className="rounded-full" onClick={onDelete}>

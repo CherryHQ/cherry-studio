@@ -652,7 +652,7 @@ const McpSettings: React.FC = () => {
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
             valuePropName="checked">
-            <Switch size="sm" className="ml-2.5" />
+            <Switch className="ml-2.5" />
           </Form.Item>
           <Form.Item
             name="timeout"
@@ -756,10 +756,10 @@ const McpSettings: React.FC = () => {
           </Flex>
           <Flex className="items-center gap-4">
             <Switch
-              isSelected={server.isActive}
+              checked={server.isActive}
               key={server.id}
-              isLoading={loadingServer === server.id}
-              onValueChange={onToggleActive}
+              loading={loadingServer === server.id}
+              onCheckedChange={onToggleActive}
             />
             <Button
               size="sm"

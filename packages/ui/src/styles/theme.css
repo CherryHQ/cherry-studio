@@ -11,6 +11,7 @@
 
 @import 'tailwindcss';
 @import './tokens.css';
+@import './switch.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -40,7 +41,7 @@
   --color-popover-foreground: var(--cs-foreground);
 
   --color-secondary: var(--cs-secondary);
-  --color-secondary-foreground: var(--cs-foreground);
+  --color-secondary-foreground: var(--cs-foreground-secondary);
 
   --color-muted: var(--cs-muted);
   --color-muted-foreground: var(--cs-foreground-muted);

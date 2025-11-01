@@ -1,4 +1,5 @@
-import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
+import { Switch } from '@cherrystudio/ui'
+import { Alert, Card, CardBody, CardHeader, Chip, Input } from '@heroui/react'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
@@ -385,10 +386,9 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                           defaultValue: `Toggle ${tool.name}`,
                           name: tool.name
                         })}
-                        isSelected={isApproved}
-                        isDisabled={isAuto || isUpdatingTools}
-                        size="sm"
-                        onValueChange={(value) => handleToggleTool(tool.id, value)}
+                        checked={isApproved}
+                        disabled={isAuto || isUpdatingTools}
+                        onCheckedChange={(value) => handleToggleTool(tool.id, value)}
                       />
                     </CardHeader>
                     {isAuto ? (
@@ -440,10 +440,9 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                           defaultValue: `Toggle ${server.name}`,
                           name: server.name
                         })}
-                        isSelected={isSelected}
-                        size="sm"
-                        isDisabled={!server.isActive || isUpdatingMcp}
-                        onValueChange={(value) => handleToggleMcp(server.id, value)}
+                        checked={isSelected}
+                        disabled={!server.isActive || isUpdatingMcp}
+                        onCheckedChange={(value) => handleToggleMcp(server.id, value)}
                       />
                     </CardHeader>
                   </Card>

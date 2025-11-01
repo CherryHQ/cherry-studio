@@ -96,7 +96,7 @@ const MiniAppSettings: FC = () => {
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
-        <Switch isSelected={minappsOpenLinkExternal} onValueChange={(checked) => setMinappsOpenLinkExternal(checked)} />
+        <Switch checked={minappsOpenLinkExternal} onCheckedChange={(checked) => setMinappsOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
       {/* 缓存小程序数量设置 */}
@@ -134,8 +134,8 @@ const MiniAppSettings: FC = () => {
           <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
         </SettingLabelGroup>
         <Switch
-          isSelected={showOpenedMinappsInSidebar}
-          onValueChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
+          checked={showOpenedMinappsInSidebar}
+          onCheckedChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
         />
       </SettingRow>
     </Container>

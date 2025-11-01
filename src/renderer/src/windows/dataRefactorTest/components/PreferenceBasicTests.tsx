@@ -142,7 +142,7 @@ const PreferenceBasicTests: React.FC = () => {
 
             {/* Boolean Toggle */}
             {selectedKey === 'app.spell_check.enabled' && (
-              <Switch isSelected={value === true} onValueChange={(checked) => setValue(checked)} />
+              <Switch checked={value === true} onCheckedChange={(checked) => setValue(checked)} />
             )}
 
             {/* Language Switch */}
