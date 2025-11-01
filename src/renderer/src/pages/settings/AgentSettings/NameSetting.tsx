@@ -1,5 +1,5 @@
 import { Input } from '@heroui/react'
-import { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
+import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

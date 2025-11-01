@@ -1,7 +1,8 @@
 import { Card, CardBody, Tab, Tabs } from '@heroui/react'
 import { useAvailablePlugins, useInstalledPlugins, usePluginActions } from '@renderer/hooks/usePlugins'
-import { GetAgentResponse, GetAgentSessionResponse, UpdateAgentFunctionUnion } from '@renderer/types/agent'
-import { FC, useCallback } from 'react'
+import type { GetAgentResponse, GetAgentSessionResponse, UpdateAgentFunctionUnion } from '@renderer/types/agent'
+import type { FC } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InstalledPluginsList } from './components/InstalledPluginsList'

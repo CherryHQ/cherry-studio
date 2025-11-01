@@ -1,3 +1,4 @@
+import type { SelectedItemProps } from '@heroui/react'
 import {
   Button,
   Form,
@@ -8,7 +9,6 @@ import {
   ModalFooter,
   ModalHeader,
   Select,
-  SelectedItemProps,
   SelectItem,
   Textarea,
   useDisclosure
@@ -21,23 +21,24 @@ import { agentModelFilter, getModelLogoById } from '@renderer/config/models'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import {
+import type {
   AddAgentForm,
-  AgentConfigurationSchema,
   AgentEntity,
   AgentType,
   BaseAgentForm,
-  isAgentType,
   PermissionMode,
   Tool,
   UpdateAgentForm
 } from '@renderer/types'
+import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { AlertTriangleIcon } from 'lucide-react'
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
-import { BaseOption, ModelOption, Option, renderOption } from './shared'
+import type { BaseOption, ModelOption } from './shared'
+import { Option, renderOption } from './shared'
 
 const logger = loggerService.withContext('AddAgentPopup')
 

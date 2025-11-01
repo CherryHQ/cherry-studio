@@ -1,7 +1,8 @@
 import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs } from '@heroui/react'
-import { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
+import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
 import { Filter, Search } from 'lucide-react'
-import { FC, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PluginCard } from './PluginCard'

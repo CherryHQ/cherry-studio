@@ -3,7 +3,7 @@ import {
   ensureServerTrusted as ensureServerTrustedCore,
   getCommandPreview
 } from '@renderer/pages/settings/MCPSettings/utils'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

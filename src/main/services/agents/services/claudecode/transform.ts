@@ -20,7 +20,7 @@
  *        emitting `text-*` parts and a synthetic `finish-step`.
  */
 
-import { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { BetaStopReason } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { loggerService } from '@logger'
 import type { FinishReason, LanguageModelUsage, ProviderMetadata, TextStreamPart } from 'ai'

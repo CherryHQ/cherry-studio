@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import * as fs from 'fs'
 import { networkInterfaces } from 'os'
 import * as path from 'path'
-import { Server, Socket } from 'socket.io'
+import type { Socket } from 'socket.io'
+import { Server } from 'socket.io'
 
 import { windowService } from './WindowService'
 

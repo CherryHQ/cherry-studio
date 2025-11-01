@@ -5,13 +5,8 @@
  */
 
 import { loggerService } from '@logger'
-import {
-  AgentType,
-  BuiltinMCPServerName,
-  BuiltinMCPServerNames,
-  BuiltinOcrProviderId,
-  ThinkingOption
-} from '@renderer/types'
+import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
+import { BuiltinMCPServerNames } from '@renderer/types'
 
 import i18n from './index'
 

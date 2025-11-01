@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { CodeEditorHandles } from '@renderer/components/CodeEditor'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
@@ -37,11 +37,12 @@ import {
   setSortType,
   setStarredPaths
 } from '@renderer/store/note'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FileChangeEvent } from '@shared/config/types'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { FileChangeEvent } from '@shared/config/types'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

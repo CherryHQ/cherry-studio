@@ -1,7 +1,7 @@
 import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
-import { ApiClient } from '@types'
+import type { ApiClient } from '@types'
 import { net } from 'electron'
 
 import { VoyageEmbeddings } from './VoyageEmbeddings'

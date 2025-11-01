@@ -1,4 +1,4 @@
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 
 // Check if the model exists in the provider's model list
 export const isModelInProvider = (provider: Provider, modelId: string): boolean => {

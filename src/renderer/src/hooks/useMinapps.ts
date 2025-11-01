@@ -1,7 +1,8 @@
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setDisabledMinApps, setMinApps, setPinnedMinApps } from '@renderer/store/minapps'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 
 export const useMinapps = () => {
   const { enabled, disabled, pinned } = useAppSelector((state: RootState) => state.minapps)

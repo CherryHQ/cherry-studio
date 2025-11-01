@@ -1,6 +1,7 @@
 import { useLMStudioSettings } from '@renderer/hooks/useLMStudio'
 import { InputNumber } from 'antd'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

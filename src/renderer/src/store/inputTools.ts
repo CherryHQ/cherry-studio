@@ -1,5 +1,6 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { InputBarToolType } from '@renderer/types/chat'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { InputBarToolType } from '@renderer/types/chat'
 
 type ToolOrder = {
   visible: InputBarToolType[]

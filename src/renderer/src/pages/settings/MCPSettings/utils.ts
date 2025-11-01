@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('MCPSettings/utils')
 

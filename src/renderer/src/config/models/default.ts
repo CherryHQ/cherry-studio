@@ -1,4 +1,4 @@
-import { Model, SystemProviderId } from '@renderer/types'
+import type { Model, SystemProviderId } from '@renderer/types'
 
 export const glm45FlashModel: Model = {
   id: 'glm-4.5-flash',

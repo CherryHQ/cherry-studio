@@ -1,7 +1,8 @@
 import { Button, Chip, Skeleton, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/react'
-import { InstalledPlugin } from '@renderer/types/plugin'
+import type { InstalledPlugin } from '@renderer/types/plugin'
 import { Trash2 } from 'lucide-react'
-import { FC, useCallback, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface InstalledPluginsListProps {

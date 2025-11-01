@@ -3,8 +3,9 @@ import AddAssistantOrAgentPopup from '@renderer/components/Popups/AddAssistantOr
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import { AgentEntity, Assistant, Topic } from '@renderer/types'
-import { FC, useCallback } from 'react'
+import type { AgentEntity, Assistant, Topic } from '@renderer/types'
+import type { FC } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddButton from './AddButton'

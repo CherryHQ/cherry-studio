@@ -1,6 +1,6 @@
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
-import { AddAgentForm, CreateAgentResponse } from '@renderer/types'
+import type { AddAgentForm, CreateAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'

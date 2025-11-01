@@ -1,13 +1,11 @@
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
+import type {
   DroppableProps,
   DropResult,
   OnDragEndResponder,
   OnDragStartResponder,
   ResponderProvided
 } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { droppableReorder } from '@renderer/utils'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'

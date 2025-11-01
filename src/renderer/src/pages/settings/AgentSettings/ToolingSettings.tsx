@@ -2,9 +2,8 @@ import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import {
+import type {
   AgentConfiguration,
-  AgentConfigurationSchema,
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
@@ -13,9 +12,11 @@ import {
   UpdateAgentFunction,
   UpdateAgentSessionFunction
 } from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
-import { FC, useCallback, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'

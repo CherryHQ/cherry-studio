@@ -1,6 +1,7 @@
 import { type ComputePositionConfig } from '@floating-ui/dom'
-import { Editor, Extension } from '@tiptap/core'
-import { Node } from '@tiptap/pm/model'
+import type { Editor } from '@tiptap/core'
+import { Extension } from '@tiptap/core'
+import type { Node } from '@tiptap/pm/model'
 import { TextSelection } from '@tiptap/pm/state'
 
 import { PlusButtonPlugin } from '../plugins/plusButtonPlugin'
