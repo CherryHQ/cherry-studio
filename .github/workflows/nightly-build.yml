@@ -208,7 +208,7 @@ jobs:
           echo "总计: $(find renamed-artifacts -type f | wc -l) 个文件"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: cherry-studio-nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
           path: renamed-artifacts/*
