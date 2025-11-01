@@ -12,6 +12,7 @@ import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -64,6 +65,8 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     initialText: block.content
   })
 
+  const isStreaming = block.status === 'streaming'
+
   useEffect(() => {
     const newContent = block.content || ''
     const oldContent = prevContentRef.current || ''
@@ -85,9 +88,8 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     prevBlockIdRef.current = block.id
 
     // 更新 stream 状态
-    const isStreaming = block.status === 'streaming'
     setIsStreamDone(!isStreaming)
-  }, [block.content, block.id, block.status, addChunk, reset])
+  }, [block.content, block.id, block.status, addChunk, reset, isStreaming])
 
   const remarkPlugins = useMemo(() => {
     const plugins = [
@@ -130,14 +132,16 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       table: (props: any) => <Table {...props} blockId={block.id} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
-      p: (props) => {
+      p: SmoothFade((props) => {
         const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
         if (hasImage) return <div {...props} />
         return <p {...props} />
-      },
-      svg: MarkdownSvgRenderer
+      }, isStreaming),
+      svg: MarkdownSvgRenderer,
+      li: SmoothFade((props) => <li {...props} />, isStreaming),
+      span: SmoothFade((props) => <span {...props} />, isStreaming)
     } as Partial<Components>
-  }, [block.id])
+  }, [block.id, isStreaming])
 
   if (/<style\b[^>]*>/i.test(messageContent)) {
     components.style = MarkdownShadowDOMRenderer as any
@@ -168,3 +172,23 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
 }
 
 export default memo(Markdown)
+
+const SmoothFade = (Comp: React.ElementType, isStreaming: boolean) => {
+  const handleAnimationEnd = (e: React.AnimationEvent) => {
+    // 动画结束后移除类名
+    if (e.animationName === 'fadeInWithBlur') {
+      e.currentTarget.classList.remove('animate-[fadeInWithBlur_500ms_ease-out_forwards]')
+      e.currentTarget.classList.remove('opacity-0')
+    }
+  }
+  return ({ children, ...rest }) => {
+    return (
+      <Comp
+        {...rest}
+        className={isStreaming ? 'animate-[fadeInWithBlur_500ms_ease-out_forwards] opacity-0' : ''}
+        onAnimationEnd={handleAnimationEnd}>
+        {children}
+      </Comp>
+    )
+  }
+}
