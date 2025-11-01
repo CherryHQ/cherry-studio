@@ -21,7 +21,7 @@ jobs:
       contents: none
     steps:
       - name: Close needs-more-info issues
-        uses: actions/stale@v9
+        uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           only-labels: 'needs-more-info'
@@ -42,7 +42,7 @@ jobs:
           days-before-pr-close: -1
 
       - name: Close inactive issues
-        uses: actions/stale@v9
+        uses: actions/stale@v10
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           days-before-stale: ${{ env.daysBeforeStale }}
