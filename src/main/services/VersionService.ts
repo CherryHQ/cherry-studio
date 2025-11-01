@@ -173,7 +173,10 @@ class VersionService {
         fs.readSync(fd, buffer, 0, bufferSize, startPosition)
 
         const content = buffer.toString('utf-8')
-        const lines = content.trim().split('\n').filter((line) => line.trim())
+        const lines = content
+          .trim()
+          .split('\n')
+          .filter((line) => line.trim())
 
         return lines
       } finally {
