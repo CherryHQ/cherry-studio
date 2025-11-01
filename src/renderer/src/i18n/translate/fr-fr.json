@@ -2923,15 +2923,14 @@
       },
       "description": "Un assistant IA conçu pour les créateurs",
       "downloading": "Téléchargement de la mise à jour en cours...",
+      "enterprise": {
+        "title": "Entreprise"
+      },
       "feedback": {
         "button": "Faire un retour",
         "title": "Retour d'information"
       },
       "label": "À propos de nous",
-      "license": {
-        "button": "Afficher",
-        "title": "Licence"
-      },
       "releases": {
         "button": "Afficher",
         "title": "Journal des mises à jour"

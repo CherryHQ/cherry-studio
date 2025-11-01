@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { WebSocketCandidatesResponse, WebSocketStatusResponse } from '@shared/config/types'
 import * as fs from 'fs'
 import { networkInterfaces } from 'os'
 import * as path from 'path'
@@ -202,12 +203,7 @@ class WebSocketService {
     }
   }
 
-  public getStatus = async (): Promise<{
-    isRunning: boolean
-    port?: number
-    ip?: string
-    clientConnected: boolean
-  }> => {
+  public getStatus = async (): Promise<WebSocketStatusResponse> => {
     return {
       isRunning: this.isStarted,
       port: this.isStarted ? this.port : undefined,
@@ -216,13 +212,7 @@ class WebSocketService {
     }
   }
 
-  public getAllCandidates = async (): Promise<
-    Array<{
-      host: string
-      interface: string
-      priority: number
-    }>
-  > => {
+  public getAllCandidates = async (): Promise<WebSocketCandidatesResponse[]> => {
     const interfaces = networkInterfaces()
 
     // 按优先级排序的网络接口名称模式

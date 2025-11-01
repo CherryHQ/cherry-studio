@@ -31,3 +31,16 @@ export type WebviewKeyEvent = {
   shift: boolean
   alt: boolean
 }
+
+export interface WebSocketStatusResponse {
+  isRunning: boolean
+  port?: number
+  ip?: string
+  clientConnected: boolean
+}
+
+export interface WebSocketCandidatesResponse {
+  host: string
+  interface: string
+  priority: number
+}
