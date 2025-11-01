@@ -373,6 +373,8 @@ export interface PreferenceSchemas {
     'shortcut.chat.clear': Record<string, unknown>
     // redux/shortcuts/shortcuts.copy_last_message
     'shortcut.chat.copy_last_message': Record<string, unknown>
+    // redux/shortcuts/shortcuts.edit_last_user_message
+    'shortcut.chat.edit_last_user_message': Record<string, unknown>
     // redux/shortcuts/shortcuts.search_message_in_chat
     'shortcut.chat.search_message': Record<string, unknown>
     // redux/shortcuts/shortcuts.toggle_new_context
@@ -383,6 +385,10 @@ export interface PreferenceSchemas {
     'shortcut.selection.toggle_enabled': Record<string, unknown>
     // redux/shortcuts/shortcuts.new_topic
     'shortcut.topic.new': Record<string, unknown>
+    // redux/shortcuts/shortcuts.rename_topic
+    'shortcut.topic.rename': Record<string, unknown>
+    // redux/shortcuts/shortcuts.toggle_show_topics
+    'shortcut.topic.toggle_show_topics': Record<string, unknown>
     // redux/settings/enableTopicNaming
     'topic.naming.enabled': boolean
     // redux/settings/topicNamingPrompt
@@ -638,6 +644,12 @@ export const DefaultPreferences: PreferenceSchemas = {
       key: ['CommandOrControl', 'Shift', 'C'],
       system: false
     },
+    'shortcut.chat.edit_last_user_message': {
+      editable: true,
+      enabled: false,
+      key: ['CommandOrControl', 'Shift', 'E'],
+      system: false
+    },
     'shortcut.chat.search_message': { editable: true, enabled: true, key: ['CommandOrControl', 'F'], system: false },
     'shortcut.chat.toggle_new_context': {
       editable: true,
@@ -648,6 +660,18 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.selection.get_text': { editable: true, enabled: false, key: [], system: true },
     'shortcut.selection.toggle_enabled': { editable: true, enabled: false, key: [], system: true },
     'shortcut.topic.new': { editable: true, enabled: true, key: ['CommandOrControl', 'N'], system: false },
+    'shortcut.topic.rename': {
+      editable: true,
+      enabled: true,
+      key: ['CommandOrControl', 'T'],
+      system: false
+    },
+    'shortcut.topic.toggle_show_topics': {
+      editable: true,
+      enabled: true,
+      key: ['CommandOrControl', ']'],
+      system: false
+    },
     'topic.naming.enabled': true,
     'topic.naming_prompt': '',
     'topic.position': 'left',

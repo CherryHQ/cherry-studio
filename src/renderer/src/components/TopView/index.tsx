@@ -3,7 +3,7 @@ import { Box } from '@cherrystudio/ui'
 import { getToastUtilities } from '@cherrystudio/ui'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { useAllShortcuts } from '@renderer/hooks/useShortcuts'
 import { Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -35,8 +35,9 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   elementsRef.current = elements
 
   const [modal, modalContextHolder] = Modal.useModal()
-  const { shortcuts } = useShortcuts()
-  const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
+  const shortcuts = useAllShortcuts()
+  const enableQuitFullScreen = shortcuts.find((item) => item.definition.key === 'shortcut.app.exit_fullscreen')
+    ?.preference.enabled
 
   useAppInit()
 

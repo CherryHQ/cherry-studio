@@ -1,29 +1,23 @@
-import { useAppSelector } from '@renderer/store'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 const NavigationHandler: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
-  const showSettingsShortcutEnabled = useAppSelector(
-    (state) => state.shortcuts.shortcuts.find((s) => s.key === 'show_settings')?.enabled
-  )
 
-  useHotkeys(
-    'meta+, ! ctrl+,',
-    function () {
+  useShortcut(
+    'shortcut.app.show_settings',
+    () => {
       if (location.pathname.startsWith('/settings')) {
         return
       }
       navigate('/settings/provider')
     },
     {
-      splitKey: '!',
-      enableOnContentEditable: true,
       enableOnFormTags: true,
-      enabled: showSettingsShortcutEnabled
+      enableOnContentEditable: true
     }
   )
 
