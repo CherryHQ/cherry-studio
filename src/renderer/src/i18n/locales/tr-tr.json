@@ -1,0 +1,4680 @@
+﻿{
+  "agent": {
+    "add": {
+      "error": {
+        "failed": "Bir ajan eklenemedi",
+        "invalid_agent": "Geçersiz Ajan"
+      },
+      "title": "Ajan Ekle",
+      "type": {
+        "placeholder": "Bir ajan türü seçin"
+      }
+    },
+    "delete": {
+      "content": "Ajanı silmek, ajanla ilişkili tüm oturumları zorla durduracak ve silecektir. Emin misiniz?",
+      "error": {
+        "failed": "Ajan silinemedi"
+      },
+      "title": "Ajan Sil"
+    },
+    "edit": {
+      "title": "Ajan Düzenle"
+    },
+    "get": {
+      "error": {
+        "failed": "Ajan alınamadı.",
+        "null_id": "Ajan kimliği boş."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "Ajanlar listelenemedi."
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "API sunucusu etkin ancak düzgün çalışmıyor."
+      }
+    },
+    "session": {
+      "accessible_paths": {
+        "add": "Dizin ekle",
+        "duplicate": "Bu dizin zaten dahil edilmiş.",
+        "empty": "Ajanın erişebileceği en az bir dizin seçin.",
+        "error": {
+          "at_least_one": "Lütfen en az bir erişilebilir dizin seçin."
+        },
+        "label": "Erişilebilir dizinler",
+        "select_failed": "Dizin seçilemedi."
+      },
+      "add": {
+        "title": "Oturum ekle"
+      },
+      "allowed_tools": {
+        "empty": "Bu ajan için kullanılabilir araç yok.",
+        "helper": "Ön onaylı araçlar manuel onay olmadan çalışır. Seçilmemiş araçlar kullanımdan önce onay gerektirir.",
+        "label": "Ön onaylı araçlar",
+        "placeholder": "Ön onaylı araçları seçin"
+      },
+      "create": {
+        "error": {
+          "failed": "Oturum eklenemedi"
+        }
+      },
+      "delete": {
+        "content": "Bu oturumu silmek istediğinizden emin misiniz?",
+        "error": {
+          "failed": "Oturum silinemedi",
+          "last": "En az bir oturum tutulmalıdır"
+        },
+        "title": "Oturum sil"
+      },
+      "edit": {
+        "title": "Oturum düzenle"
+      },
+      "get": {
+        "error": {
+          "failed": "Oturum alınamadı",
+          "null_id": "Oturum kimliği boş"
+        }
+      },
+      "label_one": "Oturum",
+      "label_other": "Oturumlar",
+      "update": {
+        "error": {
+          "failed": "Oturum güncellenemedi"
+        }
+      }
+    },
+    "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Define how many request/response cycles the agent may complete automatically.",
+          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
+          "label": "Conversation turn limit"
+        },
+        "permissionMode": {
+          "description": "Control how the agent handles actions that require approval.",
+          "label": "Permission mode",
+          "options": {
+            "acceptEdits": "Accept edits automatically",
+            "bypassPermissions": "Bypass permission checks",
+            "default": "Default (ask before continuing)",
+            "plan": "Planning mode (requires plan approval)"
+          },
+          "placeholder": "Choose a permission behavior"
+        },
+        "title": "Advanced Ayarlar"
+      },
+      "essential": "Essential Ayarlar",
+      "prompt": "Prompt Ayarlar",
+      "tooling": {
+        "mcp": {
+          "description": "Connect MCP servers to unlock additional tools you can approve above.",
+          "empty": "No MCP servers detected. Add one from the MCP settings page.",
+          "manageHint": "Need advanced configuration? Visit Settings → MCP Servers.",
+          "toggle": "Toggle {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pre-approves trusted filesystem tools so edits run immediately.",
+            "description": "File edits and filesystem operations are automatically approved.",
+            "title": "Auto-accept file edits"
+          },
+          "bypassPermissions": {
+            "behavior": "Every tool is pre-approved automatically.",
+            "description": "All permission prompts are skipped — use with caution.",
+            "title": "Bypass permission checks",
+            "warning": "Use with caution — all tools will run without asking for approval."
+          },
+          "confirmChange": {
+            "description": "Switching modes updates the automatically approved tools.",
+            "title": "Change permission mode?"
+          },
+          "default": {
+            "behavior": "Read-only tools are pre-approved automatically.",
+            "description": "Read-only tools are pre-approved; everything else still needs permission.",
+            "title": "Default (ask before continuing)"
+          },
+          "helper": "Choose how the agent handles tool approvals.",
+          "placeholder": "Permission mode seç",
+          "plan": {
+            "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
+            "description": "Shares the default read-only tool set but presents a plan before execution.",
+            "title": "Planning mode"
+          },
+          "title": "Permission mode"
+        },
+        "preapproved": {
+          "autoBadge": "Added by mode",
+          "autoDescription": "This tool is auto-approved by the current permission mode.",
+          "empty": "No tools match your filters.",
+          "mcpBadge": "MCP tool",
+          "requiresApproval": "Requires approval when disabled",
+          "search": "Search tools",
+          "toggle": "Toggle {{name}}",
+          "warning": {
+            "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
+            "title": "Pre-approved tools run without manual review."
+          }
+        },
+        "review": {
+          "autoTools": "Auto: {{count}}",
+          "customTools": "Custom: {{count}}",
+          "helper": "Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Mode: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCP servers"
+          },
+          "permissionMode": {
+            "title": "Step 1 · Permission mode"
+          },
+          "preapproved": {
+            "title": "Step 2 · Pre-approved tools"
+          },
+          "review": {
+            "title": "Step 3 · Review"
+          }
+        },
+        "tab": "Tooling & permissions"
+      },
+      "tools": {
+        "approved": "approved",
+        "caution": "Pre-approved tools bypass human review. Enable only trusted tools.",
+        "description": "Choose which tools can run without manual approval.",
+        "requiresPermission": "Requires permission when not pre-approved.",
+        "tab": "Ön onaylı araçlar",
+        "title": "Ön onaylı araçlar",
+        "toggle": "{{defaultValue}}"
+      }
+    },
+    "type": {
+      "label": "Ajan Tür",
+      "unknown": "Unknown Tür"
+    },
+    "update": {
+      "error": {
+        "failed": "Update the agent başarısız oldu"
+      }
+    },
+    "warning": {
+      "enable_server": "Enable API Server to use agents."
+    }
+  },
+  "apiServer": {
+    "actions": {
+      "copy": "Copy",
+      "regenerate": "Regenerate",
+      "restart": {
+        "button": "Restart",
+        "tooltip": "Restart Server"
+      },
+      "start": "Start",
+      "stop": "Stop"
+    },
+    "authHeader": {
+      "title": "Authorization Header"
+    },
+    "authHeaderText": "Use in Authorization header:",
+    "configuration": "Configuration",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "documentation": {
+      "title": "API Documentation"
+    },
+    "fields": {
+      "apiKey": {
+        "copyTooltip": "Copy API Key",
+        "description": "Secure authentication token for API access",
+        "label": "API Key",
+        "placeholder": "API key will be auto-generated"
+      },
+      "port": {
+        "description": "TCP port number for the HTTP server (1000-65535)",
+        "helpText": "Stop server to change port",
+        "label": "Port"
+      },
+      "url": {
+        "copyTooltip": "Copy URL",
+        "label": "URL"
+      }
+    },
+    "messages": {
+      "apiKeyCopied": "API Key copied to clipboard",
+      "apiKeyRegenerated": "API Key regenerated",
+      "notEnabled": "The API Server is not enabled.",
+      "operationFailed": "API Server operation failed: ",
+      "restartError": "Restart api server:  başarısız oldu",
+      "restartFailed": "API Server restart failed: ",
+      "restartSuccess": "API Server restarted successfully",
+      "startError": "Start api server:  başarısız oldu",
+      "startSuccess": "API Server started successfully",
+      "stopError": "Stop api server:  başarısız oldu",
+      "stopSuccess": "API Server stopped successfully",
+      "urlCopied": "Server URL copied to clipboard"
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped"
+    },
+    "title": "API Server"
+  },
+  "assistants": {
+    "abbr": "Assistants",
+    "clear": {
+      "content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
+      "title": "Clear topics"
+    },
+    "copy": {
+      "title": "Copy Assistant"
+    },
+    "delete": {
+      "content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "title": "Assistant sil"
+    },
+    "edit": {
+      "title": "Assistant düzenle"
+    },
+    "icon": {
+      "type": "Assistant Icon"
+    },
+    "list": {
+      "showByList": "List View",
+      "showByTags": "Tag View"
+    },
+    "presets": {
+      "add": {
+        "button": "To assistant ekle",
+        "knowledge_base": {
+          "label": "Knowledge Base",
+          "placeholder": "Knowledge base seç"
+        },
+        "name": {
+          "label": "İsim",
+          "placeholder": "Enter name"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Enter prompt",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name\n{{username}}:\tUsername",
+              "title": "Available variables"
+            }
+          }
+        },
+        "title": "Oluştur Assistant",
+        "unsaved_changes_warning": "You have unsaved changes. Are you sure you want to close?"
+      },
+      "delete": {
+        "popup": {
+          "content": "Emin misiniz you want to delete this assistant?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "Model seç"
+          }
+        },
+        "title": "Assistant düzenle"
+      },
+      "export": {
+        "agent": "Export Assistant"
+      },
+      "import": {
+        "button": "Import",
+        "error": {
+          "fetch_failed": "Fetch from url başarısız oldu",
+          "invalid_format": "Geçersiz assistant format: missing required fields",
+          "url_required": "Lütfen enter a URL"
+        },
+        "file_filter": "JSON Files",
+        "select_file": "File seç",
+        "title": "Import from External",
+        "type": {
+          "file": "Dosya",
+          "url": "URL"
+        },
+        "url_placeholder": "Enter JSON URL"
+      },
+      "manage": {
+        "title": "Manage Assistants"
+      },
+      "my_agents": "My Assistants",
+      "search": {
+        "no_results": "No results found"
+      },
+      "settings": {
+        "title": "Assistant Setting"
+      },
+      "sorting": {
+        "title": "Sorting"
+      },
+      "tag": {
+        "agent": "Assistant",
+        "default": "Default",
+        "new": "New",
+        "system": "Sistem"
+      },
+      "title": "Assistants Library"
+    },
+    "save": {
+      "success": "Saved successfully",
+      "title": "Save to assistant library"
+    },
+    "search": "Search assistants...",
+    "settings": {
+      "default_model": "Default Model",
+      "knowledge_base": {
+        "label": "Knowledge Base Settings",
+        "recognition": {
+          "label": "Use Knowledge Base",
+          "off": "Force Search",
+          "on": "Intent Recognition",
+          "tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities"
+        }
+      },
+      "mcp": {
+        "description": "Default enabled MCP servers",
+        "enableFirst": "Enable this server in MCP settings first",
+        "label": "MCP Servers",
+        "noServersAvailable": "No MCP servers available. Add servers in settings",
+        "title": "MCP Ayarlar"
+      },
+      "model": "Model Ayarlar",
+      "more": "Assistant Ayarlar",
+      "prompt": "Prompt Ayarlar",
+      "reasoning_effort": {
+        "default": "Default",
+        "high": "High",
+        "label": "Reasoning effort",
+        "low": "Low",
+        "medium": "Medium",
+        "minimal": "Minimal",
+        "off": "Off"
+      },
+      "regular_phrases": {
+        "add": "Phrase ekle",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Lütfen enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "delete": "Phrase sil",
+        "deleteConfirm": "Emin misiniz to delete this phrase?",
+        "edit": "Phrase düzenle",
+        "title": "Regular Phrase",
+        "titleLabel": "Başlık",
+        "titlePlaceholder": "Enter title"
+      },
+      "title": "Assistant Ayarlar",
+      "tool_use_mode": {
+        "function": "Function",
+        "label": "Tool Use Mode",
+        "prompt": "Prompt"
+      }
+    },
+    "tags": {
+      "add": "Tag ekle",
+      "delete": "Tag sil",
+      "deleteConfirm": "Emin misiniz to delete this tag?",
+      "manage": "Tag Management",
+      "modify": "Modify Tag",
+      "none": "Hayır tags",
+      "settings": {
+        "title": "Tag Ayarlar"
+      },
+      "untagged": "Untagged"
+    },
+    "title": "Assistants"
+  },
+  "auth": {
+    "error": "API key automatically obtained failed, please get it manually",
+    "get_key": "Get",
+    "get_key_success": "API key automatically obtained successfully",
+    "login": "Login",
+    "oauth_button": "Auth with {{provider}}"
+  },
+  "backup": {
+    "confirm": {
+      "button": "Backup location seç",
+      "label": "Emin misiniz you want to backup data?"
+    },
+    "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "progress": {
+      "completed": "Backup completed",
+      "compressing": "Compressing files...",
+      "copying_files": "Copying files... {{progress}}%",
+      "preparing": "Preparing backup...",
+      "preparing_compression": "Preparing compression...",
+      "title": "Backup Progress",
+      "writing_data": "Writing data..."
+    },
+    "title": "Data Backup"
+  },
+  "button": {
+    "add": "Ekle",
+    "added": "Added",
+    "case_sensitive": "Case Sensitive",
+    "collapse": "Collapse",
+    "download": "Download",
+    "includes_user_questions": "Include Your Questions",
+    "manage": "Manage",
+    "select_model": "Model seç",
+    "show": {
+      "all": "Show All"
+    },
+    "update_available": "Güncelle Available",
+    "whole_word": "Whole Word"
+  },
+  "chat": {
+    "add": {
+      "assistant": {
+        "title": "Assistant ekle"
+      },
+      "topic": {
+        "title": "New Topic"
+      }
+    },
+    "artifacts": {
+      "button": {
+        "download": "Download",
+        "openExternal": "Open in external browser",
+        "preview": "Preview"
+      },
+      "preview": {
+        "openExternal": {
+          "error": {
+            "content": "Error opening the external browser."
+          }
+        }
+      }
+    },
+    "assistant": {
+      "search": {
+        "placeholder": "Search"
+      }
+    },
+    "deeply_thought": "Deeply thought ({{seconds}} seconds)",
+    "default": {
+      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
+      "name": "Default Assistant",
+      "topic": {
+        "name": "Default Topic"
+      }
+    },
+    "history": {
+      "assistant_node": "Assistant",
+      "click_to_navigate": "Click to navigate to the message",
+      "coming_soon": "Chat workflow diagram coming soon",
+      "no_messages": "No Messages Found",
+      "start_conversation": "Start a conversation to see the chat flow diagram",
+      "title": "Sohbet History",
+      "user_node": "User",
+      "view_full_content": "View Full Content"
+    },
+    "input": {
+      "auto_resize": "Auto resize height",
+      "clear": {
+        "content": "Do you want to clear all messages of the current topic?",
+        "label": "Clear {{Command}}",
+        "title": "Clear all messages?"
+      },
+      "collapse": "Collapse",
+      "context_count": {
+        "tip": "Context / Max Context"
+      },
+      "estimated_tokens": {
+        "tip": "Estimated tokens"
+      },
+      "expand": "Expand",
+      "file_error": "Error processing file",
+      "file_not_supported": "Model does not support this file type",
+      "file_not_supported_count": "{{count}} files are not supported",
+      "generate_image": "Generate image",
+      "generate_image_not_supported": "The model does not support generating images.",
+      "knowledge_base": "Knowledge Base",
+      "new": {
+        "context": "Clear Context {{Command}}"
+      },
+      "new_topic": "New Topic {{Command}}",
+      "paste_text_file_confirm": "Paste into input bar?",
+      "pause": "Pause",
+      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
+      "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "send": "Send",
+      "settings": "Ayarlar",
+      "thinking": {
+        "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
+        "label": "Thinking",
+        "mode": {
+          "custom": {
+            "label": "Custom",
+            "tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported"
+          },
+          "default": {
+            "label": "Default",
+            "tip": "The model will automatically determine the number of tokens to think"
+          },
+          "tokens": {
+            "tip": "Set the number of thinking tokens to use."
+          }
+        }
+      },
+      "tools": {
+        "collapse": "Collapse",
+        "collapse_in": "Collapse",
+        "collapse_out": "Remove from collapse",
+        "expand": "Expand"
+      },
+      "topics": "Topics",
+      "translate": "Translate to {{target_language}}",
+      "translating": "Translating...",
+      "upload": {
+        "attachment": "Upload attachment",
+        "document": "Upload document file (model does not support images)",
+        "image_or_document": "Upload image or document file",
+        "upload_from_local": "Upload local file..."
+      },
+      "url_context": "URL Context",
+      "web_search": {
+        "builtin": {
+          "disabled_content": "The current model does not support web search",
+          "enabled_content": "Use the built-in web search function of the model",
+          "label": "Model Built-in"
+        },
+        "button": {
+          "ok": "Go to Settings"
+        },
+        "enable": "Enable web search",
+        "enable_content": "Need to check web search connectivity in settings first",
+        "label": "Web Search",
+        "no_web_search": {
+          "description": "Do not enable web search",
+          "label": "Disable Web Search"
+        },
+        "settings": "Web Search Settings"
+      }
+    },
+    "mcp": {
+      "error": {
+        "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
+      },
+      "warning": {
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
+        "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
+        "no_tool": "No matching MCP tool found for {{tool}}",
+        "url_context": "Gemini does not support using url context and function calling simultaneously"
+      }
+    },
+    "message": {
+      "new": {
+        "branch": {
+          "created": "New Branch Created",
+          "label": "New Branch"
+        },
+        "context": "New Context"
+      },
+      "quote": "Quote",
+      "regenerate": {
+        "model": "Switch Model"
+      },
+      "useful": {
+        "label": "Set as context",
+        "tip": "In this group of messages, this message will be selected to join the context"
+      }
+    },
+    "multiple": {
+      "select": {
+        "empty": "No Messages Selected",
+        "label": "Multiple Select"
+      }
+    },
+    "navigation": {
+      "bottom": "Back to bottom",
+      "close": "Kapat",
+      "first": "Already at the first message",
+      "history": "Sohbet History",
+      "last": "Already at the last message",
+      "next": "Next Mesaj",
+      "prev": "Previous Mesaj",
+      "top": "Back to top"
+    },
+    "resend": "Resend",
+    "save": {
+      "file": {
+        "title": "Save to Local File"
+      },
+      "knowledge": {
+        "content": {
+          "citation": {
+            "description": "Includes web search and knowledge base reference information",
+            "title": "Citations"
+          },
+          "code": {
+            "description": "Includes standalone code blocks",
+            "title": "Code Blocks"
+          },
+          "error": {
+            "description": "Includes error messages during execution",
+            "title": "Errors"
+          },
+          "file": {
+            "description": "Includes attached files",
+            "title": "Files"
+          },
+          "maintext": {
+            "description": "Includes primary text content",
+            "title": "Main Text"
+          },
+          "thinking": {
+            "description": "Includes model reasoning content",
+            "title": "Reasoning"
+          },
+          "tool_use": {
+            "description": "Includes tool call parameters and execution results",
+            "title": "Tool Usage"
+          },
+          "translation": {
+            "description": "Includes translation content",
+            "title": "Translations"
+          }
+        },
+        "empty": {
+          "no_content": "This message has no saveable content",
+          "no_knowledge_base": "No knowledge bases available, please create one first"
+        },
+        "error": {
+          "invalid_base": "Selected knowledge base is not properly configured",
+          "no_content_selected": "Lütfen select at least one content type",
+          "save_failed": "Save failed, please check knowledge base configuration"
+        },
+        "select": {
+          "base": {
+            "placeholder": "Lütfen select a knowledge base",
+            "title": "Knowledge base seç"
+          },
+          "content": {
+            "tip": "Selected {{count}} items, text types will be merged and saved as one note",
+            "title": "Content types to save seç"
+          }
+        },
+        "title": "Save to Knowledge Base"
+      },
+      "label": "Kaydet",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "Includes topic title and main text content from all messages"
+            }
+          },
+          "empty": {
+            "no_content": "This topic has no saveable content"
+          },
+          "error": {
+            "save_failed": "Save topic, please check knowledge base configuration başarısız oldu"
+          },
+          "loading": "Analyzing topic content...",
+          "select": {
+            "content": {
+              "label": "Content types to save seç",
+              "selected_tip": "Selected {{count}} items from {{messages}} messages",
+              "tip": "Topic will be saved to knowledge base with complete conversation context"
+            }
+          },
+          "success": "Topic successfully saved to knowledge base ({{count}} items)",
+          "title": "Save Topic to Knowledge Base"
+        }
+      }
+    },
+    "settings": {
+      "code": {
+        "title": "Code Block Settings"
+      },
+      "code_collapsible": "Code block collapsible",
+      "code_editor": {
+        "autocompletion": "Autocompletion",
+        "fold_gutter": "Fold gutter",
+        "highlight_active_line": "Highlight active line",
+        "keymap": "Keymap",
+        "title": "Code Editor"
+      },
+      "code_execution": {
+        "timeout_minutes": {
+          "label": "Timeout",
+          "tip": "The timeout time (minutes) of code execution"
+        },
+        "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
+        "title": "Code Execution"
+      },
+      "code_fancy_block": {
+        "label": "Fancy code block",
+        "tip": "Enable fancy style for code block, e.g., html card"
+      },
+      "code_image_tools": {
+        "label": "Enable preview tools",
+        "tip": "Enable preview tools for images rendered from code blocks such as mermaid"
+      },
+      "code_wrappable": "Code block wrappable",
+      "context_count": {
+        "label": "Context",
+        "tip": "The number of previous messages to keep in the context."
+      },
+      "max": "Max",
+      "max_tokens": {
+        "confirm": "Set max tokens",
+        "confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
+        "label": "Set max tokens",
+        "tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported"
+      },
+      "reset": "Reset",
+      "set_as_default": "Apply to default assistant",
+      "show_line_numbers": "Show line numbers in code",
+      "temperature": {
+        "label": "Temperature",
+        "tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise."
+      },
+      "thought_auto_collapse": {
+        "label": "Collapse Thought Content",
+        "tip": "Automatically collapse thought content after thinking ends"
+      },
+      "top_p": {
+        "label": "Top-P",
+        "tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse"
+      }
+    },
+    "suggestions": {
+      "title": "Suggested Questions"
+    },
+    "thinking": "Thinking ({{seconds}} seconds)",
+    "topics": {
+      "auto_rename": "Auto Rename",
+      "clear": {
+        "title": "Clear Messages"
+      },
+      "copy": {
+        "image": "Copy as image",
+        "md": "Copy as markdown",
+        "plain_text": "Copy as plain text (remove Markdown)",
+        "title": "Copy"
+      },
+      "delete": {
+        "shortcut": "Hold {{key}} to delete directly"
+      },
+      "edit": {
+        "placeholder": "Enter new name",
+        "title": "Name düzenle",
+        "title_tip": "Tips: Double-click the topic name to rename it directly in place"
+      },
+      "export": {
+        "image": "Export as image",
+        "joplin": "Export to Joplin",
+        "md": {
+          "label": "Export as markdown",
+          "reason": "Export as Markdown (with reasoning)"
+        },
+        "notes": "Export to Notes",
+        "notion": "Export to Notion",
+        "obsidian": "Export to Obsidian",
+        "obsidian_atributes": "Configure Note Attributes",
+        "obsidian_btn": "Confirm",
+        "obsidian_created": "Creation Time",
+        "obsidian_created_placeholder": "Lütfen select the creation time",
+        "obsidian_export_failed": "Export başarısız oldu",
+        "obsidian_export_success": "Export success",
+        "obsidian_fetch_error": "Fetch obsidian vaults başarısız oldu",
+        "obsidian_fetch_folders_error": "Fetch folder structure başarısız oldu",
+        "obsidian_loading": "Yükleniyor...",
+        "obsidian_no_vault_selected": "Lütfen select a vault first",
+        "obsidian_no_vaults": "No Obsidian vaults found",
+        "obsidian_operate": "Operation Method",
+        "obsidian_operate_append": "Append",
+        "obsidian_operate_new_or_overwrite": "Create New (Overwrite if it exists)",
+        "obsidian_operate_placeholder": "Lütfen select the operation method",
+        "obsidian_operate_prepend": "Prepend",
+        "obsidian_path": "Path",
+        "obsidian_path_placeholder": "Lütfen select the path",
+        "obsidian_reasoning": "Include Reasoning Chain",
+        "obsidian_root_directory": "Root Dizin",
+        "obsidian_select_vault_first": "Lütfen select a vault first",
+        "obsidian_source": "Source",
+        "obsidian_source_placeholder": "Lütfen enter the source",
+        "obsidian_tags": "Tags",
+        "obsidian_tags_placeholder": "Lütfen enter tags, separate multiple tags with commas",
+        "obsidian_title": "Başlık",
+        "obsidian_title_placeholder": "Lütfen enter the title",
+        "obsidian_title_required": "The title cannot be empty",
+        "obsidian_vault": "Vault",
+        "obsidian_vault_placeholder": "Lütfen select the vault name",
+        "siyuan": "Export to Siyuan Note",
+        "title": "Export",
+        "title_naming_failed": "Generate title, using default title başarısız oldu",
+        "title_naming_success": "Title generated successfully",
+        "wait_for_title_naming": "Generating title...",
+        "word": "Export as Word",
+        "yuque": "Export to Yuque"
+      },
+      "list": "Topic List",
+      "move_to": "Move to",
+      "new": "New Topic",
+      "pin": "Pin Topic",
+      "prompt": {
+        "edit": {
+          "title": "Topic prompts düzenle"
+        },
+        "label": "Topic Prompts",
+        "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
+      },
+      "title": "Topics",
+      "unpin": "Unpin Topic"
+    },
+    "translate": "Translate",
+    "web_search": {
+      "warning": {
+        "openai": "The GPT-5 model's minimal reasoning effort does not support web search."
+      }
+    }
+  },
+  "code": {
+    "auto_update_to_latest": "Automatically update to latest version",
+    "bun_required_message": "Bun environment is required to run CLI tools",
+    "cli_tool": "CLI Tool",
+    "cli_tool_placeholder": "The cli tool to use seç",
+    "custom_path": "Custom path",
+    "custom_path_error": "Set custom terminal path başarısız oldu",
+    "custom_path_required": "Custom path required for this terminal",
+    "custom_path_set": "Custom terminal path set successfully",
+    "description": "Quickly launch multiple code CLI tools to improve development efficiency",
+    "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
+    "environment_variables": "Environment Variables",
+    "folder_placeholder": "Working directory seç",
+    "install_bun": "Install Bun",
+    "installing_bun": "Installing...",
+    "launch": {
+      "bun_required": "Lütfen install Bun environment first before launching CLI tools",
+      "error": "Launch failed, please try again",
+      "label": "Launch",
+      "success": "Launch successful",
+      "validation_error": "Lütfen complete all required fields: CLI tool, model, and working directory"
+    },
+    "launching": "Launching...",
+    "model": "Model",
+    "model_placeholder": "The model to use seç",
+    "model_required": "Lütfen select a model",
+    "select_folder": "Folder seç",
+    "set_custom_path": "Set custom terminal path",
+    "supported_providers": "Supported Providers",
+    "terminal": "Terminal",
+    "terminal_placeholder": "Terminal application seç",
+    "title": "Code Tools",
+    "update_options": "Güncelle Options",
+    "working_directory": "Working Dizin"
+  },
+  "code_block": {
+    "collapse": "Collapse",
+    "copy": {
+      "failed": "Copy başarısız oldu",
+      "label": "Copy",
+      "source": "Copy Source Code",
+      "success": "Copied"
+    },
+    "download": {
+      "failed": {
+        "network": "Download failed, please check the network"
+      },
+      "label": "Download",
+      "png": "Download PNG",
+      "source": "Download Source Code",
+      "svg": "Download SVG"
+    },
+    "edit": {
+      "label": "Düzenle",
+      "save": {
+        "failed": {
+          "label": "Save başarısız oldu",
+          "message_not_found": "Save failed, message not found"
+        },
+        "label": "Kaydet Changes",
+        "success": "Saved"
+      }
+    },
+    "expand": "Expand",
+    "more": "More",
+    "run": "Run",
+    "split": {
+      "label": "Split View",
+      "restore": "Restore Split View"
+    },
+    "wrap": {
+      "off": "Unwrap",
+      "on": "Wrap"
+    }
+  },
+  "common": {
+    "about": "About",
+    "add": "Ekle",
+    "add_success": "Added successfully",
+    "advanced_settings": "Advanced Ayarlar",
+    "agent_one": "Ajan",
+    "agent_other": "Agents",
+    "and": "and",
+    "assistant": "Ajan",
+    "assistant_one": "Assistant",
+    "assistant_other": "Assistants",
+    "avatar": "Avatar",
+    "back": "Back",
+    "browse": "Browse",
+    "cancel": "İptal",
+    "chat": "Sohbet",
+    "clear": "Clear",
+    "close": "Kapat",
+    "collapse": "Collapse",
+    "confirm": "Confirm",
+    "copied": "Copied",
+    "copy": "Copy",
+    "copy_failed": "Copy başarısız oldu",
+    "cut": "Cut",
+    "default": "Default",
+    "delete": "Sil",
+    "delete_confirm": "Emin misiniz you want to delete?",
+    "delete_failed": "Delete başarısız oldu",
+    "delete_success": "Deleted successfully",
+    "description": "Açıklama",
+    "detail": "Detail",
+    "disabled": "Disabled",
+    "docs": "Docs",
+    "download": "Download",
+    "duplicate": "Duplicate",
+    "edit": "Düzenle",
+    "enabled": "Enabled",
+    "error": "error",
+    "errors": {
+      "create_message": "Create message başarısız oldu",
+      "validation": "Verification başarısız oldu"
+    },
+    "expand": "Expand",
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
+    "footnote": "Reference content",
+    "footnotes": "References",
+    "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+    "go_to_settings": "Go to settings",
+    "i_know": "I know",
+    "inspect": "Inspect",
+    "invalid_value": "Geçersiz Value",
+    "knowledge_base": "Knowledge Base",
+    "language": "Dil",
+    "loading": "Yükleniyor...",
+    "model": "Model",
+    "models": "Models",
+    "more": "More",
+    "name": "İsim",
+    "no_results": "Hayır results",
+    "none": "None",
+    "open": "Aç",
+    "paste": "Paste",
+    "placeholders": {
+      "select": {
+        "model": "A model seç"
+      }
+    },
+    "preview": "Preview",
+    "prompt": "Prompt",
+    "provider": "Sağlayıcı",
+    "reasoning_content": "Deep reasoning",
+    "refresh": "Refresh",
+    "regenerate": "Regenerate",
+    "rename": "Rename",
+    "reset": "Reset",
+    "save": "Kaydet",
+    "saved": "Saved",
+    "search": "Search",
+    "select": "Select",
+    "selected": "Selected",
+    "selectedItems": "Selected {{count}} items",
+    "selectedMessages": "Selected {{count}} messages",
+    "settings": "Ayarlar",
+    "sort": {
+      "pinyin": {
+        "asc": "Sort by Pinyin (A-Z)",
+        "desc": "Sort by Pinyin (Z-A)",
+        "label": "Sort by Pinyin"
+      }
+    },
+    "stop": "Stop",
+    "success": "Başarılı",
+    "swap": "Swap",
+    "topics": "Topics",
+    "unknown": "Unknown",
+    "unnamed": "Unnamed",
+    "update_success": "Güncelle successfully",
+    "upload_files": "Upload file",
+    "warning": "Uyarı",
+    "you": "You"
+  },
+  "docs": {
+    "title": "Docs"
+  },
+  "endpoint_type": {
+    "anthropic": "Anthropic",
+    "gemini": "Gemini",
+    "image-generation": "Image Generation",
+    "jina-rerank": "Jina Rerank",
+    "openai": "OpenAI",
+    "openai-response": "OpenAI-Response"
+  },
+  "error": {
+    "availableProviders": "Available Providers",
+    "availableTools": "Available Tools",
+    "backup": {
+      "file_format": "Backup file format error"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "Open debug panel",
+        "message": "It seems that something went wrong...",
+        "reload": "Reload"
+      },
+      "details": "Details",
+      "mcp": {
+        "invalid": "Geçersiz MCP server"
+      }
+    },
+    "cause": "Hata cause",
+    "chat": {
+      "chunk": {
+        "non_json": "Returned an invalid data format"
+      },
+      "insufficient_balance": "Lütfen go to the <provider>{{provider}}</provider> to recharge.",
+      "no_api_key": "You have not configured an API key. Please go to the <provider>{{provider}}</provider> to obtain an API key.",
+      "quota_exceeded": "Your daily {{quota}} free quota has been exhausted. Please go to the <provider>{{provider}}</provider> to obtain an API key and configure the API key to continue using.",
+      "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
+    },
+    "content": "Content",
+    "data": "Data",
+    "detail": "Hata Details",
+    "details": "Details",
+    "errors": "Errors",
+    "finishReason": "Finish Reason",
+    "functionality": "Functionality",
+    "http": {
+      "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
+      "401": "Authentication failed. Please check if your API key is correct",
+      "403": "Access denied. Please check if your account is verified, or contact the service provider for more information",
+      "404": "Model not found or request path is incorrect",
+      "429": "Too many requests. Please try again later",
+      "500": "Server error. Please try again later",
+      "502": "Gateway error. Please try again later",
+      "503": "Service unavailable. Please try again later",
+      "504": "Gateway timeout. Please try again later"
+    },
+    "lastError": "Last Hata",
+    "maxEmbeddingsPerCall": "Max Embeddings Per Call",
+    "message": "Hata Mesaj",
+    "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
+    "model": {
+      "exists": "Model already exists",
+      "not_exists": "Model does not exist"
+    },
+    "modelId": "Model ID",
+    "modelType": "Model Tür",
+    "name": "Hata name",
+    "no_api_key": "API key is not configured",
+    "no_response": "Hayır response",
+    "originalError": "Original Hata",
+    "originalMessage": "Original Mesaj",
+    "parameter": "Parameter",
+    "pause_placeholder": "Paused",
+    "prompt": "Prompt",
+    "provider": "Sağlayıcı",
+    "providerId": "Sağlayıcı ID",
+    "provider_disabled": "Model provider is not enabled",
+    "reason": "Reason",
+    "render": {
+      "description": "Render message content. please check if the message content format is correct başarısız oldu",
+      "title": "Render Hata"
+    },
+    "requestBody": "Request Body",
+    "requestBodyValues": "Request Body Values",
+    "requestUrl": "Request URL",
+    "response": "Response",
+    "responseBody": "Response Body",
+    "responseHeaders": "Response Header",
+    "responses": "Responses",
+    "role": "Role",
+    "stack": "Stack Trace",
+    "status": "Status Code",
+    "statusCode": "Status Code",
+    "statusText": "Status Text",
+    "text": "Text",
+    "toolInput": "Tool Input",
+    "toolName": "Tool İsim",
+    "unknown": "Unknown error",
+    "usage": "Usage",
+    "user_message_not_found": "Cannot find original user message to resend",
+    "value": "Value",
+    "values": "Values"
+  },
+  "export": {
+    "assistant": "Assistant",
+    "attached_files": "Attached Files",
+    "conversation_details": "Conversation Details",
+    "conversation_history": "Conversation History",
+    "created": "Created",
+    "last_updated": "Last Updated",
+    "messages": "Messages",
+    "notion": {
+      "reasoning_truncated": "Chain of thought cannot be chunked and has been truncated."
+    },
+    "user": "User"
+  },
+  "files": {
+    "actions": "Actions",
+    "all": "All Files",
+    "batch_delete": "Batch delete",
+    "batch_operation": "All seç",
+    "count": "files",
+    "created_at": "Created At",
+    "delete": {
+      "content": "Deleting a file will delete its reference from all messages. Are you sure you want to delete this file?",
+      "db_error": "Deletion başarısız oldu",
+      "label": "Sil",
+      "paintings": {
+        "warning": "Image contains this file, deletion is not possible"
+      },
+      "title": "File sil"
+    },
+    "document": "Document",
+    "edit": "Düzenle",
+    "error": {
+      "open_path": "Open path {{path}} başarısız oldu"
+    },
+    "file": "Dosya",
+    "image": "Image",
+    "name": "İsim",
+    "open": "Aç",
+    "preview": {
+      "error": "Open file başarısız oldu"
+    },
+    "size": "Size",
+    "text": "Text",
+    "title": "Files",
+    "type": "Tür"
+  },
+  "gpustack": {
+    "keep_alive_time": {
+      "description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "placeholder": "Minutes",
+      "title": "Keep Alive Time"
+    },
+    "title": "GPUStack"
+  },
+  "history": {
+    "continue_chat": "Continue Chatting",
+    "error": {
+      "topic_not_found": "Topic not found"
+    },
+    "locate": {
+      "message": "Locate the message"
+    },
+    "search": {
+      "messages": "Search All Messages",
+      "placeholder": "Search topics or messages...",
+      "topics": {
+        "empty": "No topics found, press Enter to search all messages"
+      }
+    },
+    "title": "Topics Search"
+  },
+  "html_artifacts": {
+    "capture": {
+      "label": "Capture Page",
+      "to_clipboard": "Copy to Clipboard",
+      "to_file": "Save as Image"
+    },
+    "code": "Code",
+    "empty_preview": "No content to display",
+    "generating": "Generating",
+    "preview": "Preview",
+    "split": "Split"
+  },
+  "knowledge": {
+    "add": {
+      "title": "Knowledge base ekle"
+    },
+    "add_directory": "Directory ekle",
+    "add_file": "File ekle",
+    "add_image": "Image ekle",
+    "add_note": "Note ekle",
+    "add_sitemap": "Website Map",
+    "add_url": "Url ekle",
+    "add_video": "Video ekle",
+    "cancel_index": "İptal Indexing",
+    "chunk_overlap": "Chunk Overlap",
+    "chunk_overlap_placeholder": "Default (not recommended to change)",
+    "chunk_overlap_tooltip": "The amount of duplicate content between adjacent chunks, ensuring that the chunks are still contextually related, improving the overall effect of processing long text",
+    "chunk_size": "Chunk Size",
+    "chunk_size_change_warning": "Chunk size and overlap size changes only apply to new content",
+    "chunk_size_placeholder": "Default (not recommended to change)",
+    "chunk_size_too_large": "Chunk size cannot exceed model context limit ({{max_context}})",
+    "chunk_size_tooltip": "Split documents into chunks, each chunk size, not exceeding model context limit",
+    "clear_selection": "Clear selection",
+    "delete": "Sil",
+    "delete_confirm": "Emin misiniz you want to delete this knowledge base?",
+    "dimensions": "Embedding dimension",
+    "dimensions_auto_set": "Auto-set embedding dimensions",
+    "dimensions_default": "The model will use default embedding dimensions",
+    "dimensions_error_invalid": "Geçersiz embedding dimension",
+    "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
+    "dimensions_size_placeholder": "Leave empty to not pass dimensions",
+    "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
+    "dimensions_size_tooltip": "Embedding dimension size, the larger the value, the more tokens will be consumed. Leave empty to not pass dimensions parameter.",
+    "directories": "Directories",
+    "directory_placeholder": "Enter Directory Path",
+    "document_count": "Requested Document Chunks",
+    "document_count_default": "Default",
+    "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
+    "drag_file": "Drag file here",
+    "drag_image": "Drag image here",
+    "edit_remark": "Remark düzenle",
+    "edit_remark_placeholder": "Lütfen enter remark content",
+    "embedding_model": "Embedding Model",
+    "embedding_model_required": "Knowledge Base Embedding Model is required",
+    "empty": "No knowledge base found",
+    "error": {
+      "failed_to_create": "Knowledge base creation başarısız oldu",
+      "failed_to_edit": "Knowledge base editing başarısız oldu",
+      "model_invalid": "No model selected",
+      "video": {
+        "local_file_missing": "Video file not found",
+        "youtube_url_missing": "YouTube video URL not found"
+      }
+    },
+    "file_hint": "Support {{file_types}}",
+    "image_hint": "Support {{image_types}}",
+    "images": "Images",
+    "index_all": "Index All",
+    "index_cancelled": "Indexing cancelled",
+    "index_started": "Indexing started",
+    "invalid_url": "Geçersiz URL",
+    "migrate": {
+      "button": {
+        "text": "Migrate"
+      },
+      "confirm": {
+        "content": "Detected changes in embedding model or dimension, cannot save configuration directly. Knowledge base migration will not delete the existing knowledge base, but will create a copy and then reprocess all knowledge base entries, which may consume a large number of tokens, please proceed with caution.",
+        "ok": "Start Migration",
+        "title": "Knowledge Base Migration"
+      },
+      "error": {
+        "failed": "Migration başarısız oldu"
+      },
+      "source_dimensions": "Source Dimensions",
+      "source_model": "Source Model",
+      "target_dimensions": "Target Dimensions",
+      "target_model": "Target Model"
+    },
+    "model_info": "Model Info",
+    "name_required": "Knowledge Base Name is required",
+    "no_bases": "No knowledge bases available",
+    "no_match": "No matching content found in the knowledge base.",
+    "no_provider": "Knowledge base model provider is not set, the knowledge base will no longer be supported, please create a new knowledge base",
+    "not_set": "Not Set",
+    "not_support": "Knowledge base database engine updated, the knowledge base will no longer be supported, please create a new knowledge base",
+    "notes": "Notes",
+    "notes_placeholder": "Enter additional information or context for this knowledge base...",
+    "provider_not_found": "Provider not found",
+    "quota": "{{name}} Left Quota: {{quota}}",
+    "quota_infinity": "{{name}} Quota: Unlimited",
+    "rename": "Rename",
+    "search": "Search knowledge base",
+    "search_placeholder": "Enter text to search",
+    "settings": {
+      "preprocessing": "Preprocessing",
+      "preprocessing_tooltip": "Preprocess uploaded files",
+      "title": "Knowledge Base Settings"
+    },
+    "sitemap_added": "Added successfully",
+    "sitemap_placeholder": "Enter Website Map URL",
+    "sitemaps": "Websites",
+    "source": "Source",
+    "status": "Status",
+    "status_completed": "Completed",
+    "status_embedding_completed": "Embedding Completed",
+    "status_embedding_failed": "Embedding başarısız oldu",
+    "status_failed": "Başarısız",
+    "status_new": "Added",
+    "status_pending": "Pending",
+    "status_preprocess_completed": "Preprocessing Completed",
+    "status_preprocess_failed": "Preprocessing başarısız oldu",
+    "status_processing": "Processing",
+    "subtitle_file": "subtitle file",
+    "threshold": "Matching threshold",
+    "threshold_placeholder": "Not set",
+    "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
+    "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
+    "title": "Knowledge Base",
+    "topN": "Number of results returned",
+    "topN_placeholder": "Not set",
+    "topN_too_large_or_small": "The number of results returned cannot be greater than 30 or less than 1.",
+    "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
+    "url_added": "URL added",
+    "url_placeholder": "Enter URL, multiple URLs separated by Enter",
+    "urls": "URLs",
+    "videos": "video",
+    "videos_file": "video file"
+  },
+  "languages": {
+    "arabic": "Arabic",
+    "chinese": "Chinese",
+    "chinese-traditional": "Traditional Chinese",
+    "english": "English",
+    "french": "French",
+    "german": "German",
+    "indonesian": "Indonesian",
+    "italian": "Italian",
+    "japanese": "Japanese",
+    "korean": "Korean",
+    "malay": "Malay",
+    "polish": "Polish",
+    "portuguese": "Portuguese",
+    "russian": "Russian",
+    "spanish": "Spanish",
+    "thai": "Thai",
+    "turkish": "Turkish",
+    "ukrainian": "Ukrainian",
+    "unknown": "unknown",
+    "urdu": "Urdu",
+    "vietnamese": "Vietnamese"
+  },
+  "launchpad": {
+    "apps": "Apps",
+    "minapps": "Minapps"
+  },
+  "lmstudio": {
+    "keep_alive_time": {
+      "description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "placeholder": "Minutes",
+      "title": "Keep Alive Time"
+    },
+    "title": "LM Studio"
+  },
+  "memory": {
+    "actions": "Actions",
+    "add_failed": "Add memory başarısız oldu",
+    "add_first_memory": "Your first memory ekle",
+    "add_memory": "Memory ekle",
+    "add_new_user": "New user ekle",
+    "add_success": "Memory added successfully",
+    "add_user": "User ekle",
+    "add_user_failed": "Add user başarısız oldu",
+    "all_users": "All Users",
+    "cannot_delete_default_user": "Cannot delete the default user",
+    "configure_memory_first": "Lütfen configure memory settings first",
+    "content": "Content",
+    "current_user": "Current User",
+    "custom": "Custom",
+    "default": "Default",
+    "default_user": "Default User",
+    "delete_confirm": "Emin misiniz you want to delete this memory?",
+    "delete_confirm_content": "Emin misiniz you want to delete {{count}} memories?",
+    "delete_confirm_single": "Emin misiniz you want to delete this memory?",
+    "delete_confirm_title": "Memories sil",
+    "delete_failed": "Delete memory başarısız oldu",
+    "delete_selected": "Selected sil",
+    "delete_success": "Memory deleted successfully",
+    "delete_user": "User sil",
+    "delete_user_confirm_content": "Emin misiniz you want to delete user {{user}} and all their memories?",
+    "delete_user_confirm_title": "User sil",
+    "delete_user_failed": "Delete user başarısız oldu",
+    "description": "Memory allows you to store and manage information about your interactions with the assistant. You can add, edit, and delete memories, as well as filter and search through them.",
+    "edit_memory": "Memory düzenle",
+    "embedding_dimensions": "Embedding Dimensions",
+    "embedding_model": "Embedding Model",
+    "enable_global_memory_first": "Lütfen enable global memory first",
+    "end_date": "End Date",
+    "global_memory": "Global Memory",
+    "global_memory_description": "To use memory features, please enable global memory in assistant settings.",
+    "global_memory_disabled_desc": "To use memory features, please enable global memory in assistant settings first.",
+    "global_memory_disabled_title": "Global Memory Disabled",
+    "global_memory_enabled": "Global memory enabled",
+    "go_to_memory_page": "Go to Memory Page",
+    "initial_memory_content": "Welcome! This is your first memory.",
+    "llm_model": "LLM Model",
+    "load_failed": "Load memories başarısız oldu",
+    "loading": "Yükleniyor memories...",
+    "loading_memories": "Yükleniyor memories...",
+    "memories_description": "Showing {{count}} of {{total}} memories",
+    "memories_reset_success": "All memories for {{user}} have been reset successfully",
+    "memory": "memory",
+    "memory_content": "Memory Content",
+    "memory_placeholder": "Enter memory content...",
+    "new_user_id": "New User ID",
+    "new_user_id_placeholder": "Enter a unique user ID",
+    "no_matching_memories": "No matching memories found",
+    "no_memories": "No memories yet",
+    "no_memories_description": "Start by adding your first memory to get started",
+    "not_configured_desc": "Lütfen configure embedding and LLM models in memory settings to enable memory functionality.",
+    "not_configured_title": "Memory Not Configured",
+    "pagination_total": "{{start}}-{{end}} of {{total}} items",
+    "please_enter_memory": "Lütfen enter memory content",
+    "please_select_embedding_model": "Lütfen select an embedding model",
+    "please_select_llm_model": "Lütfen select an LLM model",
+    "reset_filters": "Reset Filters",
+    "reset_memories": "Reset Memories",
+    "reset_memories_confirm_content": "Emin misiniz you want to permanently delete all memories for {{user}}? This action cannot be undone.",
+    "reset_memories_confirm_title": "Reset All Memories",
+    "reset_memories_failed": "Reset memories başarısız oldu",
+    "reset_user_memories": "Reset User Memories",
+    "reset_user_memories_confirm_content": "Emin misiniz you want to reset all memories for {{user}}?",
+    "reset_user_memories_confirm_title": "Reset User Memories",
+    "reset_user_memories_failed": "Reset user memories başarısız oldu",
+    "score": "Score",
+    "search": "Search",
+    "search_placeholder": "Search memories...",
+    "select_embedding_model_placeholder": "Embedding model seç",
+    "select_llm_model_placeholder": "Llm model seç",
+    "select_user": "User seç",
+    "settings": "Ayarlar",
+    "settings_title": "Memory Ayarlar",
+    "start_date": "Start Date",
+    "statistics": "Statistics",
+    "stored_memories": "Stored Memories",
+    "switch_user": "Switch User",
+    "switch_user_confirm": "Switch user context to {{user}}?",
+    "time": "Time",
+    "title": "Memories",
+    "total_memories": "total memories",
+    "try_different_filters": "Try adjusting your search criteria",
+    "update_failed": "Update memory başarısız oldu",
+    "update_success": "Memory updated successfully",
+    "user": "User",
+    "user_created": "User {{user}} created and switched successfully",
+    "user_deleted": "User {{user}} deleted successfully",
+    "user_id": "User ID",
+    "user_id_exists": "This user ID already exists",
+    "user_id_invalid_chars": "User ID can only contain letters, numbers, hyphens and underscores",
+    "user_id_placeholder": "Enter user ID (optional)",
+    "user_id_required": "User ID is required",
+    "user_id_reserved": "'default-user' is reserved, please use a different ID",
+    "user_id_rules": "User ID must be unique and contain only letters, numbers, hyphens (-) and underscores (_)",
+    "user_id_too_long": "User ID cannot exceed 50 characters",
+    "user_management": "User Management",
+    "user_memories_reset": "All memories for {{user}} have been reset",
+    "user_switch_failed": "Switch user başarısız oldu",
+    "user_switched": "User context switched to {{user}}",
+    "users": "users"
+  },
+  "message": {
+    "agents": {
+      "import": {
+        "error": "Import başarısız oldu"
+      },
+      "imported": "Imported successfully"
+    },
+    "api": {
+      "check": {
+        "model": {
+          "title": "The model to use for detection seç"
+        }
+      },
+      "connection": {
+        "failed": "Connection başarısız oldu",
+        "success": "Connection successful"
+      }
+    },
+    "assistant": {
+      "added": {
+        "content": "Assistant added successfully"
+      }
+    },
+    "attachments": {
+      "pasted_image": "Pasted Image",
+      "pasted_text": "Pasted Text"
+    },
+    "backup": {
+      "failed": "Backup başarısız oldu",
+      "start": {
+        "success": "Backup started"
+      },
+      "success": "Backup successful"
+    },
+    "branch": {
+      "error": "Branch creation başarısız oldu"
+    },
+    "chat": {
+      "completion": {
+        "paused": "Chat completion paused"
+      }
+    },
+    "citation": "{{count}} citations",
+    "citations": "References",
+    "copied": "Copied!",
+    "copy": {
+      "failed": "Copy başarısız oldu",
+      "success": "Copied!"
+    },
+    "delete": {
+      "confirm": {
+        "content": "Emin misiniz you want to delete the selected {{count}} message(s)?",
+        "title": "Confirmation sil"
+      },
+      "failed": "Delete başarısız oldu",
+      "success": "Successful sil"
+    },
+    "dialog": {
+      "failed": "Preview başarısız oldu"
+    },
+    "download": {
+      "failed": "Download başarısız oldu",
+      "success": "Download successfully"
+    },
+    "empty_url": "Download image, possibly due to prompt containing sensitive content or prohibited words başarısız oldu",
+    "error": {
+      "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
+      "copy": "Copy başarısız oldu",
+      "dimension_too_large": "Content size is too large",
+      "enter": {
+        "api": {
+          "host": "Lütfen enter your API host first",
+          "label": "Lütfen enter your API key first"
+        },
+        "model": "Lütfen select a model first",
+        "name": "Lütfen enter the name of the knowledge base"
+      },
+      "fetchTopicName": "Name the topic başarısız oldu",
+      "get_embedding_dimensions": "Get embedding dimensions başarısız oldu",
+      "invalid": {
+        "api": {
+          "host": "Geçersiz API Host",
+          "label": "Geçersiz API Key"
+        },
+        "enter": {
+          "model": "Lütfen select a model"
+        },
+        "nutstore": "Geçersiz Nutstore settings",
+        "nutstore_token": "Geçersiz Nutstore Token",
+        "proxy": {
+          "url": "Geçersiz proxy URL"
+        },
+        "webdav": "Geçersiz WebDAV settings"
+      },
+      "joplin": {
+        "export": "Export to joplin. please keep joplin running and check connection status or configuration başarısız oldu",
+        "no_config": "Joplin Authorization Token or URL is not configured"
+      },
+      "markdown": {
+        "export": {
+          "preconf": "Export the markdown file to the preconfigured path başarısız oldu",
+          "specified": "Export the markdown file başarısız oldu"
+        }
+      },
+      "notes": {
+        "export": "Export notes başarısız oldu"
+      },
+      "notion": {
+        "export": "Export to notion. please check connection status and configuration according to documentation başarısız oldu",
+        "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
+        "no_content": "There is nothing to export to Notion."
+      },
+      "siyuan": {
+        "export": "Export to siyuan note, please check connection status and configuration according to documentation başarısız oldu",
+        "no_config": "Siyuan Note API address or token is not configured"
+      },
+      "unknown": "Unknown error",
+      "yuque": {
+        "export": "Export to yuque. please check connection status and configuration according to documentation başarısız oldu",
+        "no_config": "Yuque Token or Yuque Url is not configured"
+      }
+    },
+    "group": {
+      "delete": {
+        "content": "Deleting a group message will delete the user's question and all assistant's answers",
+        "title": "Group message sil"
+      },
+      "retry_failed": "Retry failed messages"
+    },
+    "ignore": {
+      "knowledge": {
+        "base": "Web search mode is enabled, ignore knowledge base"
+      }
+    },
+    "loading": {
+      "notion": {
+        "exporting_progress": "Exporting to Notion ...",
+        "preparing": "Preparing to export to Notion..."
+      }
+    },
+    "mention": {
+      "title": "Switch model answer"
+    },
+    "message": {
+      "code_style": "Code style",
+      "delete": {
+        "content": "Emin misiniz you want to delete this message?",
+        "title": "Message sil"
+      },
+      "multi_model_style": {
+        "fold": {
+          "compress": "Switch to compact layout",
+          "expand": "Switch to expanded layout",
+          "label": "Fold view"
+        },
+        "grid": "Grid layout",
+        "horizontal": "Side by side",
+        "label": "Group style",
+        "vertical": "Stacked view"
+      },
+      "style": {
+        "bubble": "Bubble",
+        "label": "Mesaj style",
+        "plain": "Plain"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Local video file path not found",
+          "unsupported_type": "Unsupported video type",
+          "youtube_url_missing": "YouTube video URL not found"
+        }
+      }
+    },
+    "processing": "Processing...",
+    "regenerate": {
+      "confirm": "Regenerating will replace current message"
+    },
+    "reset": {
+      "confirm": {
+        "content": "Emin misiniz you want to clear all data?"
+      },
+      "double": {
+        "confirm": {
+          "content": "All data will be lost, do you want to continue?",
+          "title": "DATA LOST !!!"
+        }
+      }
+    },
+    "restore": {
+      "failed": "Restore başarısız oldu",
+      "success": "Restored successfully"
+    },
+    "save": {
+      "success": {
+        "title": "Saved successfully"
+      }
+    },
+    "searching": "Searching...",
+    "success": {
+      "joplin": {
+        "export": "Successfully exported to Joplin"
+      },
+      "markdown": {
+        "export": {
+          "preconf": "Successfully exported the Markdown file to the preconfigured path",
+          "specified": "Successfully exported the Markdown file"
+        }
+      },
+      "notes": {
+        "export": "Successfully exported to notes"
+      },
+      "notion": {
+        "export": "Successfully exported to Notion"
+      },
+      "siyuan": {
+        "export": "Successfully exported to Siyuan Note"
+      },
+      "yuque": {
+        "export": "Successfully exported to Yuque"
+      }
+    },
+    "switch": {
+      "disabled": "Lütfen wait for the current reply to complete"
+    },
+    "tools": {
+      "abort_failed": "Tool call abort başarısız oldu",
+      "aborted": "Tool call aborted",
+      "autoApproveEnabled": "Auto-approve enabled for this tool",
+      "cancelled": "Cancelled",
+      "completed": "Completed",
+      "error": "Hata occurred",
+      "invoking": "Invoking",
+      "pending": "Pending",
+      "preview": "Preview",
+      "raw": "Raw"
+    },
+    "topic": {
+      "added": "New topic added"
+    },
+    "upgrade": {
+      "success": {
+        "button": "Restart",
+        "content": "Lütfen restart the application to complete the upgrade",
+        "title": "Upgrade successfully"
+      }
+    },
+    "warn": {
+      "export": {
+        "exporting": "Another export is in progress. Please wait for the previous export to complete and then try again."
+      }
+    },
+    "warning": {
+      "rate": {
+        "limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
+      }
+    },
+    "websearch": {
+      "cutoff": "Truncating search content...",
+      "fetch_complete": "{{count}} search result(s)",
+      "rag": "Executing RAG...",
+      "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
+      "rag_failed": "RAG failed, returning empty results..."
+    }
+  },
+  "minapp": {
+    "add_to_launchpad": "To launchpad ekle",
+    "add_to_sidebar": "To sidebar ekle",
+    "popup": {
+      "close": "Kapat MinApp",
+      "devtools": "Developer Tools",
+      "goBack": "Go Back",
+      "goForward": "Go Forward",
+      "minimize": "Minimize MinApp",
+      "openExternal": "Open in Browser",
+      "open_link_external_off": "Current: Open links in default window",
+      "open_link_external_on": "Current: Open links in browser",
+      "refresh": "Refresh",
+      "rightclick_copyurl": "Right-click to copy URL"
+    },
+    "remove_from_launchpad": "Remove from Launchpad",
+    "remove_from_sidebar": "Remove from Sidebar",
+    "sidebar": {
+      "close": {
+        "title": "Kapat"
+      },
+      "closeall": {
+        "title": "Kapat All"
+      },
+      "hide": {
+        "title": "Hide"
+      },
+      "remove_custom": {
+        "title": "Custom app sil"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
+  },
+  "miniwindow": {
+    "alert": {
+      "google_login": "Tip: If you see a 'browser not trusted' message when logging into Google, please first login through the Google mini app in the mini app list, then use Google login in other mini apps"
+    },
+    "clipboard": {
+      "empty": "Clipboard boş"
+    },
+    "feature": {
+      "chat": "Answer this question",
+      "explanation": "Explanation",
+      "summary": "Content summary",
+      "translate": "Text translation"
+    },
+    "footer": {
+      "backspace_clear": "Backspace to clear",
+      "copy_last_message": "Press C to copy",
+      "esc": "ESC to {{action}}",
+      "esc_back": "return",
+      "esc_close": "close",
+      "esc_pause": "pause"
+    },
+    "input": {
+      "placeholder": {
+        "empty": "Ask {{model}} for help...",
+        "title": "What do you want to do with this text?"
+      }
+    },
+    "tooltip": {
+      "pin": "Keep Window on Top"
+    }
+  },
+  "models": {
+    "add_parameter": "Parameter ekle",
+    "all": "All",
+    "custom_parameters": "Custom Parameters",
+    "dimensions": "Dimensions {{dimensions}}",
+    "edit": "Model düzenle",
+    "embedding": "Embedding",
+    "embedding_dimensions": "Embedding Dimensions",
+    "embedding_model": "Embedding Model",
+    "embedding_model_tooltip": "In settings->model provider->manage ekle",
+    "enable_tool_use": "Enable Tool Use",
+    "filter": {
+      "by_tag": "Filter by tag",
+      "selected": "Selected tags"
+    },
+    "function_calling": "Function Calling",
+    "invalid_model": "Geçersiz Model",
+    "no_matches": "No models available",
+    "parameter_name": "Parameter İsim",
+    "parameter_type": {
+      "boolean": "Boolean",
+      "json": "JSON",
+      "number": "Number",
+      "string": "Text"
+    },
+    "pinned": "Pinned",
+    "price": {
+      "cost": "Cost",
+      "currency": "Currency",
+      "custom": "Custom",
+      "custom_currency": "Custom Currency",
+      "custom_currency_placeholder": "Enter Custom Currency",
+      "input": "Input Price",
+      "million_tokens": "M Tokens",
+      "output": "Output Price",
+      "price": "Price"
+    },
+    "reasoning": "Reasoning",
+    "rerank_model": "Reranker",
+    "rerank_model_not_support_provider": "Currently, the reranker model does not support this provider ({{provider}})",
+    "rerank_model_support_provider": "Currently, the reranker model only supports some providers ({{provider}})",
+    "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
+    "search": {
+      "placeholder": "Search models...",
+      "tooltip": "Search models"
+    },
+    "stream_output": "Stream output",
+    "type": {
+      "embedding": "Embedding",
+      "free": "Free",
+      "function_calling": "Tool",
+      "reasoning": "Reasoning",
+      "rerank": "Reranker",
+      "select": "Model Types",
+      "text": "Text",
+      "vision": "Vision",
+      "websearch": "WebSearch"
+    }
+  },
+  "navbar": {
+    "expand": "Expand Dialog",
+    "hide_sidebar": "Hide Sidebar",
+    "show_sidebar": "Show Sidebar",
+    "window": {
+      "close": "Kapat",
+      "maximize": "Maximize",
+      "minimize": "Minimize",
+      "restore": "Restore"
+    }
+  },
+  "navigate": {
+    "provider_settings": "Go to provider settings"
+  },
+  "notes": {
+    "auto_rename": {
+      "empty_note": "Note boş, cannot generate name",
+      "failed": "Generate note name başarısız oldu",
+      "label": "Generate Note Name",
+      "success": "Note name generated successfully"
+    },
+    "characters": "Characters",
+    "collapse": "Collapse",
+    "content_placeholder": "Lütfen enter the note content...",
+    "copyContent": "Copy Content",
+    "delete": "delete",
+    "delete_confirm": "Emin misiniz you want to delete this {{type}}?",
+    "delete_folder_confirm": "Emin misiniz you want to delete the folder \"{{name}}\" and all of its contents?",
+    "delete_note_confirm": "Emin misiniz you want to delete the note \"{{name}}\"?",
+    "drop_markdown_hint": "Drop .md files or folders here to import",
+    "empty": "No notes available yet",
+    "expand": "unfold",
+    "export_failed": "Export to knowledge base başarısız oldu",
+    "export_knowledge": "Export notes to knowledge base",
+    "export_success": "Successfully exported to the knowledge base",
+    "folder": "folder",
+    "new_folder": "New Klasör",
+    "new_note": "Create a new note",
+    "no_content_to_copy": "No content to copy",
+    "no_file_selected": "Lütfen select the file to upload",
+    "no_valid_files": "No valid file was uploaded",
+    "open_folder": "Open an external folder",
+    "open_outside": "Open from external",
+    "rename": "Rename",
+    "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
+    "save": "Save to Notes",
+    "search": {
+      "both": "Name+Content",
+      "content": "Content",
+      "found_results": "Found {{count}} results (Name: {{nameCount}}, Content: {{contentCount}})",
+      "more_matches": "more matches",
+      "searching": "Searching...",
+      "show_less": "Show less"
+    },
+    "settings": {
+      "data": {
+        "apply": "Apply",
+        "apply_path_failed": "Apply path başarısız oldu",
+        "current_work_directory": "Current Work Directory",
+        "invalid_directory": "Selected directory is invalid or access denied",
+        "path_required": "Lütfen select a work directory",
+        "path_updated": "Work directory updated successfully",
+        "reset_failed": "Reset başarısız oldu",
+        "reset_to_default": "Reset to Default",
+        "select": "Select",
+        "select_directory_failed": "Select directory başarısız oldu",
+        "title": "Data Ayarlar",
+        "work_directory_description": "Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
+        "work_directory_placeholder": "Notes work directory seç"
+      },
+      "display": {
+        "compress_content": "Content Compression",
+        "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
+        "default_font": "Default font",
+        "font_size": "Font Size",
+        "font_size_description": "Adjust the font size for better reading experience (10-30px)",
+        "font_size_large": "Large",
+        "font_size_medium": "Medium",
+        "font_size_small": "Small",
+        "font_title": "Font settings",
+        "serif_font": "Serif font",
+        "show_table_of_contents": "Show Table of Contents",
+        "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
+        "title": "Display Ayarlar"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "In Edit View, the default editing mode for new notes",
+          "preview_mode": "Live preview",
+          "source_mode": "Source code mode",
+          "title": "Default edit view"
+        },
+        "title": "Editor Ayarlar",
+        "view_mode": {
+          "description": "New Notes Default View Mode",
+          "edit_mode": "Editing mode",
+          "read_mode": "Reading mode",
+          "title": "Default view"
+        },
+        "view_mode_description": "Sets the default view mode for the new tab page."
+      },
+      "title": "Notes"
+    },
+    "show_starred": "Show favorite notes",
+    "sort_a2z": "File name (A-Z)",
+    "sort_created_asc": "Creation time (oldest first)",
+    "sort_created_desc": "Creation time (newest first)",
+    "sort_updated_asc": "Update time (oldest first)",
+    "sort_updated_desc": "Update time (newest first)",
+    "sort_z2a": "File name (Z-A)",
+    "spell_check": "Spell Check",
+    "spell_check_tooltip": "Enable/Disable spell check",
+    "star": "Favorite note",
+    "starred_notes": "Collected notes",
+    "title": "Notes",
+    "unsaved_changes": "You have unsaved content, are you sure you want to leave?",
+    "unstar": "Unfavorite",
+    "untitled_folder": "New Klasör",
+    "untitled_note": "Untitled Note",
+    "upload_failed": "Note upload başarısız oldu",
+    "upload_success": "Note uploaded success"
+  },
+  "notification": {
+    "assistant": "Assistant Response",
+    "knowledge": {
+      "error": "{{error}}",
+      "success": "Successfully added {{type}} to the knowledge base"
+    },
+    "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+  },
+  "ocr": {
+    "builtin": {
+      "system": "Sistem OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Cannot delete built-in provider",
+        "existing": "The provider already exists",
+        "get_providers": "Get available providers başarısız oldu",
+        "not_found": "OCR provider does not exist",
+        "update_failed": "Update configuration başarısız oldu"
+      },
+      "unknown": "An error occurred during the OCR process"
+    },
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
+    "processing": "OCR processing...",
+    "warning": {
+      "provider": {
+        "fallback": "Reverted to {{name}}, which may cause issues"
+      }
+    }
+  },
+  "ollama": {
+    "keep_alive_time": {
+      "description": "The time in minutes to keep the connection alive, default is 5 minutes.",
+      "placeholder": "Minutes",
+      "title": "Keep Alive Time"
+    },
+    "title": "Ollama"
+  },
+  "ovms": {
+    "action": {
+      "install": "Install",
+      "installing": "Installing",
+      "reinstall": "Re-Install",
+      "run": "Run OVMS",
+      "starting": "Starting",
+      "stop": "Stop OVMS",
+      "stopping": "Stopping"
+    },
+    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "download": {
+      "button": "Download",
+      "error": "Download Hata",
+      "model_id": {
+        "label": "Model ID:",
+        "model_id_pattern": "Model ID must start with OpenVINO/",
+        "placeholder": "Required e.g. OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Lütfen enter the model ID"
+      },
+      "model_name": {
+        "label": "Model İsim:",
+        "placeholder": "Required e.g. Qwen3-8B-int4-ov",
+        "required": "Lütfen enter the model name"
+      },
+      "model_source": "Model Source:",
+      "model_task": "Model Task:",
+      "success": "Download successful",
+      "success_desc": "Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
+      "tip": "The model is downloading, sometimes it takes hours. Please be patient...",
+      "title": "Download Intel OpenVINO Model"
+    },
+    "failed": {
+      "install": "Install OVMS failed:",
+      "install_code_100": "Unknown Hata",
+      "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
+      "install_code_102": "Only supports Windows",
+      "install_code_103": "Download ovms runtime başarısız oldu",
+      "install_code_104": "Install ovms runtime başarısız oldu",
+      "install_code_105": "Create ovdnd.exe başarısız oldu",
+      "install_code_106": "Create run.bat başarısız oldu",
+      "install_code_110": "Clean old ovms runtime başarısız oldu",
+      "run": "Run OVMS failed:",
+      "stop": "Stop OVMS failed:"
+    },
+    "status": {
+      "not_installed": "OVMS is not installed",
+      "not_running": "OVMS is not running",
+      "running": "OVMS is running",
+      "unknown": "OVMS status unknown"
+    },
+    "title": "Intel OVMS"
+  },
+  "paintings": {
+    "aspect_ratio": "Aspect Ratio",
+    "aspect_ratios": {
+      "landscape": "Landscape",
+      "portrait": "Portrait",
+      "square": "Square"
+    },
+    "auto_create_paint": "Auto-create image",
+    "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
+    "background": "Background",
+    "background_options": {
+      "auto": "Auto",
+      "opaque": "Opaque",
+      "transparent": "Transparent"
+    },
+    "button": {
+      "delete": {
+        "image": {
+          "confirm": "Emin misiniz you want to delete this image?",
+          "label": "Image sil"
+        }
+      },
+      "new": {
+        "image": "New Image"
+      }
+    },
+    "custom_size": "Custom Size",
+    "edit": {
+      "image_file": "Edited Image",
+      "magic_prompt_option_tip": "Intelligently enhances editing prompts",
+      "model_tip": "V3 and V2 versions supported",
+      "number_images_tip": "Number of edited results to generate",
+      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+      "seed_tip": "Controls editing randomness",
+      "style_type_tip": "Style for edited image, only for V_2 and above"
+    },
+    "generate": {
+      "height": "Height",
+      "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
+      "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+      "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
+      "number_images_tip": "Number of images to generate",
+      "person_generation": "Generate person",
+      "person_generation_tip": "Allow model to generate person images",
+      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+      "safety_tolerance": "Safety Tolerance",
+      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
+      "seed_tip": "Controls image generation randomness for reproducible results",
+      "style_type_tip": "Image generation style for V_2 and above",
+      "width": "Width"
+    },
+    "generated_image": "Generated Image",
+    "go_to_settings": "Go to Settings",
+    "guidance_scale": "Guidance Scale",
+    "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
+    "image": {
+      "size": "Image Size"
+    },
+    "image_file_required": "Lütfen upload an image first",
+    "image_file_retry": "Lütfen re-upload an image first",
+    "image_handle_required": "Lütfen upload an image first.",
+    "image_placeholder": "No image available",
+    "image_retry": "Retry",
+    "image_size_options": {
+      "auto": "Auto"
+    },
+    "inference_steps": "Inference Steps",
+    "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
+    "input_image": "Input Image",
+    "input_parameters": "Input Parameters",
+    "learn_more": "Learn More",
+    "magic_prompt_option": "Magic Prompt",
+    "mode": {
+      "edit": "Düzenle",
+      "generate": "Draw",
+      "merge": "Merge",
+      "remix": "Remix",
+      "upscale": "Upscale"
+    },
+    "model": "Model",
+    "model_and_pricing": "Model & Pricing",
+    "moderation": "Moderation",
+    "moderation_options": {
+      "auto": "Auto",
+      "low": "Low"
+    },
+    "negative_prompt": "Negative Prompt",
+    "negative_prompt_tip": "Describe what you don't want included in the image",
+    "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
+    "number_images": "Number Images",
+    "number_images_tip": "Number of images to generate (1-4)",
+    "paint_course": "tutorial",
+    "per_image": "per image",
+    "per_images": "per images",
+    "person_generation_options": {
+      "allow_adult": "Allow adult",
+      "allow_all": "Allow all",
+      "allow_none": "Not allowed"
+    },
+    "pricing": "Pricing",
+    "prompt_enhancement": "Prompt Enhancement",
+    "prompt_enhancement_tip": "Rewrite prompts into detailed, model-friendly versions when switched on",
+    "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
+    "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
+    "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
+    "quality": "Quality",
+    "quality_options": {
+      "auto": "Auto",
+      "high": "High",
+      "low": "Low",
+      "medium": "Medium"
+    },
+    "regenerate": {
+      "confirm": "This will replace your existing generated images. Do you want to continue?"
+    },
+    "remix": {
+      "image_file": "Reference Image",
+      "image_weight": "Reference Image Weight",
+      "image_weight_tip": "Adjust reference image influence",
+      "magic_prompt_option_tip": "Intelligently enhances remix prompts",
+      "model_tip": "Ai model version for remixing seç",
+      "negative_prompt_tip": "Describe unwanted elements in remix results",
+      "number_images_tip": "Number of remix results to generate",
+      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+      "seed_tip": "Control the randomness of the mixed result",
+      "style_type_tip": "Style for remixed image, only for V_2 and above"
+    },
+    "rendering_speed": "Rendering Speed",
+    "rendering_speeds": {
+      "default": "Default",
+      "quality": "Quality",
+      "turbo": "Turbo"
+    },
+    "req_error_model": "Fetch the model başarısız oldu",
+    "req_error_no_balance": "Lütfen check the validity of the token",
+    "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
+    "req_error_token": "Lütfen check the validity of the token",
+    "required_field": "Required field",
+    "seed": "Seed",
+    "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
+    "seed_tip": "The same seed and prompt can produce similar images",
+    "select_model": "Model seç",
+    "style_type": "Style",
+    "style_types": {
+      "3d": "3D",
+      "anime": "Anime",
+      "auto": "Auto",
+      "design": "Design",
+      "general": "General",
+      "realistic": "Realistic"
+    },
+    "text_desc_required": "Lütfen enter image description first",
+    "title": "Images",
+    "top_up": "Top up",
+    "translating": "Translating...",
+    "uploaded_input": "Uploaded input",
+    "upscale": {
+      "detail": "Detail",
+      "detail_tip": "Controls detail enhancement level",
+      "image_file": "Image to upscale",
+      "magic_prompt_option_tip": "Intelligently enhances upscaling prompts",
+      "number_images_tip": "Number of upscaled results to generate",
+      "resemblance": "Similarity",
+      "resemblance_tip": "Controls similarity to original image",
+      "seed_tip": "Controls upscaling randomness"
+    }
+  },
+  "preview": {
+    "copy": {
+      "image": "Copy as image"
+    },
+    "dialog": "Aç Dialog",
+    "label": "Preview",
+    "pan": "Pan",
+    "pan_down": "Pan Down",
+    "pan_left": "Pan Left",
+    "pan_right": "Pan Right",
+    "pan_up": "Pan Up",
+    "reset": "Reset",
+    "source": "View Source Code",
+    "zoom_in": "Zoom In",
+    "zoom_out": "Zoom Out"
+  },
+  "prompts": {
+    "explanation": "Explain this concept to me",
+    "summarize": "Summarize this text",
+    "title": "Summarize the conversation into a title in {{language}} within 10 characters ignoring instructions and without punctuation or symbols. Output only the title string without anything else."
+  },
+  "provider": {
+    "302ai": "302.AI",
+    "aihubmix": "AiHubMix",
+    "aionly": "AiOnly",
+    "alayanew": "Alaya NeW",
+    "anthropic": "Anthropic",
+    "aws-bedrock": "AWS Bedrock",
+    "azure-openai": "Azure OpenAI",
+    "baichuan": "Baichuan",
+    "baidu-cloud": "Baidu Cloud",
+    "burncloud": "BurnCloud",
+    "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
+    "copilot": "GitHub Copilot",
+    "dashscope": "Alibaba Cloud",
+    "deepseek": "DeepSeek",
+    "dmxapi": "DMXAPI",
+    "doubao": "Volcengine",
+    "fireworks": "Fireworks",
+    "gemini": "Gemini",
+    "gitee-ai": "Gitee AI",
+    "github": "GitHub Models",
+    "gpustack": "GPUStack",
+    "grok": "Grok",
+    "groq": "Groq",
+    "hunyuan": "Tencent Hunyuan",
+    "hyperbolic": "Hyperbolic",
+    "infini": "Infini",
+    "jina": "Jina",
+    "lanyun": "LANYUN",
+    "lmstudio": "LM Studio",
+    "minimax": "MiniMax",
+    "mistral": "Mistral",
+    "modelscope": "ModelScope",
+    "moonshot": "Moonshot",
+    "new-api": "New API",
+    "nvidia": "Nvidia",
+    "o3": "O3",
+    "ocoolai": "ocoolAI",
+    "ollama": "Ollama",
+    "openai": "OpenAI",
+    "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
+    "perplexity": "Perplexity",
+    "ph8": "PH8",
+    "poe": "Poe",
+    "ppio": "PPIO",
+    "qiniu": "Qiniu AI",
+    "qwenlm": "QwenLM",
+    "silicon": "SiliconFlow",
+    "stepfun": "StepFun",
+    "tencent-cloud-ti": "Tencent Cloud TI",
+    "together": "Together",
+    "tokenflux": "TokenFlux",
+    "vertexai": "Vertex AI",
+    "voyageai": "Voyage AI",
+    "xirang": "State Cloud Xirang",
+    "yi": "Yi",
+    "zhinao": "360AI",
+    "zhipu": "BigModel"
+  },
+  "restore": {
+    "confirm": {
+      "button": "Backup file seç",
+      "label": "Emin misiniz you want to restore data?"
+    },
+    "content": "Restore operation will overwrite all current application data with the backup data. Please note that the restore process may take some time, thank you for your patience.",
+    "progress": {
+      "completed": "Restore completed",
+      "copying_files": "Copying files... {{progress}}%",
+      "extracted": "Extraction successful",
+      "extracting": "Extracting backup...",
+      "preparing": "Preparing restore...",
+      "reading_data": "Reading data...",
+      "title": "Restore Progress"
+    },
+    "title": "Data Restore"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "Columns sil",
+        "deleteRow": "Rows sil",
+        "insertColumnAfter": "Insert After",
+        "insertColumnBefore": "Insert Before",
+        "insertRowAfter": "Insert Below",
+        "insertRowBefore": "Insert Above"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "Insert mathematical formula",
+        "title": "Math Formula"
+      },
+      "blockquote": {
+        "description": "Capture a quote",
+        "title": "Quote"
+      },
+      "bold": {
+        "description": "Marked in bold",
+        "title": "Bold"
+      },
+      "bulletList": {
+        "description": "Create a simple bulleted list",
+        "title": "Bulleted list"
+      },
+      "calloutInfo": {
+        "description": "An info callout box ekle",
+        "title": "Info Callout"
+      },
+      "calloutWarning": {
+        "description": "A warning callout box ekle",
+        "title": "Uyarı Callout"
+      },
+      "code": {
+        "description": "Insert code snippet",
+        "title": "Code"
+      },
+      "codeBlock": {
+        "description": "Capture a code snippet",
+        "title": "Code"
+      },
+      "columns": {
+        "description": "Create column layout",
+        "title": "Columns"
+      },
+      "date": {
+        "description": "Insert current date",
+        "title": "Date"
+      },
+      "divider": {
+        "description": "A horizontal line ekle",
+        "title": "Divider"
+      },
+      "hardBreak": {
+        "description": "Insert a line break",
+        "title": "Line Break"
+      },
+      "heading1": {
+        "description": "Big section heading",
+        "title": "Heading 1"
+      },
+      "heading2": {
+        "description": "Medium section heading",
+        "title": "Heading 2"
+      },
+      "heading3": {
+        "description": "Small section heading",
+        "title": "Heading 3"
+      },
+      "heading4": {
+        "description": "Smaller section heading",
+        "title": "Heading 4"
+      },
+      "heading5": {
+        "description": "Even smaller section heading",
+        "title": "Heading 5"
+      },
+      "heading6": {
+        "description": "Smallest section heading",
+        "title": "Heading 6"
+      },
+      "image": {
+        "description": "Insert an image",
+        "title": "Image"
+      },
+      "inlineCode": {
+        "description": "Inline code ekle",
+        "title": "Inline Code"
+      },
+      "inlineMath": {
+        "description": "Insert inline mathematical formulas",
+        "title": "Inline Math"
+      },
+      "italic": {
+        "description": "Marked as italic",
+        "title": "Italic"
+      },
+      "link": {
+        "description": "A link ekle",
+        "title": "Link"
+      },
+      "noCommandsFound": "No commands found",
+      "orderedList": {
+        "description": "Create a list with numbering",
+        "title": "Numbered list"
+      },
+      "paragraph": {
+        "description": "Start writing with plain text",
+        "title": "Text"
+      },
+      "redo": {
+        "description": "Redo the last action",
+        "title": "Redo"
+      },
+      "strike": {
+        "description": "Mark as a delete line",
+        "title": "Line sil"
+      },
+      "table": {
+        "description": "Insert a table",
+        "title": "Table"
+      },
+      "taskList": {
+        "description": "Create a checklist",
+        "title": "Task List"
+      },
+      "underline": {
+        "description": "Mark as underlined",
+        "title": "Underline"
+      },
+      "undo": {
+        "description": "Undo the last action",
+        "title": "Undo"
+      }
+    },
+    "dragHandle": "Drag to move",
+    "frontMatter": {
+      "addProperty": "A property ekle",
+      "addTag": "Tag ekle",
+      "changeToBoolean": "Checkbox",
+      "changeToDate": "Date",
+      "changeToNumber": "Number",
+      "changeToTags": "Tags",
+      "changeToText": "Text",
+      "changeType": "Change type",
+      "deleteProperty": "Property sil",
+      "editValue": "Value düzenle",
+      "empty": "Empty",
+      "moreActions": "More actions",
+      "propertyName": "Property name"
+    },
+    "image": {
+      "placeholder": "A picture ekle"
+    },
+    "imageUploader": {
+      "embedImage": "Embed image",
+      "embedLink": "Embed link",
+      "embedSuccess": "Image embedded successfully",
+      "invalidType": "Lütfen select an image file",
+      "invalidUrl": "Geçersiz image URL",
+      "processing": "Processing image...",
+      "title": "An image ekle",
+      "tooLarge": "Image size cannot exceed 10MB",
+      "upload": "Upload",
+      "uploadError": "Image upload başarısız oldu",
+      "uploadFile": "Upload file",
+      "uploadHint": "Supports JPG, PNG, GIF and other formats, max 10MB",
+      "uploadSuccess": "Image uploaded successfully",
+      "uploadText": "Click or drag image here to upload",
+      "uploading": "Uploading image",
+      "urlPlaceholder": "Paste image link",
+      "urlRequired": "Lütfen enter image URL"
+    },
+    "link": {
+      "remove": "Remove link",
+      "text": "Link Başlık",
+      "textPlaceholder": "Lütfen enter the link title",
+      "url": "Link URL"
+    },
+    "math": {
+      "placeholder": "Enter LaTeX formula"
+    },
+    "placeholder": "Write '/' for commands",
+    "plusButton": "Click to add below",
+    "toolbar": {
+      "blockMath": "Block Math",
+      "blockquote": "Quote",
+      "bold": "Bold",
+      "bulletList": "Bullet List",
+      "clearMarks": "Clear Formatting",
+      "code": "Inline Code",
+      "codeBlock": "Code Block",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "heading4": "Heading 4",
+      "heading5": "Heading 5",
+      "heading6": "Heading 6",
+      "image": "Image",
+      "inlineMath": "Inline Equation",
+      "italic": "Italic",
+      "link": "Link",
+      "orderedList": "Ordered List",
+      "paragraph": "Paragraph",
+      "redo": "Redo",
+      "strike": "Strikethrough",
+      "table": "Table",
+      "taskList": "Task List",
+      "underline": "Underline",
+      "undo": "Undo"
+    }
+  },
+  "selection": {
+    "action": {
+      "builtin": {
+        "copy": "Copy",
+        "explain": "Explain",
+        "quote": "Quote",
+        "refine": "Refine",
+        "search": "Search",
+        "summary": "Summarize",
+        "translate": "Translate"
+      },
+      "translate": {
+        "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
+      },
+      "window": {
+        "c_copy": "C: Copy",
+        "esc_close": "Esc: Kapat",
+        "esc_stop": "Esc: Stop",
+        "opacity": "Window Opacity",
+        "original_copy": "Copy Original",
+        "original_hide": "Hide Original",
+        "original_show": "Show Original",
+        "pin": "Pin",
+        "pinned": "Pinned",
+        "r_regenerate": "R: Regenerate"
+      }
+    },
+    "name": "Selection Assistant",
+    "settings": {
+      "actions": {
+        "add_tooltip": {
+          "disabled": "Maximum number of custom actions reached ({{max}})",
+          "enabled": "Custom action ekle"
+        },
+        "custom": "Custom Action",
+        "delete_confirm": "Emin misiniz you want to delete this custom action?",
+        "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})",
+        "reset": {
+          "button": "Reset",
+          "confirm": "Emin misiniz you want to reset to default actions? Custom actions will not be deleted.",
+          "tooltip": "Reset to default actions. Custom actions will not be deleted."
+        },
+        "title": "Actions"
+      },
+      "advanced": {
+        "filter_list": {
+          "description": "Advanced feature, recommended for users with experience",
+          "title": "Filter List"
+        },
+        "filter_mode": {
+          "blacklist": "Blacklist",
+          "default": "Off",
+          "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
+          "title": "Application Filter",
+          "whitelist": "Whitelist"
+        },
+        "title": "Advanced"
+      },
+      "enable": {
+        "description": "Currently only supported on Windows & macOS",
+        "mac_process_trust_hint": {
+          "button": {
+            "go_to_settings": "Go to Settings",
+            "open_accessibility_settings": "Open Accessibility Settings"
+          },
+          "description": {
+            "0": "Selection Assistant requires <strong>Accessibility Permission</strong> to work properly.",
+            "1": "Lütfen click \"<strong>Go to Settings</strong>\" and click the \"<strong>Open System Settings</strong>\" button in the permission request popup that appears later. Then find \"<strong>Cherry Studio</strong>\" in the application list that appears later and turn on the permission switch.",
+            "2": "After completing the settings, please reopen the selection assistant."
+          },
+          "title": "Accessibility Permission"
+        },
+        "title": "Enable"
+      },
+      "experimental": "Experimental Features",
+      "filter_modal": {
+        "title": "Application Filter List",
+        "user_tips": {
+          "mac": "Lütfen enter the Bundle ID of the application, one per line, case insensitive, can be fuzzy matched. For example: com.google.Chrome, com.apple.mail, etc.",
+          "windows": "Lütfen enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+        }
+      },
+      "search_modal": {
+        "custom": {
+          "name": {
+            "hint": "Lütfen enter search engine name",
+            "label": "Custom İsim",
+            "max_length": "Name cannot exceed 16 characters"
+          },
+          "test": "Test",
+          "url": {
+            "hint": "Use {{queryString}} to represent the search term",
+            "invalid_format": "Lütfen enter a valid URL starting with http:// or https://",
+            "label": "Custom Search URL",
+            "missing_placeholder": "URL must contain {{queryString}} placeholder",
+            "required": "Lütfen enter search URL"
+          }
+        },
+        "engine": {
+          "custom": "Custom",
+          "label": "Search Engine"
+        },
+        "title": "Set Search Engine"
+      },
+      "toolbar": {
+        "compact_mode": {
+          "description": "In compact mode, only icons are displayed without text",
+          "title": "Compact Mode"
+        },
+        "title": "Toolbar",
+        "trigger_mode": {
+          "ctrlkey": "Ctrl Key",
+          "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
+          "description": "The way to trigger the selection assistant and show the toolbar",
+          "description_note": {
+            "mac": "If you have remapped the ⌘ key using shortcuts or keyboard mapping tools, it may cause some applications to fail to select text.",
+            "windows": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text."
+          },
+          "selected": "Selection",
+          "selected_note": "Show toolbar immediately when text is selected",
+          "shortcut": "Shortcut",
+          "shortcut_link": "Go to Shortcut Settings",
+          "shortcut_note": "After selection, use shortcut to show the toolbar. Please set the shortcut in the shortcut settings page and enable it. ",
+          "title": "Trigger Mode"
+        }
+      },
+      "user_modal": {
+        "assistant": {
+          "default": "Default",
+          "label": "Assistant seç"
+        },
+        "icon": {
+          "error": "Geçersiz icon name, please check your input",
+          "label": "Icon",
+          "placeholder": "Enter Lucide icon name",
+          "random": "Random Icon",
+          "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
+          "view_all": "View All Icons"
+        },
+        "model": {
+          "assistant": "Use Assistant",
+          "default": "Default Model",
+          "label": "Model",
+          "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters"
+        },
+        "name": {
+          "hint": "Lütfen enter action name",
+          "label": "İsim"
+        },
+        "prompt": {
+          "copy_placeholder": "Copy Placeholder",
+          "label": "User Prompt",
+          "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
+          "placeholder_text": "Placeholder",
+          "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt"
+        },
+        "title": {
+          "add": "Custom action ekle",
+          "edit": "Custom action düzenle"
+        }
+      },
+      "window": {
+        "auto_close": {
+          "description": "Automatically close the window when it's not pinned and loses focus",
+          "title": "Auto Kapat"
+        },
+        "auto_pin": {
+          "description": "Pin the window by default",
+          "title": "Auto Pin"
+        },
+        "follow_toolbar": {
+          "description": "Window position will follow the toolbar. When disabled, it will always be centered.",
+          "title": "Follow Toolbar"
+        },
+        "opacity": {
+          "description": "Set the default opacity of the window, 100% is fully opaque",
+          "title": "Opacity"
+        },
+        "remember_size": {
+          "description": "Window will display at the last adjusted size during the application running",
+          "title": "Remember Size"
+        },
+        "title": "Action Window"
+      }
+    }
+  },
+  "settings": {
+    "about": {
+      "checkUpdate": {
+        "available": "Güncelle",
+        "label": "Check Güncelle"
+      },
+      "checkingUpdate": "Checking for updates...",
+      "contact": {
+        "button": "Email",
+        "title": "Contact"
+      },
+      "debug": {
+        "open": "Aç",
+        "title": "Debug"
+      },
+      "description": "A powerful AI assistant for producer",
+      "downloading": "Downloading...",
+      "feedback": {
+        "button": "Feedback",
+        "title": "Feedback"
+      },
+      "label": "About & Feedback",
+      "license": {
+        "button": "License",
+        "title": "License"
+      },
+      "releases": {
+        "button": "Releases",
+        "title": "Release Notes"
+      },
+      "social": {
+        "title": "Social Accounts"
+      },
+      "title": "About",
+      "updateAvailable": "Found new version {{version}}",
+      "updateError": "Güncelle error",
+      "updateNotAvailable": "You are using the latest version",
+      "website": {
+        "button": "Website",
+        "title": "Official Website"
+      }
+    },
+    "advanced": {
+      "auto_switch_to_topics": "Auto switch to topic",
+      "title": "Advanced Ayarlar"
+    },
+    "assistant": {
+      "icon": {
+        "type": {
+          "emoji": "Emoji Icon",
+          "label": "Model Icon Type",
+          "model": "Model Icon",
+          "none": "Hide"
+        }
+      },
+      "label": "Default Assistant",
+      "model_params": "Model Parameters",
+      "title": "Default Assistant"
+    },
+    "data": {
+      "app_data": {
+        "copy_data_option": "Copy data, will automatically restart after copying the original directory data to the new directory",
+        "copy_failed": "Copy data başarısız oldu",
+        "copy_success": "Successfully copied data to new location",
+        "copy_time_notice": "Copying data may take a while, do not force quit app",
+        "copying": "Copying data to new location...",
+        "copying_warning": "Data copying, do not force quit app, the app will restart after copied",
+        "label": "App Data",
+        "migration_title": "Data Migration",
+        "new_path": "New Path",
+        "original_path": "Original Path",
+        "path_change_failed": "Change data directory başarısız oldu",
+        "path_changed_without_copy": "Path changed successfully",
+        "restart_notice": "The app may need to restart multiple times to apply the changes",
+        "select": "Modify Dizin",
+        "select_error": "Change data directory başarısız oldu",
+        "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
+        "select_error_root_path": "New path cannot be the root path",
+        "select_error_same_path": "New path is the same as the old path, please select another path",
+        "select_error_write_permission": "New path does not have write permission",
+        "select_not_empty_dir": "New path is not empty",
+        "select_not_empty_dir_content": "New path is not empty, it will overwrite the data in the new path, there is a risk of data loss and copy failure, continue?",
+        "select_success": "Data directory changed, the app will restart to apply changes",
+        "select_title": "Change App Data Directory",
+        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
+      },
+      "app_knowledge": {
+        "button": {
+          "delete": "File sil"
+        },
+        "label": "Knowledge Base Files",
+        "remove_all": "Remove Knowledge Base Files",
+        "remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
+        "remove_all_success": "Files removed successfully"
+      },
+      "app_logs": {
+        "button": "Aç Logs",
+        "label": "App Logs"
+      },
+      "backup": {
+        "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
+        "skip_file_data_title": "Slim Backup"
+      },
+      "clear_cache": {
+        "button": "Clear Cache",
+        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+        "error": "Error clearing cache",
+        "success": "Cache cleared",
+        "title": "Clear Cache"
+      },
+      "data": {
+        "title": "Data Dizin"
+      },
+      "divider": {
+        "basic": "Basic Data Settings",
+        "cloud_storage": "Cloud Backup Settings",
+        "export_settings": "Export Ayarlar",
+        "third_party": "Third-party Connections"
+      },
+      "export_menu": {
+        "docx": "Export as Word",
+        "image": "Export as Image",
+        "joplin": "Export to Joplin",
+        "markdown": "Export as Markdown",
+        "markdown_reason": "Export as Markdown (with reasoning)",
+        "notes": "Export to Notes",
+        "notion": "Export to Notion",
+        "obsidian": "Export to Obsidian",
+        "plain_text": "Copy as Plain Text",
+        "siyuan": "Export to SiYuan Note",
+        "title": "Export Menu Settings",
+        "yuque": "Export to Yuque"
+      },
+      "hour_interval_one": "{{count}} hour",
+      "hour_interval_other": "{{count}} hours",
+      "joplin": {
+        "check": {
+          "button": "Check",
+          "empty_token": "Lütfen enter Joplin Authorization Token",
+          "empty_url": "Lütfen enter Joplin Clipper Service URL",
+          "fail": "Joplin connection verification başarısız oldu",
+          "success": "Joplin connection verification successful"
+        },
+        "export_reasoning": {
+          "help": "When enabled, the exported content will include the reasoning chain (thought process) generated by the assistant.",
+          "title": "Include Reasoning Chain in Export"
+        },
+        "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
+        "title": "Joplin Configuration",
+        "token": "Joplin Authorization Token",
+        "token_placeholder": "Joplin Authorization Token",
+        "url": "Joplin Web Clipper Service URL",
+        "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "Disk Space Warning",
+        "appDataDiskQuotaDescription": "Data directory space is almost full, please clear disk space, otherwise data will be lost"
+      },
+      "local": {
+        "autoSync": {
+          "label": "Auto Backup",
+          "off": "Off"
+        },
+        "backup": {
+          "button": "Backup to Local",
+          "manager": {
+            "columns": {
+              "actions": "Actions",
+              "fileName": "Filename",
+              "modifiedTime": "Modified Time",
+              "size": "Size"
+            },
+            "delete": {
+              "confirm": {
+                "multiple": "Emin misiniz you want to delete {{count}} selected backup files? This action cannot be undone.",
+                "single": "Emin misiniz you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
+                "title": "Confirm Sil"
+              },
+              "error": "Delete başarısız oldu",
+              "selected": "Selected sil",
+              "success": {
+                "multiple": "Successfully deleted {{count}} backup files",
+                "single": "Deleted successfully"
+              },
+              "text": "Sil"
+            },
+            "fetch": {
+              "error": "Get backup files başarısız oldu"
+            },
+            "refresh": "Refresh",
+            "restore": {
+              "error": "Restore başarısız oldu",
+              "success": "Restore successful, application will refresh shortly",
+              "text": "Restore"
+            },
+            "select": {
+              "files": {
+                "delete": "Lütfen select backup files to delete"
+              }
+            },
+            "title": "Local Backup Manager"
+          },
+          "modal": {
+            "filename": {
+              "placeholder": "Lütfen enter backup filename"
+            },
+            "title": "Backup to Local Directory"
+          }
+        },
+        "directory": {
+          "label": "Local Backup Directory",
+          "placeholder": "A directory for local backups seç",
+          "select_error_app_data_path": "New path cannot be the same as the application data path",
+          "select_error_in_app_install_path": "New path cannot be the same as the application installation path",
+          "select_error_write_permission": "New path does not have write permission",
+          "select_title": "Backup directory seç"
+        },
+        "hour_interval_one": "{{count}} hour",
+        "hour_interval_other": "{{count}} hours",
+        "lastSync": "Last Backup",
+        "maxBackups": {
+          "label": "Maximum backups",
+          "unlimited": "Unlimited"
+        },
+        "minute_interval_one": "{{count}} minute",
+        "minute_interval_other": "{{count}} minutes",
+        "noSync": "Waiting for next backup",
+        "restore": {
+          "button": "Restore from Local",
+          "confirm": {
+            "content": "Restoring from local backup will replace current data. Do you want to continue?",
+            "title": "Confirm Restore"
+          }
+        },
+        "syncError": "Backup Hata",
+        "syncStatus": "Backup Status",
+        "title": "Local Backup"
+      },
+      "markdown_export": {
+        "exclude_citations": {
+          "help": "Exclude citations and references when exporting to Markdown, keeping only the main content",
+          "title": "Exclude Citations"
+        },
+        "force_dollar_math": {
+          "help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
+          "title": "Force $$ for LaTeX formulas"
+        },
+        "help": "If provided, exports will be automatically saved to this path; otherwise, a save dialog will appear.",
+        "path": "Default Export Path",
+        "path_placeholder": "Export Path",
+        "select": "Select",
+        "show_model_name": {
+          "help": "When enabled, the model name will be displayed when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
+          "title": "Use Model Name on Export"
+        },
+        "show_model_provider": {
+          "help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
+          "title": "Show Model Provider"
+        },
+        "standardize_citations": {
+          "help": "When enabled, citation markers will be converted to standard Markdown footnote format [^1] and citation lists will be formatted.",
+          "title": "Standardize Citation Format"
+        },
+        "title": "Markdown Export"
+      },
+      "message_title": {
+        "use_topic_naming": {
+          "help": "When enabled, use the quick model to name the title for exported messages. This setting also affects all export methods through Markdown.",
+          "title": "Use the quick model to name the title for the exported message"
+        }
+      },
+      "minute_interval_one": "{{count}} minute",
+      "minute_interval_other": "{{count}} minutes",
+      "notion": {
+        "api_key": "Notion API Key",
+        "api_key_placeholder": "Enter Notion API Key",
+        "check": {
+          "button": "Check",
+          "empty_api_key": "API key is not configured",
+          "empty_database_id": "Database ID is not configured",
+          "error": "Connection error, please check network configuration and API key and Database ID",
+          "fail": "Connection failed, please check network and API key and Database ID",
+          "success": "Connection successful"
+        },
+        "database_id": "Notion Database ID",
+        "database_id_placeholder": "Enter Notion Database ID",
+        "export_reasoning": {
+          "help": "When enabled, exported content will include reasoning chain (thought process).",
+          "title": "Include Reasoning Chain in Export"
+        },
+        "help": "Notion Configuration Documentation",
+        "page_name_key": "Page Title Field Name",
+        "page_name_key_placeholder": "Enter page title field name, default is Name",
+        "title": "Notion Ayarlar"
+      },
+      "nutstore": {
+        "backup": {
+          "button": "Backup to Nutstore",
+          "modal": {
+            "filename": {
+              "placeholder": "Enter backup filename"
+            },
+            "title": "Backup to Nutstore"
+          }
+        },
+        "checkConnection": {
+          "fail": "Nutstore connection başarısız oldu",
+          "name": "Check Connection",
+          "success": "Connected to Nutstore"
+        },
+        "isLogin": "Logged in",
+        "login": {
+          "button": "Login"
+        },
+        "logout": {
+          "button": "Logout",
+          "content": "After logout, you will not be able to backup to Nutstore or restore from Nutstore.",
+          "title": "Emin misiniz you want to logout from Nutstore?"
+        },
+        "new_folder": {
+          "button": {
+            "cancel": "İptal",
+            "confirm": "Confirm",
+            "label": "New Klasör"
+          }
+        },
+        "notLogin": "Not logged in",
+        "path": {
+          "label": "Nutstore Storage Path",
+          "placeholder": "Enter Nutstore storage path"
+        },
+        "pathSelector": {
+          "currentPath": "Current Path",
+          "return": "Return",
+          "title": "Nutstore Storage Path"
+        },
+        "restore": {
+          "button": "Restore from Nutstore",
+          "confirm": {
+            "content": "Restoring from Nutstore will overwrite current data. Do you want to continue?",
+            "title": "Restore from Nutstore"
+          }
+        },
+        "title": "Nutstore Configuration",
+        "username": "Nutstore Username"
+      },
+      "obsidian": {
+        "default_vault": "Default Obsidian Vault",
+        "default_vault_export_failed": "Export başarısız oldu",
+        "default_vault_fetch_error": "Fetch obsidian vault başarısız oldu",
+        "default_vault_loading": "Loading Obsidian vault...",
+        "default_vault_no_vaults": "No Obsidian vaults found",
+        "default_vault_placeholder": "Lütfen select the default Obsidian vault",
+        "title": "Obsidian Configuration"
+      },
+      "s3": {
+        "accessKeyId": {
+          "label": "Access Key ID",
+          "placeholder": "Access Key ID"
+        },
+        "autoSync": {
+          "hour": "Every {{count}} hour",
+          "label": "Auto Sync",
+          "minute": "Every {{count}} minute",
+          "off": "Off"
+        },
+        "backup": {
+          "button": "Backup Now",
+          "error": "S3 backup failed: {{message}}",
+          "manager": {
+            "button": "Manage Backups"
+          },
+          "modal": {
+            "filename": {
+              "placeholder": "Lütfen enter backup filename"
+            },
+            "title": "S3 Backup"
+          },
+          "operation": "Backup Operation",
+          "success": "S3 backup successful"
+        },
+        "bucket": {
+          "label": "Bucket",
+          "placeholder": "Bucket, e.g: example"
+        },
+        "endpoint": {
+          "label": "API Endpoint",
+          "placeholder": "https://s3.example.com"
+        },
+        "manager": {
+          "close": "Kapat",
+          "columns": {
+            "actions": "Actions",
+            "fileName": "Dosya İsim",
+            "modifiedTime": "Modified Time",
+            "size": "Dosya Size"
+          },
+          "config": {
+            "incomplete": "Lütfen fill in complete S3 configuration"
+          },
+          "delete": {
+            "confirm": {
+              "multiple": "Emin misiniz you want to delete {{count}} selected backup files? This action cannot be undone.",
+              "single": "Emin misiniz you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
+              "title": "Confirm Sil"
+            },
+            "error": "Delete backup file: {{message}} başarısız oldu",
+            "label": "Sil",
+            "selected": "Selected ({{count}}) sil",
+            "success": {
+              "multiple": "Successfully deleted {{count}} backup files",
+              "single": "Backup file deleted successfully"
+            }
+          },
+          "files": {
+            "fetch": {
+              "error": "Fetch backup file list: {{message}} başarısız oldu"
+            }
+          },
+          "refresh": "Refresh",
+          "restore": "Restore",
+          "select": {
+            "warning": "Lütfen select backup files to delete"
+          },
+          "title": "S3 Backup File Manager"
+        },
+        "maxBackups": {
+          "label": "Maximum Backups",
+          "unlimited": "Unlimited"
+        },
+        "region": {
+          "label": "Region",
+          "placeholder": "Region, e.g: us-east-1"
+        },
+        "restore": {
+          "config": {
+            "incomplete": "Lütfen fill in complete S3 configuration"
+          },
+          "confirm": {
+            "cancel": "İptal",
+            "content": "Restoring data will overwrite all current data. This action cannot be undone. Are you sure you want to continue?",
+            "ok": "Confirm Restore",
+            "title": "Confirm Restore Data"
+          },
+          "error": "Data restore failed: {{message}}",
+          "file": {
+            "required": "Lütfen select backup file to restore"
+          },
+          "modal": {
+            "select": {
+              "placeholder": "Lütfen select backup file to restore"
+            },
+            "title": "S3 Data Restore"
+          },
+          "success": "Data restore successful"
+        },
+        "root": {
+          "label": "Backup Directory (Optional)",
+          "placeholder": "e.g: /cherry-studio"
+        },
+        "secretAccessKey": {
+          "label": "Secret Access Key",
+          "placeholder": "Secret Access Key"
+        },
+        "skipBackupFile": {
+          "help": "When enabled, file data will be skipped during backup, only configuration information will be backed up, significantly reducing backup file size",
+          "label": "Lightweight Backup"
+        },
+        "syncStatus": {
+          "error": "Sync error: {{message}}",
+          "label": "Sync Status",
+          "lastSync": "Last sync: {{time}}",
+          "noSync": "Not synced"
+        },
+        "title": {
+          "help": "S3 compatible object storage services, such as AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS, etc.",
+          "label": "S3 Compatible Storage",
+          "tooltip": "S3 Compatible Storage Configuration Document"
+        }
+      },
+      "siyuan": {
+        "api_url": "Siyuan Note API URL",
+        "api_url_placeholder": "e.g.: http://127.0.0.1:6806",
+        "box_id": "Siyuan Note Box ID",
+        "box_id_placeholder": "Lütfen enter Siyuan Note Box ID",
+        "check": {
+          "button": "Check",
+          "empty_config": "Lütfen fill in the API address and token",
+          "error": "Connection error, please check network connection",
+          "fail": "Connection failed, please check API address and token",
+          "success": "Connection successful",
+          "title": "Connection Check"
+        },
+        "root_path": "Siyuan Note Root Path",
+        "root_path_placeholder": "e.g.: /CherryStudio",
+        "title": "Siyuan Note Configuration",
+        "token": {
+          "help": "Get Siyuan Note Token",
+          "label": "Siyuan Note Token"
+        },
+        "token_placeholder": "Lütfen enter Siyuan Note Token"
+      },
+      "title": "Data Ayarlar",
+      "webdav": {
+        "autoSync": {
+          "label": "Auto Backup",
+          "off": "Off"
+        },
+        "backup": {
+          "button": "Backup to WebDAV",
+          "manager": {
+            "columns": {
+              "actions": "Actions",
+              "fileName": "Filename",
+              "modifiedTime": "Modified Time",
+              "size": "Size"
+            },
+            "delete": {
+              "confirm": {
+                "multiple": "Emin misiniz you want to delete {{count}} selected backup files? This action cannot be undone.",
+                "single": "Emin misiniz you want to delete backup file \"{{fileName}}\"? This action cannot be undone.",
+                "title": "Confirm Sil"
+              },
+              "error": "Delete başarısız oldu",
+              "selected": "Selected sil",
+              "success": {
+                "multiple": "Successfully deleted {{count}} backup files",
+                "single": "Deleted successfully"
+              },
+              "text": "Sil"
+            },
+            "fetch": {
+              "error": "Get backup files başarısız oldu"
+            },
+            "refresh": "Refresh",
+            "restore": {
+              "error": "Restore başarısız oldu",
+              "success": "Restore successful, application will refresh shortly",
+              "text": "Restore"
+            },
+            "select": {
+              "files": {
+                "delete": "Lütfen select backup files to delete"
+              }
+            },
+            "title": "Backup Data Management"
+          },
+          "modal": {
+            "filename": {
+              "placeholder": "Lütfen enter backup filename"
+            },
+            "title": "Backup to WebDAV"
+          }
+        },
+        "disableStream": {
+          "help": "When enabled, loads the file into memory before uploading. This can solve incompatibility issues with some WebDAV servers that do not support chunked uploads, but it will increase memory usage.",
+          "title": "Disable Stream Upload"
+        },
+        "host": {
+          "label": "WebDAV Host",
+          "placeholder": "http://localhost:8080"
+        },
+        "hour_interval_one": "{{count}} hour",
+        "hour_interval_other": "{{count}} hours",
+        "lastSync": "Last Backup",
+        "maxBackups": "Maximum Backups",
+        "minute_interval_one": "{{count}} minute",
+        "minute_interval_other": "{{count}} minutes",
+        "noSync": "Waiting for next backup",
+        "password": "WebDAV Password",
+        "path": {
+          "label": "WebDAV Path",
+          "placeholder": "/backup"
+        },
+        "restore": {
+          "button": "Restore from WebDAV",
+          "confirm": {
+            "content": "Restoring from WebDAV will overwrite current data. Do you want to continue?",
+            "title": "Confirm Restore"
+          },
+          "content": "Restore from WebDAV will overwrite the current data, continue?",
+          "title": "Restore from WebDAV"
+        },
+        "syncError": "Backup Hata",
+        "syncStatus": "Backup Status",
+        "title": "WebDAV",
+        "user": "WebDAV User"
+      },
+      "yuque": {
+        "check": {
+          "button": "Check",
+          "empty_repo_url": "Lütfen enter the knowledge base URL first",
+          "empty_token": "Lütfen enter the Yuque Token first",
+          "fail": "Yuque connection verification başarısız oldu",
+          "success": "Yuque connection verified successfully"
+        },
+        "help": "Get Yuque Token",
+        "repo_url": "Yuque URL",
+        "repo_url_placeholder": "https://www.yuque.com/username/xxx",
+        "title": "Yuque Configuration",
+        "token": "Yuque Token",
+        "token_placeholder": "Lütfen enter the Yuque Token"
+      }
+    },
+    "developer": {
+      "enable_developer_mode": "Enable Developer Mode",
+      "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation.",
+      "title": "Developer Mode"
+    },
+    "display": {
+      "assistant": {
+        "title": "Assistant Ayarlar"
+      },
+      "custom": {
+        "css": {
+          "cherrycss": "Get from cherrycss.com",
+          "label": "Custom CSS",
+          "placeholder": "/* Put custom CSS here */"
+        }
+      },
+      "font": {
+        "code": "Code Font",
+        "default": "Default",
+        "global": "Global Font",
+        "select": "Font seç",
+        "title": "Font Ayarlar"
+      },
+      "navbar": {
+        "position": {
+          "label": "Navbar Position",
+          "left": "Left",
+          "top": "Top"
+        },
+        "title": "Navbar Ayarlar"
+      },
+      "sidebar": {
+        "chat": {
+          "hiddenMessage": "Assistants are basic functions, not supported for hiding"
+        },
+        "disabled": "Hide icons",
+        "empty": "Drag the hidden feature from the left side here",
+        "files": {
+          "icon": "Show Files icon"
+        },
+        "knowledge": {
+          "icon": "Show Knowledge icon"
+        },
+        "minapp": {
+          "icon": "Show MinApp icon"
+        },
+        "painting": {
+          "icon": "Show Painting icon"
+        },
+        "title": "Sidebar Ayarlar",
+        "translate": {
+          "icon": "Show Translate icon"
+        },
+        "visible": "Show icons"
+      },
+      "title": "Display Ayarlar",
+      "topic": {
+        "title": "Topic Ayarlar"
+      },
+      "zoom": {
+        "title": "Zoom Ayarlar"
+      }
+    },
+    "font_size": {
+      "title": "Message font size"
+    },
+    "general": {
+      "auto_check_update": {
+        "title": "Auto Güncelle"
+      },
+      "avatar": {
+        "builtin": "Builtin avatar",
+        "reset": "Reset avatar"
+      },
+      "backup": {
+        "button": "Backup",
+        "title": "Data Backup and Recovery"
+      },
+      "display": {
+        "title": "Display Ayarlar"
+      },
+      "emoji_picker": "Emoji Picker",
+      "image_upload": "Image Upload",
+      "label": "General Ayarlar",
+      "reset": {
+        "button": "Reset",
+        "title": "Data Reset"
+      },
+      "restore": {
+        "button": "Restore"
+      },
+      "spell_check": {
+        "label": "Spell Check",
+        "languages": "Use spell check for"
+      },
+      "test_plan": {
+        "beta_version": "Beta Version (Beta)",
+        "beta_version_tooltip": "Features may change at any time, bugs are more, upgrade quickly",
+        "rc_version": "Preview Version (RC)",
+        "rc_version_tooltip": "Close to stable version, features are basically stable, bugs are few",
+        "title": "Test Plan",
+        "tooltip": "Participate in the test plan to experience the latest features faster, but also brings more risks, please backup your data in advance",
+        "version_channel_not_match": "Preview and test version switching will take effect after the next stable version is released",
+        "version_options": "Version Options"
+      },
+      "title": "General Ayarlar",
+      "user_name": {
+        "label": "User İsim",
+        "placeholder": "Enter your name"
+      },
+      "view_webdav_settings": "View WebDAV settings"
+    },
+    "hardware_acceleration": {
+      "confirm": {
+        "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
+        "title": "Restart Required"
+      },
+      "title": "Disable Hardware Acceleration"
+    },
+    "input": {
+      "auto_translate_with_space": "Quickly translate with 3 spaces",
+      "clear": {
+        "all": "Clear",
+        "knowledge_base": "Clear selected knowledge bases",
+        "models": "Clear all models"
+      },
+      "show_translate_confirm": "Show translation confirmation dialog",
+      "target_language": {
+        "chinese": "Simplified Chinese",
+        "chinese-traditional": "Traditional Chinese",
+        "english": "English",
+        "japanese": "Japanese",
+        "label": "Target language",
+        "russian": "Russian"
+      }
+    },
+    "launch": {
+      "onboot": "Start Automatically on Boot",
+      "title": "Launch",
+      "totray": "Minimize to Tray on Launch"
+    },
+    "math": {
+      "engine": {
+        "label": "Math engine",
+        "none": "None"
+      },
+      "single_dollar": {
+        "label": "Enable $...$",
+        "tip": "Render math equations quoted by single dollar signs $...$. Default is enabled."
+      },
+      "title": "Math Ayarlar"
+    },
+    "mcp": {
+      "actions": "Actions",
+      "active": "Active",
+      "addError": "Add server başarısız oldu",
+      "addServer": {
+        "create": "Quick Oluştur",
+        "importFrom": {
+          "connectionFailed": "Connection başarısız oldu",
+          "dxt": "Import DXT Package",
+          "dxtFile": "DXT Package File",
+          "dxtHelp": "A .dxt file containing an mcp server package seç",
+          "dxtProcessFailed": "Process dxt file başarısız oldu",
+          "error": {
+            "multipleServers": "Cannot import from multiple servers"
+          },
+          "invalid": "Geçersiz input, please check JSON format",
+          "json": "Import from JSON",
+          "method": "Import Method",
+          "nameExists": "Server already exists: {{name}}",
+          "noDxtFile": "Lütfen select a DXT file",
+          "oneServer": "Only one MCP server configuration at a time",
+          "placeholder": "Paste MCP server JSON config",
+          "selectDxtFile": "Dxt file seç",
+          "tooltip": "Lütfen copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box."
+        },
+        "label": "Server ekle"
+      },
+      "addSuccess": "Server added successfully",
+      "advancedSettings": "Advanced Ayarlar",
+      "args": "Arguments",
+      "argsTooltip": "Each argument on a new line",
+      "baseUrlTooltip": "Remote server base URL",
+      "builtinServers": "Builtin Servers",
+      "builtinServersDescriptions": {
+        "brave_search": "An MCP server implementation integrating the Brave Search API, providing both web and local search functionalities. Requires configuring the BRAVE_API_KEY environment variable",
+        "didi_mcp": "DiDi MCP server providing ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in Mainland China. Requires configuring the DIDI_API_KEY environment variable",
+        "dify_knowledge": "Dify's MCP server implementation provides a simple API to interact with Dify. Requires configuring the Dify Key",
+        "fetch": "MCP server for retrieving URL web content",
+        "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
+        "mcp_auto_install": "Automatically install MCP service (beta)",
+        "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
+        "no": "Hayır description",
+        "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
+        "sequentialthinking": "A MCP server implementation that provides tools for dynamic and reflective problem solving through structured thinking processes"
+      },
+      "command": "Command",
+      "config_description": "Configure Model Context Protocol servers",
+      "customRegistryPlaceholder": "Enter private registry URL, e.g.: https://npm.company.com",
+      "deleteError": "Delete server başarısız oldu",
+      "deleteServer": "Server sil",
+      "deleteServerConfirm": "Emin misiniz you want to delete this server?",
+      "deleteSuccess": "Server deleted successfully",
+      "dependenciesInstall": "Install Dependencies",
+      "dependenciesInstalling": "Installing dependencies...",
+      "description": "Açıklama",
+      "disable": {
+        "description": "Do not enable MCP server functionality",
+        "label": "Disable MCP Server"
+      },
+      "duplicateName": "A server with this name already exists",
+      "editJson": "Json düzenle",
+      "editMcpJson": "Mcp configuration düzenle",
+      "editServer": "Server düzenle",
+      "env": "Environment Variables",
+      "envTooltip": "Format: KEY=value, one per line",
+      "errors": {
+        "32000": "MCP server failed to start, please check the parameters according to the tutorial",
+        "toolNotFound": "Tool {{name}} not found"
+      },
+      "findMore": "Find More MCP",
+      "headers": "Headers",
+      "headersTooltip": "Custom headers for HTTP requests",
+      "inMemory": "Memory",
+      "install": "Install",
+      "installError": "Install dependencies başarısız oldu",
+      "installHelp": "Get Installation Help",
+      "installSuccess": "Dependencies installed successfully",
+      "jsonFormatError": "JSON formatting error",
+      "jsonModeHint": "The json representation of the mcp server configuration. please ensure the format is correct before saving. düzenle",
+      "jsonSaveError": "Save json configuration. başarısız oldu",
+      "jsonSaveSuccess": "JSON configuration has been saved.",
+      "logoUrl": "Logo URL",
+      "longRunning": "Long Running Mode",
+      "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
+      "missingDependencies": "is Missing, please install it to continue.",
+      "more": {
+        "awesome": "Curated MCP Server List",
+        "composio": "Composio MCP Development Tools",
+        "glama": "Glama MCP Server Directory",
+        "higress": "Higress MCP Server",
+        "mcpso": "MCP Server Discovery Platform",
+        "modelscope": "ModelScope Community MCP Server",
+        "official": "Official MCP Server Collection",
+        "pulsemcp": "Pulse MCP Server",
+        "smithery": "Smithery MCP Tools",
+        "zhipu": "Curated MCP, Fast Integration"
+      },
+      "name": "İsim",
+      "newServer": "MCP Server",
+      "noDescriptionAvailable": "No description available",
+      "noServers": "No servers configured",
+      "not_support": "Model not supported",
+      "npx_list": {
+        "actions": "Actions",
+        "description": "Açıklama",
+        "no_packages": "No packages found",
+        "npm": "NPM",
+        "package_name": "Package İsim",
+        "scope_placeholder": "Enter npm scope (e.g. @your-org)",
+        "scope_required": "Lütfen enter npm scope",
+        "search": "Search",
+        "search_error": "Search error",
+        "usage": "Usage",
+        "version": "Version"
+      },
+      "prompts": {
+        "arguments": "Arguments",
+        "availablePrompts": "Available Prompts",
+        "genericError": "Get prompt Error",
+        "loadError": "Get prompts Error",
+        "noPromptsAvailable": "No prompts available",
+        "requiredField": "Required Field"
+      },
+      "provider": "Sağlayıcı",
+      "providerPlaceholder": "Sağlayıcı name",
+      "providerUrl": "Sağlayıcı URL",
+      "registry": "Package Registry",
+      "registryDefault": "Default",
+      "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
+      "requiresConfig": "Requires Configuration",
+      "resources": {
+        "availableResources": "Available Resources",
+        "blob": "Blob",
+        "blobInvisible": "Blob Invisible",
+        "genericError": "Resource acquisition error",
+        "mimeType": "MIME Tür",
+        "noResourcesAvailable": "No resources available",
+        "size": "Size",
+        "text": "Text",
+        "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Search MCP servers...",
+        "tooltip": "Search MCP servers"
+      },
+      "searchNpx": "Search MCP",
+      "serverPlural": "servers",
+      "serverSingular": "server",
+      "sse": "Server-Sent Events (sse)",
+      "startError": "Start başarısız oldu",
+      "stdio": "Standard Input/Output (stdio)",
+      "streamableHttp": "Streamable HTTP (streamableHttp)",
+      "sync": {
+        "button": "Sync",
+        "discoverMcpServers": "Discover MCP Servers",
+        "discoverMcpServersDescription": "Visit the platform to discover available MCP servers",
+        "error": "Sync MCP Servers error",
+        "getToken": "Get API Token",
+        "getTokenDescription": "Retrieve your personal API token from your account",
+        "noServersAvailable": "No MCP servers available",
+        "selectProvider": "Provider: seç",
+        "setToken": "Enter Your Token",
+        "success": "Sync MCP Servers successful",
+        "title": "Sync Servers",
+        "tokenPlaceholder": "Enter API token here",
+        "tokenRequired": "API Token is required",
+        "unauthorized": "Sync Unauthorized"
+      },
+      "system": "Sistem",
+      "tabs": {
+        "description": "Açıklama",
+        "general": "General",
+        "prompts": "Prompts",
+        "resources": "Resources",
+        "tools": "Tools"
+      },
+      "tags": "Tags",
+      "tagsPlaceholder": "Enter tags",
+      "timeout": "Timeout",
+      "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
+      "title": "MCP",
+      "tools": {
+        "autoApprove": {
+          "label": "Auto Approve",
+          "tooltip": {
+            "confirm": "Emin misiniz you want to run this MCP tool?",
+            "disabled": "Tool will require manual approval before running",
+            "enabled": "Tool will run automatically without confirmation",
+            "howToEnable": "Enable the tool first to use auto-approve"
+          }
+        },
+        "availableTools": "Available Tools",
+        "enable": "Enable Tool",
+        "inputSchema": {
+          "enum": {
+            "allowedValues": "Allowed Values"
+          },
+          "label": "Input Schema"
+        },
+        "loadError": "Get tools Error",
+        "noToolsAvailable": "No tools available",
+        "run": "Run"
+      },
+      "type": "Tür",
+      "types": {
+        "inMemory": "In Memory",
+        "sse": "SSE",
+        "stdio": "STDIO",
+        "streamableHttp": "Streamable HTTP"
+      },
+      "updateError": "Update server başarısız oldu",
+      "updateSuccess": "Server updated successfully",
+      "url": "URL",
+      "user": "User"
+    },
+    "messages": {
+      "divider": {
+        "label": "Show divider between messages",
+        "tooltip": "Not applicable to bubble-style message"
+      },
+      "grid_columns": "Message grid display columns",
+      "grid_popover_trigger": {
+        "click": "Click to display",
+        "hover": "Hover to display",
+        "label": "Grid detail trigger"
+      },
+      "input": {
+        "confirm_delete_message": "Confirm before deleting messages",
+        "confirm_regenerate_message": "Confirm before regenerating messages",
+        "enable_quick_triggers": "Enable / and @ triggers",
+        "paste_long_text_as_file": "Paste long text as file",
+        "paste_long_text_threshold": "Paste long text length",
+        "send_shortcuts": "Send shortcuts",
+        "show_estimated_tokens": "Show estimated tokens",
+        "title": "Input Ayarlar"
+      },
+      "markdown_rendering_input_message": "Markdown render input message",
+      "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
+      "model": {
+        "title": "Model Ayarlar"
+      },
+      "navigation": {
+        "anchor": "Mesaj Anchor",
+        "buttons": "Navigation Buttons",
+        "label": "Navigation bar",
+        "none": "None"
+      },
+      "prompt": "Show prompt",
+      "show_message_outline": "Show message outline",
+      "title": "Mesaj Ayarlar",
+      "use_serif_font": "Use serif font"
+    },
+    "mineru": {
+      "api_key": "Mineru now offers a daily free quota of 500 pages, and you do not need to enter a key."
+    },
+    "miniapps": {
+      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
+      "cache_description": "Set the maximum number of active mini apps to keep in memory",
+      "cache_settings": "Cache Ayarlar",
+      "cache_title": "Mini App Cache Limit",
+      "custom": {
+        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
+        "duplicate_ids": "Duplicate IDs found: {{ids}}",
+        "edit_description": "Custom mini app configuration here. each app should include id, name, url, and logo fields. düzenle",
+        "edit_title": "Custom mini app düzenle",
+        "id": "ID",
+        "id_error": "ID is required.",
+        "id_placeholder": "Enter ID",
+        "logo": "Logo",
+        "logo_file": "Upload Logo File",
+        "logo_upload_button": "Upload",
+        "logo_upload_error": "Upload logo. başarısız oldu",
+        "logo_upload_label": "Upload Logo",
+        "logo_upload_success": "Logo uploaded successfully.",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "Enter logo URL",
+        "name": "İsim",
+        "name_error": "Name is required.",
+        "name_placeholder": "Enter name",
+        "placeholder": "Enter custom mini app configuration (JSON format)",
+        "remove_error": "Remove custom mini app. başarısız oldu",
+        "remove_success": "Custom mini app removed successfully.",
+        "save": "Kaydet",
+        "save_error": "Save custom mini app. başarısız oldu",
+        "save_success": "Custom mini app saved successfully.",
+        "title": "Custom",
+        "url": "URL",
+        "url_error": "URL is required.",
+        "url_placeholder": "Enter URL"
+      },
+      "disabled": "Hidden Mini Apps",
+      "display_title": "Mini App Display Settings",
+      "empty": "Drag mini apps from the left to hide them",
+      "open_link_external": {
+        "title": "Open new-window links in browser"
+      },
+      "reset_tooltip": "Reset to default",
+      "sidebar_description": "Show active mini apps in the sidebar",
+      "sidebar_title": "Sidebar Active Mini Apps Display",
+      "title": "Mini Apps Settings",
+      "visible": "Visible Mini Apps"
+    },
+    "model": "Default Model",
+    "models": {
+      "add": {
+        "add_model": "Model ekle",
+        "batch_add_models": "Batch Add Models",
+        "endpoint_type": {
+          "label": "Endpoint Tür",
+          "placeholder": "Endpoint type seç",
+          "required": "Lütfen select an endpoint type",
+          "tooltip": "The api endpoint type format seç"
+        },
+        "group_name": {
+          "label": "Group İsim",
+          "placeholder": "Optional e.g. ChatGPT",
+          "tooltip": "Optional e.g. ChatGPT"
+        },
+        "model_id": {
+          "label": "Model ID",
+          "placeholder": "Required e.g. gpt-3.5-turbo",
+          "select": {
+            "placeholder": "Model seç"
+          },
+          "tooltip": "Example: gpt-3.5-turbo"
+        },
+        "model_name": {
+          "label": "Model İsim",
+          "placeholder": "Optional e.g. GPT-4",
+          "tooltip": "Optional e.g. GPT-4"
+        },
+        "supported_text_delta": {
+          "label": "Support incremental text output",
+          "tooltip": "The model returns text incrementally, rather than all at once. Enabled by default, if the model does not support it, please disable this option"
+        }
+      },
+      "api_key": "API Key",
+      "base_url": "Base URL",
+      "check": {
+        "all": "All",
+        "all_models_passed": "All models check passed",
+        "button_caption": "Health check",
+        "disabled": "Disabled",
+        "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
+        "enable_concurrent": "Concurrent",
+        "enabled": "Enabled",
+        "failed": "Başarısız",
+        "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
+        "model_status_failed": "{{count}} models completely inaccessible",
+        "model_status_partial": "{{count}} models had inaccessible keys",
+        "model_status_passed": "{{count}} models passed health checks",
+        "model_status_summary": "{{provider}}: {{summary}}",
+        "no_api_keys": "No API keys found, please add API keys first.",
+        "no_results": "Hayır results",
+        "passed": "Passed",
+        "select_api_key": "The api key to use: seç",
+        "single": "Single",
+        "start": "Start",
+        "timeout": "Timeout",
+        "title": "Model health check",
+        "use_all_keys": "Key(s)"
+      },
+      "default_assistant_model": "Default Assistant Model",
+      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "empty": "No models found",
+      "manage": {
+        "add_listed": {
+          "confirm": "Emin misiniz you want to add all models to the list?",
+          "label": "Models to the list ekle"
+        },
+        "add_whole_group": "The whole group ekle",
+        "refetch_list": "Refetch model list",
+        "remove_listed": "Remove models from the list",
+        "remove_model": "Remove model",
+        "remove_whole_group": "Remove the whole group"
+      },
+      "provider_id": "Sağlayıcı ID",
+      "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
+      "provider_key_add_failed_by_empty_data": "Add provider api key, data is empty başarısız oldu",
+      "provider_key_add_failed_by_invalid_data": "Add provider api key, data format error başarısız oldu",
+      "provider_key_added": "Successfully added API key for {{provider}}",
+      "provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
+      "provider_key_confirm_title": "Provider api key ekle",
+      "provider_key_no_change": "API key for {{provider}} has not changed",
+      "provider_key_overridden": "Successfully updated API key for {{provider}}",
+      "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
+      "provider_name": "Sağlayıcı İsim",
+      "quick_assistant_default_tag": "Default",
+      "quick_assistant_model": "Quick Assistant Model",
+      "quick_assistant_selection": "Assistant seç",
+      "quick_model": {
+        "description": "Model used for simple tasks such as topic naming and keyword extraction",
+        "label": "Quick Model",
+        "setting_title": "Quick model setup",
+        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+      },
+      "topic_naming": {
+        "auto": "Topic Auto Naming",
+        "label": "Topic naming",
+        "prompt": "Topic Naming Prompt"
+      },
+      "translate_model": "Translate Model",
+      "translate_model_description": "Model used for translation service",
+      "translate_model_prompt_message": "Lütfen enter the translate model prompt",
+      "translate_model_prompt_title": "Translate Model Prompt",
+      "use_assistant": "Use Assistant",
+      "use_model": "Default Model"
+    },
+    "moresetting": {
+      "check": {
+        "confirm": "Confirm Selection",
+        "warn": "Lütfen be cautious when selecting this option. Incorrect selection may cause the model to malfunction!"
+      },
+      "label": "More Ayarlar",
+      "warn": "Risk Uyarı"
+    },
+    "no_provider_selected": "Provider not selected",
+    "notification": {
+      "assistant": "Assistant Mesaj",
+      "backup": "Backup Mesaj",
+      "knowledge_embed": "KnowledgeBase Mesaj",
+      "title": "Notification Ayarlar"
+    },
+    "openai": {
+      "service_tier": {
+        "auto": "auto",
+        "default": "default",
+        "flex": "flex",
+        "on_demand": "on demand",
+        "performance": "performance",
+        "priority": "priority",
+        "tip": "Specifies the latency tier to use for processing the request",
+        "title": "Service Tier"
+      },
+      "summary_text_mode": {
+        "auto": "auto",
+        "concise": "concise",
+        "detailed": "detailed",
+        "off": "off",
+        "tip": "A summary of the reasoning performed by the model",
+        "title": "Summary Mode"
+      },
+      "title": "OpenAI Ayarlar",
+      "verbosity": {
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium",
+        "tip": "Control the level of detail in the model's output",
+        "title": "Level of detail"
+      }
+    },
+    "privacy": {
+      "enable_privacy_mode": "Anonymous reporting of errors and statistics",
+      "title": "Privacy Ayarlar"
+    },
+    "provider": {
+      "add": {
+        "name": {
+          "label": "Sağlayıcı İsim",
+          "placeholder": "Example: OpenAI"
+        },
+        "title": "Provider ekle",
+        "type": "Sağlayıcı Tür"
+      },
+      "anthropic": {
+        "apikey": "API key",
+        "auth_failed": "Anthropic authentication başarısız oldu",
+        "auth_method": "Authentication method",
+        "auth_success": "Anthropic OAuth authentication successful",
+        "authenticated": "Verified",
+        "authenticating": "Authenticating",
+        "cancel": "İptal",
+        "code_error": "Geçersiz authorization code, please try again",
+        "code_placeholder": "Lütfen enter the authorization code displayed in your browser",
+        "code_required": "Authorization code cannot be empty",
+        "description": "OAuth authentication",
+        "description_detail": "You need to subscribe to Claude Pro or a higher version to use this authentication method",
+        "enter_auth_code": "Authorization code",
+        "logout": "Log out",
+        "logout_failed": "Logout failed, please try again",
+        "logout_success": "Successfully logged out of Anthropic",
+        "oauth": "Web OAuth",
+        "start_auth": "Start authorization",
+        "submit_code": "Complete login"
+      },
+      "anthropic_api_host": "Anthropic API Host",
+      "anthropic_api_host_preview": "Anthropic preview: {{url}}",
+      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores v1, ending with # forces use of input address.",
+      "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
+      "api": {
+        "key": {
+          "check": {
+            "latency": "Latency"
+          },
+          "error": {
+            "duplicate": "API key already exists",
+            "empty": "API key cannot be empty"
+          },
+          "list": {
+            "open": "Open Management Interface",
+            "title": "API Key Management"
+          },
+          "new_key": {
+            "placeholder": "Enter one or more keys"
+          }
+        },
+        "options": {
+          "array_content": {
+            "help": "Does the provider support the content field of the message being of array type?",
+            "label": "Supports array format message content"
+          },
+          "developer_role": {
+            "help": "Does the provider support messages with role: \"developer\"?",
+            "label": "Support Developer Message"
+          },
+          "enable_thinking": {
+            "help": "Does the provider support controlling the reasoning of models like Qwen3 via the enable_thinking parameter?",
+            "label": "Support enable_thinking"
+          },
+          "label": "API Ayarlar",
+          "service_tier": {
+            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",
+            "label": "Supports service_tier"
+          },
+          "stream_options": {
+            "help": "Does the provider support the stream_options parameter?",
+            "label": "Support stream_options"
+          }
+        },
+        "url": {
+          "preview": "Preview: {{url}}",
+          "reset": "Reset",
+          "tip": "Ending with / ignores v1, ending with # forces use of input address"
+        }
+      },
+      "api_host": "API Host",
+      "api_host_preview": "Preview: {{url}}",
+      "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
+      "api_key": {
+        "label": "API Key",
+        "tip": "Use commas to separate multiple keys"
+      },
+      "api_version": "API Version",
+      "aws-bedrock": {
+        "access_key_id": "AWS Access Key ID",
+        "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
+        "region": "AWS Region",
+        "region_help": "Your AWS service region, e.g., us-east-1",
+        "secret_access_key": "AWS Secret Access Key",
+        "secret_access_key_help": "Your AWS Secret Access Key, please keep it secure",
+        "title": "AWS Bedrock Configuration"
+      },
+      "azure": {
+        "apiversion": {
+          "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version"
+        }
+      },
+      "basic_auth": {
+        "label": "HTTP authentication",
+        "password": {
+          "label": "Password",
+          "tip": "Enter your password"
+        },
+        "tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
+        "user_name": {
+          "label": "Username",
+          "tip": "Left empty to disable"
+        }
+      },
+      "bills": "Fee Bills",
+      "charge": "Balance Recharge",
+      "check": "Check",
+      "check_all_keys": "Check All Keys",
+      "check_multiple_keys": "Check Multiple API Keys",
+      "copilot": {
+        "auth_failed": "Github Copilot authentication failed.",
+        "auth_success": "GitHub Copilot authentication successful.",
+        "auth_success_title": "Certification successful.",
+        "code_copied": "Authorization code automatically copied to clipboard",
+        "code_failed": "Obtain device code, please try again. başarısız oldu",
+        "code_generated_desc": "Lütfen copy the device code into the browser link below.",
+        "code_generated_title": "Obtain Device Code",
+        "connect": "Connect to Github",
+        "custom_headers": "Custom request header",
+        "description": "Your GitHub account needs to subscribe to Copilot.",
+        "description_detail": "GitHub Copilot is an AI-powered code assistant that requires a valid GitHub Copilot subscription to use",
+        "expand": "Expand",
+        "headers_description": "Custom request headers (JSON format)",
+        "invalid_json": "JSON format error",
+        "login": "Log in to Github",
+        "logout": "Exit GitHub",
+        "logout_failed": "Exit failed, please try again.",
+        "logout_success": "Successfully logged out.",
+        "model_setting": "Model settings",
+        "open_verification_first": "Lütfen click the link above to access the verification page.",
+        "open_verification_page": "Open Authorization Page",
+        "rate_limit": "Rate limiting",
+        "start_auth": "Start Authorization",
+        "step_authorize": "Open Authorization Page",
+        "step_authorize_desc": "Complete authorization on GitHub",
+        "step_authorize_detail": "Click the button below to open GitHub authorization page, then enter the copied authorization code",
+        "step_connect": "Complete Connection",
+        "step_connect_desc": "Confirm connection to GitHub",
+        "step_connect_detail": "After completing authorization on GitHub page, click this button to complete the connection",
+        "step_copy_code": "Copy Authorization Code",
+        "step_copy_code_desc": "Copy device authorization code",
+        "step_copy_code_detail": "Authorization code has been automatically copied, you can also copy it manually",
+        "step_get_code": "Get Authorization Code",
+        "step_get_code_desc": "Generate device authorization code"
+      },
+      "delete": {
+        "content": "Emin misiniz you want to delete this provider?",
+        "title": "Provider sil"
+      },
+      "dmxapi": {
+        "select_platform": "The platform seç"
+      },
+      "docs_check": "Check",
+      "docs_more_details": "for more details",
+      "get_api_key": "Get API Key",
+      "misc": "Other",
+      "no_models_for_check": "No models available for checking (e.g. chat models)",
+      "not_checked": "Not Checked",
+      "notes": {
+        "markdown_editor_default_value": "Preview area",
+        "placeholder": "Enter Markdown content...",
+        "title": "Model Notes"
+      },
+      "oauth": {
+        "button": "Login with {{provider}}",
+        "description": "This service is provided by <website>{{provider}}</website>",
+        "error": "Authentication başarısız oldu",
+        "official_website": "Official Website"
+      },
+      "openai": {
+        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
+      },
+      "remove_duplicate_keys": "Remove Duplicate Keys",
+      "remove_invalid_keys": "Remove Invalid Keys",
+      "search": "Search Providers...",
+      "search_placeholder": "Search model id or name",
+      "title": "Model Sağlayıcı",
+      "vertex_ai": {
+        "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
+        "documentation": "View official documentation for more configuration details:",
+        "learn_more": "Learn More",
+        "location": "Location",
+        "location_help": "Vertex AI service location, e.g., us-central1",
+        "project_id": "Project ID",
+        "project_id_help": "Your Google Cloud project ID",
+        "project_id_placeholder": "your-google-cloud-project-id",
+        "service_account": {
+          "auth_success": "Service Account authenticated successfully",
+          "client_email": "Client Email",
+          "client_email_help": "The client_email field from the JSON key file downloaded from Google Cloud Console",
+          "client_email_placeholder": "Enter Service Account client email",
+          "description": "Use Service Account for authentication, suitable for environments where ADC is not available",
+          "incomplete_config": "Lütfen complete Service Account configuration first",
+          "private_key": "Private Key",
+          "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
+          "private_key_placeholder": "Enter Service Account private key",
+          "title": "Service Account Configuration"
+        }
+      }
+    },
+    "proxy": {
+      "address": "Proxy Address",
+      "bypass": "Bypass Rules",
+      "mode": {
+        "custom": "Custom Proxy",
+        "none": "Hayır Proxy",
+        "system": "Sistem Proxy",
+        "title": "Proxy Mode"
+      },
+      "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)"
+    },
+    "quickAssistant": {
+      "click_tray_to_show": "Click the tray icon to start",
+      "enable_quick_assistant": "Enable Quick Assistant",
+      "read_clipboard_at_startup": "Read clipboard at startup",
+      "title": "Quick Assistant",
+      "use_shortcut_to_show": "Right-click the tray icon or use shortcuts to start"
+    },
+    "quickPanel": {
+      "back": "Back",
+      "close": "Kapat",
+      "confirm": "Confirm",
+      "forward": "Forward",
+      "multiple": "Multiple Select",
+      "page": "Page",
+      "select": "Select",
+      "title": "Quick Menu"
+    },
+    "quickPhrase": {
+      "add": "Phrase ekle",
+      "assistant": "Assistant Phrases",
+      "contentLabel": "Content",
+      "contentPlaceholder": "Lütfen enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "delete": "Phrase sil",
+      "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+      "edit": "Phrase düzenle",
+      "global": "Global Phrases",
+      "locationLabel": "Location ekle",
+      "title": "Quick Phrases",
+      "titleLabel": "Başlık",
+      "titlePlaceholder": "Lütfen enter phrase title"
+    },
+    "shortcuts": {
+      "action": "Action",
+      "actions": "operation",
+      "clear_shortcut": "Clear Shortcut",
+      "clear_topic": "Clear Messages",
+      "copy_last_message": "Copy Last Message",
+      "edit_last_user_message": "Last user message düzenle",
+      "enabled": "Enable",
+      "exit_fullscreen": "Exit Fullscreen",
+      "label": "Key",
+      "mini_window": "Quick Assistant",
+      "new_topic": "New Topic",
+      "press_shortcut": "Press Shortcut",
+      "rename_topic": "Rename Topic",
+      "reset_defaults": "Reset Defaults",
+      "reset_defaults_confirm": "Emin misiniz you want to reset all shortcuts?",
+      "reset_to_default": "Reset to Default",
+      "search_message": "Search Mesaj",
+      "search_message_in_chat": "Search Message in Current Chat",
+      "selection_assistant_select_text": "Selection Assistant: Select Text",
+      "selection_assistant_toggle": "Toggle Selection Assistant",
+      "show_app": "Show/Hide App",
+      "show_settings": "Aç Ayarlar",
+      "title": "Keyboard Shortcuts",
+      "toggle_new_context": "Clear Context",
+      "toggle_show_assistants": "Toggle Assistants",
+      "toggle_show_topics": "Toggle Topics",
+      "zoom_in": "Zoom In",
+      "zoom_out": "Zoom Out",
+      "zoom_reset": "Reset Zoom"
+    },
+    "theme": {
+      "color_primary": "Primary Color",
+      "dark": "Koyu",
+      "light": "Açık",
+      "system": "Sistem",
+      "title": "Tema",
+      "window": {
+        "style": {
+          "opaque": "Opaque Window",
+          "title": "Window Style",
+          "transparent": "Transparent Window"
+        }
+      }
+    },
+    "title": "Ayarlar",
+    "tool": {
+      "ocr": {
+        "common": {
+          "langs": "Supported languages"
+        },
+        "error": {
+          "not_system": "System OCR only supports Windows and MacOS"
+        },
+        "image": {
+          "error": {
+            "provider_not_found": "The provider does not exist"
+          },
+          "system": {
+            "no_need_configure": "MacOS requires no configuration"
+          },
+          "title": "Image"
+        },
+        "image_provider": "OCR service provider",
+        "paddleocr": {
+          "aistudio_access_token": "Access token of AI Studio Community",
+          "aistudio_url_label": "AI Studio Community",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR Serving Documentation",
+          "tip": "You can refer to the official PaddleOCR documentation to deploy a local service, or deploy a cloud service on the PaddlePaddle AI Studio Community. For the latter case, please provide the access token of the AI Studio Community."
+        },
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
+        },
+        "title": "OCR service"
+      },
+      "preprocess": {
+        "provider": "Document Processing Provider",
+        "provider_placeholder": "Choose a document processing provider",
+        "title": "Document Processing",
+        "tooltip": "In Settings -> Tools, set a document processing service provider. Document processing can effectively improve the retrieval performance of complex format documents and scanned documents."
+      },
+      "title": "Other Ayarlar",
+      "websearch": {
+        "apikey": "API key",
+        "blacklist": "Blacklist",
+        "blacklist_description": "Results from the following websites will not appear in search results",
+        "blacklist_tooltip": "Lütfen use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
+        "check": "Check",
+        "check_failed": "Verification başarısız oldu",
+        "check_success": "Verification successful",
+        "compression": {
+          "cutoff": {
+            "limit": {
+              "label": "Cutoff Limit",
+              "placeholder": "Enter length",
+              "tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)"
+            },
+            "unit": {
+              "char": "Char",
+              "token": "Token"
+            }
+          },
+          "error": {
+            "rag_failed": "Rag başarısız oldu"
+          },
+          "info": {
+            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+          },
+          "method": {
+            "cutoff": "Cutoff",
+            "label": "Compression Method",
+            "none": "None",
+            "rag": "RAG"
+          },
+          "rag": {
+            "document_count": {
+              "label": "Document Chunks Count",
+              "tooltip": "Expected number of document chunks to extract from each search result, the actual total number of extracted document chunks is this value multiplied by the number of search results."
+            }
+          },
+          "title": "Search Result Compression"
+        },
+        "content_limit": "Content length limit",
+        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated.",
+        "free": "Free",
+        "no_provider_selected": "Lütfen select a search service provider before checking.",
+        "overwrite": "Override search service",
+        "overwrite_tooltip": "Force use search service instead of LLM",
+        "search_max_result": {
+          "label": "Number of search results",
+          "tooltip": "When search result compression is disabled, the number of results may be too large, which may lead to insufficient tokens"
+        },
+        "search_provider": "Search service provider",
+        "search_provider_placeholder": "Choose a search service provider.",
+        "search_with_time": "Search with dates included",
+        "subscribe": "Blacklist Subscription",
+        "subscribe_add": "Subscription ekle",
+        "subscribe_add_failed": "Add feed source başarısız oldu",
+        "subscribe_add_success": "Subscription feed added successfully!",
+        "subscribe_delete": "Sil",
+        "subscribe_name": {
+          "label": "Alternative name",
+          "placeholder": "Alternative name used when the downloaded subscription feed has no name."
+        },
+        "subscribe_update": "Güncelle",
+        "subscribe_update_failed": "Subscription source update başarısız oldu",
+        "subscribe_update_success": "Subscription source updated successfully",
+        "subscribe_url": "Subscription Url",
+        "tavily": {
+          "api_key": {
+            "label": "Tavily API Key",
+            "placeholder": "Enter Tavily API Key"
+          },
+          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+          "title": "Tavily"
+        },
+        "title": "Web Search",
+        "url_invalid": "Entered an invalid URL",
+        "url_required": "Lütfen enter a URL"
+      }
+    },
+    "topic": {
+      "pin_to_top": "Pin Topics to Top",
+      "position": {
+        "label": "Topic position",
+        "left": "Left",
+        "right": "Right"
+      },
+      "show": {
+        "time": "Show topic time"
+      }
+    },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "Emin misiniz you want to delete?",
+          "title": "Custom language sil"
+        },
+        "error": {
+          "add": "Add başarısız oldu",
+          "delete": "Deletion başarısız oldu",
+          "langCode": {
+            "builtin": "The language has built-in support",
+            "empty": "Language code boş",
+            "exists": "The language already exists",
+            "invalid": "Geçersiz language code"
+          },
+          "update": "Update başarısız oldu",
+          "value": {
+            "empty": "Language name cannot be empty",
+            "too_long": "Language name is too long"
+          }
+        },
+        "langCode": {
+          "help": "[language+region] format, [2-3 lowercase letters]-[2-3 lowercase letters]",
+          "label": "Dil code",
+          "placeholder": "en-us"
+        },
+        "success": {
+          "add": "Added successfully",
+          "delete": "Deleted successfully",
+          "update": "Güncelle successful"
+        },
+        "table": {
+          "action": {
+            "title": "Operation"
+          }
+        },
+        "value": {
+          "help": "1~32 characters",
+          "label": "Dil name",
+          "placeholder": "English"
+        }
+      },
+      "prompt": "Translation prompt",
+      "title": "Translation settings"
+    },
+    "tray": {
+      "onclose": "Minimize to Tray on Close",
+      "show": "Show Tray Icon",
+      "title": "Tray"
+    },
+    "zoom": {
+      "reset": "Reset",
+      "title": "Page Zoom"
+    }
+  },
+  "title": {
+    "apps": "Apps",
+    "code": "Code",
+    "files": "Files",
+    "home": "Home",
+    "knowledge": "Knowledge Base",
+    "launchpad": "Launchpad",
+    "mcp-servers": "MCP Servers",
+    "memories": "Memories",
+    "notes": "Notes",
+    "paintings": "Paintings",
+    "settings": "Ayarlar",
+    "store": "Assistant Library",
+    "translate": "Translate"
+  },
+  "trace": {
+    "backList": "Back To List",
+    "edasSupport": "Powered by Alibaba Cloud EDAS",
+    "endTime": "End Time",
+    "inputs": "Inputs",
+    "label": "Call Chain",
+    "name": "Node İsim",
+    "noTraceList": "No trace information found",
+    "outputs": "Outputs",
+    "parentId": "Parent Id",
+    "spanDetail": "Span Details",
+    "spendTime": "Spend Time",
+    "startTime": "Start Time",
+    "tag": "Tag",
+    "tokenUsage": "Token Usage",
+    "traceWindow": "Call Chain Window"
+  },
+  "translate": {
+    "alter_language": "Alternative Dil",
+    "any": {
+      "language": "Any language"
+    },
+    "button": {
+      "translate": "Translate"
+    },
+    "close": "Kapat",
+    "closed": "Translation closed",
+    "complete": "Translation completed",
+    "confirm": {
+      "content": "Translation will replace the original text, continue?",
+      "title": "Translation Confirmation"
+    },
+    "copied": "Translation content copied",
+    "custom": {
+      "label": "Custom language"
+    },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algorithm",
+          "tip": "Using the franc library for language detection"
+        },
+        "auto": {
+          "label": "Automatic",
+          "tip": "Automatically select the appropriate detection method"
+        },
+        "label": "Automatic detection method",
+        "llm": {
+          "tip": "Using the quick model for language detection consumes fewer tokens."
+        },
+        "placeholder": "Automatic detection method seç",
+        "tip": "Method used when automatically detecting the input language"
+      }
+    },
+    "detected": {
+      "language": "Auto Detect"
+    },
+    "empty": "Translation content boş",
+    "error": {
+      "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
+      "detect": {
+        "qwen_mt": "QwenMT model cannot be used for language detection",
+        "unknown": "Unknown language detected",
+        "update_setting": "Setting başarısız oldu"
+      },
+      "empty": "The translation result boş content",
+      "failed": "Translation başarısız oldu",
+      "invalid_source": "Geçersiz source language",
+      "not_configured": "Translation model is not configured",
+      "not_supported": "Unsupported language {{language}}",
+      "unknown": "An unknown error occurred during translation"
+    },
+    "exchange": {
+      "label": "Swap the source and target languages"
+    },
+    "files": {
+      "drag_text": "Drop here",
+      "error": {
+        "check_type": "An error occurred while checking the file type",
+        "multiple": "Multiple file uploads are not allowed",
+        "too_large": "File too large",
+        "unknown": "Read file content başarısız oldu"
+      },
+      "reading": "Reading file content..."
+    },
+    "history": {
+      "clear": "Clear History",
+      "clear_description": "Clear history will delete all translation history, continue?",
+      "delete": "Translation history sil",
+      "empty": "No translation history",
+      "error": {
+        "delete": "Deletion başarısız oldu",
+        "save": "Save translation history başarısız oldu"
+      },
+      "search": {
+        "placeholder": "Search translation history"
+      },
+      "title": "Translation History"
+    },
+    "info": {
+      "aborted": "Translation aborted"
+    },
+    "input": {
+      "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
+    },
+    "language": {
+      "not_pair": "Source language is different from the set language",
+      "same": "Source and target languages are the same"
+    },
+    "menu": {
+      "description": "Translate the content of the current input box"
+    },
+    "not": {
+      "found": "Translation content not found"
+    },
+    "output": {
+      "placeholder": "Translation"
+    },
+    "processing": "Translation in progress...",
+    "settings": {
+      "autoCopy": "Copy after translation ",
+      "bidirectional": "Bidirectional Translation Settings",
+      "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
+      "model": "Model Ayarlar",
+      "model_desc": "Model used for translation service",
+      "model_placeholder": "Translation model seç",
+      "no_model_warning": "No translation model selected",
+      "preview": "Markdown Preview",
+      "scroll_sync": "Scroll Sync Settings",
+      "title": "Translation Ayarlar"
+    },
+    "success": {
+      "custom": {
+        "delete": "Deleted successfully",
+        "update": "Güncelle successful"
+      }
+    },
+    "target_language": "Target Dil",
+    "title": "Translation",
+    "tooltip": {
+      "newline": "Newline"
+    }
+  },
+  "tray": {
+    "quit": "Quit",
+    "show_mini_window": "Quick Assistant",
+    "show_window": "Show Window"
+  },
+  "update": {
+    "install": "Install",
+    "later": "Later",
+    "message": "New version {{version}} is ready, do you want to install it now?",
+    "noReleaseNotes": "No release notes",
+    "saveDataError": "Save data, please try again. başarısız oldu",
+    "title": "Güncelle"
+  },
+  "warning": {
+    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
+  },
+  "words": {
+    "knowledgeGraph": "Knowledge Graph",
+    "quit": "Quit",
+    "show_window": "Show Window",
+    "visualization": "Visualization"
+  }
+}
