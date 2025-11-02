@@ -361,7 +361,7 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
   return {}
 }
 
-export function getAnthropicthinking_budget(assistant: Assistant, model: Model): number {
+export function getAnthropicThinkingBudget(assistant: Assistant, model: Model): number {
   const { maxTokens, reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
   if (reasoningEffort === undefined) {
     return 0
@@ -402,7 +402,7 @@ export function getAnthropicReasoningParams(assistant: Assistant, model: Model):
 
   // Claude 推理参数
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    const budgetTokens = getAnthropicthinking_budget(assistant, model)
+    const budgetTokens = getAnthropicThinkingBudget(assistant, model)
 
     return {
       thinking: {
