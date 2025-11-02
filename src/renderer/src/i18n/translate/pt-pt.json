@@ -1,7 +1,7 @@
 {
   "agent": {
     "add": {
-      "description": "Lide com tarefas complexas com várias ferramentas",
+      "description": "Lide com tarefas complexas usando várias ferramentas",
       "error": {
         "failed": "Falha ao adicionar agente",
         "invalid_agent": "Agent inválido"

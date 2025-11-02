@@ -1,7 +1,7 @@
 {
   "agent": {
     "add": {
-      "description": "Umgang mit komplexen Aufgaben mit verschiedenen Werkzeugen",
+      "description": "Bewältigen Sie komplexe Aufgaben mit verschiedenen Werkzeugen",
       "error": {
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"

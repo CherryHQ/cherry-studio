@@ -52,7 +52,7 @@ const AIHUBMIX_RULES: RuleSet = {
       }
     }
   ],
-  fallbackRule: (provider: Provider) => provider
+  fallbackRule: (provider: Provider) => extraProviderConfig(provider)
 }
 
 export const aihubmixProviderCreator = provider2Provider.bind(null, AIHUBMIX_RULES)
