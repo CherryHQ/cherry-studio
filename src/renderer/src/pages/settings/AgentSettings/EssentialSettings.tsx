@@ -1,10 +1,11 @@
 import { Avatar } from '@heroui/react'
 import { getAgentTypeAvatar } from '@renderer/config/agent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { GetAgentResponse, GetAgentSessionResponse, isAgentEntity } from '@renderer/types'
-import { FC } from 'react'
+import type { GetAgentResponse, GetAgentSessionResponse } from '@renderer/types'
+import { isAgentEntity } from '@renderer/types'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AccessibleDirsSetting } from './AccessibleDirsSetting'
@@ -46,7 +47,9 @@ const EssentialSettings: FC<EssentialSettingsProps> = ({ agentBase, update, show
           </div>
         </SettingsItem>
       )}
-      {isAgent && <AvatarSetting agent={agentBase} update={update} />}
+      {isAgent && (
+        <AvatarSetting agent={agentBase} update={update as ReturnType<typeof useUpdateAgent>['updateAgent']} />
+      )}
       <NameSetting base={agentBase} update={update} />
       {showModelSetting && <ModelSetting base={agentBase} update={update} />}
       <AccessibleDirsSetting base={agentBase} update={update} />

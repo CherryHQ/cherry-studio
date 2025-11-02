@@ -22,7 +22,7 @@ import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkAlert from 'remark-github-blockquote-alert'
 import remarkMath from 'remark-math'
-import { Pluggable } from 'unified'
+import type { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'

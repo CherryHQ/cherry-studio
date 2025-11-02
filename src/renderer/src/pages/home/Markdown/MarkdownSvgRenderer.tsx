@@ -2,7 +2,8 @@ import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { makeSvgSizeAdaptive } from '@renderer/utils/image'
 import { Dropdown } from 'antd'
 import { Eye } from 'lucide-react'
-import React, { FC, useCallback, useEffect, useMemo, useRef } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SvgProps extends React.SVGProps<SVGSVGElement> {

@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Handle complex tasks with various tools",
       "error": {
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Daily conversations and quick Q&A",
         "title": "Add Assistant"
+      },
+      "option": {
+        "title": "Select Type"
       },
       "topic": {
         "title": "New Topic"
@@ -838,7 +843,7 @@
         "label": "Context",
         "tip": "The number of previous messages to keep in the context."
       },
-      "max": "Max",
+      "max": "Unlimited",
       "max_tokens": {
         "confirm": "Set max tokens",
         "confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
@@ -1047,10 +1052,12 @@
     "clear": "Clear",
     "close": "Close",
     "collapse": "Collapse",
+    "completed": "Completed",
     "confirm": "Confirm",
     "copied": "Copied",
     "copy": "Copy",
     "copy_failed": "Copy failed",
+    "current": "Current",
     "cut": "Cut",
     "default": "Default",
     "delete": "Delete",
@@ -2921,15 +2928,14 @@
       },
       "description": "A powerful AI assistant for producer",
       "downloading": "Downloading...",
+      "enterprise": {
+        "title": "Enterprise"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "About & Feedback",
-      "license": {
-        "button": "License",
-        "title": "License"
-      },
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
@@ -3036,6 +3042,46 @@
         "siyuan": "Export to SiYuan Note",
         "title": "Export Menu Settings",
         "yuque": "Export to Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Select backup file"
+        },
+        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "lan": {
+          "auto_close_tip": "Auto-closing in {{seconds}} seconds...",
+          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
+          "confirm_close_title": "Confirm Close",
+          "connected": "Connected",
+          "connection_failed": "Connection failed",
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "error": {
+            "init_failed": "Initialization failed",
+            "no_file": "No file selected",
+            "no_ip": "Unable to get IP address",
+            "send_failed": "Failed to send file"
+          },
+          "force_close": "Force Close",
+          "generating_qr": "Generating QR code...",
+          "noZipSelected": "No compressed file selected",
+          "scan_qr": "Please scan QR code with your phone",
+          "selectZip": "Select a compressed file",
+          "sendZip": "Begin data recovery",
+          "status": {
+            "completed": "Transfer completed",
+            "connected": "Connected",
+            "connecting": "Connecting...",
+            "disconnected": "Disconnected",
+            "error": "Connection error",
+            "initializing": "Initializing connection...",
+            "preparing": "Preparing transfer...",
+            "sending": "Transferring {{progress}}%",
+            "waiting_qr_scan": "Please scan QR code to connect"
+          },
+          "title": "LAN transmission",
+          "transfer_progress": "Transfer progress"
+        },
+        "title": "Export to phone"
       },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
@@ -3782,6 +3828,12 @@
         "loadError": "Get prompts Error",
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
+      },
+      "protocolInstallWarning": {
+        "command": "Startup command",
+        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
+        "run": "Run",
+        "title": "Run external MCP?"
       },
       "provider": "Provider",
       "providerPlaceholder": "Provider name",

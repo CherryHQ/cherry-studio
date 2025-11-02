@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "調用各種工具處理複雜任務",
       "error": {
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常對話和快速問答",
         "title": "新增助手"
+      },
+      "option": {
+        "title": "選擇新增類型"
       },
       "topic": {
         "title": "新增話題"
@@ -838,7 +843,7 @@
         "label": "上下文",
         "tip": "在上下文中保留的前幾則訊息"
       },
-      "max": "最大",
+      "max": "不限",
       "max_tokens": {
         "confirm": "設置最大 Token 數",
         "confirm_content": "設置單次交互所用的最大 Token 數，會影響返回結果的長度。要根據模型上下文限制來設定，否則會發生錯誤",
@@ -1047,10 +1052,12 @@
     "clear": "清除",
     "close": "關閉",
     "collapse": "折疊",
+    "completed": "已完成",
     "confirm": "確認",
     "copied": "已複製",
     "copy": "複製",
     "copy_failed": "複製失敗",
+    "current": "当前",
     "cut": "剪下",
     "default": "預設",
     "delete": "刪除",
@@ -2921,15 +2928,14 @@
       },
       "description": "一款為創作者而生的強大 AI 助手",
       "downloading": "正在下載...",
+      "enterprise": {
+        "title": "企業版"
+      },
       "feedback": {
         "button": "回饋",
         "title": "回饋"
       },
       "label": "關於與回饋",
-      "license": {
-        "button": "檢視",
-        "title": "授權"
-      },
       "releases": {
         "button": "檢視",
         "title": "更新日誌"
@@ -3036,6 +3042,46 @@
         "siyuan": "匯出到思源筆記",
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "選擇備份檔案"
+        },
+        "content": "匯出部分數據，包括聊天記錄、設定。請注意，備份過程可能需要一些時間，感謝您的耐心等候。",
+        "lan": {
+          "auto_close_tip": "將於 {{seconds}} 秒後自動關閉...",
+          "confirm_close_message": "檔案傳輸正在進行中。關閉將會中斷傳輸。您確定要強制關閉嗎？",
+          "confirm_close_title": "確認關閉",
+          "connected": "已連線",
+          "connection_failed": "連線失敗",
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請打開 Cherry Studio App 掃描此 QR 碼。",
+          "error": {
+            "init_failed": "初始化失敗",
+            "no_file": "未選擇檔案",
+            "no_ip": "無法取得 IP 位址",
+            "send_failed": "無法傳送檔案"
+          },
+          "force_close": "強制關閉",
+          "generating_qr": "正在生成 QR 碼...",
+          "noZipSelected": "未選取壓縮檔案",
+          "scan_qr": "請使用手機掃描QR碼",
+          "selectZip": "選擇壓縮檔案",
+          "sendZip": "開始恢復資料",
+          "status": {
+            "completed": "轉帳完成",
+            "connected": "已連線",
+            "connecting": "連線中...",
+            "disconnected": "已斷線",
+            "error": "連線錯誤",
+            "initializing": "正在初始化連線...",
+            "preparing": "正在準備傳輸...",
+            "sending": "傳輸中 {{progress}}%",
+            "waiting_qr_scan": "請掃描QR碼以連接"
+          },
+          "title": "區域網路傳輸",
+          "transfer_progress": "傳輸進度"
+        },
+        "title": "匯出手機"
       },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
@@ -3782,6 +3828,12 @@
         "loadError": "獲取提示失敗",
         "noPromptsAvailable": "無可用提示",
         "requiredField": "必填欄位"
+      },
+      "protocolInstallWarning": {
+        "command": "啟動命令",
+        "message": "此 MCP 透過協議從外部來源安裝，執行來源不明的工具可能會對您的電腦造成危害。",
+        "run": "執行",
+        "title": "執行外部 MCP？"
       },
       "provider": "提供者",
       "providerPlaceholder": "提供者名稱",

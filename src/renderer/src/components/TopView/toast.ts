@@ -1,5 +1,5 @@
 import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
-import { RequireSome } from '@renderer/types'
+import type { RequireSome } from '@renderer/types'
 
 type AddToastProps = Parameters<typeof addToast>[0]
 type ToastPropsColored = Omit<AddToastProps, 'color'>

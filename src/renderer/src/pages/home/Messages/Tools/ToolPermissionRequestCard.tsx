@@ -1,9 +1,9 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
-import { Button, ButtonGroup, Chip, ScrollShadow } from '@heroui/react'
+import { Button, Chip, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermissionByToolName, toolPermissionsActions } from '@renderer/store/toolPermissions'
-import { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +54,6 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
   const isSubmittingAllow = request?.status === 'submitting-allow'
   const isSubmittingDeny = request?.status === 'submitting-deny'
   const isSubmitting = isSubmittingAllow || isSubmittingDeny
-  const hasSuggestions = (request?.suggestions?.length ?? 0) > 0
 
   const handleDecision = useCallback(
     async (
@@ -147,37 +146,16 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                 {t('agent.toolPermission.button.cancel')}
               </Button>
 
-              {hasSuggestions ? (
-                <ButtonGroup className="h-8">
-                  <Button
-                    className="h-8 px-3"
-                    color="success"
-                    isDisabled={isSubmitting || isExpired}
-                    isLoading={isSubmittingAllow}
-                    onPress={() => handleDecision('allow')}
-                    startContent={<CirclePlay size={16} />}>
-                    {t('agent.toolPermission.button.run')}
-                  </Button>
-                  <Button
-                    aria-label={t('agent.toolPermission.aria.runWithOptions')}
-                    className="h-8 rounded-l-none"
-                    color="success"
-                    isDisabled={isSubmitting || isExpired}
-                    isIconOnly
-                    variant="solid"></Button>
-                </ButtonGroup>
-              ) : (
-                <Button
-                  aria-label={t('agent.toolPermission.aria.allowRequest')}
-                  className="h-8 px-3"
-                  color="success"
-                  isDisabled={isSubmitting || isExpired}
-                  isLoading={isSubmittingAllow}
-                  onPress={() => handleDecision('allow')}
-                  startContent={<CirclePlay size={16} />}>
-                  {t('agent.toolPermission.button.run')}
-                </Button>
-              )}
+              <Button
+                aria-label={t('agent.toolPermission.aria.allowRequest')}
+                className="h-8 px-3"
+                color="success"
+                isDisabled={isSubmitting || isExpired}
+                isLoading={isSubmittingAllow}
+                onPress={() => handleDecision('allow')}
+                startContent={<CirclePlay size={16} />}>
+                {t('agent.toolPermission.button.run')}
+              </Button>
 
               <Button
                 aria-label={

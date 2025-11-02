@@ -43,6 +43,15 @@ export const InstalledPluginSchema = z.object({
 
 export type InstalledPlugin = z.infer<typeof InstalledPluginSchema>
 
+// Cache file schema for .claude/plugins.json
+export const CachedPluginsDataSchema = z.object({
+  version: z.number().default(1),
+  lastUpdated: z.number(), // Unix timestamp in milliseconds
+  plugins: z.array(InstalledPluginSchema)
+})
+
+export type CachedPluginsData = z.infer<typeof CachedPluginsDataSchema>
+
 // Error handling types
 export type PluginError =
   | { type: 'PATH_TRAVERSAL'; message: string; path: string }

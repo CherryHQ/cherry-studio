@@ -1,6 +1,6 @@
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { Assistant, Topic } from '@renderer/types'
-import { FC } from 'react'
+import type { Assistant, Topic } from '@renderer/types'
+import type { FC } from 'react'
 
 import { Topics } from './components/Topics'
 import SessionsTab from './SessionsTab'

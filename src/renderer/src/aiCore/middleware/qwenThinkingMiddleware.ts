@@ -1,4 +1,4 @@
-import { LanguageModelMiddleware } from 'ai'
+import type { LanguageModelMiddleware } from 'ai'
 
 /**
  * Qwen Thinking Middleware

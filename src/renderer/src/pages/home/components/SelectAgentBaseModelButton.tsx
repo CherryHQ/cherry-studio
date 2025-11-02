@@ -4,11 +4,12 @@ import { SelectApiModelPopup } from '@renderer/components/Popups/SelectModelPopu
 import { agentModelFilter } from '@renderer/config/models'
 import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { AgentBaseWithId, ApiModel, isAgentEntity } from '@renderer/types'
+import type { AgentBaseWithId, ApiModel } from '@renderer/types'
+import { isAgentEntity } from '@renderer/types'
 import { getModelFilterByAgentType } from '@renderer/utils/agentSession'
 import { apiModelAdapter } from '@renderer/utils/model'
 import { ChevronsUpDown } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {

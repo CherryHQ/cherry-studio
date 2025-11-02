@@ -3,7 +3,12 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  MAX_CONTEXT_COUNT
+} from '@renderer/config/constant'
 import { isOpenAIModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -17,8 +22,8 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
+import type { SendMessageShortcut } from '@renderer/store/settings'
 import {
-  SendMessageShortcut,
   setAutoTranslateWithSpace,
   setCodeCollapsible,
   setCodeEditor,
@@ -47,12 +52,14 @@ import {
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
+import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -172,9 +179,6 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const assistantContextCount = assistant?.settings?.contextCount || 20
-  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
-
   const model = assistant.model || getDefaultModel()
 
   const isOpenAI = isOpenAIModel(model)
@@ -227,21 +231,44 @@ const SettingsTab: FC<Props> = (props) => {
             ) : (
               <SettingDivider />
             )}
-            <Row align="middle">
+            <Row align="middle" gutter={10} justify="space-between">
               <SettingRowTitleSmall>
                 {t('chat.settings.context_count.label')}
                 <HelpTooltip title={t('chat.settings.context_count.tip')} />
               </SettingRowTitleSmall>
+              <Col span={8}>
+                <EditableNumber
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={contextCount}
+                  changeOnBlur
+                  onChange={(value) => {
+                    if (value !== null && value >= 0 && value <= 20) {
+                      setContextCount(value)
+                      onContextCountChange(value)
+                    }
+                  }}
+                  formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
+                  style={{ width: '100%' }}
+                />
+              </Col>
             </Row>
             <Row align="middle" gutter={10}>
-              <Col span={23}>
+              <Col span={24}>
                 <Slider
                   min={0}
-                  max={maxContextCount}
+                  max={20}
                   onChange={setContextCount}
                   onChangeComplete={onContextCountChange}
-                  value={typeof contextCount === 'number' ? contextCount : 0}
+                  value={Math.min(contextCount, 20)}
+                  tooltip={{ open: false }}
                   step={1}
+                  marks={{
+                    0: '0',
+                    10: '10',
+                    20: '20'
+                  }}
                 />
               </Col>
             </Row>

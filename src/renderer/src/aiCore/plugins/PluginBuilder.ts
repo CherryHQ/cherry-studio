@@ -1,10 +1,10 @@
-import { AiPlugin } from '@cherrystudio/ai-core'
+import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 
-import { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
+import type { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
 

@@ -1,7 +1,8 @@
 import { Button, Card, CardBody, CardFooter, CardHeader, Chip, Spinner } from '@heroui/react'
-import { PluginMetadata } from '@renderer/types/plugin'
+import type { PluginMetadata } from '@renderer/types/plugin'
+import { upperFirst } from 'lodash'
 import { Download, Trash2 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface PluginCardProps {
@@ -17,15 +18,20 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
   const { t } = useTranslation()
 
   return (
-    <Card className="w-full cursor-pointer transition-shadow hover:shadow-md" isPressable onPress={onClick}>
+    <Card
+      className="flex h-full w-full cursor-pointer flex-col border-[0.5px] border-default-200"
+      isPressable
+      shadow="none"
+      onPress={onClick}>
       <CardHeader className="flex flex-col items-start gap-2 pb-2">
-        <div className="flex w-full items-center justify-between">
-          <h3 className="font-semibold text-medium">{plugin.name}</h3>
+        <div className="flex w-full items-center justify-between gap-2">
+          <h3 className="truncate font-medium text-small">{plugin.name}</h3>
           <Chip
             size="sm"
             variant="solid"
-            color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}>
-            {plugin.type}
+            color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}
+            className="h-4 min-w-0 flex-shrink-0 px-0.5 text-xs">
+            {upperFirst(plugin.type)}
           </Chip>
         </div>
         <Chip size="sm" variant="dot" color="default">
@@ -33,7 +39,7 @@ export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, 
         </Chip>
       </CardHeader>
 
-      <CardBody className="py-2">
+      <CardBody className="flex-1 py-2">
         <p className="line-clamp-3 text-default-500 text-small">{plugin.description || t('plugins.no_description')}</p>
 
         {plugin.tags && plugin.tags.length > 0 && (

@@ -1,7 +1,8 @@
 import { Button, Chip, Skeleton, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/react'
-import { InstalledPlugin } from '@renderer/types/plugin'
+import type { InstalledPlugin } from '@renderer/types/plugin'
 import { Trash2 } from 'lucide-react'
-import { FC, useCallback, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface InstalledPluginsListProps {
@@ -55,7 +56,7 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({ plugins, o
         <TableColumn>{t('plugins.name')}</TableColumn>
         <TableColumn>{t('plugins.type')}</TableColumn>
         <TableColumn>{t('plugins.category')}</TableColumn>
-        <TableColumn width={100}>{t('plugins.actions')}</TableColumn>
+        <TableColumn align="end">{t('plugins.actions')}</TableColumn>
       </TableHeader>
       <TableBody>
         {plugins.map((plugin) => (

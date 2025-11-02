@@ -140,7 +140,7 @@
     "typescript/await-thenable": "warn",
     // "typescript/ban-ts-comment": "error",
     "typescript/no-array-constructor": "error",
-    // "typescript/consistent-type-imports": "error",
+    "typescript/consistent-type-imports": "error",
     "typescript/no-array-delete": "warn",
     "typescript/no-base-to-string": "warn",
     "typescript/no-duplicate-enum-values": "error",

@@ -1047,10 +1047,12 @@
     "clear": "Limpiar",
     "close": "Cerrar",
     "collapse": "Colapsar",
+    "completed": "Completado",
     "confirm": "Confirmar",
     "copied": "Copiado",
     "copy": "Copiar",
     "copy_failed": "Error al copiar",
+    "current": "Actual",
     "cut": "Cortar",
     "default": "Predeterminado",
     "delete": "Eliminar",
@@ -2921,15 +2923,14 @@
       },
       "description": "Una asistente de IA creada para los creadores",
       "downloading": "Descargando actualización...",
+      "enterprise": {
+        "title": "Empresa"
+      },
       "feedback": {
         "button": "Enviar feedback",
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
-      "license": {
-        "button": "Ver",
-        "title": "Licencia"
-      },
       "releases": {
         "button": "Ver",
         "title": "Registro de cambios"
@@ -3036,6 +3037,46 @@
         "siyuan": "Exportar a Siyuan Notes",
         "title": "Exportar configuración del menú",
         "yuque": "Exportar a Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Seleccionar archivo de copia de seguridad"
+        },
+        "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
+        "lan": {
+          "auto_close_tip": "Cierre automático en {{seconds}} segundos...",
+          "confirm_close_message": "La transferencia de archivos está en progreso. Cerrar interrumpirá la transferencia. ¿Estás seguro de que quieres forzar el cierre?",
+          "confirm_close_title": "Confirmar Cierre",
+          "connected": "Conectado",
+          "connection_failed": "Conexión fallida",
+          "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
+          "error": {
+            "init_failed": "Falló la inicialización",
+            "no_file": "Ningún archivo seleccionado",
+            "no_ip": "No se puede obtener la dirección IP",
+            "send_failed": "Error al enviar el archivo"
+          },
+          "force_close": "Cerrar forzosamente",
+          "generating_qr": "Generando código QR...",
+          "noZipSelected": "No se ha seleccionado ningún archivo comprimido",
+          "scan_qr": "Por favor, escanea el código QR con tu teléfono",
+          "selectZip": "Seleccionar archivo comprimido",
+          "sendZip": "Comenzar la recuperación de datos",
+          "status": {
+            "completed": "Transferencia completada",
+            "connected": "Conectado",
+            "connecting": "Conectando...",
+            "disconnected": "Desconectado",
+            "error": "Error de conexión",
+            "initializing": "Inicializando conexión...",
+            "preparing": "Preparando transferencia...",
+            "sending": "Transfiriendo {{progress}}%",
+            "waiting_qr_scan": "Por favor, escanea el código QR para conectarte"
+          },
+          "title": "Transferencia de red local",
+          "transfer_progress": "Progreso de transferencia"
+        },
+        "title": "Exportar al teléfono"
       },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
@@ -3782,6 +3823,12 @@
         "loadError": "Fallo al cargar la indicación",
         "noPromptsAvailable": "No hay indicaciones disponibles",
         "requiredField": "Campo obligatorio"
+      },
+      "protocolInstallWarning": {
+        "command": "Comando de inicio",
+        "message": "Este MCP fue instalado desde una fuente externa a través del protocolo. Ejecutar herramientas desconocidas puede dañar tu computadora.",
+        "run": "Correr",
+        "title": "¿Ejecutar MCP externo?"
       },
       "provider": "Proveedor",
       "providerPlaceholder": "Nombre del proveedor",

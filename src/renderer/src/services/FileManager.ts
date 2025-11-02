@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { getFileDirectory } from '@renderer/utils'
 import dayjs from 'dayjs'
 

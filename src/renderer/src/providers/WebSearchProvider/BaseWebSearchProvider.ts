@@ -1,5 +1,5 @@
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 export default abstract class BaseWebSearchProvider {
   // @ts-ignore this

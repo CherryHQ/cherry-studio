@@ -1,5 +1,6 @@
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { Model, SystemProviderIds } from '@renderer/types'
+import type { Model } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isGeminiProvider, isNewApiProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '../providers'

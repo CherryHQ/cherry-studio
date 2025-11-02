@@ -1047,10 +1047,12 @@
     "clear": "Löschen",
     "close": "Schließen",
     "collapse": "Einklappen",
+    "completed": "Abgeschlossen",
     "confirm": "Bestätigen",
     "copied": "Kopiert",
     "copy": "Kopieren",
     "copy_failed": "Kopieren fehlgeschlagen",
+    "current": "Aktuell",
     "cut": "Ausschneiden",
     "default": "Standard",
     "delete": "Löschen",
@@ -2921,15 +2923,14 @@
       },
       "description": "Ein KI-Assistent für Kreative",
       "downloading": "Update wird heruntergeladen...",
+      "enterprise": {
+        "title": "Unternehmen"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "Über uns",
-      "license": {
-        "button": "Anzeigen",
-        "title": "Lizenz"
-      },
       "releases": {
         "button": "Anzeigen",
         "title": "Changelog"
@@ -3036,6 +3037,46 @@
         "siyuan": "Nach SiYuan-Notizen exportieren",
         "title": "Export-Menü-Einstellungen",
         "yuque": "Nach Yuque exportieren"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Sicherungsdatei auswählen"
+        },
+        "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
+        "lan": {
+          "auto_close_tip": "Automatisches Schließen in {{seconds}} Sekunden...",
+          "confirm_close_message": "Dateiübertragung läuft. Beim Schließen wird die Übertragung unterbrochen. Möchten Sie wirklich das Schließen erzwingen?",
+          "confirm_close_title": "Schließen bestätigen",
+          "connected": "Verbunden",
+          "connection_failed": "Verbindung fehlgeschlagen",
+          "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
+          "error": {
+            "init_failed": "Initialisierung fehlgeschlagen",
+            "no_file": "Keine Datei ausgewählt",
+            "no_ip": "IP-Adresse kann nicht abgerufen werden",
+            "send_failed": "Fehler beim Senden der Datei"
+          },
+          "force_close": "Erzwungenes Schließen",
+          "generating_qr": "QR-Code wird generiert...",
+          "noZipSelected": "Keine komprimierte Datei ausgewählt",
+          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Telefon.",
+          "selectZip": "Wählen Sie eine komprimierte Datei",
+          "sendZip": "Datenwiederherstellung beginnen",
+          "status": {
+            "completed": "Übertragung abgeschlossen",
+            "connected": "Verbunden",
+            "connecting": "Verbindung wird hergestellt...",
+            "disconnected": "Getrennt",
+            "error": "Verbindungsfehler",
+            "initializing": "Verbindung wird initialisiert...",
+            "preparing": "Übertragung wird vorbereitet...",
+            "sending": "Übertrage {{progress}}%",
+            "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
+          },
+          "title": "LAN-Übertragung",
+          "transfer_progress": "Übertragungsfortschritt"
+        },
+        "title": "Auf Telefon exportieren"
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
@@ -3782,6 +3823,12 @@
         "loadError": "Prompt-Fehler abrufen",
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
+      },
+      "protocolInstallWarning": {
+        "command": "Startbefehl",
+        "message": "Dieses MCP wurde über ein Protokoll aus einer externen Quelle installiert. Das Ausführen unbekannter Tools kann Ihren Computer schädigen.",
+        "run": "Laufen",
+        "title": "Externes MCP ausführen?"
       },
       "provider": "Anbieter",
       "providerPlaceholder": "Anbietername",

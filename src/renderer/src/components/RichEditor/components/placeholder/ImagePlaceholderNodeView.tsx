@@ -1,4 +1,4 @@
-import { Editor } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { NodeViewWrapper } from '@tiptap/react'
 import { Image as ImageIcon } from 'lucide-react'
 import React, { useCallback } from 'react'

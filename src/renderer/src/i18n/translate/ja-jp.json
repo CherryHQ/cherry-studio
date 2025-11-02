@@ -838,7 +838,7 @@
         "label": "コンテキスト",
         "tip": "コンテキストに保持する以前のメッセージの数"
       },
-      "max": "最大",
+      "max": "制限なし",
       "max_tokens": {
         "confirm": "最大トークン数",
         "confirm_content": "最大トークン数を設定すると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
@@ -1047,10 +1047,12 @@
     "clear": "クリア",
     "close": "閉じる",
     "collapse": "折りたたむ",
+    "completed": "完了",
     "confirm": "確認",
     "copied": "コピーされました",
     "copy": "コピー",
     "copy_failed": "コピーに失敗しました",
+    "current": "現在",
     "cut": "切り取り",
     "default": "デフォルト",
     "delete": "削除",
@@ -2921,15 +2923,14 @@
       },
       "description": "クリエイターのための強力なAIアシスタント",
       "downloading": "ダウンロード中...",
+      "enterprise": {
+        "title": "エンタープライズ"
+      },
       "feedback": {
         "button": "フィードバック",
         "title": "フィードバック"
       },
       "label": "について",
-      "license": {
-        "button": "ライセンス",
-        "title": "ライセンス"
-      },
       "releases": {
         "button": "リリース",
         "title": "リリースノート"
@@ -3036,6 +3037,46 @@
         "siyuan": "思源ノートにエクスポート",
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "バックアップファイルを選択"
+        },
+        "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
+        "lan": {
+          "auto_close_tip": "{{seconds}}秒後に自動的に閉じます...",
+          "confirm_close_message": "ファイル転送が進行中です。閉じると転送が中断されます。強制終了してもよろしいですか？",
+          "confirm_close_title": "閉じることを確認",
+          "connected": "接続済み",
+          "connection_failed": "接続に失敗しました",
+          "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
+          "error": {
+            "init_failed": "初期化に失敗しました",
+            "no_file": "ファイルが選択されていません",
+            "no_ip": "IPアドレスを取得できません",
+            "send_failed": "ファイルの送信に失敗しました"
+          },
+          "force_close": "強制終了",
+          "generating_qr": "QRコードを生成中...",
+          "noZipSelected": "圧縮ファイルが選択されていません",
+          "scan_qr": "携帯電話でQRコードをスキャンしてください",
+          "selectZip": "圧縮ファイルを選択",
+          "sendZip": "データの復元を開始します",
+          "status": {
+            "completed": "転送完了",
+            "connected": "接続済み",
+            "connecting": "接続中...",
+            "disconnected": "切断されました",
+            "error": "接続エラー",
+            "initializing": "接続を初期化中...",
+            "preparing": "転送準備中...",
+            "sending": "転送中 {{progress}}%",
+            "waiting_qr_scan": "QRコードをスキャンして接続してください"
+          },
+          "title": "LAN転送",
+          "transfer_progress": "転送進行"
+        },
+        "title": "スマートフォンにエクスポート"
       },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",
@@ -3782,6 +3823,12 @@
         "loadError": "プロンプト取得エラー",
         "noPromptsAvailable": "利用可能なプロンプトはありません",
         "requiredField": "必須フィールド"
+      },
+      "protocolInstallWarning": {
+        "command": "起動コマンド",
+        "message": "このMCPは外部ソースからプロトコル経由でインストールされました。不明なツールを実行すると、コンピューターに危害を及ぼす可能性があります。",
+        "run": "走る",
+        "title": "外部のMCPを実行しますか？"
       },
       "provider": "プロバイダー",
       "providerPlaceholder": "プロバイダー名",

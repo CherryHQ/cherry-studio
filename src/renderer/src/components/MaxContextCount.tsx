@@ -1,6 +1,6 @@
 import { MAX_CONTEXT_COUNT } from '@renderer/config/constant'
 import { Infinity as InfinityIcon } from 'lucide-react'
-import { CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 
 type Props = {
   maxContext: number

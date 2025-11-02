@@ -1,6 +1,7 @@
 import { Input, Modal } from 'antd'
-import { TextAreaProps } from 'antd/es/input'
-import { ReactNode, useRef, useState } from 'react'
+import type { TextAreaProps } from 'antd/es/input'
+import type { ReactNode } from 'react'
+import { useRef, useState } from 'react'
 
 import { Box } from '../Layout'
 import { TopView } from '../TopView'

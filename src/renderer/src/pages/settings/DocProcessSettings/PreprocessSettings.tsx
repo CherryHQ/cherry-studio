@@ -1,8 +1,9 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultPreprocessProvider, usePreprocessProviders } from '@renderer/hooks/usePreprocess'
-import { PreprocessProvider } from '@renderer/types'
+import type { PreprocessProvider } from '@renderer/types'
 import { Select } from 'antd'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'

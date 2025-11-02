@@ -1047,10 +1047,12 @@
     "clear": "Effacer",
     "close": "Fermer",
     "collapse": "Réduire",
+    "completed": "Terminé",
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
     "copy_failed": "Échec de la copie",
+    "current": "Actuel",
     "cut": "Couper",
     "default": "Défaut",
     "delete": "Supprimer",
@@ -2921,15 +2923,14 @@
       },
       "description": "Un assistant IA conçu pour les créateurs",
       "downloading": "Téléchargement de la mise à jour en cours...",
+      "enterprise": {
+        "title": "Entreprise"
+      },
       "feedback": {
         "button": "Faire un retour",
         "title": "Retour d'information"
       },
       "label": "À propos de nous",
-      "license": {
-        "button": "Afficher",
-        "title": "Licence"
-      },
       "releases": {
         "button": "Afficher",
         "title": "Journal des mises à jour"
@@ -3036,6 +3037,46 @@
         "siyuan": "Exporter vers Siyuan Notes",
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Sélectionner le fichier de sauvegarde"
+        },
+        "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "lan": {
+          "auto_close_tip": "Fermeture automatique dans {{seconds}} secondes...",
+          "confirm_close_message": "Le transfert de fichier est en cours. Fermer interrompra le transfert. Êtes-vous sûr de vouloir forcer la fermeture ?",
+          "confirm_close_title": "Confirmer la fermeture",
+          "connected": "Connecté",
+          "connection_failed": "Échec de la connexion",
+          "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
+          "error": {
+            "init_failed": "Échec de l'initialisation",
+            "no_file": "Aucun fichier sélectionné",
+            "no_ip": "Impossible d'obtenir l'adresse IP",
+            "send_failed": "Échec de l'envoi du fichier"
+          },
+          "force_close": "Fermer de force",
+          "generating_qr": "Génération du code QR...",
+          "noZipSelected": "Aucun fichier compressé sélectionné",
+          "scan_qr": "Veuillez scanner le code QR avec votre téléphone",
+          "selectZip": "Sélectionner le fichier compressé",
+          "sendZip": "Commencer la restauration des données",
+          "status": {
+            "completed": "Transfert terminé",
+            "connected": "Connecté",
+            "connecting": "Connexion...",
+            "disconnected": "Déconnecté",
+            "error": "Erreur de connexion",
+            "initializing": "Initialisation de la connexion...",
+            "preparing": "Préparation du transfert...",
+            "sending": "Transfert {{progress}} %",
+            "waiting_qr_scan": "Veuillez scanner le code QR pour vous connecter"
+          },
+          "title": "Transmission en réseau local",
+          "transfer_progress": "Progression du transfert"
+        },
+        "title": "Exporter vers le téléphone"
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
@@ -3782,6 +3823,12 @@
         "loadError": "Échec de la récupération des invites",
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
+      },
+      "protocolInstallWarning": {
+        "command": "Commande de démarrage",
+        "message": "Ce MCP a été installé depuis une source externe via le protocole. L'exécution d'outils inconnus peut endommager votre ordinateur.",
+        "run": "Courir",
+        "title": "Exécuter un MCP externe ?"
       },
       "provider": "Поставщик",
       "providerPlaceholder": "Название поставщика",

@@ -2,15 +2,16 @@
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
-import { CanUseTool, McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { CanUseTool, McpHttpServerConfig, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
 
-import { GetAgentSessionResponse } from '../..'
-import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import type { GetAgentSessionResponse } from '../..'
+import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -105,7 +106,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
       ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
       ANTHROPIC_MODEL: modelInfo.modelId,
-      ANTHROPIC_SMALL_FAST_MODEL: modelInfo.modelId,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
+      // TODO: support set small model in UI
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1'
     }

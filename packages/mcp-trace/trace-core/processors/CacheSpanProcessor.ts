@@ -1,7 +1,9 @@
-import { Context, trace } from '@opentelemetry/api'
-import { BatchSpanProcessor, BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import type { Context } from '@opentelemetry/api'
+import { trace } from '@opentelemetry/api'
+import type { BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
 
-import { TraceCache } from '../core/traceCache'
+import type { TraceCache } from '../core/traceCache'
 
 export class CacheBatchSpanProcessor extends BatchSpanProcessor {
   private cache: TraceCache

@@ -1,4 +1,4 @@
-import { WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 

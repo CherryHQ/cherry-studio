@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
-import { FileMetadata, isKnowledgeNoteItem, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, KnowledgeItem } from '@renderer/types'
+import { isKnowledgeNoteItem } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { AppDispatch } from '..'
+import type { AppDispatch } from '..'
 
 const logger = loggerService.withContext('knowledgeThunk')
 

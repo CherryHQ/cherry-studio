@@ -9,9 +9,10 @@ import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { useAppDispatch } from '@renderer/store'
 import { addIknowAction } from '@renderer/store/runtime'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant, AssistantsSortType, Topic } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { FC, useCallback, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,7 +37,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const { t } = useTranslation()
-  const { apiServerConfig, apiServerRunning } = useApiServer()
+  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
   const apiServerEnabled = apiServerConfig.enabled
   const { iknow, chat } = useRuntime()
   const dispatch = useAppDispatch()
@@ -99,6 +100,30 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
     [setAssistantsTabSortType]
   )
 
+  const handleAgentPress = useCallback(
+    (agentId: string) => {
+      setActiveAgentId(agentId)
+      // TODO: should allow it to be null
+      setActiveAssistant({
+        id: 'fake',
+        name: '',
+        prompt: '',
+        topics: [
+          {
+            id: 'fake',
+            assistantId: 'fake',
+            name: 'fake',
+            createdAt: '',
+            updatedAt: '',
+            messages: []
+          } as unknown as Topic
+        ],
+        type: 'chat'
+      })
+    },
+    [setActiveAgentId, setActiveAssistant]
+  )
+
   return (
     <Container className="assistants-tab" ref={containerRef}>
       {!apiServerConfig.enabled && !apiServerRunning && !iknow[ALERT_KEY] && (
@@ -113,8 +138,8 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       )}
 
-      {agentsLoading && <Spinner />}
-      {apiServerConfig.enabled && !apiServerRunning && (
+      {(agentsLoading || apiServerLoading) && <Spinner />}
+      {apiServerConfig.enabled && !apiServerLoading && !apiServerRunning && (
         <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
       )}
       {apiServerRunning && agentsError && (
@@ -126,7 +151,11 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
         />
       )}
 
-      <UnifiedAddButton onCreateAssistant={onCreateAssistant} />
+      <UnifiedAddButton
+        onCreateAssistant={onCreateAssistant}
+        setActiveAssistant={setActiveAssistant}
+        setActiveAgentId={setActiveAgentId}
+      />
 
       {assistantsTabSortType === 'tags' ? (
         <UnifiedTagGroups
@@ -142,7 +171,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           onAssistantSwitch={setActiveAssistant}
           onAssistantDelete={onDeleteAssistant}
           onAgentDelete={deleteAgent}
-          onAgentPress={setActiveAgentId}
+          onAgentPress={handleAgentPress}
           addPreset={addAssistantPreset}
           copyAssistant={copyAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}
@@ -162,7 +191,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
           onAssistantSwitch={setActiveAssistant}
           onAssistantDelete={onDeleteAssistant}
           onAgentDelete={deleteAgent}
-          onAgentPress={setActiveAgentId}
+          onAgentPress={handleAgentPress}
           addPreset={addAssistantPreset}
           copyAssistant={copyAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}
