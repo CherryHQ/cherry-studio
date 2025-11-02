@@ -1,7 +1,7 @@
 import { HStack } from '@renderer/components/Layout'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
-import { Alert, Input } from 'antd'
+import { Alert, Input, Radio } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
