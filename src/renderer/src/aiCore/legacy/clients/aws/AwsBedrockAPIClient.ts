@@ -1,7 +1,7 @@
 import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock'
 import {
   BedrockRuntimeClient,
-  BedrockRuntimeClientConfig,
+  type BedrockRuntimeClientConfig,
   ConverseCommand,
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand
