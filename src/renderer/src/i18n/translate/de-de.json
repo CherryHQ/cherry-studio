@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Bewältigen Sie komplexe Aufgaben mit verschiedenen Werkzeugen",
       "error": {
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Tägliche Gespräche und schnelle Fragen & Antworten",
         "title": "Assistent hinzufügen"
+      },
+      "option": {
+        "title": "Typ auswählen"
       },
       "topic": {
         "title": "Neues Thema erstellen"
