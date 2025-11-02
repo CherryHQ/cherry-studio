@@ -223,11 +223,25 @@ class VersionService {
       const lastRecord = this.parseVersionLine(lastLine)
       const currentVersion = app.getVersion()
 
-      if (!lastRecord || lastRecord.version !== currentVersion) {
-        logger.info(`Version changed from ${lastRecord?.version || 'unknown'} to ${currentVersion}`)
+      // Check if any meaningful field has changed (version, os, environment, packaged, mode)
+      const currentOS = this.getCurrentOS()
+      const currentEnvironment = this.getCurrentEnvironment()
+      const currentPackaged = this.getPackagedStatus()
+      const currentMode = this.getInstallMode()
+
+      const hasMeaningfulChange =
+        !lastRecord ||
+        lastRecord.version !== currentVersion ||
+        lastRecord.os !== currentOS ||
+        lastRecord.environment !== currentEnvironment ||
+        lastRecord.packaged !== currentPackaged ||
+        lastRecord.mode !== currentMode
+
+      if (hasMeaningfulChange) {
+        logger.info(`Version information changed, recording new entry`)
         this.appendVersionLine(currentLine)
       } else {
-        logger.debug(`Same version ${currentVersion}, skip recording`)
+        logger.debug(`Version information not changed, skip recording`)
       }
     } catch (error) {
       logger.error('Failed to record current version:', error as Error)
