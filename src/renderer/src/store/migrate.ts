@@ -2801,6 +2801,7 @@ const migrateConfig = {
           state.llm.settings.awsBedrock.apiKey = ''
         }
       }
+      return state
     } catch (error) {
       logger.error('migrate 170 error', error as Error)
       return state

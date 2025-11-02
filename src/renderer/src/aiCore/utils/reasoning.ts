@@ -498,6 +498,12 @@ export function getBedrockReasoningParams(assistant: Assistant, model: Model): R
   if (reasoningEffort === undefined) {
     return {}
   }
+
+  // Only apply thinking budget for Claude reasoning models
+  if (!isSupportedThinkingTokenClaudeModel(model)) {
+    return {}
+  }
+
   const budgetTokens = getAnthropicThinkingBudget(assistant, model)
   return {
     reasoningConfig: {
