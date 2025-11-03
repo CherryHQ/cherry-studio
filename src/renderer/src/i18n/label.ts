@@ -85,7 +85,8 @@ const providerKeyMap = {
   poe: 'provider.poe',
   aionly: 'provider.aionly',
   longcat: 'provider.longcat',
-  huggingface: 'provider.huggingface'
+  huggingface: 'provider.huggingface',
+  sophnet: 'provider.sophnet'
 } as const
 
 /**
@@ -238,7 +239,7 @@ const paintingsImageSizeOptionsKeyMap = {
 } as const
 
 export const getPaintingsImageSizeOptionsLabel = (key: string): string => {
-  return getLabel(paintingsImageSizeOptionsKeyMap, key)
+  return paintingsImageSizeOptionsKeyMap[key] ? getLabel(paintingsImageSizeOptionsKeyMap, key) : key
 }
 
 const paintingsQualityOptionsKeyMap = {

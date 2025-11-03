@@ -36,6 +36,7 @@ export type Assistant = {
   description?: string
   model?: Model
   defaultModel?: Model
+  // This field should be considered as not Partial and not optional in v2
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
   /** enableWebSearch 代表使用模型内置网络搜索功能 */
@@ -280,7 +281,7 @@ export type PaintingParams = {
   providerId?: string
 }
 
-export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin'
 
 export interface Painting extends PaintingParams {
   model?: string

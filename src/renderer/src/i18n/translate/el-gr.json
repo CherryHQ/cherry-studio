@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Χειριστείτε πολύπλοκες εργασίες με διάφορα εργαλεία",
       "error": {
         "failed": "Αποτυχία προσθήκης πράκτορα",
         "invalid_agent": "Μη έγκυρος Agent"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Καθημερινές συνομιλίες και γρήγορες ερωταπαντήσεις",
         "title": "Προσθήκη βοηθού"
+      },
+      "option": {
+        "title": "Επιλέξτε Τύπο"
       },
       "topic": {
         "title": "Δημιουργία νέου θέματος"
@@ -2471,12 +2476,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "Πλατφόρμα Ανοιχτής Μεγάλης Μοντέλου PH8",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Piao Yun",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "Σιδηρική Παρουσία",
+    "sophnet": "SophNet",
     "stepfun": "Βήμα Ουράς",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",

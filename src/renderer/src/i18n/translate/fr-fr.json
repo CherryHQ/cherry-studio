@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Gérez des tâches complexes avec divers outils",
       "error": {
         "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Conversations quotidiennes et Q&R rapides",
         "title": "Ajouter un assistant"
+      },
+      "option": {
+        "title": "Sélectionner le type"
       },
       "topic": {
         "title": "Nouveau sujet"
@@ -2471,12 +2476,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexité",
-    "ph8": "Plateforme ouverte de grands modèles PH8",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "Silicium Fluide",
+    "sophnet": "SophNet",
     "stepfun": "Échelon Étoile",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Ensemble",

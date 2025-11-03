@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "さまざまなツールを使って複雑なタスクを処理する",
       "error": {
         "failed": "エージェントの追加に失敗しました",
         "invalid_agent": "無効なエージェント"
@@ -547,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常会話と簡単なQ&A",
         "title": "アシスタントを追加"
+      },
+      "option": {
+        "title": "種類を選択"
       },
       "topic": {
         "title": "新しいトピック"
@@ -2477,6 +2482,7 @@
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",

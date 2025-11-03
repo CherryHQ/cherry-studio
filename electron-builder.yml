@@ -21,6 +21,8 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
   - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
@@ -161,6 +163,9 @@ releaseInfo:
     - MCP Confirmation: Added confirmation modal when activating protocol-installed MCP servers
     - Translation: Enhanced translation script with concurrency and validation
     - Electron & Vite: Updated to Electron 38 and Vite 4.0.1
+    - QR Code Generation: Optimized performance for phone LAN export
+    - Enterprise Settings: Added enterprise section in About settings
+    - Assistant/Agent Popup: Enhanced UI for adding assistants and agents
 
     Claude Code Tool Improvements:
     - GlobTool: Now counts lines instead of files in output for better clarity
@@ -188,6 +193,9 @@ releaseInfo:
     - Fixed reranker API error response capture
     - Fixed right-click paste file content into inputbar
     - Fixed minimax-m2 support in aiCore
+    - Fixed Azure embedding issues
+    - Fixed agent edit modal loading race condition
+    - Fixed debounced save cancellation on file path update
 
     <!--LANG:zh-CN-->
     v1.7.0-beta.3 新特性
@@ -218,6 +226,9 @@ releaseInfo:
     - MCP 确认：添加激活协议安装的 MCP 服务器时的确认模态框
     - 翻译：增强翻译脚本的并发和验证功能
     - Electron & Vite：更新至 Electron 38 和 Vite 4.0.1
+    - 二维码生成：优化手机局域网导出性能
+    - 企业设置：在关于设置中添加企业部分
+    - 助手/Agent 弹窗：增强添加助手和 Agent 的界面
 
     Claude Code 工具改进:
     - GlobTool：现在计算行数而不是文件数，提供更清晰的输出
@@ -245,4 +256,7 @@ releaseInfo:
     - 修复 reranker API 错误响应捕获
     - 修复右键粘贴文件内容到输入栏
     - 修复 aiCore 中的 minimax-m2 支持
+    - 修复 Azure embedding 问题
+    - 修复 Agent 编辑模态框加载竞态条件
+    - 修复文件路径更新时防抖保存取消问题
     <!--LANG:END-->

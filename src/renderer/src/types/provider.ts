@@ -134,6 +134,7 @@ export const SystemProviderIds = {
   cephalon: 'cephalon',
   lanyun: 'lanyun',
   ph8: 'ph8',
+  sophnet: 'sophnet',
   openrouter: 'openrouter',
   ollama: 'ollama',
   ovms: 'ovms',
