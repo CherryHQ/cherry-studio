@@ -4,11 +4,18 @@ import { ipcMain } from 'electron'
 
 import { windowService } from './WindowService'
 
+interface PythonServerConfig {
+  pyodideIndexURL?: string // 本地 Pyodide 路径或自定义 CDN URL
+  preloadPackages?: string[] // 预加载的包列表，避免在线加载
+  disableAutoLoad?: boolean // 是否禁用自动从代码中加载依赖
+}
+
 interface PythonExecutionRequest {
   id: string
   script: string
   context: Record<string, any>
   timeout: number
+  config?: PythonServerConfig
 }
 
 interface PythonExecutionResponse {
@@ -57,7 +64,8 @@ export class PythonService {
   public async executeScript(
     script: string,
     context: Record<string, any> = {},
-    timeout: number = 60000
+    timeout: number = 60000,
+    config?: PythonServerConfig
   ): Promise<string> {
     if (!windowService.getMainWindow()) {
       throw new Error('Main window not found')
@@ -90,7 +98,7 @@ export class PythonService {
       })
 
       // Send request to renderer
-      const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
+      const request: PythonExecutionRequest = { id: requestId, script, context, timeout, config }
       windowService.getMainWindow()?.webContents.send('python-execution-request', request)
     })
   }

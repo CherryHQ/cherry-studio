@@ -5,13 +5,21 @@ import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } fr
 
 const logger = loggerService.withContext('MCPServer:Python')
 
+interface PythonServerConfig {
+  pyodideIndexURL?: string // 本地 Pyodide 路径或自定义 CDN URL
+  preloadPackages?: string[] // 预加载的包列表，避免在线加载
+  disableAutoLoad?: boolean // 是否禁用自动从代码中加载依赖
+}
+
 /**
  * Python MCP Server for executing Python code using Pyodide
  */
 class PythonServer {
   public server: Server
+  private config: PythonServerConfig
 
-  constructor() {
+  constructor(config: PythonServerConfig = {}) {
+    this.config = config
     this.server = new Server(
       {
         name: 'python-server',
@@ -90,9 +98,11 @@ print('python code here')`,
           throw new McpError(ErrorCode.InvalidParams, 'Code parameter is required and must be a string')
         }
 
-        logger.debug('Executing Python code via Pyodide')
+        logger.debug('Executing Python code via Pyodide', {
+          hasConfig: !!this.config.pyodideIndexURL || !!this.config.preloadPackages?.length
+        })
 
-        const result = await pythonService.executeScript(code, context, timeout)
+        const result = await pythonService.executeScript(code, context, timeout, this.config)
 
         return {
           content: [

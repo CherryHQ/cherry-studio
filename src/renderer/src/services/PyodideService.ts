@@ -26,6 +26,12 @@ export interface PyodideExecutionResult {
   image?: string
 }
 
+export interface PyodideConfig {
+  pyodideIndexURL?: string // 本地 Pyodide 路径或自定义 CDN URL
+  preloadPackages?: string[] // 预加载的包列表，避免在线加载
+  disableAutoLoad?: boolean // 是否禁用自动从代码中加载依赖
+}
+
 /**
  * Pyodide Web Worker 服务
  */
@@ -36,6 +42,7 @@ class PyodideService {
   private initPromise: Promise<void> | null = null
   private initRetryCount: number = 0
   private resolvers: Map<string, { resolve: (value: any) => void; reject: (error: Error) => void }> = new Map()
+  private currentConfig: PyodideConfig | null = null
 
   private constructor() {
     // 单例模式
