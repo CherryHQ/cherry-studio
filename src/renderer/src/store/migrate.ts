@@ -2794,6 +2794,17 @@ const migrateConfig = {
       logger.error('migrate 170 error', error as Error)
       return state
     }
+  },
+  '171': (state: RootState) => {
+    try {
+      addProvider(state, 'sophnet')
+      state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
+      state.settings.defaultPaintingProvider = 'cherryin'
+      return state
+    } catch (error) {
+      logger.error('migrate 171 error', error as Error)
+      return state
+    }
   }
 }
 

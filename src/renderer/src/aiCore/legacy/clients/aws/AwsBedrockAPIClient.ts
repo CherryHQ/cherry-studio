@@ -1,6 +1,7 @@
 import { BedrockClient, ListFoundationModelsCommand, ListInferenceProfilesCommand } from '@aws-sdk/client-bedrock'
 import {
   BedrockRuntimeClient,
+  type BedrockRuntimeClientConfig,
   ConverseCommand,
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand
@@ -11,6 +12,8 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { findTokenLimit, isReasoningModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
+  getAwsBedrockApiKey,
+  getAwsBedrockAuthType,
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
@@ -75,32 +78,48 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }
 
     const region = getAwsBedrockRegion()
-    const accessKeyId = getAwsBedrockAccessKeyId()
-    const secretAccessKey = getAwsBedrockSecretAccessKey()
+    const authType = getAwsBedrockAuthType()
 
     if (!region) {
-      throw new Error('AWS region is required. Please configure AWS-Region in extra headers.')
+      throw new Error('AWS region is required. Please configure AWS region in settings.')
     }
 
-    if (!accessKeyId || !secretAccessKey) {
-      throw new Error('AWS credentials are required. Please configure AWS-Access-Key-ID and AWS-Secret-Access-Key.')
+    // Build client configuration based on auth type
+    let clientConfig: BedrockRuntimeClientConfig
+
+    if (authType === 'iam') {
+      // IAM credentials authentication
+      const accessKeyId = getAwsBedrockAccessKeyId()
+      const secretAccessKey = getAwsBedrockSecretAccessKey()
+
+      if (!accessKeyId || !secretAccessKey) {
+        throw new Error('AWS credentials are required. Please configure Access Key ID and Secret Access Key.')
+      }
+
+      clientConfig = {
+        region,
+        credentials: {
+          accessKeyId,
+          secretAccessKey
+        }
+      }
+    } else {
+      // API Key authentication
+      const awsBedrockApiKey = getAwsBedrockApiKey()
+
+      if (!awsBedrockApiKey) {
+        throw new Error('AWS Bedrock API Key is required. Please configure API Key in settings.')
+      }
+
+      clientConfig = {
+        region,
+        token: { token: awsBedrockApiKey },
+        authSchemePreference: ['httpBearerAuth']
+      }
     }
 
-    const client = new BedrockRuntimeClient({
-      region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey
-      }
-    })
-
-    const bedrockClient = new BedrockClient({
-      region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey
-      }
-    })
+    const client = new BedrockRuntimeClient(clientConfig)
+    const bedrockClient = new BedrockClient(clientConfig)
 
     this.sdkInstance = { client, bedrockClient, region }
     return this.sdkInstance
