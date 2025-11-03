@@ -2,6 +2,7 @@ import type { DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import { MdiLightbulbOn } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import {
   isAnthropicModel,
@@ -228,6 +229,15 @@ const InputbarTools = ({
         isMenu: true,
         action: () => {
           quickPhrasesButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
+        label: t('assistants.settings.reasoning_effort.label'),
+        description: '',
+        icon: <MdiLightbulbOn />,
+        isMenu: true,
+        action: () => {
+          thinkingButtonRef.current?.openQuickPanel()
         }
       },
       {
