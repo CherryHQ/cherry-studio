@@ -482,6 +482,13 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [])
 
+  // if painting.model is not set, set it to the first model in modelOptions
+  useEffect(() => {
+    if (!painting.model && modelOptions.length > 0) {
+      updatePaintingState({ model: modelOptions[0].value })
+    }
+  }, [modelOptions, painting.model, updatePaintingState])
+
   return (
     <Container>
       <Navbar>
