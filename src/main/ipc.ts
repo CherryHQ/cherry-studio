@@ -128,7 +128,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-
   const checkMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       throw new Error('Main window does not exist or has been destroyed')
