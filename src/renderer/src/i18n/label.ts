@@ -239,7 +239,7 @@ const paintingsImageSizeOptionsKeyMap = {
 } as const
 
 export const getPaintingsImageSizeOptionsLabel = (key: string): string => {
-  return getLabel(paintingsImageSizeOptionsKeyMap, key)
+  return paintingsImageSizeOptionsKeyMap[key] ? getLabel(paintingsImageSizeOptionsKeyMap, key) : key
 }
 
 const paintingsQualityOptionsKeyMap = {
