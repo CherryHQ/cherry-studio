@@ -4,7 +4,6 @@ import { ipcMain } from 'electron'
 
 import { windowService } from './WindowService'
 
-
 interface PythonExecutionRequest {
   id: string
   script: string
