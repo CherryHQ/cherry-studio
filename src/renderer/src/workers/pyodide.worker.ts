@@ -99,40 +99,62 @@ async function initializePyodide(): Promise<any> {
     error: null
   }
 
-  try {
-    // 动态加载 Pyodide 脚本
-    const pyodideModule = await import(/* @vite-ignore */ PYODIDE_MODULE_URL)
+  const PYODIDE_MODULE_URL = pyodideIndexURL.endsWith('/')
+    ? `${pyodideIndexURL}pyodide.mjs`
+    : `${pyodideIndexURL}/pyodide.mjs`
 
-    // 加载 Pyodide 并捕获标准输出/错误
-    return await pyodideModule.loadPyodide({
-      indexURL: PYODIDE_INDEX_URL,
-      stdout: (text: string) => {
-        if (output.text) {
-          output.text += `${text}\n`
-        } else {
-          output.text = `${text}\n`
+  pyodidePromise = (async () => {
+    try {
+      // 动态加载 Pyodide 脚本
+      const pyodideModule = await import(/* @vite-ignore */ PYODIDE_MODULE_URL)
+
+      // 加载 Pyodide 并捕获标准输出/错误
+      const pyodide = await pyodideModule.loadPyodide({
+        indexURL: pyodideIndexURL,
+        stdout: (text: string) => {
+          if (output.text) {
+            output.text += `${text}\n`
+          } else {
+            output.text = `${text}\n`
+          }
+        },
+        stderr: (text: string) => {
+          if (output.error) {
+            output.error += `${text}\n`
+          } else {
+            output.error = `${text}\n`
+          }
         }
-      },
-      stderr: (text: string) => {
-        if (output.error) {
-          output.error += `${text}\n`
-        } else {
-          output.error = `${text}\n`
+      })
+
+      // 预加载包（如果配置了）
+      if (preloadPackages && preloadPackages.length > 0) {
+        try {
+          await pyodide.loadPackage(preloadPackages)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          output.error = (output.error || '') + `Warning: Failed to preload some packages: ${errorMessage}\n`
         }
       }
-    })
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
 
-    // 通知主线程初始化错误
-    self.postMessage({
-      type: 'init-error',
-      error: errorMessage
-    } as WorkerResponse)
+      pyodideInstance = pyodide
+      return pyodide
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
 
-    throw error
-  }
-})()
+      // 通知主线程初始化错误
+      self.postMessage({
+        type: 'init-error',
+        error: errorMessage
+      } as WorkerResponse)
+
+      pyodidePromise = null
+      throw error
+    }
+  })()
+
+  return pyodidePromise
+}
 
 // 处理结果，确保所有类型都能安全序列化
 function processResult(result: any): any {

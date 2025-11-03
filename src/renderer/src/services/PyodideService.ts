@@ -61,11 +61,24 @@ class PyodideService {
   /**
    * 初始化 Pyodide Worker
    */
-  private async initialize(): Promise<void> {
-    if (this.initPromise) {
+  private async initialize(config?: PyodideConfig): Promise<void> {
+    // 如果配置改变了，需要重新初始化
+    const configChanged =
+      this.currentConfig !== config &&
+      (this.currentConfig?.pyodideIndexURL !== config?.pyodideIndexURL ||
+        JSON.stringify(this.currentConfig?.preloadPackages) !== JSON.stringify(config?.preloadPackages))
+
+    if (configChanged && this.worker) {
+      this.terminate()
+    }
+
+    // 更新当前配置
+    this.currentConfig = config || null
+
+    if (this.initPromise && !configChanged) {
       return this.initPromise
     }
-    if (this.worker) {
+    if (this.worker && !configChanged) {
       return Promise.resolve()
     }
     if (this.initRetryCount >= SERVICE_CONFIG.WORKER.MAX_INIT_RETRY) {
@@ -77,6 +90,14 @@ class PyodideService {
       import('../workers/pyodide.worker?worker')
         .then((WorkerModule) => {
           this.worker = new WorkerModule.default()
+
+          // 发送配置到 Worker（如果存在）
+          if (config) {
+            this.worker.postMessage({
+              type: 'configure',
+              config
+            })
+          }
 
           // 设置通用消息处理器
           this.worker.onmessage = this.handleMessage.bind(this)
@@ -158,11 +179,12 @@ class PyodideService {
   public async runScript(
     script: string,
     context: Record<string, any> = {},
-    timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN
+    timeout: number = SERVICE_CONFIG.WORKER.REQUEST_TIMEOUT.RUN,
+    config?: PyodideConfig
   ): Promise<PyodideExecutionResult> {
     // 确保Pyodide已初始化
     try {
-      await this.initialize()
+      await this.initialize(config)
     } catch (error: unknown) {
       logger.error('Pyodide initialization failed, cannot execute Python code', error as Error)
       const text = `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
@@ -198,7 +220,8 @@ class PyodideService {
         this.worker?.postMessage({
           id,
           python: script,
-          context
+          context,
+          config: config || this.currentConfig
         })
       })
 
@@ -294,6 +317,7 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
     script: string
     context: Record<string, any>
     timeout: number
+    config?: PyodideConfig
   }
 
   interface PythonExecutionResponse {
@@ -304,7 +328,7 @@ if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
 
   window.electron.ipcRenderer.on('python-execution-request', async (_, request: PythonExecutionRequest) => {
     try {
-      const { text } = await pyodideService.runScript(request.script, request.context, request.timeout)
+      const { text } = await pyodideService.runScript(request.script, request.context, request.timeout, request.config)
       const response: PythonExecutionResponse = {
         id: request.id,
         result: text
