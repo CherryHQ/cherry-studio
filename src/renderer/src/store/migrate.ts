@@ -2783,6 +2783,16 @@ const migrateConfig = {
       logger.error('migrate 169 error', error as Error)
       return state
     }
+  },
+  '170': (state: RootState) => {
+    try {
+      addProvider(state, 'sophnet')
+      state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
+      return state
+    } catch (error) {
+      logger.error('migrate 170 error', error as Error)
+      return state
+    }
   }
 }
 

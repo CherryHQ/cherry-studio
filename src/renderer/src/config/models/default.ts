@@ -27,6 +27,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   cherryin: [],
   vertexai: [],
+  sophnet: [],
   '302ai': [
     {
       id: 'deepseek-chat',
