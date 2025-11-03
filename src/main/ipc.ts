@@ -128,8 +128,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  // Initialize Python service with main window
-  pythonService.setMainWindow(mainWindow)
 
   const checkMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
