@@ -3,7 +3,7 @@ import { Flex, Tooltip, Typography } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
-import { HealthResult } from './types'
+import type { HealthResult } from './types'
 import { useHealthStatus } from './useHealthStatus'
 
 export interface HealthStatusIndicatorProps {

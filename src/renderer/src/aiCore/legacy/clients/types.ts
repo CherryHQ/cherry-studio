@@ -1,7 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
-import { Provider } from '@renderer/types'
-import {
+import type Anthropic from '@anthropic-ai/sdk'
+import type OpenAI from '@cherrystudio/openai'
+import type { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
+import type { Provider } from '@renderer/types'
+import type {
   AnthropicSdkRawChunk,
   OpenAIResponseSdkRawChunk,
   OpenAIResponseSdkRawOutput,
@@ -13,10 +14,9 @@ import {
   SdkTool,
   SdkToolCall
 } from '@renderer/types/sdk'
-import OpenAI from 'openai'
 
-import { CompletionsParams, GenericChunk } from '../middleware/schemas'
-import { CompletionsContext } from '../middleware/types'
+import type { CompletionsParams, GenericChunk } from '../middleware/schemas'
+import type { CompletionsContext } from '../middleware/types'
 
 /**
  * 原始流监听器接口

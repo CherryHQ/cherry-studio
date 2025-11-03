@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
-import { AgentEntity, Assistant } from '@renderer/types'
+import type { AgentEntity, Assistant } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 
 export type UnifiedItem = { type: 'agent'; data: AgentEntity } | { type: 'assistant'; data: Assistant }
@@ -43,9 +43,11 @@ export const useUnifiedItems = (options: UseUnifiedItemsOptions) => {
       }
     })
 
-    // Add new items (not in saved order) to the end
-    availableAgents.forEach((agent) => items.push({ type: 'agent', data: agent }))
-    availableAssistants.forEach((assistant) => items.push({ type: 'assistant', data: assistant }))
+    // Add new items (not in saved order) to the beginning
+    const newItems: UnifiedItem[] = []
+    availableAgents.forEach((agent) => newItems.push({ type: 'agent', data: agent }))
+    availableAssistants.forEach((assistant) => newItems.push({ type: 'assistant', data: assistant }))
+    items.unshift(...newItems)
 
     return items
   }, [agents, assistants, apiServerEnabled, agentsLoading, agentsError, unifiedListOrder])

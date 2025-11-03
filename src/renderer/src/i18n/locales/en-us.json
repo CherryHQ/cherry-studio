@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Handle complex tasks with various tools",
       "error": {
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
@@ -107,6 +108,50 @@
         "title": "Advanced Settings"
       },
       "essential": "Essential Settings",
+      "plugins": {
+        "available": {
+          "title": "Available Plugins"
+        },
+        "confirm": {
+          "uninstall": "Are you sure you want to uninstall this plugin?"
+        },
+        "empty": {
+          "available": "No plugins found matching your filters. Try adjusting your search or category filters."
+        },
+        "error": {
+          "install": "Failed to install plugin",
+          "load": "Failed to load plugins",
+          "uninstall": "Failed to uninstall plugin"
+        },
+        "filter": {
+          "all": "All Categories"
+        },
+        "install": "Install",
+        "installed": {
+          "empty": "No plugins installed yet. Browse available plugins to get started.",
+          "title": "Installed Plugins"
+        },
+        "installing": "Installing...",
+        "results": "{{count}} plugin(s) found",
+        "search": {
+          "placeholder": "Search plugins..."
+        },
+        "success": {
+          "install": "Plugin installed successfully",
+          "uninstall": "Plugin uninstalled successfully"
+        },
+        "tab": "Plugins",
+        "type": {
+          "agent": "Agent",
+          "agents": "Agents",
+          "all": "All",
+          "command": "Command",
+          "commands": "Commands",
+          "skills": "Skills"
+        },
+        "uninstall": "Uninstall",
+        "uninstalling": "Uninstalling..."
+      },
       "prompt": "Prompt Settings",
       "tooling": {
         "mcp": {
@@ -190,6 +235,39 @@
         "title": "Pre-approved tools",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Allow tool request",
+        "denyRequest": "Deny tool request",
+        "hideDetails": "Hide tool details",
+        "runWithOptions": "Run with additional options",
+        "showDetails": "Show tool details"
+      },
+      "button": {
+        "cancel": "Cancel",
+        "run": "Run"
+      },
+      "confirmation": "Are you sure you want to run this Claude tool?",
+      "defaultDenyMessage": "User denied permission for this tool.",
+      "defaultDescription": "Executes code or system actions in your environment. Make sure the command looks safe before running it.",
+      "error": {
+        "sendFailed": "Failed to send your decision. Please try again."
+      },
+      "expired": "Expired",
+      "inputPreview": "Tool input preview",
+      "pending": "Pending ({{seconds}}s)",
+      "permissionExpired": "Permission request expired. Waiting for new instructions...",
+      "requiresElevatedPermissions": "This tool requires elevated permissions.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Approving may update multiple session permissions if you chose to always allow this tool.",
+        "permissionUpdateSingle": "Approving may update your session permissions if you chose to always allow this tool."
+      },
+      "toast": {
+        "denied": "Tool request was denied.",
+        "timeout": "Tool request timed out before receiving approval."
+      },
+      "waiting": "Waiting for tool permission decision..."
     },
     "type": {
       "label": "Agent Type",
@@ -470,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Daily conversations and quick Q&A",
         "title": "Add Assistant"
+      },
+      "option": {
+        "title": "Select Type"
       },
       "topic": {
         "title": "New Topic"
@@ -761,7 +843,7 @@
         "label": "Context",
         "tip": "The number of previous messages to keep in the context."
       },
-      "max": "Max",
+      "max": "Unlimited",
       "max_tokens": {
         "confirm": "Set max tokens",
         "confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
@@ -952,6 +1034,7 @@
     }
   },
   "common": {
+    "about": "About",
     "add": "Add",
     "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
@@ -969,10 +1052,12 @@
     "clear": "Clear",
     "close": "Close",
     "collapse": "Collapse",
+    "completed": "Completed",
     "confirm": "Confirm",
     "copied": "Copied",
     "copy": "Copy",
     "copy_failed": "Copy failed",
+    "current": "Current",
     "cut": "Cut",
     "default": "Default",
     "delete": "Delete",
@@ -1804,6 +1889,7 @@
     "title": "MinApp"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "Baichuan",
     "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
@@ -2297,6 +2383,32 @@
       "seed_tip": "Controls upscaling randomness"
     }
   },
+  "plugins": {
+    "actions": "Actions",
+    "agents": "Agents",
+    "all_categories": "All Categories",
+    "all_types": "All",
+    "category": "Category",
+    "commands": "Commands",
+    "confirm_uninstall": "Are you sure you want to uninstall {{name}}?",
+    "install": "Install",
+    "install_plugins_from_browser": "Browse available plugins to get started",
+    "installing": "Installing...",
+    "name": "Name",
+    "no_description": "No description available",
+    "no_installed_plugins": "No plugins installed yet",
+    "no_results": "No plugins found",
+    "search_placeholder": "Search plugins...",
+    "showing_results": "Showing {{count}} plugin",
+    "showing_results_one": "Showing {{count}} plugin",
+    "showing_results_other": "Showing {{count}} plugins",
+    "showing_results_plural": "Showing {{count}} plugins",
+    "skills": "Skills",
+    "try_different_search": "Try adjusting your search or category filters",
+    "type": "Type",
+    "uninstall": "Uninstall",
+    "uninstalling": "Uninstalling..."
+  },
   "preview": {
     "copy": {
       "image": "Copy as image"
@@ -2343,12 +2455,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
     "hyperbolic": "Hyperbolic",
     "infini": "Infini",
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "longcat": "LongCat AI",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -2368,6 +2482,7 @@
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
@@ -2814,15 +2929,14 @@
       },
       "description": "A powerful AI assistant for producer",
       "downloading": "Downloading...",
+      "enterprise": {
+        "title": "Enterprise"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "About & Feedback",
-      "license": {
-        "button": "License",
-        "title": "License"
-      },
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
@@ -2929,6 +3043,46 @@
         "siyuan": "Export to SiYuan Note",
         "title": "Export Menu Settings",
         "yuque": "Export to Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Select backup file"
+        },
+        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "lan": {
+          "auto_close_tip": "Auto-closing in {{seconds}} seconds...",
+          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
+          "confirm_close_title": "Confirm Close",
+          "connected": "Connected",
+          "connection_failed": "Connection failed",
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "error": {
+            "init_failed": "Initialization failed",
+            "no_file": "No file selected",
+            "no_ip": "Unable to get IP address",
+            "send_failed": "Failed to send file"
+          },
+          "force_close": "Force Close",
+          "generating_qr": "Generating QR code...",
+          "noZipSelected": "No compressed file selected",
+          "scan_qr": "Please scan QR code with your phone",
+          "selectZip": "Select a compressed file",
+          "sendZip": "Begin data recovery",
+          "status": {
+            "completed": "Transfer completed",
+            "connected": "Connected",
+            "connecting": "Connecting...",
+            "disconnected": "Disconnected",
+            "error": "Connection error",
+            "initializing": "Initializing connection...",
+            "preparing": "Preparing transfer...",
+            "sending": "Transferring {{progress}}%",
+            "waiting_qr_scan": "Please scan QR code to connect"
+          },
+          "title": "LAN transmission",
+          "transfer_progress": "Transfer progress"
+        },
+        "title": "Export to phone"
       },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
@@ -3676,6 +3830,12 @@
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
       },
+      "protocolInstallWarning": {
+        "command": "Startup command",
+        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
+        "run": "Run",
+        "title": "Run external MCP?"
+      },
       "provider": "Provider",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
@@ -4041,7 +4201,6 @@
       },
       "anthropic_api_host": "Anthropic API Host",
       "anthropic_api_host_preview": "Anthropic preview: {{url}}",
-      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores v1, ending with # forces use of input address.",
       "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
       "api": {
         "key": {
@@ -4086,10 +4245,11 @@
         "url": {
           "preview": "Preview: {{url}}",
           "reset": "Reset",
-          "tip": "Ending with / ignores v1, ending with # forces use of input address"
+          "tip": "ending with # forces use of input address"
         }
       },
       "api_host": "API Host",
+      "api_host_no_valid": "API address is invalid",
       "api_host_preview": "Preview: {{url}}",
       "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
       "api_key": {
@@ -4229,7 +4389,7 @@
         "system": "System Proxy",
         "title": "Proxy Mode"
       },
-      "tip": "[to be translated]:支持模糊匹配(*.test.com,192.168.0.0/16)"
+      "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",

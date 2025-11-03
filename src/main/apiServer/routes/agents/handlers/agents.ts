@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
-import { ListAgentsResponse, type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
-import { Request, Response } from 'express'
+import type { ListAgentsResponse } from '@types'
+import { type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
+import type { Request, Response } from 'express'
 
 import type { ValidationRequest } from '../validators/zodValidator'
 
@@ -132,6 +133,20 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
  *           minimum: 0
  *           default: 0
  *         description: Number of agents to skip
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [created_at, updated_at, name]
+ *           default: created_at
+ *         description: Field to sort by
+ *       - in: query
+ *         name: orderBy
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order (asc = ascending, desc = descending)
  *     responses:
  *       200:
  *         description: List of agents
@@ -170,10 +185,12 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
+    const sortBy = (req.query.sortBy as 'created_at' | 'updated_at' | 'name') || 'created_at'
+    const orderBy = (req.query.orderBy as 'asc' | 'desc') || 'desc'
 
-    logger.debug('Listing agents', { limit, offset })
+    logger.debug('Listing agents', { limit, offset, sortBy, orderBy })
 
-    const result = await agentService.listAgents({ limit, offset })
+    const result = await agentService.listAgents({ limit, offset, sortBy, orderBy })
 
     logger.info('Agents listed', {
       returned: result.agents.length,

@@ -3,7 +3,8 @@ import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappCon
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { Modal } from 'antd'
-import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
+import type { PropsWithChildren } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Box } from '../Layout'
 import { getToastUtilities } from './toast'

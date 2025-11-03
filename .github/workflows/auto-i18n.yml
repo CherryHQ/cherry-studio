@@ -1,9 +1,10 @@
 name: Auto I18N
 
 env:
-  API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
-  MODEL: ${{ vars.AUTO_I18N_MODEL || 'deepseek/deepseek-v3.1'}}
-  BASE_URL: ${{ vars.AUTO_I18N_BASE_URL || 'https://api.ppinfra.com/openai'}}
+  TRANSLATION_API_KEY: ${{ secrets.TRANSLATE_API_KEY }}
+  TRANSLATION_MODEL: ${{ vars.AUTO_I18N_MODEL || 'deepseek/deepseek-v3.1'}}
+  TRANSLATION_BASE_URL: ${{ vars.AUTO_I18N_BASE_URL || 'https://api.ppinfra.com/openai'}}
+  TRANSLATION_BASE_LOCALE: ${{ vars.AUTO_I18N_BASE_LOCALE || 'en-us'}}
 
 on:
   pull_request:
@@ -13,7 +14,7 @@ on:
 jobs:
   auto-i18n:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.head.repo.full_name == 'CherryHQ/cherry-studio'
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == 'CherryHQ/cherry-studio'
     name: Auto I18N
     permissions:
       contents: write
@@ -26,23 +27,24 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
 
       - name: 📦 Setting Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 20
+          package-manager-cache: false
 
       - name: 📦 Install dependencies in isolated directory
         run: |
           # 在临时目录安装依赖
           mkdir -p /tmp/translation-deps
           cd /tmp/translation-deps
-          echo '{"dependencies": {"openai": "^5.12.2", "cli-progress": "^3.12.0", "tsx": "^4.20.3", "@biomejs/biome": "2.2.4"}}' > package.json
+          echo '{"dependencies": {"@cherrystudio/openai": "^6.5.0", "cli-progress": "^3.12.0", "tsx": "^4.20.3", "@biomejs/biome": "2.2.4"}}' > package.json
           npm install --no-package-lock
 
           # 设置 NODE_PATH 让项目能找到这些依赖
           echo "NODE_PATH=/tmp/translation-deps/node_modules" >> $GITHUB_ENV
 
       - name: 🏃‍♀️ Translate
-        run: npx tsx scripts/auto-translate-i18n.ts
+        run: npx tsx scripts/sync-i18n.ts && npx tsx scripts/auto-translate-i18n.ts
 
       - name: 🔍 Format
         run: cd /tmp/translation-deps && npx biome format --config-path /home/runner/work/cherry-studio/cherry-studio/biome.jsonc --write /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/

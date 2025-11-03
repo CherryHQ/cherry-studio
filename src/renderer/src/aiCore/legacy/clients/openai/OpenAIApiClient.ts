@@ -1,3 +1,10 @@
+import type { AzureOpenAI } from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
+import type {
+  ChatCompletionContentPart,
+  ChatCompletionContentPartRefusal,
+  ChatCompletionTool
+} from '@cherrystudio/openai/resources'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
@@ -12,6 +19,7 @@ import {
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIDeepResearchModel,
   isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
@@ -41,25 +49,28 @@ import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
-import {
+import type {
   Assistant,
-  EFFORT_RATIO,
-  FileTypes,
-  isSystemProvider,
-  isTranslateAssistant,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
   OpenAIServiceTier,
   Provider,
+  ToolCallResponse
+} from '@renderer/types'
+import {
+  EFFORT_RATIO,
+  FileTypes,
+  isSystemProvider,
+  isTranslateAssistant,
   SystemProviderIds,
-  ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import type { TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   OpenAIExtraBody,
   OpenAIModality,
   OpenAISdkMessageParam,
@@ -78,11 +89,9 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { t } from 'i18next'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 
-import { GenericChunk } from '../../middleware/schemas'
-import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
+import type { GenericChunk } from '../../middleware/schemas'
+import type { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 const logger = loggerService.withContext('OpenAIApiClient')
@@ -123,6 +132,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     if (!isReasoningModel(model)) {
       return {}
+    }
+
+    if (isOpenAIDeepResearchModel(model)) {
+      return {
+        reasoning_effort: 'medium'
+      }
     }
 
     const reasoningEffort = assistant?.settings?.reasoning_effort

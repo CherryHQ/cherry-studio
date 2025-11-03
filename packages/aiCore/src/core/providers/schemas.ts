@@ -7,12 +7,14 @@ import { createAzure } from '@ai-sdk/azure'
 import { type AzureOpenAIProviderSettings } from '@ai-sdk/azure'
 import { createDeepSeek } from '@ai-sdk/deepseek'
 import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { createHuggingFace } from '@ai-sdk/huggingface'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
-import { LanguageModelV2 } from '@ai-sdk/provider'
+import type { LanguageModelV2 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { customProvider, Provider } from 'ai'
+import type { Provider } from 'ai'
+import { customProvider } from 'ai'
 import * as z from 'zod'
 
 /**
@@ -28,7 +30,8 @@ export const baseProviderIds = [
   'azure',
   'azure-responses',
   'deepseek',
-  'openrouter'
+  'openrouter',
+  'huggingface'
 ] as const
 
 /**
@@ -131,6 +134,12 @@ export const baseProviders = [
     id: 'openrouter',
     name: 'OpenRouter',
     creator: createOpenRouter,
+    supportsImageGeneration: true
+  },
+  {
+    id: 'huggingface',
+    name: 'HuggingFace',
+    creator: createHuggingFace,
     supportsImageGeneration: true
   }
 ] as const satisfies BaseProvider[]

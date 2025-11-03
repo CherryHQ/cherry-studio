@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
-import {
+import type Anthropic from '@anthropic-ai/sdk'
+import type {
   Message,
   MessageCreateParams,
   MessageParam,
@@ -7,11 +7,15 @@ import {
   ToolUnion,
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
-import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import type AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
-import {
+import type { AzureOpenAI } from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
+import type { ChatCompletionContentPartImage } from '@cherrystudio/openai/resources'
+import type { Stream } from '@cherrystudio/openai/streaming'
+import type {
   Content,
   CreateChatParameters,
   FunctionCall,
@@ -21,11 +25,8 @@ import {
   SendMessageParameters,
   Tool
 } from '@google/genai'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { ChatCompletionContentPartImage } from 'openai/resources'
-import { Stream } from 'openai/streaming'
 
-import { EndpointType } from './index'
+import type { EndpointType } from './index'
 
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | AnthropicVertex | GoogleGenAI | AwsBedrockSdkInstance
 export type SdkParams =

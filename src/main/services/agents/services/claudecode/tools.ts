@@ -1,4 +1,4 @@
-import { Tool } from '@types'
+import type { Tool } from '@types'
 
 // https://docs.anthropic.com/en/docs/claude-code/settings#tools-available-to-claude
 export const builtinTools: Tool[] = [

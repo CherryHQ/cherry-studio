@@ -10,7 +10,7 @@ import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { AgentSessionEntity } from '@renderer/types'
+import type { AgentSessionEntity } from '@renderer/types'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -23,7 +23,8 @@ import {
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Tooltip } from 'antd'
 import { MenuIcon, XIcon } from 'lucide-react'
-import React, { FC, memo, startTransition, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton, StatusIndicator } from './shared'

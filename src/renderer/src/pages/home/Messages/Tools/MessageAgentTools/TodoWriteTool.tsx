@@ -2,11 +2,7 @@ import { AccordionItem, Card, CardBody, Chip } from '@heroui/react'
 import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
 
 import { ToolTitle } from './GenericTools'
-import type {
-  TodoItem,
-  TodoWriteToolInput as TodoWriteToolInputType,
-  TodoWriteToolOutput as TodoWriteToolOutputType
-} from './types'
+import type { TodoItem, TodoWriteToolInput as TodoWriteToolInputType } from './types'
 import { AgentToolsType } from './types'
 
 const getStatusConfig = (status: TodoItem['status']) => {
@@ -34,7 +30,7 @@ const getStatusConfig = (status: TodoItem['status']) => {
   }
 }
 
-export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType; output?: TodoWriteToolOutputType }) {
+export function TodoWriteTool({ input }: { input: TodoWriteToolInputType }) {
   const doneCount = input.todos.filter((todo) => todo.status === 'completed').length
   return (
     <AccordionItem
@@ -72,7 +68,6 @@ export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType
           )
         })}
       </div>
-      {output}
     </AccordionItem>
   )
 }

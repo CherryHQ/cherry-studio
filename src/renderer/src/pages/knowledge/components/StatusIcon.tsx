@@ -1,8 +1,9 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
+import type { KnowledgeBase, ProcessingStatus } from '@renderer/types'
 import { Progress, Tooltip } from 'antd'
-import React, { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

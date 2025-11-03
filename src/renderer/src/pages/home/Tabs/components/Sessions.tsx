@@ -1,6 +1,6 @@
 import { Alert, Spinner } from '@heroui/react'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
@@ -10,7 +10,6 @@ import {
   setActiveTopicOrSessionAction,
   setSessionWaitingAction
 } from '@renderer/store/runtime'
-import { CreateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { motion } from 'framer-motion'
 import { memo, useCallback, useEffect } from 'react'
@@ -28,11 +27,11 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { agent } = useAgent(agentId)
-  const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
+  const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -41,19 +40,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     },
     [dispatch]
   )
-
-  const handleCreateSession = useCallback(async () => {
-    if (!agent) return
-    const session = {
-      ...agent,
-      id: undefined,
-      name: t('common.unnamed')
-    } satisfies CreateSessionForm
-    const created = await createSession(session)
-    if (created) {
-      dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
-    }
-  }, [agent, agentId, createSession, dispatch, t])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -111,7 +97,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
 
   return (
     <ListContainer className="sessions-tab">
-      <AddButton onPress={handleCreateSession} className="mb-2">
+      <AddButton onPress={createDefaultSession} className="mb-2" isDisabled={creatingSession}>
         {t('agent.session.add.title')}
       </AddButton>
       {/* h-9 */}

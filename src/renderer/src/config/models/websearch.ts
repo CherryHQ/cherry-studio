@@ -1,7 +1,9 @@
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
+import { isGeminiProvider, isNewApiProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '../providers'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'
 import { isPureGenerateImageModel, isTextToImageModel } from './vision'
@@ -26,6 +28,22 @@ export const PERPLEXITY_SEARCH_MODELS = [
   'sonar-deep-research'
 ]
 
+const OPENAI_DEEP_RESEARCH_MODEL_REGEX = /deep[-_]?research/
+
+export function isOpenAIDeepResearchModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const providerId = model.provider
+  if (providerId !== 'openai' && providerId !== 'openai-chat') {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return OPENAI_DEEP_RESEARCH_MODEL_REGEX.test(modelId)
+}
+
 export function isWebSearchModel(model: Model): boolean {
   if (
     !model ||
@@ -49,12 +67,16 @@ export function isWebSearchModel(model: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // 不管哪个供应商都判断了
-  if (isAnthropicModel(model)) {
+  // bedrock和vertex不支持
+  if (
+    isAnthropicModel(model) &&
+    (provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
+  ) {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }
 
-  if (provider.type === 'openai-response') {
+  // TODO: 当其他供应商采用Response端点时，这个地方逻辑需要改进
+  if (isOpenAIProvider(provider)) {
     if (isOpenAIWebSearchModel(model)) {
       return true
     }
@@ -62,11 +84,11 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  if (provider.id === 'perplexity') {
+  if (provider.id === SystemProviderIds.perplexity) {
     return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
-  if (provider.id === 'aihubmix') {
+  if (provider.id === SystemProviderIds.aihubmix) {
     // modelId 不以-search结尾
     if (!modelId.endsWith('-search') && GEMINI_SEARCH_REGEX.test(modelId)) {
       return true
@@ -79,13 +101,13 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  if (provider?.type === 'openai') {
+  if (isOpenAICompatibleProvider(provider) || isNewApiProvider(provider)) {
     if (GEMINI_SEARCH_REGEX.test(modelId) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
-  if (provider.id === 'gemini' || provider?.type === 'gemini' || provider.type === 'vertexai') {
+  if (isGeminiProvider(provider) || provider.id === SystemProviderIds.vertexai) {
     return GEMINI_SEARCH_REGEX.test(modelId)
   }
 

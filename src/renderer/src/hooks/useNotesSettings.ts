@@ -1,11 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  NotesSettings,
-  selectNotesPath,
-  selectNotesSettings,
-  setNotesPath,
-  updateNotesSettings
-} from '@renderer/store/note'
+import type { NotesSettings } from '@renderer/store/note'
+import { selectNotesPath, selectNotesSettings, setNotesPath, updateNotesSettings } from '@renderer/store/note'
 
 export const useNotesSettings = () => {
   const dispatch = useAppDispatch()

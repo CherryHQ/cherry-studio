@@ -3,22 +3,24 @@ import '@xyflow/react/dist/style.css'
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo, getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import type { Edge, Node, NodeTypes } from '@xyflow/react'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
-import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
+import { Position, useEdgesState, useNodesState } from '@xyflow/react'
 import { Avatar, Spin, Tooltip } from 'antd'
 import { isEqual } from 'lodash'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -49,6 +51,7 @@ const TooltipFooter = styled.div`
 `
 
 // 自定义节点组件
+// FIXME: no any plz...
 const CustomNode: FC<{ data: any }> = ({ data }) => {
   const { t } = useTranslation()
   const { setTimeoutTimer } = useTimer()
@@ -87,7 +90,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
     if (data.modelInfo) {
       avatar = <ModelAvatar model={data.modelInfo} size={32} />
     } else if (data.modelId) {
-      const modelLogo = getModelLogo(data.modelId)
+      const modelLogo = getModelLogo(data.modelInfo) ?? getModelLogoById(data.modelId)
       avatar = (
         <Avatar
           src={modelLogo}
@@ -181,6 +184,7 @@ interface ChatFlowHistoryProps {
 }
 
 // 定义节点和边的类型
+// FIXME: No any plz
 type FlowNode = Node<any>
 type FlowEdge = Edge<any>
 
@@ -202,6 +206,7 @@ const defaultEdgeOptions = {
 
 const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const { t } = useTranslation()
+  // FIXME: no any plz
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
@@ -408,6 +413,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
         const assistantNodeId = `orphan-assistant-${aMsg.id}`
 
         // 获取模型数据
+        // FIXME: No any plz
         const aMsgAny = aMsg as any
 
         // 获取模型名称

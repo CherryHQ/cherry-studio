@@ -1,4 +1,5 @@
-import { Button, ButtonProps, cn } from '@heroui/react'
+import type { ButtonProps } from '@heroui/react'
+import { Button, cn } from '@heroui/react'
 import { PlusIcon } from 'lucide-react'
 
 const AddButton = ({ children, className, ...props }: ButtonProps) => {

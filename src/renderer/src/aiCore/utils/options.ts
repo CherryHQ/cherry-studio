@@ -2,15 +2,13 @@ import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-c
 import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
+import type { Assistant, Model, Provider } from '@renderer/types'
 import {
-  Assistant,
   GroqServiceTiers,
   isGroqServiceTier,
   isOpenAIServiceTier,
   isTranslateAssistant,
-  Model,
   OpenAIServiceTiers,
-  Provider,
   SystemProviderIds
 } from '@renderer/types'
 import { t } from 'i18next'
@@ -90,7 +88,9 @@ export function buildProviderOptions(
           serviceTier: serviceTierSetting
         }
         break
-
+      case 'huggingface':
+        providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
+        break
       case 'anthropic':
         providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
         break

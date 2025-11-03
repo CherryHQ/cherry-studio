@@ -1,7 +1,8 @@
-import { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 
 import { MessageAgentTools } from './MessageAgentTools'
+import { AgentToolsType } from './MessageAgentTools/types'
 import { MessageKnowledgeSearchToolTitle } from './MessageKnowledgeSearch'
 import { MessageMemorySearchToolTitle } from './MessageMemorySearch'
 import { MessageWebSearchToolTitle } from './MessageWebSearch'
@@ -9,27 +10,12 @@ import { MessageWebSearchToolTitle } from './MessageWebSearch'
 interface Props {
   block: ToolMessageBlock
 }
-const prefix = 'builtin_'
-const agentPrefix = 'mcp__'
-const agentTools = [
-  'Read',
-  'Task',
-  'Bash',
-  'Search',
-  'Glob',
-  'TodoWrite',
-  'WebSearch',
-  'Grep',
-  'Write',
-  'WebFetch',
-  'Edit',
-  'MultiEdit',
-  'BashOutput',
-  'NotebookEdit',
-  'ExitPlanMode'
-]
-const isAgentTool = (toolName: string) => {
-  if (agentTools.includes(toolName) || toolName.startsWith(agentPrefix)) {
+const builtinToolsPrefix = 'builtin_'
+const agentMcpToolsPrefix = 'mcp__'
+const agentTools = Object.values(AgentToolsType)
+
+const isAgentTool = (toolName: AgentToolsType) => {
+  if (agentTools.includes(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
     return true
   }
   return false
@@ -38,8 +24,8 @@ const isAgentTool = (toolName: string) => {
 const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null => {
   let toolName = toolResponse.tool.name
   const toolType = toolResponse.tool.type
-  if (toolName.startsWith(prefix)) {
-    toolName = toolName.slice(prefix.length)
+  if (toolName.startsWith(builtinToolsPrefix)) {
+    toolName = toolName.slice(builtinToolsPrefix.length)
     switch (toolName) {
       case 'web_search':
       case 'web_search_preview':
@@ -51,7 +37,7 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
       default:
         return null
     }
-  } else if (isAgentTool(toolName)) {
+  } else if (isAgentTool(toolName as AgentToolsType)) {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
   return null

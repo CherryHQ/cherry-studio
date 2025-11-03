@@ -8,20 +8,31 @@ import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutp
 import { AgentToolsType } from './types'
 
 export function ReadTool({ input, output }: { input: ReadToolInputType; output?: ReadToolOutputType }) {
+  // 移除 system-reminder 标签及其内容的辅助函数
+  const removeSystemReminderTags = (text: string): string => {
+    // 使用正则表达式匹配 <system-reminder> 标签及其内容，包括换行符
+    return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')
+  }
+
   // 将 output 统一转换为字符串
   const outputString = useMemo(() => {
     if (!output) return null
 
+    let processedOutput: string
+
     // 如果是 TextOutput[] 类型，提取所有 text 内容
     if (Array.isArray(output)) {
-      return output
+      processedOutput = output
         .filter((item): item is TextOutput => item.type === 'text')
-        .map((item) => item.text)
+        .map((item) => removeSystemReminderTags(item.text))
         .join('')
+    } else {
+      // 如果是字符串，直接使用
+      processedOutput = output
     }
 
-    // 如果是字符串，直接返回
-    return output
+    // 移除 system-reminder 标签及其内容
+    return removeSystemReminderTags(processedOutput)
   }, [output])
 
   // 如果有输出，计算统计信息

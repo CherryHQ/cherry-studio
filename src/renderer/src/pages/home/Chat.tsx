@@ -1,10 +1,12 @@
 import { Alert } from '@heroui/react'
 import { loggerService } from '@logger'
-import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import type { ContentSearchRef } from '@renderer/components/ContentSearch'
+import { ContentSearch } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -13,12 +15,13 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useCallback, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -52,6 +55,8 @@ const Chat: FC<Props> = (props) => {
   const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
   const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
   const { apiServer } = useSettings()
+  const sessionAgentId = activeTopicOrSession === 'session' ? activeAgentId : null
+  const { createDefaultSession } = useCreateDefaultSession(sessionAgentId)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -89,6 +94,21 @@ const Chat: FC<Props> = (props) => {
       updateTopic(updatedTopic as Topic)
     }
   })
+
+  useShortcut(
+    'new_topic',
+    () => {
+      if (activeTopicOrSession !== 'session' || !activeAgentId) {
+        return
+      }
+      void createDefaultSession()
+    },
+    {
+      enabled: activeTopicOrSession === 'session',
+      preventDefault: true,
+      enableOnFormTags: true
+    }
+  )
 
   const contentSearchFilter: NodeFilter = {
     acceptNode(node) {

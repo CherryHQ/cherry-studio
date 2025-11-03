@@ -1,8 +1,11 @@
-import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
+import type { DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { MdiLightbulbOn } from '@renderer/components/Icons'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import {
+  isAnthropicModel,
   isGeminiModel,
   isGenerateImageModel,
   isMandatoryWebSearchModel,
@@ -18,11 +21,13 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
-import { FileType, FileTypes, KnowledgeBase, Model } from '@renderer/types'
+import type { FileType, KnowledgeBase, Model } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
+import type { InputBarToolType } from '@renderer/types/chat'
 import { classNames } from '@renderer/utils'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { Divider, Dropdown, Tooltip } from 'antd'
-import { ItemType } from 'antd/es/menu/interface'
+import type { ItemType } from 'antd/es/menu/interface'
 import {
   AtSign,
   Check,
@@ -39,21 +44,30 @@ import {
   Paperclip,
   Zap
 } from 'lucide-react'
-import { Dispatch, ReactNode, SetStateAction, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
+import { useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
+import type { AttachmentButtonRef } from './AttachmentButton'
+import AttachmentButton from './AttachmentButton'
 import GenerateImageButton from './GenerateImageButton'
-import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
-import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
-import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
+import type { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
+import KnowledgeBaseButton from './KnowledgeBaseButton'
+import type { MCPToolsButtonRef } from './MCPToolsButton'
+import MCPToolsButton from './MCPToolsButton'
+import type { MentionModelsButtonRef } from './MentionModelsButton'
+import MentionModelsButton from './MentionModelsButton'
 import NewContextButton from './NewContextButton'
-import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
-import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
-import UrlContextButton, { UrlContextButtonRef } from './UrlContextbutton'
-import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
+import type { QuickPhrasesButtonRef } from './QuickPhrasesButton'
+import QuickPhrasesButton from './QuickPhrasesButton'
+import type { ThinkingButtonRef } from './ThinkingButton'
+import ThinkingButton from './ThinkingButton'
+import type { UrlContextButtonRef } from './UrlContextbutton'
+import UrlContextButton from './UrlContextbutton'
+import type { WebSearchButtonRef } from './WebSearchButton'
+import WebSearchButton from './WebSearchButton'
 
 const logger = loggerService.withContext('InputbarTools')
 
@@ -85,7 +99,7 @@ export interface InputbarToolsProps {
 }
 
 interface ToolButtonConfig {
-  key: string
+  key: InputBarToolType
   component: ReactNode
   condition?: boolean
   visible?: boolean
@@ -184,7 +198,7 @@ const InputbarTools = ({
   const clearTopicShortcut = useShortcutDisplay('clear_topic')
 
   const toggleToolVisibility = useCallback(
-    (toolKey: string, isVisible: boolean | undefined) => {
+    (toolKey: InputBarToolType, isVisible: boolean | undefined) => {
       const newToolOrder = {
         visible: [...toolOrder.visible],
         hidden: [...toolOrder.hidden]
@@ -218,6 +232,15 @@ const InputbarTools = ({
         }
       },
       {
+        label: t('assistants.settings.reasoning_effort.label'),
+        description: '',
+        icon: <MdiLightbulbOn />,
+        isMenu: true,
+        action: () => {
+          thinkingButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
         label: t('assistants.presets.edit.model.select.title'),
         description: '',
         icon: <AtSign />,
@@ -232,6 +255,7 @@ const InputbarTools = ({
         icon: <FileSearch />,
         isMenu: true,
         disabled: files.length > 0,
+        hidden: !showKnowledgeBaseButton,
         action: () => {
           knowledgeBaseButtonRef.current?.openQuickPanel()
         }
@@ -299,7 +323,7 @@ const InputbarTools = ({
           translate()
         }
       }
-    ]
+    ] satisfies QuickPanelListItem[]
   }
 
   const handleDragEnd = (result: DropResult) => {
@@ -383,7 +407,9 @@ const InputbarTools = ({
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} />,
-        condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
+        condition:
+          (isGeminiModel(model) || isAnthropicModel(model)) &&
+          (isSupportUrlContextProvider(getProviderByModel(model)) || model.endpoint_type === 'gemini')
       },
       {
         key: 'knowledge_base',

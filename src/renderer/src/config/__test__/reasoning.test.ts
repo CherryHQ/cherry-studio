@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { isDoubaoSeedAfter251015, isDoubaoThinkingAutoModel } from '../models/reasoning'
+import { isDoubaoSeedAfter251015, isDoubaoThinkingAutoModel, isLingReasoningModel } from '../models/reasoning'
+
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
 
 // FIXME: Idk why it's imported. Maybe circular dependency somewhere
 vi.mock('@renderer/services/AssistantService.ts', () => ({
@@ -161,6 +171,63 @@ describe('Doubao Models', () => {
           group: ''
         })
       ).toBe(false)
+    })
+  })
+})
+describe('Ling Models', () => {
+  describe('isLingReasoningModel', () => {
+    it('should return false for ling variants', () => {
+      expect(
+        isLingReasoningModel({
+          id: 'ling-1t',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isLingReasoningModel({
+          id: 'ling-flash-2.0',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isLingReasoningModel({
+          id: 'ling-mini-2.0',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+    })
+
+    it('should return true for ring variants', () => {
+      expect(
+        isLingReasoningModel({
+          id: 'ring-1t',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isLingReasoningModel({
+          id: 'ring-flash-2.0',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isLingReasoningModel({
+          id: 'ring-mini-2.0',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
     })
   })
 })

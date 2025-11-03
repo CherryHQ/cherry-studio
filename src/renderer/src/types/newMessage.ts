@@ -1,5 +1,5 @@
+import type { CompletionUsage } from '@cherrystudio/openai/resources'
 import type { ProviderMetadata } from 'ai'
-import type { CompletionUsage } from 'openai/resources'
 
 import type {
   Assistant,
@@ -17,7 +17,7 @@ import type {
   WebSearchResponse,
   WebSearchSource
 } from '.'
-import { SerializedError } from './error'
+import type { SerializedError } from './error'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
