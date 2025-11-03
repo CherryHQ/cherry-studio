@@ -1,8 +1,8 @@
 import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
-import { ResponseInput } from '@cherrystudio/openai/resources/responses/responses'
+import type { ResponseInput } from '@cherrystudio/openai/resources/responses/responses'
 import { loggerService } from '@logger'
-import { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
-import { CompletionsContext } from '@renderer/aiCore/legacy/middleware/types'
+import type { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
+import type { CompletionsContext } from '@renderer/aiCore/legacy/middleware/types'
 import {
   isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
@@ -14,21 +14,20 @@ import {
 } from '@renderer/config/models'
 import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import {
+import type {
   FileMetadata,
-  FileTypes,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
   OpenAIServiceTier,
   Provider,
-  ToolCallResponse,
-  WebSearchSource
+  ToolCallResponse
 } from '@renderer/types'
+import { FileTypes, WebSearchSource } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import type { Message } from '@renderer/types/newMessage'
+import type {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
   OpenAIResponseSdkRawChunk,
@@ -48,7 +47,7 @@ import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
 import { isEmpty } from 'lodash'
 
-import { RequestTransformer, ResponseChunkTransformer } from '../types'
+import type { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 

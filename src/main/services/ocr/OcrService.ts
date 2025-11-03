@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { isLinux } from '@main/constant'
-import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
+import type { OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
+import { BuiltinOcrProviderIds } from '@types'
 
 import { ovOcrService } from './builtin/OvOcrService'
 import { ppocrService } from './builtin/PpocrService'

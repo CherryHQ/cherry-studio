@@ -2,7 +2,7 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { nanoid } from 'nanoid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,7 +57,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       label: t('settings.tool.preprocess.provider'),
       title: t('settings.tool.preprocess.provider'),
       options: preprocessProviders
-        .filter((p) => p.apiKey !== '' || p.id === 'mineru')
+        .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru'].includes(p.id))
         .map((p) => ({ value: p.id, label: p.name }))
     }
     return [preprocessOptions]

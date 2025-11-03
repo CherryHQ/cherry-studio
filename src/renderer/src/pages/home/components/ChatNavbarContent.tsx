@@ -4,11 +4,12 @@ import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
+import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
 import { Folder } from 'lucide-react'
-import { FC, ReactNode, useCallback } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useCallback } from 'react'
 
 import { AgentSettingsPopup, SessionSettingsPopup } from '../../settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '../../settings/AgentSettings/shared'
@@ -62,7 +63,12 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
             )}
             {activeSession && (
               <BreadcrumbItem>
-                <SelectAgentBaseModelButton agentBase={activeSession} onSelect={handleUpdateModel} />
+                <SelectAgentBaseModelButton
+                  agentBase={activeSession}
+                  onSelect={async (model) => {
+                    await handleUpdateModel(model)
+                  }}
+                />
               </BreadcrumbItem>
             )}
             {activeAgent && activeSession && (

@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { FileMetadata, Message, Model } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
-import { FileMessageBlock } from '@renderer/types/newMessage'
+import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { findFileBlocks } from '@renderer/utils/messageUtils/find'
 import type { FilePart, TextPart } from 'ai'
 
@@ -114,7 +114,7 @@ export async function handleGeminiFileUpload(file: FileMetadata, model: Model): 
 }
 
 /**
- * 处理OpenAI大文件上传
+ * 处理OpenAI兼容大文件上传
  */
 export async function handleOpenAILargeFileUpload(
   file: FileMetadata,

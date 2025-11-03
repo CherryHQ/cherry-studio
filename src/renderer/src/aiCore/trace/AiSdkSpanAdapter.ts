@@ -6,8 +6,9 @@
  */
 
 import { loggerService } from '@logger'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
+import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
 
 const logger = loggerService.withContext('AiSdkSpanAdapter')
 

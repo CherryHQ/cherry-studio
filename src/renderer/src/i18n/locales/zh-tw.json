@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "調用各種工具處理複雜任務",
       "error": {
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
@@ -107,6 +108,50 @@
         "title": "進階設定"
       },
       "essential": "必要設定",
+      "plugins": {
+        "available": {
+          "title": "可用外掛"
+        },
+        "confirm": {
+          "uninstall": "確定要解除安裝此外掛嗎？"
+        },
+        "empty": {
+          "available": "未找到符合的外掛。請嘗試調整搜尋或類別篩選。"
+        },
+        "error": {
+          "install": "安裝外掛失敗",
+          "load": "載入外掛失敗",
+          "uninstall": "解除安裝外掛失敗"
+        },
+        "filter": {
+          "all": "所有類別"
+        },
+        "install": "安裝",
+        "installed": {
+          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
+          "title": "已安裝外掛"
+        },
+        "installing": "安裝中...",
+        "results": "找到 {{count}} 個外掛",
+        "search": {
+          "placeholder": "搜尋外掛..."
+        },
+        "success": {
+          "install": "外掛安裝成功",
+          "uninstall": "外掛解除安裝成功"
+        },
+        "tab": "外掛",
+        "type": {
+          "agent": "代理",
+          "agents": "代理",
+          "all": "全部",
+          "command": "指令",
+          "commands": "指令",
+          "skills": "技能"
+        },
+        "uninstall": "解除安裝",
+        "uninstalling": "解除安裝中..."
+      },
       "prompt": "提示設定",
       "tooling": {
         "mcp": {
@@ -190,6 +235,39 @@
         "title": "預先授權工具",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "允許工具請求",
+        "denyRequest": "拒絕工具請求",
+        "hideDetails": "隱藏工具詳情",
+        "runWithOptions": "帶選項執行",
+        "showDetails": "顯示工具詳情"
+      },
+      "button": {
+        "cancel": "取消",
+        "run": "執行"
+      },
+      "confirmation": "確定要執行此 Claude 工具嗎？",
+      "defaultDenyMessage": "使用者拒絕了該工具的權限。",
+      "defaultDescription": "在您的環境中執行程式碼或系統操作。執行前請確保指令安全。",
+      "error": {
+        "sendFailed": "傳送您的決定失敗，請重試。"
+      },
+      "expired": "已過期",
+      "inputPreview": "工具輸入預覽",
+      "pending": "等待中 ({{seconds}}秒)",
+      "permissionExpired": "權限請求已過期。等待新指令...",
+      "requiresElevatedPermissions": "此工具需要提升的權限。",
+      "suggestion": {
+        "permissionUpdateMultiple": "如果您選擇總是允許此工具，核准可能會更新多個工作階段權限。",
+        "permissionUpdateSingle": "如果您選擇總是允許此工具，核准可能會更新您的工作階段權限。"
+      },
+      "toast": {
+        "denied": "工具請求已被拒絕。",
+        "timeout": "工具請求在收到核准前逾時。"
+      },
+      "waiting": "等待工具權限決定..."
     },
     "type": {
       "label": "代理類型",
@@ -470,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常對話和快速問答",
         "title": "新增助手"
+      },
+      "option": {
+        "title": "選擇新增類型"
       },
       "topic": {
         "title": "新增話題"
@@ -761,7 +843,7 @@
         "label": "上下文",
         "tip": "在上下文中保留的前幾則訊息"
       },
-      "max": "最大",
+      "max": "不限",
       "max_tokens": {
         "confirm": "設置最大 Token 數",
         "confirm_content": "設置單次交互所用的最大 Token 數，會影響返回結果的長度。要根據模型上下文限制來設定，否則會發生錯誤",
@@ -970,10 +1052,12 @@
     "clear": "清除",
     "close": "關閉",
     "collapse": "折疊",
+    "completed": "已完成",
     "confirm": "確認",
     "copied": "已複製",
     "copy": "複製",
     "copy_failed": "複製失敗",
+    "current": "当前",
     "cut": "剪下",
     "default": "預設",
     "delete": "刪除",
@@ -2299,6 +2383,32 @@
       "seed_tip": "控制放大結果的隨機性"
     }
   },
+  "plugins": {
+    "actions": "操作",
+    "agents": "代理",
+    "all_categories": "所有類別",
+    "all_types": "全部",
+    "category": "類別",
+    "commands": "指令",
+    "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "install": "安裝",
+    "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
+    "installing": "安裝中...",
+    "name": "名稱",
+    "no_description": "無描述",
+    "no_installed_plugins": "尚未安裝任何外掛",
+    "no_results": "未找到外掛",
+    "search_placeholder": "搜尋外掛...",
+    "showing_results": "顯示 {{count}} 個外掛",
+    "showing_results_one": "顯示 {{count}} 個外掛",
+    "showing_results_other": "顯示 {{count}} 個外掛",
+    "showing_results_plural": "顯示 {{count}} 個外掛",
+    "skills": "技能",
+    "try_different_search": "請嘗試調整搜尋或類別篩選",
+    "type": "類型",
+    "uninstall": "解除安裝",
+    "uninstalling": "解除安裝中..."
+  },
   "preview": {
     "copy": {
       "image": "複製為圖片"
@@ -2345,12 +2455,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "騰訊混元",
     "hyperbolic": "Hyperbolic",
     "infini": "無問芯穹",
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "longcat": "龍貓",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -2370,6 +2482,7 @@
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "騰訊雲 TI",
     "together": "Together",
@@ -2816,15 +2929,14 @@
       },
       "description": "一款為創作者而生的強大 AI 助手",
       "downloading": "正在下載...",
+      "enterprise": {
+        "title": "企業版"
+      },
       "feedback": {
         "button": "回饋",
         "title": "回饋"
       },
       "label": "關於與回饋",
-      "license": {
-        "button": "檢視",
-        "title": "授權"
-      },
       "releases": {
         "button": "檢視",
         "title": "更新日誌"
@@ -2931,6 +3043,46 @@
         "siyuan": "匯出到思源筆記",
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "選擇備份檔案"
+        },
+        "content": "匯出部分數據，包括聊天記錄、設定。請注意，備份過程可能需要一些時間，感謝您的耐心等候。",
+        "lan": {
+          "auto_close_tip": "將於 {{seconds}} 秒後自動關閉...",
+          "confirm_close_message": "檔案傳輸正在進行中。關閉將會中斷傳輸。您確定要強制關閉嗎？",
+          "confirm_close_title": "確認關閉",
+          "connected": "已連線",
+          "connection_failed": "連線失敗",
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請打開 Cherry Studio App 掃描此 QR 碼。",
+          "error": {
+            "init_failed": "初始化失敗",
+            "no_file": "未選擇檔案",
+            "no_ip": "無法取得 IP 位址",
+            "send_failed": "無法傳送檔案"
+          },
+          "force_close": "強制關閉",
+          "generating_qr": "正在生成 QR 碼...",
+          "noZipSelected": "未選取壓縮檔案",
+          "scan_qr": "請使用手機掃描QR碼",
+          "selectZip": "選擇壓縮檔案",
+          "sendZip": "開始恢復資料",
+          "status": {
+            "completed": "轉帳完成",
+            "connected": "已連線",
+            "connecting": "連線中...",
+            "disconnected": "已斷線",
+            "error": "連線錯誤",
+            "initializing": "正在初始化連線...",
+            "preparing": "正在準備傳輸...",
+            "sending": "傳輸中 {{progress}}%",
+            "waiting_qr_scan": "請掃描QR碼以連接"
+          },
+          "title": "區域網路傳輸",
+          "transfer_progress": "傳輸進度"
+        },
+        "title": "匯出手機"
       },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
@@ -3678,6 +3830,12 @@
         "noPromptsAvailable": "無可用提示",
         "requiredField": "必填欄位"
       },
+      "protocolInstallWarning": {
+        "command": "啟動命令",
+        "message": "此 MCP 透過協議從外部來源安裝，執行來源不明的工具可能會對您的電腦造成危害。",
+        "run": "執行",
+        "title": "執行外部 MCP？"
+      },
       "provider": "提供者",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
@@ -4043,7 +4201,6 @@
       },
       "anthropic_api_host": "Anthropic API 主機地址",
       "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
-      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
       "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
       "api": {
         "key": {
@@ -4088,10 +4245,11 @@
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
-          "tip": "/ 結尾忽略 v1 版本，# 結尾強制使用輸入位址"
+          "tip": "# 結尾強制使用輸入位址"
         }
       },
       "api_host": "API 主機地址",
+      "api_host_no_valid": "API 位址不合法",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {

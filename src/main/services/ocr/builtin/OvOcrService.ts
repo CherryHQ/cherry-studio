@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { isImageFileMetadata, OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
+import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
+import { isImageFileMetadata } from '@types'
 import { exec } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'

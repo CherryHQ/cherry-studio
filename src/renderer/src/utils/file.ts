@@ -1,4 +1,5 @@
-import { FileMetadata, FileTypes } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { audioExts, documentExts, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
 import mime from 'mime-types'
 

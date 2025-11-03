@@ -1,6 +1,7 @@
-import { Button, ButtonProps, cn } from '@heroui/react'
+import type { ButtonProps } from '@heroui/react'
+import { Button, cn } from '@heroui/react'
 import { PlusIcon } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 
 interface Props extends ButtonProps {
   children: React.ReactNode

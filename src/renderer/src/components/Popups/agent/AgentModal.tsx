@@ -1,3 +1,4 @@
+import type { SelectedItemProps } from '@heroui/react'
 import {
   Button,
   Form,
@@ -8,7 +9,6 @@ import {
   ModalFooter,
   ModalHeader,
   Select,
-  SelectedItemProps,
   SelectItem,
   Textarea,
   useDisclosure
@@ -16,28 +16,29 @@ import {
 import { loggerService } from '@logger'
 import type { Selection } from '@react-types/shared'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
+import { permissionModeCards } from '@renderer/config/agent'
 import { agentModelFilter, getModelLogoById } from '@renderer/config/models'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import {
+import type {
   AddAgentForm,
-  AgentConfigurationSchema,
   AgentEntity,
   AgentType,
   BaseAgentForm,
-  isAgentType,
   PermissionMode,
   Tool,
   UpdateAgentForm
 } from '@renderer/types'
+import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
 import { AlertTriangleIcon } from 'lucide-react'
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
-import { BaseOption, ModelOption, Option, renderOption } from './shared'
+import type { BaseOption, ModelOption } from './shared'
+import { Option, renderOption } from './shared'
 
 const logger = loggerService.withContext('AddAgentPopup')
 
@@ -67,6 +68,7 @@ type Props = {
   agent?: AgentWithTools
   isOpen: boolean
   onClose: () => void
+  afterSubmit?: (a: AgentEntity) => void
 }
 
 /**
@@ -78,7 +80,7 @@ type Props = {
  * @param onClose - Optional callback when modal closes. From useDisclosure.
  * @returns Modal component for agent creation/editing
  */
-export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _onClose }) => {
+export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _onClose, afterSubmit }) => {
   const { isOpen, onClose } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
@@ -301,8 +303,13 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
-        updateAgent(updatePayload)
-        logger.debug('Updated agent', updatePayload)
+        const result = await updateAgent(updatePayload)
+        if (result) {
+          logger.debug('Updated agent', result)
+          afterSubmit?.(result)
+        } else {
+          logger.error('Update failed.')
+        }
       } else {
         const newAgent = {
           type: form.type,
@@ -315,12 +322,13 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         const result = await addAgent(newAgent)
+
         if (!result.success) {
           loadingRef.current = false
           throw result.error
         }
+        afterSubmit?.(result.data)
       }
-
       loadingRef.current = false
 
       // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
@@ -329,16 +337,17 @@ export const AgentModal: React.FC<Props> = ({ agent, isOpen: _isOpen, onClose: _
     [
       form.type,
       form.model,
+      form.accessible_paths,
       form.name,
       form.description,
       form.instructions,
-      form.accessible_paths,
       form.allowed_tools,
       form.configuration,
       agent,
       onClose,
       t,
       updateAgent,
+      afterSubmit,
       addAgent
     ]
   )

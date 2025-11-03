@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import { ActionTool } from '@renderer/components/ActionTools'
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import CodeEditor from '@renderer/components/CodeEditor'
 import {
   CodeToolbar,
   useCopyTool,
@@ -14,7 +15,7 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
@@ -27,7 +28,7 @@ import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
-import { ViewMode } from './types'
+import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
 

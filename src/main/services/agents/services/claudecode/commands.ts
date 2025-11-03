@@ -1,4 +1,4 @@
-import { SlashCommand } from '@types'
+import type { SlashCommand } from '@types'
 
 export const builtinSlashCommands: SlashCommand[] = [
   { command: '/add-dir', description: 'Add additional working directories' },

@@ -1,7 +1,7 @@
 /**
  * Creation 模块类型定义
  */
-import { LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { LanguageModelV2Middleware } from '@ai-sdk/provider'
 
 import type { ProviderId, ProviderSettingsMap } from '../providers/types'
 

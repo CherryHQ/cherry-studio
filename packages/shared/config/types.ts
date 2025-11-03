@@ -1,4 +1,4 @@
-import { ProcessingStatus } from '@types'
+import type { ProcessingStatus } from '@types'
 
 export type LoaderReturn = {
   entriesAdded: number
@@ -30,4 +30,17 @@ export type WebviewKeyEvent = {
   meta: boolean
   shift: boolean
   alt: boolean
+}
+
+export interface WebSocketStatusResponse {
+  isRunning: boolean
+  port?: number
+  ip?: string
+  clientConnected: boolean
+}
+
+export interface WebSocketCandidatesResponse {
+  host: string
+  interface: string
+  priority: number
 }

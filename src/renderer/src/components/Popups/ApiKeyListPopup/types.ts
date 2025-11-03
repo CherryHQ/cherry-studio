@@ -1,4 +1,4 @@
-import { PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
+import type { PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
 
 /**
  * API key 格式有效性

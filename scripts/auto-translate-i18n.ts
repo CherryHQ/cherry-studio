@@ -56,7 +56,7 @@ Performance Optimization Recommendations:
 - For unstable services: MAX_CONCURRENT_TRANSLATIONS=2, TRANSLATION_DELAY_MS=500
 
 Environment Variables:
-- BASE_LOCALE: Base locale for translation (default: 'en-us')
+- TRANSLATION_BASE_LOCALE: Base locale for translation (default: 'en-us')
 - TRANSLATION_BASE_URL: Custom API endpoint URL
 - TRANSLATION_MODEL: Custom translation model name
 */
@@ -258,7 +258,7 @@ const main = async () => {
 
   const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
   const translateDir = path.join(__dirname, '../src/renderer/src/i18n/translate')
-  const baseLocale = process.env.BASE_LOCALE ?? 'en-us'
+  const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
   const baseFileName = `${baseLocale}.json`
   const baseLocalePath = path.join(__dirname, '../src/renderer/src/i18n/locales', baseFileName)
   if (!fs.existsSync(baseLocalePath)) {
@@ -284,6 +284,7 @@ const main = async () => {
   const translateFiles = getFiles(translateDir)
   const files = [...localeFiles, ...translateFiles]
 
+  console.info(`📂 Base Locale: ${baseLocale}`)
   console.info('📂 Files to translate:')
   files.forEach((filePath) => {
     const filename = path.basename(filePath, '.json')

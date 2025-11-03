@@ -1,8 +1,10 @@
 import { UNKNOWN } from '@renderer/config/translate'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import { Select, SelectProps, Space } from 'antd'
-import { ReactNode, useCallback, useMemo } from 'react'
+import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import type { SelectProps } from 'antd'
+import { Select, Space } from 'antd'
+import type { ReactNode } from 'react'
+import { useCallback, useMemo } from 'react'
 
 export type LanguageOption = {
   value: TranslateLanguageCode

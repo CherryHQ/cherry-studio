@@ -3,8 +3,9 @@ import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLogo } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { Provider } from '@types'
-import React, { FC, useEffect, useState } from 'react'
+import type { Provider } from '@types'
+import type { FC } from 'react'
+import React, { useEffect, useState } from 'react'
 
 type ProviderSelectProps = {
   provider: Provider

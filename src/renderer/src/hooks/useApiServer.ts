@@ -14,8 +14,8 @@ export const useApiServer = () => {
   const apiServerConfig = useAppSelector((state) => state.settings.apiServer)
   const dispatch = useAppDispatch()
 
-  // Optimistic initial state.
-  const [apiServerRunning, setApiServerRunning] = useState(apiServerConfig.enabled)
+  // Initial state - no longer optimistic, wait for actual status
+  const [apiServerRunning, setApiServerRunning] = useState(false)
   const [apiServerLoading, setApiServerLoading] = useState(true)
 
   const setApiServerEnabled = useCallback(
@@ -97,6 +97,16 @@ export const useApiServer = () => {
 
   useEffect(() => {
     checkApiServerStatus()
+  }, [checkApiServerStatus])
+
+  // Listen for API server ready event
+  useEffect(() => {
+    const cleanup = window.api.apiServer.onReady(() => {
+      logger.info('API server ready event received, checking status')
+      checkApiServerStatus()
+    })
+
+    return cleanup
   }, [checkApiServerStatus])
 
   return {

@@ -1,8 +1,9 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
-import {
+import type {
   ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
@@ -13,14 +14,14 @@ import {
   PaintingProvider,
   S3Config,
   SidebarIcon,
-  ThemeMode,
   TranslateLanguageCode
 } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import { OpenAIVerbosity } from '@types'
+import type { OpenAIVerbosity } from '@types'
 
-import { RemoteSyncState } from './backup'
+import type { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -389,7 +390,7 @@ export const initialState: SettingsState = {
   localBackupSyncInterval: 0,
   localBackupMaxBackups: 0,
   localBackupSkipBackupFile: false,
-  defaultPaintingProvider: 'zhipu',
+  defaultPaintingProvider: 'cherryin',
   s3: {
     endpoint: '',
     region: '',

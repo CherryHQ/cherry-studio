@@ -2,7 +2,8 @@ import { isMac } from '@main/constant'
 import { windowService } from '@main/services/WindowService'
 import { locales } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, Menu, MenuItemConstructorOptions, shell } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
+import { app, Menu, shell } from 'electron'
 
 import { configManager } from './ConfigManager'
 export class AppMenuService {

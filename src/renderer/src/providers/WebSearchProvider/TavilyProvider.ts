@@ -1,7 +1,7 @@
 import { TavilyClient } from '@agentic/tavily'
 import { loggerService } from '@logger'
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 

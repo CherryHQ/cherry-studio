@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Gérez des tâches complexes avec divers outils",
       "error": {
         "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
@@ -107,6 +108,50 @@
         "title": "Paramètres avancés"
       },
       "essential": "Paramètres essentiels",
+      "plugins": {
+        "available": {
+          "title": "Plugins disponibles"
+        },
+        "confirm": {
+          "uninstall": "Êtes-vous sûr de vouloir désinstaller ce plugin ?"
+        },
+        "empty": {
+          "available": "Aucun plugin correspondant trouvé. Veuillez essayer d’ajuster la recherche ou les filtres de catégorie."
+        },
+        "error": {
+          "install": "Échec de l'installation du plugin",
+          "load": "Échec du chargement du plugin",
+          "uninstall": "Échec de la désinstallation du plugin"
+        },
+        "filter": {
+          "all": "Toutes les catégories"
+        },
+        "install": "Installation",
+        "installed": {
+          "empty": "Aucun plugin n'est encore installé. Parcourez les plugins disponibles pour commencer.",
+          "title": "Extension installée"
+        },
+        "installing": "Installation en cours...",
+        "results": "{{count}} modules complémentaires trouvés",
+        "search": {
+          "placeholder": "Recherche de plug-ins..."
+        },
+        "success": {
+          "install": "Installation du plugin réussie",
+          "uninstall": "Désinstallation du plugin réussie"
+        },
+        "tab": "Module d'extension",
+        "type": {
+          "agent": "mandataire",
+          "agents": "mandataire",
+          "all": "Tout",
+          "command": "commande",
+          "commands": "commande",
+          "skills": "compétence"
+        },
+        "uninstall": "Désinstaller",
+        "uninstalling": "Désinstallation en cours..."
+      },
       "prompt": "Paramètres de l'invite",
       "tooling": {
         "mcp": {
@@ -190,6 +235,39 @@
         "title": "Outils pré-approuvés",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "Autoriser la demande d'outil",
+        "denyRequest": "Refuser la demande d'outil",
+        "hideDetails": "Masquer les détails de l'outil",
+        "runWithOptions": "Exécuter avec des options supplémentaires",
+        "showDetails": "Afficher les détails de l'outil"
+      },
+      "button": {
+        "cancel": "Annuler",
+        "run": "Courir"
+      },
+      "confirmation": "Êtes-vous sûr de vouloir exécuter cet outil Claude ?",
+      "defaultDenyMessage": "L'utilisateur a refusé l'autorisation pour cet outil.",
+      "defaultDescription": "Exécute du code ou des actions système dans votre environnement. Assurez-vous que la commande semble sûre avant de l’exécuter.",
+      "error": {
+        "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
+      },
+      "expired": "Expiré",
+      "inputPreview": "Aperçu de l'entrée de l'outil",
+      "pending": "En attente ({{seconds}}s)",
+      "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
+      "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
+      "suggestion": {
+        "permissionUpdateMultiple": "Approuver peut mettre à jour plusieurs autorisations de session si vous avez choisi de toujours autoriser cet outil.",
+        "permissionUpdateSingle": "Approuver peut mettre à jour vos permissions de session si vous avez choisi de toujours autoriser cet outil."
+      },
+      "toast": {
+        "denied": "La demande d'outil a été refusée.",
+        "timeout": "La demande d'outil a expiré avant d'obtenir l'approbation."
+      },
+      "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "type": {
       "label": "Type d'agent",
@@ -470,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Conversations quotidiennes et Q&R rapides",
         "title": "Ajouter un assistant"
+      },
+      "option": {
+        "title": "Sélectionner le type"
       },
       "topic": {
         "title": "Nouveau sujet"
@@ -970,10 +1052,12 @@
     "clear": "Effacer",
     "close": "Fermer",
     "collapse": "Réduire",
+    "completed": "Terminé",
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
     "copy_failed": "Échec de la copie",
+    "current": "Actuel",
     "cut": "Couper",
     "default": "Défaut",
     "delete": "Supprimer",
@@ -2299,6 +2383,32 @@
       "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
     }
   },
+  "plugins": {
+    "actions": "Opération",
+    "agents": "mandataire",
+    "all_categories": "Toutes les catégories",
+    "all_types": "Tout",
+    "category": "Catégorie",
+    "commands": "commande",
+    "confirm_uninstall": "Êtes-vous sûr de vouloir désinstaller {{name}} ?",
+    "install": "Installation",
+    "install_plugins_from_browser": "Parcourir les plugins disponibles pour commencer",
+    "installing": "Installation en cours...",
+    "name": "Nom",
+    "no_description": "Sans description",
+    "no_installed_plugins": "Aucun plugin n’est encore installé",
+    "no_results": "Aucun plugin trouvé",
+    "search_placeholder": "Rechercher des modules d'extension...",
+    "showing_results": "Afficher {{count}} extensions",
+    "showing_results_one": "Afficher {{count}} modules d’extension",
+    "showing_results_other": "Afficher {{count}} modules d'extension",
+    "showing_results_plural": "Afficher {{count}} modules d'extension",
+    "skills": "compétence",
+    "try_different_search": "Veuillez essayer d’ajuster la recherche ou le filtre de catégorie.",
+    "type": "type",
+    "uninstall": "Désinstaller",
+    "uninstalling": "Désinstallation en cours..."
+  },
   "preview": {
     "copy": {
       "image": "Copier en tant qu'image"
@@ -2345,12 +2455,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "Tencent HunYuan",
     "hyperbolic": "Hyperbolique",
     "infini": "Sans Frontières Céleste",
     "jina": "Jina",
     "lanyun": "Technologie Lan Yun",
     "lmstudio": "Studio LM",
+    "longcat": "Mon voisin Totoro",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope MoDa",
@@ -2364,12 +2476,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexité",
-    "ph8": "Plateforme ouverte de grands modèles PH8",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "Silicium Fluide",
+    "sophnet": "SophNet",
     "stepfun": "Échelon Étoile",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Ensemble",
@@ -2816,15 +2929,14 @@
       },
       "description": "Un assistant IA conçu pour les créateurs",
       "downloading": "Téléchargement de la mise à jour en cours...",
+      "enterprise": {
+        "title": "Entreprise"
+      },
       "feedback": {
         "button": "Faire un retour",
         "title": "Retour d'information"
       },
       "label": "À propos de nous",
-      "license": {
-        "button": "Afficher",
-        "title": "Licence"
-      },
       "releases": {
         "button": "Afficher",
         "title": "Journal des mises à jour"
@@ -2931,6 +3043,46 @@
         "siyuan": "Exporter vers Siyuan Notes",
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Sélectionner le fichier de sauvegarde"
+        },
+        "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "lan": {
+          "auto_close_tip": "Fermeture automatique dans {{seconds}} secondes...",
+          "confirm_close_message": "Le transfert de fichier est en cours. Fermer interrompra le transfert. Êtes-vous sûr de vouloir forcer la fermeture ?",
+          "confirm_close_title": "Confirmer la fermeture",
+          "connected": "Connecté",
+          "connection_failed": "Échec de la connexion",
+          "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
+          "error": {
+            "init_failed": "Échec de l'initialisation",
+            "no_file": "Aucun fichier sélectionné",
+            "no_ip": "Impossible d'obtenir l'adresse IP",
+            "send_failed": "Échec de l'envoi du fichier"
+          },
+          "force_close": "Fermer de force",
+          "generating_qr": "Génération du code QR...",
+          "noZipSelected": "Aucun fichier compressé sélectionné",
+          "scan_qr": "Veuillez scanner le code QR avec votre téléphone",
+          "selectZip": "Sélectionner le fichier compressé",
+          "sendZip": "Commencer la restauration des données",
+          "status": {
+            "completed": "Transfert terminé",
+            "connected": "Connecté",
+            "connecting": "Connexion...",
+            "disconnected": "Déconnecté",
+            "error": "Erreur de connexion",
+            "initializing": "Initialisation de la connexion...",
+            "preparing": "Préparation du transfert...",
+            "sending": "Transfert {{progress}} %",
+            "waiting_qr_scan": "Veuillez scanner le code QR pour vous connecter"
+          },
+          "title": "Transmission en réseau local",
+          "transfer_progress": "Progression du transfert"
+        },
+        "title": "Exporter vers le téléphone"
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
@@ -3678,6 +3830,12 @@
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
       },
+      "protocolInstallWarning": {
+        "command": "Commande de démarrage",
+        "message": "Ce MCP a été installé depuis une source externe via le protocole. L'exécution d'outils inconnus peut endommager votre ordinateur.",
+        "run": "Courir",
+        "title": "Exécuter un MCP externe ?"
+      },
       "provider": "Поставщик",
       "providerPlaceholder": "Название поставщика",
       "providerUrl": "Адрес поставщика",
@@ -4043,7 +4201,6 @@
       },
       "anthropic_api_host": "Adresse API Anthropic",
       "anthropic_api_host_preview": "Aperçu Anthropic : {{url}}",
-      "anthropic_api_host_tip": "Remplir seulement si le fournisseur propose une adresse compatible Anthropic. Se terminant par / ignore le v1 ajouté automatiquement, se terminant par # force l'utilisation de l'adresse originale.",
       "anthropic_api_host_tooltip": "Remplir seulement lorsque le fournisseur propose une adresse de base compatible Claude.",
       "api": {
         "key": {
@@ -4088,10 +4245,11 @@
         "url": {
           "preview": "Aperçu : {{url}}",
           "reset": "Réinitialiser",
-          "tip": "Ignorer la version v1 si terminé par /, forcer l'utilisation de l'adresse d'entrée si terminé par #"
+          "tip": "forcer l'utilisation de l'adresse d'entrée si terminé par #"
         }
       },
       "api_host": "Adresse API",
+      "api_host_no_valid": "Adresse API invalide",
       "api_host_preview": "Aperçu : {{url}}",
       "api_host_tooltip": "Remplacer seulement lorsque le fournisseur nécessite une adresse compatible OpenAI personnalisée.",
       "api_key": {
