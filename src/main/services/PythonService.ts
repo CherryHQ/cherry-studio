@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
-import type { BrowserWindow } from 'electron'
 import { ipcMain } from 'electron'
+
+import { windowService } from './WindowService'
+
 
 interface PythonExecutionRequest {
   id: string
@@ -21,7 +23,6 @@ interface PythonExecutionResponse {
  */
 export class PythonService {
   private static instance: PythonService | null = null
-  private mainWindow: BrowserWindow | null = null
   private pendingRequests = new Map<string, { resolve: (value: string) => void; reject: (error: Error) => void }>()
 
   private constructor() {
@@ -51,10 +52,6 @@ export class PythonService {
     })
   }
 
-  public setMainWindow(mainWindow: BrowserWindow) {
-    this.mainWindow = mainWindow
-  }
-
   /**
    * Execute Python code by sending request to renderer PyodideService
    */
@@ -63,8 +60,8 @@ export class PythonService {
     context: Record<string, any> = {},
     timeout: number = 60000
   ): Promise<string> {
-    if (!this.mainWindow) {
-      throw new Error('Main window not set in PythonService')
+    if (!windowService.getMainWindow()) {
+      throw new Error('Main window not found')
     }
 
     return new Promise((resolve, reject) => {
@@ -95,7 +92,7 @@ export class PythonService {
 
       // Send request to renderer
       const request: PythonExecutionRequest = { id: requestId, script, context, timeout }
-      this.mainWindow?.webContents.send('python-execution-request', request)
+      windowService.getMainWindow()?.webContents.send('python-execution-request', request)
     })
   }
 }
