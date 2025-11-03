@@ -6,6 +6,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import {
+  DEFAULT_MODEL_MAP,
   glm45FlashModel,
   isFunctionCallingModel,
   isNotSupportedTextDelta,
@@ -1667,7 +1668,7 @@ const migrateConfig = {
         state.llm.translateModel.provider === 'silicon' &&
         state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct'
       ) {
-        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
+        state.llm.translateModel = DEFAULT_MODEL_MAP.translate
       }
 
       // add selection_assistant_toggle and selection_assistant_select_text shortcuts after mini_window

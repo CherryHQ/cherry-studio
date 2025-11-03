@@ -14,17 +14,13 @@ export const qwen38bModel: Model = {
   group: 'Qwen'
 }
 
-export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
-  defaultModel: [
-    // Default assistant model
-    glm45FlashModel,
-    // Default topic naming model
-    qwen38bModel,
-    // Default translation model
-    glm45FlashModel,
-    // Default quick assistant model
-    glm45FlashModel
-  ],
+export const DEFAULT_MODEL_MAP = {
+  assistant: glm45FlashModel,
+  quick: qwen38bModel,
+  translate: glm45FlashModel
+} as const
+
+export const SYSTEM_MODELS: Record<SystemProviderId, Model[]> = {
   cherryin: [],
   vertexai: [],
   '302ai': [
