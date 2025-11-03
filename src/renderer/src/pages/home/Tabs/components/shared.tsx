@@ -1,5 +1,6 @@
 import { cn } from '@heroui/react'
-import { ComponentPropsWithoutRef, ComponentPropsWithRef, useMemo } from 'react'
+import type { ComponentPropsWithoutRef, ComponentPropsWithRef } from 'react'
+import { useMemo } from 'react'
 import styled from 'styled-components'
 
 export const ListItem = ({ children, className, ...props }: ComponentPropsWithoutRef<'div'>) => {
