@@ -21,6 +21,7 @@ import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
+import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -132,6 +133,7 @@ if (!app.requestSingleInstanceLock()) {
     appMenuService?.setupApplicationMenu()
 
     nodeTraceService.init()
+    powerMonitorService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
