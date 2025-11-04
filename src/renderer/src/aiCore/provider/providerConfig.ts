@@ -9,6 +9,7 @@ import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
   isAnthropicProvider,
   isAzureOpenAIProvider,
+  isCherryAIProvider,
   isGeminiProvider,
   isNewApiProvider
 } from '@renderer/config/providers'
@@ -100,6 +101,8 @@ function formatProviderApiHost(provider: Provider): Provider {
     formatted.apiHost = formatAzureOpenAIApiHost(formatted.apiHost)
   } else if (isVertexProvider(formatted)) {
     formatted.apiHost = formatVertexApiHost(formatted)
+  } else if (isCherryAIProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)
   }

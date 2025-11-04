@@ -1486,6 +1486,10 @@ export const isNewApiProvider = (provider: Provider) => {
   return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
 }
 
+export function isCherryAIProvider(provider: Provider): boolean {
+  return provider.id === 'cherryai'
+}
+
 /**
  * 判断是否为 OpenAI 兼容的提供商
  * @param {Provider} provider 提供商对象
