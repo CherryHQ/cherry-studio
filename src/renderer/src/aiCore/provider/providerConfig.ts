@@ -9,9 +9,9 @@ import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
   isAnthropicProvider,
   isAzureOpenAIProvider,
+  isCherryAIProvider,
   isGeminiProvider,
-  isNewApiProvider,
-  isCherryAIProvider
+  isNewApiProvider
 } from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
