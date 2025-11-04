@@ -10,7 +10,8 @@ import {
   isAnthropicProvider,
   isAzureOpenAIProvider,
   isGeminiProvider,
-  isNewApiProvider
+  isNewApiProvider,
+  isCherryAIProvider
 } from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
@@ -98,6 +99,8 @@ function formatProviderApiHost(provider: Provider): Provider {
     formatted.apiHost = formatAzureOpenAIApiHost(formatted.apiHost)
   } else if (isVertexProvider(formatted)) {
     formatted.apiHost = formatVertexApiHost(formatted)
+  } else if (isCherryAIProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)
   }
