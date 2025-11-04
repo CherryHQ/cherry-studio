@@ -35,7 +35,7 @@ vi.mock('@renderer/utils/api', () => ({
 }))
 
 vi.mock('@renderer/config/providers', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as any
   return {
     ...actual,
     isCherryAIProvider: vi.fn(),
@@ -52,13 +52,13 @@ vi.mock('@renderer/hooks/useVertexAI', () => ({
   createVertexProvider: vi.fn()
 }))
 
-import type { Model, Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
 import { isCherryAIProvider } from '@renderer/config/providers'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import type { Model, Provider } from '@renderer/types'
+import { formatApiHost } from '@renderer/utils/api'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
-import { providerToAiSdkConfig, getActualProvider } from '../providerConfig'
+import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
 
 const createWindowKeyv = () => {
   const store = new Map<string, string>()
@@ -144,7 +144,7 @@ describe('CherryAI provider configuration', () => {
   it('formats CherryAI provider apiHost with false parameter', () => {
     const provider = createCherryAIProvider()
     const model = createModel('gpt-4', 'GPT-4', 'cherryai')
-    
+
     // Mock the functions to simulate CherryAI provider detection
     vi.mocked(isCherryAIProvider).mockReturnValue(true)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
@@ -168,7 +168,7 @@ describe('CherryAI provider configuration', () => {
       isSystem: false
     } as Provider
     const model = createModel('gpt-4', 'GPT-4', 'openai')
-    
+
     // Mock the functions to simulate non-CherryAI provider
     vi.mocked(isCherryAIProvider).mockReturnValue(false)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
@@ -185,7 +185,7 @@ describe('CherryAI provider configuration', () => {
     const provider = createCherryAIProvider()
     provider.apiHost = ''
     const model = createModel('gpt-4', 'GPT-4', 'cherryai')
-    
+
     vi.mocked(isCherryAIProvider).mockReturnValue(true)
     vi.mocked(getProviderByModel).mockReturnValue(provider)
 
