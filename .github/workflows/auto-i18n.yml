@@ -63,6 +63,7 @@ jobs:
         id: git_status
         run: |
           # Check if there are any uncommitted changes
+          git reset -- package.json yarn.lock  # 不提交 package.json 和 yarn.lock 的更改
           git diff --exit-code --quiet || echo "::set-output name=has_changes::true"
           git status --porcelain
 
