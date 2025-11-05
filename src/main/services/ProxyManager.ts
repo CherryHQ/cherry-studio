@@ -12,6 +12,8 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 
 const logger = loggerService.withContext('ProxyManager')
 let byPassRules: string[] = []
+// Dynamic bypass rules that can be added/removed at runtime (e.g., for S3 endpoints)
+const dynamicBypassRules: string[] = []
 
 type HostnameMatchType = 'exact' | 'wildcardSubdomain' | 'generalWildcard'
 
@@ -222,13 +224,43 @@ export const updateByPassRules = (rules: string[]): void => {
   byPassRules = rules
   parsedByPassRules = []
 
-  for (const rule of rules) {
+  // Combine static bypass rules with dynamic ones
+  const allRules = [...rules, ...dynamicBypassRules]
+
+  for (const rule of allRules) {
     const parsedRule = parseProxyBypassRule(rule)
     if (parsedRule) {
       parsedByPassRules.push(parsedRule)
     } else {
       logger.warn(`Skipping invalid proxy bypass rule: ${rule}`)
     }
+  }
+}
+
+/**
+ * Add a dynamic bypass rule at runtime (e.g., for S3 endpoints)
+ * @param rule - The bypass rule to add (e.g., hostname or domain pattern)
+ */
+export const addDynamicBypassRule = (rule: string): void => {
+  if (!dynamicBypassRules.includes(rule)) {
+    dynamicBypassRules.push(rule)
+    // Re-parse all rules with the new dynamic rule
+    updateByPassRules(byPassRules)
+    logger.info(`Added dynamic bypass rule: ${rule}`)
+  }
+}
+
+/**
+ * Remove a dynamic bypass rule
+ * @param rule - The bypass rule to remove
+ */
+export const removeDynamicBypassRule = (rule: string): void => {
+  const index = dynamicBypassRules.indexOf(rule)
+  if (index !== -1) {
+    dynamicBypassRules.splice(index, 1)
+    // Re-parse all rules without the removed dynamic rule
+    updateByPassRules(byPassRules)
+    logger.info(`Removed dynamic bypass rule: ${rule}`)
   }
 }
 
@@ -585,6 +617,22 @@ export class ProxyManager {
 
     // set proxy for electron
     app.setProxy(config)
+  }
+
+  /**
+   * Add a dynamic bypass rule for a specific endpoint
+   * @param rule - The bypass rule to add (e.g., hostname or domain pattern)
+   */
+  addDynamicBypassRule(rule: string): void {
+    addDynamicBypassRule(rule)
+  }
+
+  /**
+   * Remove a dynamic bypass rule
+   * @param rule - The bypass rule to remove
+   */
+  removeDynamicBypassRule(rule: string): void {
+    removeDynamicBypassRule(rule)
   }
 }
 

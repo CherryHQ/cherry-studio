@@ -883,6 +883,7 @@ export type S3Config = {
   autoSync: boolean
   syncInterval: number
   maxBackups: number
+  bypassProxy?: boolean // Whether to bypass proxy for S3 requests (default: true)
 }
 
 export type { Message } from './newMessage'

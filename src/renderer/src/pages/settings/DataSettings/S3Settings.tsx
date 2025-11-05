@@ -31,7 +31,8 @@ const S3Settings: FC = () => {
     root: s3RootInit = '',
     syncInterval: s3SyncIntervalInit = 0,
     maxBackups: s3MaxBackupsInit = 5,
-    skipBackupFile: s3SkipBackupFileInit = false
+    skipBackupFile: s3SkipBackupFileInit = false,
+    bypassProxy: s3BypassProxyInit = true
   } = s3
 
   const [endpoint, setEndpoint] = useState<string | undefined>(s3EndpointInit)
@@ -41,6 +42,7 @@ const S3Settings: FC = () => {
   const [secretAccessKey, setSecretAccessKey] = useState<string | undefined>(s3SecretAccessKeyInit)
   const [root, setRoot] = useState<string | undefined>(s3RootInit)
   const [skipBackupFile, setSkipBackupFile] = useState<boolean>(s3SkipBackupFileInit)
+  const [bypassProxy, setBypassProxy] = useState<boolean>(s3BypassProxyInit)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(s3SyncIntervalInit)
@@ -80,6 +82,11 @@ const S3Settings: FC = () => {
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
     dispatch(setS3Partial({ skipBackupFile: value }))
+  }
+
+  const onBypassProxyChange = (value: boolean) => {
+    setBypassProxy(value)
+    dispatch(setS3Partial({ bypassProxy: value }))
   }
 
   const renderSyncStatus = () => {
@@ -260,6 +267,14 @@ const S3Settings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.s3.bypassProxy.label')}</SettingRowTitle>
+        <Switch checked={bypassProxy} onChange={onBypassProxyChange} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.s3.bypassProxy.help')}</SettingHelpText>
       </SettingRow>
       {syncInterval > 0 && (
         <>

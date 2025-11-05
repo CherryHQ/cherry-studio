@@ -3336,6 +3336,10 @@
           "label": "Bucket",
           "placeholder": "Bucket, por ejemplo: example"
         },
+        "bypassProxy": {
+          "help": "Cuando está habilitado, las solicitudes a S3 omiten el proxy de la aplicación para evitar la corrupción de datos durante las cargas de archivos grandes. Se recomienda mantenerlo habilitado a menos que tu punto de enlace de S3 requiera acceso al proxy.",
+          "label": "Omitir Proxy"
+        },
         "endpoint": {
           "label": "Dirección API",
           "placeholder": "https://s3.example.com"
@@ -4260,6 +4264,12 @@
       "aws-bedrock": {
         "access_key_id": "ID de clave de acceso de AWS",
         "access_key_id_help": "Su ID de clave de acceso de AWS, utilizado para acceder al servicio AWS Bedrock",
+        "api_key": "Clave de API de Bedrock",
+        "api_key_help": "Tu clave de API de AWS Bedrock para la autenticación",
+        "auth_type": "Tipo de autenticación",
+        "auth_type_api_key": "Clave de API de Bedrock",
+        "auth_type_help": "Elige entre credenciales IAM o autenticación con clave API de Bedrock",
+        "auth_type_iam": "Credenciales IAM",
         "description": "AWS Bedrock es un servicio de modelos fundamentales completamente gestionado proporcionado por Amazon, que admite diversos modelos avanzados de lenguaje de gran tamaño.",
         "region": "Región de AWS",
         "region_help": "Su región de servicio AWS, por ejemplo us-east-1",

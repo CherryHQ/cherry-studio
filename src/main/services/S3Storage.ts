@@ -11,6 +11,8 @@ import type { S3Config } from '@types'
 import * as net from 'net'
 import { Readable } from 'stream'
 
+import { proxyManager } from './ProxyManager'
+
 const logger = loggerService.withContext('S3Storage')
 
 /**
@@ -35,9 +37,12 @@ export default class S3Storage {
   private client: S3Client
   private bucket: string
   private root: string
+  private endpoint: string
 
   constructor(config: S3Config) {
-    const { endpoint, region, accessKeyId, secretAccessKey, bucket, root } = config
+    const { endpoint, region, accessKeyId, secretAccessKey, bucket, root, bypassProxy = true } = config
+
+    this.endpoint = endpoint
 
     const usePathStyle = (() => {
       if (!endpoint) return false
@@ -57,6 +62,22 @@ export default class S3Storage {
       }
     })()
 
+    // Use ProxyManager's dynamic bypass rules instead of custom dispatcher
+    // When bypassProxy is true (default), add the S3 endpoint to proxy bypass rules
+    // to avoid proxy interference with large file uploads that can cause incomplete transfers
+    // Error example: "Io error: put_object write size < data.size(), w_size=15728640, data.size=16396159"
+    if (bypassProxy && endpoint) {
+      try {
+        const url = new URL(endpoint)
+        const hostname = url.hostname
+        // Add the hostname to dynamic bypass rules
+        proxyManager.addDynamicBypassRule(hostname)
+        logger.debug(`[S3Storage] Added S3 endpoint to bypass rules: ${hostname}`)
+      } catch (e) {
+        logger.warn(`[S3Storage] Failed to add endpoint to bypass rules: ${endpoint}`, e as Error)
+      }
+    }
+
     this.client = new S3Client({
       region,
       endpoint: endpoint || undefined,
@@ -75,6 +96,22 @@ export default class S3Storage {
     this.deleteFile = this.deleteFile.bind(this)
     this.listFiles = this.listFiles.bind(this)
     this.checkConnection = this.checkConnection.bind(this)
+  }
+
+  /**
+   * Clean up resources and remove bypass rules
+   */
+  destroy(): void {
+    if (this.endpoint) {
+      try {
+        const url = new URL(this.endpoint)
+        const hostname = url.hostname
+        proxyManager.removeDynamicBypassRule(hostname)
+        logger.debug(`[S3Storage] Removed S3 endpoint from bypass rules: ${hostname}`)
+      } catch (e) {
+        logger.warn(`[S3Storage] Failed to remove endpoint from bypass rules: ${this.endpoint}`, e as Error)
+      }
+    }
   }
 
   /**

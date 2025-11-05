@@ -3336,6 +3336,10 @@
           "label": "Bucket",
           "placeholder": "Bucket, e.g: example"
         },
+        "bypassProxy": {
+          "help": "When enabled, S3 requests bypass the application proxy to prevent data corruption during large file uploads. Recommended to keep enabled unless your S3 endpoint requires proxy access.",
+          "label": "Bypass Proxy"
+        },
         "endpoint": {
           "label": "API Endpoint",
           "placeholder": "https://s3.example.com"

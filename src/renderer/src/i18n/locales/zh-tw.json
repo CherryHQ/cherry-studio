@@ -3336,6 +3336,10 @@
           "label": "儲存桶",
           "placeholder": "Bucket，例如: example"
         },
+        "bypassProxy": {
+          "help": "開啟後，S3 請求將繞過應用程式代理，以防止大檔案上傳時的資料損壞。建議保持開啟，除非您的 S3 端點需要透過代理存取。",
+          "label": "繞過代理"
+        },
         "endpoint": {
           "label": "API 位址",
           "placeholder": "https://s3.example.com"

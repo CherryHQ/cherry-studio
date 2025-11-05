@@ -401,7 +401,8 @@ export const initialState: SettingsState = {
     autoSync: false,
     syncInterval: 0,
     maxBackups: 0,
-    skipBackupFile: false
+    skipBackupFile: false,
+    bypassProxy: true
   },
 
   // Developer mode

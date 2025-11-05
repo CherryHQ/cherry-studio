@@ -33,6 +33,7 @@ class BackupManager {
     accessKeyId: string
     secretAccessKey: string
     root?: string
+    bypassProxy?: boolean
   } | null = null
 
   private cachedWebdavConnectionConfig: {
@@ -120,7 +121,8 @@ class BackupManager {
       cachedConfig.bucket === config.bucket &&
       cachedConfig.accessKeyId === config.accessKeyId &&
       cachedConfig.secretAccessKey === config.secretAccessKey &&
-      cachedConfig.root === config.root
+      cachedConfig.root === config.root &&
+      cachedConfig.bypassProxy === config.bypassProxy
     )
   }
 
@@ -147,6 +149,11 @@ class BackupManager {
     const configChanged = !this.isS3ConfigEqual(this.cachedS3ConnectionConfig, config)
 
     if (configChanged || !this.s3Storage) {
+      // Destroy old instance to clean up bypass rules
+      if (this.s3Storage) {
+        this.s3Storage.destroy()
+      }
+
       this.s3Storage = new S3Storage(config)
       // 只缓存连接相关的配置字段
       this.cachedS3ConnectionConfig = {
@@ -155,7 +162,8 @@ class BackupManager {
         bucket: config.bucket,
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
-        root: config.root
+        root: config.root,
+        bypassProxy: config.bypassProxy
       }
       logger.debug('[BackupManager] Created new S3Storage instance')
     } else {

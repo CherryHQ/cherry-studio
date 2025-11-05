@@ -3336,6 +3336,10 @@
           "label": "Bucket",
           "placeholder": "Bucket, z. B.: example"
         },
+        "bypassProxy": {
+          "help": "Wenn aktiviert, umgehen S3-Anfragen den Anwendungs-Proxy, um Datenbeschädigung beim Hochladen großer Dateien zu verhindern. Es wird empfohlen, diese Option aktiviert zu lassen, es sei denn, Ihr S3-Endpunkt erfordert Proxy-Zugriff.",
+          "label": "Proxy umgehen"
+        },
         "endpoint": {
           "label": "API-Adresse",
           "placeholder": "https://s3.example.com"
@@ -4260,6 +4264,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS-Zugriffsschlüssel-ID",
         "access_key_id_help": "Ihre AWS-Zugriffsschlüssel-ID, um auf AWS Bedrock-Dienste zuzugreifen",
+        "api_key": "Bedrock-API-Schlüssel",
+        "api_key_help": "Ihr AWS-Bedrock-API-Schlüssel für die Authentifizierung",
+        "auth_type": "Authentifizierungstyp",
+        "auth_type_api_key": "Bedrock-API-Schlüssel",
+        "auth_type_help": "Wähle zwischen IAM-Anmeldeinformationen oder Bedrock-API-Schlüssel-Authentifizierung",
+        "auth_type_iam": "IAM-Anmeldeinformationen",
         "description": "AWS Bedrock ist ein vollständig verwalteter Basismodell-Dienst von Amazon, der eine Vielzahl moderner großer Sprachmodelle unterstützt",
         "region": "AWS-Region",
         "region_help": "Ihre AWS-Serviceregion, z.B. us-east-1",
