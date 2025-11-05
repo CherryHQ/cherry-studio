@@ -32,14 +32,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install corepack
+      - name: 📦 Install corepack
         run: corepack enable && corepack prepare yarn@4.9.1 --activate
 
-      - name: Get yarn cache directory path
+      - name: 📂 Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
 
-      - name: Cache yarn dependencies
+      - name: 💾 Cache yarn dependencies
         uses: actions/cache@v4
         with:
           path: |
@@ -66,7 +66,7 @@ jobs:
           git diff --exit-code --quiet || echo "::set-output name=has_changes::true"
           git status --porcelain
 
-      - name: Set current date for PR title
+      - name: 📅 Set current date for PR title
         id: set_date
         run: echo "CURRENT_DATE=$(date +'%b %d, %Y')" >> $GITHUB_ENV # e.g., "Jun 06, 2024"
 
@@ -87,6 +87,6 @@ jobs:
           base: "main" # Or 'develop', set your base branch
           delete-branch: true # Delete the branch after merging or closing the PR
 
-      - name: Notify if no changes
+      - name: 📢 Notify if no changes
         if: steps.git_status.outputs.has_changes != 'true'
         run: echo "Bot script ran, but no changes were detected. No PR created."
