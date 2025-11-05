@@ -4052,6 +4052,10 @@
       "user": "User"
     },
     "messages": {
+      "auto_localize_images": {
+        "label": "Auto localize remote images",
+        "tooltip": "When enabled, remote images in messages will be automatically downloaded and stored locally."
+      },
       "divider": {
         "label": "Show divider between messages",
         "tooltip": "Not applicable to bubble-style message"

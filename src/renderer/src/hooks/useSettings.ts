@@ -3,6 +3,7 @@ import type { AssistantIconType, SendMessageShortcut, SettingsState } from '@ren
 import {
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setAutoLocalizeImages,
   setDisableHardwareAcceleration,
   setEnableDeveloperMode,
   setLaunchOnBoot,
@@ -101,6 +102,9 @@ export function useSettings() {
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    },
+    setAutoLocalizeImages(enabled: boolean) {
+      dispatch(setAutoLocalizeImages(enabled))
     }
   }
 }
