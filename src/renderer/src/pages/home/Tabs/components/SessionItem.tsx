@@ -1,3 +1,4 @@
+import { cn } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
@@ -19,14 +20,14 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger
 } from '@renderer/ui/context-menu'
-import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { Tooltip } from 'antd'
 import { MenuIcon, XIcon } from 'lucide-react'
 import type { FC } from 'react'
 import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+
+import { ListItem, ListItemEditInput, ListItemName, ListItemNameContainer, MenuButton, StatusIndicator } from './shared'
 
 // const logger = loggerService.withContext('AgentItem')
 
@@ -67,7 +68,6 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
           </div>
         }>
         <MenuButton
-          className="menu"
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation()
             if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
@@ -115,20 +115,21 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
-          <SessionListItem
-            className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+          <ListItem
+            className={cn(
+              isActive ? 'active' : undefined,
+              singlealone ? 'singlealone' : undefined,
+              isEditing ? 'cursor-default' : 'cursor-pointer',
+              'rounded-[var(--list-item-border-radius)]'
+            )}
             onClick={isEditing ? undefined : onPress}
             onDoubleClick={() => startEdit(session.name ?? '')}
-            title={session.name ?? session.id}
-            style={{
-              borderRadius: 'var(--list-item-border-radius)',
-              cursor: isEditing ? 'default' : 'pointer'
-            }}>
-            {isPending && !isActive && <PendingIndicator />}
-            {isFulfilled && !isActive && <FulfilledIndicator />}
-            <SessionNameContainer>
+            title={session.name ?? session.id}>
+            {isPending && !isActive && <StatusIndicator variant="pending" />}
+            {isFulfilled && !isActive && <StatusIndicator variant="fulfilled" />}
+            <ListItemNameContainer>
               {isEditing ? (
-                <SessionEditInput
+                <ListItemEditInput
                   ref={inputRef}
                   value={editValue}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleValueChange(e.target.value)}
@@ -138,14 +139,14 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
                 />
               ) : (
                 <>
-                  <SessionName>
+                  <ListItemName>
                     <SessionLabel session={session} />
-                  </SessionName>
+                  </ListItemName>
                   <DeleteButton />
                 </>
               )}
-            </SessionNameContainer>
-          </SessionListItem>
+            </ListItemNameContainer>
+          </ListItem>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem
@@ -187,122 +188,5 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     </>
   )
 }
-
-const SessionListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
-  margin-bottom: 8px;
-
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
-
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-
-  &.singlealone {
-    border-radius: 0 !important;
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      border-left: 2px solid var(--color-primary);
-      box-shadow: none;
-    }
-  }
-`
-
-const SessionNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
-
-const SessionName = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-`
-
-const SessionEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
-`
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
 
 export default memo(SessionItem)

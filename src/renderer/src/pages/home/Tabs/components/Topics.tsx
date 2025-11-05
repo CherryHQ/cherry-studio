@@ -1,3 +1,4 @@
+import { cn } from '@heroui/react'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -17,7 +18,7 @@ import store from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
-import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
+import { removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -53,6 +54,15 @@ import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AddButton from './AddButton'
+import {
+  ListContainer,
+  ListItem,
+  ListItemEditInput,
+  ListItemName,
+  ListItemNameContainer,
+  MenuButton,
+  StatusIndicator
+} from './shared'
 
 interface Props {
   assistant: Assistant
@@ -72,8 +82,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const topicLoadingQuery = useSelector((state: RootState) => state.messages.loadingByTopic)
   const topicFulfilledQuery = useSelector((state: RootState) => state.messages.fulfilledByTopic)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
-
-  const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
@@ -489,251 +497,106 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const singlealone = topicPosition === 'right' && position === 'right'
 
   return (
-    <DraggableVirtualList
-      className="topics-tab"
-      list={sortedTopics}
-      onUpdate={updateTopics}
-      style={{ height: '100%', padding: '11px 0 10px 10px' }}
-      itemContainerStyle={{ paddingBottom: '8px' }}
-      header={
-        <AddButton onPress={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
-          {t('chat.add.topic.title')}
-        </AddButton>
-      }>
-      {(topic) => {
-        const isActive = topic.id === activeTopic?.id
-        const topicName = topic.name.replace('`', '')
-        const topicPrompt = topic.prompt
-        const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+    <ListContainer className="topics-tab">
+      <AddButton onPress={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
+        {t('chat.add.topic.title')}
+      </AddButton>
+      <DraggableVirtualList list={sortedTopics} onUpdate={updateTopics} className="overflow-y-auto overflow-x-hidden">
+        {(topic) => {
+          const isActive = topic.id === activeTopic?.id
+          const topicName = topic.name.replace('`', '')
+          const topicPrompt = topic.prompt
+          const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
 
-        const getTopicNameClassName = () => {
-          if (isRenaming(topic.id)) return 'shimmer'
-          if (isNewlyRenamed(topic.id)) return 'typing'
-          return ''
-        }
+          const getTopicNameClassName = () => {
+            if (isRenaming(topic.id)) return 'shimmer'
+            if (isNewlyRenamed(topic.id)) return 'typing'
+            return ''
+          }
 
-        return (
-          <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
-            <TopicListItem
-              onContextMenu={() => setTargetTopic(topic)}
-              className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
-              style={{
-                borderRadius,
-                cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
-              }}>
-              {isPending(topic.id) && !isActive && <PendingIndicator />}
-              {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
-              <TopicNameContainer>
-                {editingTopicId === topic.id && topicEdit.isEditing ? (
-                  <TopicEditInput
-                    ref={topicEdit.inputRef}
-                    value={topicEdit.editValue}
-                    onChange={topicEdit.handleInputChange}
-                    onKeyDown={topicEdit.handleKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <TopicName
-                    className={getTopicNameClassName()}
-                    title={topicName}
-                    onDoubleClick={() => {
-                      setEditingTopicId(topic.id)
-                      topicEdit.startEdit(topic.name)
-                    }}>
-                    {topicName}
-                  </TopicName>
+          return (
+            <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
+              <ListItem
+                onContextMenu={() => setTargetTopic(topic)}
+                className={cn(
+                  isActive ? 'active' : undefined,
+                  singlealone ? 'singlealone' : undefined,
+                  editingTopicId === topic.id && topicEdit.isEditing ? 'cursor-default' : 'cursor-pointer',
+                  showTopicTime ? 'rounded-2xl' : 'rounded-[var(--list-item-border-radius)]'
                 )}
-                {!topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
-                    title={
-                      <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                        {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
+                onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}>
+                {isPending(topic.id) && !isActive && <StatusIndicator variant="pending" />}
+                {isFulfilled(topic.id) && !isActive && <StatusIndicator variant="fulfilled" />}
+                <ListItemNameContainer>
+                  {editingTopicId === topic.id && topicEdit.isEditing ? (
+                    <ListItemEditInput
+                      ref={topicEdit.inputRef}
+                      value={topicEdit.editValue}
+                      onChange={topicEdit.handleInputChange}
+                      onKeyDown={topicEdit.handleKeyDown}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <ListItemName
+                      className={getTopicNameClassName()}
+                      title={topicName}
+                      onDoubleClick={() => {
+                        setEditingTopicId(topic.id)
+                        topicEdit.startEdit(topic.name)
                       }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
-                      ) : (
-                        <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
-                      )}
+                      {topicName}
+                    </ListItemName>
+                  )}
+                  {!topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      mouseLeaveDelay={0}
+                      title={
+                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                        </div>
+                      }>
+                      <MenuButton
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
+                        ) : (
+                          <XIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PinIcon size={14} color="var(--color-text-3)" />
                     </MenuButton>
-                  </Tooltip>
+                  )}
+                </ListItemNameContainer>
+                {topicPrompt && (
+                  <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                    {fullTopicPrompt}
+                  </TopicPromptText>
                 )}
-                {topic.pinned && (
-                  <MenuButton className="pin">
-                    <PinIcon size={14} color="var(--color-text-3)" />
-                  </MenuButton>
+                {showTopicTime && (
+                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
                 )}
-              </TopicNameContainer>
-              {topicPrompt && (
-                <TopicPromptText className="prompt" title={fullTopicPrompt}>
-                  {fullTopicPrompt}
-                </TopicPromptText>
-              )}
-              {showTopicTime && <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>}
-            </TopicListItem>
-          </Dropdown>
-        )
-      }}
-    </DraggableVirtualList>
+              </ListItem>
+            </Dropdown>
+          )
+        }}
+      </DraggableVirtualList>
+    </ListContainer>
   )
 }
-
-const TopicListItem = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
-
-  .menu {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-    transition: background-color 0.1s;
-
-    .menu {
-      opacity: 1;
-    }
-  }
-
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    .menu {
-      opacity: 1;
-
-      &:hover {
-        color: var(--color-text-2);
-      }
-    }
-  }
-  &.singlealone {
-    border-radius: 0 !important;
-    &:hover {
-      background-color: var(--color-background-soft);
-    }
-    &.active {
-      border-left: 2px solid var(--color-primary);
-      box-shadow: none;
-    }
-  }
-`
-
-const TopicNameContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  height: 20px;
-  justify-content: space-between;
-`
-
-const TopicName = styled.div`
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  position: relative;
-  will-change: background-position, width;
-
-  --color-shimmer-mid: var(--color-text-1);
-  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
-
-  &.shimmer {
-    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
-    background-size: 200% 100%;
-    background-clip: text;
-    color: transparent;
-    animation: shimmer 3s linear infinite;
-  }
-
-  &.typing {
-    display: block;
-    -webkit-line-clamp: unset;
-    -webkit-box-orient: unset;
-    white-space: nowrap;
-    overflow: hidden;
-    animation: typewriter 0.5s steps(40, end);
-  }
-
-  @keyframes shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-
-  @keyframes typewriter {
-    from {
-      width: 0;
-    }
-    to {
-      width: 100%;
-    }
-  }
-`
-
-const TopicEditInput = styled.input`
-  background: var(--color-background);
-  border: none;
-  color: var(--color-text-1);
-  font-size: 13px;
-  font-family: inherit;
-  padding: 2px 6px;
-  width: 100%;
-  outline: none;
-  padding: 0;
-`
-
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-warning);
-`
-
-const FulfilledIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
-  --pulse-size: 5px;
-  width: 5px;
-  height: 5px;
-  position: absolute;
-  left: 3px;
-  top: 15px;
-  border-radius: 50%;
-  background-color: var(--color-status-success);
-`
 
 const TopicPromptText = styled.div`
   color: var(--color-text-2);
@@ -750,16 +613,4 @@ const TopicPromptText = styled.div`
 const TopicTime = styled.div`
   color: var(--color-text-3);
   font-size: 11px;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 20px;
-  min-height: 20px;
-  .anticon {
-    font-size: 12px;
-  }
 `
