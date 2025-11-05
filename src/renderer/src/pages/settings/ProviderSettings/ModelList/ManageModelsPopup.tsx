@@ -131,10 +131,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     (model: Model) => {
       if (!isEmpty(model.name)) {
         if (isNewApiProvider(provider)) {
-          if (model.supported_endpoint_types && model.supported_endpoint_types.length > 0) {
+          const endpointTypes = model.supported_endpoint_types
+          if (endpointTypes && endpointTypes.length > 0) {
             addModel({
               ...model,
-              endpoint_type: model.supported_endpoint_types[0],
+              endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
               supported_text_delta: !isNotSupportedTextDelta(model)
             })
           } else {

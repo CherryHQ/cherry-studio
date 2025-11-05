@@ -486,6 +486,34 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Recor
 }
 
 /**
+ * Get Bedrock reasoning parameters
+ */
+export function getBedrockReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+  if (!isReasoningModel(model)) {
+    return {}
+  }
+
+  const reasoningEffort = assistant?.settings?.reasoning_effort
+
+  if (reasoningEffort === undefined) {
+    return {}
+  }
+
+  // Only apply thinking budget for Claude reasoning models
+  if (!isSupportedThinkingTokenClaudeModel(model)) {
+    return {}
+  }
+
+  const budgetTokens = getAnthropicThinkingBudget(assistant, model)
+  return {
+    reasoningConfig: {
+      type: 'enabled',
+      budgetTokens: budgetTokens
+    }
+  }
+}
+
+/**
  * 获取自定义参数
  * 从 assistant 设置中提取自定义参数
  */

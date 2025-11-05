@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import AddButton from './AddButton'
 import SessionItem from './SessionItem'
+import { ListContainer } from './shared'
 
 // const logger = loggerService.withContext('SessionsTab')
 
@@ -95,7 +96,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   if (error) return <Alert color="danger" content={t('agent.session.get.error.failed')} />
 
   return (
-    <div className="sessions-tab flex h-full w-full flex-col p-2">
+    <ListContainer className="sessions-tab">
       <AddButton onPress={createDefaultSession} className="mb-2" isDisabled={creatingSession}>
         {t('agent.session.add.title')}
       </AddButton>
@@ -118,7 +119,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
           />
         )}
       </DynamicVirtualList>
-    </div>
+    </ListContainer>
   )
 }
 

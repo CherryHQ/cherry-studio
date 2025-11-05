@@ -82,6 +82,7 @@
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
+    "@paymoapp/electron-shutdown-handler": "^1.1.2",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "express": "^5.1.0",
     "font-list": "^2.0.0",
@@ -113,9 +114,9 @@
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch",
-    "@aws-sdk/client-bedrock": "^3.840.0",
-    "@aws-sdk/client-bedrock-runtime": "^3.840.0",
-    "@aws-sdk/client-s3": "^3.840.0",
+    "@aws-sdk/client-bedrock": "^3.910.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.910.0",
+    "@aws-sdk/client-s3": "^3.910.0",
     "@biomejs/biome": "2.2.4",
     "@cherrystudio/ai-core": "workspace:^1.0.0-alpha.18",
     "@cherrystudio/embedjs": "^0.1.31",
@@ -373,6 +374,7 @@
     "zod": "^4.1.5"
   },
   "resolutions": {
+    "@smithy/types": "4.7.1",
     "@codemirror/language": "6.11.3",
     "@codemirror/lint": "6.8.5",
     "@codemirror/view": "6.38.1",

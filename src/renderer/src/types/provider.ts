@@ -73,6 +73,17 @@ export function isServiceTier(tier: string): tier is ServiceTier {
   return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
 }
 
+export const AwsBedrockAuthTypes = {
+  iam: 'iam',
+  apiKey: 'apiKey'
+} as const
+
+export type AwsBedrockAuthType = keyof typeof AwsBedrockAuthTypes
+
+export function isAwsBedrockAuthType(type: string): type is AwsBedrockAuthType {
+  return Object.hasOwn(AwsBedrockAuthTypes, type)
+}
+
 export type Provider = {
   id: string
   type: ProviderType
@@ -123,6 +134,7 @@ export const SystemProviderIds = {
   cephalon: 'cephalon',
   lanyun: 'lanyun',
   ph8: 'ph8',
+  sophnet: 'sophnet',
   openrouter: 'openrouter',
   ollama: 'ollama',
   ovms: 'ovms',

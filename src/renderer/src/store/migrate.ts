@@ -2783,6 +2783,40 @@ const migrateConfig = {
       logger.error('migrate 169 error', error as Error)
       return state
     }
+  },
+  '170': (state: RootState) => {
+    try {
+      addProvider(state, 'sophnet')
+      state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
+      state.settings.defaultPaintingProvider = 'cherryin'
+      return state
+    } catch (error) {
+      logger.error('migrate 170 error', error as Error)
+      return state
+    }
+  },
+  '171': (state: RootState) => {
+    try {
+      // Ensure aws-bedrock provider exists
+      addProvider(state, 'aws-bedrock')
+
+      // Ensure awsBedrock settings exist and have all required fields
+      if (!state.llm.settings.awsBedrock) {
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+      } else {
+        // For users who have awsBedrock but missing new fields (authType and apiKey)
+        if (!state.llm.settings.awsBedrock.authType) {
+          state.llm.settings.awsBedrock.authType = 'iam'
+        }
+        if (state.llm.settings.awsBedrock.apiKey === undefined) {
+          state.llm.settings.awsBedrock.apiKey = ''
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 171 error', error as Error)
+      return state
+    }
   }
 }
 
