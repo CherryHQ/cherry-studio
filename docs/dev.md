@@ -18,13 +18,13 @@ yarn
 
 ### Setup Node.js
 
-Download and install [Node.js v20.x.x](https://nodejs.org/en/download)
+Download and install [Node.js v22.x.x](https://nodejs.org/en/download)
 
 ### Setup Yarn
 
 ```bash
 corepack enable
-corepack prepare yarn@4.6.0 --activate
+corepack prepare yarn@4.9.1 --activate
 ```
 
 ### Install Dependencies
