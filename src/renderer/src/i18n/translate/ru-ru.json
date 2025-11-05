@@ -4260,6 +4260,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS Ключ доступа ID",
         "access_key_id_help": "Ваш AWS Ключ доступа ID для доступа к AWS Bedrock",
+        "api_key": "Ключ API Bedrock",
+        "api_key_help": "Ваш ключ API AWS Bedrock для аутентификации",
+        "auth_type": "Тип аутентификации",
+        "auth_type_api_key": "Ключ API Bedrock",
+        "auth_type_help": "Выберите между аутентификацией с помощью учетных данных IAM или ключа API Bedrock",
+        "auth_type_iam": "Учетные данные IAM",
         "description": "AWS Bedrock — это полное управляемое сервисное предложение для моделей, поддерживающее различные современные модели языка",
         "region": "AWS регион",
         "region_help": "Ваш регион AWS, например us-east-1",

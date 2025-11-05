@@ -374,6 +374,7 @@
     "zod": "^4.1.5"
   },
   "resolutions": {
+    "@smithy/types": "4.7.1",
     "@codemirror/language": "6.11.3",
     "@codemirror/lint": "6.8.5",
     "@codemirror/view": "6.38.1",
