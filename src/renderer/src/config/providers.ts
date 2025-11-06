@@ -1490,6 +1490,10 @@ export function isCherryAIProvider(provider: Provider): boolean {
   return provider.id === 'cherryai'
 }
 
+export function isPerplexityProvider(provider: Provider): boolean {
+  return provider.id === 'perplexity'
+}
+
 /**
  * 判断是否为 OpenAI 兼容的提供商
  * @param {Provider} provider 提供商对象
