@@ -1519,7 +1519,7 @@ export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
 }
 
-const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
 
 export const isSupportAPIVersionProvider = (provider: Provider) => {
   if (isSystemProvider(provider)) {
