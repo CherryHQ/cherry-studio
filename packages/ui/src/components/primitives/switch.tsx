@@ -11,16 +11,14 @@ interface CustomSwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimi
 }
 
 function CustomizedSwitch({ loading = false, disabled = false, size = 'md', className, ...props }: CustomSwitchProps) {
-  // temp
-  const linearDisabled = `bg-linear-to-b from-[#8DE59E] to-[#AEEABA96]`
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
-      // TODO: use semantic color
       className={cn(
         'cs-switch cs-switch-root',
         'group relative box-content cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-        'data-[state=unchecked]:bg-gray-500/20',
+        'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
+        'hover:bg-primary-hover!',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
         {
@@ -62,7 +60,7 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
               'cs-switch cs-switch-thumb-content',
               'w-0.5 h-1.5 rounded-2xl transition-colors group-data-[state=unchecked]:bg-gray-500/20',
               'group-data-[state=checked]:bg-linear-to-b group-data-[state=checked]:from-[#8DE59E] group-data-[state=checked]:to-[#3CD45A]',
-              disabled && linearDisabled,
+              disabled && 'opacity-40',
               loading &&
                 'group-data-[state=unchecked]:bg-gray-500/20 group-data-[state=checked]:bg-gray-500/20 animate-spin'
             )}></div>
