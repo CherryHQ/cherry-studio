@@ -1,12 +1,12 @@
-import {
+import type {
   AnthropicSearchConfig,
   OpenAISearchConfig,
   WebSearchPluginConfig
 } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
-import { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
-import { CherryWebSearchConfig } from '@renderer/store/websearch'
-import { Model } from '@renderer/types'
+import type { CherryWebSearchConfig } from '@renderer/store/websearch'
+import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 
 export function getWebSearchParams(model: Model): Record<string, any> {
@@ -78,6 +78,7 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'xai': {
+      const excludeDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
       return {
         xai: {
           maxSearchResults: webSearchConfig.maxResults,
@@ -85,7 +86,7 @@ export function buildProviderBuiltinWebSearchConfig(
           sources: [
             {
               type: 'web',
-              excludedWebsites: mapRegexToPatterns(webSearchConfig.excludeDomains)
+              excludedWebsites: excludeDomains.slice(0, Math.min(excludeDomains.length, 5))
             },
             { type: 'news' },
             { type: 'x' }

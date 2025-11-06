@@ -1,5 +1,6 @@
-import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
-import {
+import type { AzureOpenAI } from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
+import type {
   ChatCompletionContentPart,
   ChatCompletionContentPartRefusal,
   ChatCompletionTool
@@ -48,25 +49,28 @@ import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
-import {
+import type {
   Assistant,
-  EFFORT_RATIO,
-  FileTypes,
-  isSystemProvider,
-  isTranslateAssistant,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
   OpenAIServiceTier,
   Provider,
+  ToolCallResponse
+} from '@renderer/types'
+import {
+  EFFORT_RATIO,
+  FileTypes,
+  isSystemProvider,
+  isTranslateAssistant,
   SystemProviderIds,
-  ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import type { TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   OpenAIExtraBody,
   OpenAIModality,
   OpenAISdkMessageParam,
@@ -86,8 +90,8 @@ import {
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { t } from 'i18next'
 
-import { GenericChunk } from '../../middleware/schemas'
-import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
+import type { GenericChunk } from '../../middleware/schemas'
+import type { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 const logger = loggerService.withContext('OpenAIApiClient')
@@ -188,7 +192,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             extra_body: {
               google: {
                 thinking_config: {
-                  thinkingBudget: 0
+                  thinking_budget: 0
                 }
               }
             }
@@ -323,8 +327,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           extra_body: {
             google: {
               thinking_config: {
-                thinkingBudget: -1,
-                includeThoughts: true
+                thinking_budget: -1,
+                include_thoughts: true
               }
             }
           }
@@ -334,8 +338,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         extra_body: {
           google: {
             thinking_config: {
-              thinkingBudget: budgetTokens,
-              includeThoughts: true
+              thinking_budget: budgetTokens,
+              include_thoughts: true
             }
           }
         }
@@ -666,7 +670,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
               suffix = ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
             } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
-              suffix = ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinkingBudget}`
+              suffix = ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
             }
             // FIXME: poe 不支持多个text part，上传文本文件的时候用的不是file part而是text part，因此会出问题
             // 临时解决方案是强制poe用string content，但是其实poe部分支持array

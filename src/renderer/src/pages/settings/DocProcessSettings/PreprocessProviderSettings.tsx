@@ -2,12 +2,13 @@ import { ExportOutlined } from '@ant-design/icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { PreprocessProvider } from '@renderer/types'
+import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
 import { Avatar, Button, Divider, Flex, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -71,7 +72,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
       <SettingTitle>
         <Flex align="center" gap={8}>
           <ProviderLogo shape="square" src={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
-
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>

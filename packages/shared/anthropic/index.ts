@@ -9,9 +9,9 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { TextBlockParam } from '@anthropic-ai/sdk/resources'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import { Provider } from '@types'
+import type { Provider } from '@types'
 import type { ModelMessage } from 'ai'
 
 const logger = loggerService.withContext('anthropic-sdk')

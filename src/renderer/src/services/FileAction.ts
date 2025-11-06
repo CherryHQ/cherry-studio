@@ -3,8 +3,8 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileType } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
+import type { FileType } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
 
 // 排序相关

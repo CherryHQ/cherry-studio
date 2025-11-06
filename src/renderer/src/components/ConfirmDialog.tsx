@@ -1,6 +1,6 @@
-import { Button } from '@heroui/react'
-import { CheckIcon, XIcon } from 'lucide-react'
-import { FC } from 'react'
+import { CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { Button } from 'antd'
+import type { FC } from 'react'
 import { createPortal } from 'react-dom'
 
 interface Props {
@@ -28,12 +28,22 @@ const ConfirmDialog: FC<Props> = ({ x, y, message, onConfirm, onCancel }) => {
         <div className="flex min-w-[160px] items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
           <div className="mr-2 text-sm leading-[1.4]">{message}</div>
           <div className="flex justify-center gap-2">
-            <Button onPress={onCancel} radius="full" className="h-6 w-6 min-w-0 p-1" color="danger">
-              <XIcon className="text-danger-foreground" size={16} />
-            </Button>
-            <Button onPress={onConfirm} radius="full" className="h-6 w-6 min-w-0 p-1" color="success">
-              <CheckIcon className="text-success-foreground" size={16} />
-            </Button>
+            <Button
+              onClick={onCancel}
+              shape="circle"
+              size="small"
+              danger
+              icon={<CloseOutlined />}
+              style={{ width: 24, height: 24, minWidth: 24 }}
+            />
+            <Button
+              onClick={onConfirm}
+              shape="circle"
+              size="small"
+              type="primary"
+              icon={<CheckOutlined />}
+              style={{ width: 24, height: 24, minWidth: 24, backgroundColor: '#52c41a' }}
+            />
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import OpenAI from '@cherrystudio/openai'
+import type OpenAI from '@cherrystudio/openai'
 import { toFile } from '@cherrystudio/openai/uploads'
 import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import FileManager from '@renderer/services/FileManager'
@@ -6,9 +6,9 @@ import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
 
-import { BaseApiClient } from '../../clients/BaseApiClient'
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { BaseApiClient } from '../../clients/BaseApiClient'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'ImageGenerationMiddleware'
 
@@ -78,6 +78,12 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           const options = { signal, timeout: defaultTimeout }
 
           if (imageFiles.length > 0) {
+            const model = assistant.model
+            const provider = context.apiClientInstance.provider
+            // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/dall-e?tabs=gpt-image-1#call-the-image-edit-api
+            if (model.id.toLowerCase().includes('gpt-image-1-mini') && provider.type === 'azure-openai') {
+              throw new Error('Azure OpenAI GPT-Image-1-Mini model does not support image editing.')
+            }
             response = await sdk.images.edit(
               {
                 model: assistant.model.id,

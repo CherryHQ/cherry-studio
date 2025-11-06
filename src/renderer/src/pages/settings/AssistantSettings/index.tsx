@@ -3,7 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +43,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   const _useAgent = useAssistantPreset(props.assistant.id)
   const isAgent = props.assistant.type === 'agent'
 
-  const assistant = isAgent ? _useAgent.preset : _useAssistant.assistant
+  const assistant = isAgent ? (_useAgent.preset ?? props.assistant) : _useAssistant.assistant
   const updateAssistant = isAgent ? _useAgent.updateAssistantPreset : _useAssistant.updateAssistant
   const updateAssistantSettings = isAgent
     ? _useAgent.updateAssistantPresetSettings

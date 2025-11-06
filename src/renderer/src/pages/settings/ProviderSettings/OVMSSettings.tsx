@@ -1,6 +1,7 @@
 import { VStack } from '@renderer/components/Layout'
 import { Alert, Button } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingSubtitle } from '..'

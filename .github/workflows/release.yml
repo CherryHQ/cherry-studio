@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.0.0)'
+        description: "Release tag (e.g. v1.0.0)"
         required: true
-        default: 'v1.0.0'
+        default: "v1.0.0"
   push:
     tags:
       - v*.*.*
@@ -47,9 +47,9 @@ jobs:
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: macos-latest dependencies fix
         if: matrix.os == 'macos-latest'
@@ -57,7 +57,7 @@ jobs:
           brew install python-setuptools
 
       - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.6.0 --activate
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -127,5 +127,5 @@ jobs:
           allowUpdates: true
           makeLatest: false
           tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap'
+          artifacts: "dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap"
           token: ${{ secrets.GITHUB_TOKEN }}

@@ -6,14 +6,8 @@ import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/confi
 import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'
 import { addOcrProvider, removeOcrProvider, setImageOcrProviderId, updateOcrProviderConfig } from '@renderer/store/ocr'
-import {
-  ImageOcrProvider,
-  isBuiltinOcrProvider,
-  isBuiltinOcrProviderId,
-  isImageOcrProvider,
-  OcrProvider,
-  OcrProviderConfig
-} from '@renderer/types'
+import type { ImageOcrProvider, OcrProvider, OcrProviderConfig } from '@renderer/types'
+import { isBuiltinOcrProvider, isBuiltinOcrProviderId, isImageOcrProvider } from '@renderer/types'
 import { Avatar } from 'antd'
 import { FileQuestionMarkIcon, MonitorIcon } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'

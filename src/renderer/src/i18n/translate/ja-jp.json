@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "さまざまなツールを使って複雑なタスクを処理する",
       "error": {
         "failed": "エージェントの追加に失敗しました",
         "invalid_agent": "無効なエージェント"
@@ -107,6 +108,50 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
+      "plugins": {
+        "available": {
+          "title": "利用可能なプラグイン"
+        },
+        "confirm": {
+          "uninstall": "このプラグインをアンインストールしてもよろしいですか？"
+        },
+        "empty": {
+          "available": "一致するプラグインが見つかりませんでした。検索キーワードやカテゴリフィルターを調整してみてください。"
+        },
+        "error": {
+          "install": "プラグインのインストールに失敗しました",
+          "load": "プラグインの読み込みに失敗しました",
+          "uninstall": "プラグインのアンインストールに失敗しました"
+        },
+        "filter": {
+          "all": "すべてのカテゴリー"
+        },
+        "install": "インストール",
+        "installed": {
+          "empty": "まだプラグインがインストールされていません。利用可能なプラグインを見てみましょう。",
+          "title": "インストール済みプラグイン"
+        },
+        "installing": "インストール中...",
+        "results": "{{count}} 個のプラグインが見つかりました",
+        "search": {
+          "placeholder": "検索プラグイン..."
+        },
+        "success": {
+          "install": "プラグインのインストールが成功しました",
+          "uninstall": "プラグインのアンインストールが成功しました"
+        },
+        "tab": "プラグイン",
+        "type": {
+          "agent": "代理",
+          "agents": "代理",
+          "all": "全部",
+          "command": "命令",
+          "commands": "命令",
+          "skills": "技能"
+        },
+        "uninstall": "アンインストール",
+        "uninstalling": "アンインストール中..."
+      },
       "prompt": "プロンプト設定",
       "tooling": {
         "mcp": {
@@ -190,6 +235,39 @@
         "title": "事前承認済みツール",
         "toggle": "{{defaultValue}}"
       }
+    },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "ツールリクエストを許可",
+        "denyRequest": "ツールリクエストを拒否",
+        "hideDetails": "ツールの詳細を非表示",
+        "runWithOptions": "追加オプションで実行",
+        "showDetails": "ツールの詳細を表示"
+      },
+      "button": {
+        "cancel": "キャンセル",
+        "run": "走る"
+      },
+      "confirmation": "このClaudeツールを実行してもよろしいですか？",
+      "defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
+      "defaultDescription": "環境内でコードまたはシステムアクションを実行します。実行前にコマンドが安全であることを確認してください。",
+      "error": {
+        "sendFailed": "決定の送信に失敗しました。もう一度お試しください。"
+      },
+      "expired": "期限切れ",
+      "inputPreview": "ツール入力プレビュー",
+      "pending": "保留中（{{seconds}}秒）",
+      "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
+      "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
+      "suggestion": {
+        "permissionUpdateMultiple": "承認すると、このツールを常に許可することを選択した場合、複数のセッション権限が更新されることがあります。",
+        "permissionUpdateSingle": "承認すると、このツールを常に許可することを選択した場合、セッションの権限が更新されることがあります。"
+      },
+      "toast": {
+        "denied": "ツールリクエストは拒否されました。",
+        "timeout": "ツールリクエストは承認を受ける前にタイムアウトしました。"
+      },
+      "waiting": "ツールの許可決定を待っています..."
     },
     "type": {
       "label": "エージェントタイプ",
@@ -470,7 +548,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常会話と簡単なQ&A",
         "title": "アシスタントを追加"
+      },
+      "option": {
+        "title": "種類を選択"
       },
       "topic": {
         "title": "新しいトピック"
@@ -761,7 +843,7 @@
         "label": "コンテキスト",
         "tip": "コンテキストに保持する以前のメッセージの数"
       },
-      "max": "最大",
+      "max": "制限なし",
       "max_tokens": {
         "confirm": "最大トークン数",
         "confirm_content": "最大トークン数を設定すると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
@@ -970,10 +1052,12 @@
     "clear": "クリア",
     "close": "閉じる",
     "collapse": "折りたたむ",
+    "completed": "完了",
     "confirm": "確認",
     "copied": "コピーされました",
     "copy": "コピー",
     "copy_failed": "コピーに失敗しました",
+    "current": "現在",
     "cut": "切り取り",
     "default": "デフォルト",
     "delete": "削除",
@@ -1527,7 +1611,7 @@
     },
     "assistant": {
       "added": {
-        "content": "アシスタントが追加されました"
+        "content": "助手が追加されました"
       }
     },
     "attachments": {
@@ -2299,6 +2383,32 @@
       "seed_tip": "拡大結果のランダム性を制御します"
     }
   },
+  "plugins": {
+    "actions": "操作",
+    "agents": "代理",
+    "all_categories": "すべてのカテゴリー",
+    "all_types": "全部",
+    "category": "カテゴリー",
+    "commands": "命令",
+    "confirm_uninstall": "{{name}}をアンインストールしてもよろしいですか？",
+    "install": "インストール",
+    "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
+    "installing": "インストール中...",
+    "name": "名称",
+    "no_description": "説明なし",
+    "no_installed_plugins": "まだプラグインがインストールされていません",
+    "no_results": "プラグインが見つかりません",
+    "search_placeholder": "検索プラグイン...",
+    "showing_results": "{{count}} 個のプラグインを表示",
+    "showing_results_one": "{{count}} 個のプラグインを表示",
+    "showing_results_other": "{{count}} 個のプラグインを表示",
+    "showing_results_plural": "{{count}} 個のプラグインを表示",
+    "skills": "スキル",
+    "try_different_search": "検索またはカテゴリフィルターを調整してみてください",
+    "type": "タイプ",
+    "uninstall": "アンインストール",
+    "uninstalling": "アンインストール中..."
+  },
   "preview": {
     "copy": {
       "image": "画像としてコピー"
@@ -2345,12 +2455,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "ハギングフェイス",
     "hunyuan": "腾讯混元",
     "hyperbolic": "Hyperbolic",
     "infini": "Infini",
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "longcat": "トトロ",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
@@ -2370,6 +2482,7 @@
     "qiniu": "七牛云 AI 推理",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
@@ -2816,15 +2929,14 @@
       },
       "description": "クリエイターのための強力なAIアシスタント",
       "downloading": "ダウンロード中...",
+      "enterprise": {
+        "title": "エンタープライズ"
+      },
       "feedback": {
         "button": "フィードバック",
         "title": "フィードバック"
       },
       "label": "について",
-      "license": {
-        "button": "ライセンス",
-        "title": "ライセンス"
-      },
       "releases": {
         "button": "リリース",
         "title": "リリースノート"
@@ -2931,6 +3043,46 @@
         "siyuan": "思源ノートにエクスポート",
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "バックアップファイルを選択"
+        },
+        "content": "一部のデータ、チャット履歴や設定をエクスポートします。バックアップには時間がかかる場合がありますので、しばらくお待ちください。",
+        "lan": {
+          "auto_close_tip": "{{seconds}}秒後に自動的に閉じます...",
+          "confirm_close_message": "ファイル転送が進行中です。閉じると転送が中断されます。強制終了してもよろしいですか？",
+          "confirm_close_title": "閉じることを確認",
+          "connected": "接続済み",
+          "connection_failed": "接続に失敗しました",
+          "content": "コンピューターとスマートフォンが同じネットワークに接続されていることを確認し、ローカルエリアネットワーク転送を使用してください。Cherry Studioアプリを開き、このQRコードをスキャンしてください。",
+          "error": {
+            "init_failed": "初期化に失敗しました",
+            "no_file": "ファイルが選択されていません",
+            "no_ip": "IPアドレスを取得できません",
+            "send_failed": "ファイルの送信に失敗しました"
+          },
+          "force_close": "強制終了",
+          "generating_qr": "QRコードを生成中...",
+          "noZipSelected": "圧縮ファイルが選択されていません",
+          "scan_qr": "携帯電話でQRコードをスキャンしてください",
+          "selectZip": "圧縮ファイルを選択",
+          "sendZip": "データの復元を開始します",
+          "status": {
+            "completed": "転送完了",
+            "connected": "接続済み",
+            "connecting": "接続中...",
+            "disconnected": "切断されました",
+            "error": "接続エラー",
+            "initializing": "接続を初期化中...",
+            "preparing": "転送準備中...",
+            "sending": "転送中 {{progress}}%",
+            "waiting_qr_scan": "QRコードをスキャンして接続してください"
+          },
+          "title": "LAN転送",
+          "transfer_progress": "転送進行"
+        },
+        "title": "スマートフォンにエクスポート"
       },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",
@@ -3678,6 +3830,12 @@
         "noPromptsAvailable": "利用可能なプロンプトはありません",
         "requiredField": "必須フィールド"
       },
+      "protocolInstallWarning": {
+        "command": "起動コマンド",
+        "message": "このMCPは外部ソースからプロトコル経由でインストールされました。不明なツールを実行すると、コンピューターに危害を及ぼす可能性があります。",
+        "run": "走る",
+        "title": "外部のMCPを実行しますか？"
+      },
       "provider": "プロバイダー",
       "providerPlaceholder": "プロバイダー名",
       "providerUrl": "プロバイダーURL",
@@ -4043,7 +4201,6 @@
       },
       "anthropic_api_host": "Anthropic APIアドレス",
       "anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
-      "anthropic_api_host_tip": "サービスプロバイダーがAnthropic互換のアドレスを提供する場合のみ入力してください。/で終わる場合は自動追加されるv1を無視し、#で終わる場合は元のアドレスを強制的に使用します。",
       "anthropic_api_host_tooltip": "サービスプロバイダーがClaude互換のベースアドレスを提供する場合のみ入力してください。",
       "api": {
         "key": {
@@ -4088,10 +4245,11 @@
         "url": {
           "preview": "プレビュー: {{url}}",
           "reset": "リセット",
-          "tip": "/で終わる場合、v1を無視します。#で終わる場合、入力されたアドレスを強制的に使用します"
+          "tip": "#で終わる場合、入力されたアドレスを強制的に使用します"
         }
       },
       "api_host": "APIホスト",
+      "api_host_no_valid": "APIアドレスが無効です",
       "api_host_preview": "プレビュー：{{url}}",
       "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
@@ -4102,6 +4260,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS アクセスキー ID",
         "access_key_id_help": "あなたの AWS アクセスキー ID は、AWS Bedrock サービスへのアクセスに使用されます",
+        "api_key": "Bedrock APIキー",
+        "api_key_help": "認証用のAWS Bedrock APIキー",
+        "auth_type": "認証タイプ",
+        "auth_type_api_key": "Bedrock APIキー",
+        "auth_type_help": "IAM認証情報とBedrock APIキー認証のどちらかを選択してください",
+        "auth_type_iam": "IAM認証情報",
         "description": "AWS Bedrock は、Amazon が提供する完全に管理されたベースモデルサービスで、さまざまな最先端の大言語モデルをサポートしています",
         "region": "AWS リージョン",
         "region_help": "あなたの AWS サービスリージョン、例：us-east-1",

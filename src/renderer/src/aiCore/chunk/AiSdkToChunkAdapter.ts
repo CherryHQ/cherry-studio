@@ -4,8 +4,10 @@
  */
 
 import { loggerService } from '@logger'
-import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { ProviderSpecificError } from '@renderer/types/provider-specific-error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'

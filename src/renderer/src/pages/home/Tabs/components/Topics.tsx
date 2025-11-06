@@ -12,11 +12,11 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { RootState } from '@renderer/store'
 import store from '@renderer/store'
-import { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { setGenerating } from '@renderer/store/runtime'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames, removeSpecialCharactersForFileName } from '@renderer/utils'
 import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
@@ -28,8 +28,9 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
-import { ItemType, MenuItemType } from 'antd/es/menu/interface'
+import type { MenuProps } from 'antd'
+import { Dropdown, Tooltip } from 'antd'
+import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
@@ -495,9 +496,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       style={{ height: '100%', padding: '11px 0 10px 10px' }}
       itemContainerStyle={{ paddingBottom: '8px' }}
       header={
-        <AddButton onPress={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
-          {t('chat.add.topic.title')}
-        </AddButton>
+        <>
+          <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+            {t('chat.add.topic.title')}
+          </AddButton>
+          <div className="my-1"></div>
+        </>
       }>
       {(topic) => {
         const isActive = topic.id === activeTopic?.id

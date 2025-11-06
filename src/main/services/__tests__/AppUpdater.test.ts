@@ -1,4 +1,4 @@
-import { UpdateInfo } from 'builder-util-runtime'
+import type { UpdateInfo } from 'builder-util-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock dependencies

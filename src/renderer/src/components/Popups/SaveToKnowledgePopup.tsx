@@ -2,18 +2,16 @@ import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { Topic } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type { NotesTreeNode } from '@renderer/types/note'
+import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import {
   analyzeMessageContent,
   analyzeTopicContent,
   CONTENT_TYPES,
-  ContentType,
-  MessageContentStats,
   processMessageContent,
-  processTopicContent,
-  TopicContentStats
+  processTopicContent
 } from '@renderer/utils/knowledge'
 import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
 import { Check, CircleHelp } from 'lucide-react'

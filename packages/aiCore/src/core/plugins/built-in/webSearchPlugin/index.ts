@@ -9,7 +9,8 @@ import { openai } from '@ai-sdk/openai'
 import { createOpenRouterOptions, createXaiOptions, mergeProviderOptions } from '../../../options'
 import { definePlugin } from '../../'
 import type { AiRequestContext } from '../../types'
-import { DEFAULT_WEB_SEARCH_CONFIG, WebSearchPluginConfig } from './helper'
+import type { WebSearchPluginConfig } from './helper'
+import { DEFAULT_WEB_SEARCH_CONFIG } from './helper'
 
 /**
  * 网络搜索插件
