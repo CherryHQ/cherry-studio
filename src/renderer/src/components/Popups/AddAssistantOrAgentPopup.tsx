@@ -1,5 +1,5 @@
-import { cn } from '@heroui/react'
 import { TopView } from '@renderer/components/TopView'
+import { cn } from '@renderer/utils'
 import { Modal } from 'antd'
 import { Bot, MessageSquare } from 'lucide-react'
 import { useState } from 'react'
@@ -51,7 +51,7 @@ const PopupContainer: React.FC<Props> = ({ onSelect, resolve }) => {
         <button
           type="button"
           onClick={() => handleSelect('assistant')}
-          className="group flex flex-col items-center gap-3 rounded-lg bg-[var(--color-background-soft)] p-6 transition-all hover:bg-[var(--color-hover)]"
+          className="group flex cursor-pointer flex-col items-center gap-3 rounded-lg bg-[var(--color-background-soft)] p-6 transition-all hover:bg-[var(--color-hover)]"
           onMouseEnter={() => setHoveredOption('assistant')}
           onMouseLeave={() => setHoveredOption(null)}>
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-list-item)] transition-colors">
@@ -73,7 +73,7 @@ const PopupContainer: React.FC<Props> = ({ onSelect, resolve }) => {
         <button
           onClick={() => handleSelect('agent')}
           type="button"
-          className="group flex flex-col items-center gap-3 rounded-lg bg-[var(--color-background-soft)] p-6 transition-all hover:bg-[var(--color-hover)]"
+          className="group flex cursor-pointer flex-col items-center gap-3 rounded-lg bg-[var(--color-background-soft)] p-6 transition-all hover:bg-[var(--color-hover)]"
           onMouseEnter={() => setHoveredOption('agent')}
           onMouseLeave={() => setHoveredOption(null)}>
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-list-item)] transition-colors">

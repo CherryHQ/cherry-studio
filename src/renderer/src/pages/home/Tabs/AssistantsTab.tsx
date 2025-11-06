@@ -1,4 +1,3 @@
-import { Alert, Spinner } from '@heroui/react'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiServer } from '@renderer/hooks/useApiServer'
@@ -7,13 +6,9 @@ import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { useAppDispatch } from '@renderer/store'
-import { addIknowAction } from '@renderer/store/runtime'
 import type { Assistant, AssistantsSortType, Topic } from '@renderer/types'
-import { getErrorMessage } from '@renderer/utils'
 import type { FC } from 'react'
 import { useCallback, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import UnifiedAddButton from './components/UnifiedAddButton'
@@ -31,16 +26,12 @@ interface AssistantsTabProps {
   onCreateDefaultAssistant: () => void
 }
 
-const ALERT_KEY = 'enable_api_server_to_use_agent'
-
 const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const { activeAssistant, setActiveAssistant, onCreateAssistant, onCreateDefaultAssistant } = props
   const containerRef = useRef<HTMLDivElement>(null)
-  const { t } = useTranslation()
-  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
+  const { apiServerConfig } = useApiServer()
   const apiServerEnabled = apiServerConfig.enabled
-  const { iknow, chat } = useRuntime()
-  const dispatch = useAppDispatch()
+  const { chat } = useRuntime()
 
   // Agent related hooks
   const { agents, deleteAgent, isLoading: agentsLoading, error: agentsError } = useAgents()
@@ -126,31 +117,6 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      {!apiServerConfig.enabled && !apiServerRunning && !iknow[ALERT_KEY] && (
-        <Alert
-          color="warning"
-          title={t('agent.warning.enable_server')}
-          isClosable
-          onClose={() => {
-            dispatch(addIknowAction(ALERT_KEY))
-          }}
-          className="mb-2"
-        />
-      )}
-
-      {(agentsLoading || apiServerLoading) && <Spinner />}
-      {apiServerConfig.enabled && !apiServerLoading && !apiServerRunning && (
-        <Alert color="danger" title={t('agent.server.error.not_running')} isClosable className="mb-2" />
-      )}
-      {apiServerRunning && agentsError && (
-        <Alert
-          color="danger"
-          title={t('agent.list.error.failed')}
-          description={getErrorMessage(agentsError)}
-          className="mb-2"
-        />
-      )}
-
       <UnifiedAddButton
         onCreateAssistant={onCreateAssistant}
         setActiveAssistant={setActiveAssistant}

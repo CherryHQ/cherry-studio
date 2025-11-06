@@ -1,4 +1,3 @@
-import { Button } from '@heroui/button'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -33,6 +32,7 @@ import {
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
+import { Button } from 'antd'
 import { Alert as AntdAlert, Modal } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -144,9 +144,11 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         onClick={showErrorDetail}
         style={{ cursor: 'pointer' }}
         action={
-          <Button size="sm" className="p-0" variant="light" onPress={showErrorDetail}>
-            {t('common.detail')}
-          </Button>
+          <>
+            <Button size="middle" color="default" variant="text" onClick={showErrorDetail}>
+              {t('common.detail')}
+            </Button>
+          </>
         }
       />
       <ErrorDetailModal open={showDetailModal} onClose={() => setShowDetailModal(false)} error={block.error} />
@@ -198,10 +200,10 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="copy" size="sm" variant="light" onPress={copyErrorDetails}>
+        <Button key="copy" variant="text" color="default" onClick={copyErrorDetails}>
           {t('common.copy')}
         </Button>,
-        <Button key="close" size="sm" variant="light" onPress={onClose}>
+        <Button key="close" variant="text" color={'default'} onClick={onClose}>
           {t('common.close')}
         </Button>
       ]}

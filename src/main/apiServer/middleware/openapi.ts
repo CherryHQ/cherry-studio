@@ -171,7 +171,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
       }
     ]
   },
-  apis: ['./src/main/apiServer/routes/*.ts', './src/main/apiServer/app.ts']
+  apis: ['./src/main/apiServer/routes/**/*.ts', './src/main/apiServer/app.ts']
 }
 
 export function setupOpenAPIDocumentation(app: Express) {

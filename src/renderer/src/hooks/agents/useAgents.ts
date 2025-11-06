@@ -41,6 +41,7 @@ export const useAgents = () => {
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
+
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
   const { chat } = useRuntime()
   const { activeAgentId } = chat

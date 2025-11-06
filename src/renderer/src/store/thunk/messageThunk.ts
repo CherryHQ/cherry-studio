@@ -122,7 +122,7 @@ const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
   return `${baseHost}${portSegment}`
 }
 
-const renameAgentSessionIfNeeded = async (
+export const renameAgentSessionIfNeeded = async (
   agentSession: AgentSessionContext,
   assistant: Assistant,
   topicId: string,

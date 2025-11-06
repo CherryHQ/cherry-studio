@@ -1,10 +1,6 @@
 @import 'tailwindcss' source('../../../../renderer');
 @import 'tw-animate-css';
 
-/* heroui */
-@plugin '../../hero.ts';
-@source '../../../../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
-
 @custom-variant dark (&:is(.dark *));
 
 /* 如需自定义:
@@ -155,11 +151,6 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-
-  /* To disable drag title bar on toast. tailwind css doesn't provide such class name. */
-  .hero-toast {
-    -webkit-app-region: no-drag;
   }
 }
 

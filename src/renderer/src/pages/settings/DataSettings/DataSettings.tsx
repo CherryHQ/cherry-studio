@@ -6,8 +6,6 @@ import {
   WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
-import { Button } from '@heroui/button'
-import { Switch } from '@heroui/switch'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
@@ -24,7 +22,7 @@ import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/setting
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Progress, Typography } from 'antd'
+import { Button, Progress, Switch, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -295,16 +293,11 @@ const DataSettings: FC = () => {
       <div>
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
-            defaultSelected={shouldCopyData}
-            onValueChange={(checked) => {
-              shouldCopyData = checked
-            }}
-            size="sm">
-            <span style={{ fontWeight: 'normal', fontSize: '14px' }}>
-              {t('settings.data.app_data.copy_data_option')}
-            </span>
-          </Switch>
-
+            defaultChecked={shouldCopyData}
+            onChange={(checked) => (shouldCopyData = checked)}
+            style={{ marginRight: '8px' }}
+            title={t('settings.data.app_data.copy_data_option')}
+          />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
           </MigrationPathLabel>
@@ -614,10 +607,10 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
-                  <Button variant="ghost" size="sm" onPress={BackupPopup.show} startContent={<SaveIcon size={14} />}>
+                  <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
                     {t('settings.general.backup.button')}
                   </Button>
-                  <Button variant="ghost" size="sm" onPress={RestorePopup.show} startContent={<FolderOpen size={14} />}>
+                  <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
                     {t('settings.general.restore.button')}
                   </Button>
                 </HStack>
@@ -625,7 +618,7 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-                <Switch isSelected={skipBackupFile} onValueChange={onSkipBackupFilesChange} size="sm" />
+                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -634,11 +627,7 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onPress={ExportToPhoneLanPopup.show}
-                    startContent={<WifiOutlined />}>
+                  <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined size={14} />}>
                     {t('settings.data.export_to_phone.lan.title')}
                   </Button>
                 </HStack>
@@ -657,9 +646,7 @@ const DataSettings: FC = () => {
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
-                    <Button variant="ghost" size="sm" onClick={handleSelectAppDataPath}>
-                      {t('settings.data.app_data.select')}
-                    </Button>
+                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
                   </HStack>
                 </PathRow>
               </SettingRow>
@@ -672,7 +659,7 @@ const DataSettings: FC = () => {
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
-                    <Button variant="ghost" size="sm" onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                    <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
                     </Button>
                   </HStack>
@@ -682,9 +669,7 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
-                  <Button variant="ghost" size="sm" onClick={handleRemoveAllFiles}>
-                    {t('settings.data.app_knowledge.button.delete')}
-                  </Button>
+                  <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </HStack>
               </SettingRow>
               <SettingDivider />
@@ -694,16 +679,14 @@ const DataSettings: FC = () => {
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
                 <HStack gap="5px">
-                  <Button variant="ghost" size="sm" onClick={handleClearCache}>
-                    {t('settings.data.clear_cache.button')}
-                  </Button>
+                  <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
                 </HStack>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
                 <HStack gap="5px">
-                  <Button variant="ghost" size="sm" onPress={reset} color="danger">
+                  <Button onClick={reset} danger>
                     {t('settings.general.reset.title')}
                   </Button>
                 </HStack>

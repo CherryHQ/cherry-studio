@@ -1,5 +1,5 @@
-import { Input } from '@heroui/react'
 import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
+import { Input } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,14 +25,13 @@ export const NameSetting = ({ base, update }: NameSettingsProps) => {
       <Input
         placeholder={t('common.agent_one') + t('common.name')}
         value={name}
-        size="sm"
-        onValueChange={(value) => setName(value)}
+        onChange={(e) => setName(e.target.value)}
         onBlur={() => {
           if (name !== base.name) {
             updateName(name)
           }
         }}
-        className="max-w-80 flex-1"
+        className="max-w-70 flex-1"
       />
     </SettingsItem>
   )

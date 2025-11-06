@@ -1,16 +1,6 @@
-import {
-  Button,
-  Chip,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Spinner,
-  Textarea
-} from '@heroui/react'
 import type { PluginMetadata } from '@renderer/types/plugin'
-import { Download, Edit, Save, Trash2, X } from 'lucide-react'
+import { Button, Input, Modal, Spin, Tag } from 'antd'
+import { Dot, Download, Edit, Save, Trash2, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -122,198 +112,201 @@ export const PluginDetailModal: FC<PluginDetailModalProps> = ({
 
   const modalContent = (
     <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="2xl"
-      scrollBehavior="inside"
-      classNames={{
-        wrapper: 'z-[9999]'
-      }}>
-      <ModalContent>
-        <ModalHeader className="flex flex-col gap-1">
+      centered
+      open={isOpen}
+      onCancel={onClose}
+      styles={{
+        body: {
+          maxHeight: '60vh',
+          overflowY: 'auto'
+        }
+      }}
+      style={{
+        width: '70%'
+      }}
+      title={
+        <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-xl">{plugin.name}</h2>
-            <Chip size="sm" variant="solid" color={plugin.type === 'agent' ? 'primary' : 'secondary'}>
-              {plugin.type}
-            </Chip>
+            <Tag color={plugin.type === 'agent' ? 'magenta' : 'purple'}>{plugin.type}</Tag>
           </div>
           <div className="flex items-center gap-2">
-            <Chip size="sm" variant="dot" color="default">
+            <Tag
+              icon={<Dot size={14} strokeWidth={8} />}
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: '2px'
+              }}>
               {plugin.category}
-            </Chip>
-            {plugin.version && (
-              <Chip size="sm" variant="bordered">
-                v{plugin.version}
-              </Chip>
-            )}
+            </Tag>
+            {plugin.version && <Tag>v{plugin.version}</Tag>}
           </div>
-        </ModalHeader>
-
-        <ModalBody>
-          {/* Description */}
-          {plugin.description && (
-            <div className="mb-4">
-              <h3 className="mb-2 font-semibold text-small">Description</h3>
-              <p className="text-default-600 text-small">{plugin.description}</p>
-            </div>
-          )}
-
-          {/* Author */}
-          {plugin.author && (
-            <div className="mb-4">
-              <h3 className="mb-2 font-semibold text-small">Author</h3>
-              <p className="text-default-600 text-small">{plugin.author}</p>
-            </div>
-          )}
-
-          {/* Tools (for agents) */}
-          {plugin.tools && plugin.tools.length > 0 && (
-            <div className="mb-4">
-              <h3 className="mb-2 font-semibold text-small">Tools</h3>
-              <div className="flex flex-wrap gap-1">
-                {plugin.tools.map((tool) => (
-                  <Chip key={tool} size="sm" variant="flat">
-                    {tool}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Allowed Tools (for commands) */}
-          {plugin.allowed_tools && plugin.allowed_tools.length > 0 && (
-            <div className="mb-4">
-              <h3 className="mb-2 font-semibold text-small">Allowed Tools</h3>
-              <div className="flex flex-wrap gap-1">
-                {plugin.allowed_tools.map((tool) => (
-                  <Chip key={tool} size="sm" variant="flat">
-                    {tool}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Tags */}
-          {plugin.tags && plugin.tags.length > 0 && (
-            <div className="mb-4">
-              <h3 className="mb-2 font-semibold text-small">Tags</h3>
-              <div className="flex flex-wrap gap-1">
-                {plugin.tags.map((tag) => (
-                  <Chip key={tag} size="sm" variant="bordered">
-                    {tag}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Metadata */}
-          <div className="mb-4">
-            <h3 className="mb-2 font-semibold text-small">Metadata</h3>
-            <div className="space-y-1 text-small">
-              <div className="flex justify-between">
-                <span className="text-default-500">File:</span>
-                <span className="font-mono text-default-600 text-tiny">{plugin.filename}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-default-500">Size:</span>
-                <span className="text-default-600">{(plugin.size / 1024).toFixed(2)} KB</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-default-500">Source:</span>
-                <span className="font-mono text-default-600 text-tiny">{plugin.sourcePath}</span>
-              </div>
-              {plugin.installedAt && (
-                <div className="flex justify-between">
-                  <span className="text-default-500">Installed:</span>
-                  <span className="text-default-600">{new Date(plugin.installedAt).toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="mb-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-semibold text-small">Content</h3>
-              {installed && !contentLoading && !contentError && (
-                <div className="flex gap-2">
-                  {isEditing ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        color="danger"
-                        startContent={<X className="h-3 w-3" />}
-                        onPress={handleCancelEdit}
-                        isDisabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        color="primary"
-                        startContent={saving ? <Spinner size="sm" color="current" /> : <Save className="h-3 w-3" />}
-                        onPress={handleSave}
-                        isDisabled={saving}>
-                        {saving ? 'Saving...' : 'Save'}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button size="sm" variant="flat" startContent={<Edit className="h-3 w-3" />} onPress={handleEdit}>
-                      Edit
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-            {contentLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Spinner size="sm" />
-              </div>
-            ) : contentError ? (
-              <div className="rounded-md bg-danger-50 p-3 text-danger text-small">{contentError}</div>
-            ) : isEditing ? (
-              <Textarea
-                value={editedContent}
-                onValueChange={setEditedContent}
-                minRows={20}
-                classNames={{
-                  input: 'font-mono text-tiny'
-                }}
-              />
-            ) : (
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-default-100 p-3 font-mono text-tiny">
-                {content}
-              </pre>
-            )}
-          </div>
-        </ModalBody>
-
-        <ModalFooter>
-          <Button variant="light" onPress={onClose}>
-            Close
+        </div>
+      }
+      footer={
+        <div className="flex flex-row justify-end gap-4">
+          <Button type="text" onClick={onClose}>
+            {t('common.close')}
           </Button>
           {installed ? (
             <Button
-              color="danger"
-              variant="flat"
-              startContent={loading ? <Spinner size="sm" color="current" /> : <Trash2 className="h-4 w-4" />}
-              onPress={onUninstall}
-              isDisabled={loading}>
+              danger
+              variant="filled"
+              icon={loading ? <Spin size="small" /> : <Trash2 className="h-4 w-4" />}
+              iconPosition={'start'}
+              onClick={onUninstall}
+              disabled={loading}>
               {loading ? t('plugins.uninstalling') : t('plugins.uninstall')}
             </Button>
           ) : (
             <Button
               color="primary"
-              startContent={loading ? <Spinner size="sm" color="current" /> : <Download className="h-4 w-4" />}
-              onPress={onInstall}
-              isDisabled={loading}>
+              variant="solid"
+              icon={loading ? <Spin size="small" /> : <Download className="h-4 w-4" />}
+              iconPosition={'start'}
+              onClick={onInstall}
+              disabled={loading}>
               {loading ? t('plugins.installing') : t('plugins.install')}
             </Button>
           )}
-        </ModalFooter>
-      </ModalContent>
+        </div>
+      }>
+      <div>
+        {/* Description */}
+        {plugin.description && (
+          <div className="mb-4">
+            <h3 className="mb-2 font-semibold text-small">Description</h3>
+            <p className="text-default-600 text-small">{plugin.description}</p>
+          </div>
+        )}
+
+        {/* Author */}
+        {plugin.author && (
+          <div className="mb-4">
+            <h3 className="mb-2 font-semibold text-small">Author</h3>
+            <p className="text-default-600 text-small">{plugin.author}</p>
+          </div>
+        )}
+
+        {/* Tools (for agents) */}
+        {plugin.tools && plugin.tools.length > 0 && (
+          <div className="mb-4">
+            <h3 className="mb-2 font-semibold text-small">Tools</h3>
+            <div className="flex flex-wrap gap-1">
+              {plugin.tools.map((tool) => (
+                <Tag key={tool}>{tool}</Tag>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Allowed Tools (for commands) */}
+        {plugin.allowed_tools && plugin.allowed_tools.length > 0 && (
+          <div className="mb-4">
+            <h3 className="mb-2 font-semibold text-small">Allowed Tools</h3>
+            <div className="flex flex-wrap gap-1">
+              {plugin.allowed_tools.map((tool) => (
+                <Tag key={tool}>{tool}</Tag>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Tags */}
+        {plugin.tags && plugin.tags.length > 0 && (
+          <div className="mb-4">
+            <h3 className="mb-2 font-semibold text-small">Tags</h3>
+            <div className="flex flex-wrap gap-1">
+              {plugin.tags.map((tag) => (
+                <Tag key={tag}>{tag}</Tag>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Metadata */}
+        <div className="mb-4">
+          <h3 className="mb-2 font-semibold text-small">Metadata</h3>
+          <div className="space-y-1 text-small">
+            <div className="flex justify-between">
+              <span className="text-default-500">File:</span>
+              <span className="font-mono text-default-600 text-tiny">{plugin.filename}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-default-500">Size:</span>
+              <span className="text-default-600">{(plugin.size / 1024).toFixed(2)} KB</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-default-500">Source:</span>
+              <span className="font-mono text-default-600 text-tiny">{plugin.sourcePath}</span>
+            </div>
+            {plugin.installedAt && (
+              <div className="flex justify-between">
+                <span className="text-default-500">Installed:</span>
+                <span className="text-default-600">{new Date(plugin.installedAt).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="mb-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-semibold text-small">Content</h3>
+            {installed && !contentLoading && !contentError && (
+              <div className="flex gap-2">
+                {isEditing ? (
+                  <>
+                    <Button
+                      danger
+                      variant="filled"
+                      icon={<X className="h-3 w-3" />}
+                      iconPosition="start"
+                      onClick={handleCancelEdit}
+                      disabled={saving}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      color="primary"
+                      variant="filled"
+                      icon={saving ? <Spin size="small" /> : <Save className="h-3 w-3" />}
+                      onClick={handleSave}
+                      disabled={saving}>
+                      {t('common.save')}
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="filled" icon={<Edit className="h-3 w-3" />} onClick={handleEdit}>
+                    {t('common.edit')}
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          {contentLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Spin size="small" />
+            </div>
+          ) : contentError ? (
+            <div className="rounded-md bg-danger-50 p-3 text-danger text-small">{contentError}</div>
+          ) : isEditing ? (
+            <Input.TextArea
+              value={editedContent}
+              onChange={(e) => setEditedContent(e.target.value)}
+              autoSize={{ minRows: 20 }}
+              classNames={{
+                textarea: 'font-mono text-tiny'
+              }}
+            />
+          ) : (
+            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md bg-default-100 p-3 font-mono text-tiny">
+              {content}
+            </pre>
+          )}
+        </div>
+      </div>
     </Modal>
   )
 

@@ -1,5 +1,5 @@
-import { AccordionItem } from '@heroui/react'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import type { CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
@@ -11,7 +11,11 @@ interface UnknownToolProps {
   output?: unknown
 }
 
-export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToolProps) {
+export function UnknownToolRenderer({
+  toolName = '',
+  input,
+  output
+}: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
   const { highlightCode } = useCodeStyle()
   const [inputHtml, setInputHtml] = useState<string>('')
   const [outputHtml, setOutputHtml] = useState<string>('')
@@ -47,17 +51,16 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
     return 'Tool'
   }
 
-  return (
-    <AccordionItem
-      key="unknown-tool"
-      aria-label={toolName}
-      title={
-        <ToolTitle
-          icon={<Wrench className="h-4 w-4" />}
-          label={getToolDisplayName(toolName)}
-          params={getToolDescription()}
-        />
-      }>
+  return {
+    key: 'unknown-tool',
+    label: (
+      <ToolTitle
+        icon={<Wrench className="h-4 w-4" />}
+        label={getToolDisplayName(toolName)}
+        params={getToolDescription()}
+      />
+    ),
+    children: (
       <div className="space-y-3">
         {input !== undefined && (
           <div>
@@ -83,6 +86,6 @@ export function UnknownToolRenderer({ toolName = '', input, output }: UnknownToo
           <div className="text-foreground-500 text-xs">No data available for this tool</div>
         )}
       </div>
-    </AccordionItem>
-  )
+    )
+  }
 }

@@ -1,4 +1,4 @@
-import { AccordionItem } from '@heroui/react'
+import type { CollapseProps } from 'antd'
 import { FileText } from 'lucide-react'
 import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
@@ -7,7 +7,13 @@ import { ToolTitle } from './GenericTools'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
 import { AgentToolsType } from './types'
 
-export function ReadTool({ input, output }: { input: ReadToolInputType; output?: ReadToolOutputType }) {
+export function ReadTool({
+  input,
+  output
+}: {
+  input: ReadToolInputType
+  output?: ReadToolOutputType
+}): NonNullable<CollapseProps['items']>[number] {
   // 移除 system-reminder 标签及其内容的辅助函数
   const removeSystemReminderTags = (text: string): string => {
     // 使用正则表达式匹配 <system-reminder> 标签及其内容，包括换行符
@@ -53,19 +59,16 @@ export function ReadTool({ input, output }: { input: ReadToolInputType; output?:
     }
   }, [outputString])
 
-  return (
-    <AccordionItem
-      key={AgentToolsType.Read}
-      aria-label="Read Tool"
-      title={
-        <ToolTitle
-          icon={<FileText className="h-4 w-4" />}
-          label="Read File"
-          params={input.file_path.split('/').pop()}
-          stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
-        />
-      }>
-      {outputString ? <ReactMarkdown>{outputString}</ReactMarkdown> : null}
-    </AccordionItem>
-  )
+  return {
+    key: AgentToolsType.Read,
+    label: (
+      <ToolTitle
+        icon={<FileText className="h-4 w-4" />}
+        label="Read File"
+        params={input.file_path.split('/').pop()}
+        stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
+      />
+    ),
+    children: outputString ? <ReactMarkdown>{outputString}</ReactMarkdown> : null
+  }
 }

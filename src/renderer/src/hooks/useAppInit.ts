@@ -221,13 +221,12 @@ export function useAppInit() {
       }
     }
 
-    window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener)
-    window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+    const removeListeners = [
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener),
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+    ]
 
-    return () => {
-      window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Request, requestListener)
-      window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Result, resultListener)
-    }
+    return () => removeListeners.forEach((removeListener) => removeListener())
   }, [dispatch, t])
 
   useEffect(() => {

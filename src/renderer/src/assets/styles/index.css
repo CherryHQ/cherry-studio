@@ -41,11 +41,11 @@ body,
   margin: 0;
 }
 
-/* #root {
+#root {
   display: flex;
   flex-direction: row;
   flex: 1;
-} */
+}
 
 body {
   display: flex;

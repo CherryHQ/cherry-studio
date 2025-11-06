@@ -1,5 +1,5 @@
-import { Button, Card, CardBody, CardFooter, CardHeader, Chip, Spinner } from '@heroui/react'
 import type { PluginMetadata } from '@renderer/types/plugin'
+import { Button, Card, Spin, Tag } from 'antd'
 import { upperFirst } from 'lodash'
 import { Download, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -17,73 +17,73 @@ export interface PluginCardProps {
 export const PluginCard: FC<PluginCardProps> = ({ plugin, installed, onInstall, onUninstall, loading, onClick }) => {
   const { t } = useTranslation()
 
+  const getTypeTagColor = () => {
+    if (plugin.type === 'agent') return 'blue'
+    if (plugin.type === 'skill') return 'green'
+    return 'default'
+  }
+
   return (
     <Card
-      className="flex h-full w-full cursor-pointer flex-col border-[0.5px] border-default-200"
-      isPressable
-      shadow="none"
-      onPress={onClick}>
-      <CardHeader className="flex flex-col items-start gap-2 pb-2">
+      className="flex h-full w-full cursor-pointer flex-col"
+      onClick={onClick}
+      styles={{
+        body: { display: 'flex', flexDirection: 'column', height: '100%', padding: '16px' }
+      }}>
+      <div className="flex flex-col items-start gap-2 pb-2">
         <div className="flex w-full items-center justify-between gap-2">
-          <h3 className="truncate font-medium text-small">{plugin.name}</h3>
-          <Chip
-            size="sm"
-            variant="solid"
-            color={plugin.type === 'agent' ? 'primary' : plugin.type === 'skill' ? 'success' : 'secondary'}
-            className="h-4 min-w-0 flex-shrink-0 px-0.5 text-xs">
+          <h3 className="truncate font-medium text-sm">{plugin.name}</h3>
+          <Tag color={getTypeTagColor()} className="m-0 text-xs">
             {upperFirst(plugin.type)}
-          </Chip>
+          </Tag>
         </div>
-        <Chip size="sm" variant="dot" color="default">
-          {plugin.category}
-        </Chip>
-      </CardHeader>
+        <Tag className="m-0">{plugin.category}</Tag>
+      </div>
 
-      <CardBody className="flex-1 py-2">
-        <p className="line-clamp-3 text-default-500 text-small">{plugin.description || t('plugins.no_description')}</p>
+      <div className="flex-1 py-2">
+        <p className="line-clamp-3 text-gray-500 text-sm">{plugin.description || t('plugins.no_description')}</p>
 
         {plugin.tags && plugin.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {plugin.tags.map((tag) => (
-              <Chip key={tag} size="sm" variant="bordered" className="text-tiny">
+              <Tag key={tag} bordered className="text-xs">
                 {tag}
-              </Chip>
+              </Tag>
             ))}
           </div>
         )}
-      </CardBody>
+      </div>
 
-      <CardFooter className="pt-2">
+      <div className="pt-2">
         {installed ? (
           <Button
-            color="danger"
-            variant="flat"
-            size="sm"
-            startContent={loading ? <Spinner size="sm" color="current" /> : <Trash2 className="h-4 w-4" />}
+            danger
+            type="primary"
+            size="small"
+            icon={loading ? <Spin size="small" /> : <Trash2 className="h-4 w-4" />}
             onClick={(e) => {
               e.stopPropagation()
               onUninstall()
             }}
-            isDisabled={loading}
-            fullWidth>
+            disabled={loading}
+            block>
             {loading ? t('plugins.uninstalling') : t('plugins.uninstall')}
           </Button>
         ) : (
           <Button
-            color="primary"
-            variant="flat"
-            size="sm"
-            startContent={loading ? <Spinner size="sm" color="current" /> : <Download className="h-4 w-4" />}
+            type="primary"
+            size="small"
+            icon={loading ? <Spin size="small" /> : <Download className="h-4 w-4" />}
             onClick={(e) => {
               e.stopPropagation()
               onInstall()
             }}
-            isDisabled={loading}
-            fullWidth>
+            disabled={loading}
+            block>
             {loading ? t('plugins.installing') : t('plugins.install')}
           </Button>
         )}
-      </CardFooter>
+      </div>
     </Card>
   )
 }
