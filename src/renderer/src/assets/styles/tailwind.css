@@ -163,6 +163,13 @@
   }
 }
 
+@layer components {
+  @keyframes fadeInWithBlur {
+    from { opacity: 0; filter: blur(2px); }
+     to { opacity: 1; filter: blur(0px); }
+   }
+}
+
 :root {
   background-color: unset;
 }

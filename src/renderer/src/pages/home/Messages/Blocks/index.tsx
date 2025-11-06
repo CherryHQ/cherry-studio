@@ -215,15 +215,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
       })}
       {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock
-            block={{
-              id: `loading-${message.id}`,
-              messageId: message.id,
-              type: MessageBlockType.UNKNOWN,
-              status: MessageBlockStatus.PROCESSING,
-              createdAt: new Date().toISOString()
-            }}
-          />
+          <PlaceholderBlock type={MessageBlockType.UNKNOWN} status={MessageBlockStatus.PROCESSING} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>
