@@ -48,7 +48,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const { session } = useSession(agentId, sessionId)
   const { apiServer } = useSettings()
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
-  const newTopicShortcut = useShortcutDisplay('new_topic')
+  const newTopicShortcut = useShortcutDisplay('shortcut.topic.new')
 
   const { sendMessageShortcut, fontSize, enableSpellCheck } = useSettings()
   const textareaRef = useRef<TextAreaRef>(null)

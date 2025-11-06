@@ -30,7 +30,7 @@ import {
   setupAppImageDeepLink
 } from './services/ProtocolClient'
 import selectionService, { initSelectionService } from './services/SelectionService'
-import { registerShortcuts } from './services/ShortcutService'
+import { shortcutService } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
@@ -223,7 +223,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
-    registerShortcuts(mainWindow)
+    shortcutService.registerForWindow(mainWindow)
     registerIpc(mainWindow, app)
 
     replaceDevtoolsFont(mainWindow)

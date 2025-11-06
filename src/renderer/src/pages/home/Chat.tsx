@@ -70,7 +70,7 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('search_message_in_chat', () => {
+  useShortcut('shortcut.chat.search_message', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -79,7 +79,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('rename_topic', async () => {
+  useShortcut('shortcut.topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
 
@@ -98,7 +98,7 @@ const Chat: FC<Props> = (props) => {
   })
 
   useShortcut(
-    'new_topic',
+    'shortcut.topic.new',
     () => {
       if (activeTopicOrSession !== 'session' || !activeAgentId) {
         return

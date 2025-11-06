@@ -195,8 +195,8 @@ const InputbarTools = ({
     updateAssistant({ enableGenerateImage: !assistant.enableGenerateImage })
   }, [assistant.enableGenerateImage, updateAssistant])
 
-  const newTopicShortcut = useShortcutDisplay('new_topic')
-  const clearTopicShortcut = useShortcutDisplay('clear_topic')
+  const newTopicShortcut = useShortcutDisplay('shortcut.topic.new')
+  const clearTopicShortcut = useShortcutDisplay('shortcut.chat.clear')
 
   const toggleToolVisibility = useCallback(
     (toolKey: InputBarToolType, isVisible: boolean | undefined) => {

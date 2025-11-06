@@ -38,9 +38,9 @@ const HeaderNavbar: FC<Props> = ({
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { showTopics, toggleShowTopics } = useShowTopics()
 
-  useShortcut('toggle_show_assistants', toggleShowAssistants)
+  useShortcut('shortcut.app.toggle_show_assistants', toggleShowAssistants)
 
-  useShortcut('toggle_show_topics', () => {
+  useShortcut('shortcut.topic.toggle_show_topics', () => {
     if (topicPosition === 'right') {
       toggleShowTopics()
     } else {
@@ -48,7 +48,7 @@ const HeaderNavbar: FC<Props> = ({
     }
   })
 
-  useShortcut('search_message', () => {
+  useShortcut('shortcut.app.search_message', () => {
     SearchPopup.show()
   })
 

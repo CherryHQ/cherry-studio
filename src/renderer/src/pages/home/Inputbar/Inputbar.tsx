@@ -723,13 +723,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [onPaste])
 
-  useShortcut('new_topic', () => {
+  useShortcut('shortcut.topic.new', () => {
     addNewTopic()
     EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     focusTextarea()
   })
 
-  useShortcut('clear_topic', clearTopic)
+  useShortcut('shortcut.chat.clear', clearTopic)
 
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })

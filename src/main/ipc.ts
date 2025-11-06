@@ -21,7 +21,6 @@ import type {
   OcrProvider,
   PluginError,
   Provider,
-  Shortcut,
   SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
@@ -36,7 +35,6 @@ import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { codeToolsService } from './services/CodeToolsService'
-import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
@@ -57,7 +55,6 @@ import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
-import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import {
   addEndMessage,
   addStreamMessage,
@@ -590,16 +587,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // open path
   ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
     await shell.openPath(path)
-  })
-
-  // shortcuts
-  ipcMain.handle(IpcChannel.Shortcuts_Update, (_, shortcuts: Shortcut[]) => {
-    configManager.setShortcuts(shortcuts)
-    // Refresh shortcuts registration
-    if (mainWindow) {
-      unregisterAllShortcuts()
-      registerShortcuts(mainWindow)
-    }
   })
 
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
