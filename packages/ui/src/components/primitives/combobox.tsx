@@ -22,8 +22,7 @@ const comboboxTriggerVariants = cva(
   {
     variants: {
       state: {
-        default:
-          'border-input bg-background aria-expanded:border-success aria-expanded:ring-2 aria-expanded:ring-success/20',
+        default: 'border-input aria-expanded:border-success aria-expanded:ring-2 aria-expanded:ring-success/20',
         error:
           'border-destructive ring-2 ring-destructive/20 aria-expanded:border-destructive aria-expanded:ring-destructive/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
@@ -255,7 +254,7 @@ export function Combobox({
           size={size}
           disabled={disabled}
           style={{ width: triggerWidth }}
-          className={cn(comboboxTriggerVariants({ state, size }), className)}
+          className={cn(comboboxTriggerVariants({ state, size }), 'bg-white', className)}
           aria-expanded={open}
           aria-invalid={error}>
           {renderTriggerContent()}
