@@ -470,3 +470,6 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   }
 ]
+
+// resources/scripts should be maintained manually
+export const HOME_CHERRY_DIR = '.cherrystudio'
