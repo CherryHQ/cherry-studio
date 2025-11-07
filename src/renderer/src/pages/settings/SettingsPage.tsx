@@ -1,7 +1,8 @@
 import { GlobalOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
-import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import ModelSettings, { ModelSettingsContentOnly } from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { Divider as AntDivider } from 'antd'
 import {
   Brain,
@@ -44,6 +45,7 @@ import WebSearchSettings from './WebSearchSettings'
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
+  const { isLeftNavbar } = useNavbarPosition()
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
 
@@ -53,7 +55,8 @@ const SettingsPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <SettingMenus>
+        {!isLeftNavbar && (
+          <SettingMenus>
           <MenuItemLink to="/settings/provider">
             <MenuItem className={isRoute('/settings/provider')}>
               <Cloud size={18} />
@@ -155,10 +158,11 @@ const SettingsPage: FC = () => {
             </MenuItem>
           </MenuItemLink>
         </SettingMenus>
+        )}
         <SettingContent>
           <Routes>
             <Route path="provider" element={<ProviderList />} />
-            <Route path="model" element={<ModelSettings />} />
+            <Route path="model" element={isLeftNavbar ? <ModelSettingsContentOnly /> : <ModelSettings />} />
             <Route path="websearch" element={<WebSearchSettings />} />
             <Route path="api-server" element={<ApiServerSettings />} />
             <Route path="docprocess" element={<DocProcessSettings />} />

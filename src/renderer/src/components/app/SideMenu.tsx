@@ -8,8 +8,6 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ThemeMode } from '@renderer/types'
 import { Tooltip } from 'antd'
 import {
-  ChevronDown,
-  ChevronRight,
   Code,
   FileSearch,
   Folder,
@@ -21,11 +19,10 @@ import {
   NotepadText,
   Palette,
   Plus,
-  Settings2,
   Sparkle,
   Sun
 } from 'lucide-react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -37,10 +34,8 @@ const SideMenu: FC = () => {
   const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
-  const [isSettingsOpen, setIsSettingsOpen] = useState(pathname.startsWith('/settings'))
 
   const isHomeActive = pathname === '/' || pathname === ''
-  const isSettingsActive = pathname.startsWith('/settings')
 
   const handleHomeClick = useCallback(async () => {
     await modelGenerating()
@@ -52,23 +47,6 @@ const SideMenu: FC = () => {
     await modelGenerating()
     navigate('/launchpad')
   }, [navigate, hideMinappPopup])
-
-  const toggleSettings = useCallback(async () => {
-    if (!isSettingsOpen) {
-      await modelGenerating()
-      navigate('/settings/model')
-      setIsSettingsOpen(true)
-    } else {
-      setIsSettingsOpen(false)
-    }
-  }, [isSettingsOpen, navigate])
-
-  // Update settings open state when pathname changes
-  useEffect(() => {
-    if (isSettingsActive && !isSettingsOpen) {
-      setIsSettingsOpen(true)
-    }
-  }, [isSettingsActive, isSettingsOpen])
 
   const iconMap = {
     assistants: <Home size={18} />,
@@ -135,18 +113,7 @@ const SideMenu: FC = () => {
         </NavigationSection>
 
         <SettingsSection>
-          <SettingsHeader onClick={toggleSettings} $active={isSettingsActive} theme={theme}>
-            <SettingsIcon>
-              {isSettingsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </SettingsIcon>
-            <Settings2 size={18} />
-            <span>{t('settings.title')}</span>
-          </SettingsHeader>
-          {isSettingsOpen && (
-            <SettingsContent>
-              <ModelSettings />
-            </SettingsContent>
-          )}
+          <ModelSettings />
         </SettingsSection>
 
         {/* Future conversations/chats will be added here */}
@@ -399,87 +366,14 @@ const BottomButton = styled.button<{ $active?: boolean; theme: string }>`
 `
 
 const SettingsSection = styled.div`
-  margin-top: 8px;
+  margin-top: 16px;
   margin-bottom: 16px;
-`
-
-const SettingsHeader = styled.button<{ $active: boolean; theme: string }>`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 0.5px solid ${({ $active }) => ($active ? 'var(--color-primary)' : 'transparent')};
-  background-color: ${({ $active, theme }) =>
-    $active
-      ? theme === 'dark'
-        ? 'var(--color-black)'
-        : 'var(--color-white)'
-      : 'transparent'};
-  color: ${({ $active }) => ($active ? 'var(--color-primary)' : 'var(--color-text)')};
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: ${({ $active }) => ($active ? '500' : '400')};
-  transition: all 0.2s ease;
-  -webkit-app-region: none;
-  text-align: left;
-  width: 100%;
-
-  &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-background-soft)')};
-    border-color: ${({ $active }) => ($active ? 'var(--color-primary)' : 'var(--color-border)')};
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
-
-  svg {
-    color: ${({ $active }) => ($active ? 'var(--color-primary)' : 'var(--color-text-secondary)')};
-    flex-shrink: 0;
-  }
-
-  span {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`
-
-const SettingsIcon = styled.span`
-  display: flex;
-  align-items: center;
-  width: 16px;
-  color: var(--color-text-secondary);
-`
-
-const SettingsContent = styled.div`
-  margin-top: 8px;
-  padding: 0;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--color-border);
   -webkit-app-region: none;
   width: 100%;
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 400px);
-  overflow-y: auto;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
-
-    &:hover {
-      background: var(--color-text-secondary);
-    }
-  }
 `
 
 export default SideMenu
