@@ -1,16 +1,28 @@
+import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
-import type { Assistant, Model, Provider } from '@renderer/types'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
+import type {
+  Assistant,
+  GroqServiceTier,
+  GroqSystemProvider,
+  Model,
+  NotGroqProvider,
+  OpenAIServiceTier,
+  Provider
+} from '@renderer/types'
 import {
   GroqServiceTiers,
   isGroqServiceTier,
+  isGroqSystemProvider,
   isOpenAIServiceTier,
   isTranslateAssistant,
-  OpenAIServiceTiers,
-  SystemProviderIds
+  OpenAIServiceTiers
 } from '@renderer/types'
+import type { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import type { JSONValue } from 'ai'
 import { t } from 'i18next'
 
 import { getAiSdkProviderId } from '../provider/factory'
@@ -26,8 +38,9 @@ import {
 } from './reasoning'
 import { getWebSearchParams } from './websearch'
 
-// copy from BaseApiClient.ts
-const getServiceTier = (model: Model, provider: Provider) => {
+function getServiceTier<T extends GroqSystemProvider>(model: Model, provider: T): GroqServiceTier
+function getServiceTier<T extends NotGroqProvider>(model: Model, provider: T): OpenAIServiceTier
+function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAIServiceTier | GroqServiceTier {
   const serviceTierSetting = provider.serviceTier
 
   if (!isSupportServiceTierProvider(provider) || !isOpenAIModel(model) || !serviceTierSetting) {
@@ -35,12 +48,14 @@ const getServiceTier = (model: Model, provider: Provider) => {
   }
 
   // 处理不同供应商需要 fallback 到默认值的情况
-  if (provider.id === SystemProviderIds.groq) {
+  if (isGroqSystemProvider(provider)) {
     if (
       !isGroqServiceTier(serviceTierSetting) ||
       (serviceTierSetting === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
     ) {
       return undefined
+    } else {
+      return serviceTierSetting
     }
   } else {
     // 其他 OpenAI 供应商，假设他们的服务层级设置和 OpenAI 完全相同
@@ -53,6 +68,11 @@ const getServiceTier = (model: Model, provider: Provider) => {
   }
 
   return serviceTierSetting
+}
+
+function getVerbosity(): OpenAIVerbosity {
+  const openAI = getStoreSetting('openAI')
+  return openAI.verbosity
 }
 
 /**
@@ -69,12 +89,12 @@ export function buildProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): Record<string, Record<string, JSONValue>> {
   const rawProviderId = getAiSdkProviderId(actualProvider)
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
-  const serviceTierSetting = getServiceTier(model, actualProvider)
-  providerSpecificOptions.serviceTier = serviceTierSetting
+  const serviceTier = getServiceTier(model, actualProvider)
+  const textVerbosity = getVerbosity()
   // 根据 provider 类型分离构建逻辑
   const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(rawProviderId)
   if (success) {
@@ -86,8 +106,9 @@ export function buildProviderOptions(
       case 'azure-responses':
         providerSpecificOptions = {
           ...buildOpenAIProviderOptions(assistant, model, capabilities),
-          serviceTier: serviceTierSetting
-        }
+          textVerbosity,
+          serviceTier
+        } satisfies OpenAIResponsesProviderOptions
         break
       case 'huggingface':
         providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
@@ -109,7 +130,8 @@ export function buildProviderOptions(
         // 对于其他 provider，使用通用的构建逻辑
         providerSpecificOptions = {
           ...buildGenericProviderOptions(assistant, model, capabilities),
-          serviceTier: serviceTierSetting
+          serviceTier,
+          textVerbosity
         }
         break
       }
@@ -135,7 +157,8 @@ export function buildProviderOptions(
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = {
             ...buildGenericProviderOptions(assistant, model, capabilities),
-            serviceTier: serviceTierSetting
+            serviceTier,
+            textVerbosity
           }
       }
     } else {

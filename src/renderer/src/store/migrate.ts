@@ -1499,6 +1499,7 @@ const migrateConfig = {
   '102': (state: RootState) => {
     try {
       state.settings.openAI = {
+        // @ts-expect-error it's a removed type. migrated on 172
         summaryText: 'off',
         serviceTier: 'auto',
         verbosity: 'medium'
@@ -1592,6 +1593,7 @@ const migrateConfig = {
       addMiniApp(state, 'google')
       if (!state.settings.openAI) {
         state.settings.openAI = {
+          // @ts-expect-error it's a removed type. migrated on 172
           summaryText: 'off',
           serviceTier: 'auto',
           verbosity: 'medium'
@@ -2815,6 +2817,18 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 171 error', error as Error)
+      return state
+    }
+  },
+  '172': (state: RootState) => {
+    try {
+      // @ts-expect-error it's a removed type
+      if (state.settings.openAI.summaryText === 'off') {
+        state.settings.openAI.summaryText = null
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 172 error', error as Error)
       return state
     }
   }

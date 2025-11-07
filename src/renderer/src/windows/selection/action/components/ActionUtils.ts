@@ -70,7 +70,7 @@ export const processMessages = async (
     await fetchChatCompletion({
       messages: modelMessages,
       assistant: newAssistant,
-      options: {},
+      requestOptions: {},
       uiMessages: uiMessages,
       onChunkReceived: (chunk: Chunk) => {
         if (finished) {
