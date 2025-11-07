@@ -3,6 +3,7 @@ import type { MCPServer } from '@renderer/types'
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
 import { getBailianToken, saveBailianToken, syncBailianServers } from './bailian'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './lanyun'
+import { getMCPRouterToken, saveMCPRouterToken, syncMCPRouterServers } from './mcprouter'
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './tokenflux'
 
@@ -73,5 +74,16 @@ export const providers: ProviderConfig[] = [
     getToken: getBailianToken,
     saveToken: saveBailianToken,
     syncServers: syncBailianServers
+  },
+  {
+    key: 'mcprouter',
+    name: 'MCP Router',
+    description: 'MCP Router 平台 MCP 服务',
+    discoverUrl: 'https://mcprouter.co',
+    apiKeyUrl: 'https://mcprouter.co/settings/keys',
+    tokenFieldName: 'mcprouterToken',
+    getToken: getMCPRouterToken,
+    saveToken: saveMCPRouterToken,
+    syncServers: syncMCPRouterServers
   }
 ]

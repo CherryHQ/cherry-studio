@@ -2,6 +2,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons'
 import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
+import MCPRouterProviderLogo from '@renderer/assets/images/providers/mcprouter.webp'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -72,7 +73,8 @@ const MCPSettings: FC = () => {
     tokenflux: <ProviderIcon src={TokenFluxProviderLogo} alt="TokenFlux" />,
     lanyun: <ProviderIcon src={LanyunProviderLogo} alt="Lanyun" />,
     '302ai': <ProviderIcon src={Ai302ProviderLogo} alt="302AI" />,
-    bailian: <ProviderIcon src={BailianProviderLogo} alt="Bailian" />
+    bailian: <ProviderIcon src={BailianProviderLogo} alt="Bailian" />,
+    mcprouter: <ProviderIcon src={MCPRouterProviderLogo} alt="MCPRouter" />
   }
 
   return (
