@@ -4391,7 +4391,25 @@
         "official_website": "官方网站"
       },
       "openai": {
-        "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
+        "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商",
+        "auth_method": "认证方式",
+        "oauth": "网页 OAuth",
+        "description": "使用 OpenAI OAuth 登录",
+        "description_detail": "点击开始授权将在浏览器中打开 OpenAI 登录页。登录后复制跳转到本地地址的整条 URL（http://127.0.0.1:1455/auth/callback?...），粘贴回此处完成认证。",
+        "start_auth": "开始授权",
+        "authenticating": "正在认证",
+        "enter_redirect_url": "重定向 URL",
+        "submit_url": "提交 URL",
+        "url_placeholder": "粘贴以 http://127.0.0.1:1455/auth/callback 开头的完整 URL",
+        "cancel": "取消",
+        "auth_success": "OpenAI OAuth 认证成功",
+        "auth_failed": "OpenAI OAuth 认证失败",
+        "url_error": "URL 解析或认证失败，请重试",
+        "authenticated": "已认证",
+        "logout": "登出",
+        "logout_success": "已登出",
+        "logout_failed": "登出失败",
+        "apikey":"API key"
       },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",

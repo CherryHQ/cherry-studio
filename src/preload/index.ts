@@ -481,6 +481,19 @@ const api = {
     hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
     clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
   },
+  openai_oauth: {
+    startOAuthFlow: () => ipcRenderer.invoke(IpcChannel.OpenAI_StartOAuthFlow),
+    completeOAuthWithRedirectUrl: (url: string) =>
+      ipcRenderer.invoke(IpcChannel.OpenAI_CompleteOAuthWithRedirectUrl, url),
+    cancelOAuthFlow: () => ipcRenderer.invoke(IpcChannel.OpenAI_CancelOAuthFlow),
+    getAccessToken: () => ipcRenderer.invoke(IpcChannel.OpenAI_GetAccessToken),
+    getApiKey: () => ipcRenderer.invoke(IpcChannel.OpenAI_GetApiKey),
+    getIdToken: () => ipcRenderer.invoke(IpcChannel.OpenAI_GetIdToken),
+    getAccountId: () => ipcRenderer.invoke(IpcChannel.OpenAI_GetAccountId),
+    getSessionId: () => ipcRenderer.invoke(IpcChannel.OpenAI_GetSessionId),
+    hasCredentials: () => ipcRenderer.invoke(IpcChannel.OpenAI_HasCredentials),
+    clearCredentials: () => ipcRenderer.invoke(IpcChannel.OpenAI_ClearCredentials)
+  },
   codeTools: {
     run: (
       cliTool: string,

@@ -334,6 +334,18 @@ export enum IpcChannel {
   Anthropic_HasCredentials = 'anthropic:has-credentials',
   Anthropic_ClearCredentials = 'anthropic:clear-credentials',
 
+  // OpenAI OAuth
+  OpenAI_StartOAuthFlow = 'openai:start-oauth-flow',
+  OpenAI_CompleteOAuthWithRedirectUrl = 'openai:complete-oauth-with-redirect-url',
+  OpenAI_CancelOAuthFlow = 'openai:cancel-oauth-flow',
+  OpenAI_GetAccessToken = 'openai:get-access-token',
+  OpenAI_GetApiKey = 'openai:get-api-key',
+  OpenAI_GetIdToken = 'openai:get-id-token',
+  OpenAI_GetAccountId = 'openai:get-account-id',
+  OpenAI_GetSessionId = 'openai:get-session-id',
+  OpenAI_HasCredentials = 'openai:has-credentials',
+  OpenAI_ClearCredentials = 'openai:clear-credentials',
+
   // CodeTools
   CodeTools_Run = 'code-tools:run',
   CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',

@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
+import openAIService from '@main/services/OpenAIService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -884,6 +885,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Anthropic_GetAccessToken, () => anthropicService.getValidAccessToken())
   ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
   ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
+
+  // OpenAI OAuth
+  ipcMain.handle(IpcChannel.OpenAI_StartOAuthFlow, () => openAIService.startOAuthFlow())
+  ipcMain.handle(IpcChannel.OpenAI_CompleteOAuthWithRedirectUrl, (_, url: string) =>
+    openAIService.completeOAuthWithRedirectUrl(url)
+  )
+  ipcMain.handle(IpcChannel.OpenAI_CancelOAuthFlow, () => openAIService.cancelOAuthFlow())
+  ipcMain.handle(IpcChannel.OpenAI_GetAccessToken, () => openAIService.getValidAccessToken())
+  ipcMain.handle(IpcChannel.OpenAI_GetApiKey, () => openAIService.getApiKey())
+  ipcMain.handle(IpcChannel.OpenAI_GetIdToken, () => openAIService.getIdToken())
+  ipcMain.handle(IpcChannel.OpenAI_GetAccountId, () => openAIService.getAccountId())
+  ipcMain.handle(IpcChannel.OpenAI_GetSessionId, () => openAIService.getSessionId())
+  ipcMain.handle(IpcChannel.OpenAI_HasCredentials, () => openAIService.hasCredentials())
+  ipcMain.handle(IpcChannel.OpenAI_ClearCredentials, () => openAIService.clearCredentials())
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
