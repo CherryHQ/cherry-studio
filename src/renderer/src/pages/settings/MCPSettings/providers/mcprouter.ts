@@ -43,6 +43,7 @@ interface MCPRouterSyncResult {
   message: string
   addedServers: MCPServer[]
   updatedServers: MCPServer[]
+  allServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -72,7 +73,8 @@ export const syncMCPRouterServers = async (
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
@@ -83,6 +85,7 @@ export const syncMCPRouterServers = async (
         message: t('settings.mcp.sync.error'),
         addedServers: [],
         updatedServers: [],
+        allServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -96,14 +99,15 @@ export const syncMCPRouterServers = async (
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
     // Transform MCPRouter servers to MCP servers format
     const addedServers: MCPServer[] = []
     const updatedServers: MCPServer[] = []
-
+    const allServers: MCPServer[] = []
     for (const server of servers) {
       try {
         // Check if server already exists using server_key
@@ -132,6 +136,7 @@ export const syncMCPRouterServers = async (
           // Add new server
           addedServers.push(mcpServer)
         }
+        allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing MCPRouter server:', err as Error)
       }
@@ -142,7 +147,8 @@ export const syncMCPRouterServers = async (
       success: true,
       message: t('settings.mcp.sync.success', { count: totalServers }),
       addedServers,
-      updatedServers
+      updatedServers,
+      allServers
     }
   } catch (error) {
     logger.error('MCPRouter sync error:', error as Error)
@@ -151,6 +157,7 @@ export const syncMCPRouterServers = async (
       message: t('settings.mcp.sync.error'),
       addedServers: [],
       updatedServers: [],
+      allServers: [],
       errorDetails: String(error)
     }
   }

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
@@ -97,7 +98,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       const result = await provider.syncServers(token, existingServers)
 
       if (result.success) {
-        const servers = result.addedServers || []
+        const servers = result.allServers || []
         setAvailableServers(servers)
 
         // Save to database
@@ -208,10 +209,11 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   )
 }
 
-const DetailContainer = styled.div`
+const DetailContainer = styled(Scrollbar)`
   padding: 20px;
   display: flex;
   flex-direction: column;
+  height: calc(100vh - var(--navbar-height));
 `
 
 const ProviderHeader = styled.div`

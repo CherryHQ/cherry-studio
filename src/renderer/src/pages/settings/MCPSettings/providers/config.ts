@@ -1,3 +1,4 @@
+import { getProviderLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
@@ -20,6 +21,17 @@ export interface ProviderConfig {
 }
 
 export const providers: ProviderConfig[] = [
+  {
+    key: 'bailian',
+    name: getProviderLabel('dashscope'),
+    description: '百炼平台服务',
+    discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
+    apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
+    tokenFieldName: 'bailianToken',
+    getToken: getBailianToken,
+    saveToken: saveBailianToken,
+    syncServers: syncBailianServers
+  },
   {
     key: 'modelscope',
     name: 'ModelScope',
@@ -44,7 +56,7 @@ export const providers: ProviderConfig[] = [
   },
   {
     key: 'lanyun',
-    name: '蓝耘科技',
+    name: getProviderLabel('lanyun'),
     description: '蓝耘科技云平台 MCP 服务',
     discoverUrl: 'https://mcp.lanyun.net',
     apiKeyUrl: LANYUN_KEY_HOST,
@@ -63,17 +75,6 @@ export const providers: ProviderConfig[] = [
     getToken: getAI302Token,
     saveToken: saveAI302Token,
     syncServers: syncAi302Servers
-  },
-  {
-    key: 'bailian',
-    name: '阿里云百炼',
-    description: '百炼平台服务',
-    discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
-    apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
-    tokenFieldName: 'bailianToken',
-    getToken: getBailianToken,
-    saveToken: saveBailianToken,
-    syncServers: syncBailianServers
   },
   {
     key: 'mcprouter',

@@ -56,6 +56,7 @@ interface TokenLanYunSyncResult {
   message: string
   addedServers: MCPServer[]
   updatedServers: MCPServer[]
+  allServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -82,7 +83,8 @@ export const syncTokenLanYunServers = async (
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
@@ -93,6 +95,7 @@ export const syncTokenLanYunServers = async (
         message: t('settings.mcp.sync.error'),
         addedServers: [],
         updatedServers: [],
+        allServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -105,6 +108,7 @@ export const syncTokenLanYunServers = async (
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
         addedServers: [],
         updatedServers: [],
+        allServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -114,6 +118,7 @@ export const syncTokenLanYunServers = async (
         message: t('settings.mcp.sync.error'),
         addedServers: [],
         updatedServers: [],
+        allServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -125,14 +130,17 @@ export const syncTokenLanYunServers = async (
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
     // Transform Token servers to MCP servers format
     const addedServers: MCPServer[] = []
     const updatedServers: MCPServer[] = []
+    const allServers: MCPServer[] = []
     logger.debug('TokenLanYun servers:', servers)
+
     for (const server of servers) {
       try {
         if (!server.operationalUrls?.[0]?.url) continue
@@ -164,6 +172,7 @@ export const syncTokenLanYunServers = async (
           // Add new server
           addedServers.push(mcpServer)
         }
+        allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing LanYun server:', err as Error)
       }
@@ -174,7 +183,8 @@ export const syncTokenLanYunServers = async (
       success: true,
       message: t('settings.mcp.sync.success', { count: totalServers }),
       addedServers,
-      updatedServers
+      updatedServers,
+      allServers
     }
   } catch (error) {
     logger.error('TokenLanyun sync error:', error as Error)
@@ -183,6 +193,7 @@ export const syncTokenLanYunServers = async (
       message: t('settings.mcp.sync.error'),
       addedServers: [],
       updatedServers: [],
+      allServers: [],
       errorDetails: String(error)
     }
   }

@@ -199,7 +199,7 @@ const MenuList = styled(Scrollbar)`
   height: calc(100vh - var(--navbar-height));
 `
 
-const RightContainer = styled(Scrollbar)`
+const RightContainer = styled.div`
   flex: 1;
   position: relative;
 `
