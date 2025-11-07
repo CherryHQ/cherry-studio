@@ -12,7 +12,6 @@ import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
@@ -66,17 +65,8 @@ export class WindowService {
       transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      // For Windows and Linux, we use frameless window with custom controls
-      // For Mac, we keep the native title bar style
-      ...(isMac
-        ? {
-            titleBarStyle: 'hidden',
-            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
-            trafficLightPosition: { x: 8, y: 13 }
-          }
-        : {
-            frame: false // Frameless window for Windows and Linux
-          }),
+      // Use default system title bar with window controls for all platforms
+      frame: true,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
       ...(isLinux ? { icon } : {}),

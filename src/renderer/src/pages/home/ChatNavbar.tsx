@@ -5,7 +5,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useShowAssistants, useShowSideMenu, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
@@ -14,7 +14,8 @@ import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC } from 'react'
+import { FC, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -32,9 +33,11 @@ interface Props {
 const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const { showSideMenu, toggleShowSideMenu } = useShowSideMenu()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
-  const { isTopNavbar } = useNavbarPosition()
+  const { isTopNavbar, isLeftNavbar } = useNavbarPosition()
+  const navigate = useNavigate()
   const dispatch = useAppDispatch()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
@@ -65,6 +68,11 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
+  const handleSettingsClick = useCallback(async () => {
+    await modelGenerating()
+    navigate('/settings/provider')
+  }, [navigate])
+
   // const handleUpdateModel = useCallback(
   //   async (model: ApiModel) => {
   //     if (!activeSession || !activeAgent) return
@@ -76,16 +84,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-        {isTopNavbar && showAssistants && (
+        {showSideMenu && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={toggleShowAssistants}>
+            <NavbarIcon onClick={toggleShowSideMenu}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-        {isTopNavbar && !showAssistants && (
+        {!showSideMenu && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
+            <NavbarIcon onClick={toggleShowSideMenu} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -103,6 +111,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </motion.div>
           )}
         </AnimatePresence>
+        {isLeftNavbar && (
+          <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="bottom">
+            <NavbarIcon onClick={handleSettingsClick} style={{ marginRight: 8 }}>
+              <Menu size={18} />
+            </NavbarIcon>
+          </Tooltip>
+        )}
         <ChatNavbarContent assistant={assistant} />
       </div>
       <HStack alignItems="center" gap={8}>
