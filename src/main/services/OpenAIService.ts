@@ -10,7 +10,7 @@ import { dirname } from 'path'
 const logger = loggerService.withContext('OpenAIOAuth')
 
 // Client configuration
-const DEFAULT_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
+const DEFAULT_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
 const CREDS_PATH = path.join(getConfigDir(), 'oauth', 'openai.json')
 const REDIRECT_URI = 'http://localhost:1455/auth/callback'
 const ISSUER = 'https://auth.openai.com'
@@ -52,11 +52,7 @@ class OpenAIService {
     return url.toString()
   }
 
-  private async exchangeCodeForTokens(
-    code: string,
-    verifier: string,
-    clientId: string
-  ): Promise<Credentials> {
+  private async exchangeCodeForTokens(code: string, verifier: string, clientId: string): Promise<Credentials> {
     const response = await net.fetch(`${ISSUER}/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -220,12 +216,7 @@ class OpenAIService {
       const payload = this.decodeJwtPayload(idToken)
       if (!payload) return null
       // Try common fields for account/user identifiers
-      const candidates = [
-        payload.account_id,
-        payload.chatgpt_user_id,
-        payload.aid,
-        payload.sub
-      ]
+      const candidates = [payload.account_id, payload.chatgpt_user_id, payload.aid, payload.sub]
       const id = candidates.find((v) => typeof v === 'string' && v.length > 0)
       return id ?? null
     } catch (e) {
@@ -241,8 +232,7 @@ class OpenAIService {
     try {
       const payload = this.decodeJwtPayload(idToken)
       // Prefer standard-ish fields if present
-      const rawCandidate =
-        (payload && (payload.sid || payload.session_id || payload.jti || payload.sub)) || idToken
+      const rawCandidate = (payload && (payload.sid || payload.session_id || payload.jti || payload.sub)) || idToken
       const hash = crypto.createHash('sha256').update(String(rawCandidate)).digest('hex').slice(0, 32)
       return `sess_${hash}`
     } catch (e) {

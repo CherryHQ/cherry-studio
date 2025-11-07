@@ -409,7 +409,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && (
         <>
-        <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.openai.auth_method')}</SettingSubtitle>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.openai.auth_method')}</SettingSubtitle>
           <Select
             style={{ width: '40%', marginTop: 5, marginBottom: 10 }}
             value={provider.authType || 'apiKey'}
@@ -420,7 +420,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             ]}
           />
           {provider.authType === 'oauth' && <OpenAISettings />}
-        </>)}
+        </>
+      )}
       {provider.id === 'ovms' && <OVMSSettings />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id === 'anthropic' && (

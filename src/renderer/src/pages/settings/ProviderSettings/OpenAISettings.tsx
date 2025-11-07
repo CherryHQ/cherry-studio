@@ -156,4 +156,3 @@ const StartContainer = styled.div`
 `
 
 export default OpenAISettings
-
