@@ -11,6 +11,8 @@ The Test Plan is divided into the RC channel and the Beta channel, with the foll
 
 Users can enable the "Test Plan" and select the version channel in the software's `Settings` > `About`. Please note that the versions in the "Test Plan" cannot guarantee data consistency, so be sure to back up your data before using them.
 
+After enabling the RC channel or Beta channel, if a stable version is released, users will still be upgraded to the stable version.
+
 Users are welcome to submit issues or provide feedback through other channels for any bugs encountered during testing. Your feedback is very important to us.
 
 ## Developer Guide
