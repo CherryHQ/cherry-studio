@@ -3,11 +3,10 @@ import '@renderer/databases'
 import { FC, useMemo } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 
-import Sidebar from './components/app/Sidebar'
+import SideMenu from './components/app/SideMenu'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
-import { useNavbarPosition } from './hooks/useSettings'
+import { useShowSideMenu } from './hooks/useStore'
 import CodeToolsPage from './pages/code/CodeToolsPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
@@ -21,9 +20,9 @@ import SettingsPage from './pages/settings/SettingsPage'
 import AssistantPresetsPage from './pages/store/assistants/presets/AssistantPresetsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
-const Router: FC = () => {
-  const { navbarPosition } = useNavbarPosition()
-
+const RouterContent: FC = () => {
+  const { showSideMenu } = useShowSideMenu()
+  
   const routes = useMemo(() => {
     return (
       <ErrorBoundary>
@@ -45,20 +44,19 @@ const Router: FC = () => {
     )
   }, [])
 
-  if (navbarPosition === 'left') {
-    return (
-      <HashRouter>
-        <Sidebar />
-        {routes}
-        <NavigationHandler />
-      </HashRouter>
-    )
-  }
+  return (
+    <>
+      {showSideMenu && <SideMenu />}
+      {routes}
+      <NavigationHandler />
+    </>
+  )
+}
 
+const Router: FC = () => {
   return (
     <HashRouter>
-      <NavigationHandler />
-      <TabsContainer>{routes}</TabsContainer>
+      <RouterContent />
     </HashRouter>
   )
 }

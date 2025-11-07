@@ -3,8 +3,10 @@ import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setAssistantsTabSortType,
   setShowAssistants,
+  setShowSideMenu,
   setShowTopics,
   toggleShowAssistants,
+  toggleShowSideMenu,
   toggleShowTopics
 } from '@renderer/store/settings'
 import { AssistantsSortType } from '@renderer/types'
@@ -28,6 +30,17 @@ export function useShowTopics() {
     showTopics,
     setShowTopics: (show: boolean) => dispatch(setShowTopics(show)),
     toggleShowTopics: () => dispatch(toggleShowTopics())
+  }
+}
+
+export function useShowSideMenu() {
+  const showSideMenu = useAppSelector((state) => state.settings.showSideMenu)
+  const dispatch = useAppDispatch()
+
+  return {
+    showSideMenu,
+    setShowSideMenu: (show: boolean) => dispatch(setShowSideMenu(show)),
+    toggleShowSideMenu: () => dispatch(toggleShowSideMenu())
   }
 }
 

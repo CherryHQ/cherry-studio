@@ -2,6 +2,7 @@
 :root {
   --navbar-height: 44px;
   --sidebar-width: 50px;
+  --side-menu-width: 260px;
   --status-bar-height: 40px;
   --input-bar-height: 100px;
 
@@ -15,6 +16,7 @@
 [navbar-position='left'] {
   --navbar-height: 42px;
   --list-item-border-radius: 20px;
+  --sidebar-width: var(--side-menu-width);
 }
 
 /* lg */

@@ -40,6 +40,7 @@ export type UserTheme = {
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
+  showSideMenu: boolean
   assistantsTabSortType: AssistantsSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
@@ -226,6 +227,7 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
+  showSideMenu: true,
   assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
@@ -432,6 +434,12 @@ const settingsSlice = createSlice({
     },
     toggleShowTopics: (state) => {
       state.showTopics = !state.showTopics
+    },
+    setShowSideMenu: (state, action: PayloadAction<boolean>) => {
+      state.showSideMenu = action.payload
+    },
+    toggleShowSideMenu: (state) => {
+      state.showSideMenu = !state.showSideMenu
     },
     setAssistantsTabSortType: (state, action: PayloadAction<AssistantsSortType>) => {
       state.assistantsTabSortType = action.payload
@@ -863,6 +871,8 @@ export const {
   toggleShowAssistants,
   setShowTopics,
   toggleShowTopics,
+  setShowSideMenu,
+  toggleShowSideMenu,
   setAssistantsTabSortType,
   setSendMessageShortcut,
   setLanguage,

@@ -5,7 +5,7 @@ import { isLinux, isWin } from '@renderer/config/constant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useShowAssistants, useShowSideMenu, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
@@ -37,6 +37,7 @@ const HeaderNavbar: FC<Props> = ({
   activeTopicOrSession
 }) => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const { showSideMenu, toggleShowSideMenu } = useShowSideMenu()
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
@@ -72,7 +73,7 @@ const HeaderNavbar: FC<Props> = ({
   return (
     <Navbar className="home-navbar">
       <AnimatePresence initial={false}>
-        {showAssistants && (
+        {showSideMenu && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 'auto', opacity: 1 }}
@@ -81,7 +82,7 @@ const HeaderNavbar: FC<Props> = ({
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-                <NavbarIcon onClick={toggleShowAssistants}>
+                <NavbarIcon onClick={toggleShowSideMenu}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
               </Tooltip>
@@ -89,7 +90,7 @@ const HeaderNavbar: FC<Props> = ({
           </motion.div>
         )}
       </AnimatePresence>
-      {!showAssistants && (
+      {!showSideMenu && (
         <NavbarLeft
           style={{
             justifyContent: 'flex-start',
@@ -99,7 +100,7 @@ const HeaderNavbar: FC<Props> = ({
             minWidth: 'auto'
           }}>
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => toggleShowAssistants()}>
+            <NavbarIcon onClick={toggleShowSideMenu}>
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
