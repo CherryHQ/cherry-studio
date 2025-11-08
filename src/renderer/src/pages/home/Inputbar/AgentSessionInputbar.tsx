@@ -1,13 +1,12 @@
-import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
-import { ActionIconButton } from '@renderer/components/Buttons'
-import { QuickPanelView } from '@renderer/components/QuickPanel'
-import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
+import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
@@ -15,25 +14,25 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Message, Model, Topic } from '@renderer/types'
+import type { FileType } from '@renderer/types'
 import type { MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
+import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
-import { isEmpty } from 'lodash'
-import { CirclePause, MessageSquareDiff } from 'lucide-react'
-import type { CSSProperties, FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { documentExts, textExts } from '@shared/config/constant'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
 
-import NarrowLayout from '../Messages/NarrowLayout'
-import SendMessageButton from './SendMessageButton'
+import { InputbarCore } from './components/InputbarCore'
+import { InputbarToolsProvider, useInputbarToolsDispatch, useInputbarToolsState } from './context/InputbarToolsProvider'
+import InputbarTools from './InputbarTools'
+import { getInputbarConfig } from './registry'
+import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
 
@@ -43,18 +42,130 @@ type Props = {
 }
 
 const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
-  const [text, setText] = useState('')
-  const [inputFocus, setInputFocus] = useState(false)
   const { session } = useSession(agentId, sessionId)
-  const { apiServer } = useSettings()
-  const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
-  const newTopicShortcut = useShortcutDisplay('new_topic')
+  const actionsRef = useRef({
+    resizeTextArea: () => {},
+    // oxlint-disable-next-line no-unused-vars
+    onTextChange: (_updater: React.SetStateAction<string> | ((prev: string) => string)) => {},
+    toggleExpanded: () => {}
+  })
 
-  const { sendMessageShortcut, fontSize, enableSpellCheck } = useSettings()
-  const textareaRef = useRef<TextAreaRef>(null)
+  // Create assistant stub with session data
+  const assistantStub = useMemo<Assistant | null>(() => {
+    if (!session) return null
+
+    // Extract model info
+    const [providerId, actualModelId] = session.model?.split(':') ?? [undefined, undefined]
+    const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
+
+    const model: Model | undefined = actualModel
+      ? {
+          id: actualModel.id,
+          name: actualModel.name,
+          provider: actualModel.provider,
+          group: actualModel.group
+        }
+      : undefined
+
+    return {
+      id: session.agent_id ?? agentId,
+      name: session.name ?? 'Agent Session',
+      prompt: session.instructions ?? '',
+      topics: [] as Topic[],
+      type: 'agent-session',
+      model,
+      defaultModel: model,
+      tags: [],
+      enableWebSearch: false
+    } as Assistant
+  }, [session, agentId])
+
+  // Prepare session data for tools
+  const sessionData = useMemo(() => {
+    if (!session) return undefined
+    return {
+      agentId,
+      sessionId,
+      slashCommands: session.slash_commands,
+      tools: session.tools,
+      accessiblePaths: session.accessible_paths ?? []
+    }
+  }, [session, agentId, sessionId])
+
+  const initialState = useMemo(
+    () => ({
+      mentionedModels: [],
+      selectedKnowledgeBases: [],
+      files: [] as FileType[],
+      isExpanded: false
+    }),
+    []
+  )
+
+  if (!assistantStub) {
+    return null // Wait for session to load
+  }
+
+  return (
+    <InputbarToolsProvider
+      initialState={initialState}
+      actions={{
+        resizeTextArea: () => actionsRef.current.resizeTextArea(),
+        onTextChange: (updater) => actionsRef.current.onTextChange(updater),
+        // Agent Session specific actions
+        addNewTopic: () => {},
+        clearTopic: () => {},
+        onNewContext: () => {},
+        toggleExpanded: () => actionsRef.current.toggleExpanded()
+      }}>
+      <AgentSessionInputbarInner
+        assistant={assistantStub}
+        agentId={agentId}
+        sessionId={sessionId}
+        sessionData={sessionData}
+        actionsRef={actionsRef}
+      />
+    </InputbarToolsProvider>
+  )
+}
+
+interface InnerProps {
+  assistant: Assistant
+  agentId: string
+  sessionId: string
+  sessionData?: {
+    agentId?: string
+    sessionId?: string
+    slashCommands?: Array<{ command: string; description?: string }>
+    tools?: Array<{ id: string; name: string; type: string; description?: string }>
+  }
+  actionsRef: React.MutableRefObject<{
+    resizeTextArea: () => void
+    onTextChange: (updater: React.SetStateAction<string> | ((prev: string) => string)) => void
+    toggleExpanded: (nextState?: boolean) => void
+  }>
+}
+
+const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, sessionId, sessionData, actionsRef }) => {
+  const scope = TopicType.Session
+  const config = getInputbarConfig(scope)
+
+  // Use shared hooks for text and textarea management
+  const { text, setText, isEmpty: inputEmpty } = useInputText()
+  const {
+    textareaRef,
+    resize: resizeTextArea,
+    focus: focusTextarea,
+    setExpanded,
+    isExpanded: textareaIsExpanded
+  } = useTextareaResize({ maxHeight: 400, minHeight: 30 })
+  const { sendMessageShortcut, apiServer } = useSettings()
+
   const { t } = useTranslation()
+  const quickPanel = useQuickPanel()
 
-  const containerRef = useRef<HTMLDivElement>(null)
+  const { files } = useInputbarToolsState()
+  const { toolsRegistry, triggers, setIsExpanded } = useInputbarToolsDispatch()
 
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
@@ -62,11 +173,70 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
   const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
 
-  const focusTextarea = useCallback(() => {
-    textareaRef.current?.focus()
-  }, [])
+  const syncExpandedState = useCallback(
+    (expanded: boolean) => {
+      setExpanded(expanded)
+      setIsExpanded(expanded)
+    },
+    [setExpanded, setIsExpanded]
+  )
+  const handleToggleExpanded = useCallback(
+    (nextState?: boolean) => {
+      const target = typeof nextState === 'boolean' ? nextState : !textareaIsExpanded
+      syncExpandedState(target)
+      focusTextarea()
+    },
+    [focusTextarea, syncExpandedState, textareaIsExpanded]
+  )
 
-  const inputEmpty = isEmpty(text)
+  // Update actionsRef for InputbarTools
+  useEffect(() => {
+    actionsRef.current = {
+      resizeTextArea,
+      onTextChange: setText,
+      toggleExpanded: handleToggleExpanded
+    }
+  }, [resizeTextArea, setText, actionsRef, handleToggleExpanded])
+
+  const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
+
+  // Update handler logic when dependencies change
+  useEffect(() => {
+    rootTriggerHandlerRef.current = (payload) => {
+      // Get menu items registered by tools (e.g., slashCommandsTool)
+      const menuItems = triggers.getRootMenu()
+
+      if (!menuItems.length) {
+        return
+      }
+
+      const triggerInfo = (payload ?? {}) as QuickPanelTriggerInfo
+      quickPanel.open({
+        title: t('settings.quickPanel.title'),
+        list: menuItems,
+        symbol: QuickPanelReservedSymbol.Root,
+        triggerInfo
+      })
+    }
+  }, [triggers, quickPanel, t])
+
+  // Register the trigger handler (only once)
+  useEffect(() => {
+    if (!config.enableQuickPanel) {
+      return
+    }
+
+    const disposeRootTrigger = toolsRegistry.registerTrigger(
+      'agent-session-root',
+      QuickPanelReservedSymbol.Root,
+      (payload) => rootTriggerHandlerRef.current?.(payload)
+    )
+
+    return () => {
+      disposeRootTrigger()
+    }
+  }, [config.enableQuickPanel, toolsRegistry])
+
   const sendDisabled = inputEmpty || !apiServer.enabled
 
   const streamingAskIds = useMemo(() => {
@@ -90,56 +260,6 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   }, [topicMessages])
 
   const canAbort = loading && streamingAskIds.length > 0
-  const createSessionDisabled = creatingSession || !apiServer.enabled
-
-  const handleCreateSession = useCallback(async () => {
-    if (createSessionDisabled) {
-      return
-    }
-
-    try {
-      const created = await createDefaultSession()
-      if (created) {
-        focusTextarea()
-      }
-    } catch (error) {
-      logger.warn('Failed to create agent session via toolbar:', error as Error)
-    }
-  }, [createDefaultSession, createSessionDisabled, focusTextarea])
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
-    if (isEnterPressed) {
-      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
-        sendMessage()
-        event.preventDefault()
-        return
-      }
-
-      if (event.shiftKey) {
-        return
-      }
-
-      event.preventDefault()
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        const start = textArea.selectionStart
-        const end = textArea.selectionEnd
-        const currentText = textArea.value
-        const newText = currentText.substring(0, start) + '\n' + currentText.substring(end)
-
-        setText(newText)
-
-        setTimeoutTimer(
-          'agentSession_handleKeyDown',
-          () => {
-            textArea.selectionStart = textArea.selectionEnd = start + 1
-          },
-          0
-        )
-      }
-    }
-  }
 
   const abortAgentSession = useCallback(async () => {
     if (!streamingAskIds.length) {
@@ -169,47 +289,28 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
 
     try {
       const userMessageId = uuid()
-      const mainBlock = createMainTextBlock(userMessageId, text, {
+
+      // For agent sessions, append file paths to the text content instead of uploading files
+      let messageText = text
+      if (files.length > 0) {
+        const filePaths = files.map((file) => file.path).join('\n')
+        messageText = text ? `${text}\n\nAttached files:\n${filePaths}` : `Attached files:\n${filePaths}`
+      }
+
+      const mainBlock = createMainTextBlock(userMessageId, messageText, {
         status: MessageBlockStatus.SUCCESS
       })
       const userMessageBlocks: MessageBlock[] = [mainBlock]
 
-      // Extract the actual model ID from session.model (format: "provider:modelId")
-      const [providerId, actualModelId] = session?.model?.split(':') ?? [undefined, undefined]
-
-      // Try to find the actual model from providers
-      const actualModel = actualModelId ? getModel(actualModelId, providerId) : undefined
-
-      const model: Model | undefined = actualModel
-        ? {
-            id: actualModel.id,
-            name: actualModel.name, // Use actual model name if found
-            provider: actualModel.provider,
-            group: actualModel.group
-          }
-        : undefined
-
       const userMessage: Message = createMessage('user', sessionTopicId, agentId, {
         id: userMessageId,
         blocks: userMessageBlocks.map((block) => block?.id),
-        model,
-        modelId: model?.id
+        model: assistant.model,
+        modelId: assistant.model?.id
       })
 
-      const assistantStub: Assistant = {
-        id: session?.agent_id ?? agentId,
-        name: session?.name ?? 'Agent Session',
-        prompt: session?.instructions ?? '',
-        topics: [] as Topic[],
-        type: 'agent-session',
-        model,
-        defaultModel: model,
-        tags: [],
-        enableWebSearch: false
-      }
-
       dispatch(
-        dispatchSendMessage(userMessage, userMessageBlocks, assistantStub, sessionTopicId, {
+        dispatchSendMessage(userMessage, userMessageBlocks, assistant, sessionTopicId, {
           agentId,
           sessionId
         })
@@ -220,23 +321,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
     }
-  }, [
-    session?.model,
-    agentId,
-    dispatch,
-    sendDisabled,
-    session?.agent_id,
-    session?.instructions,
-    session?.name,
-    sessionId,
-    sessionTopicId,
-    setTimeoutTimer,
-    text
-  ])
-
-  const onChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value)
-  }, [])
+  }, [sendDisabled, agentId, dispatch, assistant, sessionId, sessionTopicId, setText, setTimeoutTimer, text, files])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
@@ -260,128 +345,45 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     return () => window.removeEventListener('focus', onFocus)
   }, [focusTextarea])
 
+  const supportedExts = useMemo(() => {
+    // Agent sessions support document and text files (for paths only, not uploads)
+    return [...documentExts, ...textExts]
+  }, [])
+
+  const leftToolbar = useMemo(
+    () => (
+      <ToolbarGroup>
+        {config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} session={sessionData} />}
+      </ToolbarGroup>
+    ),
+    [config.showTools, scope, assistant.id, sessionData]
+  )
+
   return (
-    <NarrowLayout style={{ width: '100%' }}>
-      <Container className="inputbar">
-        <QuickPanelView setInputText={setText} />
-        <InputBarContainer
-          id="inputbar"
-          className={classNames('inputbar-container', inputFocus && 'focus')}
-          ref={containerRef}>
-          <Textarea
-            value={text}
-            onChange={onChange}
-            onKeyDown={handleKeyDown}
-            placeholder={t('chat.input.placeholder_without_triggers', {
-              key: getSendMessageShortcutLabel(sendMessageShortcut)
-            })}
-            autoFocus
-            variant="borderless"
-            spellCheck={enableSpellCheck}
-            rows={2}
-            autoSize={{ minRows: 2, maxRows: 20 }}
-            ref={textareaRef}
-            style={{
-              fontSize,
-              minHeight: '30px'
-            }}
-            styles={{ textarea: TextareaStyle }}
-            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
-              setInputFocus(true)
-              PasteService.setLastFocusedComponent('inputbar')
-              if (e.target.value.length === 0) {
-                e.target.setSelectionRange(0, 0)
-              }
-            }}
-            onBlur={() => setInputFocus(false)}
-          />
-          <Toolbar>
-            <ToolbarGroup>
-              <Tooltip placement="top" content={t('chat.input.new_topic', { Command: newTopicShortcut })} delay={0}>
-                <ActionIconButton
-                  onClick={handleCreateSession}
-                  disabled={createSessionDisabled}
-                  loading={creatingSession}>
-                  <MessageSquareDiff size={19} />
-                </ActionIconButton>
-              </Tooltip>
-            </ToolbarGroup>
-            <ToolbarGroup>
-              <SendMessageButton sendMessage={sendMessage} disabled={sendDisabled} />
-              {canAbort && (
-                <Tooltip placement="top" content={t('chat.input.pause')}>
-                  <ActionIconButton onClick={abortAgentSession} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ActionIconButton>
-                </Tooltip>
-              )}
-            </ToolbarGroup>
-          </Toolbar>
-        </InputBarContainer>
-      </Container>
-    </NarrowLayout>
+    <InputbarCore
+      scope={TopicType.Session}
+      text={text}
+      onTextChange={setText}
+      textareaRef={textareaRef}
+      resizeTextArea={resizeTextArea}
+      focusTextarea={focusTextarea}
+      placeholder={t('chat.input.placeholder_without_triggers', {
+        key: getSendMessageShortcutLabel(sendMessageShortcut)
+      })}
+      supportedExts={supportedExts}
+      onPause={abortAgentSession}
+      isLoading={canAbort}
+      handleSendMessage={sendMessage}
+      leftToolbar={leftToolbar}
+    />
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  z-index: 2;
-  padding: 0 18px 18px 18px;
-  [navbar-position='top'] & {
-    padding: 0 18px 10px 18px;
-  }
-`
-
-const InputBarContainer = styled.div`
-  border: 0.5px solid var(--color-border);
-  transition: all 0.2s ease;
-  position: relative;
-  border-radius: 17px;
-  padding-top: 8px;
-  background-color: var(--color-background-opacity);
-`
-
-const Toolbar = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 5px 8px;
-  height: 40px;
-  gap: 16px;
-  position: relative;
-  z-index: 2;
-  flex-shrink: 0;
-`
 
 const ToolbarGroup = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-const TextareaStyle: CSSProperties = {
-  paddingLeft: 0,
-  padding: '6px 15px 0px'
-}
-
-const Textarea = styled(TextArea)`
-  padding: 0;
-  border-radius: 0;
-  display: flex;
-  resize: none !important;
-  overflow: auto;
-  width: 100%;
-  box-sizing: border-box;
-  transition: none !important;
-  &.ant-input {
-    line-height: 1.4;
-  }
-  &::-webkit-scrollbar {
-    width: 3px;
-  }
 `
 
 export default AgentSessionInputbar

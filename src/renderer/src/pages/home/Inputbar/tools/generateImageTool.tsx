@@ -1,6 +1,6 @@
 import { isGenerateImageModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import GenerateImageButton from '@renderer/pages/home/Inputbar/GenerateImageButton'
+import GenerateImageButton from '@renderer/pages/home/Inputbar/tools/components/GenerateImageButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { useCallback } from 'react'
 
@@ -19,7 +19,7 @@ const generateImageTool = defineTool({
   key: 'generate_image',
   label: (t) => t('chat.input.generate_image'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ features, model }) => features.enableGenImage && isGenerateImageModel(model),
+  condition: ({ model }) => isGenerateImageModel(model),
   render: (context) => <GenerateImageTool context={context} />
 })
 

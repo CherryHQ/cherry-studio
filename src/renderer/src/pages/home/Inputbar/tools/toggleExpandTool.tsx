@@ -5,22 +5,15 @@ import { Tooltip } from 'antd'
 import { Maximize, Minimize } from 'lucide-react'
 import React, { useCallback } from 'react'
 
-type ToggleExpandRenderContext = ToolRenderContext<
-  readonly ['isExpanded'],
-  readonly ['setIsExpanded', 'resizeTextArea']
->
+type ToggleExpandRenderContext = ToolRenderContext<readonly ['isExpanded'], readonly ['toggleExpanded']>
 
 const ToggleExpandTool: React.FC<{ context: ToggleExpandRenderContext }> = ({ context }) => {
   const { actions, state, t } = context
   const isExpanded = Boolean(state.isExpanded)
 
   const handleToggle = useCallback(() => {
-    actions.setIsExpanded?.((previous: boolean) => {
-      const next = typeof previous === 'boolean' ? !previous : !isExpanded
-      return next
-    })
-    actions.resizeTextArea?.()
-  }, [actions, isExpanded])
+    actions.toggleExpanded?.()
+  }, [actions])
 
   return (
     <Tooltip
@@ -38,11 +31,10 @@ const ToggleExpandTool: React.FC<{ context: ToggleExpandRenderContext }> = ({ co
 const toggleExpandTool = defineTool({
   key: 'toggle_expand',
   label: (t) => t('chat.input.expand'),
-  visibleInScopes: [TopicType.Chat],
-  condition: ({ features }) => !!features.enableExpand,
+  visibleInScopes: [TopicType.Chat, TopicType.Session],
   dependencies: {
     state: ['isExpanded'] as const,
-    actions: ['setIsExpanded', 'resizeTextArea'] as const
+    actions: ['toggleExpanded'] as const
   },
   render: (context) => <ToggleExpandTool context={context} />
 })

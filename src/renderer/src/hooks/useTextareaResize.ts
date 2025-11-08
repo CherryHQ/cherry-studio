@@ -8,8 +8,9 @@ export interface UseTextareaResizeOptions {
 }
 
 export interface UseTextareaResizeReturn {
-  textareaRef: React.RefObject<TextAreaRef>
+  textareaRef: React.RefObject<TextAreaRef | null>
   resize: (force?: boolean) => void
+  focus: () => void
   customHeight: number | undefined
   setCustomHeight: (height: number | undefined) => void
   setExpanded: (expanded: boolean, expandedHeight?: number) => void
@@ -51,6 +52,7 @@ export function useTextareaResize(options: UseTextareaResizeOptions = {}): UseTe
 
   const textareaRef = useRef<TextAreaRef>(null)
   const [customHeight, setCustomHeight] = useState<number>()
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const resize = useCallback(
     (force = false) => {
@@ -64,7 +66,7 @@ export function useTextareaResize(options: UseTextareaResizeOptions = {}): UseTe
       }
 
       // 如果设置了自定义高度且不是强制调整，则跳过
-      if (customHeight && !force) {
+      if (customHeight !== undefined && !force) {
         return
       }
 
@@ -77,37 +79,47 @@ export function useTextareaResize(options: UseTextareaResizeOptions = {}): UseTe
     [autoResize, customHeight, maxHeight, minHeight]
   )
 
+  const focus = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const setExpanded = useCallback(
     (expanded: boolean, expandedHeight = 0.7 * window.innerHeight) => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
       if (!textArea) {
+        setIsExpanded(expanded)
+        setCustomHeight(expanded ? expandedHeight : undefined)
         return
       }
 
       if (expanded) {
-        textArea.style.height = `${expandedHeight}px`
-        setCustomHeight(expandedHeight)
+        const viewportHeight = window.innerHeight || expandedHeight
+        const desiredHeight = Math.max(minHeight, Math.min(expandedHeight, viewportHeight * 0.9))
+        textArea.style.height = `${desiredHeight}px`
+        setCustomHeight(desiredHeight)
+        setIsExpanded(true)
       } else {
         textArea.style.height = 'auto'
         setCustomHeight(undefined)
+        setIsExpanded(false)
         // 收起后重新计算高度
         requestAnimationFrame(() => {
-          if (textArea) {
-            const contentHeight = textArea.scrollHeight
-            textArea.style.height = contentHeight > maxHeight ? `${maxHeight}px` : `${contentHeight}px`
-          }
+          const contentHeight = textArea.scrollHeight
+          const nextHeight = Math.max(minHeight, Math.min(contentHeight, maxHeight))
+          textArea.style.height = `${nextHeight}px`
         })
       }
     },
-    [maxHeight]
+    [maxHeight, minHeight]
   )
 
   return {
     textareaRef,
     resize,
+    focus,
     customHeight,
     setCustomHeight,
     setExpanded,
-    isExpanded: customHeight !== undefined
+    isExpanded
   }
 }

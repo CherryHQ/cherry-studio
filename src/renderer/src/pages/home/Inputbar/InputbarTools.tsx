@@ -3,11 +3,10 @@ import '@renderer/pages/home/Inputbar/tools'
 import type { DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { MdiLightbulbOn } from '@renderer/components/Icons'
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
+import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputbarTools } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
-import { getInputbarConfig } from '@renderer/pages/home/Inputbar/registry'
 import type {
   InputbarScope,
   ToolActionKey,
@@ -19,15 +18,15 @@ import type {
   ToolStateKey,
   ToolStateMap
 } from '@renderer/pages/home/Inputbar/types'
-import { getDefaultToolOrder, getToolsForScope } from '@renderer/pages/home/Inputbar/types'
+import { getToolsForScope } from '@renderer/pages/home/Inputbar/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
+import { selectToolOrderForScope, setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import type { InputBarToolType } from '@renderer/types/chat'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
 import type { ItemType } from 'antd/es/menu/interface'
 import { Check, CircleChevronRight } from 'lucide-react'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -35,54 +34,84 @@ import styled from 'styled-components'
 export interface InputbarToolsNewProps {
   scope: InputbarScope
   assistantId: string
+  // Session data for Agent Session scope (optional)
+  session?: {
+    agentId?: string
+    sessionId?: string
+    slashCommands?: Array<{ command: string; description?: string }>
+    tools?: Array<{ id: string; name: string; type: string; description?: string }>
+  }
 }
 
-interface ToolButtonConfig {
+interface ToolConfig {
   key: InputBarToolType
-  component: React.ReactNode
-  condition?: boolean
-  visible?: boolean
-  label?: string
-  icon?: React.ReactNode
-  tool?: ToolDefinition
+  label: string
+  tool: ToolDefinition
+  visible: boolean
 }
 
 const DraggablePortal = ({ children, isDragging }: { children: React.ReactNode; isDragging: boolean }) => {
   return isDragging ? createPortal(children, document.body) : children
 }
 
-// Component to render tool buttons outside of useMemo
-const ToolButton = React.memo(
-  ({
-    tool,
-    context
-  }: {
-    tool: ToolDefinition
-    context: ToolRenderContext<readonly ToolStateKey[], readonly ToolActionKey[]>
-  }) => {
-    return <>{tool.render(context)}</>
-  },
-  (prevProps, nextProps) => {
-    // Only re-render if tool key changes
-    return prevProps.tool.key === nextProps.tool.key
-  }
-)
-
-const InputbarTools = ({ scope, assistantId }: InputbarToolsNewProps) => {
+const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const { assistant, model } = useAssistant(assistantId)
   const toolsContext = useInputbarTools()
-  const features = useMemo(() => getInputbarConfig(scope).features, [scope])
+  const quickPanelContext = useQuickPanel()
+  const quickPanelContextRef = useRef(quickPanelContext)
+  quickPanelContextRef.current = quickPanelContext
+  const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())
 
-  const toolOrder = useAppSelector((state) => state.inputTools.toolOrder) || getDefaultToolOrder(scope)
+  const getQuickPanelApiForTool = useCallback(
+    (toolKey: string): ToolQuickPanelApi => {
+      const cache = quickPanelApiCacheRef.current
+
+      if (!cache.has(toolKey)) {
+        cache.set(toolKey, {
+          registerRootMenu: (entries: QuickPanelListItem[]) =>
+            toolsContext.toolsRegistry.registerRootMenu(toolKey, entries),
+          registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) =>
+            toolsContext.toolsRegistry.registerTrigger(toolKey, symbol, handler),
+          open: quickPanelContext.open,
+          close: quickPanelContext.close,
+          updateList: quickPanelContext.updateList,
+          updateItemSelection: quickPanelContext.updateItemSelection,
+          get isVisible() {
+            return quickPanelContextRef.current.isVisible
+          },
+          get symbol() {
+            return quickPanelContextRef.current.symbol
+          }
+        })
+      }
+
+      const api = cache.get(toolKey)!
+
+      api.open = quickPanelContext.open
+      api.close = quickPanelContext.close
+      api.updateList = quickPanelContext.updateList
+      api.updateItemSelection = quickPanelContext.updateItemSelection
+
+      return api
+    },
+    [quickPanelContext, quickPanelContextRef, toolsContext.toolsRegistry]
+  )
+
+  const reduxToolOrder = useAppSelector((state) => selectToolOrderForScope(state, scope))
   const isCollapse = useAppSelector((state) => state.inputTools.isCollapsed)
-  const [targetTool, setTargetTool] = useState<ToolButtonConfig | null>(null)
+  const [targetTool, setTargetTool] = useState<ToolConfig | null>(null)
 
   // Get tools for current scope
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, features })
-  }, [scope, assistant, model, features])
+    return getToolsForScope(scope, { assistant, model, session })
+  }, [scope, assistant, model, session])
+
+  // Get tool order for current scope
+  const toolOrder = useMemo(() => {
+    return reduxToolOrder
+  }, [reduxToolOrder])
 
   // Build render context for tools
   const buildRenderContext = useCallback(
@@ -90,13 +119,8 @@ const InputbarTools = ({ scope, assistantId }: InputbarToolsNewProps) => {
       tool: ToolDefinition<S, A>
     ): ToolRenderContext<S, A> => {
       const deps = tool.dependencies
-      // 为工具按钮提供 QuickPanel API（只包含注册功能）
-      const quickPanel: ToolQuickPanelApi = {
-        registerRootMenu: (entries: QuickPanelListItem[]) =>
-          toolsContext.toolsRegistry.registerRootMenu(tool.key, entries),
-        registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) =>
-          toolsContext.toolsRegistry.registerTrigger(tool.key, symbol, handler)
-      }
+      // 为工具提供完整的 QuickPanel API（注册 + 控制面板）
+      const quickPanel = getQuickPanelApiForTool(tool.key)
 
       const state = (deps?.state || ([] as unknown as S)).reduce(
         (acc, key) => {
@@ -121,52 +145,103 @@ const InputbarTools = ({ scope, assistantId }: InputbarToolsNewProps) => {
         scope,
         assistant,
         model,
-        features,
+        session,
         state,
         actions,
         quickPanel,
         t
-      }
+      } as ToolRenderContext<S, A>
     },
-    [assistant, features, model, scope, t, toolsContext]
+    [assistant, model, scope, session, t, toolsContext, getQuickPanelApiForTool]
   )
 
-  // Convert tools to button configs
-  const toolButtons = useMemo<ToolButtonConfig[]>(() => {
+  // Build tool metadata (without rendering)
+  // Tools with render: null are pure menu contributors and won't appear in UI
+  const toolMetadata = useMemo(() => {
     return availableTools.map((tool) => ({
       key: tool.key as InputBarToolType,
       label: typeof tool.label === 'function' ? tool.label(t) : tool.label,
-      component: null, // Will be rendered later
-      condition: true, // Already filtered by getToolsForScope
-      tool // Store the tool definition for later rendering
+      tool
     }))
   }, [availableTools, t])
 
+  // Declarative tools registration (for tools with quickPanel config)
+  // This handles pure menu contributors and trigger handlers
+  useEffect(() => {
+    const disposeCallbacks: Array<() => void> = []
+
+    for (const tool of availableTools) {
+      if (!tool.quickPanel) continue
+
+      const context = buildRenderContext(tool)
+
+      // Register root menu items (declarative)
+      if (tool.quickPanel.rootMenu) {
+        const menuItems = tool.quickPanel.rootMenu.createMenuItems(context)
+        const dispose = toolsContext.toolsRegistry.registerRootMenu(tool.key, menuItems)
+        disposeCallbacks.push(dispose)
+      }
+
+      // Register triggers (declarative)
+      if (tool.quickPanel.triggers) {
+        for (const triggerConfig of tool.quickPanel.triggers) {
+          const handler = triggerConfig.createHandler(context)
+          const dispose = toolsContext.toolsRegistry.registerTrigger(tool.key, triggerConfig.symbol, handler)
+          disposeCallbacks.push(dispose)
+        }
+      }
+    }
+
+    return () => {
+      disposeCallbacks.forEach((dispose) => dispose())
+    }
+  }, [availableTools, buildRenderContext, toolsContext.toolsRegistry])
+
+  // Filter visible tools (only those with render functions, not pure menu contributors)
   const visibleTools = useMemo(() => {
-    return toolOrder.visible
+    // 1. Get explicitly visible tools from toolOrder
+    const explicitlyVisible = toolOrder.visible
       .map((key) => {
-        const tool = toolButtons.find((item) => item.key === key)
-        if (!tool) return null
+        const meta = toolMetadata.find((item) => item.key === key)
+        if (!meta || meta.tool.render === null) return null
         return {
-          ...tool,
+          key: meta.key,
+          label: meta.label,
+          tool: meta.tool,
           visible: true
         }
       })
-      .filter(Boolean) as ToolButtonConfig[]
-  }, [toolButtons, toolOrder.visible])
+      .filter(Boolean) as ToolConfig[]
+
+    // 2. Find new tools not in toolOrder (auto-show new tools)
+    const knownToolKeys = new Set([...toolOrder.visible, ...toolOrder.hidden])
+    const newTools = toolMetadata
+      .filter((meta) => !knownToolKeys.has(meta.key) && meta.tool.render !== null)
+      .map((meta) => ({
+        key: meta.key,
+        label: meta.label,
+        tool: meta.tool,
+        visible: true
+      }))
+
+    // 3. Merge: explicit order + new tools at end
+    return [...explicitlyVisible, ...newTools]
+  }, [toolMetadata, toolOrder.visible, toolOrder.hidden])
 
   const hiddenTools = useMemo(() => {
     return toolOrder.hidden
       .map((key) => {
-        const tool = toolButtons.find((item) => item.key === key)
-        if (!tool) return null
+        const meta = toolMetadata.find((item) => item.key === key)
+        if (!meta || meta.tool.render === null) return null // Filter out pure menu contributors
         return {
-          ...tool,
+          key: meta.key,
+          label: meta.label,
+          tool: meta.tool,
           visible: false
         }
       })
-      .filter(Boolean) as ToolButtonConfig[]
-  }, [toolButtons, toolOrder.hidden])
+      .filter(Boolean) as ToolConfig[]
+  }, [toolMetadata, toolOrder.hidden])
 
   const showDivider = useMemo(() => {
     return hiddenTools.length > 0 && visibleTools.length > 0
@@ -191,10 +266,10 @@ const InputbarTools = ({ scope, assistantId }: InputbarToolsNewProps) => {
         newToolOrder.visible.push(toolKey)
       }
 
-      dispatch(setToolOrder(newToolOrder))
+      dispatch(setToolOrder({ scope, toolOrder: newToolOrder }))
       setTargetTool(null)
     },
-    [dispatch, toolOrder]
+    [dispatch, scope, toolOrder]
   )
 
   const handleDragEnd = (result: DropResult) => {
@@ -222,7 +297,7 @@ const InputbarTools = ({ scope, assistantId }: InputbarToolsNewProps) => {
       newToolOrder[destArray].splice(destination.index, 0, removed)
     }
 
-    dispatch(setToolOrder(newToolOrder))
+    dispatch(setToolOrder({ scope, toolOrder: newToolOrder }))
   }
 
   const getMenuItems = useMemo(() => {
@@ -250,91 +325,103 @@ const InputbarTools = ({ scope, assistantId }: InputbarToolsNewProps) => {
     return baseItems
   }, [hiddenTools, t, targetTool, toggleToolVisibility, visibleTools])
 
+  const managerElements = useMemo(() => {
+    return availableTools
+      .map((tool) => {
+        if (!tool.quickPanelManager) return null
+        const Manager = tool.quickPanelManager
+        const context = buildRenderContext(tool)
+        return <Manager key={`${tool.key}-quick-panel-manager`} context={context} />
+      })
+      .filter((element): element is React.ReactElement => element !== null)
+  }, [availableTools, buildRenderContext])
+
   return (
-    <Dropdown menu={{ items: getMenuItems }} trigger={['contextMenu']}>
-      <ToolsContainer
-        onContextMenu={(e) => {
-          const target = e.target as HTMLElement
-          const isToolButton = target.closest('[data-key]')
-          if (!isToolButton) {
-            setTargetTool(null)
-          }
-        }}>
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
-            {(provided) => (
-              <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
-                {visibleTools.map((tool, index) => (
-                  <Draggable key={tool.key} draggableId={tool.key} index={index}>
-                    {(provided, snapshot) => (
-                      <DraggablePortal isDragging={snapshot.isDragging}>
-                        <ToolWrapper
-                          data-key={tool.key}
-                          onContextMenu={() => setTargetTool(tool)}
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          style={provided.draggableProps.style}>
-                          {tool.tool ? (
-                            <ToolButton tool={tool.tool} context={buildRenderContext(tool.tool)} />
-                          ) : (
-                            tool.component
-                          )}
-                        </ToolWrapper>
-                      </DraggablePortal>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </VisibleTools>
-            )}
-          </Droppable>
+    <>
+      <Dropdown menu={{ items: getMenuItems }} trigger={['contextMenu']}>
+        <ToolsContainer
+          onContextMenu={(e) => {
+            const target = e.target as HTMLElement
+            const isToolButton = target.closest('[data-key]')
+            if (!isToolButton) {
+              setTargetTool(null)
+            }
+          }}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
+              {(provided) => (
+                <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
+                  {visibleTools.map((toolConfig, index) => {
+                    const context = buildRenderContext(toolConfig.tool)
+                    return (
+                      <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
+                        {(provided, snapshot) => (
+                          <DraggablePortal isDragging={snapshot.isDragging}>
+                            <ToolWrapper
+                              data-key={toolConfig.key}
+                              onContextMenu={() => setTargetTool(toolConfig)}
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={provided.draggableProps.style}>
+                              {toolConfig.tool.render?.(context)}
+                            </ToolWrapper>
+                          </DraggablePortal>
+                        )}
+                      </Draggable>
+                    )
+                  })}
+                  {provided.placeholder}
+                </VisibleTools>
+              )}
+            </Droppable>
 
-          {showDivider && <Divider type="vertical" style={{ margin: '0 4px' }} />}
+            {showDivider && <Divider type="vertical" style={{ margin: '0 4px' }} />}
 
-          <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
-            {(provided) => (
-              <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
-                {hiddenTools.map((tool, index) => (
-                  <Draggable key={tool.key} draggableId={tool.key} index={index}>
-                    {(provided, snapshot) => (
-                      <DraggablePortal isDragging={snapshot.isDragging}>
-                        <ToolWrapper
-                          data-key={tool.key}
-                          className={classNames({ 'is-collapsed': isCollapse })}
-                          onContextMenu={() => setTargetTool(tool)}
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                          style={{
-                            ...provided.draggableProps.style,
-                            transitionDelay: `${index * 0.02}s`
-                          }}>
-                          {tool.tool ? (
-                            <ToolButton tool={tool.tool} context={buildRenderContext(tool.tool)} />
-                          ) : (
-                            tool.component
-                          )}
-                        </ToolWrapper>
-                      </DraggablePortal>
-                    )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
-              </HiddenTools>
-            )}
-          </Droppable>
-        </DragDropContext>
+            <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
+              {(provided) => (
+                <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
+                  {hiddenTools.map((toolConfig, index) => {
+                    const context = buildRenderContext(toolConfig.tool)
+                    return (
+                      <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
+                        {(provided, snapshot) => (
+                          <DraggablePortal isDragging={snapshot.isDragging}>
+                            <ToolWrapper
+                              data-key={toolConfig.key}
+                              className={classNames({ 'is-collapsed': isCollapse })}
+                              onContextMenu={() => setTargetTool(toolConfig)}
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              style={{
+                                ...provided.draggableProps.style,
+                                transitionDelay: `${index * 0.02}s`
+                              }}>
+                              {toolConfig.tool.render?.(context)}
+                            </ToolWrapper>
+                          </DraggablePortal>
+                        )}
+                      </Draggable>
+                    )
+                  })}
+                  {provided.placeholder}
+                </HiddenTools>
+              )}
+            </Droppable>
+          </DragDropContext>
 
-        {showCollapseButton && (
-          <ActionIconButton
-            onClick={() => dispatch(setIsCollapsed(!isCollapse))}
-            title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}>
-            <CircleChevronRight size={18} style={{ transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)' }} />
-          </ActionIconButton>
-        )}
-      </ToolsContainer>
-    </Dropdown>
+          {showCollapseButton && (
+            <ActionIconButton
+              onClick={() => dispatch(setIsCollapsed(!isCollapse))}
+              title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}>
+              <CircleChevronRight size={18} style={{ transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)' }} />
+            </ActionIconButton>
+          )}
+        </ToolsContainer>
+      </Dropdown>
+      {managerElements}
+    </>
   )
 }
 

@@ -596,6 +596,7 @@
       "view_full_content": "Voir le contenu complet"
     },
     "input": {
+      "activity_directory": "[to be translated]:Activity Directory",
       "auto_resize": "Ajustement automatique de la hauteur",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",
@@ -619,6 +620,7 @@
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
+      "new_session": "[to be translated]:New Session {{Command}}",
       "new_topic": "Nouveau sujet {{Command}}",
       "paste_text_file_confirm": "Coller dans la zone de saisie ?",
       "pause": "Pause",
@@ -626,6 +628,7 @@
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "send": "Envoyer",
       "settings": "Paramètres",
+      "slash_commands": "[to be translated]:Slash Commands",
       "thinking": {
         "budget_exceeds_max": "Le budget de réflexion dépasse le nombre maximum de tokens",
         "label": "Pensée",
@@ -1736,6 +1739,9 @@
     },
     "message": {
       "code_style": "Style de code",
+      "compact": {
+        "title": "[to be translated]:Conversation Compacted"
+      },
       "delete": {
         "content": "Êtes-vous sûr de vouloir supprimer ce message?",
         "title": "Supprimer le message"

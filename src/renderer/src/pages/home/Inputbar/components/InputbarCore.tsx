@@ -1,34 +1,60 @@
+import { HolderOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
+import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
+import TranslateButton from '@renderer/components/TranslateButton'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
+import useTranslate from '@renderer/hooks/useTranslate'
+import PasteService from '@renderer/services/PasteService'
+import { translateText } from '@renderer/services/TranslateService'
+import { useAppDispatch } from '@renderer/store'
+import { setSearching } from '@renderer/store/runtime'
+import type { FileType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
+import { formatQuotedText } from '@renderer/utils/formats'
+import { isSendMessageKeyPressed } from '@renderer/utils/input'
+import { IpcChannel } from '@shared/IpcChannel'
+import { Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { CirclePause, Languages } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
-import React from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import NarrowLayout from '../../Messages/NarrowLayout'
+import AttachmentPreview from '../AttachmentPreview'
+import {
+  useInputbarToolsDispatch,
+  useInputbarToolsInternalDispatch,
+  useInputbarToolsState
+} from '../context/InputbarToolsProvider'
+import { useFileDragDrop } from '../hooks/useFileDragDrop'
+import { usePasteHandler } from '../hooks/usePasteHandler'
+import { getInputbarConfig } from '../registry'
+import SendMessageButton from '../SendMessageButton'
+import type { InputbarScope } from '../types'
+
+const logger = loggerService.withContext('InputbarCore')
 
 export interface InputbarCoreProps {
-  // Text management
-  text: string
-  onTextChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  scope: InputbarScope
   placeholder?: string
 
-  // Textarea ref and resize
-  textareaRef: React.RefObject<TextAreaRef>
-  textareaHeight?: number
+  text: string
+  onTextChange: (text: string) => void
+  textareaRef: React.RefObject<any>
+  resizeTextArea: (force?: boolean) => void
+  focusTextarea: () => void
 
-  // Event handlers
-  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
-  onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
-  onFocus?: () => void
-  onBlur?: () => void
+  supportedExts: string[]
+  isLoading: boolean
 
-  // Drag & drop (optional)
-  onDragEnter?: (e: React.DragEvent<HTMLDivElement>) => void
-  onDragLeave?: (e: React.DragEvent<HTMLDivElement>) => void
-  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
-  onDrop?: (e: React.DragEvent<HTMLDivElement>) => void
-  isDragging?: boolean
+  onPause?: () => void
+  handleSendMessage: () => void
 
   // Toolbar sections
   leftToolbar?: React.ReactNode
@@ -36,22 +62,6 @@ export interface InputbarCoreProps {
 
   // Preview sections (attachments, mentions, etc.)
   topContent?: React.ReactNode
-
-  // QuickPanel integration (optional)
-  quickPanel?: React.ReactNode
-
-  // Drag handle (optional)
-  dragHandle?: React.ReactNode
-
-  // Styling
-  fontSize?: number
-  enableSpellCheck?: boolean
-  disabled?: boolean
-  className?: string
-  isExpanded?: boolean
-
-  // Textarea autoSize
-  autoSize?: boolean | { minRows?: number; maxRows?: number }
 }
 
 const TextareaStyle: CSSProperties = {
@@ -84,75 +94,647 @@ const TextareaStyle: CSSProperties = {
  * ```
  */
 export const InputbarCore: FC<InputbarCoreProps> = ({
+  scope,
+  placeholder,
   text,
   onTextChange,
-  placeholder,
   textareaRef,
-  textareaHeight,
-  onKeyDown,
-  onPaste,
-  onFocus,
-  onBlur,
-  onDragEnter,
-  onDragLeave,
-  onDragOver,
-  onDrop,
-  isDragging,
+  resizeTextArea,
+  focusTextarea,
+  supportedExts,
+  isLoading,
+  onPause,
+  handleSendMessage,
   leftToolbar,
   rightToolbar,
-  topContent,
-  quickPanel,
-  dragHandle,
-  fontSize,
-  enableSpellCheck,
-  disabled,
-  className,
-  isExpanded,
-  autoSize = { minRows: 2, maxRows: 20 }
+  topContent
 }) => {
+  const config = useMemo(() => getInputbarConfig(scope), [scope])
+  const state = useInputbarToolsState()
+  const inputbarDispatch = useInputbarToolsDispatch()
+  const inputbarInternalDispatch = useInputbarToolsInternalDispatch()
+
+  const { files, isExpanded } = state
+  const { setFiles, setIsExpanded, toolsRegistry, triggers } = inputbarDispatch
+  const { setExtensions } = inputbarInternalDispatch
+
+  const prevTextRef = useRef(text)
+  const isEmpty = useMemo(() => text.trim().length === 0, [text])
+
+  const [inputFocus, setInputFocus] = useState(false)
+  const {
+    targetLanguage,
+    sendMessageShortcut,
+    fontSize,
+    pasteLongTextAsFile,
+    pasteLongTextThreshold,
+    autoTranslateWithSpace,
+    enableQuickPanelTriggers,
+    enableSpellCheck
+  } = useSettings()
+
+  const [textareaHeight, setTextareaHeight] = useState<number>()
+  const textareaIsExpanded = isExpanded
+
+  const { t } = useTranslation()
+  const [isTranslating, setIsTranslating] = useState(false)
+  const { getLanguageByLangcode } = useTranslate()
+
+  const dispatch = useAppDispatch()
+  const [spaceClickCount, setSpaceClickCount] = useState(0)
+  const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
+  const { searching } = useRuntime()
+  const startDragY = useRef<number>(0)
+  const startHeight = useRef<number>(0)
+  const { setTimeoutTimer } = useTimer()
+
+  // 全局 QuickPanel Hook (用于控制面板显示状态)
+  const quickPanel = useQuickPanel()
+  const quickPanelOpen = quickPanel.open
+
+  // ✅ 创建 setText 包装函数，适配 props.onTextChange
+  // 使用 ref 保存最新的 text 值，避免 setText 频繁重建导致依赖它的 hooks 失效
+  const textRef = useRef(text)
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
+
+  const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
+    (value) => {
+      if (typeof value === 'function') {
+        onTextChange(value(textRef.current))
+      } else {
+        onTextChange(value)
+      }
+    },
+    [onTextChange]
+  )
+
+  useEffect(() => {
+    prevTextRef.current = text
+  }, [text])
+
+  const { handlePaste } = usePasteHandler(text, setText, {
+    supportedExts,
+    setFiles,
+    pasteLongTextAsFile,
+    pasteLongTextThreshold,
+    onResize: resizeTextArea,
+    t
+  })
+
+  const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
+    supportedExts,
+    setFiles,
+    onTextDropped: (droppedText) => setText((prev) => prev + droppedText),
+    enabled: config.enableDragDrop,
+    t
+  })
+  // 判断是否可以发送：文本不为空或有文件
+  const cannotSend = useMemo(() => isEmpty && files.length === 0, [isEmpty, files.length])
+
+  useEffect(() => {
+    setExtensions(supportedExts)
+  }, [setExtensions, supportedExts])
+
+  const setInputText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
+    (value) => {
+      if (typeof value === 'function') {
+        setText((prev) => value(prev))
+      } else {
+        setText(value)
+      }
+    },
+    [setText]
+  )
+
+  const syncExpandedState = useCallback(
+    (expanded: boolean) => {
+      setIsExpanded(expanded)
+    },
+    [setIsExpanded]
+  )
+
+  const handleToggleExpanded = useCallback(
+    (nextState?: boolean) => {
+      const target = typeof nextState === 'boolean' ? nextState : !textareaIsExpanded
+      syncExpandedState(target)
+      focusTextarea()
+    },
+    [focusTextarea, syncExpandedState, textareaIsExpanded]
+  )
+
+  const translate = useCallback(async () => {
+    if (isTranslating) {
+      return
+    }
+
+    try {
+      setIsTranslating(true)
+      const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
+      translatedText && setText(translatedText)
+      setTimeoutTimer('translate', () => resizeTextArea(), 0)
+    } catch (error) {
+      logger.warn('Translation failed:', error as Error)
+    } finally {
+      setIsTranslating(false)
+    }
+  }, [getLanguageByLangcode, isTranslating, resizeTextArea, setText, setTimeoutTimer, targetLanguage, text])
+
+  const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
+
+  useEffect(() => {
+    rootTriggerHandlerRef.current = (payload) => {
+      const menuItems = triggers.getRootMenu()
+
+      if (text.trim()) {
+        menuItems.push({
+          label: t('translate.title'),
+          description: t('translate.menu.description'),
+          icon: <Languages size={16} />,
+          action: () => translate()
+        })
+      }
+
+      if (!menuItems.length) {
+        return
+      }
+
+      const triggerInfo = (payload ?? {}) as QuickPanelTriggerInfo
+      quickPanelOpen({
+        title: t('settings.quickPanel.title'),
+        list: menuItems,
+        symbol: QuickPanelReservedSymbol.Root,
+        triggerInfo
+      })
+    }
+  }, [triggers, quickPanelOpen, t, text, translate])
+
+  useEffect(() => {
+    if (!config.enableQuickPanel) {
+      return
+    }
+
+    const disposeRootTrigger = toolsRegistry.registerTrigger(
+      'inputbar-root',
+      QuickPanelReservedSymbol.Root,
+      (payload) => rootTriggerHandlerRef.current?.(payload)
+    )
+
+    return () => {
+      disposeRootTrigger()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.enableQuickPanel])
+
+  const onToggleExpanded = useCallback(() => {
+    handleToggleExpanded()
+  }, [handleToggleExpanded])
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === 'Tab' && inputFocus) {
+        event.preventDefault()
+        const textArea = textareaRef.current?.resizableTextArea?.textArea
+        if (!textArea) {
+          return
+        }
+        const cursorPosition = textArea.selectionStart
+        const selectionLength = textArea.selectionEnd - textArea.selectionStart
+        const text = textArea.value
+
+        let match = text.slice(cursorPosition + selectionLength).match(/\$\{[^}]+\}/)
+        let startIndex: number
+
+        if (!match) {
+          match = text.match(/\$\{[^}]+\}/)
+          startIndex = match?.index ?? -1
+        } else {
+          startIndex = cursorPosition + selectionLength + match.index!
+        }
+
+        if (startIndex !== -1) {
+          const endIndex = startIndex + match![0].length
+          textArea.setSelectionRange(startIndex, endIndex)
+          return
+        }
+      }
+      if (autoTranslateWithSpace && event.key === ' ') {
+        setSpaceClickCount((prev) => prev + 1)
+        if (spaceClickTimer.current) {
+          clearTimeout(spaceClickTimer.current)
+        }
+        spaceClickTimer.current = setTimeout(() => {
+          setSpaceClickCount(0)
+        }, 200)
+
+        if (spaceClickCount === 2) {
+          logger.info('Triple space detected - trigger translation')
+          setSpaceClickCount(0)
+          translate()
+          return
+        }
+      }
+
+      if ((isExpanded || textareaIsExpanded) && event.key === 'Escape') {
+        event.stopPropagation()
+        onToggleExpanded()
+        return
+      }
+
+      const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
+      if (isEnterPressed) {
+        if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+          handleSendMessage()
+          event.preventDefault()
+          return
+        }
+
+        if (event.shiftKey) {
+          return
+        }
+
+        event.preventDefault()
+        const textArea = textareaRef.current?.resizableTextArea?.textArea
+        if (textArea) {
+          const start = textArea.selectionStart
+          const end = textArea.selectionEnd
+          const currentText = textArea.value
+          const newText = currentText.substring(0, start) + '\n' + currentText.substring(end)
+
+          setText(newText)
+
+          setTimeoutTimer(
+            'handleKeyDown',
+            () => {
+              textArea.selectionStart = textArea.selectionEnd = start + 1
+            },
+            0
+          )
+        }
+      }
+
+      if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
+        setFiles((prev) => prev.slice(0, -1))
+        event.preventDefault()
+      }
+    },
+    [
+      inputFocus,
+      autoTranslateWithSpace,
+      isExpanded,
+      textareaIsExpanded,
+      text.length,
+      files.length,
+      textareaRef,
+      spaceClickCount,
+      translate,
+      onToggleExpanded,
+      sendMessageShortcut,
+      handleSendMessage,
+      setText,
+      setTimeoutTimer,
+      setFiles
+    ]
+  )
+
+  const handleTextareaChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const newText = e.target.value
+      setText(newText)
+
+      // ✅ 使用 prevTextRef
+      const isDeletion = newText.length < prevTextRef.current.length
+
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      const cursorPosition = textArea?.selectionStart ?? newText.length
+      const lastSymbol = newText[cursorPosition - 1]
+      const previousChar = newText[cursorPosition - 2]
+      const isCursorAtTextStart = cursorPosition <= 1
+      const hasValidTriggerBoundary = previousChar === ' ' || isCursorAtTextStart
+
+      const openRootPanelAt = (position: number) => {
+        triggers.emit(QuickPanelReservedSymbol.Root, {
+          type: 'input',
+          position,
+          originalText: newText
+        })
+      }
+
+      const openMentionPanelAt = (position: number) => {
+        triggers.emit(QuickPanelReservedSymbol.MentionModels, {
+          type: 'input',
+          position,
+          originalText: newText
+        })
+      }
+
+      if (enableQuickPanelTriggers && config.enableQuickPanel) {
+        const hasRootMenuItems = triggers.getRootMenu().length > 0
+        const textBeforeCursor = newText.slice(0, cursorPosition)
+        const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
+        const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
+        const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
+
+        if (!quickPanel.isVisible && lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
+          const triggerChar = newText[lastTriggerIndex]
+          const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
+          const hasBoundary = lastTriggerIndex === 0 || /\s/.test(boundaryChar)
+          const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
+          const hasSearchContent = searchSegment.trim().length > 0
+
+          if (hasBoundary && (!hasSearchContent || isDeletion)) {
+            if (triggerChar === QuickPanelReservedSymbol.Root && hasRootMenuItems) {
+              openRootPanelAt(lastTriggerIndex)
+            } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
+              openMentionPanelAt(lastTriggerIndex)
+            }
+          }
+        }
+
+        if (lastSymbol === QuickPanelReservedSymbol.Root && hasValidTriggerBoundary && hasRootMenuItems) {
+          if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
+            quickPanel.close('switch-symbol')
+          }
+          if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
+            openRootPanelAt(cursorPosition - 1)
+          }
+        }
+
+        if (lastSymbol === QuickPanelReservedSymbol.MentionModels && hasValidTriggerBoundary) {
+          if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
+            quickPanel.close('switch-symbol')
+          }
+          if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
+            openMentionPanelAt(cursorPosition - 1)
+          }
+        }
+      }
+
+      if (quickPanel.isVisible && quickPanel.triggerInfo?.type === 'input') {
+        const activeSymbol = quickPanel.symbol as QuickPanelReservedSymbol
+        const triggerPosition = quickPanel.triggerInfo.position ?? -1
+        const isTrackedSymbol =
+          activeSymbol === QuickPanelReservedSymbol.Root || activeSymbol === QuickPanelReservedSymbol.MentionModels
+
+        if (isTrackedSymbol && triggerPosition >= 0) {
+          // Check if cursor is before the trigger position (user deleted the symbol)
+          if (cursorPosition <= triggerPosition) {
+            quickPanel.close('delete-symbol')
+          } else {
+            // Check if the trigger symbol still exists at the expected position
+            const triggerChar = newText[triggerPosition]
+            if (triggerChar !== activeSymbol) {
+              quickPanel.close('delete-symbol')
+            }
+          }
+        }
+      }
+    },
+    // ✅ 移除 prevText.length，因为我们使用 ref
+    [setText, textareaRef, enableQuickPanelTriggers, config.enableQuickPanel, quickPanel, triggers]
+  )
+
+  const onTranslated = useCallback(
+    (translatedText: string) => {
+      setText(translatedText)
+      setTimeoutTimer('onTranslated', () => resizeTextArea(), 0)
+    },
+    [resizeTextArea, setText, setTimeoutTimer]
+  )
+
+  const appendTxtContentToInput = useCallback(
+    async (file: FileType, event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      try {
+        const targetPath = file.path
+        const content = await window.api.file.readExternal(targetPath, true)
+        try {
+          await navigator.clipboard.writeText(content)
+        } catch (clipboardError) {
+          logger.warn('Failed to copy txt attachment content to clipboard:', clipboardError as Error)
+        }
+
+        setText((prev) => {
+          if (!prev) {
+            return content
+          }
+
+          const needsSeparator = !prev.endsWith('\n')
+          return needsSeparator ? `${prev}\n${content}` : prev + content
+        })
+
+        setFiles((prev) => prev.filter((currentFile) => currentFile.id !== file.id))
+
+        setTimeoutTimer(
+          'appendTxtAttachment',
+          () => {
+            const textArea = textareaRef.current?.resizableTextArea?.textArea
+            if (textArea) {
+              const end = textArea.value.length
+              textArea.focus()
+              textArea.setSelectionRange(end, end)
+            }
+
+            resizeTextArea(true)
+          },
+          0
+        )
+      } catch (error) {
+        logger.warn('Failed to append txt attachment content:', error as Error)
+        window.toast.error(t('chat.input.file_error'))
+      }
+    },
+    [resizeTextArea, setFiles, setText, setTimeoutTimer, t, textareaRef]
+  )
+
+  const handleFocus = useCallback(() => {
+    setInputFocus(true)
+    dispatch(setSearching(false))
+    quickPanel.close()
+    PasteService.setLastFocusedComponent('inputbar')
+  }, [dispatch, quickPanel])
+
+  const handleBlur = useCallback(() => {
+    setInputFocus(false)
+  }, [])
+
+  const handleDragStart = useCallback(
+    (event: React.MouseEvent) => {
+      if (!config.enableDragDrop) {
+        return
+      }
+
+      startDragY.current = event.clientY
+      startHeight.current = textareaRef.current?.resizableTextArea?.textArea?.offsetHeight || 0
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const deltaY = startDragY.current - e.clientY
+        const newHeight = Math.max(40, Math.min(400, startHeight.current + deltaY))
+        setTextareaHeight(newHeight)
+      }
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    },
+    [config.enableDragDrop, setTextareaHeight, textareaRef]
+  )
+
+  const onQuote = useCallback(
+    (quoted: string) => {
+      const formatted = formatQuotedText(quoted)
+      setText((prevText) => {
+        const next = prevText ? `${prevText}\n${formatted}\n` : `${formatted}\n`
+        setTimeoutTimer('onQuote', () => resizeTextArea(), 0)
+        return next
+      })
+      focusTextarea()
+    },
+    [focusTextarea, resizeTextArea, setText, setTimeoutTimer]
+  )
+
+  useEffect(() => {
+    const quoteListener = window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) =>
+      onQuote(selectedText)
+    )
+    return () => {
+      quoteListener?.()
+    }
+  }, [onQuote])
+
+  useEffect(() => {
+    const timerId = requestAnimationFrame(() => resizeTextArea())
+    return () => cancelAnimationFrame(timerId)
+  }, [resizeTextArea])
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.activeElement?.closest('.ant-modal')) {
+        return
+      }
+
+      const lastFocusedComponent = PasteService.getLastFocusedComponent()
+      if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
+        focusTextarea()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [focusTextarea])
+
+  useEffect(() => {
+    PasteService.init()
+
+    PasteService.registerHandler('inputbar', handlePaste)
+
+    return () => {
+      PasteService.unregisterHandler('inputbar')
+    }
+  }, [
+    supportedExts,
+    setFiles,
+    setText,
+    pasteLongTextAsFile,
+    pasteLongTextThreshold,
+    text,
+    resizeTextArea,
+    t,
+    handlePaste
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (spaceClickTimer.current) {
+        clearTimeout(spaceClickTimer.current)
+      }
+    }
+  }, [])
+
+  const rightSectionExtras = useMemo(() => {
+    const extras: React.ReactNode[] = []
+    extras.push(<TranslateButton key="translate" text={text} onTranslated={onTranslated} isLoading={isTranslating} />)
+    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={cannotSend || isLoading || searching} />)
+
+    if (isLoading) {
+      extras.push(
+        <Tooltip key="pause" placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
+          <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
+            <CirclePause size={20} color="var(--color-error)" />
+          </ActionIconButton>
+        </Tooltip>
+      )
+    }
+
+    if (extras.length === 0) {
+      return null
+    }
+
+    return <>{extras}</>
+  }, [text, onTranslated, isTranslating, handleSendMessage, cannotSend, isLoading, searching, t, onPause])
+
+  const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setInputText} /> : null
+
   return (
     <NarrowLayout style={{ width: '100%' }}>
       <Container
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        className={classNames('inputbar', className)}>
-        {quickPanel}
-
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className={classNames('inputbar')}>
+        {quickPanelElement}
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', isDragging && 'file-dragging', isExpanded && 'expanded')}>
-          {dragHandle}
-
+          <DragHandle onMouseDown={handleDragStart}>
+            <HolderOutlined style={{ fontSize: 12 }} />
+          </DragHandle>
+          {files.length > 0 && (
+            <AttachmentPreview files={files} setFiles={setFiles} onAttachmentContextMenu={appendTxtContentToInput} />
+          )}
           {topContent}
 
           <Textarea
             ref={textareaRef}
             value={text}
-            onChange={onTextChange}
-            onKeyDown={onKeyDown}
-            onPaste={onPaste}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            placeholder={placeholder}
+            onChange={handleTextareaChange}
+            onKeyDown={handleKeyDown}
+            onPaste={(e) => handlePaste(e.nativeEvent)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            placeholder={isTranslating ? t('chat.input.translating') : placeholder}
             autoFocus
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
-            autoSize={textareaHeight ? false : autoSize}
+            autoSize={textareaHeight ? false : { minRows: 2, maxRows: 20 }}
             styles={{ textarea: TextareaStyle }}
             style={{
               fontSize,
               height: textareaHeight,
               minHeight: '30px'
             }}
-            disabled={disabled}
+            disabled={isTranslating || searching}
+            onClick={() => {
+              searching && dispatch(setSearching(false))
+              quickPanel.close()
+            }}
           />
 
           <BottomBar>
             <LeftSection>{leftToolbar}</LeftSection>
-            <RightSection>{rightToolbar}</RightSection>
+            <RightSection>
+              {rightToolbar}
+              {rightSectionExtras}
+            </RightSection>
           </BottomBar>
         </InputBarContainer>
       </Container>
@@ -161,6 +743,30 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 }
 
 // Styled Components
+const DragHandle = styled.div`
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  color: var(--color-icon);
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 1;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  .anticon {
+    transform: rotate(90deg);
+    font-size: 14px;
+  }
+`
 
 const Container = styled.div`
   display: flex;

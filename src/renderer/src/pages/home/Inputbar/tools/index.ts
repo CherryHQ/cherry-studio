@@ -14,6 +14,10 @@ import './generateImageTool'
 import './clearTopicTool'
 import './toggleExpandTool'
 import './newContextTool'
+// Agent Session tools
+import './createSessionTool'
+import './slashCommandsTool'
+import './activityDirectoryTool'
 
 // Export registry functions
-export { getAllTools, getDefaultToolOrder, getTool, getToolsForScope, registerTool } from '../types'
+export { getAllTools, getTool, getToolsForScope, registerTool } from '../types'

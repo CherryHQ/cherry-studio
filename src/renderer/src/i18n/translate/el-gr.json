@@ -596,6 +596,7 @@
       "view_full_content": "Προβολή πλήρους περιεχομένου"
     },
     "input": {
+      "activity_directory": "[to be translated]:Activity Directory",
       "auto_resize": "Αυτόματη μείωση ύψους",
       "clear": {
         "content": "Είσαι σίγουρος ότι θέλεις να διαγράψεις όλα τα μηνύματα της τρέχουσας συζήτησης;",
@@ -619,6 +620,7 @@
       "new": {
         "context": "Καθαρισμός ενδιάμεσων {{Command}}"
       },
+      "new_session": "[to be translated]:New Session {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
       "paste_text_file_confirm": "Επικόλληση στο πεδίο εισαγωγής;",
       "pause": "Παύση",
@@ -626,6 +628,7 @@
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "send": "Αποστολή",
       "settings": "Ρυθμίσεις",
+      "slash_commands": "[to be translated]:Slash Commands",
       "thinking": {
         "budget_exceeds_max": "Ο προϋπολογισμός σκέψης υπερβαίνει τον μέγιστο αριθμό token",
         "label": "Σκέψη",
@@ -1736,6 +1739,9 @@
     },
     "message": {
       "code_style": "Στυλ κώδικα",
+      "compact": {
+        "title": "[to be translated]:Conversation Compacted"
+      },
       "delete": {
         "content": "Θέλετε να διαγράψετε αυτό το μήνυμα;",
         "title": "Διαγραφή μηνύματος"

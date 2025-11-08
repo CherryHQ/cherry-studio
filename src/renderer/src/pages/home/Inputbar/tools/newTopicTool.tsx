@@ -7,10 +7,8 @@ import { MessageSquareDiff } from 'lucide-react'
 const newTopicTool = defineTool({
   key: 'new_topic',
   label: (t) => t('chat.input.new_topic', { Command: '' }),
-  icon: MessageSquareDiff,
 
   visibleInScopes: [TopicType.Chat],
-  condition: ({ features }) => !!features.enableNewTopic,
 
   dependencies: {
     actions: ['addNewTopic'] as const

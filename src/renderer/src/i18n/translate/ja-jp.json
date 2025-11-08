@@ -596,6 +596,7 @@
       "view_full_content": "完全な内容を表示"
     },
     "input": {
+      "activity_directory": "[to be translated]:Activity Directory",
       "auto_resize": "高さを自動調整",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -619,6 +620,7 @@
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
+      "new_session": "[to be translated]:New Session {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
       "paste_text_file_confirm": "入力欄に貼り付けますか？",
       "pause": "一時停止",
@@ -626,6 +628,7 @@
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "send": "送信",
       "settings": "設定",
+      "slash_commands": "[to be translated]:Slash Commands",
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
         "label": "思考",
@@ -1736,6 +1739,9 @@
     },
     "message": {
       "code_style": "コードスタイル",
+      "compact": {
+        "title": "[to be translated]:Conversation Compacted"
+      },
       "delete": {
         "content": "このメッセージを削除してもよろしいですか？",
         "title": "メッセージを削除"

@@ -596,6 +596,7 @@
       "view_full_content": "View Full Content"
     },
     "input": {
+      "activity_directory": "Activity Directory",
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
@@ -619,6 +620,7 @@
       "new": {
         "context": "Clear Context {{Command}}"
       },
+      "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
       "paste_text_file_confirm": "Paste into input bar?",
       "pause": "Pause",
@@ -626,6 +628,7 @@
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "send": "Send",
       "settings": "Settings",
+      "slash_commands": "Slash Commands",
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
         "label": "Thinking",
@@ -1736,6 +1739,9 @@
     },
     "message": {
       "code_style": "Code style",
+      "compact": {
+        "title": "Conversation Compacted"
+      },
       "delete": {
         "content": "Are you sure you want to delete this message?",
         "title": "Delete Message"

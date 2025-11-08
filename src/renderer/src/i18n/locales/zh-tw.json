@@ -596,6 +596,7 @@
       "view_full_content": "查看完整內容"
     },
     "input": {
+      "activity_directory": "[to be translated]:Activity Directory",
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -619,6 +620,7 @@
       "new": {
         "context": "清除上下文 {{Command}}"
       },
+      "new_session": "[to be translated]:New Session {{Command}}",
       "new_topic": "新話題 {{Command}}",
       "paste_text_file_confirm": "貼到輸入框？",
       "pause": "暫停",
@@ -626,6 +628,7 @@
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "send": "傳送",
       "settings": "設定",
+      "slash_commands": "[to be translated]:Slash Commands",
       "thinking": {
         "budget_exceeds_max": "思考預算超過最大 Token 數",
         "label": "思考",
@@ -1736,6 +1739,9 @@
     },
     "message": {
       "code_style": "程式碼風格",
+      "compact": {
+        "title": "對話已壓縮"
+      },
       "delete": {
         "content": "確定要刪除此訊息嗎？",
         "title": "刪除訊息"

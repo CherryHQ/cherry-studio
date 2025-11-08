@@ -29,8 +29,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
+import AttachmentButton from '../Inputbar/tools/components/AttachmentButton'
 
 interface Props {
   message: Message
@@ -60,9 +60,19 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
     () => ({
+      // Registration APIs
       registerRootMenu: () => () => {},
       registerTrigger: () => () => {},
-      emitTrigger: () => {}
+
+      // Panel control APIs (noop)
+      open: () => {},
+      close: () => {},
+      updateList: () => {},
+      updateItemSelection: () => {},
+
+      // State (read-only)
+      isVisible: false,
+      symbol: ''
     }),
     []
   )

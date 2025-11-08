@@ -1,15 +1,15 @@
 import { isGeminiModel } from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import UrlContextButton from '@renderer/pages/home/Inputbar/UrlContextbutton'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+
+import UrlContextButton from './components/UrlContextbutton'
 
 const urlContextTool = defineTool({
   key: 'url_context',
   label: (t) => t('chat.input.url_context'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ features, model }) => {
-    if (!features.enableUrlContext) return false
+  condition: ({ model }) => {
     if (!isGeminiModel(model)) return false
     const provider = getProviderByModel(model)
     return !!provider && isSupportUrlContextProvider(provider)

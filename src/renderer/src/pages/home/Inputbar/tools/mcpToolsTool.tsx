@@ -1,13 +1,13 @@
-import MCPToolsButton from '@renderer/pages/home/Inputbar/MCPToolsButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
+
+import MCPToolsButton from './components/MCPToolsButton'
 
 const mcpToolsTool = defineTool({
   key: 'mcp_tools',
   label: (t) => t('settings.mcp.title'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ features, assistant }) =>
-    features.enableMCPTools && (isSupportedToolUse(assistant) || isPromptToolUse(assistant)),
+  condition: ({ assistant }) => isSupportedToolUse(assistant) || isPromptToolUse(assistant),
   dependencies: {
     actions: ['onTextChange', 'resizeTextArea'] as const
   },

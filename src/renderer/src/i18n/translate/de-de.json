@@ -596,6 +596,7 @@
       "view_full_content": "Vollständigen Inhalt anzeigen"
     },
     "input": {
+      "activity_directory": "[to be translated]:Activity Directory",
       "auto_resize": "Höhe automatisch anpassen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
@@ -619,6 +620,7 @@
       "new": {
         "context": "Kontext löschen {{Command}}"
       },
+      "new_session": "[to be translated]:New Session {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
       "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
@@ -626,6 +628,7 @@
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "send": "Senden",
       "settings": "Einstellungen",
+      "slash_commands": "[to be translated]:Slash Commands",
       "thinking": {
         "budget_exceeds_max": "Denkbudget übersteigt maximale Token-Anzahl",
         "label": "Denken",
@@ -1736,6 +1739,9 @@
     },
     "message": {
       "code_style": "Code-Stil",
+      "compact": {
+        "title": "[to be translated]:Conversation Compacted"
+      },
       "delete": {
         "content": "Möchten Sie diese Nachricht wirklich löschen?",
         "title": "Nachricht löschen"

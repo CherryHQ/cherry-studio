@@ -1,46 +1,38 @@
-import { ActionIconButton } from '@renderer/components/Buttons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileType, Model } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
-import { Avatar, Tooltip } from 'antd'
+import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, CircleX, Plus } from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
+import type React from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
-type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; originalText?: string }
+export type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; originalText?: string }
 
-interface Props {
+interface Params {
   quickPanel: ToolQuickPanelApi
   mentionedModels: Model[]
-  onMentionModel: (model: Model) => void
-  onClearMentionModels: () => void
+  setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   couldMentionNotVisionModel: boolean
   files: FileType[]
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
-const MentionModelsButton: FC<Props> = ({
-  quickPanel,
-  mentionedModels,
-  onMentionModel,
-  onClearMentionModels,
-  couldMentionNotVisionModel,
-  files,
-  setText
-}) => {
-  const quickPanelHook = useQuickPanel()
+export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager' = 'button') => {
+  const { quickPanel, mentionedModels, setMentionedModels, couldMentionNotVisionModel, files, setText } = params
+  const { registerRootMenu, registerTrigger, open, close, updateList, isVisible, symbol } = quickPanel
   const { providers } = useProviders()
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -96,6 +88,25 @@ const MentionModelsButton: FC<Props> = ({
     []
   )
 
+  const onMentionModel = useCallback(
+    (model: Model) => {
+      const allowNonVision = !files.some((file) => file.type === FileTypes.IMAGE)
+      if (isVisionModel(model) || allowNonVision) {
+        setMentionedModels((prev) => {
+          const modelId = getModelUniqId(model)
+          const exists = prev.some((m) => getModelUniqId(m) === modelId)
+          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
+        })
+        hasModelActionRef.current = true
+      }
+    },
+    [files, setMentionedModels]
+  )
+
+  const onClearMentionModels = useCallback(() => {
+    setMentionedModels([])
+  }, [setMentionedModels])
+
   const pinnedModels = useLiveQuery(
     async () => {
       const setting = await db.settings.get('pinned:models')
@@ -128,10 +139,7 @@ const MentionModelsButton: FC<Props> = ({
               </Avatar>
             ),
             filterText: getFancyProviderName(provider) + model.name,
-            action: () => {
-              hasModelActionRef.current = true
-              onMentionModel(model)
-            },
+            action: () => onMentionModel(model),
             isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
           }))
       )
@@ -164,10 +172,7 @@ const MentionModelsButton: FC<Props> = ({
           </Avatar>
         ),
         filterText: getFancyProviderName(provider) + model.name,
-        action: () => {
-          hasModelActionRef.current = true
-          onMentionModel(model)
-        },
+        action: () => onMentionModel(model),
         isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(model))
       }))
 
@@ -206,16 +211,16 @@ const MentionModelsButton: FC<Props> = ({
 
     return items
   }, [
-    pinnedModels,
-    providers,
-    t,
     couldMentionNotVisionModel,
     mentionedModels,
-    onMentionModel,
     navigate,
     onClearMentionModels,
+    onMentionModel,
+    pinnedModels,
+    providers,
+    removeAtSymbolAndText,
     setText,
-    removeAtSymbolAndText
+    t
   ])
 
   const openQuickPanel = useCallback(
@@ -223,7 +228,7 @@ const MentionModelsButton: FC<Props> = ({
       hasModelActionRef.current = false
       triggerInfoRef.current = triggerInfo
 
-      quickPanelHook.open({
+      open({
         title: t('assistants.presets.edit.model.select.title'),
         list: modelItems,
         symbol: QuickPanelReservedSymbol.MentionModels,
@@ -234,14 +239,12 @@ const MentionModelsButton: FC<Props> = ({
         },
         onClose({ action, searchText, context }) {
           if (action === 'esc') {
-            // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
-            const triggerInfo = context?.triggerInfo ?? triggerInfoRef.current
-            if (hasModelActionRef.current && triggerInfo?.type === 'input' && triggerInfo?.position !== undefined) {
-              // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
+            const trigger = context?.triggerInfo ?? triggerInfoRef.current
+            if (hasModelActionRef.current && trigger?.type === 'input' && trigger?.position !== undefined) {
               setText((currentText) => {
                 const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', triggerInfo?.position!)
+                return removeAtSymbolAndText(currentText, caret, searchText || '', trigger?.position!)
               })
             }
           }
@@ -249,34 +252,37 @@ const MentionModelsButton: FC<Props> = ({
         }
       })
     },
-    [modelItems, quickPanelHook, t, setText, removeAtSymbolAndText]
+    [modelItems, open, removeAtSymbolAndText, setText, t]
   )
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.MentionModels) {
-      quickPanelHook.close()
+    if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
+      close()
     } else {
       openQuickPanel({ type: 'button' })
     }
-  }, [openQuickPanel, quickPanelHook])
+  }, [close, isVisible, openQuickPanel, symbol])
 
   useEffect(() => {
+    if (role !== 'manager') return
     if (filesRef.current !== files) {
-      if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.MentionModels) {
-        quickPanelHook.close()
+      if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
+        close()
       }
       filesRef.current = files
     }
-  }, [files, quickPanelHook])
+  }, [close, files, isVisible, role, symbol])
 
   useEffect(() => {
-    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.MentionModels) {
-      quickPanelHook.updateList(modelItems)
+    if (role !== 'manager') return
+    if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
+      updateList(modelItems)
     }
-  }, [mentionedModels, quickPanelHook, modelItems])
+  }, [isVisible, modelItems, role, symbol, updateList])
 
   useEffect(() => {
-    const disposeRootMenu = quickPanel.registerRootMenu([
+    if (role !== 'manager') return
+    const disposeRootMenu = registerRootMenu([
       {
         label: t('assistants.presets.edit.model.select.title'),
         description: '',
@@ -286,7 +292,7 @@ const MentionModelsButton: FC<Props> = ({
       }
     ])
 
-    const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.MentionModels, (payload) => {
+    const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.MentionModels, (payload) => {
       const trigger = (payload || {}) as MentionTriggerInfo
       openQuickPanel(trigger)
     })
@@ -295,19 +301,14 @@ const MentionModelsButton: FC<Props> = ({
       disposeRootMenu()
       disposeTrigger()
     }
-  }, [openQuickPanel, quickPanel, t])
+  }, [openQuickPanel, registerRootMenu, registerTrigger, role, t])
 
-  return (
-    <Tooltip placement="top" title={t('assistants.presets.edit.model.select.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={mentionedModels.length > 0}>
-        <AtSign size={18} />
-      </ActionIconButton>
-    </Tooltip>
-  )
+  return {
+    handleOpenQuickPanel,
+    openQuickPanel
+  }
 }
 
 const ProviderName = styled.span`
   font-weight: 500;
 `
-
-export default memo(MentionModelsButton)

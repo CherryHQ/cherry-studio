@@ -1,14 +1,11 @@
-import QuickPhrasesButton from '@renderer/pages/home/Inputbar/QuickPhrasesButton'
+import QuickPhrasesButton from '@renderer/pages/home/Inputbar/tools/components/QuickPhrasesButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { Zap } from 'lucide-react'
 
 const quickPhrasesTool = defineTool({
   key: 'quick_phrases',
   label: (t) => t('settings.quickPhrase.title'),
-  icon: Zap,
 
-  visibleInScopes: [TopicType.Chat, 'mini-window'],
-  condition: ({ features }) => !!features.enableQuickPhrases,
+  visibleInScopes: [TopicType.Chat, TopicType.Session, 'mini-window'],
 
   dependencies: {
     actions: ['onTextChange', 'resizeTextArea'] as const

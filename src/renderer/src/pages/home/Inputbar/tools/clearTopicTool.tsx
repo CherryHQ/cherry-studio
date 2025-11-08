@@ -8,7 +8,6 @@ const clearTopicTool = defineTool({
   key: 'clear_topic',
   label: (t) => t('chat.input.clear.label', { Command: '' }),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ features }) => !!features.enableClearTopic,
   dependencies: {
     actions: ['clearTopic'] as const
   },

@@ -185,19 +185,64 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       if (deleteStart >= deleteEnd) return
 
-      // 删除文本
-      const newText = textArea.value.slice(0, deleteStart) + textArea.value.slice(deleteEnd)
-      setInputText(newText)
+      const activeSearchText = searchTextRef.current ?? ''
 
-      // 设置光标位置
-      setTimeoutTimer(
-        'quickpanel_focus',
-        () => {
-          textArea.focus()
-          textArea.setSelectionRange(deleteStart, deleteStart)
-        },
-        0
-      )
+      setInputText((currentText) => {
+        const safeText = currentText ?? ''
+        const expectedSegment = includeSymbol ? symbolSegment : symbolSegment.slice(1)
+        const typedSearch = activeSearchText
+        const normalizedTyped = includeSymbol
+          ? typedSearch
+          : typedSearch.startsWith(symbolSegment[0] ?? '')
+            ? typedSearch.slice(1)
+            : typedSearch
+
+        if (normalizedTyped && expectedSegment !== normalizedTyped) {
+          return safeText
+        }
+
+        const segmentStart = includeSymbol ? symbolStart : symbolStart + 1
+        const segmentEnd = segmentStart + expectedSegment.length
+
+        if (segmentStart < 0 || segmentStart > safeText.length) {
+          return safeText
+        }
+
+        if (segmentEnd > safeText.length) {
+          return safeText
+        }
+
+        const actualSegment = safeText.slice(segmentStart, segmentEnd)
+        if (actualSegment !== expectedSegment) {
+          return safeText
+        }
+
+        const clampedDeleteStart = Math.max(0, Math.min(deleteStart, safeText.length))
+        const clampedDeleteEnd = Math.max(clampedDeleteStart, Math.min(deleteEnd, safeText.length))
+
+        if (clampedDeleteStart >= clampedDeleteEnd) {
+          return safeText
+        }
+
+        const updatedText = safeText.slice(0, clampedDeleteStart) + safeText.slice(clampedDeleteEnd)
+
+        if (updatedText === safeText) {
+          return safeText
+        }
+
+        setTimeoutTimer(
+          'quickpanel_focus',
+          () => {
+            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            if (!textareaEl) return
+            textareaEl.focus()
+            textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
+          },
+          0
+        )
+
+        return updatedText
+      })
 
       setSearchText('')
     },
@@ -217,11 +262,21 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action)) {
-        clearSearchText(true)
+      } else if (
+        action &&
+        !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action) &&
+        ctx.triggerInfo?.type === 'input'
+      ) {
+        setTimeoutTimer(
+          'quickpanel_deferred_clear',
+          () => {
+            clearSearchText(true)
+          },
+          0
+        )
       }
     },
-    [ctx, clearSearchText, setInputText, searchText]
+    [ctx, clearSearchText, setInputText, searchText, setTimeoutTimer]
   )
 
   const handleItemAction = useCallback(

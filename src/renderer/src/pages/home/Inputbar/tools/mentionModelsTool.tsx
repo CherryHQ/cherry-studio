@@ -1,58 +1,44 @@
-import { isVisionModel } from '@renderer/config/models'
-import MentionModelsButton from '@renderer/pages/home/Inputbar/MentionModelsButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { getModelUniqId } from '@renderer/services/ModelService'
-import { FileTypes, type Model } from '@renderer/types'
-import { AtSign } from 'lucide-react'
+import type React from 'react'
 
+import MentionModelsButton from './components/MentionModelsButton'
+import MentionModelsQuickPanelManager from './components/MentionModelsQuickPanelManager'
+
+/**
+ * Mention Models Tool
+ *
+ * Allows users to mention multiple AI models in their messages.
+ * Uses @ trigger to open model selection panel.
+ */
 const mentionModelsTool = defineTool({
   key: 'mention_models',
   label: (t) => t('assistants.presets.edit.model.select.title'),
-  icon: AtSign,
 
   visibleInScopes: [TopicType.Chat, 'mini-window'],
-  condition: ({ features }) => !!features.enableMentionModels,
-
   dependencies: {
     state: ['mentionedModels', 'files', 'couldMentionNotVisionModel'] as const,
-    actions: ['setMentionedModels', 'setText'] as const
+    actions: ['setMentionedModels', 'onTextChange'] as const
   },
 
-  render: (context) => {
+  render: function MentionModelsToolRender(context) {
     const { state, actions, quickPanel } = context
-
-    const onMentionModel = (model: Model) => {
-      // Check if can mention non-vision model
-      const couldMentionNotVisionModel = !state.files.some((file: any) => file.type === FileTypes.IMAGE)
-
-      if (isVisionModel(model) || couldMentionNotVisionModel) {
-        actions.setMentionedModels((prev: Model[]) => {
-          const modelId = getModelUniqId(model)
-          const exists = prev.some((m) => getModelUniqId(m) === modelId)
-          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
-        })
-      }
-    }
-
-    const onClearMentionModels = () => {
-      actions.setMentionedModels([])
-    }
+    const { mentionedModels, files, couldMentionNotVisionModel } = state
+    const { setMentionedModels, onTextChange } = actions
 
     return (
       <MentionModelsButton
         quickPanel={quickPanel}
-        mentionedModels={state.mentionedModels}
-        onMentionModel={onMentionModel}
-        onClearMentionModels={onClearMentionModels}
-        couldMentionNotVisionModel={state.couldMentionNotVisionModel}
-        files={state.files}
-        setText={actions.setText}
+        mentionedModels={mentionedModels}
+        setMentionedModels={setMentionedModels}
+        couldMentionNotVisionModel={couldMentionNotVisionModel}
+        files={files}
+        setText={onTextChange as React.Dispatch<React.SetStateAction<string>>}
       />
     )
-  }
+  },
+  quickPanelManager: MentionModelsQuickPanelManager
 })
 
-// Register the tool
 registerTool(mentionModelsTool)
 
 export default mentionModelsTool

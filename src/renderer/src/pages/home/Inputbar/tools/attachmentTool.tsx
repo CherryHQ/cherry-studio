@@ -1,14 +1,11 @@
-import AttachmentButton from '@renderer/pages/home/Inputbar/AttachmentButton'
+import AttachmentButton from '@renderer/pages/home/Inputbar/tools/components/AttachmentButton'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import { Paperclip } from 'lucide-react'
 
 const attachmentTool = defineTool({
   key: 'attachment',
   label: (t) => t('chat.input.upload.image_or_document'),
-  icon: Paperclip,
 
-  visibleInScopes: [TopicType.Chat, 'mini-window'],
-  condition: ({ features }) => !!features.enableAttachments,
+  visibleInScopes: [TopicType.Chat, TopicType.Session, 'mini-window'],
 
   dependencies: {
     state: ['files', 'couldAddImageFile', 'extensions'] as const,

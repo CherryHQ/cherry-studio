@@ -42,10 +42,9 @@ export function usePasteHandler(
   options: UsePasteHandlerOptions
 ) {
   const handlePaste = useCallback(
-    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      const nativeEvent = event.nativeEvent
-      const handled = await PasteService.handlePaste(
-        nativeEvent,
+    async (event: ClipboardEvent) => {
+      return await PasteService.handlePaste(
+        event,
         options.supportedExts,
         options.setFiles,
         setText,
@@ -55,10 +54,6 @@ export function usePasteHandler(
         options.onResize ?? (() => {}),
         options.t
       )
-
-      if (handled) {
-        event.preventDefault()
-      }
     },
     [text, setText, options]
   )
