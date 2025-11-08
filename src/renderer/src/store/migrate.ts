@@ -2769,11 +2769,13 @@ const migrateConfig = {
             break
           case 'grok':
             provider.anthropicApiHost = 'https://api.x.ai'
+            break
           case 'cherryin':
             provider.anthropicApiHost = 'https://open.cherryin.net'
             break
           case 'longcat':
             provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+            break
         }
       })
       return state
