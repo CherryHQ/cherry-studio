@@ -1,5 +1,6 @@
-import { Accordion, AccordionItem } from '@heroui/react'
 import type { CompactMessageBlock } from '@renderer/types/newMessage'
+import type { CollapseProps } from 'antd'
+import { Collapse } from 'antd'
 import { ChevronDown } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,24 +14,27 @@ interface Props {
 
 const CompactBlock: React.FC<Props> = ({ block }) => {
   const { t } = useTranslation()
+
+  const items: CollapseProps['items'] = [
+    {
+      key: 'summary',
+      label: (
+        <TitleWrapper>
+          <TitleIcon>📦</TitleIcon>
+          <TitleText>{t('message.message.compact.title')}</TitleText>
+        </TitleWrapper>
+      ),
+      children: (
+        <SummaryContent>
+          <Markdown block={block} />
+        </SummaryContent>
+      )
+    }
+  ]
+
   return (
     <Container>
-      <StyledAccordion>
-        <AccordionItem
-          key="summary"
-          aria-label="Compact Summary"
-          title={
-            <TitleWrapper>
-              <TitleIcon>📦</TitleIcon>
-              <TitleText>{t('message.message.compact.title')}</TitleText>
-            </TitleWrapper>
-          }
-          indicator={<ChevronDown size={16} />}>
-          <SummaryContent>
-            <Markdown block={block} />
-          </SummaryContent>
-        </AccordionItem>
-      </StyledAccordion>
+      <StyledCollapse items={items} expandIcon={() => <ChevronDown size={16} />} />
 
       {block.compactedContent && (
         <CompactedContentWrapper>
@@ -48,9 +52,7 @@ const Container = styled.div`
   margin: 8px 0;
 `
 
-const StyledAccordion = styled(Accordion).attrs({
-  variant: 'bordered'
-})`
+const StyledCollapse = styled(Collapse)`
   border-radius: 8px;
 `
 

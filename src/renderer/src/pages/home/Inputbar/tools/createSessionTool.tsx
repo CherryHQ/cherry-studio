@@ -1,10 +1,10 @@
-import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
+import { Tooltip } from 'antd'
 import { MessageSquareDiff } from 'lucide-react'
 import { useCallback } from 'react'
 
@@ -42,7 +42,7 @@ const createSessionTool = defineTool({
     }, [createDefaultSession, createSessionDisabled])
 
     return (
-      <Tooltip placement="top" content={t('chat.input.new_topic', { Command: newTopicShortcut })} delay={0}>
+      <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })}>
         <ActionIconButton onClick={handleCreateSession} disabled={createSessionDisabled} loading={creatingSession}>
           <MessageSquareDiff size={19} />
         </ActionIconButton>
