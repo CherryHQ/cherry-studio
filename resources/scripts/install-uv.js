@@ -87,12 +87,7 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
             fs.copyFileSync(fullPath, outputPath)
             console.log(`Extracted ${entry.name} -> ${outputPath}`)
             // Make executable on Unix-like systems
-            try {
-              fs.chmodSync(outputPath, 0o755)
-            } catch (chmodError) {
-              console.error(`Warning: Failed to set executable permissions on ${filename}`)
-              return 102
-            }
+            fs.chmodSync(outputPath, 0o755)
           }
         }
       }
