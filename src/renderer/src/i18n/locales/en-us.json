@@ -339,6 +339,41 @@
     },
     "title": "API Server"
   },
+  "appMenu": {
+    "about": "About",
+    "close": "Close Window",
+    "copy": "Copy",
+    "cut": "Cut",
+    "delete": "Delete",
+    "documentation": "Documentation",
+    "edit": "Edit",
+    "feedback": "Feedback",
+    "file": "File",
+    "forceReload": "Force Reload",
+    "front": "Bring All to Front",
+    "help": "Help",
+    "hide": "Hide",
+    "hideOthers": "Hide Others",
+    "minimize": "Minimize",
+    "paste": "Paste",
+    "quit": "Quit",
+    "redo": "Redo",
+    "releases": "Releases",
+    "reload": "Reload",
+    "resetZoom": "Actual Size",
+    "selectAll": "Select All",
+    "services": "Services",
+    "toggleDevTools": "Toggle Developer Tools",
+    "toggleFullscreen": "Toggle Fullscreen",
+    "undo": "Undo",
+    "unhide": "Show All",
+    "view": "View",
+    "website": "Website",
+    "window": "Window",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
+  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -3783,6 +3818,7 @@
         "description": "Do not enable MCP server functionality",
         "label": "Disable MCP Server"
       },
+      "discover": "Discover",
       "duplicateName": "A server with this name already exists",
       "editJson": "Edit JSON",
       "editMcpJson": "Edit MCP Configuration",
@@ -3792,6 +3828,10 @@
       "errors": {
         "32000": "MCP server failed to start, please check the parameters according to the tutorial",
         "toolNotFound": "Tool {{name}} not found"
+      },
+      "fetch": {
+        "button": "Fetch Servers",
+        "success": "Successfully fetched MCP servers"
       },
       "findMore": "Find More MCP",
       "headers": "Headers",
@@ -3808,6 +3848,7 @@
       "logoUrl": "Logo URL",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
+      "marketplaces": "Marketplaces",
       "missingDependencies": "is Missing, please install it to continue.",
       "more": {
         "awesome": "Curated MCP Server List",
@@ -3839,6 +3880,12 @@
         "usage": "Usage",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "You can close this page and return to Cherry Studio",
+          "title": "Authentication Successful"
+        }
+      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -3856,6 +3903,7 @@
       "provider": "Provider",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
+      "providers": "Providers",
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
@@ -3878,6 +3926,7 @@
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
+      "servers": "MCP Servers",
       "sse": "Server-Sent Events (sse)",
       "startError": "Start failed",
       "stdio": "Standard Input/Output (stdio)",

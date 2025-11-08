@@ -1,6 +1,7 @@
-import { Alert, cn } from '@heroui/react'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { cn } from '@renderer/utils'
+import { Alert } from 'antd'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { FC } from 'react'
 import { memo } from 'react'
@@ -17,19 +18,11 @@ const SessionsTab: FC<SessionsTabProps> = () => {
   const { apiServer } = useSettings()
 
   if (!apiServer.enabled) {
-    return (
-      <div>
-        <Alert color="warning" title={t('agent.warning.enable_server')} />
-      </div>
-    )
+    return <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: 10 }} />
   }
 
   if (!activeAgentId) {
-    return (
-      <div>
-        <Alert color="warning" title={'Select an agent'} />
-      </div>
-    )
+    return <Alert type="warning" message={'Select an agent'} style={{ margin: 10 }} />
   }
 
   return (

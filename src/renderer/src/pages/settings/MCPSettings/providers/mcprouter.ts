@@ -3,29 +3,42 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
-const logger = loggerService.withContext('302ai')
+const logger = loggerService.withContext('MCPRouterSyncUtils')
 
 // Token storage constants and utilities
-const TOKEN_STORAGE_KEY = 'ai302_token'
-export const AI302_HOST = 'https://api.302.ai/mcp'
+const TOKEN_STORAGE_KEY = 'mcprouter_token'
+export const MCPROUTER_HOST = 'https://mcprouter.co'
 
-export const saveAI302Token = (token: string): void => {
+export const saveMCPRouterToken = (token: string): void => {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
 }
 
-export const getAI302Token = (): string | null => {
+export const getMCPRouterToken = (): string | null => {
   return localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
-export const clearAI302Token = (): void => {
+export const clearMCPRouterToken = (): void => {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
 }
 
-export const hasAI302Token = (): boolean => {
-  return !!getAI302Token()
+export const hasMCPRouterToken = (): boolean => {
+  return !!getMCPRouterToken()
 }
 
-interface Ai302SyncResult {
+interface MCPRouterServer {
+  created_at: string
+  updated_at: string
+  name: string
+  author_name?: string
+  title?: string
+  description?: string
+  content?: string
+  server_key: string
+  config_name: string
+  server_url: string
+}
+
+interface MCPRouterSyncResult {
   success: boolean
   message: string
   addedServers: MCPServer[]
@@ -34,22 +47,28 @@ interface Ai302SyncResult {
   errorDetails?: string
 }
 
-// Function to fetch and process 302ai servers
-export const syncAi302Servers = async (token: string, existingServers: MCPServer[]): Promise<Ai302SyncResult> => {
+// Function to fetch and process MCPRouter servers
+export const syncMCPRouterServers = async (
+  token: string,
+  existingServers: MCPServer[]
+): Promise<MCPRouterSyncResult> => {
   const t = i18next.t
 
   try {
-    const response = await fetch(`${AI302_HOST}/v1/mcps/list?baseUrl=https://api.302.ai/custom-mcp/mcp`, {
-      method: 'GET',
+    const response = await fetch('https://api.mcprouter.to/v1/list-servers', {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': token
-      }
+        Authorization: `Bearer ${token}`,
+        'HTTP-Referer': 'https://cherry-ai.com',
+        'X-Title': 'Cherry Studio'
+      },
+      body: JSON.stringify({})
     })
 
     // Handle authentication errors
     if (response.status === 401 || response.status === 403) {
-      clearAI302Token()
+      clearMCPRouterToken()
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
@@ -73,8 +92,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
 
     // Process successful response
     const data = await response.json()
-    const servers: MCPServer[] = data.mcps || []
-    logger.debug('servers', servers)
+    const servers: MCPRouterServer[] = data.data?.servers || []
 
     if (servers.length === 0) {
       return {
@@ -86,38 +104,41 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       }
     }
 
-    // Transform 302ai servers to MCP servers format
+    // Transform MCPRouter servers to MCP servers format
     const addedServers: MCPServer[] = []
     const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
-
     for (const server of servers) {
       try {
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@302ai/${server.name}`)
+        // Check if server already exists using server_key
+        const existingServer = existingServers.find((s) => s.id === `@mcprouter/${server.server_key}`)
 
         const mcpServer: MCPServer = {
-          id: `@302ai/${server.name}`,
-          name: server.name || `302ai Server ${nanoid()}`,
+          id: `@mcprouter/${server.server_key}`,
+          name: server.title || server.name || `MCPRouter Server ${nanoid()}`,
           description: server.description || '',
-          type: server.type,
-          baseUrl: server.baseUrl,
-          isActive: server.isActive,
-          provider: server.provider,
-          providerUrl: server.providerUrl,
-          tags: server.tags,
-          logoUrl: server.logoUrl
+          type: 'streamableHttp',
+          baseUrl: server.server_url,
+          isActive: true,
+          provider: 'MCPRouter',
+          providerUrl: `https://mcprouter.co/${server.server_key}`,
+          logoUrl: '',
+          tags: [],
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         }
 
         if (existingServer) {
-          // Update existing server with latest info
+          // Update existing server with corrected URL and latest info
           updatedServers.push(mcpServer)
         } else {
           // Add new server
           addedServers.push(mcpServer)
         }
+        allServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing 302ai server:', err as Error)
+        logger.error('Error processing MCPRouter server:', err as Error)
       }
     }
 
@@ -130,7 +151,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       allServers
     }
   } catch (error) {
-    logger.error('302ai sync error:', error as Error)
+    logger.error('MCPRouter sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),

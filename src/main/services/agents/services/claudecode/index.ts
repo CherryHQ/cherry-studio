@@ -433,6 +433,16 @@ class ClaudeCodeService implements AgentServiceInterface {
             type: 'chunk',
             chunk
           })
+
+          // Close prompt stream when SDK signals completion or error
+          if (chunk.type === 'finish' || chunk.type === 'error') {
+            logger.info('Closing prompt stream as SDK signaled completion', {
+              chunkType: chunk.type,
+              reason: chunk.type === 'finish' ? 'finished' : 'error_occurred'
+            })
+            closePromptStream()
+            logger.info('Prompt stream closed successfully')
+          }
         }
 
         // FIXME: 不清楚hasCompleted不起作用
