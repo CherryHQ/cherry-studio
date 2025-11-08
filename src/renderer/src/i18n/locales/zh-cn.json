@@ -3863,6 +3863,12 @@
         "usage": "用法",
         "version": "版本"
       },
+      "oauth": {
+        "callback": {
+          "message": "您可以关闭此页面并返回 Cherry Studio",
+          "title": "认证成功"
+        }
+      },
       "prompts": {
         "arguments": "参数",
         "availablePrompts": "可用提示",
