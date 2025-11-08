@@ -52,6 +52,7 @@ export interface CompletionsParams {
   streamOutput: boolean
   enableWebSearch?: boolean
   enableUrlContext?: boolean
+  enableCodeExecution?: boolean
   enableReasoning?: boolean
   enableGenerateImage?: boolean
 

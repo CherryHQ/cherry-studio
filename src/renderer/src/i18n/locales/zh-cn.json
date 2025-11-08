@@ -637,6 +637,7 @@
         "label": "清空消息 {{Command}}",
         "title": "清空消息"
       },
+      "code_execution": "代码执行",
       "collapse": "收起",
       "context_count": {
         "tip": "上下文数 / 最大上下文数"
@@ -718,6 +719,7 @@
         "parse_tool_call": "无法转换为有效的工具调用格式：{{toolCall}}"
       },
       "warning": {
+        "gemini_code_execution": "Gemini 不支持同时使用原生代码执行工具与函数调用",
         "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
         "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
         "no_tool": "未匹配到所需的MCP工具 {{tool}}",

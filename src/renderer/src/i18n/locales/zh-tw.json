@@ -637,6 +637,7 @@
         "label": "清除 {{Command}}",
         "title": "清除所有訊息？"
       },
+      "code_execution": "代碼執行",
       "collapse": "折疊",
       "context_count": {
         "tip": "上下文數 / 最大上下文數"
@@ -718,6 +719,7 @@
         "parse_tool_call": "無法轉換為有效的工具呼叫格式：{{toolCall}}"
       },
       "warning": {
+        "gemini_code_execution": "Gemini 不支持同時使用原生代碼執行工具與函數調用",
         "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函數呼叫",
         "multiple_tools": "存在多個匹配的MCP工具，已選擇 {{tool}}",
         "no_tool": "未匹配到所需的MCP工具 {{tool}}",

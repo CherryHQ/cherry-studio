@@ -27,6 +27,7 @@ export enum MessageBlockType {
   TRANSLATION = 'translation', // Re-added
   IMAGE = 'image', // 图片内容
   CODE = 'code', // 代码块
+  CODE_EXECUTION_OUTPUT = 'code_execution_result',
   TOOL = 'tool', // Added unified tool block type
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
@@ -96,6 +97,14 @@ export interface CodeMessageBlock extends BaseMessageBlock {
   language: string // 代码语言
 }
 
+// 代码输出块
+export interface CodeExecutionResultMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.CODE_EXECUTION_OUTPUT
+  content: string // 用于存放代码的输出
+  // 可选：为了更好的关联，可以添加一个字段指向对应的代码块ID
+  codeBlockId?: string
+}
+
 export interface ImageMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.IMAGE
   url?: string // For generated images or direct links
@@ -152,6 +161,7 @@ export type MessageBlock =
   | ThinkingMessageBlock
   | TranslationMessageBlock
   | CodeMessageBlock
+  | CodeExecutionResultMessageBlock
   | ImageMessageBlock
   | ToolMessageBlock
   | FileMessageBlock

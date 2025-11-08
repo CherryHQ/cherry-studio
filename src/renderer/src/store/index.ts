@@ -67,7 +67,11 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
+<<<<<<< HEAD
     version: 171,
+=======
+    version: 170,
+>>>>>>> e891adfc0 (Feat: Add Code Execution button for gemini only)
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },

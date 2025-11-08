@@ -14,6 +14,7 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
     'thinking',
     'web_search',
     'url_context',
+    'code_execution',
     'knowledge_base',
     'mcp_tools',
     'generate_image',

@@ -35,7 +35,13 @@ import type {
   ToolCallResponse
 } from '@renderer/types'
 import { EFFORT_RATIO, FileTypes, WebSearchSource } from '@renderer/types'
-import type { LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import type {
+  CodeExecutionOutputChunk,
+  CodeExecutionRequestChunk,
+  LLMWebSearchCompleteChunk,
+  TextStartChunk,
+  ThinkingStartChunk
+} from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import type {
@@ -468,7 +474,15 @@ export class GeminiAPIClient extends BaseApiClient<
         messages: GeminiSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch, enableUrlContext, enableGenerateImage } = coreRequest
+        const {
+          messages,
+          mcpTools,
+          maxTokens,
+          enableWebSearch,
+          enableUrlContext,
+          enableCodeExecution,
+          enableGenerateImage
+        } = coreRequest
         // 1. 处理系统消息
         const systemInstruction = assistant.prompt
 
@@ -510,7 +524,13 @@ export class GeminiAPIClient extends BaseApiClient<
               urlContext: {}
             })
           }
-        } else if (enableWebSearch || enableUrlContext) {
+
+          if (enableCodeExecution) {
+            tools.push({
+              codeExecution: {}
+            })
+          }
+        } else if (enableWebSearch || enableUrlContext || enableCodeExecution) {
           logger.warn('Native tools cannot be used with function calling for now.')
         }
 
@@ -618,6 +638,18 @@ export class GeminiAPIClient extends BaseApiClient<
                     type: ChunkType.TEXT_DELTA,
                     text: text
                   })
+                } else if (part.executableCode) {
+                  // 模型返回了它将要执行的代码
+                  controller.enqueue({
+                    type: ChunkType.CODE_EXECUTION_REQUEST,
+                    code: part.executableCode.code
+                  } satisfies CodeExecutionRequestChunk)
+                } else if (part.codeExecutionResult) {
+                  // 模型返回了代码执行后的结果
+                  controller.enqueue({
+                    type: ChunkType.CODE_EXECUTION_OUTPUT,
+                    output: part.codeExecutionResult.output
+                  } satisfies CodeExecutionOutputChunk)
                 } else if (part.inlineData) {
                   controller.enqueue({
                     type: ChunkType.IMAGE_COMPLETE,

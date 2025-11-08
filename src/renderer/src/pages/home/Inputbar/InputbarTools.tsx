@@ -13,7 +13,7 @@ import {
   isSupportedThinkingTokenModel,
   isVisionModel
 } from '@renderer/config/models'
-import { isSupportUrlContextProvider } from '@renderer/config/providers'
+import { isSupportCodeExecutionProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
@@ -32,6 +32,7 @@ import {
   AtSign,
   Check,
   CircleChevronRight,
+  Code,
   FileSearch,
   Globe,
   Hammer,
@@ -52,6 +53,8 @@ import styled from 'styled-components'
 
 import type { AttachmentButtonRef } from './AttachmentButton'
 import AttachmentButton from './AttachmentButton'
+import type { CodeExecutionButtonRef } from './codeExecutionButton'
+import CodeExecutionButton from './codeExecutionButton'
 import GenerateImageButton from './GenerateImageButton'
 import type { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
 import KnowledgeBaseButton from './KnowledgeBaseButton'
@@ -143,6 +146,7 @@ const InputbarTools = ({
   const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
   const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
   const urlContextButtonRef = useRef<UrlContextButtonRef | null>(null)
+  const codeExecutionButtonRef = useRef<CodeExecutionButtonRef | null>(null)
 
   const toolOrder = useAppSelector((state) => state.inputTools.toolOrder)
   const isCollapse = useAppSelector((state) => state.inputTools.isCollapsed)
@@ -306,6 +310,15 @@ const InputbarTools = ({
         }
       },
       {
+        label: t('chat.input.code_execution'),
+        description: '',
+        icon: <Code />,
+        isMenu: true,
+        action: () => {
+          codeExecutionButtonRef.current?.openQuickPanel()
+        }
+      },
+      {
         label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
@@ -410,6 +423,14 @@ const InputbarTools = ({
         condition:
           (isGeminiModel(model) || isAnthropicModel(model)) &&
           (isSupportUrlContextProvider(getProviderByModel(model)) || model.endpoint_type === 'gemini')
+      },
+      {
+        key: 'code_execution',
+        label: t('chat.input.code_execution'),
+        component: <CodeExecutionButton ref={codeExecutionButtonRef} assistantId={assistant.id} />,
+        condition:
+          (isGeminiModel(model) || isAnthropicModel(model)) &&
+          (isSupportCodeExecutionProvider(getProviderByModel(model)) || model.endpoint_type === 'gemini')
       },
       {
         key: 'knowledge_base',

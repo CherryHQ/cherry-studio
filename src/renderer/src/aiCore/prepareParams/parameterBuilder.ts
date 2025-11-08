@@ -11,6 +11,7 @@ import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugi
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
+  isGeminiModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
@@ -67,6 +68,7 @@ export async function buildStreamTextParams(
     enableWebSearch: boolean
     enableGenerateImage: boolean
     enableUrlContext: boolean
+    enableCodeExecution: boolean
   }
   webSearchPluginConfig?: WebSearchPluginConfig
 }> {
@@ -95,6 +97,9 @@ export async function buildStreamTextParams(
       model.id.includes('sonar'))
 
   const enableUrlContext = assistant.enableUrlContext || false
+
+  // Only implemented gemini models.
+  const enableCodeExecution = (isGeminiModel(model) && assistant.enableCodeExecution) || false
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
@@ -172,6 +177,29 @@ export async function buildStreamTextParams(
     }
   }
 
+  if (enableCodeExecution) {
+    if (!tools) {
+      tools = {}
+    }
+
+    switch (aiSdkProviderId) {
+      case 'google-vertex':
+        tools.url_context = vertex.tools.codeExecution({}) as ProviderDefinedTool
+        break
+      case 'google':
+        tools.url_context = google.tools.codeExecution({}) as ProviderDefinedTool
+        break
+      case 'anthropic':
+      case 'google-vertex-anthropic':
+        tools.web_fetch = (
+          aiSdkProviderId === 'anthropic'
+            ? anthropic.tools.codeExecution_20250825({})
+            : vertexAnthropic.tools.codeExecution_20250825({})
+        ) as ProviderDefinedTool
+        break
+    }
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
@@ -201,7 +229,7 @@ export async function buildStreamTextParams(
   return {
     params,
     modelId: model.id,
-    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
+    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext, enableCodeExecution },
     webSearchPluginConfig
   }
 }

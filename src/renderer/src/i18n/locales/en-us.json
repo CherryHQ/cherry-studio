@@ -637,6 +637,7 @@
         "label": "Clear {{Command}}",
         "title": "Clear all messages?"
       },
+      "code_execution": "Code Execution",
       "collapse": "Collapse",
       "context_count": {
         "tip": "Context / Max Context"
@@ -718,7 +719,8 @@
         "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
       },
       "warning": {
-        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
+        "gemini_code_execution": "Gemini does not support using native code execution tools and function calls at the same time",
+        "gemini_web_search": "Gemini does not support using native network search tools and function calls at the same time",
         "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
         "no_tool": "No matching MCP tool found for {{tool}}",
         "url_context": "Gemini does not support using url context and function calling simultaneously"

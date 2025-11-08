@@ -66,6 +66,7 @@ import type {
   SystemProviderId
 } from '@renderer/types'
 import { isSystemProvider, OpenAIServiceTiers } from '@renderer/types'
+import { Provider } from 'react-redux'
 
 import { TOKENFLUX_HOST } from './constant'
 import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
@@ -1473,6 +1474,17 @@ const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
 
 export const isSupportUrlContextProvider = (provider: Provider) => {
   return SUPPORT_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+}
+
+const SUPPORT_CODE_EXECUTION_PROVIDER_TYPES = [
+  'gemini',
+  'vertexai',
+  'anthropic',
+  'new-api'
+] as const satisfies ProviderType[]
+
+export const isSupportCodeExecutionProvider = (provider: Provider) => {
+  return SUPPORT_CODE_EXECUTION_PROVIDER_TYPES.some((type) => type === provider.type)
 }
 
 const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]

@@ -48,7 +48,19 @@ export enum ChunkType {
   SEARCH_COMPLETE_UNION = 'search_complete_union',
   VIDEO_SEARCHED = 'video.searched',
   IMAGE_SEARCHED = 'image.searched',
-  RAW = 'raw'
+  RAW = 'raw',
+  CODE_EXECUTION_REQUEST = 'code_execution_request', // 模型将要执行的代码
+  CODE_EXECUTION_OUTPUT = 'code_execution_output' // 代码执行后的输出
+}
+
+export interface CodeExecutionRequestChunk {
+  type: ChunkType.CODE_EXECUTION_REQUEST
+  code: string | undefined
+}
+
+export interface CodeExecutionOutputChunk {
+  type: ChunkType.CODE_EXECUTION_OUTPUT
+  output: string | undefined
 }
 
 export interface LLMResponseCreatedChunk {
@@ -463,3 +475,5 @@ export type Chunk =
   | VideoSearchedChunk // 知识库检索视频
   | ImageSearchedChunk // 知识库检索图片
   | RawChunk
+  | CodeExecutionRequestChunk // 代码执行请求
+  | CodeExecutionOutputChunk // 代码执行结果

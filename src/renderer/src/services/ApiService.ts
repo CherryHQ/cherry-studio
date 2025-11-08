@@ -138,6 +138,7 @@ export async function fetchChatCompletion({
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
+    enableCodeExecution: capabilities.enableCodeExecution,
     mcpTools,
     uiMessages,
     knowledgeRecognition: assistant.knowledgeRecognition
@@ -228,6 +229,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false,
+    enableCodeExecution: false,
     mcpTools: []
   }
   try {
@@ -299,6 +301,7 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     enableWebSearch: false,
     enableGenerateImage: false,
     enableUrlContext: false,
+    enableCodeExecution: false,
     mcpTools: []
   }
 
@@ -377,7 +380,8 @@ export async function fetchGenerate({
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
-    enableUrlContext: false
+    enableUrlContext: false,
+    enableCodeExecution: false
   }
 
   try {
@@ -487,6 +491,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         enableGenerateImage: false,
         isPromptToolUse: false,
         enableUrlContext: false,
+        enableCodeExecution: false,
         assistant,
         callType: 'check',
         onChunk: (chunk: Chunk) => {

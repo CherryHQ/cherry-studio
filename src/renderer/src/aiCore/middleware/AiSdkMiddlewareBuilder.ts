@@ -37,6 +37,7 @@ export interface AiSdkMiddlewareConfig {
   enableWebSearch: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
+  enableCodeExecution: boolean
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
   // 内置搜索配置

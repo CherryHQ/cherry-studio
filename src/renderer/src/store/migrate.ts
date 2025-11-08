@@ -2786,14 +2786,42 @@ const migrateConfig = {
   },
   '170': (state: RootState) => {
     try {
+<<<<<<< HEAD
       addProvider(state, 'sophnet')
       state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
       state.settings.defaultPaintingProvider = 'cherryin'
+=======
+      const { toolOrder } = state.inputTools
+      const codeExecutionKey = 'code_execution'
+      if (!toolOrder.visible.includes(codeExecutionKey)) {
+        const urlContextIndex = toolOrder.visible.indexOf('url_context')
+        const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
+        if (urlContextIndex !== -1) {
+          toolOrder.visible.splice(urlContextIndex, 0, codeExecutionKey)
+        } else if (knowledgeBaseIndex !== -1) {
+          toolOrder.visible.splice(knowledgeBaseIndex, 0, codeExecutionKey)
+        } else {
+          toolOrder.visible.push(codeExecutionKey)
+        }
+      }
+
+      for (const assistant of state.assistants.assistants) {
+        if (assistant.settings?.toolUseMode === 'prompt' && isFunctionCallingModel(assistant.model)) {
+          assistant.settings.toolUseMode = 'function'
+        }
+      }
+
+      if (state.settings && typeof state.settings.webdavDisableStream === 'undefined') {
+        state.settings.webdavDisableStream = false
+      }
+
+>>>>>>> e891adfc0 (Feat: Add Code Execution button for gemini only)
       return state
     } catch (error) {
       logger.error('migrate 170 error', error as Error)
       return state
     }
+<<<<<<< HEAD
   },
   '171': (state: RootState) => {
     try {
@@ -2817,6 +2845,8 @@ const migrateConfig = {
       logger.error('migrate 171 error', error as Error)
       return state
     }
+=======
+>>>>>>> e891adfc0 (Feat: Add Code Execution button for gemini only)
   }
 }
 
