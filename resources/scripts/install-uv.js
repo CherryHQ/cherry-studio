@@ -7,7 +7,7 @@ const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/uv/releases/download'
-const DEFAULT_UV_VERSION = '0.7.13'
+const DEFAULT_UV_VERSION = '0.9.5'
 
 // Mapping of platform+arch to binary package name
 const UV_PACKAGES = {
