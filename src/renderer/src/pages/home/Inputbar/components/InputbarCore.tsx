@@ -495,7 +495,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             const textArea = textareaRef.current?.resizableTextArea?.textArea
             if (textArea) {
               const end = textArea.value.length
-              textArea.focus()
+              focusTextarea()
               textArea.setSelectionRange(end, end)
             }
 
@@ -508,7 +508,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         window.toast.error(t('chat.input.file_error'))
       }
     },
-    [resizeTextArea, setFiles, setText, setTimeoutTimer, t, textareaRef]
+    [focusTextarea, resizeTextArea, setFiles, setText, setTimeoutTimer, t, textareaRef]
   )
 
   const handleFocus = useCallback(() => {

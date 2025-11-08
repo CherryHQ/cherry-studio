@@ -8,7 +8,6 @@ import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
-import PasteService from '@renderer/services/PasteService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -332,22 +331,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     if (!document.querySelector('.topview-fullscreen-container')) {
       focusTextarea()
     }
-  }, [focusTextarea])
-
-  useEffect(() => {
-    const onFocus = () => {
-      if (document.activeElement?.closest('.ant-modal')) {
-        return
-      }
-
-      const lastFocusedComponent = PasteService.getLastFocusedComponent()
-
-      if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
-        focusTextarea()
-      }
-    }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
   }, [focusTextarea])
 
   const supportedExts = useMemo(() => {

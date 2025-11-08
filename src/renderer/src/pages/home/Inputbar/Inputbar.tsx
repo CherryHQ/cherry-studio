@@ -48,7 +48,6 @@ import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
 import TokenCount from './TokenCount'
-import type { InputbarScope } from './types'
 
 const logger = loggerService.withContext('Inputbar')
 
@@ -115,16 +114,13 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
 }
 
 const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, setActiveTopic, topic, actionsRef }) => {
-  const scope = useMemo<InputbarScope>(() => topic.type ?? TopicType.Chat, [topic.type])
-  const config = useMemo(() => getInputbarConfig(scope), [scope])
+  const scope = topic.type ?? TopicType.Chat
+  const config = getInputbarConfig(scope)
 
   const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
-  const inputbarInternalDispatch = useInputbarToolsInternalDispatch()
+  const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
-  const { setCouldAddImageFile } = inputbarInternalDispatch
-
-  // ✅ 状态提升：在父组件管理 text 和 textarea
   const { text, setText } = useInputText()
   const {
     textareaRef,
@@ -318,7 +314,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     [focusTextarea, setExpanded, textareaIsExpanded]
   )
 
-  // ✅ 填充 actionsRef，供 InputbarToolsProvider 使用
   useEffect(() => {
     actionsRef.current = {
       resizeTextArea,
