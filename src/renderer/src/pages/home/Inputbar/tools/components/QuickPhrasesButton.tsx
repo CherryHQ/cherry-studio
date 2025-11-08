@@ -3,7 +3,8 @@ import {
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
   QuickPanelReservedSymbol,
-  type QuickPanelTriggerInfo} from '@renderer/components/QuickPanel'
+  type QuickPanelTriggerInfo
+} from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'

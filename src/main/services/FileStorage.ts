@@ -780,12 +780,10 @@ class FileStorage {
     const results: string[] = []
     const seen = new Set<string>()
 
-    const stat = await fs.promises
-      .stat(resolvedPath)
-      .catch((error) => {
-        logger.error(`[IPC - Error] Failed to access directory: ${resolvedPath}`, error as Error)
-        throw error
-      })
+    const stat = await fs.promises.stat(resolvedPath).catch((error) => {
+      logger.error(`[IPC - Error] Failed to access directory: ${resolvedPath}`, error as Error)
+      throw error
+    })
 
     if (!stat.isDirectory()) {
       throw new Error(`Path is not a directory: ${resolvedPath}`)

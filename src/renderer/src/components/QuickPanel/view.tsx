@@ -131,9 +131,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (isSymbolChanged) {
         const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
         const desiredIndex =
-          typeof ctx.defaultIndex === 'number'
-            ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex)
-            : -1
+          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
         setIndex(desiredIndex)
       } else {
         setIndex(-1) // 搜索文本变化时不默认高亮

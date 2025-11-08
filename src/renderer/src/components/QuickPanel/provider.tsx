@@ -60,8 +60,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
     setTitle(options.title)
     setList(options.list)
-    const nextDefaultIndex =
-      typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
+    const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
     setDefaultIndex(nextDefaultIndex)
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
