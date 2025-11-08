@@ -7,7 +7,7 @@ const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading bun binaries
 const BUN_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/bun/releases/download'
-const DEFAULT_BUN_VERSION = '1.2.17' // Default fallback version
+const DEFAULT_BUN_VERSION = '1.3.1' // Default fallback version
 
 // Mapping of platform+arch to binary package name
 const BUN_PACKAGES = {
