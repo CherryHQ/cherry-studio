@@ -596,7 +596,15 @@
       "view_full_content": "View Full Content"
     },
     "input": {
-      "activity_directory": "Activity Directory",
+      "activity_directory": {
+        "description": "Select file from activity directory",
+        "loading": "Loading Files...",
+        "no_file_found": {
+          "description": "No files available in accessible directories",
+          "label": "No File Found"
+        },
+        "title": "Activity Directory"
+      },
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
@@ -628,7 +636,10 @@
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "send": "Send",
       "settings": "Settings",
-      "slash_commands": "Slash Commands",
+      "slash_commands": {
+        "description": "Agent session slash commands",
+        "title": "Slash Commands"
+      },
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
         "label": "Thinking",

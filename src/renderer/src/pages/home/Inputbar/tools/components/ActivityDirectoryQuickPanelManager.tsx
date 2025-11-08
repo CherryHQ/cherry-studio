@@ -10,6 +10,7 @@ interface ManagerProps {
 const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
   const {
     quickPanel,
+    quickPanelController,
     actions: { onTextChange },
     session
   } = context
@@ -21,6 +22,7 @@ const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
   useActivityDirectoryPanel(
     {
       quickPanel,
+      quickPanelController,
       accessiblePaths,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },

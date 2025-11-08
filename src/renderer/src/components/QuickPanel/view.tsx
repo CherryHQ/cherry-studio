@@ -127,10 +127,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      // 当面板符号改变时，默认选中第一项（如果有的话）
       const combinedLength = pinnedItems.length + filteredNormalItems.length
-      if (isSymbolChanged && combinedLength > 0) {
-        setIndex(0) // 默认选中第一项
+      if (isSymbolChanged) {
+        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
+        const desiredIndex =
+          typeof ctx.defaultIndex === 'number'
+            ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex)
+            : -1
+        setIndex(desiredIndex)
       } else {
         setIndex(-1) // 搜索文本变化时不默认高亮
       }
@@ -151,7 +155,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     // 固定项置顶 + 过滤后的普通项
     const pinnedFiltered = [...pinnedItems, ...filteredNormalItems]
     return pinnedFiltered.filter((item) => !item.hidden)
-  }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
+  }, [ctx.defaultIndex, ctx.isVisible, ctx.symbol, ctx.list, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0

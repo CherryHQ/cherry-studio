@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
@@ -11,16 +11,18 @@ import { useActivityDirectoryPanel } from './useActivityDirectoryPanel'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
-const ActivityDirectoryButton: FC<Props> = ({ quickPanel, accessiblePaths, setText }) => {
+const ActivityDirectoryButton: FC<Props> = ({ quickPanel, quickPanelController, accessiblePaths, setText }) => {
   const { t } = useTranslation()
 
   const { handleOpenQuickPanel } = useActivityDirectoryPanel(
     {
       quickPanel,
+      quickPanelController,
       accessiblePaths,
       setText
     },
@@ -28,7 +30,7 @@ const ActivityDirectoryButton: FC<Props> = ({ quickPanel, accessiblePaths, setTe
   )
 
   return (
-    <Tooltip placement="top" title={t('chat.input.activity_directory')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" title={t('chat.input.activity_directory.title')} mouseLeaveDelay={0} arrow>
       <ActionIconButton onClick={handleOpenQuickPanel}>
         <FolderOpen size={18} />
       </ActionIconButton>

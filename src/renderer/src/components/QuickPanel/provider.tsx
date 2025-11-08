@@ -17,7 +17,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const [list, setList] = useState<QuickPanelListItem[]>([])
   const [title, setTitle] = useState<string | undefined>()
-  const [defaultIndex, setDefaultIndex] = useState<number>(0)
+  const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
@@ -60,7 +60,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
     setTitle(options.title)
     setList(options.list)
-    setDefaultIndex(options.defaultIndex ?? 0)
+    const nextDefaultIndex =
+      typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
+    setDefaultIndex(nextDefaultIndex)
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
     setSymbol(options.symbol)

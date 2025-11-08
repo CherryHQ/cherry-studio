@@ -60,19 +60,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
   const noopQuickPanel = useMemo<ToolQuickPanelApi>(
     () => ({
-      // Registration APIs
       registerRootMenu: () => () => {},
-      registerTrigger: () => () => {},
-
-      // Panel control APIs (noop)
-      open: () => {},
-      close: () => {},
-      updateList: () => {},
-      updateItemSelection: () => {},
-
-      // State (read-only)
-      isVisible: false,
-      symbol: ''
+      registerTrigger: () => () => {}
     }),
     []
   )

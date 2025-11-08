@@ -1,42 +1,55 @@
 import { loggerService } from '@logger'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { File, Folder } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useActivityDirectoryPanel')
+const MAX_FILE_RESULTS = 500
 
-export type ActivityDirectoryTriggerInfo = { type: 'input' | 'button'; position?: number; originalText?: string }
+export type ActivityDirectoryTriggerInfo = {
+  type: 'input' | 'button'
+  position?: number
+  originalText?: string
+  symbol?: QuickPanelReservedSymbol
+}
 
 interface Params {
   quickPanel: ToolQuickPanelApi
+  quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, accessiblePaths, setText } = params
-  const { registerTrigger, open, close, updateList } = quickPanel
-  const panelSymbol = quickPanel.symbol
-  const panelVisible = quickPanel.isVisible
+  const { quickPanel, quickPanelController, accessiblePaths, setText } = params
+  const { registerTrigger, registerRootMenu } = quickPanel
+  const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
 
   const [fileList, setFileList] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const triggerInfoRef = useRef<ActivityDirectoryTriggerInfo | undefined>(undefined)
+  const hasAttemptedLoadRef = useRef(false)
 
   /**
-   * Remove @ symbol and search text from input
+   * Remove trigger symbol (e.g., @ or /) and search text from input
    */
-  const removeAtSymbolAndText = useCallback(
-    (currentText: string, caretPosition: number, searchText?: string, fallbackPosition?: number) => {
+  const removeTriggerSymbolAndText = useCallback(
+    (
+      currentText: string,
+      caretPosition: number,
+      symbol: QuickPanelReservedSymbol,
+      searchText?: string,
+      fallbackPosition?: number
+    ) => {
       const safeCaret = Math.max(0, Math.min(caretPosition ?? 0, currentText.length))
 
       if (searchText !== undefined) {
-        const pattern = '@' + searchText
+        const pattern = symbol + searchText
         const fromIndex = Math.max(0, safeCaret - 1)
         const start = currentText.lastIndexOf(pattern, fromIndex)
         if (start !== -1) {
@@ -44,7 +57,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
           return currentText.slice(0, start) + currentText.slice(end)
         }
 
-        if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
+        if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === symbol) {
           const expected = pattern
           const actual = currentText.slice(fallbackPosition, fallbackPosition + expected.length)
           if (actual === expected) {
@@ -57,9 +70,9 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       }
 
       const fromIndex = Math.max(0, safeCaret - 1)
-      const start = currentText.lastIndexOf('@', fromIndex)
+      const start = currentText.lastIndexOf(symbol, fromIndex)
       if (start === -1) {
-        if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
+        if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === symbol) {
           let endPos = fallbackPosition + 1
           while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
             endPos++
@@ -84,20 +97,24 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   const insertFilePath = useCallback(
     (filePath: string, triggerInfo?: ActivityDirectoryTriggerInfo) => {
       setText((currentText) => {
-        const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
-        const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+        const symbol = triggerInfo?.symbol ?? QuickPanelReservedSymbol.MentionModels
+        const triggerIndex =
+          triggerInfo?.position !== undefined
+            ? triggerInfo.position
+            : symbol === QuickPanelReservedSymbol.Root
+              ? currentText.lastIndexOf('/')
+              : currentText.lastIndexOf('@')
 
-        // Find @ symbol position
-        const atIndex =
-          triggerInfo?.position !== undefined ? triggerInfo.position : currentText.lastIndexOf('@', caret - 1)
-
-        if (atIndex !== -1) {
-          // Replace @searchText with file path
-          return currentText.slice(0, atIndex) + filePath + ' ' + currentText.slice(caret)
+        if (triggerIndex !== -1) {
+          let endPos = triggerIndex + 1
+          while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
+            endPos++
+          }
+          return currentText.slice(0, triggerIndex) + filePath + ' ' + currentText.slice(endPos)
         }
 
-        // If no @ found, append at current position
-        return currentText.slice(0, caret) + filePath + ' ' + currentText.slice(caret)
+        // If no trigger found, append at end
+        return currentText + ' ' + filePath + ' '
       })
     },
     [setText]
@@ -112,34 +129,42 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       return []
     }
 
+    hasAttemptedLoadRef.current = true
     setIsLoading(true)
-    const allFiles: string[] = []
+    const deduped = new Set<string>()
+    const collected: string[] = []
 
     try {
       for (const dirPath of accessiblePaths) {
+        if (collected.length >= MAX_FILE_RESULTS) {
+          break
+        }
+        if (!dirPath) continue
         try {
-          // TODO: Replace with actual file API when available
-          // const files = await window.api.file.listDirectory(dirPath, {
-          //   recursive: true,
-          //   maxDepth: 3
-          // })
+          const files = await window.api.file.listDirectory(dirPath, {
+            recursive: true,
+            maxDepth: 4,
+            includeHidden: false,
+            includeFiles: true,
+            includeDirectories: false,
+            maxEntries: MAX_FILE_RESULTS
+          })
 
-          // Mock data for now - in production, this should call the file API
-          const mockFiles = [
-            `${dirPath}/README.md`,
-            `${dirPath}/package.json`,
-            `${dirPath}/src/main.ts`,
-            `${dirPath}/src/utils.ts`,
-            `${dirPath}/src/types.ts`
-          ]
-
-          allFiles.push(...mockFiles)
+          for (const filePath of files) {
+            const normalizedPath = filePath.replace(/\\/g, '/')
+            if (deduped.has(normalizedPath)) continue
+            deduped.add(normalizedPath)
+            collected.push(normalizedPath)
+            if (collected.length >= MAX_FILE_RESULTS) {
+              break
+            }
+          }
         } catch (error) {
           logger.warn(`Failed to list directory: ${dirPath}`, error as Error)
         }
       }
 
-      return allFiles
+      return collected
     } catch (error) {
       logger.error('Failed to load files', error as Error)
       return []
@@ -169,7 +194,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         return [
           {
             label: t('common.loading'),
-            description: t('Loading files from accessible directories...'),
+            description: t('chat.input.activity_directory.loading'),
             icon: <Folder size={16} />,
             action: () => {},
             isSelected: false
@@ -180,8 +205,8 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       if (files.length === 0) {
         return [
           {
-            label: t('No files found'),
-            description: t('No files available in accessible directories'),
+            label: t('chat.input.activity_directory.no_file_found.label'),
+            description: t('chat.input.activity_directory.no_file_found.description'),
             icon: <Folder size={16} />,
             action: () => {},
             isSelected: false
@@ -214,7 +239,14 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
    */
   const openQuickPanel = useCallback(
     async (triggerInfo?: ActivityDirectoryTriggerInfo) => {
-      triggerInfoRef.current = triggerInfo
+      const normalizedTriggerInfo =
+        triggerInfo && triggerInfo.type === 'input'
+          ? {
+              ...triggerInfo,
+              symbol: triggerInfo.symbol ?? QuickPanelReservedSymbol.MentionModels
+            }
+          : triggerInfo
+      triggerInfoRef.current = normalizedTriggerInfo
 
       // Load files if not already loaded
       let files = fileList
@@ -227,18 +259,31 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       const items = createFileItems(files, false)
 
       open({
-        title: t('Select file from activity directory'),
+        title: t('chat.input.activity_directory.description'),
         list: items,
         symbol: QuickPanelReservedSymbol.MentionModels, // Reuse @ symbol
-        triggerInfo: triggerInfo || { type: 'button' },
-        onClose({ action, searchText, context }) {
+        triggerInfo: normalizedTriggerInfo
+          ? {
+              type: normalizedTriggerInfo.type,
+              position: normalizedTriggerInfo.position,
+              originalText: normalizedTriggerInfo.originalText
+            }
+          : { type: 'button' },
+        onClose({ action, searchText }) {
           if (action === 'esc') {
-            const trigger = context?.triggerInfo ?? triggerInfoRef.current
-            if (trigger?.type === 'input' && trigger?.position !== undefined) {
+            const activeTrigger = triggerInfoRef.current
+            if (activeTrigger?.type === 'input' && activeTrigger?.position !== undefined) {
               setText((currentText) => {
                 const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', trigger?.position!)
+                const symbolForRemoval = activeTrigger.symbol ?? QuickPanelReservedSymbol.MentionModels
+                return removeTriggerSymbolAndText(
+                  currentText,
+                  caret,
+                  symbolForRemoval,
+                  searchText || '',
+                  activeTrigger.position
+                )
               })
             }
           }
@@ -246,15 +291,15 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         }
       })
     },
-    [createFileItems, fileList, loadFiles, open, removeAtSymbolAndText, setText, t]
+    [createFileItems, fileList, loadFiles, open, removeTriggerSymbolAndText, setText, t]
   )
 
   /**
    * Handle button click - toggle panel open/close
    */
   const isMentionPanelActive = useCallback(() => {
-    return quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels
-  }, [quickPanel])
+    return quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.MentionModels
+  }, [quickPanelController])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (isMentionPanelActive()) {
@@ -269,10 +314,13 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
    */
   useEffect(() => {
     if (role !== 'manager') return
-    if (panelVisible && panelSymbol === QuickPanelReservedSymbol.MentionModels) {
+    if (!hasAttemptedLoadRef.current && fileList.length === 0 && !isLoading) {
+      return
+    }
+    if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
       updateList(fileItems)
     }
-  }, [fileItems, panelSymbol, panelVisible, role, updateList])
+  }, [fileItems, fileList.length, isLoading, isVisible, role, symbol, updateList])
 
   /**
    * Register trigger and root menu (manager only)
@@ -280,15 +328,39 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   useEffect(() => {
     if (role !== 'manager') return
 
+    const disposeMenu = registerRootMenu([
+      {
+        label: t('chat.input.activity_directory'),
+        description: t('chat.input.activity_directory.description'),
+        icon: <Folder size={16} />,
+        isMenu: true,
+        action: ({ context }) => {
+          const rootTrigger =
+            context.triggerInfo && context.triggerInfo.type === 'input'
+              ? {
+                  ...context.triggerInfo,
+                  symbol: QuickPanelReservedSymbol.Root
+                }
+              : undefined
+
+          context.close('select')
+          setTimeout(() => {
+            openQuickPanel(rootTrigger ?? { type: 'button' })
+          }, 0)
+        }
+      }
+    ])
+
     const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.MentionModels, (payload) => {
       const trigger = (payload || {}) as ActivityDirectoryTriggerInfo
       openQuickPanel(trigger)
     })
 
     return () => {
+      disposeMenu()
       disposeTrigger()
     }
-  }, [openQuickPanel, registerTrigger, role])
+  }, [openQuickPanel, registerRootMenu, registerTrigger, role, t])
 
   return {
     handleOpenQuickPanel,

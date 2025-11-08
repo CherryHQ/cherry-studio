@@ -596,7 +596,15 @@
       "view_full_content": "Показать полное содержимое"
     },
     "input": {
-      "activity_directory": "[to be translated]:Activity Directory",
+      "activity_directory": {
+        "description": "[to be translated]:Select file from activity directory",
+        "loading": "[to be translated]:Loading Files...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "title": "[to be translated]:Activity Directory"
+      },
       "auto_resize": "Автоматическая высота",
       "clear": {
         "content": "Хотите очистить все сообщения текущего топика?",
@@ -628,7 +636,10 @@
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "send": "Отправить",
       "settings": "Настройки",
-      "slash_commands": "[to be translated]:Slash Commands",
+      "slash_commands": {
+        "description": "[to be translated]:Agent session slash commands",
+        "title": "[to be translated]:Slash Commands"
+      },
       "thinking": {
         "budget_exceeds_max": "Бюджет размышления превышает максимальное количество токенов",
         "label": "Мыслим",

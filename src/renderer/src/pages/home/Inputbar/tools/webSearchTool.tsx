@@ -18,9 +18,9 @@ const webSearchTool = defineTool({
   condition: ({ model }) => !isMandatoryWebSearchModel(model),
 
   render: function WebSearchToolRender(context) {
-    const { assistant, quickPanel } = context
+    const { assistant, quickPanelController } = context
 
-    return <WebSearchButton quickPanel={quickPanel} assistantId={assistant.id} />
+    return <WebSearchButton quickPanelController={quickPanelController} assistantId={assistant.id} />
   },
   quickPanelManager: WebSearchQuickPanelManager
 })

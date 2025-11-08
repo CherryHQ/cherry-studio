@@ -13,7 +13,7 @@ import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
-import type { ToolQuickPanelApi, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
+import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
@@ -56,7 +56,7 @@ export const WebSearchProviderIcon = ({
   }
 }
 
-export const useWebSearchPanelController = (assistantId: string, quickPanel: ToolQuickPanelApi) => {
+export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
   const { t } = useTranslation()
   const { assistant, updateAssistant } = useAssistant(assistantId)
   const { providers } = useWebSearchProviders()
@@ -166,21 +166,21 @@ export const useWebSearchPanelController = (assistantId: string, quickPanel: Too
   ])
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open({
+    quickPanelController.open({
       title: t('chat.input.web_search.label'),
       list: providerItems,
       symbol: QuickPanelReservedSymbol.WebSearch,
       pageSize: 9
     })
-  }, [providerItems, quickPanel, t])
+  }, [providerItems, quickPanelController, t])
 
   const toggleQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.WebSearch) {
-      quickPanel.close()
+    if (quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.WebSearch) {
+      quickPanelController.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanel])
+  }, [openQuickPanel, quickPanelController])
 
   return {
     enableWebSearch,
@@ -198,9 +198,10 @@ interface ManagerProps {
 }
 
 const WebSearchQuickPanelManager = ({ context }: ManagerProps) => {
-  const { assistant, quickPanel, t } = context
-  const { providerItems, openQuickPanel } = useWebSearchPanelController(assistant.id, quickPanel)
-  const { updateList, isVisible, symbol, registerRootMenu, registerTrigger } = quickPanel
+  const { assistant, quickPanel, quickPanelController, t } = context
+  const { providerItems, openQuickPanel } = useWebSearchPanelController(assistant.id, quickPanelController)
+  const { registerRootMenu, registerTrigger } = quickPanel
+  const { updateList, isVisible, symbol } = quickPanelController
 
   useEffect(() => {
     if (isVisible && symbol === QuickPanelReservedSymbol.WebSearch) {

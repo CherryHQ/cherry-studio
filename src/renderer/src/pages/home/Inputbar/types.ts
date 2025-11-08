@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
 import type {
-  QuickPanelCloseAction,
+  QuickPanelContextType,
   QuickPanelListItem,
-  QuickPanelOpenOptions,
   QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
 import { type Assistant, type Model, TopicType } from '@renderer/types'
@@ -73,24 +72,17 @@ export interface ToolContext {
 }
 
 /**
- * 工具的 QuickPanel API
- * 包含注册功能和触发功能（用于声明式 trigger handlers）
+ * 工具 QuickPanel 注册 API（声明式注册菜单和触发器）
  */
 export interface ToolQuickPanelApi {
-  // Registration APIs (for internal use by InputbarTools)
   registerRootMenu: (entries: QuickPanelListItem[]) => () => void
   registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) => () => void
-
-  // Panel control APIs (for use in trigger handlers)
-  open: (options: QuickPanelOpenOptions) => void
-  close: (action?: QuickPanelCloseAction, searchText?: string) => void
-  updateList: (newList: QuickPanelListItem[]) => void
-  updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void
-
-  // State (read-only)
-  readonly isVisible: boolean
-  readonly symbol: string
 }
+
+/**
+ * Runtime controller exposed给工具组件（完整 QuickPanel 能力）
+ */
+export type ToolQuickPanelController = QuickPanelContextType
 
 /**
  * Tool render context with injected dependencies
@@ -99,6 +91,7 @@ export type ToolRenderContext<S extends readonly ToolStateKey[], A extends reado
   state: Pick<ToolStateMap, S[number]>
   actions: Pick<ToolActionMap, A[number]>
   quickPanel: ToolQuickPanelApi
+  quickPanelController: ToolQuickPanelController
   t: TFunction
 }
 

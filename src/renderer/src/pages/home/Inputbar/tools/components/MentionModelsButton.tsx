@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import type { FileType, Model } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { AtSign } from 'lucide-react'
@@ -12,6 +12,7 @@ import { useMentionModelsPanel } from './useMentionModelsPanel'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
+  quickPanelController: ToolQuickPanelController
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   couldMentionNotVisionModel: boolean
@@ -21,6 +22,7 @@ interface Props {
 
 const MentionModelsButton: FC<Props> = ({
   quickPanel,
+  quickPanelController,
   mentionedModels,
   setMentionedModels,
   couldMentionNotVisionModel,
@@ -32,6 +34,7 @@ const MentionModelsButton: FC<Props> = ({
   const { handleOpenQuickPanel } = useMentionModelsPanel(
     {
       quickPanel,
+      quickPanelController,
       mentionedModels,
       setMentionedModels,
       couldMentionNotVisionModel,

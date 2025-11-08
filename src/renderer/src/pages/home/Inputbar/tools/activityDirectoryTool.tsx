@@ -13,7 +13,7 @@ import ActivityDirectoryQuickPanelManager from './components/ActivityDirectoryQu
  */
 const activityDirectoryTool = defineTool({
   key: 'activity_directory',
-  label: (t) => t('chat.input.activity_directory'),
+  label: (t) => t('chat.input.activity_directory.title'),
   visibleInScopes: [TopicType.Session],
 
   dependencies: {
@@ -22,7 +22,7 @@ const activityDirectoryTool = defineTool({
   },
 
   render: function ActivityDirectoryToolRender(context) {
-    const { quickPanel, actions, session } = context
+    const { quickPanel, quickPanelController, actions, session } = context
     const { onTextChange } = actions
 
     // Get accessible paths from session data
@@ -36,6 +36,7 @@ const activityDirectoryTool = defineTool({
     return (
       <ActivityDirectoryButton
         quickPanel={quickPanel}
+        quickPanelController={quickPanelController}
         accessiblePaths={accessiblePaths}
         setText={onTextChange as React.Dispatch<React.SetStateAction<string>>}
       />

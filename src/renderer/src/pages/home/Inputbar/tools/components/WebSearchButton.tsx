@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
@@ -8,14 +8,14 @@ import { useTranslation } from 'react-i18next'
 import { useWebSearchPanelController, WebSearchProviderIcon } from './WebSearchQuickPanelManager'
 
 interface Props {
-  quickPanel: ToolQuickPanelApi
+  quickPanelController: ToolQuickPanelController
   assistantId: string
 }
 
-const WebSearchButton: FC<Props> = ({ quickPanel, assistantId }) => {
+const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
   const { t } = useTranslation()
   const { enableWebSearch, toggleQuickPanel, updateWebSearchProvider, selectedProviderId } =
-    useWebSearchPanelController(assistantId, quickPanel)
+    useWebSearchPanelController(assistantId, quickPanelController)
 
   const onClick = useCallback(() => {
     if (enableWebSearch) {

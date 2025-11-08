@@ -596,7 +596,15 @@
       "view_full_content": "Ver contenido completo"
     },
     "input": {
-      "activity_directory": "[to be translated]:Activity Directory",
+      "activity_directory": {
+        "description": "[to be translated]:Select file from activity directory",
+        "loading": "[to be translated]:Loading Files...",
+        "no_file_found": {
+          "description": "[to be translated]:No files available in accessible directories",
+          "label": "[to be translated]:No File Found"
+        },
+        "title": "[to be translated]:Activity Directory"
+      },
       "auto_resize": "Ajuste automático de altura",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
@@ -628,7 +636,10 @@
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
       "send": "Enviar",
       "settings": "Configuración",
-      "slash_commands": "[to be translated]:Slash Commands",
+      "slash_commands": {
+        "description": "[to be translated]:Agent session slash commands",
+        "title": "[to be translated]:Slash Commands"
+      },
       "thinking": {
         "budget_exceeds_max": "El presupuesto de pensamiento excede el número máximo de tokens",
         "label": "Pensando",

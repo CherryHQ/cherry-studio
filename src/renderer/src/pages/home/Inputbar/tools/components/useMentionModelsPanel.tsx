@@ -4,7 +4,7 @@ import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
-import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
+import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileType, Model } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
@@ -23,6 +23,7 @@ export type MentionTriggerInfo = { type: 'input' | 'button'; position?: number; 
 
 interface Params {
   quickPanel: ToolQuickPanelApi
+  quickPanelController: ToolQuickPanelController
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
   couldMentionNotVisionModel: boolean
@@ -31,8 +32,17 @@ interface Params {
 }
 
 export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, mentionedModels, setMentionedModels, couldMentionNotVisionModel, files, setText } = params
-  const { registerRootMenu, registerTrigger, open, close, updateList, isVisible, symbol } = quickPanel
+  const {
+    quickPanel,
+    quickPanelController,
+    mentionedModels,
+    setMentionedModels,
+    couldMentionNotVisionModel,
+    files,
+    setText
+  } = params
+  const { registerRootMenu, registerTrigger } = quickPanel
+  const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { providers } = useProviders()
   const { t } = useTranslation()
   const navigate = useNavigate()

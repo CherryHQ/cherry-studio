@@ -89,7 +89,7 @@ const slashCommandsTool = defineTool({
     // Root menu contribution (first level menu item)
     rootMenu: {
       createMenuItems: (context) => {
-        const { t, session, actions, quickPanel } = context
+        const { t, session, actions, quickPanelController } = context
         const slashCommands = session?.slashCommands || []
 
         // Only show menu item if there are commands
@@ -99,16 +99,16 @@ const slashCommandsTool = defineTool({
 
         return [
           {
-            label: t('chat.input.slash_commands'),
+            label: t('chat.input.slash_commands.title'),
             description: t('chat.input.slash_commands.description', 'Agent session slash commands'),
             icon: <Terminal size={16} />,
             isMenu: true, // Mark as parent menu item (first level)
             action: () => {
               // Close root panel and open secondary panel
-              quickPanel.close()
+              quickPanelController.close()
               setTimeout(() => {
-                quickPanel.open({
-                  title: t('chat.input.slash_commands'),
+                quickPanelController.open({
+                  title: t('chat.input.slash_commands.title'),
                   symbol: QuickPanelReservedSymbol.SlashCommands,
                   list: slashCommands.map((cmd) => ({
                     label: cmd.command,
@@ -133,13 +133,13 @@ const slashCommandsTool = defineTool({
       {
         symbol: QuickPanelReservedSymbol.SlashCommands,
         createHandler: (context) => {
-          const { session, actions, quickPanel, t } = context
+          const { session, actions, quickPanelController, t } = context
 
           return () => {
             const slashCommands = session?.slashCommands || []
 
             if (slashCommands.length === 0) {
-              quickPanel.open({
+              quickPanelController.open({
                 title: t('chat.input.slash_commands'),
                 symbol: QuickPanelReservedSymbol.SlashCommands,
                 list: [
@@ -155,7 +155,7 @@ const slashCommandsTool = defineTool({
               return
             }
 
-            quickPanel.open({
+            quickPanelController.open({
               title: t('chat.input.slash_commands'),
               symbol: QuickPanelReservedSymbol.SlashCommands,
               list: slashCommands.map((cmd) => ({
@@ -177,14 +177,14 @@ const slashCommandsTool = defineTool({
 
   // Render button UI
   render: (context) => {
-    const { session, actions, quickPanel, t } = context
+    const { session, actions, quickPanelController, t } = context
 
     // Pass the handler function to the button so it can open the panel
     const openPanel = () => {
       const slashCommands = session?.slashCommands || []
 
       if (slashCommands.length === 0) {
-        quickPanel.open({
+        quickPanelController.open({
           title: t('chat.input.slash_commands'),
           symbol: QuickPanelReservedSymbol.SlashCommands,
           list: [
@@ -200,7 +200,7 @@ const slashCommandsTool = defineTool({
         return
       }
 
-      quickPanel.open({
+      quickPanelController.open({
         title: t('chat.input.slash_commands'),
         symbol: QuickPanelReservedSymbol.SlashCommands,
         list: slashCommands.map((cmd) => ({
@@ -216,7 +216,7 @@ const slashCommandsTool = defineTool({
       })
     }
 
-    return <SlashCommandsButton quickPanel={quickPanel} session={session} openPanel={openPanel} />
+    return <SlashCommandsButton quickPanelController={quickPanelController} session={session} openPanel={openPanel} />
   }
 })
 

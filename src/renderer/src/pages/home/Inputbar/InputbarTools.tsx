@@ -60,8 +60,6 @@ const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) =
   const { assistant, model } = useAssistant(assistantId)
   const toolsContext = useInputbarTools()
   const quickPanelContext = useQuickPanel()
-  const quickPanelContextRef = useRef(quickPanelContext)
-  quickPanelContextRef.current = quickPanelContext
   const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())
 
   const getQuickPanelApiForTool = useCallback(
@@ -73,30 +71,13 @@ const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) =
           registerRootMenu: (entries: QuickPanelListItem[]) =>
             toolsContext.toolsRegistry.registerRootMenu(toolKey, entries),
           registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) =>
-            toolsContext.toolsRegistry.registerTrigger(toolKey, symbol, handler),
-          open: quickPanelContext.open,
-          close: quickPanelContext.close,
-          updateList: quickPanelContext.updateList,
-          updateItemSelection: quickPanelContext.updateItemSelection,
-          get isVisible() {
-            return quickPanelContextRef.current.isVisible
-          },
-          get symbol() {
-            return quickPanelContextRef.current.symbol
-          }
+            toolsContext.toolsRegistry.registerTrigger(toolKey, symbol, handler)
         })
       }
 
-      const api = cache.get(toolKey)!
-
-      api.open = quickPanelContext.open
-      api.close = quickPanelContext.close
-      api.updateList = quickPanelContext.updateList
-      api.updateItemSelection = quickPanelContext.updateItemSelection
-
-      return api
+      return cache.get(toolKey)!
     },
-    [quickPanelContext, quickPanelContextRef, toolsContext.toolsRegistry]
+    [toolsContext.toolsRegistry]
   )
 
   const reduxToolOrder = useAppSelector((state) => selectToolOrderForScope(state, scope))
@@ -149,10 +130,11 @@ const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) =
         state,
         actions,
         quickPanel,
+        quickPanelController: quickPanelContext,
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, model, scope, session, t, toolsContext, getQuickPanelApiForTool]
+    [assistant, model, quickPanelContext, scope, session, t, toolsContext, getQuickPanelApiForTool]
   )
 
   // Build tool metadata (without rendering)
