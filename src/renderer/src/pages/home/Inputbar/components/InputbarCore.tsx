@@ -110,17 +110,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   topContent
 }) => {
   const config = useMemo(() => getInputbarConfig(scope), [scope])
-  const state = useInputbarToolsState()
-  const inputbarDispatch = useInputbarToolsDispatch()
-  const inputbarInternalDispatch = useInputbarToolsInternalDispatch()
-
-  const { files, isExpanded } = state
-  const { setFiles, setIsExpanded, toolsRegistry, triggers } = inputbarDispatch
-  const { setExtensions } = inputbarInternalDispatch
-
-  const prevTextRef = useRef(text)
-  const isEmpty = useMemo(() => text.trim().length === 0, [text])
-
+  const { files, isExpanded } = useInputbarToolsState()
+  const { setFiles, setIsExpanded, toolsRegistry, triggers } = useInputbarToolsDispatch()
+  const { setExtensions } = useInputbarToolsInternalDispatch()
+  const isEmpty = text.trim().length === 0
   const [inputFocus, setInputFocus] = useState(false)
   const {
     targetLanguage,
@@ -134,7 +127,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   } = useSettings()
 
   const [textareaHeight, setTextareaHeight] = useState<number>()
-  const textareaIsExpanded = isExpanded
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
@@ -152,8 +144,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const quickPanel = useQuickPanel()
   const quickPanelOpen = quickPanel.open
 
-  // ✅ 创建 setText 包装函数，适配 props.onTextChange
-  // 使用 ref 保存最新的 text 值，避免 setText 频繁重建导致依赖它的 hooks 失效
   const textRef = useRef(text)
   useEffect(() => {
     textRef.current = text
@@ -169,10 +159,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     },
     [onTextChange]
   )
-
-  useEffect(() => {
-    prevTextRef.current = text
-  }, [text])
 
   const { handlePaste } = usePasteHandler(text, setText, {
     supportedExts,
@@ -191,37 +177,19 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     t
   })
   // 判断是否可以发送：文本不为空或有文件
-  const cannotSend = useMemo(() => isEmpty && files.length === 0, [isEmpty, files.length])
+  const cannotSend = isEmpty && files.length === 0
 
   useEffect(() => {
     setExtensions(supportedExts)
   }, [setExtensions, supportedExts])
 
-  const setInputText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
-    (value) => {
-      if (typeof value === 'function') {
-        setText((prev) => value(prev))
-      } else {
-        setText(value)
-      }
-    },
-    [setText]
-  )
-
-  const syncExpandedState = useCallback(
-    (expanded: boolean) => {
-      setIsExpanded(expanded)
-    },
-    [setIsExpanded]
-  )
-
   const handleToggleExpanded = useCallback(
     (nextState?: boolean) => {
-      const target = typeof nextState === 'boolean' ? nextState : !textareaIsExpanded
-      syncExpandedState(target)
+      const target = typeof nextState === 'boolean' ? nextState : !isExpanded
+      setIsExpanded(target)
       focusTextarea()
     },
-    [focusTextarea, syncExpandedState, textareaIsExpanded]
+    [focusTextarea, setIsExpanded, isExpanded]
   )
 
   const translate = useCallback(async () => {
@@ -287,10 +255,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.enableQuickPanel])
 
-  const onToggleExpanded = useCallback(() => {
-    handleToggleExpanded()
-  }, [handleToggleExpanded])
-
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (event.key === 'Tab' && inputFocus) {
@@ -336,9 +300,9 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         }
       }
 
-      if ((isExpanded || textareaIsExpanded) && event.key === 'Escape') {
+      if (isExpanded && event.key === 'Escape') {
         event.stopPropagation()
-        onToggleExpanded()
+        handleToggleExpanded()
         return
       }
 
@@ -383,13 +347,12 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       inputFocus,
       autoTranslateWithSpace,
       isExpanded,
-      textareaIsExpanded,
       text.length,
       files.length,
       textareaRef,
       spaceClickCount,
       translate,
-      onToggleExpanded,
+      handleToggleExpanded,
       sendMessageShortcut,
       handleSendMessage,
       setText,
@@ -403,8 +366,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       const newText = e.target.value
       setText(newText)
 
-      // ✅ 使用 prevTextRef
-      const isDeletion = newText.length < prevTextRef.current.length
+      const isDeletion = newText.length < textRef.current.length
 
       const textArea = textareaRef.current?.resizableTextArea?.textArea
       const cursorPosition = textArea?.selectionStart ?? newText.length
@@ -491,7 +453,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         }
       }
     },
-    // ✅ 移除 prevText.length，因为我们使用 ref
     [setText, textareaRef, enableQuickPanelTriggers, config.enableQuickPanel, quickPanel, triggers]
   )
 
@@ -556,10 +517,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     quickPanel.close()
     PasteService.setLastFocusedComponent('inputbar')
   }, [dispatch, quickPanel])
-
-  const handleBlur = useCallback(() => {
-    setInputFocus(false)
-  }, [])
 
   const handleDragStart = useCallback(
     (event: React.MouseEvent) => {
@@ -638,17 +595,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     return () => {
       PasteService.unregisterHandler('inputbar')
     }
-  }, [
-    supportedExts,
-    setFiles,
-    setText,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
-    text,
-    resizeTextArea,
-    t,
-    handlePaste
-  ])
+  }, [handlePaste])
 
   useEffect(() => {
     return () => {
@@ -673,14 +620,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       )
     }
 
-    if (extras.length === 0) {
-      return null
-    }
-
     return <>{extras}</>
   }, [text, onTranslated, isTranslating, handleSendMessage, cannotSend, isLoading, searching, t, onPause])
 
-  const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setInputText} /> : null
+  const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
   return (
     <NarrowLayout style={{ width: '100%' }}>
@@ -709,7 +652,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             onKeyDown={handleKeyDown}
             onPaste={(e) => handlePaste(e.nativeEvent)}
             onFocus={handleFocus}
-            onBlur={handleBlur}
+            onBlur={() => setInputFocus(false)}
             placeholder={isTranslating ? t('chat.input.translating') : placeholder}
             autoFocus
             variant="borderless"
