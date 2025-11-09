@@ -244,13 +244,17 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       return files.map((filePath) => {
         const relativePath = getRelativePath(filePath)
         const fileName = relativePath.split('/').pop() || relativePath
-        // Use both filename and full relative path for better search matching
-        const searchableText = `${fileName} ${relativePath}`
+
+        // Use simple filterText like useMentionModelsPanel does
+        // QuickPanel's includes() check will handle exact substring matching
+        // And the fuzzy regex will handle partial matches
+        const filterText = `${fileName} ${relativePath}`
+
         return {
           label: fileName,
           description: relativePath,
           icon: <File size={16} />,
-          filterText: searchableText,
+          filterText: filterText,
           action: () => onSelectFile(filePath),
           isSelected: false
         }

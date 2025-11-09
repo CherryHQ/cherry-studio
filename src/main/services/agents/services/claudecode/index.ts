@@ -444,7 +444,6 @@ class ClaudeCodeService implements AgentServiceInterface {
             logger.info('Prompt stream closed successfully')
           }
         }
-
       }
 
       const duration = Date.now() - startTime
