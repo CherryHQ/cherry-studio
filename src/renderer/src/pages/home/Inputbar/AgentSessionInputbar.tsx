@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -21,7 +22,7 @@ import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
-import { documentExts, textExts } from '@shared/config/constant'
+import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +30,12 @@ import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
 
 import { InputbarCore } from './components/InputbarCore'
-import { InputbarToolsProvider, useInputbarToolsDispatch, useInputbarToolsState } from './context/InputbarToolsProvider'
+import {
+  InputbarToolsProvider,
+  useInputbarToolsDispatch,
+  useInputbarToolsInternalDispatch,
+  useInputbarToolsState
+} from './context/InputbarToolsProvider'
 import InputbarTools from './InputbarTools'
 import { getInputbarConfig } from './registry'
 import { TopicType } from './types'
@@ -166,12 +172,37 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
 
   const { files } = useInputbarToolsState()
   const { toolsRegistry, triggers, setIsExpanded } = useInputbarToolsDispatch()
+  const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
   const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
+
+  // Calculate vision and image generation support
+  const isVisionAssistant = useMemo(
+    () => (assistant.model ? isVisionModel(assistant.model) : false),
+    [assistant.model]
+  )
+  const isGenerateImageAssistant = useMemo(
+    () => (assistant.model ? isGenerateImageModel(assistant.model) : false),
+    [assistant.model]
+  )
+
+  // Agent sessions don't support model mentions yet, so we only check the assistant's model
+  const canAddImageFile = useMemo(() => {
+    return isVisionAssistant || isGenerateImageAssistant
+  }, [isVisionAssistant, isGenerateImageAssistant])
+
+  const canAddTextFile = useMemo(() => {
+    return isVisionAssistant || (!isVisionAssistant && !isGenerateImageAssistant)
+  }, [isVisionAssistant, isGenerateImageAssistant])
+
+  // Update the couldAddImageFile state when the model changes
+  useEffect(() => {
+    setCouldAddImageFile(canAddImageFile)
+  }, [canAddImageFile, setCouldAddImageFile])
 
   const syncExpandedState = useCallback(
     (expanded: boolean) => {
@@ -334,9 +365,20 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   }, [focusTextarea])
 
   const supportedExts = useMemo(() => {
-    // Agent sessions support document and text files (for paths only, not uploads)
-    return [...documentExts, ...textExts]
-  }, [])
+    if (canAddImageFile && canAddTextFile) {
+      return [...imageExts, ...documentExts, ...textExts]
+    }
+
+    if (canAddImageFile) {
+      return [...imageExts]
+    }
+
+    if (canAddTextFile) {
+      return [...documentExts, ...textExts]
+    }
+
+    return []
+  }, [canAddImageFile, canAddTextFile])
 
   const leftToolbar = useMemo(
     () => (
