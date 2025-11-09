@@ -263,6 +263,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
           items={pluginTypeTabItems}
           className="w-full"
           size="small"
+          centered
         />
       </div>
 
