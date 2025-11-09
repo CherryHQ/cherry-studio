@@ -20,11 +20,11 @@ import {
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Model, Topic, TranslateLanguageCode } from '@renderer/types'
+import { type Assistant, type Model, objectKeys, type Topic, type TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
-import { throttle } from 'lodash'
+import { difference, throttle } from 'lodash'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('UseMessageOperations')
@@ -82,10 +82,12 @@ export function useMessageOperations(topic: Topic) {
         logger.error('[editMessage] Topic prop is not valid.')
         return
       }
-
+      const uiStates = ['multiModelMessageStyle', 'foldSelected'] as const satisfies (keyof Message)[]
+      const extraUpdate = difference(objectKeys(updates), uiStates)
+      const isUiUpdateOnly = extraUpdate.length === 0
       const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
         id: messageId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: isUiUpdateOnly ? undefined : new Date().toISOString(),
         ...updates
       }
 
