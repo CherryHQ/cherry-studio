@@ -36,6 +36,32 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   const hasAttemptedLoadRef = useRef(false)
 
   /**
+   * Convert absolute file path to relative path based on accessible directories
+   */
+  const getRelativePath = useCallback(
+    (absolutePath: string): string => {
+      const normalizedAbsPath = absolutePath.replace(/\\/g, '/')
+
+      // Find the matching accessible path
+      for (const basePath of accessiblePaths) {
+        const normalizedBasePath = basePath.replace(/\\/g, '/')
+        const baseWithSlash = normalizedBasePath.endsWith('/') ? normalizedBasePath : normalizedBasePath + '/'
+
+        if (normalizedAbsPath.startsWith(baseWithSlash)) {
+          return normalizedAbsPath.slice(baseWithSlash.length)
+        }
+        if (normalizedAbsPath === normalizedBasePath) {
+          return ''
+        }
+      }
+
+      // If no match found, return the original path
+      return absolutePath
+    },
+    [accessiblePaths]
+  )
+
+  /**
    * Remove trigger symbol (e.g., @ or /) and search text from input
    */
   const removeTriggerSymbolAndText = useCallback(
@@ -96,6 +122,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
    */
   const insertFilePath = useCallback(
     (filePath: string, triggerInfo?: ActivityDirectoryTriggerInfo) => {
+      const relativePath = getRelativePath(filePath)
       setText((currentText) => {
         const symbol = triggerInfo?.symbol ?? QuickPanelReservedSymbol.MentionModels
         const triggerIndex =
@@ -110,14 +137,14 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
           while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
             endPos++
           }
-          return currentText.slice(0, triggerIndex) + filePath + ' ' + currentText.slice(endPos)
+          return currentText.slice(0, triggerIndex) + relativePath + ' ' + currentText.slice(endPos)
         }
 
         // If no trigger found, append at end
-        return currentText + ' ' + filePath + ' '
+        return currentText + ' ' + relativePath + ' '
       })
     },
-    [setText]
+    [getRelativePath, setText]
   )
 
   /**
@@ -214,16 +241,22 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         ]
       }
 
-      return files.map((filePath) => ({
-        label: filePath.split('/').pop() || filePath,
-        description: filePath,
-        icon: <File size={16} />,
-        filterText: filePath,
-        action: () => onSelectFile(filePath),
-        isSelected: false
-      }))
+      return files.map((filePath) => {
+        const relativePath = getRelativePath(filePath)
+        const fileName = relativePath.split('/').pop() || relativePath
+        // Use both filename and full relative path for better search matching
+        const searchableText = `${fileName} ${relativePath}`
+        return {
+          label: fileName,
+          description: relativePath,
+          icon: <File size={16} />,
+          filterText: searchableText,
+          action: () => onSelectFile(filePath),
+          isSelected: false
+        }
+      })
     },
-    [onSelectFile, t]
+    [getRelativePath, onSelectFile, t]
   )
 
   /**
