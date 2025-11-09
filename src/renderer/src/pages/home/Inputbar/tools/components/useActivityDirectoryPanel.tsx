@@ -330,7 +330,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
 
     const disposeMenu = registerRootMenu([
       {
-        label: t('chat.input.activity_directory'),
+        label: t('chat.input.activity_directory.title'),
         description: t('chat.input.activity_directory.description'),
         icon: <Folder size={16} />,
         isMenu: true,
