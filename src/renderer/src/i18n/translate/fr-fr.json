@@ -631,6 +631,15 @@
       "view_full_content": "Voir le contenu complet"
     },
     "input": {
+      "activity_directory": {
+        "description": "Sélectionner le fichier dans le répertoire d'activité",
+        "loading": "Chargement des fichiers...",
+        "no_file_found": {
+          "description": "Aucun fichier disponible dans les répertoires accessibles",
+          "label": "Aucun fichier trouvé"
+        },
+        "title": "Répertoire d'activités"
+      },
       "auto_resize": "Ajustement automatique de la hauteur",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",
@@ -654,6 +663,7 @@
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
+      "new_session": "Nouvelle Session {{Command}}",
       "new_topic": "Nouveau sujet {{Command}}",
       "paste_text_file_confirm": "Coller dans la zone de saisie ?",
       "pause": "Pause",
@@ -661,6 +671,10 @@
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "send": "Envoyer",
       "settings": "Paramètres",
+      "slash_commands": {
+        "description": "Commandes slash de session d'agent",
+        "title": "Commandes Slash"
+      },
       "thinking": {
         "budget_exceeds_max": "Le budget de réflexion dépasse le nombre maximum de tokens",
         "label": "Pensée",
@@ -1771,6 +1785,9 @@
     },
     "message": {
       "code_style": "Style de code",
+      "compact": {
+        "title": "Conversation Compactée"
+      },
       "delete": {
         "content": "Êtes-vous sûr de vouloir supprimer ce message?",
         "title": "Supprimer le message"
