@@ -30,6 +30,69 @@ import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
+// Get ripgrep binary path
+const getRipgrepBinaryPath = (): string | null => {
+  try {
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+    const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
+    const ripgrepBinaryPath = path.join(
+      __dirname,
+      '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
+      `${arch}-${platform}`,
+      process.platform === 'win32' ? 'rg.exe' : 'rg'
+    )
+
+    if (fs.existsSync(ripgrepBinaryPath)) {
+      return ripgrepBinaryPath
+    }
+    return null
+  } catch (error) {
+    logger.error('Failed to locate ripgrep binary:', error as Error)
+    return null
+  }
+}
+
+/**
+ * Execute ripgrep with captured output
+ */
+function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
+  return new Promise((resolve, reject) => {
+    const ripgrepBinaryPath = getRipgrepBinaryPath()
+
+    if (!ripgrepBinaryPath) {
+      reject(new Error('Ripgrep binary not available'))
+      return
+    }
+
+    const { spawn } = require('child_process')
+    const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    let output = ''
+    let errorOutput = ''
+
+    child.stdout.on('data', (data: Buffer) => {
+      output += data.toString()
+    })
+
+    child.stderr.on('data', (data: Buffer) => {
+      errorOutput += data.toString()
+    })
+
+    child.on('close', (code: number) => {
+      resolve({
+        exitCode: code || 0,
+        output: output || errorOutput
+      })
+    })
+
+    child.on('error', (error: Error) => {
+      reject(error)
+    })
+  })
+}
+
 interface FileWatcherConfig {
   watchExtensions?: string[]
   ignoredPatterns?: (string | RegExp)[]
@@ -61,6 +124,7 @@ interface DirectoryListOptions {
   includeFiles?: boolean
   includeDirectories?: boolean
   maxEntries?: number
+  searchPattern?: string
 }
 
 const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
@@ -69,7 +133,8 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
   includeHidden: false,
   includeFiles: true,
   includeDirectories: false,
-  maxEntries: 500
+  maxEntries: 500,
+  searchPattern: '.'
 }
 
 class FileStorage {
@@ -777,8 +842,6 @@ class FileStorage {
     }
 
     const resolvedPath = path.resolve(dirPath)
-    const results: string[] = []
-    const seen = new Set<string>()
 
     const stat = await fs.promises.stat(resolvedPath).catch((error) => {
       logger.error(`[IPC - Error] Failed to access directory: ${resolvedPath}`, error as Error)
@@ -789,53 +852,60 @@ class FileStorage {
       throw new Error(`Path is not a directory: ${resolvedPath}`)
     }
 
-    const walk = async (currentPath: string, depth: number): Promise<void> => {
-      if (results.length >= mergedOptions.maxEntries) {
-        return
-      }
-      if (depth > mergedOptions.maxDepth) {
-        return
-      }
-
-      let entries: fs.Dirent[]
-      try {
-        entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
-      } catch (error) {
-        logger.warn(`[IPC - Warn] Failed to read directory: ${currentPath}`, error as Error)
-        return
-      }
-
-      for (const entry of entries) {
-        if (!mergedOptions.includeHidden && entry.name.startsWith('.')) {
-          continue
-        }
-
-        const entryPath = path.join(currentPath, entry.name)
-        const normalizedPath = entryPath.replace(/\\/g, '/')
-
-        if (entry.isDirectory()) {
-          if (mergedOptions.includeDirectories && !seen.has(normalizedPath)) {
-            results.push(normalizedPath)
-            seen.add(normalizedPath)
-          }
-          if (mergedOptions.recursive && depth < mergedOptions.maxDepth) {
-            await walk(entryPath, depth + 1)
-          }
-        } else if (entry.isFile()) {
-          if (!mergedOptions.includeFiles || seen.has(normalizedPath)) {
-            continue
-          }
-          results.push(normalizedPath)
-          seen.add(normalizedPath)
-        }
-
-        if (results.length >= mergedOptions.maxEntries) {
-          return
-        }
-      }
+    // Use ripgrep for file listing with relevance-based sorting
+    if (!getRipgrepBinaryPath()) {
+      throw new Error('Ripgrep binary not available')
     }
 
-    await walk(resolvedPath, 0)
+    return await this.listDirectoryWithRipgrep(resolvedPath, mergedOptions)
+  }
+
+  private async listDirectoryWithRipgrep(
+    resolvedPath: string,
+    options: Required<DirectoryListOptions>
+  ): Promise<string[]> {
+    const args: string[] = []
+
+    // Use -l (files-with-matches) for relevance-based sorting
+    args.push('-l')
+
+    // Handle hidden files
+    if (!options.includeHidden) {
+      args.push('--glob', '!.*')
+    }
+
+    // Handle max depth
+    if (!options.recursive) {
+      args.push('--max-depth', '1')
+    } else if (options.maxDepth > 0) {
+      args.push('--max-depth', options.maxDepth.toString())
+    }
+
+    // Handle max count
+    if (options.maxEntries > 0) {
+      args.push('--max-count', options.maxEntries.toString())
+    }
+
+    // Add search pattern (ripgrep will sort by relevance)
+    args.push(options.searchPattern)
+
+    // Add the directory path
+    args.push(resolvedPath)
+
+    const { exitCode, output } = await executeRipgrep(args)
+
+    // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
+    if (exitCode >= 2) {
+      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+    }
+
+    // Parse ripgrep output (already sorted by relevance)
+    const results = output
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => line.replace(/\\/g, '/'))
+      .slice(0, options.maxEntries)
+
     return results
   }
 

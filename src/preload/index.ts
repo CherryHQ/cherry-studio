@@ -55,6 +55,7 @@ type DirectoryListOptions = {
   includeFiles?: boolean
   includeDirectories?: boolean
   maxEntries?: number
+  searchPattern?: string
 }
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
