@@ -6,6 +6,7 @@ import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@rendere
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
+import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import type { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
@@ -13,19 +14,13 @@ import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
-export interface MCPToolsButtonRef {
-  openQuickPanel: () => void
-  openPromptList: () => void
-  openResourcesList: () => void
-}
-
 interface Props {
   assistantId: string
-  ref?: React.RefObject<MCPToolsButtonRef | null>
+  quickPanel: ToolQuickPanelApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
 }
@@ -115,10 +110,10 @@ const extractPromptContent = (response: any): string | null => {
   return null
 }
 
-const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assistantId }) => {
+const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, assistantId }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
+  const quickPanelHook = useQuickPanel()
   const navigate = useNavigate()
   const [form] = Form.useForm()
 
@@ -219,15 +214,15 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
       isSelected: false,
       action: () => {
         updateMcpEnabled(false)
-        quickPanel.close()
+        quickPanelHook.close()
       }
     })
 
     return newList
-  }, [activedMcpServers, t, assistantMcpServers, navigate, updateMcpEnabled, quickPanel])
+  }, [activedMcpServers, t, assistantMcpServers, navigate, updateMcpEnabled, quickPanelHook])
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open({
+    quickPanelHook.open({
       title: t('settings.mcp.title'),
       list: menuItems,
       symbol: QuickPanelReservedSymbol.Mcp,
@@ -236,7 +231,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
         item.isSelected = !item.isSelected
       }
     })
-  }, [menuItems, quickPanel, t])
+  }, [menuItems, quickPanelHook, t])
 
   // 使用 useCallback 优化 insertPromptIntoTextArea
   const insertPromptIntoTextArea = useCallback(
@@ -376,13 +371,13 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
 
   const openPromptList = useCallback(async () => {
     const prompts = await promptList
-    quickPanel.open({
+    quickPanelHook.open({
       title: t('settings.mcp.title'),
       list: prompts,
       symbol: QuickPanelReservedSymbol.McpPrompt,
       multiple: true
     })
-  }, [promptList, quickPanel, t])
+  }, [promptList, quickPanelHook, t])
 
   const handleResourceSelect = useCallback(
     (resource: MCPResource) => {
@@ -464,27 +459,60 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
   }, [activedMcpServers])
 
   const openResourcesList = useCallback(async () => {
-    quickPanel.open({
+    quickPanelHook.open({
       title: t('settings.mcp.title'),
       list: resourcesList,
       symbol: QuickPanelReservedSymbol.McpResource,
       multiple: true
     })
-  }, [resourcesList, quickPanel, t])
+  }, [resourcesList, quickPanelHook, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Mcp) {
-      quickPanel.close()
+    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Mcp) {
+      quickPanelHook.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanel])
+  }, [openQuickPanel, quickPanelHook])
 
-  useImperativeHandle(ref, () => ({
-    openQuickPanel,
-    openPromptList,
-    openResourcesList
-  }))
+  useEffect(() => {
+    const disposeMain = quickPanel.registerRootMenu([
+      {
+        label: t('settings.mcp.title'),
+        description: '',
+        icon: <Hammer />,
+        isMenu: true,
+        action: () => openQuickPanel()
+      },
+      {
+        label: `MCP ${t('settings.mcp.tabs.prompts')}`,
+        description: '',
+        icon: <Hammer />,
+        isMenu: true,
+        action: () => openPromptList()
+      },
+      {
+        label: `MCP ${t('settings.mcp.tabs.resources')}`,
+        description: '',
+        icon: <Hammer />,
+        isMenu: true,
+        action: () => openResourcesList()
+      }
+    ])
+
+    const disposeMainTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.Mcp, () => openQuickPanel())
+    const disposePromptTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.McpPrompt, () => openPromptList())
+    const disposeResourceTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.McpResource, () =>
+      openResourcesList()
+    )
+
+    return () => {
+      disposeMain()
+      disposeMainTrigger()
+      disposePromptTrigger()
+      disposeResourceTrigger()
+    }
+  }, [openPromptList, openQuickPanel, openResourcesList, quickPanel, t])
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>

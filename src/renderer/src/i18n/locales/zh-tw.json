@@ -1785,6 +1785,9 @@
     },
     "message": {
       "code_style": "程式碼風格",
+      "compact": {
+        "title": "對話已壓縮"
+      },
       "delete": {
         "content": "確定要刪除此訊息嗎？",
         "title": "刪除訊息"

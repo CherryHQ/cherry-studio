@@ -17,7 +17,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const [list, setList] = useState<QuickPanelListItem[]>([])
   const [title, setTitle] = useState<string | undefined>()
-  const [defaultIndex, setDefaultIndex] = useState<number>(0)
+  const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
@@ -29,7 +29,22 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   // 添加更新item选中状态的方法
   const updateItemSelection = useCallback((targetItem: QuickPanelListItem, isSelected: boolean) => {
-    setList((prevList) => prevList.map((item) => (item === targetItem ? { ...item, isSelected } : item)))
+    setList((prevList) => {
+      // 先尝试引用匹配（快速路径）
+      const refIndex = prevList.findIndex((item) => item === targetItem)
+      if (refIndex !== -1) {
+        return prevList.map((item, idx) => (idx === refIndex ? { ...item, isSelected } : item))
+      }
+
+      // 如果引用匹配失败，使用内容匹配（兜底方案）
+      // 通过 label 和 filterText 来识别同一个item
+      return prevList.map((item) => {
+        const isSameItem =
+          (item.label === targetItem.label || item.filterText === targetItem.filterText) &&
+          (!targetItem.filterText || item.filterText === targetItem.filterText)
+        return isSameItem ? { ...item, isSelected } : item
+      })
+    })
   }, [])
 
   // 添加更新整个列表的方法
@@ -45,7 +60,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
     setTitle(options.title)
     setList(options.list)
-    setDefaultIndex(options.defaultIndex ?? 0)
+    const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
+    setDefaultIndex(nextDefaultIndex)
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
     setSymbol(options.symbol)

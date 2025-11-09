@@ -10,7 +10,8 @@ export enum QuickPanelReservedSymbol {
   WebSearch = '?',
   Mcp = 'mcp',
   McpPrompt = 'mcp-prompt',
-  McpResource = 'mcp-resource'
+  McpResource = 'mcp-resource',
+  SlashCommands = 'slash-commands'
 }
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined

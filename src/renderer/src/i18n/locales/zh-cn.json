@@ -1785,6 +1785,9 @@
     },
     "message": {
       "code_style": "代码风格",
+      "compact": {
+        "title": "对话已压缩"
+      },
       "delete": {
         "content": "确定要删除此消息吗？",
         "title": "删除消息"

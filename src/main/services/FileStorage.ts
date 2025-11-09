@@ -54,6 +54,24 @@ const DEFAULT_WATCHER_CONFIG: Required<FileWatcherConfig> = {
   eventChannel: 'file-change'
 }
 
+interface DirectoryListOptions {
+  recursive?: boolean
+  maxDepth?: number
+  includeHidden?: boolean
+  includeFiles?: boolean
+  includeDirectories?: boolean
+  maxEntries?: number
+}
+
+const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
+  recursive: true,
+  maxDepth: 3,
+  includeHidden: false,
+  includeFiles: true,
+  includeDirectories: false,
+  maxEntries: 500
+}
+
 class FileStorage {
   private storageDir = getFilesDir()
   private notesDir = getNotesDir()
@@ -746,6 +764,79 @@ class FileStorage {
       logger.error('Failed to get directory structure:', error as Error)
       throw error
     }
+  }
+
+  public listDirectory = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    options?: DirectoryListOptions
+  ): Promise<string[]> => {
+    const mergedOptions: Required<DirectoryListOptions> = {
+      ...DEFAULT_DIRECTORY_LIST_OPTIONS,
+      ...options
+    }
+
+    const resolvedPath = path.resolve(dirPath)
+    const results: string[] = []
+    const seen = new Set<string>()
+
+    const stat = await fs.promises.stat(resolvedPath).catch((error) => {
+      logger.error(`[IPC - Error] Failed to access directory: ${resolvedPath}`, error as Error)
+      throw error
+    })
+
+    if (!stat.isDirectory()) {
+      throw new Error(`Path is not a directory: ${resolvedPath}`)
+    }
+
+    const walk = async (currentPath: string, depth: number): Promise<void> => {
+      if (results.length >= mergedOptions.maxEntries) {
+        return
+      }
+      if (depth > mergedOptions.maxDepth) {
+        return
+      }
+
+      let entries: fs.Dirent[]
+      try {
+        entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
+      } catch (error) {
+        logger.warn(`[IPC - Warn] Failed to read directory: ${currentPath}`, error as Error)
+        return
+      }
+
+      for (const entry of entries) {
+        if (!mergedOptions.includeHidden && entry.name.startsWith('.')) {
+          continue
+        }
+
+        const entryPath = path.join(currentPath, entry.name)
+        const normalizedPath = entryPath.replace(/\\/g, '/')
+
+        if (entry.isDirectory()) {
+          if (mergedOptions.includeDirectories && !seen.has(normalizedPath)) {
+            results.push(normalizedPath)
+            seen.add(normalizedPath)
+          }
+          if (mergedOptions.recursive && depth < mergedOptions.maxDepth) {
+            await walk(entryPath, depth + 1)
+          }
+        } else if (entry.isFile()) {
+          if (!mergedOptions.includeFiles || seen.has(normalizedPath)) {
+            continue
+          }
+          results.push(normalizedPath)
+          seen.add(normalizedPath)
+        }
+
+        if (results.length >= mergedOptions.maxEntries) {
+          return
+        }
+      }
+    }
+
+    await walk(resolvedPath, 0)
+    return results
   }
 
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {

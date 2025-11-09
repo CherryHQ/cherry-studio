@@ -17,25 +17,22 @@ import {
 } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
+import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
 import type { FC, ReactElement } from 'react'
-import { useCallback, useImperativeHandle, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export interface ThinkingButtonRef {
-  openQuickPanel: () => void
-}
-
 interface Props {
-  ref?: React.RefObject<ThinkingButtonRef | null>
+  quickPanel: ToolQuickPanelApi
   model: Model
   assistantId: string
 }
 
-const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement => {
+const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactElement => {
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
+  const quickPanelHook = useQuickPanel()
   const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
   const currentReasoningEffort = useMemo(() => {
@@ -106,16 +103,16 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
   }, [onThinkingChange])
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open({
+    quickPanelHook.open({
       title: t('assistants.settings.reasoning_effort.label'),
       list: panelItems,
       symbol: QuickPanelReservedSymbol.Thinking
     })
-  }, [quickPanel, panelItems, t])
+  }, [quickPanelHook, panelItems, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Thinking) {
-      quickPanel.close()
+    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Thinking) {
+      quickPanelHook.close()
       return
     }
 
@@ -124,11 +121,26 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
       return
     }
     openQuickPanel()
-  }, [openQuickPanel, quickPanel, isThinkingEnabled, supportedOptions, disableThinking])
+  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking])
 
-  useImperativeHandle(ref, () => ({
-    openQuickPanel
-  }))
+  useEffect(() => {
+    const disposeMenu = quickPanel.registerRootMenu([
+      {
+        label: t('assistants.settings.reasoning_effort.label'),
+        description: '',
+        icon: ThinkingIcon(currentReasoningEffort),
+        isMenu: true,
+        action: () => openQuickPanel()
+      }
+    ])
+
+    const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.Thinking, () => openQuickPanel())
+
+    return () => {
+      disposeMenu()
+      disposeTrigger()
+    }
+  }, [currentReasoningEffort, openQuickPanel, quickPanel, t])
 
   return (
     <Tooltip

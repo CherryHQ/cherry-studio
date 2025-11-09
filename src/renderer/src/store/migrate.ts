@@ -37,7 +37,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import type { RootState } from '.'
-import { DEFAULT_TOOL_ORDER } from './inputTools'
+import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { initialState as notesInitialState } from './note'
@@ -1626,6 +1626,7 @@ const migrateConfig = {
   },
   '108': (state: RootState) => {
     try {
+      // @ts-ignore
       state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
       state.inputTools.isCollapsed = false
       return state
@@ -1905,14 +1906,20 @@ const migrateConfig = {
     try {
       const { toolOrder } = state.inputTools
       const urlContextKey = 'url_context'
+      // @ts-ignore
       if (!toolOrder.visible.includes(urlContextKey)) {
+        // @ts-ignore
         const webSearchIndex = toolOrder.visible.indexOf('web_search')
+        // @ts-ignore
         const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
         if (webSearchIndex !== -1) {
+          // @ts-ignore
           toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
         } else if (knowledgeBaseIndex !== -1) {
+          // @ts-ignore
           toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
         } else {
+          // @ts-ignore
           toolOrder.visible.push(urlContextKey)
         }
       }
@@ -2781,6 +2788,34 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 172 error', error as Error)
+      return state
+    }
+  },
+  '173': (state: RootState) => {
+    try {
+      // Migrate toolOrder from global state to scope-based state
+      if (state.inputTools && state.inputTools.toolOrder) {
+        const oldToolOrder = state.inputTools.toolOrder as any
+
+        // Check if it's the old structure (has 'visible' and 'hidden' arrays directly)
+        if (oldToolOrder.visible && Array.isArray(oldToolOrder.visible)) {
+          // Old structure detected, migrate to new scope-based structure
+          state.inputTools.toolOrder = {
+            // Assign the old global tool order to Chat scope (the default)
+            chat: {
+              visible: oldToolOrder.visible,
+              hidden: oldToolOrder.hidden || []
+            }
+          }
+        }
+        // If it's already an object with scope keys, no migration needed
+        if (!state.inputTools.toolOrder.session) {
+          state.inputTools.toolOrder.session = DEFAULT_TOOL_ORDER_BY_SCOPE.session
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 173 error', error as Error)
       return state
     }
   }

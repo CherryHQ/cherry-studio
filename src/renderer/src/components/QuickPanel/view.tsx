@@ -127,7 +127,15 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      setIndex(-1) // 不默认高亮任何项，让用户主动选择
+      const combinedLength = pinnedItems.length + filteredNormalItems.length
+      if (isSymbolChanged) {
+        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
+        const desiredIndex =
+          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
+        setIndex(desiredIndex)
+      } else {
+        setIndex(-1) // 搜索文本变化时不默认高亮
+      }
     } else {
       // 如果当前index超出范围，调整到有效范围内
       setIndex((prevIndex) => {
@@ -145,7 +153,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     // 固定项置顶 + 过滤后的普通项
     const pinnedFiltered = [...pinnedItems, ...filteredNormalItems]
     return pinnedFiltered.filter((item) => !item.hidden)
-  }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
+  }, [ctx.defaultIndex, ctx.isVisible, ctx.symbol, ctx.list, searchText])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
@@ -179,19 +187,64 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       if (deleteStart >= deleteEnd) return
 
-      // 删除文本
-      const newText = textArea.value.slice(0, deleteStart) + textArea.value.slice(deleteEnd)
-      setInputText(newText)
+      const activeSearchText = searchTextRef.current ?? ''
 
-      // 设置光标位置
-      setTimeoutTimer(
-        'quickpanel_focus',
-        () => {
-          textArea.focus()
-          textArea.setSelectionRange(deleteStart, deleteStart)
-        },
-        0
-      )
+      setInputText((currentText) => {
+        const safeText = currentText ?? ''
+        const expectedSegment = includeSymbol ? symbolSegment : symbolSegment.slice(1)
+        const typedSearch = activeSearchText
+        const normalizedTyped = includeSymbol
+          ? typedSearch
+          : typedSearch.startsWith(symbolSegment[0] ?? '')
+            ? typedSearch.slice(1)
+            : typedSearch
+
+        if (normalizedTyped && expectedSegment !== normalizedTyped) {
+          return safeText
+        }
+
+        const segmentStart = includeSymbol ? symbolStart : symbolStart + 1
+        const segmentEnd = segmentStart + expectedSegment.length
+
+        if (segmentStart < 0 || segmentStart > safeText.length) {
+          return safeText
+        }
+
+        if (segmentEnd > safeText.length) {
+          return safeText
+        }
+
+        const actualSegment = safeText.slice(segmentStart, segmentEnd)
+        if (actualSegment !== expectedSegment) {
+          return safeText
+        }
+
+        const clampedDeleteStart = Math.max(0, Math.min(deleteStart, safeText.length))
+        const clampedDeleteEnd = Math.max(clampedDeleteStart, Math.min(deleteEnd, safeText.length))
+
+        if (clampedDeleteStart >= clampedDeleteEnd) {
+          return safeText
+        }
+
+        const updatedText = safeText.slice(0, clampedDeleteStart) + safeText.slice(clampedDeleteEnd)
+
+        if (updatedText === safeText) {
+          return safeText
+        }
+
+        setTimeoutTimer(
+          'quickpanel_focus',
+          () => {
+            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            if (!textareaEl) return
+            textareaEl.focus()
+            textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
+          },
+          0
+        )
+
+        return updatedText
+      })
 
       setSearchText('')
     },
@@ -211,11 +264,21 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action)) {
-        clearSearchText(true)
+      } else if (
+        action &&
+        !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action) &&
+        ctx.triggerInfo?.type === 'input'
+      ) {
+        setTimeoutTimer(
+          'quickpanel_deferred_clear',
+          () => {
+            clearSearchText(true)
+          },
+          0
+        )
       }
     },
-    [ctx, clearSearchText, setInputText, searchText]
+    [ctx, clearSearchText, setInputText, searchText, setTimeoutTimer]
   )
 
   const handleItemAction = useCallback(
