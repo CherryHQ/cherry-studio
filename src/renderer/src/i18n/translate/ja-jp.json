@@ -632,13 +632,13 @@
     },
     "input": {
       "activity_directory": {
-        "description": "[to be translated]:Select file from activity directory",
-        "loading": "[to be translated]:Loading Files...",
+        "description": "アクティビティディレクトリからファイルを選択",
+        "loading": "ファイルを読み込んでいます...",
         "no_file_found": {
-          "description": "[to be translated]:No files available in accessible directories",
-          "label": "[to be translated]:No File Found"
+          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
+          "label": "ファイルが見つかりません"
         },
-        "title": "[to be translated]:Activity Directory"
+        "title": "アクティビティディレクトリ"
       },
       "auto_resize": "高さを自動調整",
       "clear": {
@@ -663,7 +663,7 @@
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
-      "new_session": "[to be translated]:New Session {{Command}}",
+      "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
       "paste_text_file_confirm": "入力欄に貼り付けますか？",
       "pause": "一時停止",
@@ -672,8 +672,8 @@
       "send": "送信",
       "settings": "設定",
       "slash_commands": {
-        "description": "[to be translated]:Agent session slash commands",
-        "title": "[to be translated]:Slash Commands"
+        "description": "エージェントセッションスラッシュコマンド",
+        "title": "スラッシュコマンド"
       },
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
@@ -1786,7 +1786,7 @@
     "message": {
       "code_style": "コードスタイル",
       "compact": {
-        "title": "[to be translated]:Conversation Compacted"
+        "title": "会話圧縮"
       },
       "delete": {
         "content": "このメッセージを削除してもよろしいですか？",
