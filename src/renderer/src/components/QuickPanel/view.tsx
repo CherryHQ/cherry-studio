@@ -469,7 +469,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         200
       ) // 等待面板关闭动画结束后，再清空搜索词
     }
-  }, [ctx.isVisible, handleClose, setTimeoutTimer, triggerSearchChange])
+  }, [ctx.isVisible, handleClose, setSearchTextDebounced, setTimeoutTimer, triggerSearchChange])
 
   useLayoutEffect(() => {
     if (!listRef.current || index < 0 || scrollTriggerRef.current === 'none') return
