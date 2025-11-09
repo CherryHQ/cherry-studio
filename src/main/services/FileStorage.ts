@@ -133,7 +133,7 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
   includeHidden: false,
   includeFiles: true,
   includeDirectories: false,
-  maxEntries: 500,
+  maxEntries: 10,
   searchPattern: '.'
 }
 
@@ -860,14 +860,54 @@ class FileStorage {
     return await this.listDirectoryWithRipgrep(resolvedPath, mergedOptions)
   }
 
-  private async listDirectoryWithRipgrep(
-    resolvedPath: string,
-    options: Required<DirectoryListOptions>
-  ): Promise<string[]> {
-    const args: string[] = []
+  /**
+   * Search files by filename pattern
+   */
+  private async searchByFilename(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
+    const args: string[] = ['--files']
 
-    // Use -l (files-with-matches) for relevance-based sorting
-    args.push('-l')
+    // Handle hidden files
+    if (!options.includeHidden) {
+      args.push('--glob', '!.*')
+    }
+
+    // Handle max depth
+    if (!options.recursive) {
+      args.push('--max-depth', '1')
+    } else if (options.maxDepth > 0) {
+      args.push('--max-depth', options.maxDepth.toString())
+    }
+
+    // Add the directory path
+    args.push(resolvedPath)
+
+    const { exitCode, output } = await executeRipgrep(args)
+
+    // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
+    if (exitCode >= 2) {
+      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+    }
+
+    // Parse ripgrep output and filter by filename
+    const searchPatternLower = options.searchPattern.toLowerCase()
+    const results = output
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => line.replace(/\\/g, '/'))
+      .filter((filePath) => {
+        const fileName = path.basename(filePath).toLowerCase()
+        return fileName.includes(searchPatternLower)
+      })
+      .slice(0, options.maxEntries)
+
+    return results
+  }
+
+  /**
+   * Search files by content pattern
+   */
+  private async searchByContent(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
+    const args: string[] = ['-l']
 
     // Handle hidden files
     if (!options.includeHidden) {
@@ -886,7 +926,7 @@ class FileStorage {
       args.push('--max-count', options.maxEntries.toString())
     }
 
-    // Add search pattern (ripgrep will sort by relevance)
+    // Add search pattern (search in content)
     args.push(options.searchPattern)
 
     // Add the directory path
@@ -907,6 +947,56 @@ class FileStorage {
       .slice(0, options.maxEntries)
 
     return results
+  }
+
+  private async listDirectoryWithRipgrep(
+    resolvedPath: string,
+    options: Required<DirectoryListOptions>
+  ): Promise<string[]> {
+    const maxEntries = options.maxEntries
+
+    // Step 1: Search by filename first
+    logger.debug('Searching by filename pattern', { pattern: options.searchPattern, path: resolvedPath })
+    const filenameResults = await this.searchByFilename(resolvedPath, options)
+
+    logger.debug('Found matches by filename', { count: filenameResults.length })
+
+    // If we have enough filename matches, return them
+    if (filenameResults.length >= maxEntries) {
+      return filenameResults.slice(0, maxEntries)
+    }
+
+    // Step 2: If filename matches are less than maxEntries, search by content to fill up
+    logger.debug('Filename matches insufficient, searching by content to fill up', {
+      filenameCount: filenameResults.length,
+      needed: maxEntries - filenameResults.length
+    })
+
+    // Adjust maxEntries for content search to get enough results
+    const contentOptions = {
+      ...options,
+      maxEntries: maxEntries - filenameResults.length + 20 // Request extra to account for duplicates
+    }
+
+    const contentResults = await this.searchByContent(resolvedPath, contentOptions)
+
+    logger.debug('Found matches by content', { count: contentResults.length })
+
+    // Combine results: filename matches first, then content matches (deduplicated)
+    const combined = [...filenameResults]
+    const filenameSet = new Set(filenameResults)
+
+    for (const filePath of contentResults) {
+      if (!filenameSet.has(filePath)) {
+        combined.push(filePath)
+        if (combined.length >= maxEntries) {
+          break
+        }
+      }
+    }
+
+    logger.debug('Combined results', { total: combined.length, filenameCount: filenameResults.length })
+    return combined.slice(0, maxEntries)
   }
 
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {

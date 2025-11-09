@@ -149,56 +149,61 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
 
   /**
    * Load files from accessible directories
+   * @param searchPattern - Optional search pattern to filter files (default: '.')
    */
-  const loadFiles = useCallback(async () => {
-    if (accessiblePaths.length === 0) {
-      logger.warn('No accessible paths configured')
-      return []
-    }
-
-    hasAttemptedLoadRef.current = true
-    setIsLoading(true)
-    const deduped = new Set<string>()
-    const collected: string[] = []
-
-    try {
-      for (const dirPath of accessiblePaths) {
-        if (collected.length >= MAX_FILE_RESULTS) {
-          break
-        }
-        if (!dirPath) continue
-        try {
-          const files = await window.api.file.listDirectory(dirPath, {
-            recursive: true,
-            maxDepth: 4,
-            includeHidden: false,
-            includeFiles: true,
-            includeDirectories: false,
-            maxEntries: MAX_FILE_RESULTS
-          })
-
-          for (const filePath of files) {
-            const normalizedPath = filePath.replace(/\\/g, '/')
-            if (deduped.has(normalizedPath)) continue
-            deduped.add(normalizedPath)
-            collected.push(normalizedPath)
-            if (collected.length >= MAX_FILE_RESULTS) {
-              break
-            }
-          }
-        } catch (error) {
-          logger.warn(`Failed to list directory: ${dirPath}`, error as Error)
-        }
+  const loadFiles = useCallback(
+    async (searchPattern: string = '.') => {
+      if (accessiblePaths.length === 0) {
+        logger.warn('No accessible paths configured')
+        return []
       }
 
-      return collected
-    } catch (error) {
-      logger.error('Failed to load files', error as Error)
-      return []
-    } finally {
-      setIsLoading(false)
-    }
-  }, [accessiblePaths])
+      hasAttemptedLoadRef.current = true
+      setIsLoading(true)
+      const deduped = new Set<string>()
+      const collected: string[] = []
+
+      try {
+        for (const dirPath of accessiblePaths) {
+          if (collected.length >= MAX_FILE_RESULTS) {
+            break
+          }
+          if (!dirPath) continue
+          try {
+            const files = await window.api.file.listDirectory(dirPath, {
+              recursive: true,
+              maxDepth: 4,
+              includeHidden: false,
+              includeFiles: true,
+              includeDirectories: false,
+              maxEntries: MAX_FILE_RESULTS,
+              searchPattern: searchPattern || '.'
+            })
+
+            for (const filePath of files) {
+              const normalizedPath = filePath.replace(/\\/g, '/')
+              if (deduped.has(normalizedPath)) continue
+              deduped.add(normalizedPath)
+              collected.push(normalizedPath)
+              if (collected.length >= MAX_FILE_RESULTS) {
+                break
+              }
+            }
+          } catch (error) {
+            logger.warn(`Failed to list directory: ${dirPath}`, error as Error)
+          }
+        }
+
+        return collected
+      } catch (error) {
+        logger.error('Failed to load files', error as Error)
+        return []
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [accessiblePaths]
+  )
 
   /**
    * Handle file selection
@@ -245,10 +250,10 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         const relativePath = getRelativePath(filePath)
         const fileName = relativePath.split('/').pop() || relativePath
 
-        // Use simple filterText like useMentionModelsPanel does
-        // QuickPanel's includes() check will handle exact substring matching
-        // And the fuzzy regex will handle partial matches
-        const filterText = `${fileName} ${relativePath}`
+        // Include both absolute path and relative path in filterText to improve matching
+        // This helps when server-side search returns files with different naming conventions
+        // (e.g., "app-updater" vs "appupdater")
+        const filterText = `${fileName} ${relativePath} ${filePath}`
 
         return {
           label: fileName,
@@ -269,6 +274,27 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   const fileItems = useMemo<QuickPanelListItem[]>(
     () => createFileItems(fileList, isLoading),
     [createFileItems, fileList, isLoading]
+  )
+
+  /**
+   * Handle search text change - load files and update list
+   */
+  const handleSearchChange = useCallback(
+    async (searchText: string) => {
+      logger.debug('Search text changed', { searchText })
+
+      // Load files with search pattern
+      const searchPattern = searchText.trim() || '.'
+      const newFiles = await loadFiles(searchPattern)
+
+      // Update file list state
+      setFileList(newFiles)
+
+      // Update QuickPanel list
+      const newItems = createFileItems(newFiles, false)
+      updateList(newItems)
+    },
+    [loadFiles, createFileItems, updateList]
   )
 
   /**
@@ -325,10 +351,11 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
             }
           }
           triggerInfoRef.current = undefined
-        }
+        },
+        onSearchChange: handleSearchChange
       })
     },
-    [createFileItems, fileList, loadFiles, open, removeTriggerSymbolAndText, setText, t]
+    [fileList, loadFiles, open, removeTriggerSymbolAndText, setText, t, handleSearchChange, createFileItems]
   )
 
   /**

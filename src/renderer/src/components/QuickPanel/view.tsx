@@ -348,6 +348,73 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     searchTextRef.current = searchText
   }, [searchText])
 
+  // Track onSearchChange callback and search state for debouncing
+  const prevSearchCallbackTextRef = useRef('')
+  const isFirstSearchRef = useRef(true)
+  const searchCallbackTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const onSearchChangeRef = useRef(ctx.onSearchChange)
+
+  // Keep onSearchChange ref up to date
+  useEffect(() => {
+    onSearchChangeRef.current = ctx.onSearchChange
+  }, [ctx.onSearchChange])
+
+  // Reset search history when panel closes
+  useEffect(() => {
+    if (!ctx.isVisible) {
+      prevSearchCallbackTextRef.current = ''
+      isFirstSearchRef.current = true
+      if (searchCallbackTimerRef.current) {
+        clearTimeout(searchCallbackTimerRef.current)
+        searchCallbackTimerRef.current = null
+      }
+    }
+  }, [ctx.isVisible])
+
+  // Trigger onSearchChange with debounce (called from handleInput)
+  const triggerSearchChange = useCallback((searchText: string) => {
+    if (!onSearchChangeRef.current) return
+
+    // Clean search text: remove leading symbol (/ or @) and trim
+    const cleanSearchText = searchText.replace(/^[/@]/, '').trim()
+
+    // Don't trigger if search text hasn't changed
+    if (cleanSearchText === prevSearchCallbackTextRef.current) {
+      return
+    }
+
+    // Don't trigger callback for empty search text
+    if (!cleanSearchText) {
+      prevSearchCallbackTextRef.current = ''
+      return
+    }
+
+    // Clear previous timer
+    if (searchCallbackTimerRef.current) {
+      clearTimeout(searchCallbackTimerRef.current)
+    }
+
+    // First search triggers immediately (0ms), subsequent searches have 300ms debounce
+    const delay = isFirstSearchRef.current ? 0 : 300
+
+    searchCallbackTimerRef.current = setTimeout(() => {
+      prevSearchCallbackTextRef.current = cleanSearchText
+      isFirstSearchRef.current = false
+      onSearchChangeRef.current?.(cleanSearchText)
+      searchCallbackTimerRef.current = null
+    }, delay)
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchCallbackTimerRef.current) {
+        clearTimeout(searchCallbackTimerRef.current)
+        searchCallbackTimerRef.current = null
+      }
+    }
+  }, [])
+
   // 获取当前输入的搜索词
   const isComposing = useRef(false)
   useEffect(() => {
@@ -368,6 +435,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (lastSymbolIndex !== -1) {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchTextDebounced(newSearchText)
+        // Trigger server-side search callback immediately (with its own debounce)
+        triggerSearchChange(newSearchText)
       } else {
         // 使用本地 handleClose，确保在删除触发符时同步受控输入值
         handleClose('delete-symbol')
@@ -400,8 +469,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         200
       ) // 等待面板关闭动画结束后，再清空搜索词
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx.isVisible])
+  }, [ctx.isVisible, handleClose, setTimeoutTimer, triggerSearchChange])
 
   useLayoutEffect(() => {
     if (!listRef.current || index < 0 || scrollTriggerRef.current === 'none') return

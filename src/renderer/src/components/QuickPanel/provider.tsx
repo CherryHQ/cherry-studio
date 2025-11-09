@@ -24,6 +24,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [onClose, setOnClose] = useState<((Options: Partial<QuickPanelCallBackOptions>) => void) | undefined>()
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
+  const [onSearchChange, setOnSearchChange] = useState<((searchText: string) => void) | undefined>()
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -70,6 +71,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setOnClose(() => options.onClose)
     setBeforeAction(() => options.beforeAction)
     setAfterAction(() => options.afterAction)
+    setOnSearchChange(() => options.onSearchChange)
 
     setIsVisible(true)
   }, [])
@@ -84,6 +86,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setOnClose(undefined)
         setBeforeAction(undefined)
         setAfterAction(undefined)
+        setOnSearchChange(undefined)
         setTitle(undefined)
         setSymbol('')
         setTriggerInfo(undefined)
@@ -119,7 +122,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       triggerInfo,
       onClose,
       beforeAction,
-      afterAction
+      afterAction,
+      onSearchChange
     }),
     [
       open,
@@ -136,7 +140,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       triggerInfo,
       onClose,
       beforeAction,
-      afterAction
+      afterAction,
+      onSearchChange
     ]
   )
 

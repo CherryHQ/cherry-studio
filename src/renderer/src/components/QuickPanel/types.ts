@@ -49,6 +49,8 @@ export type QuickPanelOpenOptions = {
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
+  /** Callback when search text changes (called with debounced search text) */
+  onSearchChange?: (searchText: string) => void
 }
 
 export type QuickPanelListItem = {
@@ -93,6 +95,7 @@ export interface QuickPanelContextType {
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void
   readonly afterAction?: (Options: QuickPanelCallBackOptions) => void
+  readonly onSearchChange?: (searchText: string) => void
 }
 
 export type QuickPanelScrollTrigger = 'initial' | 'keyboard' | 'none'
