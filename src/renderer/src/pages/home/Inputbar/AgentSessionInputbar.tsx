@@ -181,10 +181,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
 
   // Calculate vision and image generation support
-  const isVisionAssistant = useMemo(
-    () => (assistant.model ? isVisionModel(assistant.model) : false),
-    [assistant.model]
-  )
+  const isVisionAssistant = useMemo(() => (assistant.model ? isVisionModel(assistant.model) : false), [assistant.model])
   const isGenerateImageAssistant = useMemo(
     () => (assistant.model ? isGenerateImageModel(assistant.model) : false),
     [assistant.model]
