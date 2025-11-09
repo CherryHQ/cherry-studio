@@ -229,7 +229,8 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
             description: t('chat.input.activity_directory.loading'),
             icon: <Folder size={16} />,
             action: () => {},
-            isSelected: false
+            isSelected: false,
+            alwaysVisible: true
           }
         ]
       }
@@ -241,7 +242,8 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
             description: t('chat.input.activity_directory.no_file_found.description'),
             icon: <Folder size={16} />,
             action: () => {},
-            isSelected: false
+            isSelected: false,
+            alwaysVisible: true
           }
         ]
       }
@@ -311,12 +313,9 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
           : triggerInfo
       triggerInfoRef.current = normalizedTriggerInfo
 
-      // Load files if not already loaded
-      let files = fileList
-      if (files.length === 0) {
-        files = await loadFiles()
-        setFileList(files)
-      }
+      // Always load fresh files when opening the panel
+      const files = await loadFiles()
+      setFileList(files)
 
       // Create items from the loaded files immediately
       const items = createFileItems(files, false)
@@ -325,6 +324,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         title: t('chat.input.activity_directory.description'),
         list: items,
         symbol: QuickPanelReservedSymbol.MentionModels, // Reuse @ symbol
+        manageListExternally: true,
         triggerInfo: normalizedTriggerInfo
           ? {
               type: normalizedTriggerInfo.type,
@@ -350,12 +350,15 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
               })
             }
           }
+          // Clear file list and reset state when panel closes
+          setFileList([])
+          hasAttemptedLoadRef.current = false
           triggerInfoRef.current = undefined
         },
         onSearchChange: handleSearchChange
       })
     },
-    [fileList, loadFiles, open, removeTriggerSymbolAndText, setText, t, handleSearchChange, createFileItems]
+    [loadFiles, open, removeTriggerSymbolAndText, setText, t, handleSearchChange, createFileItems]
   )
 
   /**

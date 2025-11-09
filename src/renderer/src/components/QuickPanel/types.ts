@@ -51,6 +51,8 @@ export type QuickPanelOpenOptions = {
   onClose?: (options: QuickPanelCallBackOptions) => void
   /** Callback when search text changes (called with debounced search text) */
   onSearchChange?: (searchText: string) => void
+  /** Tool manages list + collapse behavior externally (skip filtering/auto-close) */
+  manageListExternally?: boolean
 }
 
 export type QuickPanelListItem = {
@@ -91,6 +93,7 @@ export interface QuickPanelContextType {
   readonly pageSize: number
   readonly multiple: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
+  readonly manageListExternally?: boolean
 
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void

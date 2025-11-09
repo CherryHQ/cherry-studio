@@ -8,7 +8,6 @@ import type {
   QuickPanelOpenOptions,
   QuickPanelTriggerInfo
 } from './types'
-
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -20,6 +19,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
+  const [manageListExternally, setManageListExternally] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
   const [onClose, setOnClose] = useState<((Options: Partial<QuickPanelCallBackOptions>) => void) | undefined>()
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
@@ -65,6 +65,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setDefaultIndex(nextDefaultIndex)
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
+    setManageListExternally(options.manageListExternally ?? false)
     setSymbol(options.symbol)
     setTriggerInfo(options.triggerInfo)
 
@@ -79,6 +80,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const close = useCallback(
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
+      setManageListExternally(false)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
       clearTimer.current = setTimeout(() => {
@@ -90,6 +92,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setTitle(undefined)
         setSymbol('')
         setTriggerInfo(undefined)
+        setManageListExternally(false)
       }, 200)
     },
     [onClose]
@@ -119,6 +122,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      manageListExternally,
       triggerInfo,
       onClose,
       beforeAction,
@@ -137,6 +141,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      manageListExternally,
       triggerInfo,
       onClose,
       beforeAction,
