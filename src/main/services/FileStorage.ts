@@ -871,6 +871,24 @@ class FileStorage {
       args.push('--glob', '!.*')
     }
 
+    // Use --iglob to let ripgrep filter filenames (case-insensitive)
+    if (options.searchPattern && options.searchPattern !== '.') {
+      args.push('--iglob', `*${options.searchPattern}*`)
+    }
+
+    // Exclude common hidden directories and large directories
+    args.push('-g', '!**/node_modules/**')
+    args.push('-g', '!**/.git/**')
+    args.push('-g', '!**/.idea/**')
+    args.push('-g', '!**/.vscode/**')
+    args.push('-g', '!**/.DS_Store')
+    args.push('-g', '!**/dist/**')
+    args.push('-g', '!**/build/**')
+    args.push('-g', '!**/.next/**')
+    args.push('-g', '!**/.nuxt/**')
+    args.push('-g', '!**/coverage/**')
+    args.push('-g', '!**/.cache/**')
+
     // Handle max depth
     if (!options.recursive) {
       args.push('--max-depth', '1')
@@ -888,16 +906,11 @@ class FileStorage {
       throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
     }
 
-    // Parse ripgrep output and filter by filename
-    const searchPatternLower = options.searchPattern.toLowerCase()
+    // Parse ripgrep output (no need to filter by filename - ripgrep already did it)
     const results = output
       .split('\n')
       .filter((line) => line.trim())
       .map((line) => line.replace(/\\/g, '/'))
-      .filter((filePath) => {
-        const fileName = path.basename(filePath).toLowerCase()
-        return fileName.includes(searchPatternLower)
-      })
       .slice(0, options.maxEntries)
 
     return results
@@ -913,6 +926,19 @@ class FileStorage {
     if (!options.includeHidden) {
       args.push('--glob', '!.*')
     }
+
+    // Exclude common hidden directories and large directories
+    args.push('-g', '!**/node_modules/**')
+    args.push('-g', '!**/.git/**')
+    args.push('-g', '!**/.idea/**')
+    args.push('-g', '!**/.vscode/**')
+    args.push('-g', '!**/.DS_Store')
+    args.push('-g', '!**/dist/**')
+    args.push('-g', '!**/build/**')
+    args.push('-g', '!**/.next/**')
+    args.push('-g', '!**/.nuxt/**')
+    args.push('-g', '!**/coverage/**')
+    args.push('-g', '!**/.cache/**')
 
     // Handle max depth
     if (!options.recursive) {
