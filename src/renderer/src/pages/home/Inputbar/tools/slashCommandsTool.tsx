@@ -75,7 +75,7 @@ const insertSlashCommand = (
  */
 const slashCommandsTool = defineTool({
   key: 'slash_commands',
-  label: (t) => t('chat.input.slash_commands'),
+  label: (t) => t('chat.input.slash_commands.title'),
 
   // Only visible in Agent Session
   visibleInScopes: [TopicType.Session],
@@ -140,7 +140,7 @@ const slashCommandsTool = defineTool({
 
             if (slashCommands.length === 0) {
               quickPanelController.open({
-                title: t('chat.input.slash_commands'),
+                title: t('chat.input.slash_commands.title'),
                 symbol: QuickPanelReservedSymbol.SlashCommands,
                 list: [
                   {
@@ -156,7 +156,7 @@ const slashCommandsTool = defineTool({
             }
 
             quickPanelController.open({
-              title: t('chat.input.slash_commands'),
+              title: t('chat.input.slash_commands.title'),
               symbol: QuickPanelReservedSymbol.SlashCommands,
               list: slashCommands.map((cmd) => ({
                 label: cmd.command,
@@ -185,7 +185,7 @@ const slashCommandsTool = defineTool({
 
       if (slashCommands.length === 0) {
         quickPanelController.open({
-          title: t('chat.input.slash_commands'),
+          title: t('chat.input.slash_commands.title'),
           symbol: QuickPanelReservedSymbol.SlashCommands,
           list: [
             {
@@ -201,7 +201,7 @@ const slashCommandsTool = defineTool({
       }
 
       quickPanelController.open({
-        title: t('chat.input.slash_commands'),
+        title: t('chat.input.slash_commands.title'),
         symbol: QuickPanelReservedSymbol.SlashCommands,
         list: slashCommands.map((cmd) => ({
           label: cmd.command,
