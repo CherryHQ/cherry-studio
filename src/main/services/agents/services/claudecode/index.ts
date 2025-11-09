@@ -445,11 +445,6 @@ class ClaudeCodeService implements AgentServiceInterface {
           }
         }
 
-        // FIXME: 不清楚hasCompleted不起作用
-        // Check if this is the final result message
-        if (message.type === 'result') {
-          break
-        }
       }
 
       const duration = Date.now() - startTime
