@@ -16,6 +16,7 @@ import type { FSWatcher } from 'chokidar'
 import chokidar from 'chokidar'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { app } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
@@ -35,12 +36,16 @@ const getRipgrepBinaryPath = (): string | null => {
   try {
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
     const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
-    const ripgrepBinaryPath = path.join(
+    let ripgrepBinaryPath = path.join(
       __dirname,
       '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
       `${arch}-${platform}`,
       process.platform === 'win32' ? 'rg.exe' : 'rg'
     )
+
+    if(app.isPackaged) {
+      ripgrepBinaryPath =  ripgrepBinaryPath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
+    }
 
     if (fs.existsSync(ripgrepBinaryPath)) {
       return ripgrepBinaryPath
