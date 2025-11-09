@@ -4400,7 +4400,7 @@
         "authenticating": "Authentification en cours",
         "cancel": "Annuler",
         "description": "Authentification OAuth",
-        "description_detail": "Cliquez sur « Démarrer l’autorisation » pour ouvrir la page de connexion OpenAI dans votre navigateur. Après vous être connecté, copiez l’URL complète qui redirige vers l’adresse locale (http://127.0.0.1:1455/auth/callback?...) et collez-la ici pour terminer l’authentification.",
+        "description_detail": "Cliquez sur « Démarrer l’autorisation » pour ouvrir la page de connexion OpenAI dans votre navigateur. Après vous être connecté, copiez l’URL complète qui redirige vers l’adresse locale (http://localhost:1455/auth/callback?...) et collez-la ici pour terminer l’authentification.",
         "enter_redirect_url": "URL de redirection",
         "logout": "Se déconnecter",
         "logout_failed": "Échec de la déconnexion",
@@ -4409,7 +4409,7 @@
         "start_auth": "Démarrer l’autorisation",
         "submit_url": "Envoyer l’URL",
         "url_error": "L’analyse de l’URL ou l’authentification a échoué, veuillez réessayer",
-        "url_placeholder": "Collez l’URL complète commençant par http://127.0.0.1:1455/auth/callback"
+        "url_placeholder": "Collez l’URL complète commençant par http://localhost:1455/auth/callback"
       },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",

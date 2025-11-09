@@ -4400,7 +4400,7 @@
         "authenticating": "正在認證",
         "cancel": "取消",
         "description": "使用 OpenAI OAuth 登入",
-        "description_detail": "點擊開始授權後會在瀏覽器開啟 OpenAI 登入頁。登入後請複製跳轉至本機位址的完整 URL（http://127.0.0.1:1455/auth/callback?...），貼回此處完成認證。",
+        "description_detail": "點擊開始授權後會在瀏覽器開啟 OpenAI 登入頁。登入後請複製跳轉至本機位址的完整 URL（http://localhost:1455/auth/callback?...），貼回此處完成認證。",
         "enter_redirect_url": "重新導向 URL",
         "logout": "登出",
         "logout_failed": "登出失敗",
@@ -4409,7 +4409,7 @@
         "start_auth": "開始授權",
         "submit_url": "提交 URL",
         "url_error": "URL 解析或認證失敗，請重試",
-        "url_placeholder": "貼上以 http://127.0.0.1:1455/auth/callback 開頭的完整 URL"
+        "url_placeholder": "貼上以 http://localhost:1455/auth/callback 開頭的完整 URL"
       },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",

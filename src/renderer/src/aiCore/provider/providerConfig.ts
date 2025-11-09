@@ -172,7 +172,7 @@ export function providerToAiSdkConfig(
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
   } else if (aiSdkProviderId === 'openai') {
-    // codex -> responses api
+    // OAuth authentication requires using the responses API mode instead of chat mode
     if (actualProvider.authType == 'oauth') {
       extraOptions.mode = 'responses'
     } else {
@@ -330,7 +330,7 @@ export async function prepareSpecialProviderConfig(
     case 'openai': {
       if (provider.authType === 'oauth') {
         const accountId = await window.api.openai_oauth.getAccountId()
-        const sessionId = await window.api.openai_oauth.getSessionId?.()
+        const sessionId = await window.api.openai_oauth.getSessionId()
         const nextHeaders: Record<string, string> = {
           ...(config.options.headers ? (config.options.headers as Record<string, string>) : {}),
           'chatgpt-account-id': accountId || '',
@@ -338,7 +338,7 @@ export async function prepareSpecialProviderConfig(
         }
         const oauthToken = await window.api.openai_oauth.getAccessToken()
 
-        // OAuth 模式下移除 X-Api-Key，改为 Authorization
+        // remove some headers
         delete (nextHeaders as any)['X-Api-Key']
         delete (nextHeaders as any)['X-Title']
         config.options = {
@@ -352,7 +352,8 @@ export async function prepareSpecialProviderConfig(
           baseURL: 'https://chatgpt.com/backend-api/codex'
         }
         config.options.fetch = async (url, options) => {
-          // add specified body
+          // Customize the request body for OpenAI's Codex API:
+          // Remove unsupported fields and add required parameters ('store' and 'instructions').
           const originalBody = JSON.parse(options.body)
           const fieldsToRemove = [
             'temperature',

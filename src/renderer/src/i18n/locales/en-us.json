@@ -4400,7 +4400,7 @@
         "authenticating": "Authenticating",
         "cancel": "Cancel",
         "description": "OAuth Authentication",
-        "description_detail": "Click 'Start Authorization' to open the OpenAI login page in your browser. After logging in, copy the entire URL that redirects to the local address (http://127.0.0.1:1455/auth/callback?...) and paste it here to complete authentication.",
+        "description_detail": "Click 'Start Authorization' to open the OpenAI login page in your browser. After logging in, copy the entire URL that redirects to the local address (http://localhost:1455/auth/callback?...) and paste it here to complete authentication.",
         "enter_redirect_url": "Redirect URL",
         "logout": "Logout",
         "logout_failed": "Logout failed",
@@ -4409,7 +4409,7 @@
         "start_auth": "Start Authorization",
         "submit_url": "Submit URL",
         "url_error": "URL parsing or authentication failed, please try again",
-        "url_placeholder": "Paste the full URL starting with http://127.0.0.1:1455/auth/callback"
+        "url_placeholder": "Paste the full URL starting with http://localhost:1455/auth/callback"
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",

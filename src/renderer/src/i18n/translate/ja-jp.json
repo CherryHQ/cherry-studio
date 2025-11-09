@@ -4400,7 +4400,7 @@
         "authenticating": "認証中",
         "cancel": "キャンセル",
         "description": "OAuth認証",
-        "description_detail": "「認可を開始」をクリックして、ブラウザで OpenAI のログインページを開きます。ログイン後、ローカルアドレス（http://127.0.0.1:1455/auth/callback?...）にリダイレクトされる完全なURLをコピーし、ここに貼り付けて認証を完了してください。",
+        "description_detail": "「認可を開始」をクリックして、ブラウザで OpenAI のログインページを開きます。ログイン後、ローカルアドレス（http://localhost:1455/auth/callback?...）にリダイレクトされる完全なURLをコピーし、ここに貼り付けて認証を完了してください。",
         "enter_redirect_url": "リダイレクトURL",
         "logout": "ログアウト",
         "logout_failed": "ログアウトに失敗しました",
@@ -4409,7 +4409,7 @@
         "start_auth": "認可を開始",
         "submit_url": "URLを送信",
         "url_error": "URLの解析または認証に失敗しました。もう一度お試しください",
-        "url_placeholder": "http://127.0.0.1:1455/auth/callback で始まる完全なURLを貼り付けてください"
+        "url_placeholder": "http://localhost:1455/auth/callback で始まる完全なURLを貼り付けてください"
       },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",

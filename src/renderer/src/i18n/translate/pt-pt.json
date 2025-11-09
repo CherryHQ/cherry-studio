@@ -4400,7 +4400,7 @@
         "authenticating": "A autenticar",
         "cancel": "Cancelar",
         "description": "Autenticação OAuth",
-        "description_detail": "Clique em \"Iniciar autorização\" para abrir a página de início de sessão da OpenAI no seu navegador. Depois de iniciar sessão, copie o URL completo que redireciona para o endereço local (http://127.0.0.1:1455/auth/callback?...) e cole-o aqui para concluir a autenticação.",
+        "description_detail": "Clique em \"Iniciar autorização\" para abrir a página de início de sessão da OpenAI no seu navegador. Depois de iniciar sessão, copie o URL completo que redireciona para o endereço local (http://localhost:1455/auth/callback?...) e cole-o aqui para concluir a autenticação.",
         "enter_redirect_url": "URL de redirecionamento",
         "logout": "Terminar sessão",
         "logout_failed": "Falha ao terminar sessão",
@@ -4409,7 +4409,7 @@
         "start_auth": "Iniciar autorização",
         "submit_url": "Enviar URL",
         "url_error": "Análise do URL ou autenticação falhou, tente novamente",
-        "url_placeholder": "Cole o URL completo começando por http://127.0.0.1:1455/auth/callback"
+        "url_placeholder": "Cole o URL completo começando por http://localhost:1455/auth/callback"
       },
       "remove_duplicate_keys": "Remover chaves duplicadas",
       "remove_invalid_keys": "Remover chaves inválidas",

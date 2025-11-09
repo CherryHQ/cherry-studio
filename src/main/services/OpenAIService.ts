@@ -117,9 +117,6 @@ class OpenAIService {
 
   public async getValidAccessToken(): Promise<string | null> {
     const clientId = DEFAULT_CLIENT_ID
-    if (!clientId || clientId.startsWith('0000')) {
-      logger.warn('OPENAI_OAUTH_CLIENT_ID is not set. OAuth may fail until configured.')
-    }
     const creds = await this.loadCredentials()
     if (!creds) return null
     if (creds.expires_at > Date.now() + 60000) {
@@ -144,9 +141,6 @@ class OpenAIService {
 
   public async startOAuthFlow(): Promise<string> {
     const clientId = DEFAULT_CLIENT_ID
-    if (!clientId || clientId.startsWith('0000')) {
-      logger.warn('OPENAI_OAUTH_CLIENT_ID is not set. Please configure it for production use.')
-    }
     // If already have valid access, short-circuit
     const existing = await this.getValidAccessToken()
     if (existing) return 'already_authenticated'
@@ -194,8 +188,10 @@ class OpenAIService {
     try {
       await promises.unlink(CREDS_PATH)
       logger.info('OpenAI credentials cleared')
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
     }
   }
 
@@ -249,7 +245,11 @@ class OpenAIService {
     const padLen = (4 - (normalized.length % 4)) % 4
     const padded = normalized + '='.repeat(padLen)
     const json = Buffer.from(padded, 'base64').toString('utf8')
-    return JSON.parse(json)
+    try {
+      return JSON.parse(json)
+    } catch {
+      return null
+    }
   }
 }
 
