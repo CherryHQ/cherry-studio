@@ -168,7 +168,19 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/huggingface@npm:^0.0.8":
+"@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.30#~/.yarn/patches/@ai-sdk-google-npm-2.0.30-3b31632362.patch":
+  version: 2.0.30
+  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.30#~/.yarn/patches/@ai-sdk-google-npm-2.0.30-3b31632362.patch::version=2.0.30&hash=be6198"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.16"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/60c4eda30a4f8460594f1f825c3a1a9ea564035f99c4da954d641b406394d8cfa411f3fcdd370a4e60006a84e360e084bc7f925f4517c87ffcdd149165d8989e
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/huggingface@npm:0.0.8":
   version: 0.0.8
   resolution: "@ai-sdk/huggingface@npm:0.0.8"
   dependencies:
@@ -178,6 +190,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4
   checksum: 10c0/12d5064bb3dbb591941c76a33ffa76e75df0c1fb547255c20acbdc9cfd00a434c8210d92df382717c188022aa705ad36c3e31ddcb6b1387f154f956c9ea61e66
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch":
+  version: 0.0.8
+  resolution: "@ai-sdk/huggingface@patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch::version=0.0.8&hash=ceb48e"
+  dependencies:
+    "@ai-sdk/openai-compatible": "npm:1.0.26"
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.16"
+  peerDependencies:
+    zod: ^3.25.76 || ^4
+  checksum: 10c0/30760547543f7e33fe088a4a5b5be7ce0cd37f446a5ddb13c99c5a2725c6c020fc76d6cf6bc1c5cdd8f765366ecb3022605096dc45cd50acf602ef46a89c1eb7
   languageName: node
   linkType: hard
 
@@ -217,7 +242,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:2.0.64, @ai-sdk/openai@npm:^2.0.64":
+"@ai-sdk/openai@npm:2.0.64":
   version: 2.0.64
   resolution: "@ai-sdk/openai@npm:2.0.64"
   dependencies:
@@ -229,15 +254,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/openai@npm:^2.0.42":
-  version: 2.0.53
-  resolution: "@ai-sdk/openai@npm:2.0.53"
+"@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch":
+  version: 2.0.64
+  resolution: "@ai-sdk/openai@patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch::version=2.0.64&hash=e78090"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.12"
+    "@ai-sdk/provider-utils": "npm:3.0.16"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/acb014c7e4d99be0502fe2190c3b91c76ee86ade25e80dad939ffd113a5f013f29a81f06e13fa0e6a76b49fcb8cc524aab180fc1a622ceb8d3dac58fd655de1c
+  checksum: 10c0/e4a0967cbdb25309144c6263e6d691fa67898953207e050c23ba99df23ce76ab025fed3a79d541d54b99b4a049a945db2a4a3fbae5ab3a52207f024f5b4e6f4a
   languageName: node
   linkType: hard
 
@@ -263,19 +288,6 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/d2c16abdb84ba4ef48c9f56190b5ffde224b9e6ae5147c5c713d2623627732d34b96aa9aef2a2ea4b0c49e1b863cc963c7d7ff964a1dc95f0f036097aaaaaa98
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/provider-utils@npm:3.0.12":
-  version: 3.0.12
-  resolution: "@ai-sdk/provider-utils@npm:3.0.12"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@standard-schema/spec": "npm:^1.0.0"
-    eventsource-parser: "npm:^3.0.5"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/83886bf188cad0cc655b680b710a10413989eaba9ec59dd24a58b985c02a8a1d50ad0f96dd5259385c07592ec3c37a7769fdf4a1ef569a73c9edbdb2cd585915
   languageName: node
   linkType: hard
 
@@ -1798,7 +1810,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.43"
     "@ai-sdk/azure": "npm:^2.0.66"
     "@ai-sdk/deepseek": "npm:^1.0.27"
-    "@ai-sdk/openai": "npm:^2.0.64"
+    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch"
     "@ai-sdk/openai-compatible": "npm:^1.0.26"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.16"
@@ -9824,7 +9836,7 @@ __metadata:
     "@agentic/tavily": "npm:^7.3.3"
     "@ai-sdk/amazon-bedrock": "npm:^3.0.53"
     "@ai-sdk/google-vertex": "npm:^3.0.61"
-    "@ai-sdk/huggingface": "npm:^0.0.8"
+    "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch"
     "@ai-sdk/mistral": "npm:^2.0.23"
     "@ai-sdk/perplexity": "npm:^2.0.17"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
