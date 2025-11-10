@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index cc6652c4e7f32878a64a2614115bf7eeb3b7c890..76e989017549c89b45d633525efb1f318026d9b2 100644
+index 992c85ac6656e51c3471af741583533c5a7bf79f..83c05952a07aebb95fc6c62f9ddb8aa96b52ac0d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -274,6 +274,7 @@ var openaiChatResponseSchema = (0, import_provider_utils3.lazyValidator)(
@@ -18,30 +18,29 @@ index cc6652c4e7f32878a64a2614115bf7eeb3b7c890..76e989017549c89b45d633525efb1f31
                tool_calls: import_v42.z.array(
                  import_v42.z.object({
                    index: import_v42.z.number(),
-@@ -785,6 +787,14 @@ var OpenAIChatLanguageModel = class {
+@@ -785,6 +787,13 @@ var OpenAIChatLanguageModel = class {
      if (text != null && text.length > 0) {
        content.push({ type: "text", text });
      }
-+    const reasoning =
-+      choice.message.reasoning_content;
++    const reasoning = choice.message.reasoning_content;
 +    if (reasoning != null && reasoning.length > 0) {
 +      content.push({
 +        type: 'reasoning',
-+        text: reasoning,
++        text: reasoning
 +      });
 +    }
      for (const toolCall of (_a = choice.message.tool_calls) != null ? _a : []) {
        content.push({
          type: "tool-call",
-@@ -866,6 +876,7 @@ var OpenAIChatLanguageModel = class {
+@@ -866,6 +875,7 @@ var OpenAIChatLanguageModel = class {
      };
-     let isFirstChunk = true;
+     let metadataExtracted = false;
      let isActiveText = false;
 +    let isActiveReasoning = false;
      const providerMetadata = { openai: {} };
      return {
        stream: response.pipeThrough(
-@@ -920,6 +931,22 @@ var OpenAIChatLanguageModel = class {
+@@ -923,6 +933,21 @@ var OpenAIChatLanguageModel = class {
                return;
              }
              const delta = choice.delta;
@@ -54,7 +53,6 @@ index cc6652c4e7f32878a64a2614115bf7eeb3b7c890..76e989017549c89b45d633525efb1f31
 +                });
 +                isActiveReasoning = true;
 +              }
-+
 +              controller.enqueue({
 +                type: 'reasoning-delta',
 +                id: 'reasoning-0',
@@ -64,7 +62,7 @@ index cc6652c4e7f32878a64a2614115bf7eeb3b7c890..76e989017549c89b45d633525efb1f31
              if (delta.content != null) {
                if (!isActiveText) {
                  controller.enqueue({ type: "text-start", id: "0" });
-@@ -1032,6 +1059,9 @@ var OpenAIChatLanguageModel = class {
+@@ -1035,6 +1060,9 @@ var OpenAIChatLanguageModel = class {
              }
            },
            flush(controller) {
