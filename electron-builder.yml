@@ -97,7 +97,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
