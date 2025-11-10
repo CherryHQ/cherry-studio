@@ -1,7 +1,7 @@
-import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
@@ -11,7 +11,7 @@ import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
 import { omit } from 'lodash'
-import { Search } from 'lucide-react'
+import { Import, Plus, Rss, Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,7 @@ import { groupTranslations } from './assistantPresetGroupTranslations'
 import AddAssistantPresetPopup from './components/AddAssistantPresetPopup'
 import AssistantPresetCard from './components/AssistantPresetCard'
 import { AssistantPresetGroupIcon } from './components/AssistantPresetGroupIcon'
+import AssistantsSubscribeUrlSettings from './components/AssistantsSubscribeUrlSettings'
 import ImportAssistantPresetPopup from './components/ImportAssistantPresetPopup'
 
 const AssistantPresetsPage: FC = () => {
@@ -175,6 +176,15 @@ const AssistantPresetsPage: FC = () => {
     }
   }
 
+  const handleSubscribeSettings = () => {
+    GeneralPopup.show({
+      title: t('assistants.presets.settings.title'),
+      content: <AssistantsSubscribeUrlSettings />,
+      footer: null,
+      width: 600
+    })
+  }
+
   return (
     <Container>
       <Navbar>
@@ -246,12 +256,12 @@ const AssistantPresetsPage: FC = () => {
                 </CustomTag>
               }
             </AgentsListTitle>
-            <Flex gap={8}>
+            <Flex gap={2}>
               {isSearchExpanded ? (
                 <Input
                   placeholder={t('common.search')}
                   className="nodrag"
-                  style={{ width: 300, height: 28, borderRadius: 15, paddingLeft: 12 }}
+                  style={{ width: 200, height: 28, borderRadius: 15, paddingLeft: 12 }}
                   size="small"
                   variant="filled"
                   allowClear
@@ -274,10 +284,13 @@ const AssistantPresetsPage: FC = () => {
                   </Button>
                 )
               )}
-              <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
+              <Button type="text" onClick={handleImportAgent} icon={<Import size={18} color="var(--color-icon)" />}>
                 {t('assistants.presets.import.title')}
               </Button>
-              <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
+              <Button type="text" onClick={handleSubscribeSettings} icon={<Rss size={18} color="var(--color-icon)" />}>
+                {t('assistants.presets.settings.title')}
+              </Button>
+              <Button type="text" onClick={handleAddAgent} icon={<Plus size={18} color="var(--color-icon)" />}>
                 {t('assistants.presets.add.title')}
               </Button>
             </Flex>

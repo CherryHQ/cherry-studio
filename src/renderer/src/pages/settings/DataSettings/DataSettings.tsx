@@ -23,7 +23,7 @@ import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,7 +38,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -129,11 +128,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'agentssubscribe_url',
-      title: t('assistants.presets.settings.title'),
-      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -704,7 +698,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>
