@@ -41,6 +41,19 @@ import { getInputbarConfig } from './registry'
 import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
+const agentSessionDraftCache = new Map<string, string>()
+
+const readDraftFromCache = (key: string): string => {
+  return agentSessionDraftCache.get(key) ?? ''
+}
+
+const writeDraftToCache = (key: string, value: string) => {
+  if (!value) {
+    agentSessionDraftCache.delete(key)
+  } else {
+    agentSessionDraftCache.set(key, value)
+  }
+}
 
 type Props = {
   agentId: string
@@ -158,7 +171,13 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const config = getInputbarConfig(scope)
 
   // Use shared hooks for text and textarea management
-  const { text, setText, isEmpty: inputEmpty } = useInputText()
+  const draftStorageKey = useMemo(() => sessionId, [sessionId])
+  const initialDraft = useMemo(() => readDraftFromCache(draftStorageKey), [draftStorageKey])
+  const persistDraft = useCallback((next: string) => writeDraftToCache(draftStorageKey, next), [draftStorageKey])
+  const { text, setText, isEmpty: inputEmpty } = useInputText({
+    initialValue: initialDraft,
+    onChange: persistDraft
+  })
   const {
     textareaRef,
     resize: resizeTextArea,
