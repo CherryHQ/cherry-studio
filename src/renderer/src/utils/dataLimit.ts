@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types'
 import { GB, MB } from '@shared/config/constant'
 import { t } from 'i18next'
 
@@ -69,8 +69,10 @@ export async function checkDataLimit() {
       const toastId = window.toast.warning({
         title: t('settings.data.limit.appDataDiskQuota'),
         description: t('settings.data.limit.appDataDiskQuotaDescription'),
-        timeout: 0, // Never auto-dismiss
-        hideCloseButton: true // Hide close button so user cannot dismiss
+        timeout: 0 // Never auto-dismiss
+        // hideCloseButton: true // Hide close button so user cannot dismiss
+        // commented out because antd message doesn't support hiding close button
+        // so we just rely on the timeout: 0 to keep it persistent
       })
       currentToastId = toastId
 

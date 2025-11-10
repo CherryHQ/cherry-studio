@@ -1,10 +1,11 @@
-import { Input, Pagination, Tab, Tabs } from '@heroui/react'
-import { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
-import { Search } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
+import { Button as AntButton, Dropdown as AntDropdown, Input as AntInput, Tabs as AntTabs } from 'antd'
+import type { ItemType } from 'antd/es/menu/interface'
+import { Filter, Search } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CategoryFilter } from './CategoryFilter'
 import { PluginCard } from './PluginCard'
 import { PluginDetailModal } from './PluginDetailModal'
 
@@ -37,10 +38,12 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [activeType, setActiveType] = useState<PluginType>('all')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE)
   const [actioningPlugin, setActioningPlugin] = useState<string | null>(null)
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const observerTarget = useRef<HTMLDivElement>(null)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
 
   // Combine all plugins based on active type
   const allPlugins = useMemo(() => {
@@ -86,14 +89,97 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     })
   }, [allPlugins, searchQuery, selectedCategories])
 
-  // Paginate filtered plugins
-  const paginatedPlugins = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-    return filteredPlugins.slice(startIndex, endIndex)
-  }, [filteredPlugins, currentPage])
+  // Display plugins based on displayCount
+  const displayedPlugins = useMemo(() => {
+    return filteredPlugins.slice(0, displayCount)
+  }, [filteredPlugins, displayCount])
 
-  const totalPages = Math.ceil(filteredPlugins.length / ITEMS_PER_PAGE)
+  const pluginCategoryMenuItems = useMemo(() => {
+    const isSelected = (category: string): boolean =>
+      category === 'all' ? selectedCategories.length === 0 : selectedCategories.includes(category)
+    const handleClick = (category: string) => {
+      if (category === 'all') {
+        handleCategoryChange(new Set(['all']))
+      } else {
+        const newKeys = selectedCategories.includes(category)
+          ? new Set(selectedCategories.filter((c) => c !== category))
+          : new Set([...selectedCategories, category])
+        handleCategoryChange(newKeys)
+      }
+    }
+
+    const itemLabel = (category: string) => (
+      <div className="flex flex-row justify-between">
+        {category}
+        {isSelected(category) && <span className="ml-2 text-primary text-sm">✓</span>}
+      </div>
+    )
+
+    return [
+      {
+        key: 'all',
+        title: t('plugins.all_categories'),
+        label: itemLabel('all'),
+        onClick: () => handleClick('all')
+      },
+      ...allCategories.map(
+        (category) =>
+          ({
+            key: category,
+            title: category,
+            label: itemLabel(category),
+            onClick: () => handleClick(category)
+          }) satisfies ItemType
+      )
+    ]
+  }, [allCategories, selectedCategories, t])
+
+  const pluginTypeTabItems = useMemo(
+    () => [
+      {
+        key: 'all',
+        label: t('plugins.all_types')
+      },
+      {
+        key: 'agent',
+        label: t('plugins.agents')
+      },
+      {
+        key: 'command',
+        label: t('plugins.commands')
+      },
+      {
+        key: 'skill',
+        label: t('plugins.skills')
+      }
+    ],
+    [t]
+  )
+
+  const hasMore = displayCount < filteredPlugins.length
+
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE)
+  }, [filteredPlugins])
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          setDisplayCount((prev) => prev + ITEMS_PER_PAGE)
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => observer.disconnect()
+  }, [hasMore])
 
   // Check if a plugin is installed
   const isPluginInstalled = (plugin: PluginMetadata): boolean => {
@@ -116,20 +202,22 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
     setActioningPlugin(null)
   }
 
-  // Reset to first page when filters change
+  // Reset display count when filters change
   const handleSearchChange = (value: string) => {
     setSearchQuery(value)
-    setCurrentPage(1)
   }
 
-  const handleCategoryChange = (categories: string[]) => {
-    setSelectedCategories(categories)
-    setCurrentPage(1)
+  const handleCategoryChange = (keys: Set<string>) => {
+    // Reset if "all" selected, otherwise filter categories
+    if (keys.has('all') || keys.size === 0) {
+      setSelectedCategories([])
+    } else {
+      setSelectedCategories(Array.from(keys).filter((key) => key !== 'all'))
+    }
   }
 
   const handleTypeChange = (type: string | number) => {
     setActiveType(type as PluginType)
-    setCurrentPage(1)
   }
 
   const handlePluginClick = (plugin: PluginMetadata) => {
@@ -144,33 +232,40 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Search Input */}
-      <Input
-        placeholder={t('plugins.search_placeholder')}
-        value={searchQuery}
-        onValueChange={handleSearchChange}
-        startContent={<Search className="h-4 w-4 text-default-400" />}
-        isClearable
-        classNames={{
-          input: 'text-small',
-          inputWrapper: 'h-10'
-        }}
-      />
-
-      {/* Category Filter */}
-      <CategoryFilter
-        categories={allCategories}
-        selectedCategories={selectedCategories}
-        onChange={handleCategoryChange}
-      />
+      {/* Search and Filter */}
+      <div className="flex gap-2">
+        <AntInput
+          placeholder={t('plugins.search_placeholder')}
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          prefix={<Search className="h-4 w-4 text-default-400" />}
+        />
+        <AntDropdown
+          menu={{ items: pluginCategoryMenuItems }}
+          trigger={['click']}
+          open={filterDropdownOpen}
+          placement="bottomRight"
+          onOpenChange={setFilterDropdownOpen}>
+          <AntButton
+            variant={selectedCategories.length > 0 ? 'filled' : 'outlined'}
+            color={selectedCategories.length > 0 ? 'primary' : 'default'}
+            size="middle"
+            icon={<Filter className="h-4 w-4" color="var(--color-text-2)" />}
+          />
+        </AntDropdown>
+      </div>
 
       {/* Type Tabs */}
-      <Tabs selectedKey={activeType} onSelectionChange={handleTypeChange} variant="underlined">
-        <Tab key="all" title={t('plugins.all_types')} />
-        <Tab key="agent" title={t('plugins.agents')} />
-        <Tab key="command" title={t('plugins.commands')} />
-        <Tab key="skill" title={t('plugins.skills')} />
-      </Tabs>
+      <div className="-mb-3 flex w-full justify-center">
+        <AntTabs
+          activeKey={activeType}
+          onChange={handleTypeChange}
+          items={pluginTypeTabItems}
+          className="w-full"
+          size="small"
+          centered
+        />
+      </div>
 
       {/* Result Count */}
       <div className="flex items-center justify-between">
@@ -178,37 +273,35 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
       </div>
 
       {/* Plugin Grid */}
-      {paginatedPlugins.length === 0 ? (
+      {displayedPlugins.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <p className="text-default-400">{t('plugins.no_results')}</p>
           <p className="text-default-300 text-small">{t('plugins.try_different_search')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {paginatedPlugins.map((plugin) => {
-            const installed = isPluginInstalled(plugin)
-            const isActioning = actioningPlugin === plugin.sourcePath
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {displayedPlugins.map((plugin) => {
+              const installed = isPluginInstalled(plugin)
+              const isActioning = actioningPlugin === plugin.sourcePath
 
-            return (
-              <PluginCard
-                key={`${plugin.type}-${plugin.sourcePath}`}
-                plugin={plugin}
-                installed={installed}
-                onInstall={() => handleInstall(plugin)}
-                onUninstall={() => handleUninstall(plugin)}
-                loading={loading || isActioning}
-                onClick={() => handlePluginClick(plugin)}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center">
-          <Pagination total={totalPages} page={currentPage} onChange={setCurrentPage} showControls />
-        </div>
+              return (
+                <div key={`${plugin.type}-${plugin.sourcePath}`} className="h-full">
+                  <PluginCard
+                    plugin={plugin}
+                    installed={installed}
+                    onInstall={() => handleInstall(plugin)}
+                    onUninstall={() => handleUninstall(plugin)}
+                    loading={loading || isActioning}
+                    onClick={() => handlePluginClick(plugin)}
+                  />
+                </div>
+              )
+            })}
+          </div>
+          {/* Infinite scroll trigger */}
+          {hasMore && <div ref={observerTarget} className="h-10" />}
+        </>
       )}
 
       {/* Plugin Detail Modal */}

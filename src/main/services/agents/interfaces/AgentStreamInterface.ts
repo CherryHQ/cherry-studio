@@ -1,9 +1,9 @@
 // Agent-agnostic streaming interface
 // This interface should be implemented by all agent services
 
-import { EventEmitter } from 'node:events'
+import type { EventEmitter } from 'node:events'
 
-import { GetAgentSessionResponse } from '@types'
+import type { GetAgentSessionResponse } from '@types'
 import type { TextStreamPart } from 'ai'
 
 // Generic agent stream event that works with any agent type

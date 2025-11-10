@@ -5,11 +5,12 @@ import React, { useEffect } from 'react'
 import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { QuickPanelListItem, QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
+import type { QuickPanelListItem } from '../QuickPanel'
+import { QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
 
 // Mock the DynamicVirtualList component
 vi.mock('@renderer/components/VirtualList', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@renderer/components/VirtualList')>()
+  const mod = (await importOriginal()) as any
   return {
     ...mod,
     DynamicVirtualList: ({ ref, list, children, scrollerStyle }: any & { ref?: React.RefObject<any | null> }) => {

@@ -1,4 +1,4 @@
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { Tooltip, Typography } from 'antd'
 import { memo } from 'react'
 import styled from 'styled-components'

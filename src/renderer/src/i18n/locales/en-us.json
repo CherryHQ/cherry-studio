@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Handle complex tasks with various tools",
       "error": {
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
@@ -338,6 +339,41 @@
     },
     "title": "API Server"
   },
+  "appMenu": {
+    "about": "About",
+    "close": "Close Window",
+    "copy": "Copy",
+    "cut": "Cut",
+    "delete": "Delete",
+    "documentation": "Documentation",
+    "edit": "Edit",
+    "feedback": "Feedback",
+    "file": "File",
+    "forceReload": "Force Reload",
+    "front": "Bring All to Front",
+    "help": "Help",
+    "hide": "Hide",
+    "hideOthers": "Hide Others",
+    "minimize": "Minimize",
+    "paste": "Paste",
+    "quit": "Quit",
+    "redo": "Redo",
+    "releases": "Releases",
+    "reload": "Reload",
+    "resetZoom": "Actual Size",
+    "selectAll": "Select All",
+    "services": "Services",
+    "toggleDevTools": "Toggle Developer Tools",
+    "toggleFullscreen": "Toggle Fullscreen",
+    "undo": "Undo",
+    "unhide": "Show All",
+    "view": "View",
+    "website": "Website",
+    "window": "Window",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
+  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -547,7 +583,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Daily conversations and quick Q&A",
         "title": "Add Assistant"
+      },
+      "option": {
+        "title": "Select Type"
       },
       "topic": {
         "title": "New Topic"
@@ -1047,6 +1087,7 @@
     "clear": "Clear",
     "close": "Close",
     "collapse": "Collapse",
+    "completed": "Completed",
     "confirm": "Confirm",
     "copied": "Copied",
     "copy": "Copy",
@@ -2476,6 +2517,7 @@
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
@@ -2922,15 +2964,14 @@
       },
       "description": "A powerful AI assistant for producer",
       "downloading": "Downloading...",
+      "enterprise": {
+        "title": "Enterprise"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "About & Feedback",
-      "license": {
-        "button": "License",
-        "title": "License"
-      },
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
@@ -3037,6 +3078,46 @@
         "siyuan": "Export to SiYuan Note",
         "title": "Export Menu Settings",
         "yuque": "Export to Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Select backup file"
+        },
+        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "lan": {
+          "auto_close_tip": "Auto-closing in {{seconds}} seconds...",
+          "confirm_close_message": "File transfer is in progress. Closing will interrupt the transfer. Are you sure you want to force close?",
+          "confirm_close_title": "Confirm Close",
+          "connected": "Connected",
+          "connection_failed": "Connection failed",
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "error": {
+            "init_failed": "Initialization failed",
+            "no_file": "No file selected",
+            "no_ip": "Unable to get IP address",
+            "send_failed": "Failed to send file"
+          },
+          "force_close": "Force Close",
+          "generating_qr": "Generating QR code...",
+          "noZipSelected": "No compressed file selected",
+          "scan_qr": "Please scan QR code with your phone",
+          "selectZip": "Select a compressed file",
+          "sendZip": "Begin data recovery",
+          "status": {
+            "completed": "Transfer completed",
+            "connected": "Connected",
+            "connecting": "Connecting...",
+            "disconnected": "Disconnected",
+            "error": "Connection error",
+            "initializing": "Initializing connection...",
+            "preparing": "Preparing transfer...",
+            "sending": "Transferring {{progress}}%",
+            "waiting_qr_scan": "Please scan QR code to connect"
+          },
+          "title": "LAN transmission",
+          "transfer_progress": "Transfer progress"
+        },
+        "title": "Export to phone"
       },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
@@ -3720,6 +3801,7 @@
         "description": "Do not enable MCP server functionality",
         "label": "Disable MCP Server"
       },
+      "discover": "Discover",
       "duplicateName": "A server with this name already exists",
       "editJson": "Edit JSON",
       "editMcpJson": "Edit MCP Configuration",
@@ -3729,6 +3811,10 @@
       "errors": {
         "32000": "MCP server failed to start, please check the parameters according to the tutorial",
         "toolNotFound": "Tool {{name}} not found"
+      },
+      "fetch": {
+        "button": "Fetch Servers",
+        "success": "Successfully fetched MCP servers"
       },
       "findMore": "Find More MCP",
       "headers": "Headers",
@@ -3745,6 +3831,7 @@
       "logoUrl": "Logo URL",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
+      "marketplaces": "Marketplaces",
       "missingDependencies": "is Missing, please install it to continue.",
       "more": {
         "awesome": "Curated MCP Server List",
@@ -3776,6 +3863,12 @@
         "usage": "Usage",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "You can close this page and return to Cherry Studio",
+          "title": "Authentication Successful"
+        }
+      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -3784,9 +3877,16 @@
         "noPromptsAvailable": "No prompts available",
         "requiredField": "Required Field"
       },
+      "protocolInstallWarning": {
+        "command": "Startup command",
+        "message": "This MCP was installed from an external source via protocol. Running unknown tools may harm your computer.",
+        "run": "Run",
+        "title": "Run external MCP?"
+      },
       "provider": "Provider",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
+      "providers": "Providers",
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
@@ -3809,6 +3909,7 @@
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
+      "servers": "MCP Servers",
       "sse": "Server-Sent Events (sse)",
       "startError": "Start failed",
       "stdio": "Standard Input/Output (stdio)",
@@ -4208,6 +4309,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",
         "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "api_key": "Bedrock API Key",
+        "api_key_help": "Your AWS Bedrock API Key for authentication",
+        "auth_type": "Authentication Type",
+        "auth_type_api_key": "Bedrock API Key",
+        "auth_type_help": "Choose between IAM credentials or Bedrock API Key authentication",
+        "auth_type_iam": "IAM Credentials",
         "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
         "region": "AWS Region",
         "region_help": "Your AWS service region, e.g., us-east-1",

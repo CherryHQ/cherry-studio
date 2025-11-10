@@ -1,4 +1,4 @@
-import { Express } from 'express'
+import type { Express } from 'express'
 import swaggerJSDoc from 'swagger-jsdoc'
 import swaggerUi from 'swagger-ui-express'
 
@@ -171,7 +171,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
       }
     ]
   },
-  apis: ['./src/main/apiServer/routes/*.ts', './src/main/apiServer/app.ts']
+  apis: ['./src/main/apiServer/routes/**/*.ts', './src/main/apiServer/app.ts']
 }
 
 export function setupOpenAPIDocumentation(app: Express) {

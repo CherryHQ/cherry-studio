@@ -1,6 +1,6 @@
-import { Alert } from '@heroui/react'
 import { loggerService } from '@logger'
-import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import type { ContentSearchRef } from '@renderer/components/ContentSearch'
+import { ContentSearch } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -14,12 +14,13 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
+import { Alert, Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useCallback, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -168,11 +169,7 @@ const Chat: FC<Props> = (props) => {
       return () => <div> Active Session ID is invalid.</div>
     }
     if (!apiServer.enabled) {
-      return () => (
-        <div>
-          <Alert color="warning" title={t('agent.warning.enable_server')} />
-        </div>
-      )
+      return () => <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
     }
     return () => <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
   }, [activeAgentId, activeSessionId, apiServer.enabled, t])
@@ -189,22 +186,14 @@ const Chat: FC<Props> = (props) => {
 
   // TODO: more info
   const AgentInvalid = useCallback(() => {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div>
-          <Alert color="warning" title="Select an agent" />
-        </div>
-      </div>
-    )
+    return <Alert type="warning" message="Select an agent" style={{ margin: '5px 16px' }} />
   }, [])
 
   // TODO: more info
   const SessionInvalid = useCallback(() => {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <div>
-          <Alert color="warning" title="Create a session" />
-        </div>
+        <Alert type="warning" message="Create a session" style={{ margin: '5px 16px' }} />
       </div>
     )
   }, [])

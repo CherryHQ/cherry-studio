@@ -5,7 +5,7 @@ on:
     types: [opened]
   schedule:
     # Run every day at 8:30 Beijing Time (00:30 UTC)
-    - cron: '30 0 * * *'
+    - cron: "30 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -54,9 +54,9 @@ jobs:
 
       - name: Setup Node.js
         if: steps.check_time.outputs.should_delay == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: 22
 
       - name: Process issue with Claude
         if: steps.check_time.outputs.should_delay == 'false'
@@ -121,9 +121,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: 22
 
       - name: Process pending issues with Claude
         uses: anthropics/claude-code-action@main

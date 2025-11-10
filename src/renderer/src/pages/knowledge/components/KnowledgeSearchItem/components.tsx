@@ -1,5 +1,5 @@
 import { CopyOutlined } from '@ant-design/icons'
-import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
+import type { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import { Tooltip, Typography } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'

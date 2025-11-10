@@ -1,5 +1,5 @@
 import { useSettings } from '@renderer/hooks/useSettings'
-import { LanguageVarious } from '@renderer/types'
+import type { LanguageVarious } from '@renderer/types'
 import { ConfigProvider, theme } from 'antd'
 import deDE from 'antd/locale/de_DE'
 import elGR from 'antd/locale/el_GR'
@@ -11,7 +11,7 @@ import ptPT from 'antd/locale/pt_PT'
 import ruRU from 'antd/locale/ru_RU'
 import zhCN from 'antd/locale/zh_CN'
 import zhTW from 'antd/locale/zh_TW'
-import { FC, PropsWithChildren } from 'react'
+import type { FC, PropsWithChildren } from 'react'
 
 import { useTheme } from './ThemeProvider'
 

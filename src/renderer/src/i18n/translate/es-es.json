@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Maneja tareas complejas con varias herramientas",
       "error": {
         "failed": "Error al añadir agente",
         "invalid_agent": "Agent inválido"
@@ -338,6 +339,41 @@
     },
     "title": "Servidor API"
   },
+  "appMenu": {
+    "about": "Acerca de",
+    "close": "Cerrar ventana",
+    "copy": "Copiar",
+    "cut": "Cortar",
+    "delete": "Eliminar",
+    "documentation": "Documentación",
+    "edit": "Editar",
+    "feedback": "Retroalimentación",
+    "file": "Archivo",
+    "forceReload": "Forzar recarga",
+    "front": "Traer todo al frente",
+    "help": "Ayuda",
+    "hide": "Ocultar",
+    "hideOthers": "Ocultar Otros",
+    "minimize": "Minimizar",
+    "paste": "Pegar",
+    "quit": "Abandonar",
+    "redo": "Rehacer",
+    "releases": "Lanzamientos",
+    "reload": "Recargar",
+    "resetZoom": "Tamaño Real",
+    "selectAll": "Seleccionar todo",
+    "services": "Servicios",
+    "toggleDevTools": "Alternar herramientas de desarrollo",
+    "toggleFullscreen": "Activar pantalla completa",
+    "undo": "Deshacer",
+    "unhide": "Mostrar todo",
+    "view": "Vista",
+    "website": "Sitio web",
+    "window": "Ventana",
+    "zoom": "Zoom",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar"
+  },
   "assistants": {
     "abbr": "Asistente",
     "clear": {
@@ -547,7 +583,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Conversaciones diarias y preguntas y respuestas rápidas",
         "title": "Agregar asistente"
+      },
+      "option": {
+        "title": "Seleccionar Tipo"
       },
       "topic": {
         "title": "Crear nuevo tema"
@@ -1047,6 +1087,7 @@
     "clear": "Limpiar",
     "close": "Cerrar",
     "collapse": "Colapsar",
+    "completed": "Completado",
     "confirm": "Confirmar",
     "copied": "Copiado",
     "copy": "Copiar",
@@ -2470,12 +2511,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplejidad",
-    "ph8": "Plataforma Abierta de Grandes Modelos PH8",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Cloud Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "Silicio Fluido",
+    "sophnet": "SophNet",
     "stepfun": "Función Salto",
     "tencent-cloud-ti": "Tencent Nube TI",
     "together": "Juntos",
@@ -2922,15 +2964,14 @@
       },
       "description": "Una asistente de IA creada para los creadores",
       "downloading": "Descargando actualización...",
+      "enterprise": {
+        "title": "Empresa"
+      },
       "feedback": {
         "button": "Enviar feedback",
         "title": "Enviar comentarios"
       },
       "label": "Acerca de nosotros",
-      "license": {
-        "button": "Ver",
-        "title": "Licencia"
-      },
       "releases": {
         "button": "Ver",
         "title": "Registro de cambios"
@@ -3037,6 +3078,46 @@
         "siyuan": "Exportar a Siyuan Notes",
         "title": "Exportar configuración del menú",
         "yuque": "Exportar a Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Seleccionar archivo de copia de seguridad"
+        },
+        "content": "Exportar parte de los datos, incluidos los registros de chat y la configuración. Tenga en cuenta que el proceso de copia de seguridad puede tardar un tiempo; gracias por su paciencia.",
+        "lan": {
+          "auto_close_tip": "Cierre automático en {{seconds}} segundos...",
+          "confirm_close_message": "La transferencia de archivos está en progreso. Cerrar interrumpirá la transferencia. ¿Estás seguro de que quieres forzar el cierre?",
+          "confirm_close_title": "Confirmar Cierre",
+          "connected": "Conectado",
+          "connection_failed": "Conexión fallida",
+          "content": "Asegúrate de que el ordenador y el móvil estén en la misma red para usar la transferencia por LAN. Abre la aplicación Cherry Studio y escanea este código QR.",
+          "error": {
+            "init_failed": "Falló la inicialización",
+            "no_file": "Ningún archivo seleccionado",
+            "no_ip": "No se puede obtener la dirección IP",
+            "send_failed": "Error al enviar el archivo"
+          },
+          "force_close": "Cerrar forzosamente",
+          "generating_qr": "Generando código QR...",
+          "noZipSelected": "No se ha seleccionado ningún archivo comprimido",
+          "scan_qr": "Por favor, escanea el código QR con tu teléfono",
+          "selectZip": "Seleccionar archivo comprimido",
+          "sendZip": "Comenzar la recuperación de datos",
+          "status": {
+            "completed": "Transferencia completada",
+            "connected": "Conectado",
+            "connecting": "Conectando...",
+            "disconnected": "Desconectado",
+            "error": "Error de conexión",
+            "initializing": "Inicializando conexión...",
+            "preparing": "Preparando transferencia...",
+            "sending": "Transfiriendo {{progress}}%",
+            "waiting_qr_scan": "Por favor, escanea el código QR para conectarte"
+          },
+          "title": "Transferencia de red local",
+          "transfer_progress": "Progreso de transferencia"
+        },
+        "title": "Exportar al teléfono"
       },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
@@ -3720,6 +3801,7 @@
         "description": "No habilitar funciones del servicio MCP",
         "label": "No utilizar servidor MCP"
       },
+      "discover": "Descubrir",
       "duplicateName": "Ya existe un servidor con el mismo nombre",
       "editJson": "Editar JSON",
       "editMcpJson": "Editar configuración MCP",
@@ -3729,6 +3811,10 @@
       "errors": {
         "32000": "El servidor MCP no se pudo iniciar, verifique si los parámetros están completos según la guía",
         "toolNotFound": "Herramienta no encontrada {{name}}"
+      },
+      "fetch": {
+        "button": "Obtener Servidores",
+        "success": "Servidores MCP obtenidos con éxito"
       },
       "findMore": "Más servidores MCP",
       "headers": "Encabezados",
@@ -3745,6 +3831,7 @@
       "logoUrl": "URL del logotipo",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
+      "marketplaces": "Mercados",
       "missingDependencies": "Faltan, instalelas para continuar",
       "more": {
         "awesome": "Lista seleccionada de servidores MCP",
@@ -3776,6 +3863,12 @@
         "usage": "Uso",
         "version": "Versión"
       },
+      "oauth": {
+        "callback": {
+          "message": "Puede cerrar esta página y volver a Cherry Studio",
+          "title": "Autenticación Exitosa"
+        }
+      },
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Indicaciones disponibles",
@@ -3784,9 +3877,16 @@
         "noPromptsAvailable": "No hay indicaciones disponibles",
         "requiredField": "Campo obligatorio"
       },
+      "protocolInstallWarning": {
+        "command": "Comando de inicio",
+        "message": "Este MCP fue instalado desde una fuente externa a través del protocolo. Ejecutar herramientas desconocidas puede dañar tu computadora.",
+        "run": "Correr",
+        "title": "¿Ejecutar MCP externo?"
+      },
       "provider": "Proveedor",
       "providerPlaceholder": "Nombre del proveedor",
       "providerUrl": "URL del proveedor",
+      "providers": "Proveedores",
       "registry": "Repositorio de paquetes",
       "registryDefault": "Predeterminado",
       "registryTooltip": "Seleccione un repositorio para instalar paquetes, útil para resolver problemas de red con el repositorio predeterminado.",
@@ -3809,6 +3909,7 @@
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
       "serverSingular": "Servidor",
+      "servers": "Servidores MCP",
       "sse": "Eventos enviados por el servidor (sse)",
       "startError": "Inicio fallido",
       "stdio": "Entrada/Salida estándar (stdio)",
@@ -4208,6 +4309,12 @@
       "aws-bedrock": {
         "access_key_id": "ID de clave de acceso de AWS",
         "access_key_id_help": "Su ID de clave de acceso de AWS, utilizado para acceder al servicio AWS Bedrock",
+        "api_key": "Clave de API de Bedrock",
+        "api_key_help": "Tu clave de API de AWS Bedrock para autenticación",
+        "auth_type": "Tipo de autenticación",
+        "auth_type_api_key": "Clave de API de Bedrock",
+        "auth_type_help": "Elige entre credenciales IAM o autenticación con clave API de Bedrock",
+        "auth_type_iam": "Credenciales de IAM",
         "description": "AWS Bedrock es un servicio de modelos fundamentales completamente gestionado proporcionado por Amazon, que admite diversos modelos avanzados de lenguaje de gran tamaño.",
         "region": "Región de AWS",
         "region_help": "Su región de servicio AWS, por ejemplo us-east-1",

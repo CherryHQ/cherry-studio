@@ -21,6 +21,8 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
   - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
@@ -133,60 +135,59 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.2
+    What's New in v1.7.0-beta.4
+
+    Major Changes:
+    - UI Framework Upgrade: Improved performance and user experience with new design system
+    - App Menu i18n: Menu now supports multiple languages and syncs with app language settings
 
     New Features:
-    - Session Settings: Manage session-specific settings and model configurations independently
-    - Notes Full-Text Search: Search across all notes with match highlighting
-    - Built-in DiDi MCP Server: Integration with DiDi ride-hailing services (China only)
-    - Intel OV OCR: Hardware-accelerated OCR using Intel NPU
-    - Auto-start API Server: Automatically starts when agents exist
+    - AWS Bedrock API Key: Support Bedrock API key authentication with Extended Thinking (reasoning) capability
+    - SophNet Provider: Added support for SophNet LLM provider
+    - Auto Session Rename: Agent sessions automatically rename based on conversation topics
+    - TopP Parameter: Added TopP parameter support for more precise model control
+    - Reasoning Effort Control: Quick access to reasoning effort settings in input bar
 
     Improvements:
-    - Agent model selection now requires explicit user choice
-    - Added Mistral AI provider support
-    - Added NewAPI generic provider support
-    - Improved navbar layout consistency across different modes
-    - Enhanced chat component responsiveness
-    - Better code block display on small screens
-    - Updated OVMS to 2025.3 official release
-    - Added Greek language support
+    - Topics & Sessions: Enhanced UI with better styling and smoother interactions
+    - Quick Panel: Improved option visibility and control
+    - Painting Models: Smarter model initialization with better defaults
+    - System Shutdown: Better handling of shutdown events to prevent data loss
+    - Smaller Package Size: Optimized build configuration for faster downloads
 
     Bug Fixes:
-    - Fixed GitHub Copilot gpt-5-codex streaming issues
-    - Fixed assistant creation failures
-    - Fixed translate auto-copy functionality
-    - Fixed miniapps external link opening
-    - Fixed message layout and overflow issues
-    - Fixed API key parsing to preserve spaces
-    - Fixed agent display in different navbar layouts
+    - Fixed Perplexity provider support and API host formatting
+    - Fixed CherryAI provider support and API host formatting
+    - Fixed i18n translations for painting image size options
+    - Fixed agent session message token usage tracking
+    - Fixed prompt stream handling on completion or error
+    - Fixed message API initialization issues
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.2 新特性
+    v1.7.0-beta.4 新特性
+
+    重大变更:
+    - UI 框架升级：采用新设计系统，提升性能和用户体验
+    - 应用菜单国际化：菜单支持多语言，并自动同步应用语言设置
 
     新功能:
-    - 会话设置：独立管理会话特定的设置和模型配置
-    - 笔记全文搜索：跨所有笔记搜索并高亮匹配内容
-    - 内置滴滴 MCP 服务器：集成滴滴打车服务(仅限中国地区)
-    - Intel OV OCR：使用 Intel NPU 的硬件加速 OCR
-    - 自动启动 API 服务器：当存在 Agent 时自动启动
+    - AWS Bedrock API 密钥：支持 Bedrock API 密钥身份验证，并支持扩展思考（推理）能力
+    - SophNet 提供商：添加 SophNet LLM 提供商支持
+    - 自动会话重命名：Agent 会话根据对话主题自动重命名
+    - TopP 参数：添加 TopP 参数支持，更精确控制模型输出
 
     改进:
-    - Agent 模型选择现在需要用户显式选择
-    - 添加 Mistral AI 提供商支持
-    - 添加 NewAPI 通用提供商支持
-    - 改进不同模式下的导航栏布局一致性
-    - 增强聊天组件响应式设计
-    - 优化小屏幕代码块显示
-    - 更新 OVMS 至 2025.3 正式版
-    - 添加希腊语支持
+    - 主题和会话：增强 UI，改进样式和交互体验
+    - 快速面板：改进选项可见性和控制
+    - 绘图模型：更智能的模型初始化和更好的默认值
+    - 系统关机：更好地处理关机事件，防止数据丢失
+    - 更小的安装包：优化构建配置，下载更快
 
     问题修复:
-    - 修复 GitHub Copilot gpt-5-codex 流式传输问题
-    - 修复助手创建失败
-    - 修复翻译自动复制功能
-    - 修复小程序外部链接打开
-    - 修复消息布局和溢出问题
-    - 修复 API 密钥解析以保留空格
-    - 修复不同导航栏布局中的 Agent 显示
+    - 修复 Perplexity 提供商支持和 API 主机格式化
+    - 修复 CherryAI 提供商支持和 API 主机格式化
+    - 修复绘图图像大小选项的 i18n 翻译
+    - 修复 Agent 会话消息的 token 使用量跟踪
+    - 修复完成或错误时的提示流处理
+    - 修复消息 API 初始化问题
     <!--LANG:END-->

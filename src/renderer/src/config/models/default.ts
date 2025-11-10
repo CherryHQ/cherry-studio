@@ -1,4 +1,4 @@
-import { Model, SystemProviderId } from '@renderer/types'
+import type { Model, SystemProviderId } from '@renderer/types'
 
 export const glm45FlashModel: Model = {
   id: 'glm-4.5-flash',
@@ -27,6 +27,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   cherryin: [],
   vertexai: [],
+  sophnet: [],
   '302ai': [
     {
       id: 'deepseek-chat',

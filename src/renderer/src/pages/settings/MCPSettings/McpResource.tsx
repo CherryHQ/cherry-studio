@@ -1,4 +1,4 @@
-import { MCPResource } from '@renderer/types'
+import type { MCPResource } from '@renderer/types'
 import { Collapse, Descriptions, Empty, Flex, Tag, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'

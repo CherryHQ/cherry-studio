@@ -1,7 +1,9 @@
-import { Button, Chip, Skeleton, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from '@heroui/react'
-import { InstalledPlugin } from '@renderer/types/plugin'
-import { Trash2 } from 'lucide-react'
-import { FC, useCallback, useState } from 'react'
+import type { InstalledPlugin } from '@renderer/types/plugin'
+import type { TableProps } from 'antd'
+import { Button, Skeleton, Table as AntTable, Tag } from 'antd'
+import { Dot, Trash2 } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface InstalledPluginsListProps {
@@ -32,10 +34,10 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({ plugins, o
 
   if (loading) {
     return (
-      <div className="space-y-2">
-        <Skeleton className="h-12 w-full rounded-lg" />
-        <Skeleton className="h-12 w-full rounded-lg" />
-        <Skeleton className="h-12 w-full rounded-lg" />
+      <div className="flex flex-col space-y-2">
+        <Skeleton.Input active className="w-full" size={'large'} style={{ width: '100%' }} />
+        <Skeleton.Input active className="w-full" size={'large'} style={{ width: '100%' }} />
+        <Skeleton.Input active className="w-full" size={'large'} style={{ width: '100%' }} />
       </div>
     )
   }
@@ -49,50 +51,61 @@ export const InstalledPluginsList: FC<InstalledPluginsListProps> = ({ plugins, o
     )
   }
 
-  return (
-    <Table aria-label="Installed plugins table" removeWrapper>
-      <TableHeader>
-        <TableColumn>{t('plugins.name')}</TableColumn>
-        <TableColumn>{t('plugins.type')}</TableColumn>
-        <TableColumn>{t('plugins.category')}</TableColumn>
-        <TableColumn width={100}>{t('plugins.actions')}</TableColumn>
-      </TableHeader>
-      <TableBody>
-        {plugins.map((plugin) => (
-          <TableRow key={plugin.filename}>
-            <TableCell>
-              <div className="flex flex-col">
-                <span className="font-semibold text-small">{plugin.metadata.name}</span>
-                {plugin.metadata.description && (
-                  <span className="line-clamp-1 text-default-400 text-tiny">{plugin.metadata.description}</span>
-                )}
-              </div>
-            </TableCell>
-            <TableCell>
-              <Chip size="sm" variant="flat" color={plugin.type === 'agent' ? 'primary' : 'secondary'}>
-                {plugin.type}
-              </Chip>
-            </TableCell>
-            <TableCell>
-              <Chip size="sm" variant="dot">
-                {plugin.metadata.category}
-              </Chip>
-            </TableCell>
-            <TableCell>
-              <Button
-                size="sm"
-                color="danger"
-                variant="light"
-                isIconOnly
-                onPress={() => handleUninstall(plugin)}
-                isLoading={uninstallingPlugin === plugin.filename}
-                isDisabled={loading}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  )
+  const columns: TableProps<InstalledPlugin>['columns'] = [
+    {
+      title: t('plugins.name'),
+      dataIndex: 'name',
+      key: 'name',
+      render: (_: any, plugin: InstalledPlugin) => (
+        <div className="flex flex-col">
+          <span className="font-semibold text-small">{plugin.metadata.name}</span>
+          {plugin.metadata.description && (
+            <span className="line-clamp-1 text-default-400 text-tiny">{plugin.metadata.description}</span>
+          )}
+        </div>
+      )
+    },
+    {
+      title: t('plugins.type'),
+      dataIndex: 'type',
+      key: 'type',
+      align: 'center',
+      render: (type: string) => <Tag color={type === 'agent' ? 'magenta' : 'purple'}>{type}</Tag>
+    },
+    {
+      title: t('plugins.category'),
+      dataIndex: 'category',
+      key: 'category',
+      align: 'center',
+      render: (_: any, plugin: InstalledPlugin) => (
+        <Tag
+          icon={<Dot size={14} strokeWidth={8} />}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '2px'
+          }}>
+          {plugin.metadata.category}
+        </Tag>
+      )
+    },
+    {
+      title: t('plugins.actions'),
+      key: 'actions',
+      align: 'center',
+      render: (_: any, plugin: InstalledPlugin) => (
+        <Button
+          danger
+          type="text"
+          onClick={() => handleUninstall(plugin)}
+          loading={uninstallingPlugin === plugin.filename}
+          disabled={loading}
+          icon={<Trash2 className="h-4 w-4" />}
+        />
+      )
+    }
+  ]
+
+  return <AntTable columns={columns} dataSource={plugins} size="small" />
 }

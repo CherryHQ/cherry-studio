@@ -1,6 +1,6 @@
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
-import { AddAgentForm, CreateAgentResponse } from '@renderer/types'
+import type { AddAgentForm, CreateAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,6 +41,7 @@ export const useAgents = () => {
     // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [apiServerConfig.enabled, apiServerRunning, client, t])
+
   const { data, error, isLoading, mutate } = useSWR(swrKey, fetcher)
   const { chat } = useRuntime()
   const { activeAgentId } = chat

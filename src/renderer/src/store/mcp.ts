@@ -79,7 +79,9 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -91,14 +93,18 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       MEMORY_FILE_PATH: 'YOUR_MEMORY_FILE_PATH'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.sequentialThinking,
     type: 'inMemory',
     isActive: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -109,14 +115,18 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       BRAVE_API_KEY: 'YOUR_API_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.fetch,
     type: 'inMemory',
     isActive: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -125,7 +135,9 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -136,14 +148,18 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       DIFY_KEY: 'YOUR_DIFY_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
     name: BuiltinMCPServerNames.python,
     type: 'inMemory',
     isActive: false,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   },
   {
     id: nanoid(),
@@ -155,7 +171,9 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
       DIDI_API_KEY: 'YOUR_DIDI_API_KEY'
     },
     shouldConfig: true,
-    provider: 'CherryAI'
+    provider: 'CherryAI',
+    installSource: 'builtin',
+    isTrusted: true
   }
 ] as const
 

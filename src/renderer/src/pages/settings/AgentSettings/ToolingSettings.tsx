@@ -1,21 +1,22 @@
-import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
 import { permissionModeCards } from '@renderer/config/agent'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import {
+import type {
   AgentConfiguration,
-  AgentConfigurationSchema,
   GetAgentResponse,
   GetAgentSessionResponse,
   PermissionMode,
   Tool,
   UpdateAgentBaseForm,
-  UpdateAgentForm,
-  UpdateSessionForm
+  UpdateAgentFunction,
+  UpdateAgentSessionFunction
 } from '@renderer/types'
-import { Modal } from 'antd'
-import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { AgentConfigurationSchema } from '@renderer/types'
+import { Modal, Tag } from 'antd'
+import { Alert, Card, Input, Switch } from 'antd'
+import { ShieldAlert, Wrench } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
@@ -23,11 +24,11 @@ import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 type AgentToolingSettingsProps =
   | {
       agentBase: GetAgentResponse | undefined | null
-      update: (form: UpdateAgentForm) => Promise<void> | void
+      update: UpdateAgentFunction
     }
   | {
       agentBase: GetAgentSessionResponse | undefined | null
-      update: (form: UpdateSessionForm) => Promise<void> | void
+      update: UpdateAgentSessionFunction
     }
 
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
@@ -168,6 +169,7 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
               </div>
             </div>
           ),
+          centered: true,
           okText: t('common.confirm'),
           cancelText: t('common.cancel'),
           onOk: applyChange,
@@ -270,46 +272,50 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
             const showCaution = card.caution
 
             return (
-              <Card
+              <div
                 key={card.mode}
-                isPressable={!disabled}
-                isDisabled={disabled || isUpdatingMode}
-                onPress={() => handleSelectPermissionMode(card.mode)}
-                className={`border ${
-                  isSelected ? 'border-primary shadow-lg' : 'border-default-200'
-                } ${disabled ? 'opacity-60' : ''}`}>
-                <CardHeader className="flex items-start justify-between gap-2">
-                  <div className="flex flex-col">
-                    <span className="text-left font-semibold text-sm">{t(card.titleKey, card.titleFallback)}</span>
-                    <span className="text-left text-foreground-500 text-xs">
+                className={`flex flex-col gap-3 overflow-hidden rounded-lg border p-4 transition-colors ${
+                  isSelected
+                    ? 'border-primary bg-primary-50/30 dark:bg-primary-950/20'
+                    : 'border-default-200 hover:bg-default-50 dark:hover:bg-default-900/20'
+                } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                onClick={() => !disabled && handleSelectPermissionMode(card.mode)}>
+                {/* Header */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="whitespace-normal break-words text-left font-semibold text-sm">
+                      {t(card.titleKey, card.titleFallback)}
+                    </span>
+                    <span className="whitespace-normal break-words text-left text-foreground-500 text-xs">
                       {t(card.descriptionKey, card.descriptionFallback)}
                     </span>
                   </div>
-                  {disabled ? (
-                    <Chip color="warning" size="sm" variant="flat">
-                      {t('common.coming_soon', 'Coming soon')}
-                    </Chip>
-                  ) : isSelected ? (
-                    <Chip color="primary" size="sm" variant="flat" startContent={<ShieldCheck size={14} />}>
-                      {t('common.selected', 'Selected')}
-                    </Chip>
-                  ) : null}
-                </CardHeader>
-                <CardBody className="gap-2 text-left text-xs">
-                  <span className="text-foreground-600">{t(card.behaviorKey, card.behaviorFallback)}</span>
-                  {showCaution ? (
-                    <div className="flex items-center gap-1">
-                      <ShieldAlert className="text-danger-600" size={24} />
-                      <span className="text-danger-600">
+                  {disabled && <Tag color="warning">{t('common.coming_soon', 'Coming soon')}</Tag>}
+                  {isSelected && !disabled && (
+                    <Tag color="success">
+                      <div className="flex items-center gap-1">
+                        <span>{t('common.selected', 'Selected')}</span>
+                      </div>
+                    </Tag>
+                  )}
+                </div>
+
+                {/* Body */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-foreground-600 text-xs">{t(card.behaviorKey, card.behaviorFallback)}</span>
+                  {showCaution && (
+                    <div className="flex items-start gap-2 rounded-md bg-danger-50 p-2 dark:bg-danger-950/30">
+                      <ShieldAlert className="mt-0.5 flex-shrink-0 text-danger-600" size={16} />
+                      <span className="text-danger-600 text-xs">
                         {t(
                           'agent.settings.tooling.permissionMode.bypassPermissions.warning',
                           'Use with caution — all tools will run without asking for approval.'
                         )}
                       </span>
                     </div>
-                  ) : null}
-                </CardBody>
-              </Card>
+                  )}
+                </div>
+              </div>
             )
           })}
         </div>
@@ -321,23 +327,31 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
         </SettingsTitle>
         <div className="flex flex-col gap-4">
           <Alert
-            color="warning"
-            title={t(
-              'agent.settings.tooling.preapproved.warning.title',
-              'Pre-approved tools run without manual review.'
-            )}
-            description={t(
-              'agent.settings.tooling.preapproved.warning.description',
-              'Enable only tools you trust. Mode defaults are highlighted automatically.'
-            )}
+            showIcon
+            type="warning"
+            style={{ padding: '8px 12px' }}
+            message={
+              <span className="font-semibold text-sm text-warning">
+                {t('agent.settings.tooling.preapproved.warning.title', 'Pre-approved tools run without manual review.')}
+              </span>
+            }
+            description={
+              <span className="text-warning text-xs">
+                {t(
+                  'agent.settings.tooling.preapproved.warning.description',
+                  'Enable only tools you trust. Mode defaults are highlighted automatically.'
+                )}
+              </span>
+            }
           />
           <Input
-            isClearable
+            allowClear
             value={searchTerm}
-            onValueChange={setSearchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             placeholder={t('agent.settings.tooling.preapproved.search', 'Search tools')}
             aria-label={t('agent.settings.tooling.preapproved.search', 'Search tools')}
             className="w-full"
+            size={'large'}
           />
           <div className="flex flex-col gap-3">
             {filteredTools.length === 0 ? (
@@ -349,54 +363,71 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                 const isAuto = autoToolIds.includes(tool.id)
                 const isApproved = approvedToolIds.includes(tool.id)
                 return (
-                  <Card key={tool.id} shadow="none" className="border border-default-200">
-                    <CardHeader className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <span className="truncate font-medium text-sm">{tool.name}</span>
-                        {tool.description ? (
-                          <span className="line-clamp-2 text-foreground-500 text-xs">{tool.description}</span>
-                        ) : null}
-                        <div className="flex flex-wrap items-center gap-2">
-                          {isAuto ? (
-                            <Chip size="sm" color="primary" variant="flat">
-                              {t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode')}
-                            </Chip>
+                  <Card
+                    key={tool.id}
+                    className="border border-default-200"
+                    title={
+                      <div className="flex items-start justify-between gap-3 py-2">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <span className="truncate font-medium text-sm">{tool.name}</span>
+                          {tool.description ? (
+                            <span className="line-clamp-2 whitespace-normal text-foreground-500 text-xs">
+                              {tool.description}
+                            </span>
                           ) : null}
-                          {tool.type === 'mcp' ? (
-                            <Chip size="sm" color="secondary" variant="flat">
-                              {t('agent.settings.tooling.preapproved.mcpBadge', 'MCP tool')}
-                            </Chip>
-                          ) : null}
-                          {tool.requirePermissions ? (
-                            <Chip size="sm" color="warning" variant="flat">
-                              {t(
-                                'agent.settings.tooling.preapproved.requiresApproval',
-                                'Requires approval when disabled'
-                              )}
-                            </Chip>
-                          ) : null}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isAuto ? (
+                              <Tag color="success">
+                                {t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode')}
+                              </Tag>
+                            ) : null}
+                            {tool.type === 'mcp' ? (
+                              <Tag color="default">{t('agent.settings.tooling.preapproved.mcpBadge', 'MCP tool')}</Tag>
+                            ) : null}
+                            {tool.requirePermissions ? (
+                              <Tag color="warning">
+                                {t(
+                                  'agent.settings.tooling.preapproved.requiresApproval',
+                                  'Requires approval when disabled'
+                                )}
+                              </Tag>
+                            ) : null}
+                          </div>
                         </div>
+                        <Switch
+                          aria-label={t('agent.settings.tooling.preapproved.toggle', {
+                            defaultValue: `Toggle ${tool.name}`,
+                            name: tool.name
+                          })}
+                          checked={isApproved}
+                          disabled={isAuto || isUpdatingTools}
+                          size="small"
+                          onChange={(checked) => handleToggleTool(tool.id, checked)}
+                        />
                       </div>
-                      <Switch
-                        aria-label={t('agent.settings.tooling.preapproved.toggle', {
-                          defaultValue: `Toggle ${tool.name}`,
-                          name: tool.name
-                        })}
-                        isSelected={isApproved}
-                        isDisabled={isAuto || isUpdatingTools}
-                        size="sm"
-                        onValueChange={(value) => handleToggleTool(tool.id, value)}
-                      />
-                    </CardHeader>
+                    }
+                    styles={{
+                      header: {
+                        paddingLeft: '12px',
+                        paddingRight: '12px',
+                        borderBottom: 'none'
+                      },
+                      body: {
+                        paddingLeft: '12px',
+                        paddingRight: '12px',
+                        paddingTop: '0px',
+                        paddingBottom: '0px'
+                      }
+                    }}>
                     {isAuto ? (
-                      <CardBody className="py-0 pb-3">
+                      <div className="py-0 pb-3">
                         <span className="text-foreground-400 text-xs">
                           {t(
                             'agent.settings.tooling.preapproved.autoDescription',
                             'This tool is auto-approved by the current permission mode.'
                           )}
                         </span>
-                      </CardBody>
+                      </div>
                     ) : null}
                   </Card>
                 )
@@ -424,26 +455,54 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
               {availableServers.map((server) => {
                 const isSelected = selectedMcpIds.includes(server.id)
                 return (
-                  <Card key={server.id} shadow="none" className="border border-default-200">
-                    <CardHeader className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate font-medium text-sm">{server.name}</span>
-                        {server.description ? (
-                          <span className="line-clamp-2 text-foreground-500 text-xs">{server.description}</span>
-                        ) : null}
+                  <Card
+                    key={server.id}
+                    className="border border-default-200"
+                    title={
+                      <div className="flex items-center justify-between gap-2 py-3">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {server.logoUrl && (
+                              <img
+                                src={server.logoUrl}
+                                alt={`${server.name} logo`}
+                                className="h-5 w-5 rounded object-cover"
+                              />
+                            )}
+                            <span className="truncate font-medium text-sm">{server.name}</span>
+                          </div>
+                          {server.description ? (
+                            <span className="line-clamp-2 whitespace-pre-wrap break-all text-foreground-500 text-xs">
+                              {server.description}
+                            </span>
+                          ) : null}
+                        </div>
+                        <Switch
+                          aria-label={t('agent.settings.tooling.mcp.toggle', {
+                            defaultValue: `Toggle ${server.name}`,
+                            name: server.name
+                          })}
+                          checked={isSelected}
+                          size="small"
+                          disabled={!server.isActive || isUpdatingMcp}
+                          onChange={(checked) => handleToggleMcp(server.id, checked)}
+                        />
                       </div>
-                      <Switch
-                        aria-label={t('agent.settings.tooling.mcp.toggle', {
-                          defaultValue: `Toggle ${server.name}`,
-                          name: server.name
-                        })}
-                        isSelected={isSelected}
-                        size="sm"
-                        isDisabled={!server.isActive || isUpdatingMcp}
-                        onValueChange={(value) => handleToggleMcp(server.id, value)}
-                      />
-                    </CardHeader>
-                  </Card>
+                    }
+                    styles={{
+                      header: {
+                        paddingLeft: '12px',
+                        paddingRight: '12px',
+                        borderBottom: 'none'
+                      },
+                      body: {
+                        paddingLeft: '12px',
+                        paddingRight: '12px',
+                        paddingTop: '0px',
+                        paddingBottom: '0px'
+                      }
+                    }}
+                  />
                 )
               })}
             </div>
@@ -459,33 +518,47 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
 
       <SettingsItem divider={false}>
         <SettingsTitle>{t('agent.settings.tooling.steps.review.title', 'Step 3 · Review')}</SettingsTitle>
-        <Card shadow="none" className="border border-default-200">
-          <CardBody className="flex flex-col gap-2 text-sm">
+        <Card
+          className="border border-default-200"
+          styles={{
+            header: {
+              paddingLeft: '12px',
+              paddingRight: '12px',
+              borderBottom: 'none'
+            },
+            body: {
+              paddingLeft: '12px',
+              paddingRight: '12px',
+              paddingTop: '12px',
+              paddingBottom: '12px'
+            }
+          }}>
+          <div className="flex flex-col gap-2 text-sm">
             <div className="flex flex-wrap gap-3">
-              <Chip variant="flat" color="primary">
+              <Tag color="success">
                 {t('agent.settings.tooling.review.mode', {
                   defaultValue: `Mode: ${selectedMode}`,
                   mode: selectedMode
                 })}
-              </Chip>
-              <Chip variant="flat" color="default">
+              </Tag>
+              <Tag color="default">
                 {t('agent.settings.tooling.review.autoTools', {
                   defaultValue: `Auto: ${autoCount}`,
                   count: autoCount
                 })}
-              </Chip>
-              <Chip variant="flat" color="success">
+              </Tag>
+              <Tag color="success">
                 {t('agent.settings.tooling.review.customTools', {
                   defaultValue: `Custom: ${customCount}`,
                   count: customCount
                 })}
-              </Chip>
-              <Chip variant="flat" color="warning">
+              </Tag>
+              <Tag color="warning">
                 {t('agent.settings.tooling.review.mcp', {
                   defaultValue: `MCP: ${agentSummary.mcps}`,
                   count: agentSummary.mcps
                 })}
-              </Chip>
+              </Tag>
             </div>
             <span className="text-foreground-500 text-xs">
               {t(
@@ -493,7 +566,7 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                 'Changes save automatically. Adjust the steps above any time to fine-tune permissions.'
               )}
             </span>
-          </CardBody>
+          </div>
         </Card>
       </SettingsItem>
     </SettingsContainer>

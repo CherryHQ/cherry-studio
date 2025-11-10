@@ -13,7 +13,7 @@ import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
 import { QuickPanelContext } from './provider'
-import {
+import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelListItem,
@@ -143,7 +143,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSymbolRef.current = ctx.symbol
 
     // 固定项置顶 + 过滤后的普通项
-    return [...pinnedItems, ...filteredNormalItems]
+    const pinnedFiltered = [...pinnedItems, ...filteredNormalItems]
+    return pinnedFiltered.filter((item) => !item.hidden)
   }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
 
   const canForwardAndBackward = useMemo(() => {

@@ -20,7 +20,7 @@
  *        emitting `text-*` parts and a synthetic `finish-step`.
  */
 
-import { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { BetaStopReason } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { loggerService } from '@logger'
 import type { FinishReason, LanguageModelUsage, ProviderMetadata, TextStreamPart } from 'ai'
@@ -72,6 +72,15 @@ const emptyUsage: LanguageModelUsage = {
  * our own to ensure the downstream renderer can stitch chunks together.
  */
 const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
+
+/**
+ * Filters out command-* tags from text content to prevent internal command
+ * messages from appearing in the user-facing UI.
+ * Removes tags like <command-message>...</command-message> and <command-name>...</command-name>
+ */
+const filterCommandTags = (text: string): string => {
+  return text.replace(/<command-[^>]+>.*?<\/command-[^>]+>/gs, '').trim()
+}
 
 /**
  * Extracts provider metadata from the raw Claude message so we can surface it
@@ -270,9 +279,14 @@ function handleUserMessage(
   const chunks: AgentStreamPart[] = []
   const providerMetadata = sdkMessageToProviderMetadata(message)
   const content = message.message.content
-
+  const isSynthetic = message.isSynthetic ?? false
   if (typeof content === 'string') {
     if (!content) {
+      return chunks
+    }
+
+    const filteredContent = filterCommandTags(content)
+    if (!filteredContent) {
       return chunks
     }
 
@@ -285,7 +299,7 @@ function handleUserMessage(
     chunks.push({
       type: 'text-delta',
       id,
-      text: content,
+      text: filteredContent,
       providerMetadata
     })
     chunks.push({
@@ -323,24 +337,30 @@ function handleUserMessage(
           providerExecuted: true
         })
       }
-    } else if (block.type === 'text') {
-      const id = message.uuid?.toString() || generateMessageId()
-      chunks.push({
-        type: 'text-start',
-        id,
-        providerMetadata
-      })
-      chunks.push({
-        type: 'text-delta',
-        id,
-        text: (block as { text: string }).text,
-        providerMetadata
-      })
-      chunks.push({
-        type: 'text-end',
-        id,
-        providerMetadata
-      })
+    } else if (block.type === 'text' && !isSynthetic) {
+      const rawText = (block as { text: string }).text
+      const filteredText = filterCommandTags(rawText)
+
+      // Only push text chunks if there's content after filtering
+      if (filteredText) {
+        const id = message.uuid?.toString() || generateMessageId()
+        chunks.push({
+          type: 'text-start',
+          id,
+          providerMetadata
+        })
+        chunks.push({
+          type: 'text-delta',
+          id,
+          text: filteredText,
+          providerMetadata
+        })
+        chunks.push({
+          type: 'text-end',
+          id,
+          providerMetadata
+        })
+      }
     } else {
       logger.warn('Unhandled user content block', { type: (block as any).type })
     }

@@ -1,9 +1,10 @@
-import { cn } from '@heroui/react'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { Menu, Modal } from 'antd'
-import React, { ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import React from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
