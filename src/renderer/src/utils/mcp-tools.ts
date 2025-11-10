@@ -850,5 +850,5 @@ export function isSupportedToolUse(assistant: Assistant) {
  * @returns 是否使用提示词工具使用
  */
 export function isPromptToolUse(assistant: Assistant) {
-  return assistant.settings?.toolUseMode !== 'function'
+  return assistant.settings?.toolUseMode === 'prompt'
 }
