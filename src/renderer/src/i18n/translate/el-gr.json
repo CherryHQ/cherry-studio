@@ -3863,6 +3863,12 @@
         "usage": "Χρήση",
         "version": "Έκδοση"
       },
+      "oauth": {
+        "callback": {
+          "message": "Μπορείτε να κλείσετε αυτήν τη σελίδα και να επιστρέψετε στο Cherry Studio",
+          "title": "Επιτυχής Ταυτοποίηση"
+        }
+      },
       "prompts": {
         "arguments": "Ορίσματα",
         "availablePrompts": "Διαθέσιμες Υποδείξεις",

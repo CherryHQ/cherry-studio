@@ -3863,6 +3863,12 @@
         "usage": "使用法",
         "version": "バージョン"
       },
+      "oauth": {
+        "callback": {
+          "message": "このページを閉じてCherry Studioに戻ることができます",
+          "title": "認証成功"
+        }
+      },
       "prompts": {
         "arguments": "引数",
         "availablePrompts": "利用可能なプロンプト",
