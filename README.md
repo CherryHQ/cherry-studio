@@ -82,7 +82,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 1. **Diverse LLM Provider Support**:
 
 - ☁️ Major LLM Cloud Services: OpenAI, Gemini, Anthropic, and more
-- 🔗 AI Web Service Integration: Claude, Perplexity, Poe, and others
+- 🔗 AI Web Service Integration: Claude, Perplexity, [Poe](https://poe.com/), and others
 - 💻 Local Model Support with Ollama, LM Studio
 
 2. **AI Assistants & Conversations**:
@@ -238,10 +238,6 @@ The Enterprise Edition addresses core challenges in team collaboration by centra
 
 ## ✨ Online Demo
 
-> 🚧 **Public Beta Notice**
->
-> The Enterprise Edition is currently in its early public beta stage, and we are actively iterating and optimizing its features. We are aware that it may not be perfectly stable yet. If you encounter any issues or have valuable suggestions during your trial, we would be very grateful if you could contact us via email to provide feedback.
-
 **🔗 [Cherry Studio Enterprise](https://www.cherry-ai.com/enterprise)**
 
 ## Version Comparison
@@ -249,7 +245,7 @@ The Enterprise Edition addresses core challenges in team collaboration by centra
 | Feature           | Community Edition                          | Enterprise Edition                                                                                                                      |
 | :---------------- | :----------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
 | **Open Source**   | ✅ Yes                                      | ⭕️ Partially released to customers                                                                                                       |
-| **Cost**          | Free for Personal Use / Commercial License | Buyout / Subscription Fee                                                                                                               |
+| **Cost**          | [AGPL-3.0 License](https://github.com/CherryHQ/cherry-studio?tab=AGPL-3.0-1-ov-file) | Buyout / Subscription Fee                                                                                                               |
 | **Admin Backend** | —                                          | ● Centralized **Model** Access<br>● **Employee** Management<br>● Shared **Knowledge Base**<br>● **Access** Control<br>● **Data** Backup |
 | **Server**        | —                                          | ✅ Dedicated Private Deployment                                                                                                          |
 
@@ -262,7 +258,11 @@ We believe the Enterprise Edition will become your team's AI productivity engine
 
 # 🔗 Related Projects
 
+- [new-api](https://github.com/QuantumNous/new-api): The next-generation LLM gateway and AI asset management system supports multiple languages.
+
 - [one-api](https://github.com/songquanpeng/one-api): LLM API management and distribution system supporting mainstream models like OpenAI, Azure, and Anthropic. Features a unified API interface, suitable for key management and secondary distribution.
+
+- [Poe](https://poe.com/): Poe gives you access to the best AI, all in one place. Explore GPT-5, Claude Opus 4.1, DeepSeek-R1, Veo 3, ElevenLabs, and millions of others.
 
 - [ublacklist](https://github.com/iorate/ublacklist): Blocks specific sites from appearing in Google search results
 
