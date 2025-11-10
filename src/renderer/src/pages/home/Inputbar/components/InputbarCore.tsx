@@ -398,6 +398,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
         const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
 
+        const allowResumeSearch =
+          !quickPanel.isVisible &&
+          (quickPanel.lastCloseAction === undefined || quickPanel.lastCloseAction === 'outsideclick')
+
         if (!quickPanel.isVisible && lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
           const triggerChar = newText[lastTriggerIndex]
           const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
@@ -405,7 +409,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
           const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
           const hasSearchContent = searchSegment.trim().length > 0
 
-          if (hasBoundary && (!hasSearchContent || isDeletion)) {
+          if (hasBoundary && (!hasSearchContent || isDeletion || allowResumeSearch)) {
             if (triggerChar === QuickPanelReservedSymbol.Root && hasRootMenuItems) {
               openRootPanelAt(lastTriggerIndex)
             } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
@@ -514,7 +518,9 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const handleFocus = useCallback(() => {
     setInputFocus(true)
     dispatch(setSearching(false))
-    quickPanel.close()
+    if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input') {
+      quickPanel.close()
+    }
     PasteService.setLastFocusedComponent('inputbar')
   }, [dispatch, quickPanel])
 

@@ -94,6 +94,7 @@ export interface QuickPanelContextType {
   readonly multiple: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
   readonly manageListExternally?: boolean
+  readonly lastCloseAction?: QuickPanelCloseAction
 
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void

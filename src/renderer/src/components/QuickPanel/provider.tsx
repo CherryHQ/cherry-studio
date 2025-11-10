@@ -25,6 +25,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [onSearchChange, setOnSearchChange] = useState<((searchText: string) => void) | undefined>()
+  const [lastCloseAction, setLastCloseAction] = useState<QuickPanelCloseAction | undefined>(undefined)
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
 
@@ -59,6 +60,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       clearTimer.current = null
     }
 
+    setLastCloseAction(undefined)
     setTitle(options.title)
     setList(options.list)
     const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
@@ -81,6 +83,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
       setManageListExternally(false)
+      setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
       clearTimer.current = setTimeout(() => {
@@ -124,6 +127,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       multiple,
       manageListExternally,
       triggerInfo,
+      lastCloseAction,
       onClose,
       beforeAction,
       afterAction,
@@ -143,6 +147,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       multiple,
       manageListExternally,
       triggerInfo,
+      lastCloseAction,
       onClose,
       beforeAction,
       afterAction,
