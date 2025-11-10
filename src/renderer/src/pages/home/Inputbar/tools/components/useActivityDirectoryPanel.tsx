@@ -9,6 +9,14 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useActivityDirectoryPanel')
 const MAX_FILE_RESULTS = 500
+const areFileListsEqual = (prev: string[], next: string[]) => {
+  if (prev === next) return true
+  if (prev.length !== next.length) return false
+  for (let index = 0; index < prev.length; index++) {
+    if (prev[index] !== next[index]) return false
+  }
+  return true
+}
 
 export type ActivityDirectoryTriggerInfo = {
   type: 'input' | 'button'
@@ -34,6 +42,19 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   const [isLoading, setIsLoading] = useState(false)
   const triggerInfoRef = useRef<ActivityDirectoryTriggerInfo | undefined>(undefined)
   const hasAttemptedLoadRef = useRef(false)
+  const fileListRef = useRef<string[]>([])
+
+  const updateFileListState = useCallback(
+    (nextFiles: string[]) => {
+      if (areFileListsEqual(fileListRef.current, nextFiles)) {
+        return false
+      }
+      fileListRef.current = nextFiles
+      setFileList(nextFiles)
+      return true
+    },
+    [setFileList]
+  )
 
   /**
    * Convert absolute file path to relative path based on accessible directories
@@ -222,7 +243,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
    */
   const createFileItems = useCallback(
     (files: string[], loading: boolean = false): QuickPanelListItem[] => {
-      if (loading) {
+      if (loading && files.length === 0) {
         return [
           {
             label: t('common.loading'),
@@ -289,14 +310,13 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       const searchPattern = searchText.trim() || '.'
       const newFiles = await loadFiles(searchPattern)
 
-      // Update file list state
-      setFileList(newFiles)
-
-      // Update QuickPanel list
-      const newItems = createFileItems(newFiles, false)
-      updateList(newItems)
+      const hasChanged = updateFileListState(newFiles)
+      if (hasChanged) {
+        const newItems = createFileItems(newFiles, false)
+        updateList(newItems)
+      }
     },
-    [loadFiles, createFileItems, updateList]
+    [loadFiles, createFileItems, updateList, updateFileListState]
   )
 
   /**
@@ -315,7 +335,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
 
       // Always load fresh files when opening the panel
       const files = await loadFiles()
-      setFileList(files)
+      updateFileListState(files)
 
       // Create items from the loaded files immediately
       const items = createFileItems(files, false)
@@ -351,14 +371,14 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
             }
           }
           // Clear file list and reset state when panel closes
-          setFileList([])
+          updateFileListState([])
           hasAttemptedLoadRef.current = false
           triggerInfoRef.current = undefined
         },
         onSearchChange: handleSearchChange
       })
     },
-    [loadFiles, open, removeTriggerSymbolAndText, setText, t, handleSearchChange, createFileItems]
+    [loadFiles, open, removeTriggerSymbolAndText, setText, t, handleSearchChange, createFileItems, updateFileListState]
   )
 
   /**
