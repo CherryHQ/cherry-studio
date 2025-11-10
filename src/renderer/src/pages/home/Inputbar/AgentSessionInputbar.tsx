@@ -173,7 +173,11 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   // Use shared hooks for text and textarea management
   const initialDraft = useMemo(() => readDraftFromCache(agentId), [agentId])
   const persistDraft = useCallback((next: string) => writeDraftToCache(agentId, next), [agentId])
-  const { text, setText, isEmpty: inputEmpty } = useInputText({
+  const {
+    text,
+    setText,
+    isEmpty: inputEmpty
+  } = useInputText({
     initialValue: initialDraft,
     onChange: persistDraft
   })
