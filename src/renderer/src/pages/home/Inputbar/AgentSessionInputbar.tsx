@@ -405,6 +405,13 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     ),
     [config.showTools, scope, assistant.id, sessionData]
   )
+  const placeholderText = useMemo(
+    () =>
+      t('chat.input.placeholder', {
+        key: getSendMessageShortcutLabel(sendMessageShortcut)
+      }),
+    [sendMessageShortcut, t]
+  )
 
   return (
     <InputbarCore
@@ -414,14 +421,13 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       textareaRef={textareaRef}
       resizeTextArea={resizeTextArea}
       focusTextarea={focusTextarea}
-      placeholder={t('chat.input.placeholder_without_triggers', {
-        key: getSendMessageShortcutLabel(sendMessageShortcut)
-      })}
+      placeholder={placeholderText}
       supportedExts={supportedExts}
       onPause={abortAgentSession}
       isLoading={canAbort}
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
+      forceEnableQuickPanelTriggers
     />
   )
 }

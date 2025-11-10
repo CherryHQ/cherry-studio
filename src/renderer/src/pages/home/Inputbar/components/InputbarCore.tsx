@@ -62,6 +62,9 @@ export interface InputbarCoreProps {
 
   // Preview sections (attachments, mentions, etc.)
   topContent?: React.ReactNode
+
+  // Override the user preference for quick panel triggers
+  forceEnableQuickPanelTriggers?: boolean
 }
 
 const TextareaStyle: CSSProperties = {
@@ -107,7 +110,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   handleSendMessage,
   leftToolbar,
   rightToolbar,
-  topContent
+  topContent,
+  forceEnableQuickPanelTriggers
 }) => {
   const config = useMemo(() => getInputbarConfig(scope), [scope])
   const { files, isExpanded } = useInputbarToolsState()
@@ -125,6 +129,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     enableQuickPanelTriggers,
     enableSpellCheck
   } = useSettings()
+  const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
   const [textareaHeight, setTextareaHeight] = useState<number>()
 
@@ -391,7 +396,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         })
       }
 
-      if (enableQuickPanelTriggers && config.enableQuickPanel) {
+      if (quickPanelTriggersEnabled && config.enableQuickPanel) {
         const hasRootMenuItems = triggers.getRootMenu().length > 0
         const textBeforeCursor = newText.slice(0, cursorPosition)
         const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
@@ -457,7 +462,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         }
       }
     },
-    [setText, textareaRef, enableQuickPanelTriggers, config.enableQuickPanel, quickPanel, triggers]
+    [setText, textareaRef, quickPanelTriggersEnabled, config.enableQuickPanel, quickPanel, triggers]
   )
 
   const onTranslated = useCallback(
