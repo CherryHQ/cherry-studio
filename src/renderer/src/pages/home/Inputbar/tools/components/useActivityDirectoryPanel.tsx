@@ -279,8 +279,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         const filterText = `${fileName} ${relativePath} ${filePath}`
 
         return {
-          label: fileName,
-          description: relativePath,
+          label: relativePath,
           icon: <File size={16} />,
           filterText: filterText,
           action: () => onSelectFile(filePath),
