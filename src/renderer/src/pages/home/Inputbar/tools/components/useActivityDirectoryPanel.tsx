@@ -196,7 +196,7 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
               maxDepth: 4,
               includeHidden: false,
               includeFiles: true,
-              includeDirectories: false,
+              includeDirectories: true,
               maxEntries: MAX_FILE_RESULTS,
               searchPattern: searchPattern || '.'
             })

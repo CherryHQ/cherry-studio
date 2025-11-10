@@ -137,7 +137,7 @@ const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
   maxDepth: 3,
   includeHidden: false,
   includeFiles: true,
-  includeDirectories: false,
+  includeDirectories: true,
   maxEntries: 10,
   searchPattern: '.'
 }
@@ -866,59 +866,143 @@ class FileStorage {
   }
 
   /**
+   * Search directories by name pattern
+   */
+  private async searchDirectories(
+    resolvedPath: string,
+    options: Required<DirectoryListOptions>,
+    currentDepth: number = 0
+  ): Promise<string[]> {
+    if (!options.includeDirectories) return []
+    if (!options.recursive && currentDepth > 0) return []
+    if (options.maxDepth > 0 && currentDepth >= options.maxDepth) return []
+
+    const directories: string[] = []
+    const excludedDirs = new Set([
+      'node_modules',
+      '.git',
+      '.idea',
+      '.vscode',
+      'dist',
+      'build',
+      '.next',
+      '.nuxt',
+      'coverage',
+      '.cache'
+    ])
+
+    try {
+      const entries = await fs.promises.readdir(resolvedPath, { withFileTypes: true })
+      const searchPatternLower = options.searchPattern.toLowerCase()
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+
+        // Skip hidden directories unless explicitly included
+        if (!options.includeHidden && entry.name.startsWith('.')) continue
+
+        // Skip excluded directories
+        if (excludedDirs.has(entry.name)) continue
+
+        const fullPath = path.join(resolvedPath, entry.name).replace(/\\/g, '/')
+
+        // Check if directory name matches search pattern
+        if (options.searchPattern === '.' || entry.name.toLowerCase().includes(searchPatternLower)) {
+          directories.push(fullPath)
+        }
+
+        // Recursively search subdirectories
+        if (options.recursive && currentDepth < options.maxDepth) {
+          const subDirs = await this.searchDirectories(fullPath, options, currentDepth + 1)
+          directories.push(...subDirs)
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to search directories in: ${resolvedPath}`, error as Error)
+    }
+
+    return directories
+  }
+
+  /**
    * Search files by filename pattern
    */
   private async searchByFilename(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
-    const args: string[] = ['--files']
+    const files: string[] = []
+    const directories: string[] = []
 
-    // Handle hidden files
-    if (!options.includeHidden) {
-      args.push('--glob', '!.*')
+    // Search for files using ripgrep
+    if (options.includeFiles) {
+      const args: string[] = ['--files']
+
+      // Handle hidden files
+      if (!options.includeHidden) {
+        args.push('--glob', '!.*')
+      }
+
+      // Use --iglob to let ripgrep filter filenames (case-insensitive)
+      if (options.searchPattern && options.searchPattern !== '.') {
+        args.push('--iglob', `*${options.searchPattern}*`)
+      }
+
+      // Exclude common hidden directories and large directories
+      args.push('-g', '!**/node_modules/**')
+      args.push('-g', '!**/.git/**')
+      args.push('-g', '!**/.idea/**')
+      args.push('-g', '!**/.vscode/**')
+      args.push('-g', '!**/.DS_Store')
+      args.push('-g', '!**/dist/**')
+      args.push('-g', '!**/build/**')
+      args.push('-g', '!**/.next/**')
+      args.push('-g', '!**/.nuxt/**')
+      args.push('-g', '!**/coverage/**')
+      args.push('-g', '!**/.cache/**')
+
+      // Handle max depth
+      if (!options.recursive) {
+        args.push('--max-depth', '1')
+      } else if (options.maxDepth > 0) {
+        args.push('--max-depth', options.maxDepth.toString())
+      }
+
+      // Add the directory path
+      args.push(resolvedPath)
+
+      const { exitCode, output } = await executeRipgrep(args)
+
+      // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
+      if (exitCode >= 2) {
+        throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+      }
+
+      // Parse ripgrep output (no need to filter by filename - ripgrep already did it)
+      files.push(
+        ...output
+          .split('\n')
+          .filter((line) => line.trim())
+          .map((line) => line.replace(/\\/g, '/'))
+      )
     }
 
-    // Use --iglob to let ripgrep filter filenames (case-insensitive)
-    if (options.searchPattern && options.searchPattern !== '.') {
-      args.push('--iglob', `*${options.searchPattern}*`)
+    // Search for directories
+    if (options.includeDirectories) {
+      directories.push(...(await this.searchDirectories(resolvedPath, options)))
     }
 
-    // Exclude common hidden directories and large directories
-    args.push('-g', '!**/node_modules/**')
-    args.push('-g', '!**/.git/**')
-    args.push('-g', '!**/.idea/**')
-    args.push('-g', '!**/.vscode/**')
-    args.push('-g', '!**/.DS_Store')
-    args.push('-g', '!**/dist/**')
-    args.push('-g', '!**/build/**')
-    args.push('-g', '!**/.next/**')
-    args.push('-g', '!**/.nuxt/**')
-    args.push('-g', '!**/coverage/**')
-    args.push('-g', '!**/.cache/**')
+    // Combine and sort: directories first (alphabetically), then files (alphabetically)
+    const sortedDirectories = directories.sort((a, b) => {
+      const aName = path.basename(a)
+      const bName = path.basename(b)
+      return aName.localeCompare(bName)
+    })
 
-    // Handle max depth
-    if (!options.recursive) {
-      args.push('--max-depth', '1')
-    } else if (options.maxDepth > 0) {
-      args.push('--max-depth', options.maxDepth.toString())
-    }
+    const sortedFiles = files.sort((a, b) => {
+      const aName = path.basename(a)
+      const bName = path.basename(b)
+      return aName.localeCompare(bName)
+    })
 
-    // Add the directory path
-    args.push(resolvedPath)
-
-    const { exitCode, output } = await executeRipgrep(args)
-
-    // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
-    if (exitCode >= 2) {
-      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
-    }
-
-    // Parse ripgrep output (no need to filter by filename - ripgrep already did it)
-    const results = output
-      .split('\n')
-      .filter((line) => line.trim())
-      .map((line) => line.replace(/\\/g, '/'))
-      .slice(0, options.maxEntries)
-
-    return results
+    return [...sortedDirectories, ...sortedFiles].slice(0, options.maxEntries)
   }
 
   /**
