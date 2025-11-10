@@ -18,7 +18,7 @@ import * as React from 'react'
 // ==================== Variants ====================
 
 const comboboxTriggerVariants = cva(
-  'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+  'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal bg-zinc-50 dark:bg-zinc-900',
   {
     variants: {
       state: {

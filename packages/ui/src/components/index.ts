@@ -41,19 +41,19 @@ export {
 export { default as SvgSpinners180Ring } from './icons/SvgSpinners180Ring'
 export { default as ToolsCallingIcon } from './icons/ToolsCallingIcon'
 
-/* Selector Components */
-export { default as Selector } from './primitives/Selector'
-export { default as SearchableSelector } from './primitives/Selector/SearchableSelector'
-export type {
-  MultipleSearchableSelectorProps,
-  MultipleSelectorProps,
-  SearchableSelectorItem,
-  SearchableSelectorProps,
-  SelectorItem,
-  SelectorProps,
-  SingleSearchableSelectorProps,
-  SingleSelectorProps
-} from './primitives/Selector/types'
+// /* Selector Components */
+// export { default as Selector } from './primitives/select'
+// export { default as SearchableSelector } from './primitives/Selector/SearchableSelector'
+// export type {
+//   MultipleSearchableSelectorProps,
+//   MultipleSelectorProps,
+//   SearchableSelectorItem,
+//   SearchableSelectorProps,
+//   SelectorItem,
+//   SelectorProps,
+//   SingleSearchableSelectorProps,
+//   SingleSelectorProps
+// } from './primitives/Selector/types'
 
 /* Additional Composite Components */
 // CodeEditor
@@ -85,4 +85,5 @@ export * from './primitives/command'
 export * from './primitives/dialog'
 export * from './primitives/popover'
 export * from './primitives/radioGroup'
+export * from './primitives/select'
 export * from './primitives/shadcn-io/dropzone'
