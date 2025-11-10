@@ -135,59 +135,50 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.4
-
-    Major Changes:
-    - UI Framework Upgrade: Improved performance and user experience with new design system
-    - App Menu i18n: Menu now supports multiple languages and syncs with app language settings
+    What's New in v1.7.0-beta.5
 
     New Features:
-    - AWS Bedrock API Key: Support Bedrock API key authentication with Extended Thinking (reasoning) capability
-    - SophNet Provider: Added support for SophNet LLM provider
-    - Auto Session Rename: Agent sessions automatically rename based on conversation topics
-    - TopP Parameter: Added TopP parameter support for more precise model control
-    - Reasoning Effort Control: Quick access to reasoning effort settings in input bar
+    - MCPRouter Provider: Added MCPRouter provider integration with token management and server synchronization
+    - MCP Marketplace: Enhanced MCP server discovery and management with multi-provider marketplace support
+    - Agent Permission Mode Display: Visual permission mode cards in empty session states
+    - Assistant Subscription Settings: Added subscription URL management in assistant presets
 
     Improvements:
-    - Topics & Sessions: Enhanced UI with better styling and smoother interactions
-    - Quick Panel: Improved option visibility and control
-    - Painting Models: Smarter model initialization with better defaults
-    - System Shutdown: Better handling of shutdown events to prevent data loss
-    - Smaller Package Size: Optimized build configuration for faster downloads
+    - UI Optimization: Sidebar tooltip placement improved on macOS to avoid overlapping window controls
+    - MCP Server Logos: Display server logos in Agent settings tooling section
+    - Long Command Handling: Bash command tags now auto-truncate (hover to view full command for commands over 100 chars)
+    - MCP OAuth Callback: Fixed callback page hanging and added multilingual support (10 languages)
+    - Error Display: Improved error block display order for better readability
+    - Plugin Browser: Centered tab alignment for better visual consistency
 
     Bug Fixes:
-    - Fixed Perplexity provider support and API host formatting
-    - Fixed CherryAI provider support and API host formatting
-    - Fixed i18n translations for painting image size options
-    - Fixed agent session message token usage tracking
-    - Fixed prompt stream handling on completion or error
-    - Fixed message API initialization issues
+    - Fixed Agent sessions not inheriting allowed_tools configuration
+    - Fixed Gemini endpoint thinking budget spelling error
+    - Fixed MCP card description text overflow
+    - Fixed unnecessary message timestamp updates on UI-only state changes
+    - Updated dependencies: Bun to 1.3.1, uv to 0.9.5
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.4 新特性
-
-    重大变更:
-    - UI 框架升级：采用新设计系统，提升性能和用户体验
-    - 应用菜单国际化：菜单支持多语言，并自动同步应用语言设置
+    v1.7.0-beta.5 新特性
 
     新功能:
-    - AWS Bedrock API 密钥：支持 Bedrock API 密钥身份验证，并支持扩展思考（推理）能力
-    - SophNet 提供商：添加 SophNet LLM 提供商支持
-    - 自动会话重命名：Agent 会话根据对话主题自动重命名
-    - TopP 参数：添加 TopP 参数支持，更精确控制模型输出
+    - MCPRouter 提供商：新增 MCPRouter 提供商集成，支持 token 管理和服务器同步
+    - MCP 市场：增强 MCP 服务器发现和管理功能，支持多提供商市场
+    - Agent 权限模式展示：空会话状态显示可视化权限模式卡片
+    - 助手订阅设置：在助手预设中添加订阅 URL 管理功能
 
     改进:
-    - 主题和会话：增强 UI，改进样式和交互体验
-    - 快速面板：改进选项可见性和控制
-    - 绘图模型：更智能的模型初始化和更好的默认值
-    - 系统关机：更好地处理关机事件，防止数据丢失
-    - 更小的安装包：优化构建配置，下载更快
+    - UI 优化：macOS 上侧边栏工具提示位置优化，避免与窗口控制按钮重叠
+    - MCP 服务器标志：在 Agent 设置工具部分显示服务器 logo
+    - 长命令处理：Bash 命令标签自动截断（超过 100 字符时悬停查看完整内容）
+    - MCP OAuth 回调：修复回调页面挂起问题并添加多语言支持（10 种语言）
+    - 错误信息展示：改进错误块显示顺序，提高可读性
+    - 插件浏览器：标签页居中对齐，视觉效果更统一
 
     问题修复:
-    - 修复 Perplexity 提供商支持和 API 主机格式化
-    - 修复 CherryAI 提供商支持和 API 主机格式化
-    - 修复绘图图像大小选项的 i18n 翻译
-    - 修复 Agent 会话消息的 token 使用量跟踪
-    - 修复完成或错误时的提示流处理
-    - 修复消息 API 初始化问题
+    - 修复 Agent 会话未继承 allowed_tools 配置
+    - 修复 Gemini 端点 thinking budget 拼写错误
+    - 修复 MCP 卡片描述文本溢出问题
+    - 修复仅 UI 状态变化时消息时间戳不必要的更新
+    - 依赖更新：Bun 升级到 1.3.1，uv 升级到 0.9.5
     <!--LANG:END-->
