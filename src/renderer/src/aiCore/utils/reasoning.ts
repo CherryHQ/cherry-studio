@@ -418,6 +418,8 @@ export function getAnthropicReasoningParams(assistant: Assistant, model: Model):
 /**
  * 获取 Gemini 推理参数
  * 从 GeminiAPIClient 中提取的逻辑
+ * 注意：Gemini/GCP 端点所使用的 thinkingBudget 等参数应该按照驼峰命名法传递
+ * 而在 Google 官方提供的 OpenAI 兼容端点中则使用蛇形命名法 thinking_budget
  */
 export function getGeminiReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
   if (!isReasoningModel(model)) {
@@ -431,8 +433,8 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
     if (reasoningEffort === undefined) {
       return {
         thinkingConfig: {
-          include_thoughts: false,
-          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinking_budget: 0 } : {})
+          includeThoughts: false,
+          ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
         }
       }
     }
@@ -442,7 +444,7 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
     if (effortRatio > 1) {
       return {
         thinkingConfig: {
-          include_thoughts: true
+          includeThoughts: true
         }
       }
     }
@@ -452,8 +454,8 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
 
     return {
       thinkingConfig: {
-        ...(budget > 0 ? { thinking_budget: budget } : {}),
-        include_thoughts: true
+        ...(budget > 0 ? { thinkingBudget: budget } : {}),
+        includeThoughts: true
       }
     }
   }
