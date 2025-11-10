@@ -135,7 +135,7 @@ const HomePage: FC = () => {
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <AnimatePresence initial={false}>
-          {showAssistants && (
+          {false && showAssistants && (
             <ErrorBoundary>
               <motion.div
                 initial={{ width: 0, opacity: 0 }}

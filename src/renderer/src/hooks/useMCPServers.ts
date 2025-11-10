@@ -5,16 +5,39 @@ import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@
 import { MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
-// Listen for server changes from main process
-window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
-  store.dispatch(setMCPServers(servers))
-})
+// Initialize IPC listeners when window.electron is available
+const initializeMCPListeners = () => {
+  if (!window.electron?.ipcRenderer) {
+    // If window.electron is not ready, wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeMCPListeners)
+    } else {
+      // If DOM is ready but electron is not, try once more after a short delay
+      setTimeout(() => {
+        if (window.electron?.ipcRenderer) {
+          initializeMCPListeners()
+        }
+      }, 100)
+    }
+    return
+  }
 
-window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
-  store.dispatch(addMCPServer(server))
-  NavigationService.navigate?.('/settings/mcp')
-  NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
-})
+  // Listen for server changes from main process
+  window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
+    store.dispatch(setMCPServers(servers))
+  })
+
+  window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
+    store.dispatch(addMCPServer(server))
+    NavigationService.navigate?.('/settings/mcp')
+    NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
+  })
+}
+
+// Initialize listeners
+if (typeof window !== 'undefined') {
+  initializeMCPListeners()
+}
 
 const selectMcpServers = (state: RootState) => state.mcp.servers
 const selectActiveMcpServers = createSelector([selectMcpServers], (servers) =>

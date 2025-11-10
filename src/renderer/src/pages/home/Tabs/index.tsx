@@ -112,7 +112,7 @@ const HomeTabs: FC<Props> = ({
     <Container
       style={{ ...border, ...style }}
       className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
-      {position === 'left' && topicPosition === 'left' && (
+      {false && position === 'left' && topicPosition === 'left' && (
         <CustomTabs>
           <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
             {t('assistants.abbr')}
@@ -126,7 +126,7 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && (
+      {false && position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
