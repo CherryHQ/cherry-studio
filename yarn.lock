@@ -102,18 +102,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/anthropic@npm:^2.0.29":
-  version: 2.0.44
-  resolution: "@ai-sdk/anthropic@npm:2.0.44"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/6484fdc60da8658d8d28c2c61fc4bc322829aee31baf71f0ea1bfbf17d008d37ce9db5d3bb395646bdd9891866b24b763766cba17b5c0fbd67f183ceac71df57
-  languageName: node
-  linkType: hard
-
 "@ai-sdk/azure@npm:^2.0.66":
   version: 2.0.66
   resolution: "@ai-sdk/azure@npm:2.0.66"
@@ -177,18 +165,6 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/6f4fc6b92cc03437fcb46f5e32c32195c0fcc9b523c3818d57c4f1526c65af61173f13c2222f725361656377452b9063d5257edf08326f7fb6ad709f7796ab4e
-  languageName: node
-  linkType: hard
-
-"@ai-sdk/google@npm:^2.0.23":
-  version: 2.0.31
-  resolution: "@ai-sdk/google@npm:2.0.31"
-  dependencies:
-    "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
-  peerDependencies:
-    zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/d8f143f058fb62e6e67e30564ec92530d7389c22ad91b1e4bbe781c8570bf718cd417e44dcd4855e347e85c4174538a9a884eac666109e17f20d21467ab3e749
   languageName: node
   linkType: hard
 
@@ -328,7 +304,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/provider-utils@npm:3.0.17, @ai-sdk/provider-utils@npm:^3.0.10, @ai-sdk/provider-utils@npm:^3.0.12":
+"@ai-sdk/provider-utils@npm:^3.0.10, @ai-sdk/provider-utils@npm:^3.0.12":
   version: 3.0.17
   resolution: "@ai-sdk/provider-utils@npm:3.0.17"
   dependencies:
@@ -1866,15 +1842,15 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider"
   dependencies:
-    "@ai-sdk/anthropic": "npm:^2.0.29"
-    "@ai-sdk/google": "npm:^2.0.23"
-    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.12"
     tsdown: "npm:^0.13.3"
     typescript: "npm:^5.8.2"
     vitest: "npm:^3.2.4"
   peerDependencies:
+    "@ai-sdk/anthropic": ^2.0.29
+    "@ai-sdk/google": ^2.0.23
+    "@ai-sdk/openai": ^2.0.64
     ai: ^5.0.26
   languageName: unknown
   linkType: soft
