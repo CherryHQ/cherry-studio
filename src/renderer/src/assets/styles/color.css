@@ -1,3 +1,10 @@
+/* ==================================================
+ * 旧的 color.css 已被注释，等待完全移除
+ * 项目正在迁移到 Tailwind CSS
+ * ==================================================
+ */
+
+/*
 :root {
   --color-white: #ffffff;
   --color-white-soft: rgba(255, 255, 255, 0.8);
@@ -19,7 +26,7 @@
   --color-background-soft: var(--color-black-soft);
   --color-background-mute: var(--color-black-mute);
   --color-background-opacity: rgba(34, 34, 34, 0.7);
-  --inner-glow-opacity: 0.3; /* For the glassmorphism effect in the dropdown menu */
+  --inner-glow-opacity: 0.3;
 
   --color-primary: #00b96b;
   --color-primary-soft: #00b96b99;
@@ -145,3 +152,4 @@
   --color-list-item: #252525;
   --color-list-item-hover: #1e1e1e;
 }
+*/

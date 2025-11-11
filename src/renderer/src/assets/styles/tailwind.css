@@ -1,7 +1,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@source '../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}';
+
 @import '../../../../../packages/ui/src/styles/theme.css';
+@source '../../../../../packages/ui/src/components/*.{js,ts,jsx,tsx}';
+@custom-variant dark (&:is(.dark *));
 
 /* 如需自定义:
 1. 清晰地组织自定义 CSS 到相应的层中。
@@ -19,7 +21,6 @@
 :root {
   --icon: #00000099;
 
-  /* Shadcn Variables - 只保留 @theme inline 中使用的变量 */
   --primary-foreground: oklch(0.985 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -44,7 +45,6 @@
 .dark {
   --icon: #ffffff99;
 
-  /* Shadcn Dark Mode Variables - 只保留 @theme inline 中使用的变量 */
   --primary-foreground: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover-foreground: oklch(0.985 0 0);
@@ -68,13 +68,7 @@
 
 /* shadcn中的默认变量(排除了与ui库冲突的变量，只映射ui库缺少的变量) */
 @theme inline {
-  /* Icon 颜色 - 应用特定变量 */
   --color-icon: var(--icon);
-
-  /* Shadcn Tailwind Mappings - 只映射 UI 库缺少的变量 */
-  /* 注意：--color-primary, --color-background 等核心变量由 UI 库的 theme.css 提供 */
-
-  /* Foreground colors - UI 库缺少的 */
   --color-primary-foreground: var(--primary-foreground);
   --color-card-foreground: var(--card-foreground);
   --color-popover-foreground: var(--popover-foreground);
@@ -83,17 +77,14 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive-foreground: var(--destructive-foreground);
 
-  /* Input - UI 库缺少的 */
   --color-input: var(--input);
 
-  /* Chart colors - UI 库缺少的 */
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  /* Sidebar extensions - UI 库缺少的 */
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -101,7 +92,6 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* 跑马灯动画 - 应用特定 */
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
 

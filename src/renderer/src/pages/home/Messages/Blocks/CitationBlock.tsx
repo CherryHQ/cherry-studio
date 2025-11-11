@@ -71,8 +71,8 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
               dangerouslySetInnerHTML={{
                 __html:
                   (block.response?.results as GroundingMetadata)?.searchEntryPoint?.renderedContent
-                    ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
-                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+                    ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body.light')
+                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body.dark')
                     .replace(
                       /background-color\s*:\s*#[0-9a-fA-F]{3,6}\b|\bbackground-color\s*:\s*[a-zA-Z-]+\b/g,
                       'background-color: var(--color-background-soft)'
