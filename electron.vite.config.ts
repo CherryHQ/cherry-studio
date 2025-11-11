@@ -1,4 +1,3 @@
-import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
@@ -81,6 +80,7 @@ export default defineConfig({
   },
   renderer: {
     plugins: [
+      (async () => (await import('@tailwindcss/vite')).default())(),
       react({
         tsDecorators: true,
         plugins: [
@@ -96,8 +96,7 @@ export default defineConfig({
         ]
       }),
       ...(isDev ? [CodeInspectorPlugin({ bundler: 'vite' })] : []), // 只在开发环境下启用 CodeInspectorPlugin
-      ...visualizerPlugin('renderer'),
-      tailwindcss()
+      ...visualizerPlugin('renderer')
     ],
     resolve: {
       alias: {
