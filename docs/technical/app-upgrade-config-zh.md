@@ -21,10 +21,10 @@
 
 ### 文件位置
 
-- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/main/app-upgrade-config.json`
-- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/main/app-upgrade-config.json`
+- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/cs-releases/app-upgrade-config.json`
+- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/cs-releases/app-upgrade-config.json`
 
-**说明**：两个镜像源提供相同的配置文件，客户端根据 IP 地理位置自动选择最优镜像源。
+**说明**：两个镜像源提供相同的配置文件，统一托管在 `cs-releases` 分支上。客户端根据 IP 地理位置自动选择最优镜像源。
 
 ### 配置结构（当前实际配置）
 
@@ -132,6 +132,9 @@
       - `feedUrls`: 多镜像源 URL 配置
         - `github`: GitHub 镜像源的 electron-updater feed URL
         - `gitcode`: GitCode 镜像源的 electron-updater feed URL
+  - `metadata`: 自动化匹配所需的稳定标识
+    - `segmentId`: 来自 `config/app-upgrade-segments.json` 的段位 ID
+    - `segmentType`: 可选字段（`legacy` | `breaking` | `latest`），便于文档/调试
 
 ## TypeScript 类型定义
 
@@ -157,6 +160,10 @@ interface VersionConfig {
     rc: ChannelConfig | null
     beta: ChannelConfig | null
   }
+  metadata?: {
+    segmentId: string
+    segmentType?: 'legacy' | 'breaking' | 'latest'
+  }
 }
 
 interface ChannelConfig {
@@ -169,6 +176,23 @@ interface ChannelConfig {
   // }
 }
 ```
+
+## 段位元数据（Break Change 标记）
+
+- 所有段位定义（如 `legacy-v1`、`gateway-v2` 等）集中在 `config/app-upgrade-segments.json`，用于描述匹配范围、`segmentId`、`segmentType`、默认 `minCompatibleVersion/description` 以及各渠道的 URL 模板。
+- `versions` 下的每个节点都会带上 `metadata.segmentId`。自动脚本始终依据该 ID 来定位并更新条目，即便 key 从 `2.1.5` 切换到 `2.1.6` 也不会错位。
+- 如果某段需要锁死在特定版本（例如 `2.0.0` 的 break change），可在段定义中设置 `segmentType: "breaking"` 并提供 `lockedVersion`，脚本在遇到不匹配的 tag 时会短路报错，保证升级路径安全。
+- 面对未来新的断层（例如 `3.0.0`），只需要在段定义里新增一段，自动化即可识别并更新。
+
+## 自动化工作流
+
+`.github/workflows/update-app-upgrade-config.yml` 会在 GitHub Release（包含正常发布与 Pre Release）触发：
+
+1. 同时 Checkout 仓库默认分支（用于脚本）和 `cs-releases` 分支（真实托管配置的分支）。
+2. 在默认分支目录执行 `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json`，直接重写 `cs-releases` 分支里的配置文件。
+3. 如果 `app-upgrade-config.json` 有变化，则通过 `peter-evans/create-pull-request` 自动创建一个指向 `cs-releases` 的 PR，Diff 仅包含该文件。
+
+如需本地调试，可执行 `yarn update:upgrade-config --tag v2.1.6 --config ../cs/app-upgrade-config.json`（加 `--dry-run` 仅打印结果）来复现 CI 行为。若需要暂时跳过 GitHub/GitCode Release 页面是否就绪的校验，可在 `--dry-run` 的同时附加 `--skip-release-checks`。不加 `--config` 时默认更新当前工作目录（通常是 main 分支）下的副本，方便文档/审查。
 
 ## 版本匹配逻辑
 

@@ -1,0 +1,94 @@
+name: Update App Upgrade Config
+
+on:
+  release:
+    types:
+      - prereleased
+      - released
+      - published
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  propose-update:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.release }}
+
+    steps:
+      - name: Prepare metadata
+        id: meta
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          SAFE_TAG=$(echo "$TAG" | sed 's/[^A-Za-z0-9._-]/-/g')
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "safe_tag=$SAFE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout default branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: main
+          fetch-depth: 0
+
+      - name: Checkout cs-releases branch
+        uses: actions/checkout@v5
+        with:
+          ref: cs-releases
+          path: cs
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+
+      - name: Install dependencies
+        working-directory: main
+        run: yarn install --immutable
+
+      - name: Update upgrade config
+        working-directory: main
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          yarn tsx scripts/update-app-upgrade-config.ts \
+            --tag "$RELEASE_TAG" \
+            --config ../cs/app-upgrade-config.json
+
+      - name: Detect changes
+        id: diff
+        working-directory: cs
+        run: |
+          if git diff --quiet -- app-upgrade-config.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          path: cs
+          base: cs-releases
+          branch: chore/update-app-upgrade-config/${{ steps.meta.outputs.safe_tag }}
+          commit-message: "🤖 chore: sync app-upgrade-config for ${{ steps.meta.outputs.tag }}"
+          title: "chore: update app-upgrade-config for ${{ steps.meta.outputs.tag }}"
+          body: |
+            Automated update triggered by release `${{ steps.meta.outputs.tag }}`.
+
+            - Source tag: `${{ steps.meta.outputs.tag }}`
+            - Pre-release: `${{ github.event.release.prerelease }}`
+            - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          labels: |
+            automation
+            app-upgrade
+
+      - name: No changes detected
+        if: steps.diff.outputs.changed != 'true'
+        run: echo "No updates required for cs-releases/app-upgrade-config.json"

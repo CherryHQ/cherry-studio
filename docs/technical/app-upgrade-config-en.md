@@ -21,10 +21,10 @@ Currently, AppUpdater directly queries the GitHub API to retrieve beta and rc up
 
 ### File Location
 
-- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/main/app-upgrade-config.json`
-- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/main/app-upgrade-config.json`
+- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/cs-releases/app-upgrade-config.json`
+- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/cs-releases/app-upgrade-config.json`
 
-**Note**: Both mirrors provide the same configuration file. The client automatically selects the optimal mirror based on IP geolocation.
+**Note**: Both mirrors provide the same configuration file hosted on the `cs-releases` branch. The client automatically selects the optimal mirror based on IP geolocation.
 
 ### Configuration Structure (Current Implementation)
 
@@ -132,6 +132,9 @@ When releasing v3.0, if users need to first upgrade to v2.8, you can add:
       - `feedUrls`: Multi-mirror URL configuration
         - `github`: electron-updater feed URL for GitHub mirror
         - `gitcode`: electron-updater feed URL for GitCode mirror
+  - `metadata`: Stable mapping info for automation
+    - `segmentId`: ID from `config/app-upgrade-segments.json`
+    - `segmentType`: Optional flag (`legacy` | `breaking` | `latest`) for documentation/debugging
 
 ## TypeScript Type Definitions
 
@@ -157,6 +160,10 @@ interface VersionConfig {
     rc: ChannelConfig | null
     beta: ChannelConfig | null
   }
+  metadata?: {
+    segmentId: string
+    segmentType?: 'legacy' | 'breaking' | 'latest'
+  }
 }
 
 interface ChannelConfig {
@@ -169,6 +176,23 @@ interface ChannelConfig {
   // }
 }
 ```
+
+## Segment Metadata & Breaking Markers
+
+- **Segment definitions** now live in `config/app-upgrade-segments.json`. Each segment describes a semantic-version range (or exact matches) plus metadata such as `segmentId`, `segmentType`, `minCompatibleVersion`, and per-channel feed URL templates.
+- Each entry under `versions` carries a `metadata.segmentId`. This acts as the stable key that scripts use to decide which slot to update, even if the actual semantic version string changes.
+- Mark major upgrade gateways (e.g., `2.0.0`) by giving the related segment a `segmentType: "breaking"` and (optionally) `lockedVersion`. This prevents automation from accidentally moving that entry when other 2.x builds ship.
+- Adding another breaking hop (e.g., `3.0.0`) only requires defining a new segment in the JSON file; the automation will pick it up on the next run.
+
+## Automation Workflow
+
+Starting from this change, `.github/workflows/update-app-upgrade-config.yml` listens to GitHub release events (published + prerelease). The workflow:
+
+1. Checks out the default branch (for scripts) and the `cs-releases` branch (where the config is hosted).
+2. Runs `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json` to regenerate the config directly inside the `cs-releases` working tree.
+3. If the file changed, it opens a PR against `cs-releases` via `peter-evans/create-pull-request`, with the generated diff limited to `app-upgrade-config.json`.
+
+You can run the same script locally via `yarn update:upgrade-config --tag v2.1.6 --config ../cs/app-upgrade-config.json` (add `--dry-run` to preview) to reproduce or debug whatever the workflow does. Passing `--skip-release-checks` along with `--dry-run` lets you bypass the release-page existence check (useful when the GitHub/GitCode pages aren’t published yet). Running without `--config` continues to update the copy in your current working directory (main branch) for documentation purposes.
 
 ## Version Matching Logic
 

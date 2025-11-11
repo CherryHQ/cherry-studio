@@ -58,6 +58,7 @@
     "update:i18n": "dotenv -e .env -- tsx scripts/update-i18n.ts",
     "auto:i18n": "dotenv -e .env -- tsx scripts/auto-translate-i18n.ts",
     "update:languages": "tsx scripts/update-languages.ts",
+    "update:upgrade-config": "tsx scripts/update-app-upgrade-config.ts",
     "test": "vitest run --silent",
     "test:main": "vitest run --project main",
     "test:renderer": "vitest run --project renderer",
