@@ -5,15 +5,17 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 import * as React from 'react'
 
 const selectTriggerVariants = cva(
-  'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+  cn(
+    'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+    'bg-zinc-50 dark:bg-zinc-900',
+    'text-foreground'
+  ),
   {
     variants: {
       state: {
-        default:
-          'bg-zinc-50 dark:bg-zinc-900 border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error:
-          'bg-zinc-50 dark:bg-zinc-900 border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
-        disabled: 'opacity-50 cursor-not-allowed pointer-events-none bg-zinc-50 dark:bg-zinc-900'
+        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
+        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
         sm: 'px-3 gap-2 h-8',
