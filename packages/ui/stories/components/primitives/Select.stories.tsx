@@ -20,7 +20,8 @@ const meta: Meta<typeof Select> = {
     layout: 'centered',
     docs: {
       description: {
-        component: 'A dropdown select component based on Radix UI, with support for groups, separators, and custom content.'
+        component:
+          'A dropdown select component based on Radix UI, with support for groups, separators, and custom content.'
       }
     }
   },

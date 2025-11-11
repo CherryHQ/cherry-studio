@@ -9,8 +9,10 @@ const selectTriggerVariants = cva(
   {
     variants: {
       state: {
-        default: 'bg-zinc-50 dark:bg-zinc-900 border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'bg-zinc-50 dark:bg-zinc-900 border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        default:
+          'bg-zinc-50 dark:bg-zinc-900 border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
+        error:
+          'bg-zinc-50 dark:bg-zinc-900 border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none bg-zinc-50 dark:bg-zinc-900'
       },
       size: {
