@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-
+@source '../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}';
 @import '../../../../../packages/ui/src/styles/theme.css';
 
 /* 如需自定义:
