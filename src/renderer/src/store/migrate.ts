@@ -2794,24 +2794,8 @@ const migrateConfig = {
   '173': (state: RootState) => {
     try {
       // Migrate toolOrder from global state to scope-based state
-      if (state.inputTools && state.inputTools.toolOrder) {
-        const oldToolOrder = state.inputTools.toolOrder as any
-
-        // Check if it's the old structure (has 'visible' and 'hidden' arrays directly)
-        if (oldToolOrder.visible && Array.isArray(oldToolOrder.visible)) {
-          // Old structure detected, migrate to new scope-based structure
-          state.inputTools.toolOrder = {
-            // Assign the old global tool order to Chat scope (the default)
-            chat: {
-              visible: oldToolOrder.visible,
-              hidden: oldToolOrder.hidden || []
-            }
-          }
-        }
-        // If it's already an object with scope keys, no migration needed
-        if (!state.inputTools.toolOrder.session) {
-          state.inputTools.toolOrder.session = DEFAULT_TOOL_ORDER_BY_SCOPE.session
-        }
+      if (state.inputTools && !state.inputTools.sessionToolOrder) {
+        state.inputTools.sessionToolOrder = DEFAULT_TOOL_ORDER_BY_SCOPE.session
       }
       return state
     } catch (error) {
