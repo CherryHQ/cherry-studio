@@ -241,7 +241,7 @@
     "check-disk-space": "3.4.0",
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.3",
-    "claude-code-plugins": "1.0.1",
+    "claude-code-plugins": "1.0.2",
     "cli-progress": "^3.12.0",
     "clsx": "^2.1.1",
     "code-inspector-plugin": "^0.20.14",
