@@ -95,7 +95,7 @@ const HeaderNavbar: FC<Props> = ({
             paddingRight: 0,
             minWidth: 'auto'
           }}>
-          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800} placement="right">
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
             </NavbarIcon>
