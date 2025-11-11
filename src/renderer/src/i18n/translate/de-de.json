@@ -339,6 +339,41 @@
     },
     "title": "API-Server"
   },
+  "appMenu": {
+    "about": "Über",
+    "close": "Fenster schließen",
+    "copy": "Kopieren",
+    "cut": "Schneiden",
+    "delete": "Löschen",
+    "documentation": "Dokumentation",
+    "edit": "Bearbeiten",
+    "feedback": "Rückmeldung",
+    "file": "Datei",
+    "forceReload": "Neu laden erzwingen",
+    "front": "Alle in den Vordergrund bringen",
+    "help": "Hilfe",
+    "hide": "Verstecken",
+    "hideOthers": "Andere ausblenden",
+    "minimize": "Minimieren",
+    "paste": "Einfügen",
+    "quit": "Aufhören",
+    "redo": "Wiederholen",
+    "releases": "Veröffentlichungen",
+    "reload": "Neu laden",
+    "resetZoom": "Tatsächliche Größe",
+    "selectAll": "Alle auswählen",
+    "services": "Dienstleistungen",
+    "toggleDevTools": "Entwicklertools ein-/ausblenden",
+    "toggleFullscreen": "Vollbild umschalten",
+    "undo": "Rückgängig machen",
+    "unhide": "Alle anzeigen",
+    "view": "Ansicht",
+    "website": "Website",
+    "window": "Fenster",
+    "zoom": "Zoom",
+    "zoomIn": "Heranzoomen",
+    "zoomOut": "Herauszoomen"
+  },
   "assistants": {
     "abbr": "Assistent",
     "clear": {
@@ -1611,7 +1646,7 @@
     },
     "assistant": {
       "added": {
-        "content": "Agent erfolgreich hinzugefügt"
+        "content": "Assistent erfolgreich hinzugefügt"
       }
     },
     "attachments": {
@@ -3766,6 +3801,7 @@
         "description": "MCP-Service-Funktion nicht aktivieren",
         "label": "MCP-Server nicht verwenden"
       },
+      "discover": "Entdecken",
       "duplicateName": "Server mit gleichem Namen existiert bereits",
       "editJson": "JSON bearbeiten",
       "editMcpJson": "MCP-Konfiguration bearbeiten",
@@ -3775,6 +3811,10 @@
       "errors": {
         "32000": "MCP-Server starten fehlgeschlagen, bitte überprüfen Sie, ob alle Parameter vollständig ausgefüllt sind",
         "toolNotFound": "Tool {{name}} nicht gefunden"
+      },
+      "fetch": {
+        "button": "Server abrufen",
+        "success": "MCP-Server erfolgreich abgerufen"
       },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
@@ -3791,6 +3831,7 @@
       "logoUrl": "Logo-URL",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
+      "marketplaces": "Marktplätze",
       "missingDependencies": "Abhängigkeiten fehlen, bitte installieren Sie sie, um fortzufahren",
       "more": {
         "awesome": "Kuratierte MCP-Serverliste",
@@ -3822,6 +3863,12 @@
         "usage": "Verwendung",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
+          "title": "Authentifizierung erfolgreich"
+        }
+      },
       "prompts": {
         "arguments": "Parameter",
         "availablePrompts": "Verfügbare Prompts",
@@ -3839,6 +3886,7 @@
       "provider": "Anbieter",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
+      "providers": "Anbieter",
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryTooltip": "Quelle für Paketinstallation auswählen um Netzwerkprobleme der Standardquelle zu lösen",
@@ -3861,6 +3909,7 @@
       "searchNpx": "MCP durchsuchen",
       "serverPlural": "Server",
       "serverSingular": "Server",
+      "servers": "MCP-Server",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
@@ -4261,7 +4310,7 @@
         "access_key_id": "AWS-Zugriffsschlüssel-ID",
         "access_key_id_help": "Ihre AWS-Zugriffsschlüssel-ID, um auf AWS Bedrock-Dienste zuzugreifen",
         "api_key": "Bedrock-API-Schlüssel",
-        "api_key_help": "Ihr AWS-Bedrock-API-Schlüssel für die Authentifizierung",
+        "api_key_help": "Ihr AWS Bedrock-API-Schlüssel für die Authentifizierung",
         "auth_type": "Authentifizierungstyp",
         "auth_type_api_key": "Bedrock-API-Schlüssel",
         "auth_type_help": "Wählen Sie zwischen IAM-Anmeldeinformationen oder Bedrock-API-Schlüssel-Authentifizierung",

@@ -1,24 +1,32 @@
-import type { ButtonProps } from '@heroui/react'
-import { Button, cn } from '@heroui/react'
+import type { ButtonProps } from 'antd'
+import { Button } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
+import styled from 'styled-components'
 
-interface Props extends ButtonProps {
-  children: React.ReactNode
-}
+const StyledButton = styled(Button)`
+  height: 36px;
+  width: calc(var(--assistants-width) - 20px);
+  justify-content: flex-start;
+  border-radius: var(--list-item-border-radius);
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--color-text-2);
 
-const AddButton: FC<Props> = ({ children, className, ...props }) => {
+  &:hover {
+    background-color: var(--color-list-item);
+  }
+`
+
+const AddButton: FC<ButtonProps> = ({ ...props }) => {
   return (
-    <Button
+    <StyledButton
       {...props}
-      onPress={props.onPress}
-      className={cn(
-        'h-9 w-[calc(var(--assistants-width)-20px)] justify-start rounded-lg bg-transparent px-3 text-[13px] text-[var(--color-text-2)] hover:bg-[var(--color-list-item)]',
-        className
-      )}
-      startContent={<PlusIcon size={16} className="shrink-0" />}>
-      {children}
-    </Button>
+      type="text"
+      onClick={props.onClick}
+      icon={<PlusIcon size={16} style={{ flexShrink: 0 }} />}>
+      {props.children}
+    </StyledButton>
   )
 }
 

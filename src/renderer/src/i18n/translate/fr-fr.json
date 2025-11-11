@@ -339,6 +339,41 @@
     },
     "title": "Serveur API"
   },
+  "appMenu": {
+    "about": "À propos",
+    "close": "Fermer la fenêtre",
+    "copy": "Copier",
+    "cut": "Couper",
+    "delete": "Supprimer",
+    "documentation": "Documentation",
+    "edit": "Modifier",
+    "feedback": "Retour d'information",
+    "file": "Fichier",
+    "forceReload": "Rechargement forcé",
+    "front": "Tout ramener au premier plan",
+    "help": "Aide",
+    "hide": "Cacher",
+    "hideOthers": "Masquer les autres",
+    "minimize": "Minimiser",
+    "paste": "Coller",
+    "quit": "Quitter",
+    "redo": "Refaire",
+    "releases": "Sorties",
+    "reload": "Recharger",
+    "resetZoom": "Taille réelle",
+    "selectAll": "Tout sélectionner",
+    "services": "Services",
+    "toggleDevTools": "Basculer les outils de développement",
+    "toggleFullscreen": "Basculer en plein écran",
+    "undo": "Annuler",
+    "unhide": "Tout afficher",
+    "view": "Vue",
+    "website": "Site web",
+    "window": "Fenêtre",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom Avant",
+    "zoomOut": "Dézoomer"
+  },
   "assistants": {
     "abbr": "Aide",
     "clear": {
@@ -3766,6 +3801,7 @@
         "description": "Désactiver les fonctionnalités du service MCP",
         "label": "Ne pas utiliser le serveur MCP"
       },
+      "discover": "Découvrir",
       "duplicateName": "Un serveur portant le même nom existe déjà",
       "editJson": "Modifier le JSON",
       "editMcpJson": "Редактировать конфигурацию MCP",
@@ -3775,6 +3811,10 @@
       "errors": {
         "32000": "Échec du démarrage du serveur MCP, veuillez vérifier si tous les paramètres sont correctement remplis conformément au tutoriel",
         "toolNotFound": "Outil non trouvé {{name}}"
+      },
+      "fetch": {
+        "button": "Récupérer les serveurs",
+        "success": "Serveurs MCP récupérés avec succès"
       },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
@@ -3791,6 +3831,7 @@
       "logoUrl": "Адрес логотипа",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
+      "marketplaces": "Places de marché",
       "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
@@ -3822,6 +3863,12 @@
         "usage": "Utilisation",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
+          "title": "Authentification Réussie"
+        }
+      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Invites disponibles",
@@ -3839,6 +3886,7 @@
       "provider": "Поставщик",
       "providerPlaceholder": "Название поставщика",
       "providerUrl": "Адрес поставщика",
+      "providers": "Fournisseurs",
       "registry": "Источник управления пакетами",
       "registryDefault": "По умолчанию",
       "registryTooltip": "Выберите источник для установки пакетов, чтобы решить проблемы с сетью по умолчанию.",
@@ -3861,6 +3909,7 @@
       "searchNpx": "Поиск MCP",
       "serverPlural": "Serveurs",
       "serverSingular": "Serveur",
+      "servers": "Serveurs MCP",
       "sse": "Серверные отправляемые события (sse)",
       "startError": "Ошибка запуска",
       "stdio": "Стандартный ввод/вывод (stdio)",
@@ -4265,7 +4314,7 @@
         "auth_type": "Type d'authentification",
         "auth_type_api_key": "Clé API Bedrock",
         "auth_type_help": "Choisissez entre l'authentification par identifiants IAM ou par clé API Bedrock",
-        "auth_type_iam": "Informations d'identification IAM",
+        "auth_type_iam": "Identifiants IAM",
         "description": "AWS Bedrock est un service de modèles de base entièrement géré proposé par Amazon, prenant en charge divers grands modèles linguistiques avancés.",
         "region": "Région AWS",
         "region_help": "Votre région de service AWS, par exemple us-east-1",

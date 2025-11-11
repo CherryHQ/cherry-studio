@@ -1,15 +1,15 @@
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import { setAgentssubscribeUrl } from '@renderer/store/settings'
 import Input from 'antd/es/input/Input'
+import { HelpCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
-const AgentsSubscribeUrlSettings: FC = () => {
+const AssistantsSubscribeUrlSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
@@ -20,12 +20,24 @@ const AgentsSubscribeUrlSettings: FC = () => {
     dispatch(setAgentssubscribeUrl(e.target.value))
   }
 
+  const handleHelpClick = () => {
+    window.open('https://docs.cherry-ai.com/data-settings/assistants-subscribe', '_blank')
+  }
+
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>
-        {t('assistants.presets.tag.agent')}
-        {t('settings.tool.websearch.subscribe_add')}
-      </SettingTitle>
+      <HStack alignItems="center" gap="8px">
+        <SettingTitle>
+          {t('assistants.presets.tag.agent')}
+          {t('settings.tool.websearch.subscribe_add')}
+        </SettingTitle>
+        <HelpCircle
+          size={16}
+          color="var(--color-icon)"
+          onClick={handleHelpClick}
+          className="hover:!text-[var(--color-primary)] cursor-pointer transition-colors"
+        />
+      </HStack>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.websearch.subscribe_url')}</SettingRowTitle>
@@ -35,7 +47,7 @@ const AgentsSubscribeUrlSettings: FC = () => {
             value={agentssubscribeUrl || ''}
             onChange={handleAgentChange}
             style={{ width: 315 }}
-            placeholder={t('settings.tool.websearch.subscribe_name.placeholder')}
+            placeholder={t('settings.tool.websearch.subscribe_url')}
           />
         </HStack>
       </SettingRow>
@@ -43,4 +55,4 @@ const AgentsSubscribeUrlSettings: FC = () => {
   )
 }
 
-export default AgentsSubscribeUrlSettings
+export default AssistantsSubscribeUrlSettings

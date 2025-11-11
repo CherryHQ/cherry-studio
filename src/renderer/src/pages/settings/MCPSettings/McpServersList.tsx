@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
-import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
@@ -19,12 +19,9 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
-import BuiltinMCPServerList from './BuiltinMCPServerList'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
-import McpMarketList from './McpMarketList'
 import McpServerCard from './McpServerCard'
-import SyncServersPopup from './SyncServersPopup'
 
 const logger = loggerService.withContext('McpServersList')
 
@@ -143,10 +140,6 @@ const McpServersList: FC = () => {
     [t]
   )
 
-  const onSyncServers = useCallback(() => {
-    SyncServersPopup.show(mcpServers)
-  }, [mcpServers])
-
   const handleAddServerSuccess = useCallback(
     async (server: MCPServer) => {
       addMCPServer(server)
@@ -241,18 +234,11 @@ const McpServersList: FC = () => {
           <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
             {t('common.edit')}
           </Button>
-          <Dropdown
-            menu={{
-              items: menuItems
-            }}
-            trigger={['click']}>
+          <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
             <Button icon={<Plus size={16} />} type="default" shape="round">
               {t('common.add')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshIcon size={14} />} type="default" onClick={onSyncServers} shape="round">
-            {t('settings.mcp.sync.button')}
-          </Button>
         </ButtonGroup>
       </ListHeader>
       <Sortable
@@ -286,9 +272,6 @@ const McpServersList: FC = () => {
           style={{ marginTop: 20 }}
         />
       )}
-
-      <McpMarketList />
-      <BuiltinMCPServerList />
 
       <AddMcpServerModal
         visible={isAddModalVisible}
