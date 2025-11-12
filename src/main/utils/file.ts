@@ -38,6 +38,33 @@ export function untildify(pathWithTilde: string) {
   return pathWithTilde
 }
 
+/**
+ * Expand relative paths to absolute paths.
+ * Handles paths starting with ~, ., or ..
+ * @param pathString - The path to expand
+ * @param basePath - Optional base path for relative paths (defaults to userData directory)
+ * @returns Absolute path
+ */
+export function expandNotesPath(pathString: string, basePath?: string): string {
+  if (!pathString) {
+    return pathString
+  }
+
+  // First handle tilde expansion
+  let expandedPath = untildify(pathString)
+
+  // If it's already an absolute path, return it
+  if (path.isAbsolute(expandedPath)) {
+    return path.normalize(expandedPath)
+  }
+
+  // For relative paths, resolve against the base path (default to userData)
+  const base = basePath || app.getPath('userData')
+  expandedPath = path.resolve(base, expandedPath)
+
+  return path.normalize(expandedPath)
+}
+
 export async function hasWritePermission(dir: string) {
   try {
     logger.info(`Checking write permission for ${dir}`)

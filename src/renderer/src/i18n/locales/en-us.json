@@ -2102,8 +2102,8 @@
         "select": "Select",
         "select_directory_failed": "Failed to select directory",
         "title": "Data Settings",
-        "work_directory_description": "Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
-        "work_directory_placeholder": "Select notes work directory"
+        "work_directory_description": "Work directory is where all note files are stored. Supports relative paths like ~/Notes or ./Notes for multi-device sync. Changing the work directory won't move existing files, please migrate files manually.",
+        "work_directory_placeholder": "Enter or select notes work directory (e.g., ~/Notes)"
       },
       "display": {
         "compress_content": "Content Compression",
