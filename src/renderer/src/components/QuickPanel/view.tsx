@@ -10,8 +10,8 @@ import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
-import * as tinyPinyin from 'tiny-pinyin'
 
+import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import { QuickPanelContext } from './provider'
 import type {
   QuickPanelCallBackOptions,
@@ -73,6 +73,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
   const { setTimeoutTimer } = useTimer()
+
+  // Use injected filter and sort functions, or fall back to defaults
+  const filterFn = ctx.filterFn || defaultFilterFn
+  const sortFn = ctx.sortFn || defaultSortFn
   // 处理搜索，过滤列表（始终保留 alwaysVisible 项在顶部）
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
@@ -114,45 +118,20 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const pinnedItems = baseList.filter((item) => item.alwaysVisible)
     const normalItems = baseList.filter((item) => !item.alwaysVisible)
 
+    // Filter normal items using injected filter function
     const filteredNormalItems = normalItems.filter((item) => {
-      if (!_searchText) return true
-
-      let filterText = item.filterText || ''
-      if (typeof item.label === 'string') {
-        filterText += item.label
-      }
-      if (typeof item.description === 'string') {
-        filterText += item.description
-      }
-
-      const lowerFilterText = filterText.toLowerCase()
-
-      if (lowerFilterText.includes(lowerSearchText)) {
-        return true
-      }
-
-      if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
-        try {
-          let pinyinText = pinyinCacheRef.current.get(item)
-          if (!pinyinText) {
-            pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
-            pinyinCacheRef.current.set(item, pinyinText)
-          }
-          return fuzzyRegex.test(pinyinText)
-        } catch (error) {
-          return true
-        }
-      } else {
-        return fuzzyRegex.test(filterText.toLowerCase())
-      }
+      return filterFn(item, _searchText, fuzzyRegex, pinyinCacheRef.current)
     })
+
+    // Sort filtered items using injected sort function
+    const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
     // 只有在搜索文本变化或面板符号变化时才重置index
     const isSearchChanged = prevSearchTextRef.current !== searchText
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      const combinedLength = pinnedItems.length + filteredNormalItems.length
+      const combinedLength = pinnedItems.length + sortedNormalItems.length
       if (isSymbolChanged) {
         const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
         const desiredIndex =
@@ -164,7 +143,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     } else {
       // 如果当前index超出范围，调整到有效范围内
       setIndex((prevIndex) => {
-        const combinedLength = pinnedItems.length + filteredNormalItems.length
+        const combinedLength = pinnedItems.length + sortedNormalItems.length
         if (prevIndex >= combinedLength) {
           return combinedLength > 0 ? combinedLength - 1 : -1
         }
@@ -175,9 +154,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSearchTextRef.current = searchText
     prevSymbolRef.current = ctx.symbol
 
-    // 固定项置顶 + 过滤后的普通项
-    return [...pinnedItems, ...filteredNormalItems]
-  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, ctx.defaultIndex, searchText])
+    // 固定项置顶 + 排序后的普通项
+    return [...pinnedItems, ...sortedNormalItems]
+  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, ctx.defaultIndex, searchText, filterFn, sortFn])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0

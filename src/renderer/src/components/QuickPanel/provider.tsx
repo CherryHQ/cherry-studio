@@ -4,8 +4,10 @@ import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelContextType,
+  QuickPanelFilterFn,
   QuickPanelListItem,
   QuickPanelOpenOptions,
+  QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
@@ -21,6 +23,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [multiple, setMultiple] = useState<boolean>(false)
   const [manageListExternally, setManageListExternally] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
+  const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
+  const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
   const [onClose, setOnClose] = useState<((Options: Partial<QuickPanelCallBackOptions>) => void) | undefined>()
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
@@ -75,6 +79,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setBeforeAction(() => options.beforeAction)
     setAfterAction(() => options.afterAction)
     setOnSearchChange(() => options.onSearchChange)
+    setFilterFn(() => options.filterFn)
+    setSortFn(() => options.sortFn)
 
     setIsVisible(true)
   }, [])
@@ -92,6 +98,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setBeforeAction(undefined)
         setAfterAction(undefined)
         setOnSearchChange(undefined)
+        setFilterFn(undefined)
+        setSortFn(undefined)
         setTitle(undefined)
         setSymbol('')
         setTriggerInfo(undefined)
@@ -128,6 +136,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       manageListExternally,
       triggerInfo,
       lastCloseAction,
+      filterFn,
+      sortFn,
       onClose,
       beforeAction,
       afterAction,
@@ -148,6 +158,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       manageListExternally,
       triggerInfo,
       lastCloseAction,
+      filterFn,
+      sortFn,
       onClose,
       beforeAction,
       afterAction,
