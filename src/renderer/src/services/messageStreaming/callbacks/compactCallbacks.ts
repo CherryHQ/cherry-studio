@@ -30,27 +30,27 @@ export const createCompactCallbacks = (deps: CompactCallbacksDeps) => {
   const { blockManager, assistantMsgId, dispatch, getState, topicId, saveUpdatesToDB } = deps
 
   // State to track compact command processing
-  const compactState: CompactState = {
-    compactBoundaryDetected: false,
-    summaryBlockId: null,
-    isFirstBlockAfterCompact: false,
-    summaryText: ''
-  }
+    const compactState: CompactState = {
+      compactBoundaryDetected: false,
+      summaryBlockId: null,
+      isFirstBlockAfterCompact: false,
+      summaryText: ''
+    }
 
-  /**
-   * Extracts content from <local-command-stdout> XML tags
-   */
-  const extractCompactedContent = (text: string): string => {
-    const match = text.match(/<local-command-(stdout|stderr)>(.*?)<\/local-command-(stdout|stderr)>/s)
-    return match ? match[1].trim() : ''
-  }
+    /**
+     * Extracts content from <local-command-stdout> XML tags
+     */
+    const extractCompactedContent = (text: string): string => {
+      const match = text.match(/<local-command-(stdout|stderr)>(.*?)<\/local-command-(stdout|stderr)>/s)
+      return match ? match[2].trim() : ''
+    }
 
-  /**
-   * Checks if text contains local-command-stdout tags
-   */
-  const hasCompactedContent = (text: string): boolean => {
-    return /<local-command-(stdout|stderr)>.*?<\/local-command-(stdout|stderr)>/s.test(text)
-  }
+    /**
+     * Checks if text contains local-command-stdout tags
+     */
+    const hasCompactedContent = (text: string): boolean => {
+      return /<local-command-(stdout|stderr)>.*?<\/local-command-(stdout|stderr)>/s.test(text)
+    }
 
   /**
    * Called when raw data is received from the stream

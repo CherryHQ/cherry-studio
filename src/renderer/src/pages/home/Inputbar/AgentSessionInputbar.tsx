@@ -348,7 +348,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = inputEmpty || !apiServer.enabled
+  const sendDisabled = (inputEmpty && files.length === 0) || !apiServer.enabled
 
   const streamingAskIds = useMemo(() => {
     if (!topicMessages) {
