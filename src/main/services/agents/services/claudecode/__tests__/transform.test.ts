@@ -1,7 +1,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describe, expect, it } from 'vitest'
 
-import { ClaudeStreamState, transformSDKMessageToStreamParts } from '../transform'
+import { ClaudeStreamState, stripLocalCommandTags, transformSDKMessageToStreamParts } from '../transform'
 
 const baseStreamMetadata = {
   parent_tool_use_id: null,
@@ -9,6 +9,19 @@ const baseStreamMetadata = {
 }
 
 const uuid = (n: number) => `00000000-0000-0000-0000-${n.toString().padStart(12, '0')}`
+
+describe('stripLocalCommandTags', () => {
+  it('removes stdout wrapper while preserving inner text', () => {
+    const input = 'before <local-command-stdout>echo "hi"</local-command-stdout> after'
+    expect(stripLocalCommandTags(input)).toBe('before echo "hi" after')
+  })
+
+  it('strips multiple stdout/stderr blocks and leaves other content intact', () => {
+    const input =
+      '<local-command-stdout>line1</local-command-stdout>\nkeep\n<local-command-stderr>Error</local-command-stderr>'
+    expect(stripLocalCommandTags(input)).toBe('line1\nkeep\nError')
+  })
+})
 
 describe('Claude → AiSDK transform', () => {
   it('handles tool call streaming lifecycle', () => {

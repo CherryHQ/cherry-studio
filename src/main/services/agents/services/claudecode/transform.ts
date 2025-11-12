@@ -76,8 +76,8 @@ const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
 /**
  * Removes any local command stdout/stderr XML wrappers that should never surface to the UI.
  */
-const stripLocalCommandTags = (text: string): string => {
-  return text.replace(/<local-command-(stdout|stderr)>.*?<\/local-command-(stdout|stderr)>/gs, '')
+export const stripLocalCommandTags = (text: string): string => {
+  return text.replace(/<local-command-(stdout|stderr)>(.*?)<\/local-command-\1>/gs, '$2')
 }
 
 /**
