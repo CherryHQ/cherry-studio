@@ -307,25 +307,39 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   async clearMessages(topicId: string): Promise<void> {
     try {
-      await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
+      // First, collect file information and block IDs within a read transaction
+      let blockIds: string[] = []
+      let files: any[] = []
+
+      await db.transaction('r', db.topics, db.message_blocks, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
         // Get all block IDs
-        const blockIds = topic.messages.flatMap((m) => m.blocks || [])
+        blockIds = topic.messages.flatMap((m) => m.blocks || [])
 
-        // Delete blocks and handle files
+        // Get blocks and extract file info
         if (blockIds.length > 0) {
           const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-          const files = blocks
+          files = blocks
             .filter((block) => block.type === 'file' || block.type === 'image')
             .map((block: any) => block.file)
             .filter((file) => file !== undefined)
+        }
+      })
 
-          if (!isEmpty(files)) {
-            await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
-          }
+      // Delete files outside the transaction to avoid transaction timeout
+      if (!isEmpty(files)) {
+        await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
+      }
 
+      // Perform the actual database cleanup in a separate write transaction
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+        const topic = await db.topics.get(topicId)
+        if (!topic) return
+
+        // Delete blocks
+        if (blockIds.length > 0) {
           await db.message_blocks.bulkDelete(blockIds)
         }
 

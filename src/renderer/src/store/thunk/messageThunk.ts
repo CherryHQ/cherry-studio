@@ -576,7 +576,9 @@ const fetchAndProcessAgentResponseImpl = async (
       abortController.signal
     )
 
-    let latestAgentSessionId = ''
+    // Store the previous session ID to detect /clear command
+    let latestAgentSessionId = agentSession.agentSessionId || ''
+    let sessionWasCleared = false
 
     const persistAgentSessionId = async (sessionId: string) => {
       if (!sessionId || sessionId === latestAgentSessionId) {
@@ -585,6 +587,7 @@ const fetchAndProcessAgentResponseImpl = async (
 
       latestAgentSessionId = sessionId
       agentSession.agentSessionId = sessionId
+      sessionWasCleared = true
 
       logger.debug(`Agent session ID updated`, {
         topicId,
@@ -624,14 +627,40 @@ const fetchAndProcessAgentResponseImpl = async (
         if (persistTasks.length > 0) {
           await Promise.all(persistTasks)
         }
+
+        // Refresh session data to get updated slash_commands from backend
+        // This happens after the SDK init message updates the session in the database
+        const apiServer = stateAfterUpdate.settings.apiServer
+        if (apiServer?.apiKey) {
+          const baseURL = buildAgentBaseURL(apiServer)
+          const client = new AgentApiClient({
+            baseURL,
+            headers: {
+              Authorization: `Bearer ${apiServer.apiKey}`
+            }
+          })
+          const paths = client.getSessionPaths(agentSession.agentId)
+          await mutate(paths.withId(agentSession.sessionId))
+          logger.info('Refreshed session data after sessionId update', {
+            agentId: agentSession.agentId,
+            sessionId: agentSession.sessionId
+          })
+        }
       } catch (error) {
         logger.error('Failed to persist agent session ID during stream', error as Error)
       }
     }
 
-    const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false, (sessionId) => {
-      persistAgentSessionId(sessionId)
-    })
+    const adapter = new AiSdkToChunkAdapter(
+      streamProcessorCallbacks,
+      [],
+      false,
+      false,
+      (sessionId) => {
+        persistAgentSessionId(sessionId)
+      },
+      () => sessionWasCleared // Provide getter for session cleared flag
+    )
 
     await adapter.processStream({
       fullStream: stream,
@@ -649,9 +678,9 @@ const fetchAndProcessAgentResponseImpl = async (
       callbacks.onError?.(error)
     } catch (callbackError) {
       logger.error('Error in agent onError callback:', callbackError as Error)
-    } finally {
-      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
+  } finally {
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   }
 }
 
