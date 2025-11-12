@@ -5,51 +5,51 @@
 
 :root {
   /* Status Colors - Error */
-  --cs-error-base: var(--cs-red-500); /* #ef4444 */
-  --cs-error-text: var(--cs-red-800); /* #991b1b */
-  --cs-error-bg: var(--cs-red-50); /* #fef2f2 */
-  --cs-error-text-hover: var(--cs-red-700); /* #b91c1c */
-  --cs-error-bg-hover: var(--cs-red-100); /* #fee2e2 */
-  --cs-error-border: var(--cs-red-200); /* #fecaca */
-  --cs-error-border-hover: var(--cs-red-300); /* #fca5a5 */
-  --cs-error-active: var(--cs-red-600); /* #dc2626 */
+  --cs-error-base: var(--cs-red-500); /* oklch(0.64 0.208 25) */
+  --cs-error-text: var(--cs-red-800); /* oklch(0.44 0.161 27) */
+  --cs-error-bg: var(--cs-red-50); /* oklch(0.97 0.013 17) */
+  --cs-error-text-hover: var(--cs-red-700); /* oklch(0.51 0.19 28) */
+  --cs-error-bg-hover: var(--cs-red-100); /* oklch(0.94 0.031 18) */
+  --cs-error-border: var(--cs-red-200); /* oklch(0.88 0.059 18) */
+  --cs-error-border-hover: var(--cs-red-300); /* oklch(0.81 0.103 20) */
+  --cs-error-active: var(--cs-red-600); /* oklch(0.58 0.215 27) */
 
   /* Status Colors - Success */
-  --cs-success-base: var(--cs-green-500); /* #22c55e */
-  --cs-success-text-hover: var(--cs-green-700); /* #15803d */
-  --cs-success-bg: var(--cs-green-50); /* #f0fdf4 */
-  --cs-success-bg-hover: var(--cs-green-200); /* #bbf7d0 */
+  --cs-success-base: var(--cs-green-500); /* oklch(0.72 0.192 150) */
+  --cs-success-text-hover: var(--cs-green-700); /* oklch(0.53 0.137 150) */
+  --cs-success-bg: var(--cs-green-50); /* oklch(0.98 0.018 156) */
+  --cs-success-bg-hover: var(--cs-green-200); /* oklch(0.93 0.081 156) */
 
   /* Status Colors - Warning */
-  --cs-warning-base: var(--cs-amber-400); /* #fbbf24 */
-  --cs-warning-text-hover: var(--cs-amber-700); /* #b45309 */
-  --cs-warning-bg: var(--cs-amber-50); /* #fffbeb */
-  --cs-warning-bg-hover: var(--cs-amber-100); /* #fef3c7 */
-  --cs-warning-active: var(--cs-amber-600); /* #d97706 */
+  --cs-warning-base: var(--cs-amber-400); /* oklch(0.84 0.164 84) */
+  --cs-warning-text-hover: var(--cs-amber-700); /* oklch(0.56 0.146 49) */
+  --cs-warning-bg: var(--cs-amber-50); /* oklch(0.99 0.021 95) */
+  --cs-warning-bg-hover: var(--cs-amber-100); /* oklch(0.96 0.058 96) */
+  --cs-warning-active: var(--cs-amber-600); /* oklch(0.67 0.157 58) */
 }
 
 /* Dark Mode */
 .dark {
   /* Status Colors - Error (Dark Mode) */
-  --cs-error-base: var(--cs-red-400); /* #f87171 */
-  --cs-error-text: var(--cs-red-100); /* #fee2e2 */
-  --cs-error-bg: var(--cs-red-900); /* #7f1d1d */
-  --cs-error-text-hover: var(--cs-red-200); /* #fecaca */
-  --cs-error-bg-hover: var(--cs-red-800); /* #991b1b */
-  --cs-error-border: var(--cs-red-700); /* #b91c1c */
-  --cs-error-border-hover: var(--cs-red-600); /* #dc2626 */
-  --cs-error-active: var(--cs-red-300); /* #fca5a5 */
+  --cs-error-base: var(--cs-red-400); /* oklch(0.71 0.166 22) */
+  --cs-error-text: var(--cs-red-100); /* oklch(0.94 0.031 18) */
+  --cs-error-bg: var(--cs-red-900); /* oklch(0.4 0.133 26) */
+  --cs-error-text-hover: var(--cs-red-200); /* oklch(0.88 0.059 18) */
+  --cs-error-bg-hover: var(--cs-red-800); /* oklch(0.44 0.161 27) */
+  --cs-error-border: var(--cs-red-700); /* oklch(0.51 0.19 28) */
+  --cs-error-border-hover: var(--cs-red-600); /* oklch(0.58 0.215 27) */
+  --cs-error-active: var(--cs-red-300); /* oklch(0.81 0.103 20) */
 
   /* Status Colors - Success (Dark Mode) */
-  --cs-success-base: var(--cs-green-400); /* #4ade80 */
-  --cs-success-text-hover: var(--cs-green-200); /* #bbf7d0 */
-  --cs-success-bg: var(--cs-green-900); /* #14532d */
-  --cs-success-bg-hover: var(--cs-green-800); /* #166534 */
+  --cs-success-base: var(--cs-green-400); /* oklch(0.8 0.182 152) */
+  --cs-success-text-hover: var(--cs-green-200); /* oklch(0.93 0.081 156) */
+  --cs-success-bg: var(--cs-green-900); /* oklch(0.39 0.09 153) */
+  --cs-success-bg-hover: var(--cs-green-800); /* oklch(0.45 0.108 151) */
 
   /* Status Colors - Warning (Dark Mode) */
-  --cs-warning-base: var(--cs-amber-400); /* #fbbf24 */
-  --cs-warning-text-hover: var(--cs-amber-200); /* #fde68a */
-  --cs-warning-bg: var(--cs-amber-900); /* #78350f */
-  --cs-warning-bg-hover: var(--cs-amber-800); /* #92400e */
-  --cs-warning-active: var(--cs-amber-600); /* #d97706 */
+  --cs-warning-base: var(--cs-amber-400); /* oklch(0.84 0.164 84) */
+  --cs-warning-text-hover: var(--cs-amber-200); /* oklch(0.92 0.115 96) */
+  --cs-warning-bg: var(--cs-amber-900); /* oklch(0.41 0.105 46) */
+  --cs-warning-bg-hover: var(--cs-amber-800); /* oklch(0.47 0.125 46) */
+  --cs-warning-active: var(--cs-amber-600); /* oklch(0.67 0.157 58) */
 }
