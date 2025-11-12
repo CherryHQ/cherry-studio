@@ -3,38 +3,39 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import {
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
-  QuickPanelReservedSymbol
+  QuickPanelReservedSymbol,
+  type QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
+import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import type { QuickPhrase } from '@renderer/types'
 import { Input, Modal, Radio, Space } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
-import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-export interface QuickPhrasesButtonRef {
-  openQuickPanel: () => void
-}
-
 interface Props {
-  ref?: React.RefObject<QuickPhrasesButtonRef | null>
+  quickPanel: ToolQuickPanelApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   assistantId: string
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }: Props) => {
+const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
+  const quickPanelHook = useQuickPanel()
   const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
+  const triggerInfoRef = useRef<
+    (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string }) | undefined
+  >(undefined)
 
   const loadQuickListPhrases = useCallback(
     async (regularPhrases: QuickPhrase[] = []) => {
@@ -59,21 +60,60 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }:
         'handlePhraseSelect_1',
         () => {
           setInputValue((prev) => {
-            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-            const cursorPosition = textArea.selectionStart
-            const selectionStart = cursorPosition
-            const selectionEndPosition = cursorPosition + phrase.content.length
-            const newText = prev.slice(0, cursorPosition) + phrase.content + prev.slice(cursorPosition)
+            const triggerInfo = triggerInfoRef.current
+            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
 
-            setTimeoutTimer(
-              'handlePhraseSelect_2',
-              () => {
-                textArea.focus()
-                textArea.setSelectionRange(selectionStart, selectionEndPosition)
-                resizeTextArea()
-              },
-              10
-            )
+            const focusAndSelect = (start: number) => {
+              setTimeoutTimer(
+                'handlePhraseSelect_2',
+                () => {
+                  if (textArea) {
+                    textArea.focus()
+                    textArea.setSelectionRange(start, start + phrase.content.length)
+                  }
+                  resizeTextArea()
+                },
+                10
+              )
+            }
+
+            if (triggerInfo?.type === 'input' && triggerInfo.position !== undefined) {
+              const symbol = triggerInfo.symbol ?? QuickPanelReservedSymbol.Root
+              const searchText = triggerInfo.searchText ?? ''
+              const startIndex = triggerInfo.position
+
+              let endIndex = startIndex + 1
+              if (searchText) {
+                const expected = symbol + searchText
+                const actual = prev.slice(startIndex, startIndex + expected.length)
+                if (actual === expected) {
+                  endIndex = startIndex + expected.length
+                } else {
+                  while (endIndex < prev.length && !/\s/.test(prev[endIndex])) {
+                    endIndex++
+                  }
+                }
+              } else {
+                while (endIndex < prev.length && !/\s/.test(prev[endIndex])) {
+                  endIndex++
+                }
+              }
+
+              const newText = prev.slice(0, startIndex) + phrase.content + prev.slice(endIndex)
+              triggerInfoRef.current = undefined
+              focusAndSelect(startIndex)
+              return newText
+            }
+
+            if (!textArea) {
+              triggerInfoRef.current = undefined
+              return prev + phrase.content
+            }
+
+            const cursorPosition = textArea.selectionStart ?? prev.length
+            const newText = prev.slice(0, cursorPosition) + phrase.content + prev.slice(cursorPosition)
+            triggerInfoRef.current = undefined
+            focusAndSelect(cursorPosition)
             return newText
           })
         },
@@ -139,21 +179,74 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }:
     [phraseItems, t]
   )
 
-  const openQuickPanel = useCallback(() => {
-    quickPanel.open(quickPanelOpenOptions)
-  }, [quickPanel, quickPanelOpenOptions])
+  type QuickPhraseTrigger =
+    | (QuickPanelTriggerInfo & { symbol?: QuickPanelReservedSymbol; searchText?: string })
+    | undefined
+
+  const openQuickPanel = useCallback(
+    (triggerInfo?: QuickPhraseTrigger) => {
+      triggerInfoRef.current = triggerInfo
+      quickPanelHook.open({
+        ...quickPanelOpenOptions,
+        triggerInfo:
+          triggerInfo && triggerInfo.type === 'input'
+            ? {
+                type: triggerInfo.type,
+                position: triggerInfo.position,
+                originalText: triggerInfo.originalText
+              }
+            : triggerInfo,
+        onClose: () => {
+          triggerInfoRef.current = undefined
+        }
+      })
+    },
+    [quickPanelHook, quickPanelOpenOptions]
+  )
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.QuickPhrases) {
-      quickPanel.close()
+    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.QuickPhrases) {
+      quickPanelHook.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanel])
+  }, [openQuickPanel, quickPanelHook])
 
-  useImperativeHandle(ref, () => ({
-    openQuickPanel
-  }))
+  useEffect(() => {
+    const disposeRootMenu = quickPanel.registerRootMenu([
+      {
+        label: t('settings.quickPhrase.title'),
+        description: '',
+        icon: <Zap />,
+        isMenu: true,
+        action: ({ context, searchText }) => {
+          const rootTrigger =
+            context.triggerInfo && context.triggerInfo.type === 'input'
+              ? {
+                  ...context.triggerInfo,
+                  symbol: QuickPanelReservedSymbol.Root,
+                  searchText: searchText ?? ''
+                }
+              : undefined
+
+          context.close('select')
+          setTimeout(() => {
+            openQuickPanel(rootTrigger)
+          }, 0)
+        }
+      }
+    ])
+
+    const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.QuickPhrases, (payload) => {
+      const trigger = (payload || undefined) as QuickPhraseTrigger
+      openQuickPanel(trigger)
+    })
+
+    return () => {
+      disposeRootMenu()
+      disposeTrigger()
+    }
+  }, [openQuickPanel, quickPanel, t])
 
   return (
     <>

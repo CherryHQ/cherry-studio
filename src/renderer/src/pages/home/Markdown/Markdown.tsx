@@ -7,7 +7,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
+import type {
+  CompactMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock,
+  TranslationMessageBlock
+} from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
@@ -38,7 +43,7 @@ const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 interface Props {
   // message: Message & { content: string }
-  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
   // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
   postProcess?: (text: string) => string
 }

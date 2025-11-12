@@ -172,7 +172,7 @@ export function providerToAiSdkConfig(
   extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai') {
+  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
     extraOptions.mode = 'chat'
   }
 

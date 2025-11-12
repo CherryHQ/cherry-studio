@@ -29,18 +29,22 @@ export class AiSdkToChunkAdapter {
   private onSessionUpdate?: (sessionId: string) => void
   private responseStartTimestamp: number | null = null
   private firstTokenTimestamp: number | null = null
+  private hasTextContent = false
+  private getSessionWasCleared?: () => boolean
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
     mcpTools: MCPTool[] = [],
     accumulate?: boolean,
     enableWebSearch?: boolean,
-    onSessionUpdate?: (sessionId: string) => void
+    onSessionUpdate?: (sessionId: string) => void,
+    getSessionWasCleared?: () => boolean
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
     this.onSessionUpdate = onSessionUpdate
+    this.getSessionWasCleared = getSessionWasCleared
   }
 
   private markFirstTokenIfNeeded() {
@@ -83,8 +87,9 @@ export class AiSdkToChunkAdapter {
     }
     this.resetTimingState()
     this.responseStartTimestamp = Date.now()
-    // Reset link converter state at the start of stream
+    // Reset state at the start of stream
     this.isFirstChunk = true
+    this.hasTextContent = false
 
     try {
       while (true) {
@@ -128,6 +133,8 @@ export class AiSdkToChunkAdapter {
         const agentRawMessage = chunk.rawValue as ClaudeCodeRawValue
         if (agentRawMessage.type === 'init' && agentRawMessage.session_id) {
           this.onSessionUpdate?.(agentRawMessage.session_id)
+        } else if (agentRawMessage.type === 'compact' && agentRawMessage.session_id) {
+          this.onSessionUpdate?.(agentRawMessage.session_id)
         }
         this.onChunk({
           type: ChunkType.RAW,
@@ -142,6 +149,7 @@ export class AiSdkToChunkAdapter {
         })
         break
       case 'text-delta': {
+        this.hasTextContent = true
         const processedText = chunk.text || ''
         let finalText: string
 
@@ -300,6 +308,25 @@ export class AiSdkToChunkAdapter {
       }
 
       case 'finish': {
+        // Check if session was cleared (e.g., /clear command) and no text was output
+        const sessionCleared = this.getSessionWasCleared?.() ?? false
+        if (sessionCleared && !this.hasTextContent) {
+          // Inject a "context cleared" message for the user
+          const clearMessage = '✨ Context cleared. Starting fresh conversation.'
+          this.onChunk({
+            type: ChunkType.TEXT_START
+          })
+          this.onChunk({
+            type: ChunkType.TEXT_DELTA,
+            text: clearMessage
+          })
+          this.onChunk({
+            type: ChunkType.TEXT_COMPLETE,
+            text: clearMessage
+          })
+          final.text = clearMessage
+        }
+
         const usage = {
           completion_tokens: chunk.totalUsage?.outputTokens || 0,
           prompt_tokens: chunk.totalUsage?.inputTokens || 0,

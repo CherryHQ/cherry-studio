@@ -46,6 +46,8 @@ export interface StreamProcessorCallbacks {
   onVideoSearched?: (video?: { type: 'url' | 'path'; content: string }, metadata?: Record<string, any>) => void
   // Called when a block is created
   onBlockCreated?: () => void
+  // Called when raw data is received (e.g., session_id updates from Agent SDK)
+  onRawData?: (content: unknown, metadata?: Record<string, any>) => void
 }
 
 // Function to create a stream processor instance
@@ -145,6 +147,10 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
         case ChunkType.BLOCK_CREATED: {
           if (callbacks.onBlockCreated) callbacks.onBlockCreated()
+          break
+        }
+        case ChunkType.RAW: {
+          if (callbacks.onRawData) callbacks.onRawData(data.content, data.metadata)
           break
         }
         default: {

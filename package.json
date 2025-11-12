@@ -81,7 +81,7 @@
     "release:aicore": "yarn workspace @cherrystudio/ai-core version patch --immediate && yarn workspace @cherrystudio/ai-core npm publish --access public"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.25#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.25-08bbabb5d3.patch",
+    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.30#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.30-b50a299674.patch",
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
@@ -110,7 +110,7 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.53",
-    "@ai-sdk/google-vertex": "^3.0.61",
+    "@ai-sdk/google-vertex": "^3.0.62",
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch",
     "@ai-sdk/mistral": "^2.0.23",
     "@ai-sdk/perplexity": "^2.0.17",
@@ -244,7 +244,7 @@
     "check-disk-space": "3.4.0",
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.3",
-    "claude-code-plugins": "1.0.1",
+    "claude-code-plugins": "1.0.3",
     "cli-progress": "^3.12.0",
     "clsx": "^2.1.1",
     "code-inspector-plugin": "^0.20.14",
@@ -397,7 +397,6 @@
     "undici": "6.21.2",
     "vite": "npm:rolldown-vite@7.1.5",
     "tesseract.js@npm:*": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
-    "@ai-sdk/google@npm:2.0.23": "patch:@ai-sdk/google@npm%3A2.0.23#~/.yarn/patches/@ai-sdk-google-npm-2.0.23-81682e07b0.patch",
     "@ai-sdk/openai@npm:^2.0.52": "patch:@ai-sdk/openai@npm%3A2.0.52#~/.yarn/patches/@ai-sdk-openai-npm-2.0.52-b36d949c76.patch",
     "@img/sharp-darwin-arm64": "0.34.3",
     "@img/sharp-darwin-x64": "0.34.3",
@@ -409,9 +408,9 @@
     "@langchain/openai@npm:>=0.1.0 <0.6.0": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
     "@langchain/openai@npm:^0.3.16": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
     "@langchain/openai@npm:>=0.2.0 <0.7.0": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
-    "@ai-sdk/google@npm:2.0.30": "patch:@ai-sdk/google@npm%3A2.0.30#~/.yarn/patches/@ai-sdk-google-npm-2.0.30-3b31632362.patch",
     "@ai-sdk/openai@npm:2.0.64": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch",
-    "@ai-sdk/openai@npm:^2.0.42": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch"
+    "@ai-sdk/openai@npm:^2.0.42": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch",
+    "@ai-sdk/google@npm:2.0.31": "patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
