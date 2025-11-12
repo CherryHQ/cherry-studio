@@ -471,9 +471,15 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       addPainting(mode, newPainting)
       setPainting(newPainting)
     } else {
-      setPainting(filteredPaintings[0])
+      // 如果当前 painting 存在于 filteredPaintings 中，则优先显示当前 painting
+      const found = filteredPaintings.find((p) => p.id === painting.id)
+      if (found) {
+        setPainting(found)
+      } else {
+        setPainting(filteredPaintings[0])
+      }
     }
-  }, [filteredPaintings, mode, addPainting, getNewPainting])
+  }, [filteredPaintings, mode, addPainting, getNewPainting, painting.id])
 
   useEffect(() => {
     const timer = spaceClickTimer.current

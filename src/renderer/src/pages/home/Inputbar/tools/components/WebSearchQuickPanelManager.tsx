@@ -1,10 +1,8 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import {
   isGeminiModel,
   isGPT5SeriesReasoningModel,
@@ -15,64 +13,56 @@ import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import type { ToolQuickPanelController, ToolRenderContext } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Globe } from 'lucide-react'
-import type { FC } from 'react'
-import { memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export interface WebSearchButtonRef {
-  openQuickPanel: () => void
+const logger = loggerService.withContext('WebSearchQuickPanel')
+
+export const WebSearchProviderIcon = ({
+  pid,
+  size = 18,
+  color
+}: {
+  pid?: WebSearchProviderId
+  size?: number
+  color?: string
+}) => {
+  switch (pid) {
+    case 'bocha':
+      return <BochaLogo className="icon" width={size} height={size} color={color} />
+    case 'exa':
+      return <ExaLogo className="icon" width={size - 2} height={size} color={color} />
+    case 'tavily':
+      return <TavilyLogo className="icon" width={size} height={size} color={color} />
+    case 'zhipu':
+      return <ZhipuLogo className="icon" width={size} height={size} color={color} />
+    case 'searxng':
+      return <SearXNGLogo className="icon" width={size} height={size} color={color} />
+    case 'local-baidu':
+      return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
+    case 'local-bing':
+      return <BingLogo className="icon" width={size} height={size} color={color} />
+    case 'local-google':
+      return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
+    default:
+      return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
+  }
 }
 
-interface Props {
-  ref?: React.RefObject<WebSearchButtonRef | null>
-  assistantId: string
-}
-
-const logger = loggerService.withContext('WebSearchButton')
-
-const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
+export const useWebSearchPanelController = (assistantId: string, quickPanelController: ToolQuickPanelController) => {
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
-  const { providers } = useWebSearchProviders()
   const { assistant, updateAssistant } = useAssistant(assistantId)
+  const { providers } = useWebSearchProviders()
   const { setTimeoutTimer } = useTimer()
 
-  // 注意：assistant.enableWebSearch 有不同的语义
-  /** 表示是否启用网络搜索 */
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
-
-  const WebSearchIcon = useCallback(
-    ({ pid, size = 18, color }: { pid?: WebSearchProviderId; size?: number; color?: string }) => {
-      switch (pid) {
-        case 'bocha':
-          return <BochaLogo className="icon" width={size} height={size} color={color} />
-        case 'exa':
-          // size微调，视觉上和其他图标平衡一些
-          return <ExaLogo className="icon" width={size - 2} height={size} color={color} />
-        case 'tavily':
-          return <TavilyLogo className="icon" width={size} height={size} color={color} />
-        case 'zhipu':
-          return <ZhipuLogo className="icon" width={size} height={size} color={color} />
-        case 'searxng':
-          return <SearXNGLogo className="icon" width={size} height={size} color={color} />
-        case 'local-baidu':
-          return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
-        case 'local-bing':
-          return <BingLogo className="icon" width={size} height={size} color={color} />
-        case 'local-google':
-          return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
-        default:
-          return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
-      }
-    },
-    []
-  )
 
   const updateWebSearchProvider = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
@@ -136,7 +126,6 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
 
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
-
     const items: QuickPanelListItem[] = providers
       .map((p) => ({
         label: p.name,
@@ -145,12 +134,12 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
             ? t('settings.tool.websearch.apikey')
             : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
-        icon: <WebSearchIcon size={13} pid={p.id} />,
+        icon: <WebSearchProviderIcon size={13} pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
         action: () => updateQuickPanelItem(p.id)
       }))
-      .filter((o) => !o.disabled)
+      .filter((item) => !item.disabled)
 
     if (isWebSearchModelEnabled) {
       items.unshift({
@@ -167,7 +156,6 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
 
     return items
   }, [
-    WebSearchIcon,
     assistant.enableWebSearch,
     assistant.model,
     assistant?.webSearchProviderId,
@@ -178,43 +166,69 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
   ])
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open({
+    quickPanelController.open({
       title: t('chat.input.web_search.label'),
       list: providerItems,
       symbol: QuickPanelReservedSymbol.WebSearch,
       pageSize: 9
     })
-  }, [quickPanel, t, providerItems])
+  }, [providerItems, quickPanelController, t])
 
-  const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.WebSearch) {
-      quickPanel.close()
+  const toggleQuickPanel = useCallback(() => {
+    if (quickPanelController.isVisible && quickPanelController.symbol === QuickPanelReservedSymbol.WebSearch) {
+      quickPanelController.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanel])
+  }, [openQuickPanel, quickPanelController])
 
-  const onClick = useCallback(() => {
-    if (enableWebSearch) {
-      updateWebSearchProvider(undefined)
-    } else {
-      handleOpenQuickPanel()
-    }
-  }, [enableWebSearch, handleOpenQuickPanel, updateWebSearchProvider])
-
-  useImperativeHandle(ref, () => ({
-    openQuickPanel
-  }))
-
-  return (
-    <Tooltip content={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')} closeDelay={0}>
-      <ActionIconButton
-        onClick={onClick}
-        active={!!enableWebSearch}
-        icon={<WebSearchIcon pid={assistant.webSearchProviderId} />}
-      />
-    </Tooltip>
-  )
+  return {
+    enableWebSearch,
+    providerItems,
+    openQuickPanel,
+    toggleQuickPanel,
+    updateWebSearchProvider,
+    updateToModelBuiltinWebSearch,
+    selectedProviderId: assistant.webSearchProviderId
+  }
 }
 
-export default memo(WebSearchButton)
+interface ManagerProps {
+  context: ToolRenderContext<any, any>
+}
+
+const WebSearchQuickPanelManager = ({ context }: ManagerProps) => {
+  const { assistant, quickPanel, quickPanelController, t } = context
+  const { providerItems, openQuickPanel } = useWebSearchPanelController(assistant.id, quickPanelController)
+  const { registerRootMenu, registerTrigger } = quickPanel
+  const { updateList, isVisible, symbol } = quickPanelController
+
+  useEffect(() => {
+    if (isVisible && symbol === QuickPanelReservedSymbol.WebSearch) {
+      updateList(providerItems)
+    }
+  }, [isVisible, providerItems, symbol, updateList])
+
+  useEffect(() => {
+    const disposeMenu = registerRootMenu([
+      {
+        label: t('chat.input.web_search.label'),
+        description: '',
+        icon: <Globe size={18} />,
+        isMenu: true,
+        action: () => openQuickPanel()
+      }
+    ])
+
+    const disposeTrigger = registerTrigger(QuickPanelReservedSymbol.WebSearch, () => openQuickPanel())
+
+    return () => {
+      disposeMenu()
+      disposeTrigger()
+    }
+  }, [openQuickPanel, registerRootMenu, registerTrigger, t])
+
+  return null
+}
+
+export default WebSearchQuickPanelManager

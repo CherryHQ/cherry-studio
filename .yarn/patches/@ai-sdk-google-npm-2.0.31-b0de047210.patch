@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index cac044aab0255fa72f68b36ecd2c5b12d424c379..ad6ee8ecfc5cbc3ec43ba59a44eda21e8e4d353f 100644
+index ff305b112779b718f21a636a27b1196125a332d9..cf32ff5086d4d9e56f8fe90c98724559083bafc3 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -471,7 +471,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
@@ -12,7 +12,7 @@ index cac044aab0255fa72f68b36ecd2c5b12d424c379..ad6ee8ecfc5cbc3ec43ba59a44eda21e
  
  // src/google-generative-ai-options.ts
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 0793085005d7968638d355f2f1e127939d965165..1c8bf852baf025d56dc35a0691eb95967de7e5c8 100644
+index 57659290f1cec74878a385626ad75b2a4d5cd3fc..d04e5927ec3725b6ffdb80868bfa1b5a48849537 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -477,7 +477,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {

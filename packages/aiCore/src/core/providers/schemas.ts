@@ -12,6 +12,7 @@ import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV2 } from '@ai-sdk/provider'
 import { createXai } from '@ai-sdk/xai'
+import { type CherryInProviderSettings, createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { Provider } from 'ai'
 import { customProvider } from 'ai'
@@ -31,6 +32,8 @@ export const baseProviderIds = [
   'azure-responses',
   'deepseek',
   'openrouter',
+  'cherryin',
+  'cherryin-chat',
   'huggingface'
 ] as const
 
@@ -134,6 +137,26 @@ export const baseProviders = [
     id: 'openrouter',
     name: 'OpenRouter',
     creator: createOpenRouter,
+    supportsImageGeneration: true
+  },
+  {
+    id: 'cherryin',
+    name: 'CherryIN',
+    creator: createCherryIn,
+    supportsImageGeneration: true
+  },
+  {
+    id: 'cherryin-chat',
+    name: 'CherryIN Chat',
+    creator: (options: CherryInProviderSettings) => {
+      const provider = createCherryIn(options)
+      return customProvider({
+        fallbackProvider: {
+          ...provider,
+          languageModel: (modelId: string) => provider.chat(modelId)
+        }
+      })
+    },
     supportsImageGeneration: true
   },
   {

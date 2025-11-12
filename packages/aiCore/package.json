@@ -39,11 +39,13 @@
     "@ai-sdk/anthropic": "^2.0.43",
     "@ai-sdk/azure": "^2.0.66",
     "@ai-sdk/deepseek": "^1.0.27",
+    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch",
     "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch",
     "@ai-sdk/openai-compatible": "^1.0.26",
     "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": "^3.0.16",
     "@ai-sdk/xai": "^2.0.31",
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
     "zod": "^4.1.5"
   },
   "devDependencies": {

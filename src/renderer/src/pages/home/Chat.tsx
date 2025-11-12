@@ -21,7 +21,7 @@ import { Alert, Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -164,29 +164,6 @@ const Chat: FC<Props> = (props) => {
 
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
-  const SessionMessages = useMemo(() => {
-    if (activeAgentId === null) {
-      return () => <div> Active Agent ID is invalid.</div>
-    }
-    if (!activeSessionId) {
-      return () => <div> Active Session ID is invalid.</div>
-    }
-    if (!apiServerEnabled) {
-      return () => <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
-    }
-    return () => <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-  }, [activeAgentId, activeSessionId, apiServerEnabled, t])
-
-  const SessionInputBar = useMemo(() => {
-    if (activeAgentId === null) {
-      return () => <div> Active Agent ID is invalid.</div>
-    }
-    if (!activeSessionId) {
-      return () => <div> Active Session ID is invalid.</div>
-    }
-    return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-  }, [activeAgentId, activeSessionId])
-
   // TODO: more info
   const AgentInvalid = useCallback(() => {
     return <Alert type="warning" message="Select an agent" style={{ margin: '5px 16px' }} />
@@ -253,8 +230,12 @@ const Chat: FC<Props> = (props) => {
                 {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
                 {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
                   <>
-                    <SessionMessages />
-                    <SessionInputBar />
+                    {!apiServerEnabled ? (
+                      <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
+                    ) : (
+                      <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                    )}
+                    <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
                   </>
                 )}
                 {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
