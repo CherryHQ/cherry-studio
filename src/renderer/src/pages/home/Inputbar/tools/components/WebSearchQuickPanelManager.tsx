@@ -1,5 +1,4 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
@@ -183,29 +182,6 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     }
   }, [openQuickPanel, quickPanelController])
 
-<<<<<<< HEAD:src/renderer/src/pages/home/Inputbar/WebSearchButton.tsx
-  const onClick = useCallback(() => {
-    if (enableWebSearch) {
-      updateWebSearchProvider(undefined)
-    } else {
-      handleOpenQuickPanel()
-    }
-  }, [enableWebSearch, handleOpenQuickPanel, updateWebSearchProvider])
-
-  useImperativeHandle(ref, () => ({
-    openQuickPanel
-  }))
-
-  return (
-    <Tooltip content={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')} closeDelay={0}>
-      <ActionIconButton
-        onClick={onClick}
-        active={!!enableWebSearch}
-        icon={<WebSearchIcon pid={assistant.webSearchProviderId} />}
-      />
-    </Tooltip>
-  )
-=======
   return {
     enableWebSearch,
     providerItems,
@@ -215,7 +191,6 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     updateToModelBuiltinWebSearch,
     selectedProviderId: assistant.webSearchProviderId
   }
->>>>>>> main:src/renderer/src/pages/home/Inputbar/tools/components/WebSearchQuickPanelManager.tsx
 }
 
 interface ManagerProps {

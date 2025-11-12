@@ -4,6 +4,7 @@ import React, { memo } from 'react'
 interface ActionIconButtonProps extends Omit<React.ComponentProps<'button'>, 'ref'> {
   icon: React.ReactNode
   active?: boolean
+  loading?: boolean
 }
 
 /**

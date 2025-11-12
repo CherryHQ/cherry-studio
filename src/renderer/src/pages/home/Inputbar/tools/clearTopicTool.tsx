@@ -21,9 +21,7 @@ const clearTopicTool = defineTool({
         title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
         mouseLeaveDelay={0}
         arrow>
-        <ActionIconButton onClick={actions.clearTopic}>
-          <PaintbrushVertical size={18} />
-        </ActionIconButton>
+        <ActionIconButton onClick={actions.clearTopic} icon={<PaintbrushVertical size={18} />}></ActionIconButton>
       </Tooltip>
     )
   }
