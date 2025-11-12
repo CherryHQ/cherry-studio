@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
-import type { SlashCommand,
+import type {
   AgentEntity,
   AgentSessionEntity,
   CreateSessionRequest,
   GetAgentSessionResponse,
   ListOptions,
+  SlashCommand,
   UpdateSessionRequest,
   UpdateSessionResponse
 } from '@types'

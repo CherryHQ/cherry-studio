@@ -1,4 +1,5 @@
 import '@renderer/pages/home/Inputbar/tools'
+
 import { Tooltip } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
@@ -394,19 +395,19 @@ const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) =
           </DragDropContext>
 
           {showCollapseButton && (
-          <Tooltip content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')} showArrow>
-            <ActionIconButton
-              onClick={() => dispatch(setIsCollapsed(!isCollapse))}
-              icon={
-                <CircleChevronRight
-                  size={18}
-                  style={{
-                    transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
-                  }}
-                />
-              }
-            />
-          </Tooltip>
+            <Tooltip content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')} showArrow>
+              <ActionIconButton
+                onClick={() => dispatch(setIsCollapsed(!isCollapse))}
+                icon={
+                  <CircleChevronRight
+                    size={18}
+                    style={{
+                      transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
+                    }}
+                  />
+                }
+              />
+            </Tooltip>
           )}
         </ToolsContainer>
       </Dropdown>

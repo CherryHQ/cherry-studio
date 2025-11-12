@@ -1,17 +1,15 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setSearching } from '@renderer/store/runtime'
 import type { FileType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
@@ -119,16 +117,15 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const { setExtensions } = useInputbarToolsInternalDispatch()
   const isEmpty = text.trim().length === 0
   const [inputFocus, setInputFocus] = useState(false)
-  const {
-    targetLanguage,
-    sendMessageShortcut,
-    fontSize,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
-    autoTranslateWithSpace,
-    enableQuickPanelTriggers,
-    enableSpellCheck
-  } = useSettings()
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [searching, setSearching] = useCache('chat.websearch.searching')
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
 
   const [textareaHeight, setTextareaHeight] = useState<number>()
@@ -137,10 +134,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const [isTranslating, setIsTranslating] = useState(false)
   const { getLanguageByLangcode } = useTranslate()
 
-  const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
-  const { searching } = useRuntime()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
   const { setTimeoutTimer } = useTimer()
@@ -522,12 +517,12 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const handleFocus = useCallback(() => {
     setInputFocus(true)
-    dispatch(setSearching(false))
+    setSearching(false)
     if (quickPanel.isVisible && quickPanel.triggerInfo?.type !== 'input') {
       quickPanel.close()
     }
     PasteService.setLastFocusedComponent('inputbar')
-  }, [dispatch, quickPanel])
+  }, [quickPanel, setSearching])
 
   const handleDragStart = useCallback(
     (event: React.MouseEvent) => {
@@ -624,9 +619,11 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     if (isLoading) {
       extras.push(
         <Tooltip key="pause" placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-          <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
-            <CirclePause size={20} color="var(--color-error)" />
-          </ActionIconButton>
+          <ActionIconButton
+            onClick={onPause}
+            style={{ marginRight: -2 }}
+            icon={<CirclePause size={20} color="var(--color-error)" />}
+          />
         </Tooltip>
       )
     }
@@ -678,7 +675,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             }}
             disabled={isTranslating || searching}
             onClick={() => {
-              searching && dispatch(setSearching(false))
+              searching && setSearching(false)
               quickPanel.close()
             }}
           />
