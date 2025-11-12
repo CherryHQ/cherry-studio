@@ -183,7 +183,12 @@ export function getNotesDir() {
     fs.mkdirSync(notesDir, { recursive: true })
     logger.info(`Notes directory created at: ${notesDir}`)
   }
-  return notesDir
+  // Return relative path for better portability across devices
+  return './Data/Notes'
+}
+
+export function getNotesDirAbsolute() {
+  return path.join(app.getPath('userData'), 'Data', 'Notes')
 }
 
 export function getConfigDir() {

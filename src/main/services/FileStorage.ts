@@ -5,7 +5,7 @@ import {
   getFilesDir,
   getFileType,
   getName,
-  getNotesDir,
+  getNotesDirAbsolute,
   getTempDir,
   readTextFileWithAutoEncoding,
   scanDir
@@ -57,7 +57,7 @@ const DEFAULT_WATCHER_CONFIG: Required<FileWatcherConfig> = {
 
 class FileStorage {
   private storageDir = getFilesDir()
-  private notesDir = getNotesDir()
+  private notesDir = getNotesDirAbsolute()
   private tempDir = getTempDir()
   private watcher?: FSWatcher
   private watcherSender?: Electron.WebContents
@@ -774,7 +774,7 @@ class FileStorage {
       // Get app paths to prevent selection of restricted directories
       const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
       const filesDir = path.resolve(getFilesDir())
-      const currentNotesDir = path.resolve(getNotesDir())
+      const currentNotesDir = getNotesDirAbsolute()
 
       // Prevent selecting app data directories
       if (

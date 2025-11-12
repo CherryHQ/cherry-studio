@@ -16,6 +16,8 @@ import {
   getConfigDir,
   getFilesDir,
   getFileType,
+  getNotesDir,
+  getNotesDirAbsolute,
   getTempDir,
   isPathInside,
   untildify
@@ -242,6 +244,20 @@ describe('file', () => {
     it('should return correct config directory path', () => {
       const configDir = getConfigDir()
       expect(configDir).toBe('/mock/home/.cherrystudio/config')
+    })
+  })
+
+  describe('getNotesDir', () => {
+    it('should return relative path for portability', () => {
+      const notesDir = getNotesDir()
+      expect(notesDir).toBe('./Data/Notes')
+    })
+  })
+
+  describe('getNotesDirAbsolute', () => {
+    it('should return absolute notes directory path', () => {
+      const notesDirAbsolute = getNotesDirAbsolute()
+      expect(notesDirAbsolute).toBe('/mock/userData/Data/Notes')
     })
   })
 
