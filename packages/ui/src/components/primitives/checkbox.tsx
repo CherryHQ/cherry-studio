@@ -4,6 +4,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon } from 'lucide-react'
 import * as React from 'react'
 
+export type CheckedState = CheckboxPrimitive.CheckedState
+
 const checkboxVariants = cva(
   cn(
     'aspect-square shrink-0 rounded-[4px] border transition-all outline-none',

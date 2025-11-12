@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Check, FileText, Mail, Shield, Star } from 'lucide-react'
 import { useState } from 'react'
 
-import { Checkbox } from '../../../src/components/primitives/checkbox'
+import { Checkbox, type CheckedState } from '../../../src/components/primitives/checkbox'
 
 const meta: Meta<typeof Checkbox> = {
   title: 'Components/Primitives/Checkbox',
@@ -111,7 +111,7 @@ export const Disabled: Story = {
 // Controlled
 export const Controlled: Story = {
   render: function ControlledExample() {
-    const [checked, setChecked] = useState(false)
+    const [checked, setChecked] = useState<CheckedState>(false)
 
     return (
       <div className="flex flex-col gap-4">
@@ -191,8 +191,8 @@ export const Sizes: Story = {
 // All States
 export const AllStates: Story = {
   render: function AllStatesExample() {
-    const [normalChecked, setNormalChecked] = useState(false)
-    const [checkedState, setCheckedState] = useState(true)
+    const [normalChecked, setNormalChecked] = useState<CheckedState>(false)
+    const [checkedState, setCheckedState] = useState<CheckedState>(true)
 
     return (
       <div className="flex flex-col gap-6">
@@ -524,7 +524,7 @@ export const FormExample: Story = {
           Register
         </button>
 
-        {submitted && (formData.terms && formData.privacy) && (
+        {submitted && formData.terms && formData.privacy && (
           <p className="text-sm text-green-600">Registration successful!</p>
         )}
       </form>
