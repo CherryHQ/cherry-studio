@@ -102,6 +102,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/anthropic@npm:2.0.44":
+  version: 2.0.44
+  resolution: "@ai-sdk/anthropic@npm:2.0.44"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/6484fdc60da8658d8d28c2c61fc4bc322829aee31baf71f0ea1bfbf17d008d37ce9db5d3bb395646bdd9891866b24b763766cba17b5c0fbd67f183ceac71df57
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/azure@npm:^2.0.66":
   version: 2.0.66
   resolution: "@ai-sdk/azure@npm:2.0.66"
@@ -141,42 +153,42 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/google-vertex@npm:^3.0.61":
-  version: 3.0.61
-  resolution: "@ai-sdk/google-vertex@npm:3.0.61"
+"@ai-sdk/google-vertex@npm:^3.0.62":
+  version: 3.0.62
+  resolution: "@ai-sdk/google-vertex@npm:3.0.62"
   dependencies:
-    "@ai-sdk/anthropic": "npm:2.0.43"
-    "@ai-sdk/google": "npm:2.0.30"
+    "@ai-sdk/anthropic": "npm:2.0.44"
+    "@ai-sdk/google": "npm:2.0.31"
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.16"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
     google-auth-library: "npm:^9.15.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/e4c074f7bb6227b84d17e1f8fda03e90da34b1bdca441a744cd4226836f44f7b97df7e908e482d974fe6e768ae13d7b038d9324dbb5e53423f1e9489ea2f7785
+  checksum: 10c0/673bb51e3e0cbe5235ad5e65379b1cb8f099dbc690ab8552e208553a9f1cc6026d2588e956e73468bc6d267066be276e7a9aba98e32e905809dfbeab4ac0e352
   languageName: node
   linkType: hard
 
-"@ai-sdk/google@npm:2.0.30":
-  version: 2.0.30
-  resolution: "@ai-sdk/google@npm:2.0.30"
+"@ai-sdk/google@npm:2.0.31":
+  version: 2.0.31
+  resolution: "@ai-sdk/google@npm:2.0.31"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.16"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/6f4fc6b92cc03437fcb46f5e32c32195c0fcc9b523c3818d57c4f1526c65af61173f13c2222f725361656377452b9063d5257edf08326f7fb6ad709f7796ab4e
+  checksum: 10c0/d8f143f058fb62e6e67e30564ec92530d7389c22ad91b1e4bbe781c8570bf718cd417e44dcd4855e347e85c4174538a9a884eac666109e17f20d21467ab3e749
   languageName: node
   linkType: hard
 
-"@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.30#~/.yarn/patches/@ai-sdk-google-npm-2.0.30-3b31632362.patch":
-  version: 2.0.30
-  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.30#~/.yarn/patches/@ai-sdk-google-npm-2.0.30-3b31632362.patch::version=2.0.30&hash=be6198"
+"@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch":
+  version: 2.0.31
+  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch::version=2.0.31&hash=9f3835"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.16"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/60c4eda30a4f8460594f1f825c3a1a9ea564035f99c4da954d641b406394d8cfa411f3fcdd370a4e60006a84e360e084bc7f925f4517c87ffcdd149165d8989e
+  checksum: 10c0/dd37dfb7abf402caaae3edb2f1a8dab018fddad6ba3190376723e03a2a0c352329c8e41e60df3fb8436b717d9c2ee4b82dff091848f50d026f62565cbdb158f8
   languageName: node
   linkType: hard
 
@@ -301,6 +313,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/0922af1864b31aed4704174683d356c482199bf691c3d1a3e27cdedd574eec2249ea386b1081023d301a87e38dea09ec259ee45c5889316f7eed0de0a6064a49
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider-utils@npm:3.0.17":
+  version: 3.0.17
+  resolution: "@ai-sdk/provider-utils@npm:3.0.17"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@standard-schema/spec": "npm:^1.0.0"
+    eventsource-parser: "npm:^3.0.6"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/1bae6dc4cacd0305b6aa152f9589bbd61c29f150155482c285a77f83d7ed416d52bc2aa7fdaba2e5764530392d9e8f799baea34a63dce6c72ecd3de364dc62d1
   languageName: node
   linkType: hard
 
@@ -1810,6 +1835,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.43"
     "@ai-sdk/azure": "npm:^2.0.66"
     "@ai-sdk/deepseek": "npm:^1.0.27"
+    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch"
     "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch"
     "@ai-sdk/openai-compatible": "npm:^1.0.26"
     "@ai-sdk/provider": "npm:^2.0.0"
@@ -5106,7 +5132,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opeoginni/github-copilot-openai-compatible@npm:0.1.19":
+"@opeoginni/github-copilot-openai-compatible@npm:^0.1.19":
   version: 0.1.19
   resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.19"
   dependencies:
@@ -9835,7 +9861,7 @@ __metadata:
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
     "@ai-sdk/amazon-bedrock": "npm:^3.0.53"
-    "@ai-sdk/google-vertex": "npm:^3.0.61"
+    "@ai-sdk/google-vertex": "npm:^3.0.62"
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch"
     "@ai-sdk/mistral": "npm:^2.0.23"
     "@ai-sdk/perplexity": "npm:^2.0.17"
@@ -9894,7 +9920,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
-    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.19"
+    "@opeoginni/github-copilot-openai-compatible": "npm:^0.1.19"
     "@paymoapp/electron-shutdown-handler": "npm:^1.1.2"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
