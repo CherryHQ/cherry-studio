@@ -45,6 +45,7 @@
     "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": "^3.0.16",
     "@ai-sdk/xai": "^2.0.31",
+    "@cherrystudio/ai-sdk-provider": "workspace:*",
     "zod": "^4.1.5"
   },
   "devDependencies": {
