@@ -129,6 +129,7 @@ export class SessionService extends BaseService {
       plan_model: serializedData.plan_model || null,
       small_model: serializedData.small_model || null,
       mcps: serializedData.mcps || null,
+      allowed_tools: serializedData.allowed_tools || null,
       configuration: serializedData.configuration || null,
       created_at: now,
       updated_at: now

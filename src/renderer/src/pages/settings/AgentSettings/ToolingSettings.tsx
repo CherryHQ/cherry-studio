@@ -459,11 +459,22 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                     key={server.id}
                     className="border border-default-200"
                     title={
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex min-w-0 flex-col">
-                          <span className="truncate font-medium text-sm">{server.name}</span>
+                      <div className="flex items-center justify-between gap-2 py-3">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            {server.logoUrl && (
+                              <img
+                                src={server.logoUrl}
+                                alt={`${server.name} logo`}
+                                className="h-5 w-5 rounded object-cover"
+                              />
+                            )}
+                            <span className="truncate font-medium text-sm">{server.name}</span>
+                          </div>
                           {server.description ? (
-                            <span className="line-clamp-2 text-foreground-500 text-xs">{server.description}</span>
+                            <span className="line-clamp-2 whitespace-pre-wrap break-all text-foreground-500 text-xs">
+                              {server.description}
+                            </span>
                           ) : null}
                         </div>
                         <Switch
