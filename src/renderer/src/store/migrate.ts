@@ -2765,7 +2765,7 @@ const migrateConfig = {
             provider.anthropicApiHost = 'https://aihubmix.com'
             break
           case 'new-api':
-            provider.anthropicApiHost = 'http://localhost:3000'
+            provider.anthropicApiHost = provider.apiHost
             break
           case 'grok':
             provider.anthropicApiHost = 'https://api.x.ai'
