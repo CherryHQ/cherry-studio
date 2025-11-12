@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readTextFileWithAutoEncoding } from '../file'
 import {
+  expandNotesPath,
   getAllFiles,
   getAppConfigDir,
   getConfigDir,
@@ -328,6 +329,64 @@ describe('file', () => {
       expect(untildify('~/folder with spaces')).toBe('/mock/home/folder with spaces')
       expect(untildify('~/folder-with-dashes')).toBe('/mock/home/folder-with-dashes')
       expect(untildify('~/folder_with_underscores')).toBe('/mock/home/folder_with_underscores')
+    })
+  })
+
+  describe('expandNotesPath', () => {
+    beforeEach(() => {
+      // Mock path.isAbsolute
+      vi.mocked(path.isAbsolute).mockImplementation((p) => {
+        return p.startsWith('/') || /^[A-Za-z]:/.test(p)
+      })
+
+      // Mock path.resolve
+      vi.mocked(path.resolve).mockImplementation((...args) => {
+        const joined = args.join('/')
+        return joined.startsWith('/') ? joined : `/${joined}`
+      })
+
+      // Mock path.normalize
+      vi.mocked(path.normalize).mockImplementation((p) => p.replace(/\/+/g, '/'))
+    })
+
+    it('should expand tilde paths to home directory', () => {
+      const result = expandNotesPath('~/Notes')
+      expect(result).toBe('/mock/home/Notes')
+    })
+
+    it('should expand relative paths using userData as base', () => {
+      const result = expandNotesPath('./Notes')
+      expect(result).toContain('userData')
+    })
+
+    it('should return absolute paths unchanged', () => {
+      const result = expandNotesPath('/absolute/path/Notes')
+      expect(result).toBe('/absolute/path/Notes')
+    })
+
+    it('should handle Windows absolute paths', () => {
+      const result = expandNotesPath('C:\\Users\\Notes')
+      expect(result).toBe('C:\\Users\\Notes')
+    })
+
+    it('should handle empty string', () => {
+      const result = expandNotesPath('')
+      expect(result).toBe('')
+    })
+
+    it('should expand parent directory paths', () => {
+      const result = expandNotesPath('../Notes')
+      expect(result).toContain('userData')
+    })
+
+    it('should use custom base path when provided', () => {
+      const result = expandNotesPath('./Notes', '/custom/base')
+      expect(result).toContain('/custom/base')
+    })
+
+    it('should handle complex relative paths', () => {
+      const result = expandNotesPath('../../Notes')
+      expect(result).toContain('userData')
     })
   })
 
