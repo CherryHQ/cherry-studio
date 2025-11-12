@@ -194,7 +194,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const quickPanel = useQuickPanel()
 
   const { files } = useInputbarToolsState()
-  const { toolsRegistry, triggers, setIsExpanded } = useInputbarToolsDispatch()
+  const { toolsRegistry, setIsExpanded } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { setTimeoutTimer } = useTimer()
@@ -252,24 +252,84 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const rootTriggerHandlerRef = useRef<((payload?: unknown) => void) | undefined>(undefined)
 
   // Update handler logic when dependencies change
+  // For Agent Session, we directly trigger SlashCommands panel instead of Root menu
   useEffect(() => {
     rootTriggerHandlerRef.current = (payload) => {
-      // Get menu items registered by tools (e.g., slashCommandsTool)
-      const menuItems = triggers.getRootMenu()
+      const slashCommands = sessionData?.slashCommands || []
+      const triggerInfo = (payload ?? {}) as QuickPanelTriggerInfo
 
-      if (!menuItems.length) {
+      if (slashCommands.length === 0) {
+        quickPanel.open({
+          title: t('chat.input.slash_commands.title'),
+          symbol: QuickPanelReservedSymbol.SlashCommands,
+          triggerInfo,
+          list: [
+            {
+              label: t('chat.input.slash_commands.empty', 'No slash commands available'),
+              description: '',
+              icon: null,
+              disabled: true,
+              action: () => {}
+            }
+          ]
+        })
         return
       }
 
-      const triggerInfo = (payload ?? {}) as QuickPanelTriggerInfo
       quickPanel.open({
-        title: t('settings.quickPanel.title'),
-        list: menuItems,
-        symbol: QuickPanelReservedSymbol.Root,
-        triggerInfo
+        title: t('chat.input.slash_commands.title'),
+        symbol: QuickPanelReservedSymbol.SlashCommands,
+        triggerInfo,
+        list: slashCommands.map((cmd) => ({
+          label: cmd.command,
+          description: cmd.description || '',
+          icon: null,
+          filterText: `${cmd.command} ${cmd.description || ''}`,
+          action: () => {
+            // Insert command into textarea
+            setText((prev: string) => {
+              const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+              if (!textArea) {
+                return prev + ' ' + cmd.command
+              }
+
+              const cursorPosition = textArea.selectionStart || 0
+              const textBeforeCursor = prev.slice(0, cursorPosition)
+              const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
+
+              if (lastSlashIndex !== -1 && cursorPosition > lastSlashIndex) {
+                // Replace from '/' to cursor with command
+                const newText = prev.slice(0, lastSlashIndex) + cmd.command + ' ' + prev.slice(cursorPosition)
+                const newCursorPos = lastSlashIndex + cmd.command.length + 1
+
+                setTimeout(() => {
+                  if (textArea) {
+                    textArea.focus()
+                    textArea.setSelectionRange(newCursorPos, newCursorPos)
+                  }
+                }, 0)
+
+                return newText
+              }
+
+              // No '/' found, just insert at cursor
+              const newText = prev.slice(0, cursorPosition) + cmd.command + ' ' + prev.slice(cursorPosition)
+              const newCursorPos = cursorPosition + cmd.command.length + 1
+
+              setTimeout(() => {
+                if (textArea) {
+                  textArea.focus()
+                  textArea.setSelectionRange(newCursorPos, newCursorPos)
+                }
+              }, 0)
+
+              return newText
+            })
+          }
+        }))
       })
     }
-  }, [triggers, quickPanel, t])
+  }, [sessionData, quickPanel, t, setText])
 
   // Register the trigger handler (only once)
   useEffect(() => {
