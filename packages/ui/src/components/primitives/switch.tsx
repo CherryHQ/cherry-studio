@@ -77,21 +77,14 @@ const DescriptionSwitch = ({ label, description, position = 'right', ...props }:
   const isLeftSide = position === 'left'
   const id = useId()
   return (
-    // TODO: spacing 3xs
-    <div className={cn('flex w-full gap-3 justify-between', isLeftSide && 'flex-row-reverse')}>
-      {/* TODO: spacing 5xs */}
-      <label
-        className={cn('flex flex-col gap-5xs cursor-pointer', {
-          'h-7': description === undefined,
-          'h-18': description !== undefined
-        })}
-        htmlFor={id}>
+    <div className={cn('flex w-full gap-3 justify-between p-4xs', isLeftSide && 'flex-row-reverse')}>
+      <label className={cn('flex flex-col gap-5xs cursor-pointer')} htmlFor={id}>
         {/* TODO: use standard typography component */}
-        <p className="leading-7">{label}</p>
+        <p className="text-lg leading-5.5">{label}</p>
         {/* TODO: use standard typography component */}
-        {description && <span className="text-secondary-foreground">{description}</span>}
+        {description && <span className="text-foreground-secondary text-sm leading-4">{description}</span>}
       </label>
-      <div className="pt-5xs h-7 flex-col flex justify-start">
+      <div className="pt-5xs flex justify-center items-center">
         <CustomizedSwitch id={id} {...props} />
       </div>
     </div>
