@@ -16,7 +16,7 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
       data-slot="switch"
       className={cn(
         'cs-switch cs-switch-root',
-        'group relative box-content cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
+        'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
         'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
         'disabled:cursor-not-allowed disabled:opacity-40',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
