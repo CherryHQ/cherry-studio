@@ -135,50 +135,42 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.5
+    What's New in v1.7.0-beta.6
 
     New Features:
-    - MCPRouter Provider: Added MCPRouter provider integration with token management and server synchronization
-    - MCP Marketplace: Enhanced MCP server discovery and management with multi-provider marketplace support
-    - Agent Permission Mode Display: Visual permission mode cards in empty session states
-    - Assistant Subscription Settings: Added subscription URL management in assistant presets
+    - Enhanced Input Bar: Completely redesigned input bar with improved responsiveness and functionality
+    - Better File Handling: Improved drag-and-drop and paste support for images and documents
+    - Smart Tool Suggestions: Enhanced quick panel with better item selection and keyboard shortcuts
 
     Improvements:
-    - UI Optimization: Sidebar tooltip placement improved on macOS to avoid overlapping window controls
-    - MCP Server Logos: Display server logos in Agent settings tooling section
-    - Long Command Handling: Bash command tags now auto-truncate (hover to view full command for commands over 100 chars)
-    - MCP OAuth Callback: Fixed callback page hanging and added multilingual support (10 languages)
-    - Error Display: Improved error block display order for better readability
-    - Plugin Browser: Centered tab alignment for better visual consistency
+    - Smoother Input Experience: Better auto-resizing and text handling in chat input
+    - Enhanced AI Performance: Improved connection stability and response speed
+    - More Reliable File Uploads: Better support for various file types and upload scenarios
+    - Cleaner Interface: Optimized UI elements for better visual consistency
 
     Bug Fixes:
-    - Fixed Agent sessions not inheriting allowed_tools configuration
-    - Fixed Gemini endpoint thinking budget spelling error
-    - Fixed MCP card description text overflow
-    - Fixed unnecessary message timestamp updates on UI-only state changes
-    - Updated dependencies: Bun to 1.3.1, uv to 0.9.5
+    - Fixed image selection issue when adding custom AI providers
+    - Fixed file upload problems with certain API configurations
+    - Fixed input bar responsiveness issues
+    - Fixed quick panel not working properly in some situations
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.5 新特性
+    v1.7.0-beta.6 新特性
 
     新功能:
-    - MCPRouter 提供商：新增 MCPRouter 提供商集成，支持 token 管理和服务器同步
-    - MCP 市场：增强 MCP 服务器发现和管理功能，支持多提供商市场
-    - Agent 权限模式展示：空会话状态显示可视化权限模式卡片
-    - 助手订阅设置：在助手预设中添加订阅 URL 管理功能
+    - 增强输入栏：完全重新设计的输入栏，响应更灵敏，功能更强大
+    - 更好的文件处理：改进的拖拽和粘贴功能，支持图片和文档
+    - 智能工具建议：增强的快速面板，更好的项目选择和键盘快捷键
 
     改进:
-    - UI 优化：macOS 上侧边栏工具提示位置优化，避免与窗口控制按钮重叠
-    - MCP 服务器标志：在 Agent 设置工具部分显示服务器 logo
-    - 长命令处理：Bash 命令标签自动截断（超过 100 字符时悬停查看完整内容）
-    - MCP OAuth 回调：修复回调页面挂起问题并添加多语言支持（10 种语言）
-    - 错误信息展示：改进错误块显示顺序，提高可读性
-    - 插件浏览器：标签页居中对齐，视觉效果更统一
+    - 更流畅的输入体验：聊天输入框的自动调整和文本处理更佳
+    - 增强 AI 性能：改进连接稳定性和响应速度
+    - 更可靠的文件上传：更好地支持各种文件类型和上传场景
+    - 更简洁的界面：优化 UI 元素，视觉一致性更好
 
     问题修复:
-    - 修复 Agent 会话未继承 allowed_tools 配置
-    - 修复 Gemini 端点 thinking budget 拼写错误
-    - 修复 MCP 卡片描述文本溢出问题
-    - 修复仅 UI 状态变化时消息时间戳不必要的更新
-    - 依赖更新：Bun 升级到 1.3.1，uv 升级到 0.9.5
+    - 修复添加自定义 AI 提供商时的图片选择问题
+    - 修复某些 API 配置下的文件上传问题
+    - 修复输入栏响应性问题
+    - 修复快速面板在某些情况下无法正常工作的问题
     <!--LANG:END-->
