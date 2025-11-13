@@ -2484,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "Gateway de IA",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2495,7 @@
     "baidu-cloud": "Nuvem Baidu",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
