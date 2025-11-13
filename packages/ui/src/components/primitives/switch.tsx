@@ -37,8 +37,8 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
           'pointer-events-none block rounded-full ring-0 transition-all data-[state=unchecked]:translate-x-0',
           {
             'size-4.5 ml-[1px] data-[state=checked]:translate-x-4': size === 'sm',
-            'size-[19px] ml-[1px] data-[state=checked]:translate-x-5.5': size === 'md',
-            'size-5 ml-0.5 data-[state=checked]:translate-x-5': size === 'lg'
+            'size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]': size === 'md',
+            'size-5 ml-[3px] data-[state=checked]:translate-x-4.5': size === 'lg'
           },
           {
             'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5': loading && size === 'sm',
