@@ -18,13 +18,16 @@ import * as React from 'react'
 // ==================== Variants ====================
 
 const comboboxTriggerVariants = cva(
-  'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+  cn(
+    'inline-flex items-center justify-between rounded-2xs border-1 text-sm transition-colors outline-none font-normal',
+    'bg-zinc-50 dark:bg-zinc-900',
+    'text-foreground'
+  ),
   {
     variants: {
       state: {
-        default: 'border-input aria-expanded:border-success aria-expanded:ring-2 aria-expanded:ring-success/20',
-        error:
-          'border-destructive ring-2 ring-destructive/20 aria-expanded:border-destructive aria-expanded:ring-destructive/20',
+        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
+        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
@@ -194,11 +197,10 @@ export function Combobox({
             <span
               key={option.value}
               className={cn(
-                'bg-success/10',
+                'bg-primary/10 text-primary',
                 'gap-1 px-2 py-0.5',
                 'inline-flex items-center rounded',
-                'text-success-foreground text-xs',
-                'text-primary background-primary/10'
+                'text-success-foreground text-xs'
               )}>
               {option.label}
               <X
@@ -254,7 +256,7 @@ export function Combobox({
           size={size}
           disabled={disabled}
           style={{ width: triggerWidth }}
-          className={cn(comboboxTriggerVariants({ state, size }), 'bg-white', className)}
+          className={cn(comboboxTriggerVariants({ state, size }), className)}
           aria-expanded={open}
           aria-invalid={error}>
           {renderTriggerContent()}
@@ -263,7 +265,9 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent className={cn('p-0 rounded-2xs', popoverClassName)} style={{ width: triggerWidth }}>
         <Command>
-          {searchable && <CommandInput placeholder={searchPlaceholder} className="h-9" onValueChange={onSearch} />}
+          {searchable && (
+            <CommandInput placeholder={searchPlaceholder} className="h-9 rounded-none" onValueChange={onSearch} />
+          )}
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>

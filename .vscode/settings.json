@@ -51,6 +51,9 @@
   },
   "tailwindCSS.classAttributes": [
     "className",
-    "classNames",
+    "classNames"
+  ],
+  "tailwindCSS.experimental.classRegex": [
+    ["cva\\(([^;]*)[\\);]", "[`'\"`]([^'\"`;]*)[`'\"`]"]
   ]
 }

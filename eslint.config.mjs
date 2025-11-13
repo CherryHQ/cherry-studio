@@ -146,9 +146,15 @@ export default defineConfig([
         'error',
         {
           paths: [
+            // {
+            //   name: 'antd',
+            //   importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
+            //   message:
+            //     '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            // },
             {
               name: 'antd',
-              importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
+              importNames: ['Switch'],
               message:
                 '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
             },

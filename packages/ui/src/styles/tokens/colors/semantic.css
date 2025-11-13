@@ -1,0 +1,81 @@
+/**
+ * Semantic Colors - Light Mode
+ * 语义化颜色 - 基于 Primitive Colors 的语义化映射
+ */
+
+:root {
+  /* Brand Colors */
+  --cs-primary: var(--cs-brand-500);
+  --cs-primary-hover: var(--cs-brand-300);
+  --cs-destructive: var(--cs-red-500);
+  --cs-destructive-hover: var(--cs-red-400);
+  --cs-success: var(--cs-green-500);
+  --cs-warning: var(--cs-amber-500);
+
+  /* Background & Foreground */
+  --cs-background: var(--cs-zinc-50);
+  --cs-background-subtle: oklch(0 0 0 / 0.02);
+  --cs-foreground: oklch(0 0 0 / 0.9);
+  --cs-foreground-secondary: oklch(0 0 0 / 0.6);
+  --cs-foreground-muted: oklch(0 0 0 / 0.4);
+
+  /* Card & Popover */
+  --cs-card: var(--cs-white);
+  --cs-popover: var(--cs-white);
+
+  /* Border */
+  --cs-border: oklch(0 0 0 / 0.1);
+  --cs-border-hover: oklch(0 0 0 / 0.2);
+  --cs-border-active: oklch(0 0 0 / 0.3);
+
+  /* Ring (Focus) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
+
+  /* UI Element Colors */
+  --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(0 0 0 / 0.85);
+  --cs-secondary-active: oklch(0 0 0 / 0.7);
+  --cs-muted: oklch(0 0 0 / 0.05); /* Muted/Subtle Background */
+  --cs-accent: oklch(0 0 0 / 0.05); /* Accent Background */
+  --cs-ghost-hover: oklch(0 0 0 / 0.05); /* Ghost Button Hover */
+  --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
+
+  /* Sidebar */
+  --cs-sidebar: var(--cs-white);
+  --cs-sidebar-accent: oklch(0 0 0 / 0.05);
+}
+
+/* Dark Mode */
+.dark {
+  /* Background & Foreground */
+  --cs-background: var(--cs-zinc-900);
+  --cs-background-subtle: oklch(1 0 0 / 0.02);
+  --cs-foreground: oklch(1 0 0 / 0.9);
+  --cs-foreground-secondary: oklch(1 0 0 / 0.6);
+  --cs-foreground-muted: oklch(1 0 0 / 0.4);
+
+  /* Card & Popover */
+  --cs-card: var(--cs-black);
+  --cs-popover: var(--cs-black);
+
+  /* Border */
+  --cs-border: oklch(1 0 0 / 0.1);
+  --cs-border-hover: oklch(1 0 0 / 0.2);
+  --cs-border-active: oklch(1 0 0 / 0.3);
+
+  /* Ring (Focus) - 保持不变 */
+  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+
+  /* UI Element Colors - Dark Mode */
+  --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
+  --cs-secondary-hover: oklch(1 0 0 / 0.2);
+  --cs-secondary-active: oklch(1 0 0 / 0.25);
+  --cs-muted: oklch(1 0 0 / 0.1); /* Muted/Subtle Background */
+  --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
+  --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */
+  --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
+
+  /* Sidebar */
+  --cs-sidebar: var(--cs-black);
+  --cs-sidebar-accent: oklch(1 0 0 / 0.1);
+}

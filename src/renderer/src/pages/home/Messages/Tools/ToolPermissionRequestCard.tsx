@@ -1,10 +1,9 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
-import { Button } from '@cherrystudio/ui'
-import { Chip, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermissionByToolName, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
+import { Button } from 'antd'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -128,33 +127,39 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Chip color={isExpired ? 'danger' : 'warning'} size="sm" variant="flat">
+            <div
+              className={`rounded px-2 py-0.5 font-medium text-xs ${
+                isExpired ? 'text-[var(--color-error)]' : 'text-[var(--color-status-warning)]'
+              }`}>
               {isExpired
                 ? t('agent.toolPermission.expired')
                 : t('agent.toolPermission.pending', { seconds: remainingSeconds })}
-            </Chip>
+            </div>
 
             <div className="flex items-center gap-1">
               <Button
                 aria-label={t('agent.toolPermission.aria.denyRequest')}
                 className="h-8"
-                variant="outline"
+                color="danger"
                 disabled={isSubmitting || isExpired}
                 loading={isSubmittingDeny}
                 onClick={() => handleDecision('deny')}
-                loadingIcon={<CircleX size={16} />}>
-                <CircleX size={16} />
+                icon={<CircleX size={16} />}
+                iconPosition={'start'}
+                variant="outlined">
                 {t('agent.toolPermission.button.cancel')}
               </Button>
 
               <Button
                 aria-label={t('agent.toolPermission.aria.allowRequest')}
-                className="h-8 bg-green-600 px-3 text-white hover:bg-green-700"
+                className="h-8 px-3"
+                color="primary"
                 disabled={isSubmitting || isExpired}
                 loading={isSubmittingAllow}
                 onClick={() => handleDecision('allow')}
-                loadingIcon={<CirclePlay size={16} />}>
-                <CirclePlay size={16} />
+                icon={<CirclePlay size={16} />}
+                iconPosition={'start'}
+                variant="solid">
                 {t('agent.toolPermission.button.run')}
               </Button>
 
@@ -162,12 +167,12 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                 aria-label={
                   showDetails ? t('agent.toolPermission.aria.hideDetails') : t('agent.toolPermission.aria.showDetails')
                 }
-                size="icon"
-                className="h-8 w-8"
+                className="h-8 text-default-600 transition-colors hover:bg-default-200/50 hover:text-default-800"
                 onClick={() => setShowDetails((value) => !value)}
-                variant="ghost">
-                <ChevronDown className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} size={16} />
-              </Button>
+                icon={<ChevronDown className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} size={16} />}
+                variant="text"
+                style={{ backgroundColor: 'transparent' }}
+              />
             </div>
           </div>
         </div>
@@ -182,9 +187,9 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
               <p className="mb-2 font-medium text-default-400 text-xs uppercase tracking-wide">
                 {t('agent.toolPermission.inputPreview')}
               </p>
-              <ScrollShadow className="max-h-48 font-mono text-xs" hideScrollBar>
-                <pre className="whitespace-pre-wrap break-all text-left">{request.inputPreview}</pre>
-              </ScrollShadow>
+              <div className="max-h-[192px] overflow-auto font-mono text-xs">
+                <pre className="whitespace-pre-wrap break-all p-2 text-left">{request.inputPreview}</pre>
+              </div>
             </div>
 
             {request.requiresPermissions && (

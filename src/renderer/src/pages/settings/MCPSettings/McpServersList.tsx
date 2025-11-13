@@ -1,16 +1,15 @@
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
-import { Dropdown, Empty } from 'antd'
+import { Button, Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -20,12 +19,9 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
-import BuiltinMCPServerList from './BuiltinMCPServerList'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
-import McpMarketList from './McpMarketList'
 import McpServerCard from './McpServerCard'
-import SyncServersPopup from './SyncServersPopup'
 
 const logger = loggerService.withContext('McpServersList')
 
@@ -144,10 +140,6 @@ const McpServersList: FC = () => {
     [t]
   )
 
-  const onSyncServers = useCallback(() => {
-    SyncServersPopup.show(mcpServers)
-  }, [mcpServers])
-
   const handleAddServerSuccess = useCallback(
     async (server: MCPServer) => {
       addMCPServer(server)
@@ -239,24 +231,14 @@ const McpServersList: FC = () => {
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
-          <Button variant="default" className="rounded-full" onClick={() => EditMcpJsonPopup.show()}>
-            <EditIcon size={14} />
+          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
             {t('common.edit')}
           </Button>
-          <Dropdown
-            menu={{
-              items: menuItems
-            }}
-            trigger={['click']}>
-            <Button variant="default" className="rounded-full">
-              <Plus size={16} />
+          <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
+            <Button icon={<Plus size={16} />} type="default" shape="round">
               {t('common.add')}
             </Button>
           </Dropdown>
-          <Button variant="default" onClick={onSyncServers} className="rounded-full">
-            <RefreshIcon size={14} />
-            {t('settings.mcp.sync.button')}
-          </Button>
         </ButtonGroup>
       </ListHeader>
       <Sortable
@@ -290,9 +272,6 @@ const McpServersList: FC = () => {
           style={{ marginTop: 20 }}
         />
       )}
-
-      <McpMarketList />
-      <BuiltinMCPServerList />
 
       <AddMcpServerModal
         visible={isAddModalVisible}

@@ -4,11 +4,12 @@ import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelContextType,
+  QuickPanelFilterFn,
   QuickPanelListItem,
   QuickPanelOpenOptions,
+  QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from './types'
-
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -17,19 +18,39 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const [list, setList] = useState<QuickPanelListItem[]>([])
   const [title, setTitle] = useState<string | undefined>()
-  const [defaultIndex, setDefaultIndex] = useState<number>(0)
+  const [defaultIndex, setDefaultIndex] = useState<number>(-1)
   const [pageSize, setPageSize] = useState<number>(7)
   const [multiple, setMultiple] = useState<boolean>(false)
+  const [manageListExternally, setManageListExternally] = useState<boolean>(false)
   const [triggerInfo, setTriggerInfo] = useState<QuickPanelTriggerInfo | undefined>()
+  const [filterFn, setFilterFn] = useState<QuickPanelFilterFn | undefined>()
+  const [sortFn, setSortFn] = useState<QuickPanelSortFn | undefined>()
   const [onClose, setOnClose] = useState<((Options: Partial<QuickPanelCallBackOptions>) => void) | undefined>()
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
+  const [onSearchChange, setOnSearchChange] = useState<((searchText: string) => void) | undefined>()
+  const [lastCloseAction, setLastCloseAction] = useState<QuickPanelCloseAction | undefined>(undefined)
 
   const clearTimer = useRef<NodeJS.Timeout | null>(null)
 
   // 添加更新item选中状态的方法
   const updateItemSelection = useCallback((targetItem: QuickPanelListItem, isSelected: boolean) => {
-    setList((prevList) => prevList.map((item) => (item === targetItem ? { ...item, isSelected } : item)))
+    setList((prevList) => {
+      // 先尝试引用匹配（快速路径）
+      const refIndex = prevList.findIndex((item) => item === targetItem)
+      if (refIndex !== -1) {
+        return prevList.map((item, idx) => (idx === refIndex ? { ...item, isSelected } : item))
+      }
+
+      // 如果引用匹配失败，使用内容匹配（兜底方案）
+      // 通过 label 和 filterText 来识别同一个item
+      return prevList.map((item) => {
+        const isSameItem =
+          (item.label === targetItem.label || item.filterText === targetItem.filterText) &&
+          (!targetItem.filterText || item.filterText === targetItem.filterText)
+        return isSameItem ? { ...item, isSelected } : item
+      })
+    })
   }, [])
 
   // 添加更新整个列表的方法
@@ -43,17 +64,23 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       clearTimer.current = null
     }
 
+    setLastCloseAction(undefined)
     setTitle(options.title)
     setList(options.list)
-    setDefaultIndex(options.defaultIndex ?? 0)
+    const nextDefaultIndex = typeof options.defaultIndex === 'number' ? Math.max(-1, options.defaultIndex) : -1
+    setDefaultIndex(nextDefaultIndex)
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
+    setManageListExternally(options.manageListExternally ?? false)
     setSymbol(options.symbol)
     setTriggerInfo(options.triggerInfo)
 
     setOnClose(() => options.onClose)
     setBeforeAction(() => options.beforeAction)
     setAfterAction(() => options.afterAction)
+    setOnSearchChange(() => options.onSearchChange)
+    setFilterFn(() => options.filterFn)
+    setSortFn(() => options.sortFn)
 
     setIsVisible(true)
   }, [])
@@ -61,6 +88,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const close = useCallback(
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
+      setManageListExternally(false)
+      setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
       clearTimer.current = setTimeout(() => {
@@ -68,9 +97,13 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setOnClose(undefined)
         setBeforeAction(undefined)
         setAfterAction(undefined)
+        setOnSearchChange(undefined)
+        setFilterFn(undefined)
+        setSortFn(undefined)
         setTitle(undefined)
         setSymbol('')
         setTriggerInfo(undefined)
+        setManageListExternally(false)
       }, 200)
     },
     [onClose]
@@ -100,10 +133,15 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      manageListExternally,
       triggerInfo,
+      lastCloseAction,
+      filterFn,
+      sortFn,
       onClose,
       beforeAction,
-      afterAction
+      afterAction,
+      onSearchChange
     }),
     [
       open,
@@ -117,10 +155,15 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       defaultIndex,
       pageSize,
       multiple,
+      manageListExternally,
       triggerInfo,
+      lastCloseAction,
+      filterFn,
+      sortFn,
       onClose,
       beforeAction,
-      afterAction
+      afterAction,
+      onSearchChange
     ]
   )
 

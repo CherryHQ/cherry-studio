@@ -189,6 +189,7 @@ export enum IpcChannel {
   Fs_ReadText = 'fs:readText',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
+  File_ListDirectory = 'file:listDirectory',
   File_GetDirectoryStructure = 'file:getDirectoryStructure',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',

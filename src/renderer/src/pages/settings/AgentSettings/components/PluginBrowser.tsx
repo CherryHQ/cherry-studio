@@ -1,6 +1,6 @@
-import { Button } from '@cherrystudio/ui'
-import { Dropdown, DropdownItem, DropdownMenu, DropdownTrigger, Input, Tab, Tabs } from '@heroui/react'
 import type { InstalledPlugin, PluginMetadata } from '@renderer/types/plugin'
+import { Button as AntButton, Dropdown as AntDropdown, Input as AntInput, Tabs as AntTabs } from 'antd'
+import type { ItemType } from 'antd/es/menu/interface'
 import { Filter, Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -43,6 +43,7 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   const [selectedPlugin, setSelectedPlugin] = useState<PluginMetadata | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const observerTarget = useRef<HTMLDivElement>(null)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
 
   // Combine all plugins based on active type
   const allPlugins = useMemo(() => {
@@ -92,6 +93,68 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   const displayedPlugins = useMemo(() => {
     return filteredPlugins.slice(0, displayCount)
   }, [filteredPlugins, displayCount])
+
+  const pluginCategoryMenuItems = useMemo(() => {
+    const isSelected = (category: string): boolean =>
+      category === 'all' ? selectedCategories.length === 0 : selectedCategories.includes(category)
+    const handleClick = (category: string) => {
+      if (category === 'all') {
+        handleCategoryChange(new Set(['all']))
+      } else {
+        const newKeys = selectedCategories.includes(category)
+          ? new Set(selectedCategories.filter((c) => c !== category))
+          : new Set([...selectedCategories, category])
+        handleCategoryChange(newKeys)
+      }
+    }
+
+    const itemLabel = (category: string) => (
+      <div className="flex flex-row justify-between">
+        {category}
+        {isSelected(category) && <span className="ml-2 text-primary text-sm">✓</span>}
+      </div>
+    )
+
+    return [
+      {
+        key: 'all',
+        title: t('plugins.all_categories'),
+        label: itemLabel('all'),
+        onClick: () => handleClick('all')
+      },
+      ...allCategories.map(
+        (category) =>
+          ({
+            key: category,
+            title: category,
+            label: itemLabel(category),
+            onClick: () => handleClick(category)
+          }) satisfies ItemType
+      )
+    ]
+  }, [allCategories, selectedCategories, t])
+
+  const pluginTypeTabItems = useMemo(
+    () => [
+      {
+        key: 'all',
+        label: t('plugins.all_types')
+      },
+      {
+        key: 'agent',
+        label: t('plugins.agents')
+      },
+      {
+        key: 'command',
+        label: t('plugins.commands')
+      },
+      {
+        key: 'skill',
+        label: t('plugins.skills')
+      }
+    ],
+    [t]
+  )
 
   const hasMore = displayCount < filteredPlugins.length
 
@@ -170,72 +233,38 @@ export const PluginBrowser: FC<PluginBrowserProps> = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Search and Filter */}
-      <div className="relative flex gap-0">
-        <Input
+      <div className="flex gap-2">
+        <AntInput
           placeholder={t('plugins.search_placeholder')}
           value={searchQuery}
-          onValueChange={handleSearchChange}
-          startContent={<Search className="h-4 w-4 text-default-400" />}
-          isClearable
-          size="md"
-          className="flex-1"
-          classNames={{
-            inputWrapper: 'pr-12'
-          }}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          prefix={<Search className="h-4 w-4 text-default-400" />}
         />
-        <Dropdown placement="bottom-end" classNames={{ content: 'max-h-60 overflow-y-auto p-0' }}>
-          <DropdownTrigger>
-            <Button
-              size="icon-sm"
-              variant={selectedCategories.length > 0 ? 'default' : 'ghost'}
-              className="-translate-y-1/2 absolute top-1/2 right-2 z-10">
-              <Filter className="h-4 w-4" />
-            </Button>
-          </DropdownTrigger>
-          <DropdownMenu
-            aria-label="Category filter"
-            closeOnSelect={false}
-            className="max-h-60 overflow-y-auto"
-            items={[
-              { key: 'all', label: t('plugins.all_categories') },
-              ...allCategories.map((category) => ({ key: category, label: category }))
-            ]}>
-            {(item) => {
-              const isSelected =
-                item.key === 'all' ? selectedCategories.length === 0 : selectedCategories.includes(item.key)
-
-              return (
-                <DropdownItem
-                  key={item.key}
-                  textValue={item.label}
-                  onPress={() => {
-                    if (item.key === 'all') {
-                      handleCategoryChange(new Set(['all']))
-                    } else {
-                      const newKeys = selectedCategories.includes(item.key)
-                        ? new Set(selectedCategories.filter((c) => c !== item.key))
-                        : new Set([...selectedCategories, item.key])
-                      handleCategoryChange(newKeys)
-                    }
-                  }}
-                  className={isSelected ? 'bg-primary-50' : ''}>
-                  {item.label}
-                  {isSelected && <span className="ml-2 text-primary text-sm">✓</span>}
-                </DropdownItem>
-              )
-            }}
-          </DropdownMenu>
-        </Dropdown>
+        <AntDropdown
+          menu={{ items: pluginCategoryMenuItems }}
+          trigger={['click']}
+          open={filterDropdownOpen}
+          placement="bottomRight"
+          onOpenChange={setFilterDropdownOpen}>
+          <AntButton
+            variant={selectedCategories.length > 0 ? 'filled' : 'outlined'}
+            color={selectedCategories.length > 0 ? 'primary' : 'default'}
+            size="middle"
+            icon={<Filter className="h-4 w-4" color="var(--color-text-2)" />}
+          />
+        </AntDropdown>
       </div>
 
       {/* Type Tabs */}
-      <div className="-mt-3 flex justify-center">
-        <Tabs selectedKey={activeType} onSelectionChange={handleTypeChange} variant="underlined">
-          <Tab key="all" title={t('plugins.all_types')} />
-          <Tab key="agent" title={t('plugins.agents')} />
-          <Tab key="command" title={t('plugins.commands')} />
-          <Tab key="skill" title={t('plugins.skills')} />
-        </Tabs>
+      <div className="-mb-3 flex w-full justify-center">
+        <AntTabs
+          activeKey={activeType}
+          onChange={handleTypeChange}
+          items={pluginTypeTabItems}
+          className="w-full"
+          size="small"
+          centered
+        />
       </div>
 
       {/* Result Count */}

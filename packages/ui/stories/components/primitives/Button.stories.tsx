@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { ChevronRight, Loader2, Mail } from 'lucide-react'
 
-import { Button } from '../../../src/components'
+import { Button } from '../../../src/components/primitives/button'
 
 const meta: Meta<typeof Button> = {
   title: 'Components/Primitives/Button',

@@ -12,7 +12,8 @@ import {
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
-  isNewApiProvider
+  isNewApiProvider,
+  isPerplexityProvider
 } from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
@@ -104,6 +105,8 @@ function formatProviderApiHost(provider: Provider): Provider {
     formatted.apiHost = formatVertexApiHost(formatted)
   } else if (isCherryAIProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isPerplexityProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)
   }
@@ -169,7 +172,7 @@ export function providerToAiSdkConfig(
   extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai') {
+  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
     extraOptions.mode = 'chat'
   }
 

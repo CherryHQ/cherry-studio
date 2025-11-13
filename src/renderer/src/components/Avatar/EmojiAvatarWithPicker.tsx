@@ -1,5 +1,4 @@
-import { Button } from '@cherrystudio/ui'
-import { Popover, PopoverContent, PopoverTrigger } from '@heroui/react'
+import { Button, Popover } from 'antd'
 import React from 'react'
 
 import EmojiPicker from '../EmojiPicker'
@@ -11,15 +10,10 @@ type Props = {
 
 export const EmojiAvatarWithPicker: React.FC<Props> = ({ emoji, onPick }) => {
   return (
-    <Popover>
-      <PopoverTrigger>
-        <Button size="icon-sm" asChild>
-          <span className="text-lg">{emoji}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <EmojiPicker onEmojiClick={onPick}></EmojiPicker>
-      </PopoverContent>
+    <Popover content={<EmojiPicker onEmojiClick={onPick} />} trigger="click">
+      <Button type="text" style={{ width: 32, height: 32, fontSize: 18 }}>
+        {emoji}
+      </Button>
     </Popover>
   )
 }

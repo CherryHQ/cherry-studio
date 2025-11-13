@@ -2,12 +2,7 @@
 @import 'tw-animate-css';
 
 @import '../../../../../packages/ui/src/styles/theme.css';
-
-/* TODO heroui 迁移完成后即可删除 */
-/* heroui */
-/* @plugin '../../hero.ts'; */
-@source '../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}';
-
+@source '../../../../../packages/ui/src/components/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
 /* 如需自定义:
@@ -23,21 +18,80 @@
 4. Put the new custom utility class into the utilities layer.
 */
 
-/* 应用特定的原始变量 */
 :root {
   --icon: #00000099;
+
+  --primary-foreground: oklch(0.985 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --input: oklch(0.922 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
   --icon: #ffffff99;
+
+  --primary-foreground: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --input: oklch(0.269 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
 }
 
-/* 应用特定的变量和动画（不与 UI 库冲突） */
+/* shadcn中的默认变量(排除了与ui库冲突的变量，只映射ui库缺少的变量) */
 @theme inline {
-  /* Icon 颜色 - 应用特定变量 */
   --color-icon: var(--icon);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive-foreground: var(--destructive-foreground);
 
-  /* 跑马灯动画 - 应用特定 */
+  --color-input: var(--input);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
   --animate-marquee: marquee var(--duration) infinite linear;
   --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
 

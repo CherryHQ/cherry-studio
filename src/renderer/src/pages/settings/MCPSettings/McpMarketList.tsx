@@ -34,7 +34,7 @@ const mcpMarkets = [
   {
     name: 'smithery.ai',
     url: 'https://smithery.ai/',
-    logo: 'https://smithery.ai/logo.svg',
+    logo: 'https://smithery.ai/icon.svg',
     descriptionKey: 'settings.mcp.more.smithery'
   },
   {

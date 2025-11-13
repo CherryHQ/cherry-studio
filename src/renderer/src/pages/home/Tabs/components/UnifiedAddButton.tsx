@@ -1,6 +1,6 @@
-import { useDisclosure } from '@heroui/react'
 import AddAssistantOrAgentPopup from '@renderer/components/Popups/AddAssistantOrAgentPopup'
-import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
+import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
+import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { AgentEntity, Assistant, Topic } from '@renderer/types'
@@ -18,20 +18,8 @@ interface UnifiedAddButtonProps {
 
 const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setActiveAssistant, setActiveAgentId }) => {
   const { t } = useTranslation()
-  const { isOpen: isAgentModalOpen, onOpen: onAgentModalOpen, onClose: onAgentModalClose } = useDisclosure()
   const dispatch = useAppDispatch()
-
-  const handleAddButtonClick = () => {
-    AddAssistantOrAgentPopup.show({
-      onSelect: (type) => {
-        if (type === 'assistant') {
-          onCreateAssistant()
-        } else if (type === 'agent') {
-          onAgentModalOpen()
-        }
-      }
-    })
-  }
+  const { apiServerRunning, startApiServer } = useApiServer()
 
   const afterCreate = useCallback(
     (a: AgentEntity) => {
@@ -58,12 +46,26 @@ const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setAct
     [dispatch, setActiveAgentId, setActiveAssistant]
   )
 
+  const handleAddButtonClick = async () => {
+    AddAssistantOrAgentPopup.show({
+      onSelect: (type) => {
+        if (type === 'assistant') {
+          onCreateAssistant()
+        }
+
+        if (type === 'agent') {
+          !apiServerRunning && startApiServer()
+          AgentModalPopup.show({ afterSubmit: afterCreate })
+        }
+      }
+    })
+  }
+
   return (
-    <div className="mb-1">
-      <AddButton onClick={handleAddButtonClick} className="-mt-[1px] mb-[2px]">
+    <div className="-mt-[4px] mb-[6px]">
+      <AddButton onClick={handleAddButtonClick} className="">
         {t('chat.add.assistant.title')}
       </AddButton>
-      <AgentModal isOpen={isAgentModalOpen} onClose={onAgentModalClose} afterSubmit={afterCreate} />
     </div>
   )
 }
