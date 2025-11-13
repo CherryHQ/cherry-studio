@@ -50,6 +50,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
     } catch (error) {
       window.toast.error(t('import.chatgpt.error.unknown'))
+      setOpen(false)
     } finally {
       setImporting(false)
     }
