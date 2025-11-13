@@ -3172,7 +3172,7 @@
       "hour_interval_other": "{{count}} hours",
       "import_settings": {
         "button": "Import Json File",
-        "chatgpt" : "Import from ChatGPT",
+        "chatgpt": "Import from ChatGPT",
         "title": "Import Outside Application Data"
       },
       "joplin": {
