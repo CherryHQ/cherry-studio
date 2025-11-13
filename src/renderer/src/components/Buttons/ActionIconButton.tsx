@@ -1,4 +1,4 @@
-import { cn } from '@heroui/react'
+import { cn } from '@renderer/utils'
 import type { ButtonProps } from 'antd'
 import { Button } from 'antd'
 import React, { memo } from 'react'

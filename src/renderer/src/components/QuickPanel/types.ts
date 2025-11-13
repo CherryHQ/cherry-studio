@@ -10,7 +10,8 @@ export enum QuickPanelReservedSymbol {
   WebSearch = '?',
   Mcp = 'mcp',
   McpPrompt = 'mcp-prompt',
-  McpResource = 'mcp-resource'
+  McpResource = 'mcp-resource',
+  SlashCommands = 'slash-commands'
 }
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
@@ -26,6 +27,29 @@ export type QuickPanelCallBackOptions = {
   item: QuickPanelListItem
   searchText?: string
 }
+
+/**
+ * Filter function type
+ * @param item - The item to check
+ * @param searchText - The search text (without leading symbol)
+ * @param fuzzyRegex - Fuzzy matching regex
+ * @param pinyinCache - Cache for pinyin conversions
+ * @returns true if item matches the search
+ */
+export type QuickPanelFilterFn = (
+  item: QuickPanelListItem,
+  searchText: string,
+  fuzzyRegex: RegExp,
+  pinyinCache: WeakMap<QuickPanelListItem, string>
+) => boolean
+
+/**
+ * Sort function type
+ * @param items - The filtered items to sort
+ * @param searchText - The search text (without leading symbol)
+ * @returns sorted items
+ */
+export type QuickPanelSortFn = (items: QuickPanelListItem[], searchText: string) => QuickPanelListItem[]
 
 export type QuickPanelOpenOptions = {
   /** 显示在底部左边，类似于Placeholder */
@@ -48,6 +72,14 @@ export type QuickPanelOpenOptions = {
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
+  /** Callback when search text changes (called with debounced search text) */
+  onSearchChange?: (searchText: string) => void
+  /** Tool manages list + collapse behavior externally (skip filtering/auto-close) */
+  manageListExternally?: boolean
+  /** Custom filter function for items (follows open-closed principle) */
+  filterFn?: QuickPanelFilterFn
+  /** Custom sort function for filtered items (follows open-closed principle) */
+  sortFn?: QuickPanelSortFn
 }
 
 export type QuickPanelListItem = {
@@ -88,10 +120,15 @@ export interface QuickPanelContextType {
   readonly pageSize: number
   readonly multiple: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
+  readonly manageListExternally?: boolean
+  readonly lastCloseAction?: QuickPanelCloseAction
+  readonly filterFn?: QuickPanelFilterFn
+  readonly sortFn?: QuickPanelSortFn
 
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void
   readonly afterAction?: (Options: QuickPanelCallBackOptions) => void
+  readonly onSearchChange?: (searchText: string) => void
 }
 
 export type QuickPanelScrollTrigger = 'initial' | 'keyboard' | 'none'

@@ -31,21 +31,24 @@ export const useApiServer = () => {
     try {
       const status = await window.api.apiServer.getStatus()
       setApiServerRunning(status.running)
+      if (status.running && !apiServerConfig.enabled) {
+        setApiServerEnabled(true)
+      }
     } catch (error: any) {
       logger.error('Failed to check API server status:', error)
     } finally {
       setApiServerLoading(false)
     }
-  }, [])
+  }, [apiServerConfig.enabled, setApiServerEnabled])
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
-
     setApiServerLoading(true)
     try {
       const result = await window.api.apiServer.start()
       if (result.success) {
         setApiServerRunning(true)
+        setApiServerEnabled(true)
         window.toast.success(t('apiServer.messages.startSuccess'))
       } else {
         window.toast.error(t('apiServer.messages.startError') + result.error)
@@ -55,16 +58,16 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, t])
+  }, [apiServerLoading, setApiServerEnabled, t])
 
   const stopApiServer = useCallback(async () => {
     if (apiServerLoading) return
-
     setApiServerLoading(true)
     try {
       const result = await window.api.apiServer.stop()
       if (result.success) {
         setApiServerRunning(false)
+        setApiServerEnabled(false)
         window.toast.success(t('apiServer.messages.stopSuccess'))
       } else {
         window.toast.error(t('apiServer.messages.stopError') + result.error)
@@ -74,14 +77,14 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, t])
+  }, [apiServerLoading, setApiServerEnabled, t])
 
   const restartApiServer = useCallback(async () => {
     if (apiServerLoading) return
-
     setApiServerLoading(true)
     try {
       const result = await window.api.apiServer.restart()
+      setApiServerEnabled(result.success)
       if (result.success) {
         await checkApiServerStatus()
         window.toast.success(t('apiServer.messages.restartSuccess'))
@@ -93,7 +96,7 @@ export const useApiServer = () => {
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerLoading, checkApiServerStatus, t])
+  }, [apiServerLoading, checkApiServerStatus, setApiServerEnabled, t])
 
   useEffect(() => {
     checkApiServerStatus()

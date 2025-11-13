@@ -56,7 +56,6 @@ export interface RuntimeState {
   export: ExportState
   chat: ChatState
   websearch: WebSearchState
-  iknow: Record<string, boolean>
 }
 
 export interface ExportState {
@@ -98,8 +97,7 @@ const initialState: RuntimeState = {
   },
   websearch: {
     activeSearches: {}
-  },
-  iknow: {}
+  }
 }
 
 const runtimeSlice = createSlice({
@@ -186,9 +184,6 @@ const runtimeSlice = createSlice({
       }
       state.websearch.activeSearches[requestId] = status
     },
-    addIknowAction: (state, action: PayloadAction<string>) => {
-      state.iknow[action.payload] = true
-    },
     setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
       const { id, value } = action.payload
       state.chat.sessionWaiting[id] = value
@@ -210,7 +205,6 @@ export const {
   setResourcesPath,
   setUpdateState,
   setExportState,
-  addIknowAction,
   // Chat related actions
   toggleMultiSelectMode,
   setSelectedMessageIds,

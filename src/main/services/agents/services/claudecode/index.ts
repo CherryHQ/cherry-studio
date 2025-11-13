@@ -12,6 +12,7 @@ import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import { sessionService } from '../SessionService'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -19,6 +20,7 @@ const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
+const NO_RESUME_COMMANDS = ['/clear']
 
 type UserInputMessage = {
   type: 'user'
@@ -197,7 +199,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    if (lastAgentSessionId) {
+    if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
       options.resume = lastAgentSessionId
       // TODO: use fork session when we support branching sessions
       // options.forkSession = true
@@ -220,7 +222,15 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Start async processing on the next tick so listeners can subscribe first
     setImmediate(() => {
-      this.processSDKQuery(userInputStream, closeUserStream, options, aiStream, errorChunks).catch((error) => {
+      this.processSDKQuery(
+        userInputStream,
+        closeUserStream,
+        options,
+        aiStream,
+        errorChunks,
+        session.agent_id,
+        session.id
+      ).catch((error) => {
         logger.error('Unhandled Claude Code stream error', {
           error: error instanceof Error ? { name: error.name, message: error.message } : String(error)
         })
@@ -329,7 +339,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     closePromptStream: () => void,
     options: Options,
     stream: ClaudeCodeStream,
-    errorChunks: string[]
+    errorChunks: string[],
+    agentId: string,
+    sessionId: string
   ): Promise<void> {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
@@ -341,6 +353,62 @@ class ClaudeCodeService implements AgentServiceInterface {
         if (hasCompleted) break
 
         jsonOutput.push(message)
+
+        // Handle init message - merge builtin and SDK slash_commands
+        if (message.type === 'system' && message.subtype === 'init') {
+          const sdkSlashCommands = message.slash_commands || []
+          logger.info('Received init message with slash commands', {
+            sessionId,
+            commands: sdkSlashCommands
+          })
+
+          try {
+            // Get builtin + local slash commands from BaseService
+            const existingCommands = await sessionService.listSlashCommands('claude-code', agentId)
+
+            // Convert SDK slash_commands (string[]) to SlashCommand[] format
+            // Ensure all commands start with '/'
+            const sdkCommands = sdkSlashCommands.map((cmd) => {
+              const normalizedCmd = cmd.startsWith('/') ? cmd : `/${cmd}`
+              return {
+                command: normalizedCmd,
+                description: undefined
+              }
+            })
+
+            // Merge: existing commands (builtin + local) + SDK commands, deduplicate by command name
+            const commandMap = new Map<string, { command: string; description?: string }>()
+
+            for (const cmd of existingCommands) {
+              commandMap.set(cmd.command, cmd)
+            }
+
+            for (const cmd of sdkCommands) {
+              if (!commandMap.has(cmd.command)) {
+                commandMap.set(cmd.command, cmd)
+              }
+            }
+
+            const mergedCommands = Array.from(commandMap.values())
+
+            // Update session in database
+            await sessionService.updateSession(agentId, sessionId, {
+              slash_commands: mergedCommands
+            })
+
+            logger.info('Updated session with merged slash commands', {
+              sessionId,
+              existingCount: existingCommands.length,
+              sdkCount: sdkCommands.length,
+              totalCount: mergedCommands.length
+            })
+          } catch (error) {
+            logger.error('Failed to update session slash_commands', {
+              sessionId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
+        }
 
         if (message.type === 'assistant' || message.type === 'user') {
           logger.silly('claude response', {
@@ -365,10 +433,19 @@ class ClaudeCodeService implements AgentServiceInterface {
             type: 'chunk',
             chunk
           })
+
+          // Close prompt stream when SDK signals completion or error
+          if (chunk.type === 'finish' || chunk.type === 'error') {
+            logger.info('Closing prompt stream as SDK signaled completion', {
+              chunkType: chunk.type,
+              reason: chunk.type === 'finish' ? 'finished' : 'error_occurred'
+            })
+            closePromptStream()
+            logger.info('Prompt stream closed successfully')
+          }
         }
       }
 
-      hasCompleted = true
       const duration = Date.now() - startTime
 
       logger.debug('SDK query completed successfully', {

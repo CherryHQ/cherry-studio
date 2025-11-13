@@ -1,0 +1,64 @@
+{
+  "name": "@cherrystudio/ai-sdk-provider",
+  "version": "0.1.0",
+  "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
+  "keywords": [
+    "ai-sdk",
+    "provider",
+    "cherryin",
+    "vercel-ai-sdk",
+    "cherry-studio"
+  ],
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "homepage": "https://github.com/CherryHQ/cherry-studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git",
+    "directory": "packages/ai-sdk-provider"
+  },
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
+  },
+  "type": "module",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@ai-sdk/anthropic": "^2.0.29",
+    "@ai-sdk/google": "^2.0.23",
+    "@ai-sdk/openai": "^2.0.64",
+    "ai": "^5.0.26"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^2.0.0",
+    "@ai-sdk/provider-utils": "^3.0.12"
+  },
+  "devDependencies": {
+    "tsdown": "^0.13.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  }
+}

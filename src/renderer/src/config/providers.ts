@@ -1490,6 +1490,10 @@ export function isCherryAIProvider(provider: Provider): boolean {
   return provider.id === 'cherryai'
 }
 
+export function isPerplexityProvider(provider: Provider): boolean {
+  return provider.id === 'perplexity'
+}
+
 /**
  * 判断是否为 OpenAI 兼容的提供商
  * @param {Provider} provider 提供商对象
@@ -1515,7 +1519,7 @@ export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
 }
 
-const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
 
 export const isSupportAPIVersionProvider = (provider: Provider) => {
   if (isSystemProvider(provider)) {
