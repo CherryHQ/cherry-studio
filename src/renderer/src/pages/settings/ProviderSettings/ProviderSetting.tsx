@@ -551,6 +551,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       onChange={(e) => setAnthropicHost(e.target.value)}
                       onBlur={onUpdateAnthropicHost}
                     />
+                    {/* TODO: Add a reset button here. */}
                   </Space.Compact>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
