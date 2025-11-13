@@ -18,15 +18,14 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
         'cs-switch cs-switch-root',
         'group relative box-content cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
         'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
-        'hover:bg-primary-hover!',
-        'disabled:cursor-not-allowed disabled:opacity-50',
+        'disabled:cursor-not-allowed disabled:opacity-40',
         'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
         {
           'w-9 h-5': size === 'sm',
           'w-11 h-5.5': size === 'md',
           'w-11 h-6': size === 'lg'
         },
-        loading && 'data-[state=unchecked]:bg-primary',
+        loading && 'bg-primary-hover!',
         className
       )}
       disabled={disabled}
@@ -35,7 +34,7 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
         data-slot="switch-thumb"
         className={cn(
           'cs-switch cs-switch-thumb',
-          'pointer-events-none block rounded-full bg-background ring-0 transition-all data-[state=unchecked]:translate-x-0 dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground',
+          'pointer-events-none block rounded-full ring-0 transition-all data-[state=unchecked]:translate-x-0',
           // TODO: not final
           {
             'size-4.5 ml-[1px] data-[state=checked]:translate-x-4': size === 'sm',
@@ -49,22 +48,18 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
           }
           // TODO: Add disabled style
         )}>
-        <div
-          className={cn(
-            'cs-switch cs-switch-thumb-content-container',
-            'w-full h-full flex items-center justify-center'
-          )}>
-          <div
-            // TODO: use linear primary
-            className={cn(
-              'cs-switch cs-switch-thumb-content',
-              'w-0.5 h-1.5 rounded-2xl transition-colors group-data-[state=unchecked]:bg-gray-500/20',
-              'group-data-[state=checked]:bg-linear-to-b group-data-[state=checked]:from-[#8DE59E] group-data-[state=checked]:to-[#3CD45A]',
-              disabled && 'opacity-40',
-              loading &&
-                'group-data-[state=unchecked]:bg-gray-500/20 group-data-[state=checked]:bg-gray-500/20 animate-spin'
-            )}></div>
-        </div>
+        <svg
+          width="inherit"
+          height="inherit"
+          viewBox="0 0 19 19"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className={cn('transition-all', loading && 'animate-spin')}>
+          <path
+            d="M9.5 0C14.7467 0 19 4.25329 19 9.5C19 14.7467 14.7467 19 9.5 19C4.25329 19 0 14.7467 0 9.5C0 4.25329 4.25329 0 9.5 0ZM9.5 6.33301C8.91711 6.33301 8.44445 6.8058 8.44434 7.38867V11.6113C8.44445 12.1942 8.91711 12.667 9.5 12.667C10.0829 12.667 10.5555 12.1942 10.5557 11.6113V7.38867C10.5555 6.8058 10.0829 6.33301 9.5 6.33301Z"
+            fill="white"
+          />
+        </svg>
       </SwitchPrimitive.Thumb>
     </SwitchPrimitive.Root>
   )
