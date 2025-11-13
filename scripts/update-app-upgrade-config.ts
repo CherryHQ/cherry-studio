@@ -331,11 +331,7 @@ function findVersionKeyBySegment(versions: Record<string, VersionEntry>, segment
   return null
 }
 
-function resolveVersionKey(
-  existingKey: string | null,
-  segment: SegmentDefinition,
-  releaseInfo: ReleaseInfo
-): string {
+function resolveVersionKey(existingKey: string | null, segment: SegmentDefinition, releaseInfo: ReleaseInfo): string {
   if (segment.lockedVersion) {
     return segment.lockedVersion
   }
@@ -372,11 +368,16 @@ function createEmptyVersionEntry(): VersionEntry {
   }
 }
 
-function ensureChannelSlots(channels: Record<UpgradeChannel, ChannelConfig | null>): Record<UpgradeChannel, ChannelConfig | null> {
-  return CHANNELS.reduce((acc, channel) => {
-    acc[channel] = channels[channel] ?? null
-    return acc
-  }, {} as Record<UpgradeChannel, ChannelConfig | null>)
+function ensureChannelSlots(
+  channels: Record<UpgradeChannel, ChannelConfig | null>
+): Record<UpgradeChannel, ChannelConfig | null> {
+  return CHANNELS.reduce(
+    (acc, channel) => {
+      acc[channel] = channels[channel] ?? null
+      return acc
+    },
+    {} as Record<UpgradeChannel, ChannelConfig | null>
+  )
 }
 
 async function applyChannelUpdate(
@@ -411,27 +412,22 @@ async function applyChannelUpdate(
 }
 
 function buildFeedUrls(segment: SegmentDefinition, releaseInfo: ReleaseInfo): Record<UpdateMirror, string> {
-  return MIRRORS.reduce((acc, mirror) => {
-    const template = resolveFeedTemplate(segment, releaseInfo, mirror)
-    acc[mirror] = applyTemplate(template, releaseInfo)
-    return acc
-  }, {} as Record<UpdateMirror, string>)
+  return MIRRORS.reduce(
+    (acc, mirror) => {
+      const template = resolveFeedTemplate(segment, releaseInfo, mirror)
+      acc[mirror] = applyTemplate(template, releaseInfo)
+      return acc
+    },
+    {} as Record<UpdateMirror, string>
+  )
 }
 
-function resolveFeedTemplate(
-  segment: SegmentDefinition,
-  releaseInfo: ReleaseInfo,
-  mirror: UpdateMirror
-): string {
+function resolveFeedTemplate(segment: SegmentDefinition, releaseInfo: ReleaseInfo, mirror: UpdateMirror): string {
   if (mirror === 'gitcode' && releaseInfo.channel !== 'latest') {
-    return (
-      segment.channelTemplates?.[releaseInfo.channel]?.feedTemplates?.github ?? DEFAULT_FEED_TEMPLATES.github
-    )
+    return segment.channelTemplates?.[releaseInfo.channel]?.feedTemplates?.github ?? DEFAULT_FEED_TEMPLATES.github
   }
 
-  return (
-    segment.channelTemplates?.[releaseInfo.channel]?.feedTemplates?.[mirror] ?? DEFAULT_FEED_TEMPLATES[mirror]
-  )
+  return segment.channelTemplates?.[releaseInfo.channel]?.feedTemplates?.[mirror] ?? DEFAULT_FEED_TEMPLATES[mirror]
 }
 
 function applyTemplate(template: string, releaseInfo: ReleaseInfo): string {
@@ -440,10 +436,13 @@ function applyTemplate(template: string, releaseInfo: ReleaseInfo): string {
 
 function sortVersionMap(versions: Record<string, VersionEntry>): Record<string, VersionEntry> {
   const sorted = Object.entries(versions).sort(([a], [b]) => semver.rcompare(a, b))
-  return sorted.reduce((acc, [version, entry]) => {
-    acc[version] = entry
-    return acc
-  }, {} as Record<string, VersionEntry>)
+  return sorted.reduce(
+    (acc, [version, entry]) => {
+      acc[version] = entry
+      return acc
+    },
+    {} as Record<string, VersionEntry>
+  )
 }
 
 async function ensureReleaseAvailability(releaseInfo: ReleaseInfo): Promise<boolean> {
