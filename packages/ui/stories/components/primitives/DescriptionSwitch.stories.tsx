@@ -1,20 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import {
-  Bell,
-  Database,
-  Eye,
-  Globe,
-  Lock,
-  Mail,
-  Moon,
-  Save,
-  Share2,
-  Shield,
-  Smartphone,
-  Volume2,
-  Wifi,
-  Zap
-} from 'lucide-react'
+import { Bell, Eye, Lock, Moon, Shield, Wifi, Zap } from 'lucide-react'
 import { useState } from 'react'
 
 import { DescriptionSwitch } from '../../../src/components/primitives/switch'
@@ -103,10 +88,7 @@ export const WithDescription: Story = {
         description="Automatically save your work as you type"
         defaultChecked
       />
-      <DescriptionSwitch
-        label="Dark mode"
-        description="Use dark theme for better visibility at night"
-      />
+      <DescriptionSwitch label="Dark mode" description="Use dark theme for better visibility at night" />
     </div>
   )
 }
@@ -208,20 +190,12 @@ export const States: Story = {
 
       <div>
         <p className="mb-3 text-sm text-muted-foreground">Checked</p>
-        <DescriptionSwitch
-          label="Checked state"
-          description="Currently enabled and active"
-          defaultChecked
-        />
+        <DescriptionSwitch label="Checked state" description="Currently enabled and active" defaultChecked />
       </div>
 
       <div>
         <p className="mb-3 text-sm text-muted-foreground">Disabled (Unchecked)</p>
-        <DescriptionSwitch
-          label="Disabled state"
-          description="Cannot be toggled, currently inactive"
-          disabled
-        />
+        <DescriptionSwitch label="Disabled state" description="Cannot be toggled, currently inactive" disabled />
       </div>
 
       <div>
@@ -265,6 +239,7 @@ export const Controlled: Story = {
         <div className="flex items-center gap-4">
           <div className="text-sm text-muted-foreground">Current state: {checked ? 'On' : 'Off'}</div>
           <button
+            type="button"
             onClick={() => setChecked(!checked)}
             className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
             Toggle State
@@ -479,11 +454,7 @@ export const WithIcons: Story = {
       <div className="flex items-start gap-3">
         <Bell className="mt-1 size-5 text-muted-foreground" />
         <div className="flex-1">
-          <DescriptionSwitch
-            label="Notifications"
-            description="Receive alerts for important updates"
-            defaultChecked
-          />
+          <DescriptionSwitch label="Notifications" description="Receive alerts for important updates" defaultChecked />
         </div>
       </div>
       <div className="flex items-start gap-3">
@@ -504,11 +475,7 @@ export const WithIcons: Story = {
       <div className="flex items-start gap-3">
         <Wifi className="mt-1 size-5 text-muted-foreground" />
         <div className="flex-1">
-          <DescriptionSwitch
-            label="Offline mode"
-            description="Work without internet connection"
-            defaultChecked
-          />
+          <DescriptionSwitch label="Offline mode" description="Work without internet connection" defaultChecked />
         </div>
       </div>
       <div className="flex items-start gap-3">
@@ -580,9 +547,7 @@ export const LoadingSimulation: Story = {
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Toggle switches to see a simulated 1.5-second loading state
-        </p>
+        <p className="text-xs text-muted-foreground">Toggle switches to see a simulated 1.5-second loading state</p>
       </div>
     )
   }
@@ -799,27 +764,18 @@ export const AccessibilityFeatures: Story = {
       <div>
         <h3 className="mb-4 text-base font-semibold">Keyboard Navigation</h3>
         <p className="mb-4 text-sm text-muted-foreground">
-          Use Tab to navigate between switches and Space/Enter to toggle them. Each switch has a proper label for
-          screen readers.
+          Use Tab to navigate between switches and Space/Enter to toggle them. Each switch has a proper label for screen
+          readers.
         </p>
         <div className="flex flex-col gap-4">
-          <DescriptionSwitch
-            label="High contrast mode"
-            description="Increase contrast for better visibility"
-          />
-          <DescriptionSwitch
-            label="Reduce motion"
-            description="Minimize animations and transitions"
-          />
+          <DescriptionSwitch label="High contrast mode" description="Increase contrast for better visibility" />
+          <DescriptionSwitch label="Reduce motion" description="Minimize animations and transitions" />
           <DescriptionSwitch
             label="Screen reader optimization"
             description="Optimize interface for screen readers"
             defaultChecked
           />
-          <DescriptionSwitch
-            label="Large text"
-            description="Increase font size throughout the app"
-          />
+          <DescriptionSwitch label="Large text" description="Increase font size throughout the app" />
         </div>
       </div>
     </div>
@@ -833,32 +789,16 @@ export const ResponsiveLayout: Story = {
       <div className="w-[300px]">
         <h3 className="mb-4 text-sm font-semibold">Narrow Layout (300px)</h3>
         <div className="flex flex-col gap-3">
-          <DescriptionSwitch
-            label="Notifications"
-            description="Receive important alerts"
-            size="sm"
-          />
-          <DescriptionSwitch
-            label="Auto-save"
-            description="Save automatically"
-            size="sm"
-            defaultChecked
-          />
+          <DescriptionSwitch label="Notifications" description="Receive important alerts" size="sm" />
+          <DescriptionSwitch label="Auto-save" description="Save automatically" size="sm" defaultChecked />
         </div>
       </div>
 
       <div className="w-[500px]">
         <h3 className="mb-4 text-sm font-semibold">Standard Layout (500px)</h3>
         <div className="flex flex-col gap-4">
-          <DescriptionSwitch
-            label="Notifications"
-            description="Receive alerts for important updates and messages"
-          />
-          <DescriptionSwitch
-            label="Auto-save"
-            description="Automatically save your work as you type"
-            defaultChecked
-          />
+          <DescriptionSwitch label="Notifications" description="Receive alerts for important updates and messages" />
+          <DescriptionSwitch label="Auto-save" description="Automatically save your work as you type" defaultChecked />
         </div>
       </div>
 
