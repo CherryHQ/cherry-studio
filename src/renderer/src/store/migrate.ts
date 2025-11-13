@@ -14,7 +14,8 @@ import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider,
-  SYSTEM_PROVIDERS
+  SYSTEM_PROVIDERS,
+  SYSTEM_PROVIDERS_CONFIG
 } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
@@ -2800,6 +2801,19 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 173 error', error as Error)
+      return state
+    }
+  },
+  '174': (state: RootState) => {
+    try {
+      const minimax = state.llm.providers.find((p) => p.id === SystemProviderIds.minimax)
+      if (minimax) {
+        minimax.anthropicApiHost = SYSTEM_PROVIDERS_CONFIG.minimax.anthropicApiHost
+      }
+      logger.info('migrate 174 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 174 error', error as Error)
       return state
     }
   }
