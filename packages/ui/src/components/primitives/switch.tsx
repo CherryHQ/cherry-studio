@@ -87,11 +87,15 @@ const DescriptionSwitch = ({
       <label className={cn('flex flex-col gap-5xs cursor-pointer')} htmlFor={id}>
         {/* TODO: use standard typography component */}
         <p
-          className={cn('font-medium tracking-normal', {
-            'text-sm leading-4': size === 'sm',
-            'text-md leading-4.5': size === 'md',
-            'text-lg leading-5.5': size === 'lg'
-          })}>
+          className={cn(
+            'font-medium tracking-normal',
+            {
+              'text-sm leading-4': size === 'sm',
+              'text-md leading-4.5': size === 'md',
+              'text-lg leading-5.5': size === 'lg'
+            },
+            isLeftSide && 'text-right'
+          )}>
           {label}
         </p>
         {/* TODO: use standard typography component */}
