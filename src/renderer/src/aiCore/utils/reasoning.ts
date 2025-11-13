@@ -109,6 +109,11 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
     // use thinking, doubao, zhipu, etc.
     if (isSupportedThinkingTokenDoubaoModel(model) || isSupportedThinkingTokenZhipuModel(model)) {
+      if (provider.id === SystemProviderIds.cerebras) {
+        return {
+          disable_reasoning: true
+        }
+      }
       return { thinking: { type: 'disabled' } }
     }
 
@@ -306,6 +311,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {}
   }
   if (isSupportedThinkingTokenZhipuModel(model)) {
+    if (provider.id === SystemProviderIds.cerebras) {
+      return {}
+    }
     return { thinking: { type: 'enabled' } }
   }
 

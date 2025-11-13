@@ -11,7 +11,8 @@ export const ProviderTypeSchema = z.enum([
   'mistral',
   'aws-bedrock',
   'vertex-anthropic',
-  'new-api'
+  'new-api',
+  'ai-gateway'
 ])
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>
@@ -176,7 +177,9 @@ export const SystemProviderIds = {
   poe: 'poe',
   aionly: 'aionly',
   longcat: 'longcat',
-  huggingface: 'huggingface'
+  huggingface: 'huggingface',
+  'ai-gateway': 'ai-gateway',
+  cerebras: 'cerebras'
 } as const
 
 export type SystemProviderId = keyof typeof SystemProviderIds

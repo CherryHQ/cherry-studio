@@ -71,6 +71,21 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     creatorFunctionName: 'createHuggingFace',
     supportsImageGeneration: true,
     aliases: ['hf', 'hugging-face']
+  },
+  {
+    id: 'ai-gateway',
+    name: 'AI Gateway',
+    import: () => import('@ai-sdk/gateway'),
+    creatorFunctionName: 'createGateway',
+    supportsImageGeneration: true,
+    aliases: ['gateway']
+  },
+  {
+    id: 'cerebras',
+    name: 'Cerebras',
+    import: () => import('@ai-sdk/cerebras'),
+    creatorFunctionName: 'createCerebras',
+    supportsImageGeneration: false
   }
 ] as const
 
