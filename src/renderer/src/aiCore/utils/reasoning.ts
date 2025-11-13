@@ -311,6 +311,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {}
   }
   if (isSupportedThinkingTokenZhipuModel(model)) {
+    if (provider.id === SystemProviderIds.cerebras) {
+      return {}
+    }
     return { thinking: { type: 'enabled' } }
   }
 
