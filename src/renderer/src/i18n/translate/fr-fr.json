@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Gérez des tâches complexes avec divers outils",
       "error": {
         "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
@@ -338,6 +339,41 @@
     },
     "title": "Serveur API"
   },
+  "appMenu": {
+    "about": "À propos",
+    "close": "Fermer la fenêtre",
+    "copy": "Copier",
+    "cut": "Couper",
+    "delete": "Supprimer",
+    "documentation": "Documentation",
+    "edit": "Modifier",
+    "feedback": "Retour d'information",
+    "file": "Fichier",
+    "forceReload": "Rechargement forcé",
+    "front": "Tout ramener au premier plan",
+    "help": "Aide",
+    "hide": "Cacher",
+    "hideOthers": "Masquer les autres",
+    "minimize": "Minimiser",
+    "paste": "Coller",
+    "quit": "Quitter",
+    "redo": "Refaire",
+    "releases": "Sorties",
+    "reload": "Recharger",
+    "resetZoom": "Taille réelle",
+    "selectAll": "Tout sélectionner",
+    "services": "Services",
+    "toggleDevTools": "Basculer les outils de développement",
+    "toggleFullscreen": "Basculer en plein écran",
+    "undo": "Annuler",
+    "unhide": "Tout afficher",
+    "view": "Vue",
+    "website": "Site web",
+    "window": "Fenêtre",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom Avant",
+    "zoomOut": "Dézoomer"
+  },
   "assistants": {
     "abbr": "Aide",
     "clear": {
@@ -547,7 +583,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Conversations quotidiennes et Q&R rapides",
         "title": "Ajouter un assistant"
+      },
+      "option": {
+        "title": "Sélectionner le type"
       },
       "topic": {
         "title": "Nouveau sujet"
@@ -591,6 +631,15 @@
       "view_full_content": "Voir le contenu complet"
     },
     "input": {
+      "activity_directory": {
+        "description": "Sélectionner le fichier dans le répertoire d'activité",
+        "loading": "Chargement des fichiers...",
+        "no_file_found": {
+          "description": "Aucun fichier disponible dans les répertoires accessibles",
+          "label": "Aucun fichier trouvé"
+        },
+        "title": "Répertoire d'activités"
+      },
       "auto_resize": "Ajustement automatique de la hauteur",
       "clear": {
         "content": "Êtes-vous sûr de vouloir effacer tous les messages de la conversation actuelle ?",
@@ -614,6 +663,7 @@
       "new": {
         "context": "Effacer le contexte {{Command}}"
       },
+      "new_session": "Nouvelle Session {{Command}}",
       "new_topic": "Nouveau sujet {{Command}}",
       "paste_text_file_confirm": "Coller dans la zone de saisie ?",
       "pause": "Pause",
@@ -621,6 +671,10 @@
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "send": "Envoyer",
       "settings": "Paramètres",
+      "slash_commands": {
+        "description": "Commandes slash de session d'agent",
+        "title": "Commandes Slash"
+      },
       "thinking": {
         "budget_exceeds_max": "Le budget de réflexion dépasse le nombre maximum de tokens",
         "label": "Pensée",
@@ -1047,10 +1101,12 @@
     "clear": "Effacer",
     "close": "Fermer",
     "collapse": "Réduire",
+    "completed": "Terminé",
     "confirm": "Confirmer",
     "copied": "Copié",
     "copy": "Copier",
     "copy_failed": "Échec de la copie",
+    "current": "Actuel",
     "cut": "Couper",
     "default": "Défaut",
     "delete": "Supprimer",
@@ -1729,6 +1785,9 @@
     },
     "message": {
       "code_style": "Style de code",
+      "compact": {
+        "title": "Conversation Compactée"
+      },
       "delete": {
         "content": "Êtes-vous sûr de vouloir supprimer ce message?",
         "title": "Supprimer le message"
@@ -2425,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "Passerelle IA",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2435,6 +2495,7 @@
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilote",
     "dashscope": "AliCloud BaiLian",
@@ -2469,12 +2530,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexité",
-    "ph8": "Plateforme ouverte de grands modèles PH8",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Cloud Piou",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "Silicium Fluide",
+    "sophnet": "SophNet",
     "stepfun": "Échelon Étoile",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Ensemble",
@@ -2921,15 +2983,14 @@
       },
       "description": "Un assistant IA conçu pour les créateurs",
       "downloading": "Téléchargement de la mise à jour en cours...",
+      "enterprise": {
+        "title": "Entreprise"
+      },
       "feedback": {
         "button": "Faire un retour",
         "title": "Retour d'information"
       },
       "label": "À propos de nous",
-      "license": {
-        "button": "Afficher",
-        "title": "Licence"
-      },
       "releases": {
         "button": "Afficher",
         "title": "Journal des mises à jour"
@@ -3036,6 +3097,46 @@
         "siyuan": "Exporter vers Siyuan Notes",
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Sélectionner le fichier de sauvegarde"
+        },
+        "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
+        "lan": {
+          "auto_close_tip": "Fermeture automatique dans {{seconds}} secondes...",
+          "confirm_close_message": "Le transfert de fichier est en cours. Fermer interrompra le transfert. Êtes-vous sûr de vouloir forcer la fermeture ?",
+          "confirm_close_title": "Confirmer la fermeture",
+          "connected": "Connecté",
+          "connection_failed": "Échec de la connexion",
+          "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
+          "error": {
+            "init_failed": "Échec de l'initialisation",
+            "no_file": "Aucun fichier sélectionné",
+            "no_ip": "Impossible d'obtenir l'adresse IP",
+            "send_failed": "Échec de l'envoi du fichier"
+          },
+          "force_close": "Fermer de force",
+          "generating_qr": "Génération du code QR...",
+          "noZipSelected": "Aucun fichier compressé sélectionné",
+          "scan_qr": "Veuillez scanner le code QR avec votre téléphone",
+          "selectZip": "Sélectionner le fichier compressé",
+          "sendZip": "Commencer la restauration des données",
+          "status": {
+            "completed": "Transfert terminé",
+            "connected": "Connecté",
+            "connecting": "Connexion...",
+            "disconnected": "Déconnecté",
+            "error": "Erreur de connexion",
+            "initializing": "Initialisation de la connexion...",
+            "preparing": "Préparation du transfert...",
+            "sending": "Transfert {{progress}} %",
+            "waiting_qr_scan": "Veuillez scanner le code QR pour vous connecter"
+          },
+          "title": "Transmission en réseau local",
+          "transfer_progress": "Progression du transfert"
+        },
+        "title": "Exporter vers le téléphone"
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
@@ -3719,6 +3820,7 @@
         "description": "Désactiver les fonctionnalités du service MCP",
         "label": "Ne pas utiliser le serveur MCP"
       },
+      "discover": "Découvrir",
       "duplicateName": "Un serveur portant le même nom existe déjà",
       "editJson": "Modifier le JSON",
       "editMcpJson": "Редактировать конфигурацию MCP",
@@ -3728,6 +3830,10 @@
       "errors": {
         "32000": "Échec du démarrage du serveur MCP, veuillez vérifier si tous les paramètres sont correctement remplis conformément au tutoriel",
         "toolNotFound": "Outil non trouvé {{name}}"
+      },
+      "fetch": {
+        "button": "Récupérer les serveurs",
+        "success": "Serveurs MCP récupérés avec succès"
       },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
@@ -3744,6 +3850,7 @@
       "logoUrl": "Адрес логотипа",
       "longRunning": "Mode d'exécution prolongée",
       "longRunningTooltip": "Une fois activé, le serveur prend en charge les tâches de longue durée, réinitialise le minuteur de temporisation à la réception des notifications de progression, et prolonge le délai d'expiration maximal à 10 minutes.",
+      "marketplaces": "Places de marché",
       "missingDependencies": "Manquantes, veuillez les installer pour continuer",
       "more": {
         "awesome": "Liste sélectionnée de serveurs MCP",
@@ -3775,6 +3882,12 @@
         "usage": "Utilisation",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
+          "title": "Authentification Réussie"
+        }
+      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Invites disponibles",
@@ -3783,9 +3896,16 @@
         "noPromptsAvailable": "Aucune invite disponible",
         "requiredField": "Champ obligatoire"
       },
+      "protocolInstallWarning": {
+        "command": "Commande de démarrage",
+        "message": "Ce MCP a été installé depuis une source externe via le protocole. L'exécution d'outils inconnus peut endommager votre ordinateur.",
+        "run": "Courir",
+        "title": "Exécuter un MCP externe ?"
+      },
       "provider": "Поставщик",
       "providerPlaceholder": "Название поставщика",
       "providerUrl": "Адрес поставщика",
+      "providers": "Fournisseurs",
       "registry": "Источник управления пакетами",
       "registryDefault": "По умолчанию",
       "registryTooltip": "Выберите источник для установки пакетов, чтобы решить проблемы с сетью по умолчанию.",
@@ -3808,6 +3928,7 @@
       "searchNpx": "Поиск MCP",
       "serverPlural": "Serveurs",
       "serverSingular": "Serveur",
+      "servers": "Serveurs MCP",
       "sse": "Серверные отправляемые события (sse)",
       "startError": "Ошибка запуска",
       "stdio": "Стандартный ввод/вывод (stdio)",
@@ -4207,6 +4328,12 @@
       "aws-bedrock": {
         "access_key_id": "Identifiant de clé d'accès AWS",
         "access_key_id_help": "Votre identifiant de clé d'accès AWS, utilisé pour accéder au service AWS Bedrock",
+        "api_key": "Clé API Bedrock",
+        "api_key_help": "Votre clé API AWS Bedrock pour l'authentification",
+        "auth_type": "Type d'authentification",
+        "auth_type_api_key": "Clé API Bedrock",
+        "auth_type_help": "Choisissez entre l'authentification par identifiants IAM ou par clé API Bedrock",
+        "auth_type_iam": "Identifiants IAM",
         "description": "AWS Bedrock est un service de modèles de base entièrement géré proposé par Amazon, prenant en charge divers grands modèles linguistiques avancés.",
         "region": "Région AWS",
         "region_help": "Votre région de service AWS, par exemple us-east-1",
@@ -4351,6 +4478,7 @@
       "confirm": "Подтвердить",
       "forward": "Вперед",
       "multiple": "Множественный выбор",
+      "noResult": "[to be translated]:No results found",
       "page": "Перелистнуть страницу",
       "select": "Выбрать",
       "title": "Быстрое меню"

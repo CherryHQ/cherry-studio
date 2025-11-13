@@ -1,6 +1,6 @@
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ThemedToken } from 'shiki/core'
+import type { ThemedToken } from 'shiki/core'
 
 interface UseCodeHighlightOptions {
   rawLines: string[]

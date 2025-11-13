@@ -5,7 +5,7 @@ import React, { memo, useCallback, useEffect } from 'react'
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowWhiteContainer } from './styles'
-import { BasicPreviewHandles, BasicPreviewProps } from './types'
+import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
 const logger = loggerService.withContext('PlantUmlPreview')

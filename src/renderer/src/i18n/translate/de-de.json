@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Bewältigen Sie komplexe Aufgaben mit verschiedenen Werkzeugen",
       "error": {
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"
@@ -338,6 +339,41 @@
     },
     "title": "API-Server"
   },
+  "appMenu": {
+    "about": "Über",
+    "close": "Fenster schließen",
+    "copy": "Kopieren",
+    "cut": "Schneiden",
+    "delete": "Löschen",
+    "documentation": "Dokumentation",
+    "edit": "Bearbeiten",
+    "feedback": "Rückmeldung",
+    "file": "Datei",
+    "forceReload": "Neu laden erzwingen",
+    "front": "Alle in den Vordergrund bringen",
+    "help": "Hilfe",
+    "hide": "Verstecken",
+    "hideOthers": "Andere ausblenden",
+    "minimize": "Minimieren",
+    "paste": "Einfügen",
+    "quit": "Aufhören",
+    "redo": "Wiederholen",
+    "releases": "Veröffentlichungen",
+    "reload": "Neu laden",
+    "resetZoom": "Tatsächliche Größe",
+    "selectAll": "Alle auswählen",
+    "services": "Dienstleistungen",
+    "toggleDevTools": "Entwicklertools ein-/ausblenden",
+    "toggleFullscreen": "Vollbild umschalten",
+    "undo": "Rückgängig machen",
+    "unhide": "Alle anzeigen",
+    "view": "Ansicht",
+    "website": "Website",
+    "window": "Fenster",
+    "zoom": "Zoom",
+    "zoomIn": "Heranzoomen",
+    "zoomOut": "Herauszoomen"
+  },
   "assistants": {
     "abbr": "Assistent",
     "clear": {
@@ -547,7 +583,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Tägliche Gespräche und schnelle Fragen & Antworten",
         "title": "Assistent hinzufügen"
+      },
+      "option": {
+        "title": "Typ auswählen"
       },
       "topic": {
         "title": "Neues Thema erstellen"
@@ -591,6 +631,15 @@
       "view_full_content": "Vollständigen Inhalt anzeigen"
     },
     "input": {
+      "activity_directory": {
+        "description": "Datei aus dem Aktivitätsverzeichnis auswählen",
+        "loading": "Dateien werden geladen...",
+        "no_file_found": {
+          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
+          "label": "Keine Datei gefunden"
+        },
+        "title": "Aktivitätsverzeichnis"
+      },
       "auto_resize": "Höhe automatisch anpassen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
@@ -614,6 +663,7 @@
       "new": {
         "context": "Kontext löschen {{Command}}"
       },
+      "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
       "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
@@ -621,6 +671,10 @@
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "send": "Senden",
       "settings": "Einstellungen",
+      "slash_commands": {
+        "description": "Agent-Session-Slash-Befehle",
+        "title": "Schrägstrich-Befehle"
+      },
       "thinking": {
         "budget_exceeds_max": "Denkbudget übersteigt maximale Token-Anzahl",
         "label": "Denken",
@@ -1047,10 +1101,12 @@
     "clear": "Löschen",
     "close": "Schließen",
     "collapse": "Einklappen",
+    "completed": "Abgeschlossen",
     "confirm": "Bestätigen",
     "copied": "Kopiert",
     "copy": "Kopieren",
     "copy_failed": "Kopieren fehlgeschlagen",
+    "current": "Aktuell",
     "cut": "Ausschneiden",
     "default": "Standard",
     "delete": "Löschen",
@@ -1604,7 +1660,7 @@
     },
     "assistant": {
       "added": {
-        "content": "Agent erfolgreich hinzugefügt"
+        "content": "Assistent erfolgreich hinzugefügt"
       }
     },
     "attachments": {
@@ -1729,6 +1785,9 @@
     },
     "message": {
       "code_style": "Code-Stil",
+      "compact": {
+        "title": "Gespräch komprimiert"
+      },
       "delete": {
         "content": "Möchten Sie diese Nachricht wirklich löschen?",
         "title": "Nachricht löschen"
@@ -2425,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "KI-Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "Einzige KI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2435,6 +2495,7 @@
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
@@ -2469,12 +2530,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
-    "ph8": "PH8 Großmodell-Plattform",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Cloud",
     "qiniu": "Qiniu Cloud KI-Inferenz",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
@@ -2921,15 +2983,14 @@
       },
       "description": "Ein KI-Assistent für Kreative",
       "downloading": "Update wird heruntergeladen...",
+      "enterprise": {
+        "title": "Unternehmen"
+      },
       "feedback": {
         "button": "Feedback",
         "title": "Feedback"
       },
       "label": "Über uns",
-      "license": {
-        "button": "Anzeigen",
-        "title": "Lizenz"
-      },
       "releases": {
         "button": "Anzeigen",
         "title": "Changelog"
@@ -3036,6 +3097,46 @@
         "siyuan": "Nach SiYuan-Notizen exportieren",
         "title": "Export-Menü-Einstellungen",
         "yuque": "Nach Yuque exportieren"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Sicherungsdatei auswählen"
+        },
+        "content": "Exportieren Sie einige Daten, einschließlich Chat-Protokollen und Einstellungen. Bitte beachten Sie, dass der Sicherungsvorgang einige Zeit in Anspruch nehmen kann. Vielen Dank für Ihre Geduld.",
+        "lan": {
+          "auto_close_tip": "Automatisches Schließen in {{seconds}} Sekunden...",
+          "confirm_close_message": "Dateiübertragung läuft. Beim Schließen wird die Übertragung unterbrochen. Möchten Sie wirklich das Schließen erzwingen?",
+          "confirm_close_title": "Schließen bestätigen",
+          "connected": "Verbunden",
+          "connection_failed": "Verbindung fehlgeschlagen",
+          "content": "Bitte stelle sicher, dass sich dein Computer und dein Telefon im selben Netzwerk befinden, um eine LAN-Übertragung durchzuführen. Öffne die Cherry Studio App, um diesen QR-Code zu scannen.",
+          "error": {
+            "init_failed": "Initialisierung fehlgeschlagen",
+            "no_file": "Keine Datei ausgewählt",
+            "no_ip": "IP-Adresse kann nicht abgerufen werden",
+            "send_failed": "Fehler beim Senden der Datei"
+          },
+          "force_close": "Erzwungenes Schließen",
+          "generating_qr": "QR-Code wird generiert...",
+          "noZipSelected": "Keine komprimierte Datei ausgewählt",
+          "scan_qr": "Bitte scannen Sie den QR-Code mit Ihrem Telefon.",
+          "selectZip": "Wählen Sie eine komprimierte Datei",
+          "sendZip": "Datenwiederherstellung beginnen",
+          "status": {
+            "completed": "Übertragung abgeschlossen",
+            "connected": "Verbunden",
+            "connecting": "Verbindung wird hergestellt...",
+            "disconnected": "Getrennt",
+            "error": "Verbindungsfehler",
+            "initializing": "Verbindung wird initialisiert...",
+            "preparing": "Übertragung wird vorbereitet...",
+            "sending": "Übertrage {{progress}}%",
+            "waiting_qr_scan": "Bitte QR-Code scannen, um zu verbinden"
+          },
+          "title": "LAN-Übertragung",
+          "transfer_progress": "Übertragungsfortschritt"
+        },
+        "title": "Auf Telefon exportieren"
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
@@ -3719,6 +3820,7 @@
         "description": "MCP-Service-Funktion nicht aktivieren",
         "label": "MCP-Server nicht verwenden"
       },
+      "discover": "Entdecken",
       "duplicateName": "Server mit gleichem Namen existiert bereits",
       "editJson": "JSON bearbeiten",
       "editMcpJson": "MCP-Konfiguration bearbeiten",
@@ -3728,6 +3830,10 @@
       "errors": {
         "32000": "MCP-Server starten fehlgeschlagen, bitte überprüfen Sie, ob alle Parameter vollständig ausgefüllt sind",
         "toolNotFound": "Tool {{name}} nicht gefunden"
+      },
+      "fetch": {
+        "button": "Server abrufen",
+        "success": "MCP-Server erfolgreich abgerufen"
       },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
@@ -3744,6 +3850,7 @@
       "logoUrl": "Logo-URL",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
+      "marketplaces": "Marktplätze",
       "missingDependencies": "Abhängigkeiten fehlen, bitte installieren Sie sie, um fortzufahren",
       "more": {
         "awesome": "Kuratierte MCP-Serverliste",
@@ -3775,6 +3882,12 @@
         "usage": "Verwendung",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
+          "title": "Authentifizierung erfolgreich"
+        }
+      },
       "prompts": {
         "arguments": "Parameter",
         "availablePrompts": "Verfügbare Prompts",
@@ -3783,9 +3896,16 @@
         "noPromptsAvailable": "Keine Prompts verfügbar",
         "requiredField": "Pflichtfeld"
       },
+      "protocolInstallWarning": {
+        "command": "Startbefehl",
+        "message": "Dieses MCP wurde über ein Protokoll aus einer externen Quelle installiert. Das Ausführen unbekannter Tools kann Ihren Computer schädigen.",
+        "run": "Laufen",
+        "title": "Externes MCP ausführen?"
+      },
       "provider": "Anbieter",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
+      "providers": "Anbieter",
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryTooltip": "Quelle für Paketinstallation auswählen um Netzwerkprobleme der Standardquelle zu lösen",
@@ -3808,6 +3928,7 @@
       "searchNpx": "MCP durchsuchen",
       "serverPlural": "Server",
       "serverSingular": "Server",
+      "servers": "MCP-Server",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
@@ -4207,6 +4328,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS-Zugriffsschlüssel-ID",
         "access_key_id_help": "Ihre AWS-Zugriffsschlüssel-ID, um auf AWS Bedrock-Dienste zuzugreifen",
+        "api_key": "Bedrock-API-Schlüssel",
+        "api_key_help": "Ihr AWS Bedrock-API-Schlüssel für die Authentifizierung",
+        "auth_type": "Authentifizierungstyp",
+        "auth_type_api_key": "Bedrock-API-Schlüssel",
+        "auth_type_help": "Wählen Sie zwischen IAM-Anmeldeinformationen oder Bedrock-API-Schlüssel-Authentifizierung",
+        "auth_type_iam": "IAM-Anmeldeinformationen",
         "description": "AWS Bedrock ist ein vollständig verwalteter Basismodell-Dienst von Amazon, der eine Vielzahl moderner großer Sprachmodelle unterstützt",
         "region": "AWS-Region",
         "region_help": "Ihre AWS-Serviceregion, z.B. us-east-1",
@@ -4351,6 +4478,7 @@
       "confirm": "Bestätigen",
       "forward": "Vorwärts",
       "multiple": "Mehrfachauswahl",
+      "noResult": "[to be translated]:No results found",
       "page": "Seite umblättern",
       "select": "Auswählen",
       "title": "Schnellmenü"

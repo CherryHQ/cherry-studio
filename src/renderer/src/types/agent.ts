@@ -4,11 +4,11 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
-import { ModelMessage, TextStreamPart } from 'ai'
+import type { ModelMessage, TextStreamPart } from 'ai'
 import * as z from 'zod'
 
 import type { Message, MessageBlock } from './newMessage'
-import { PluginMetadataSchema } from './plugin'
+import { InstalledPluginSchema, PluginMetadataSchema } from './plugin'
 
 // ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
@@ -58,30 +58,7 @@ export const AgentConfigurationSchema = z
 
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().optional().default(100), // Maximum number of interaction turns, default to 100
-
-    // Plugin metadata
-    installed_plugins: z
-      .array(
-        z.object({
-          sourcePath: z.string(), // Full source path for re-install/updates
-          filename: z.string(), // Destination filename (unique)
-          type: z.enum(['agent', 'command', 'skill']),
-          name: z.string(),
-          description: z.string().optional(),
-          allowed_tools: z.array(z.string()).optional(),
-          tools: z.array(z.string()).optional(),
-          category: z.string().optional(),
-          tags: z.array(z.string()).optional(),
-          version: z.string().optional(),
-          author: z.string().optional(),
-          contentHash: z.string(), // Detect file modifications
-          installedAt: z.number(), // Track installation time
-          updatedAt: z.number().optional() // Track updates
-        })
-      )
-      .optional()
-      .default([])
+    max_turns: z.number().optional().default(100) // Maximum number of interaction turns, default to 100
   })
   .loose()
 
@@ -105,6 +82,7 @@ export const AgentBaseSchema = z.object({
   // Tools
   mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
   allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
+  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands merged from builtin and SDK
 
   // Configuration
   configuration: AgentConfigurationSchema.optional() // Extensible settings like temperature, top_p, etc.
@@ -250,6 +228,25 @@ export type SessionForm = CreateSessionForm | UpdateSessionForm
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
+// --------------------- Components & Hooks ----------------------
+
+export type UpdateAgentBaseOptions = {
+  /** Whether to show success toast after updating. Defaults to true. */
+  showSuccessToast?: boolean
+}
+
+export type UpdateAgentFunction = (
+  form: UpdateAgentForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentEntity | undefined>
+
+export type UpdateAgentSessionFunction = (
+  form: UpdateSessionForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentSessionEntity | undefined>
+
+export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
+
 // ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {
   type: AgentType
@@ -264,7 +261,8 @@ export interface UpdateAgentRequest extends Partial<AgentBase> {}
 export type ReplaceAgentRequest = AgentBase
 
 export const GetAgentResponseSchema = AgentEntitySchema.extend({
-  tools: z.array(ToolSchema).optional() // All tools available to the agent (including built-in and custom)
+  tools: z.array(ToolSchema).optional(), // All tools available to the agent (including built-in and custom)
+  installed_plugins: z.array(InstalledPluginSchema).optional() // Plugins loaded from .claude/plugins.json cache
 })
 
 export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
@@ -289,7 +287,6 @@ export interface UpdateSessionRequest extends Partial<AgentBase> {}
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
   messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
-  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands to trigger the agent
   plugins: z
     .array(
       z.object({

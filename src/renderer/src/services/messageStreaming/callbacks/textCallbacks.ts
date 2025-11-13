@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import { WebSearchSource } from '@renderer/types'
-import { CitationMessageBlock, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('TextCallbacks')
 
@@ -13,15 +14,24 @@ interface TextCallbacksDependencies {
   assistantMsgId: string
   getCitationBlockId: () => string | null
   getCitationBlockIdFromTool: () => string | null
+  handleCompactTextComplete?: (text: string, mainTextBlockId: string | null) => Promise<boolean>
 }
 
 export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
-  const { blockManager, getState, assistantMsgId, getCitationBlockId, getCitationBlockIdFromTool } = deps
+  const {
+    blockManager,
+    getState,
+    assistantMsgId,
+    getCitationBlockId,
+    getCitationBlockIdFromTool,
+    handleCompactTextComplete
+  } = deps
 
   // 内部维护的状态
   let mainTextBlockId: string | null = null
 
   return {
+    getCurrentMainTextBlockId: () => mainTextBlockId,
     onTextStart: async () => {
       if (blockManager.hasInitialPlaceholder) {
         const changes = {
@@ -62,6 +72,9 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
           status: MessageBlockStatus.SUCCESS
         }
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
+        if (handleCompactTextComplete) {
+          await handleCompactTextComplete(finalText, mainTextBlockId)
+        }
         mainTextBlockId = null
       } else {
         logger.warn(

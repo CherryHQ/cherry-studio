@@ -1,18 +1,18 @@
-import { ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
+import type { AgentSessionEntity, ListAgentSessionsResponse, UpdateSessionForm } from '@renderer/types'
+import type { UpdateAgentBaseOptions, UpdateAgentSessionFunction } from '@renderer/types/agent'
 import { getErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
-import { UpdateAgentBaseOptions } from './types'
 import { useAgentClient } from './useAgentClient'
 
 export const useUpdateSession = (agentId: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
 
-  const updateSession = useCallback(
-    async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions) => {
+  const updateSession: UpdateAgentSessionFunction = useCallback(
+    async (form: UpdateSessionForm, options?: UpdateAgentBaseOptions): Promise<AgentSessionEntity | undefined> => {
       if (!agentId) return
       const paths = client.getSessionPaths(agentId)
       const listKey = paths.base
@@ -29,8 +29,10 @@ export const useUpdateSession = (agentId: string | null) => {
         if (options?.showSuccessToast ?? true) {
           window.toast.success(t('common.update_success'))
         }
+        return result
       } catch (error) {
         window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+        return undefined
       }
     },
     [agentId, client, t]

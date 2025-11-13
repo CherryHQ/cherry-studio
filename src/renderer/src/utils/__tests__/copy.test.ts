@@ -1,4 +1,4 @@
-import { Message, Topic } from '@renderer/types'
+import type { Message, Topic } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { copyMessageAsPlainText, copyTopicAsMarkdown, copyTopicAsPlainText } from '../copy'

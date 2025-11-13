@@ -1,11 +1,11 @@
-import { Alert, Skeleton } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
-import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
+import type { ImageOcrProvider, OcrProvider } from '@renderer/types'
+import { BuiltinOcrProviderIds, isImageOcrProvider } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils'
-import { Select } from 'antd'
+import { Alert, Select, Skeleton } from 'antd'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
@@ -69,27 +69,39 @@ const OcrImageSettings = ({ setProvider }: Props) => {
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {!platformSupport && isSystem && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
-          <Skeleton isLoaded={!isLoading}>
-            {!error && (
-              <Select
-                value={imageProvider.id}
-                style={{ width: '200px' }}
-                onChange={(id: string) => setImageProvider(id)}
-                options={options}
-              />
-            )}
-            {error && (
-              <Alert
-                color="danger"
-                title={t('ocr.error.provider.get_providers')}
-                description={getErrorMessage(error)}
-              />
-            )}
-          </Skeleton>
+          <OcrProviderSelector
+            isLoading={isLoading}
+            error={error}
+            value={imageProvider.id}
+            options={options}
+            onChange={setImageProvider}
+          />
         </div>
       </SettingRow>
     </>
   )
+}
+
+type OcrProviderSelectorProps = {
+  isLoading: boolean
+  error: any
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (id: string) => void
+}
+
+const OcrProviderSelector = ({ isLoading, error, value, options, onChange }: OcrProviderSelectorProps) => {
+  const { t } = useTranslation()
+
+  if (isLoading) {
+    return <Skeleton.Input active style={{ width: '200px', height: '32px' }} />
+  }
+
+  if (error) {
+    return <Alert type="error" message={t('ocr.error.provider.get_providers')} description={getErrorMessage(error)} />
+  }
+
+  return <Select value={value} style={{ width: '200px' }} onChange={onChange} options={options} />
 }
 
 export default OcrImageSettings

@@ -21,6 +21,8 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
   - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
@@ -133,60 +135,42 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.2
+    What's New in v1.7.0-beta.6
 
     New Features:
-    - Session Settings: Manage session-specific settings and model configurations independently
-    - Notes Full-Text Search: Search across all notes with match highlighting
-    - Built-in DiDi MCP Server: Integration with DiDi ride-hailing services (China only)
-    - Intel OV OCR: Hardware-accelerated OCR using Intel NPU
-    - Auto-start API Server: Automatically starts when agents exist
+    - Enhanced Input Bar: Completely redesigned input bar with improved responsiveness and functionality
+    - Better File Handling: Improved drag-and-drop and paste support for images and documents
+    - Smart Tool Suggestions: Enhanced quick panel with better item selection and keyboard shortcuts
 
     Improvements:
-    - Agent model selection now requires explicit user choice
-    - Added Mistral AI provider support
-    - Added NewAPI generic provider support
-    - Improved navbar layout consistency across different modes
-    - Enhanced chat component responsiveness
-    - Better code block display on small screens
-    - Updated OVMS to 2025.3 official release
-    - Added Greek language support
+    - Smoother Input Experience: Better auto-resizing and text handling in chat input
+    - Enhanced AI Performance: Improved connection stability and response speed
+    - More Reliable File Uploads: Better support for various file types and upload scenarios
+    - Cleaner Interface: Optimized UI elements for better visual consistency
 
     Bug Fixes:
-    - Fixed GitHub Copilot gpt-5-codex streaming issues
-    - Fixed assistant creation failures
-    - Fixed translate auto-copy functionality
-    - Fixed miniapps external link opening
-    - Fixed message layout and overflow issues
-    - Fixed API key parsing to preserve spaces
-    - Fixed agent display in different navbar layouts
+    - Fixed image selection issue when adding custom AI providers
+    - Fixed file upload problems with certain API configurations
+    - Fixed input bar responsiveness issues
+    - Fixed quick panel not working properly in some situations
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.2 新特性
+    v1.7.0-beta.6 新特性
 
     新功能:
-    - 会话设置：独立管理会话特定的设置和模型配置
-    - 笔记全文搜索：跨所有笔记搜索并高亮匹配内容
-    - 内置滴滴 MCP 服务器：集成滴滴打车服务(仅限中国地区)
-    - Intel OV OCR：使用 Intel NPU 的硬件加速 OCR
-    - 自动启动 API 服务器：当存在 Agent 时自动启动
+    - 增强输入栏：完全重新设计的输入栏，响应更灵敏，功能更强大
+    - 更好的文件处理：改进的拖拽和粘贴功能，支持图片和文档
+    - 智能工具建议：增强的快速面板，更好的项目选择和键盘快捷键
 
     改进:
-    - Agent 模型选择现在需要用户显式选择
-    - 添加 Mistral AI 提供商支持
-    - 添加 NewAPI 通用提供商支持
-    - 改进不同模式下的导航栏布局一致性
-    - 增强聊天组件响应式设计
-    - 优化小屏幕代码块显示
-    - 更新 OVMS 至 2025.3 正式版
-    - 添加希腊语支持
+    - 更流畅的输入体验：聊天输入框的自动调整和文本处理更佳
+    - 增强 AI 性能：改进连接稳定性和响应速度
+    - 更可靠的文件上传：更好地支持各种文件类型和上传场景
+    - 更简洁的界面：优化 UI 元素，视觉一致性更好
 
     问题修复:
-    - 修复 GitHub Copilot gpt-5-codex 流式传输问题
-    - 修复助手创建失败
-    - 修复翻译自动复制功能
-    - 修复小程序外部链接打开
-    - 修复消息布局和溢出问题
-    - 修复 API 密钥解析以保留空格
-    - 修复不同导航栏布局中的 Agent 显示
+    - 修复添加自定义 AI 提供商时的图片选择问题
+    - 修复某些 API 配置下的文件上传问题
+    - 修复输入栏响应性问题
+    - 修复快速面板在某些情况下无法正常工作的问题
     <!--LANG:END-->

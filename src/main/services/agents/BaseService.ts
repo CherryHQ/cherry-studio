@@ -1,8 +1,10 @@
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
-import { ModelValidationError, validateModelId } from '@main/apiServer/utils'
-import { AgentType, MCPTool, objectKeys, SlashCommand, Tool } from '@types'
+import type { ModelValidationError } from '@main/apiServer/utils'
+import { validateModelId } from '@main/apiServer/utils'
+import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
+import { objectKeys } from '@types'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -10,7 +12,8 @@ import path from 'path'
 import { MigrationService } from './database/MigrationService'
 import * as schema from './database/schema'
 import { dbPath } from './drizzle.config'
-import { AgentModelField, AgentModelValidationError } from './errors'
+import type { AgentModelField } from './errors'
+import { AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
@@ -33,7 +36,14 @@ export abstract class BaseService {
   protected static db: LibSQLDatabase<typeof schema> | null = null
   protected static isInitialized = false
   protected static initializationPromise: Promise<void> | null = null
-  protected jsonFields: string[] = ['tools', 'mcps', 'configuration', 'accessible_paths', 'allowed_tools']
+  protected jsonFields: string[] = [
+    'tools',
+    'mcps',
+    'configuration',
+    'accessible_paths',
+    'allowed_tools',
+    'slash_commands'
+  ]
 
   /**
    * Initialize database with retry logic and proper error handling

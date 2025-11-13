@@ -1,20 +1,23 @@
-import { Card, CardBody, Tab, Tabs } from '@heroui/react'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useAvailablePlugins, useInstalledPlugins, usePluginActions } from '@renderer/hooks/usePlugins'
-import { GetAgentResponse, GetAgentSessionResponse, UpdateAgentBaseForm } from '@renderer/types/agent'
-import { FC, useCallback } from 'react'
+import type { GetAgentResponse, GetAgentSessionResponse, UpdateAgentFunctionUnion } from '@renderer/types/agent'
+import { Card, Segmented } from 'antd'
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InstalledPluginsList } from './components/InstalledPluginsList'
 import { PluginBrowser } from './components/PluginBrowser'
-import { SettingsContainer } from './shared'
 
 interface PluginSettingsProps {
   agentBase: GetAgentResponse | GetAgentSessionResponse
-  update: (partial: UpdateAgentBaseForm) => Promise<void>
+  update: UpdateAgentFunctionUnion
 }
 
 const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
   const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState<string>('available')
 
   // Fetch available plugins
   const { agents, commands, skills, loading: loadingAvailable, error: errorAvailable } = useAvailablePlugins()
@@ -53,61 +56,89 @@ const PluginSettings: FC<PluginSettingsProps> = ({ agentBase }) => {
     [uninstall, t]
   )
 
-  return (
-    <SettingsContainer>
-      <Tabs
-        aria-label="Plugin settings tabs"
-        classNames={{
-          base: 'w-full',
-          tabList: 'w-full',
-          panel: 'w-full flex-1 overflow-hidden'
-        }}>
-        <Tab key="available" title={t('agent.settings.plugins.available.title')}>
-          <div className="flex h-full flex-col overflow-y-auto pt-4">
-            {errorAvailable ? (
-              <Card className="bg-danger-50 dark:bg-danger-900/20">
-                <CardBody>
-                  <p className="text-danger">
-                    {t('agent.settings.plugins.error.load')}: {errorAvailable}
-                  </p>
-                </CardBody>
-              </Card>
-            ) : (
-              <PluginBrowser
-                agentId={agentBase.id}
-                agents={agents}
-                commands={commands}
-                skills={skills}
-                installedPlugins={plugins}
-                onInstall={handleInstall}
-                onUninstall={handleUninstall}
-                loading={loadingAvailable || installing || uninstalling}
-              />
-            )}
-          </div>
-        </Tab>
+  const segmentOptions = useMemo(() => {
+    return [
+      {
+        value: 'available',
+        label: t('agent.settings.plugins.available.title')
+      },
+      {
+        value: 'installed',
+        label: t('agent.settings.plugins.installed.title')
+      }
+    ]
+  }, [t])
 
-        <Tab key="installed" title={t('agent.settings.plugins.installed.title')}>
-          <div className="flex h-full flex-col overflow-y-auto pt-4">
-            {errorInstalled ? (
-              <Card className="bg-danger-50 dark:bg-danger-900/20">
-                <CardBody>
-                  <p className="text-danger">
-                    {t('agent.settings.plugins.error.load')}: {errorInstalled}
-                  </p>
-                </CardBody>
-              </Card>
-            ) : (
-              <InstalledPluginsList
-                plugins={plugins}
-                onUninstall={handleUninstall}
-                loading={loadingInstalled || uninstalling}
-              />
-            )}
-          </div>
-        </Tab>
-      </Tabs>
-    </SettingsContainer>
+  const renderContent = useMemo(() => {
+    if (activeTab === 'available') {
+      return (
+        <div className="flex h-full flex-col overflow-y-auto pt-4 pr-2">
+          {errorAvailable ? (
+            <Card variant="borderless">
+              <p className="text-danger">
+                {t('agent.settings.plugins.error.load')}: {errorAvailable}
+              </p>
+            </Card>
+          ) : (
+            <PluginBrowser
+              agentId={agentBase.id}
+              agents={agents}
+              commands={commands}
+              skills={skills}
+              installedPlugins={plugins}
+              onInstall={handleInstall}
+              onUninstall={handleUninstall}
+              loading={loadingAvailable || installing || uninstalling}
+            />
+          )}
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex h-full flex-col overflow-y-auto pt-4 pr-2">
+        {errorInstalled ? (
+          <Card className="bg-danger-50 dark:bg-danger-900/20">
+            <p className="text-danger">
+              {t('agent.settings.plugins.error.load')}: {errorInstalled}
+            </p>
+          </Card>
+        ) : (
+          <InstalledPluginsList
+            plugins={plugins}
+            onUninstall={handleUninstall}
+            loading={loadingInstalled || uninstalling}
+          />
+        )}
+      </div>
+    )
+  }, [
+    activeTab,
+    agentBase.id,
+    agents,
+    commands,
+    errorAvailable,
+    errorInstalled,
+    handleInstall,
+    handleUninstall,
+    installing,
+    loadingAvailable,
+    loadingInstalled,
+    plugins,
+    skills,
+    t,
+    uninstalling
+  ])
+
+  return (
+    <Scrollbar>
+      <div className="flex flex-col gap-2">
+        <div className="flex justify-center">
+          <Segmented options={segmentOptions} value={activeTab} onChange={(value) => setActiveTab(value as string)} />
+        </div>
+        {renderContent}
+      </div>
+    </Scrollbar>
   )
 }
 

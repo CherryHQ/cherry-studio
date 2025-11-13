@@ -1,7 +1,8 @@
-import { Alert, Spinner } from '@heroui/react'
+import { Center } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { Alert, Spin } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -68,15 +69,21 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
   const ModalContent = () => {
     if (isLoading) {
       // TODO: use skeleton for better ux
-      return <Spinner />
-    }
-    if (error) {
       return (
-        <div>
-          <Alert color="danger" title={t('agent.get.error.failed')} />
-        </div>
+        <Center flex={1}>
+          <Spin />
+        </Center>
       )
     }
+
+    if (error) {
+      return (
+        <Center flex={1}>
+          <Alert type="error" message={t('agent.get.error.failed')} />
+        </Center>
+      )
+    }
+
     return (
       <div className="flex w-full flex-1">
         <LeftMenu>

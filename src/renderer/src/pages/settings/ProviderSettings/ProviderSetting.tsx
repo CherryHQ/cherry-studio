@@ -5,6 +5,7 @@ import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import {
+  isAIGatewayProvider,
   isAnthropicProvider,
   isAzureOpenAIProvider,
   isGeminiProvider,
@@ -25,8 +26,10 @@ import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { updateWebSearchProvider } from '@renderer/store/websearch'
-import { isSystemProvider, isSystemProviderId, SystemProviderId, SystemProviderIds } from '@renderer/types'
-import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
+import type { SystemProviderId } from '@renderer/types'
+import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
+import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import {
   formatApiHost,
   formatApiKeys,
@@ -40,7 +43,8 @@ import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'an
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -302,6 +306,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (isVertexProvider(provider)) {
       return formatVertexApiHost(provider) + '/publishers/google'
     }
+    if (isAIGatewayProvider(provider)) {
+      return formatApiHost(apiHost) + '/language-model'
+    }
     return formatApiHost(apiHost)
   }
 
@@ -517,24 +524,17 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>
                     </SettingHelpTextRow>
                   )}
-                  {(isOpenAICompatibleProvider(provider) ||
-                    isAzureOpenAIProvider(provider) ||
-                    isAnthropicProvider(provider) ||
-                    isGeminiProvider(provider) ||
-                    isVertexProvider(provider) ||
-                    isOpenAIProvider(provider)) && (
-                    <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-                      <SettingHelpText
-                        style={{
-                          marginLeft: 6,
-                          marginRight: '1em',
-                          whiteSpace: 'break-spaces',
-                          wordBreak: 'break-all'
-                        }}>
-                        {t('settings.provider.api_host_preview', { url: hostPreview() })}
-                      </SettingHelpText>
-                    </SettingHelpTextRow>
-                  )}
+                  <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                    <SettingHelpText
+                      style={{
+                        marginLeft: 6,
+                        marginRight: '1em',
+                        whiteSpace: 'break-spaces',
+                        wordBreak: 'break-all'
+                      }}>
+                      {t('settings.provider.api_host_preview', { url: hostPreview() })}
+                    </SettingHelpText>
+                  </SettingHelpTextRow>
                 </>
               )}
 

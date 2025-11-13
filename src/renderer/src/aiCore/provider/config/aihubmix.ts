@@ -2,7 +2,7 @@
  * AiHubMix规则集
  */
 import { isOpenAILLMModel } from '@renderer/config/models'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 
 import { provider2Provider, startsWith } from './helper'
 import type { RuleSet } from './types'
@@ -52,7 +52,7 @@ const AIHUBMIX_RULES: RuleSet = {
       }
     }
   ],
-  fallbackRule: (provider: Provider) => provider
+  fallbackRule: (provider: Provider) => extraProviderConfig(provider)
 }
 
 export const aihubmixProviderCreator = provider2Provider.bind(null, AIHUBMIX_RULES)

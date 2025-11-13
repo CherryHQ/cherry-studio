@@ -1,4 +1,4 @@
-import { HealthStatus } from '@renderer/types/healthCheck'
+import type { HealthStatus } from '@renderer/types/healthCheck'
 
 /**
  * 用于展示单个健康检查结果的必要数据

@@ -83,14 +83,31 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
+    const checkForUpdates = async () => {
+      const { isPackaged } = await window.api.getAppInfo()
+
+      if (!isPackaged || !autoCheckUpdate) {
+        return
+      }
+
+      const { updateInfo } = await window.api.checkForUpdate()
+      dispatch(setUpdateState({ info: updateInfo }))
+    }
+
+    // Initial check with delay
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
-        const { updateInfo } = await window.api.checkForUpdate()
-        dispatch(setUpdateState({ info: updateInfo }))
+        await checkForUpdates()
       }
     })
+
+    // Set up 4-hour interval check
+    const FOUR_HOURS = 4 * 60 * 60 * 1000
+    const intervalId = setInterval(checkForUpdates, FOUR_HOURS)
+
+    return () => clearInterval(intervalId)
   }, [dispatch, autoCheckUpdate])
 
   useEffect(() => {
@@ -204,13 +221,12 @@ export function useAppInit() {
       }
     }
 
-    window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener)
-    window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+    const removeListeners = [
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener),
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+    ]
 
-    return () => {
-      window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Request, requestListener)
-      window.electron?.ipcRenderer.removeListener(IpcChannel.AgentToolPermission_Result, resultListener)
-    }
+    return () => removeListeners.forEach((removeListener) => removeListener())
   }, [dispatch, t])
 
   useEffect(() => {

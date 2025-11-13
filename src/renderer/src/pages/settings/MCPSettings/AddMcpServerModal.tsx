@@ -5,11 +5,13 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
-import { MCPServer, objectKeys, safeValidateMcpConfig } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
+import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatZodError } from '@renderer/utils/error'
 import { Button, Form, Modal, Upload } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AddMcpServerModal')
@@ -138,6 +140,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         // Process DXT file
         try {
+          const installTimestamp = Date.now()
           const result = await window.api.mcp.uploadDxt(dxtFile)
 
           if (!result.success) {
@@ -188,7 +191,11 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             logoUrl: manifest.icon ? `${extractDir}/${manifest.icon}` : undefined,
             provider: manifest.author?.name,
             providerUrl: manifest.homepage || manifest.repository?.url,
-            tags: manifest.keywords
+            tags: manifest.keywords,
+            installSource: 'manual',
+            isTrusted: true,
+            installedAt: installTimestamp,
+            trustedAt: installTimestamp
           }
 
           onSuccess(newServer)
@@ -253,12 +260,17 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         }
 
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
+        const installTimestamp = Date.now()
         const newServer: MCPServer = {
           id: nanoid(),
           ...serverToAdd,
           name: serverToAdd.name || t('settings.mcp.newServer'),
           baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
-          isActive: false // 初始狀態為非啟用
+          isActive: false, // 初始狀態為非啟用
+          installSource: 'manual',
+          isTrusted: true,
+          installedAt: installTimestamp,
+          trustedAt: installTimestamp
         }
 
         onSuccess(newServer)

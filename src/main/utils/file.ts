@@ -5,8 +5,9 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
-import { FileMetadata, FileTypes, NotesTreeNode } from '@types'
+import { audioExts, documentExts, HOME_CHERRY_DIR, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
+import type { FileMetadata, NotesTreeNode } from '@types'
+import { FileTypes } from '@types'
 import chardet from 'chardet'
 import { app } from 'electron'
 import iconv from 'iconv-lite'
@@ -159,7 +160,7 @@ export function getNotesDir() {
 }
 
 export function getConfigDir() {
-  return path.join(os.homedir(), '.cherrystudio', 'config')
+  return path.join(os.homedir(), HOME_CHERRY_DIR, 'config')
 }
 
 export function getCacheDir() {
@@ -171,7 +172,7 @@ export function getAppConfigDir(name: string) {
 }
 
 export function getMcpDir() {
-  return path.join(os.homedir(), '.cherrystudio', 'mcp')
+  return path.join(os.homedir(), HOME_CHERRY_DIR, 'mcp')
 }
 
 /**

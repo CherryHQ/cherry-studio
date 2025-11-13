@@ -1,4 +1,5 @@
 export enum AgentToolsType {
+  Skill = 'Skill',
   Read = 'Read',
   Task = 'Task',
   Bash = 'Bash',
@@ -22,6 +23,15 @@ export type TextOutput = {
 }
 
 // Read 工具的类型定义
+export interface SkillToolInput {
+  /**
+   * The skill to use
+   */
+  command: string
+}
+
+export type SkillToolOutput = string
+
 export interface ReadToolInput {
   /**
    * The absolute path to the file to read

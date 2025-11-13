@@ -3,6 +3,7 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   LoadingOutlined,
+  WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -10,6 +11,7 @@ import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
+import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -17,12 +19,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
-import { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -35,7 +38,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -126,11 +128,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'agentssubscribe_url',
-      title: t('assistants.presets.settings.title'),
-      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -291,10 +288,9 @@ const DataSettings: FC = () => {
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
-            onChange={(checked) => {
-              shouldCopyData = checked
-            }}
+            onChange={(checked) => (shouldCopyData = checked)}
             style={{ marginRight: '8px' }}
+            title={t('settings.data.app_data.copy_data_option')}
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
@@ -621,6 +617,15 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
               </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
+                <HStack gap="5px" justifyContent="space-between">
+                  <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined size={14} />}>
+                    {t('settings.data.export_to_phone.lan.title')}
+                  </Button>
+                </HStack>
+              </SettingRow>
             </SettingGroup>
             <SettingGroup theme={theme}>
               <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
@@ -693,7 +698,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>

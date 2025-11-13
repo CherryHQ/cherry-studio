@@ -17,7 +17,7 @@ import type {
   WebSearchResponse,
   WebSearchSource
 } from '.'
-import { SerializedError } from './error'
+import type { SerializedError } from './error'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -31,7 +31,8 @@ export enum MessageBlockType {
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
   CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
-  VIDEO = 'video' // 视频内容
+  VIDEO = 'video', // 视频内容
+  COMPACT = 'compact' // Compact command response
 }
 
 // 块状态定义
@@ -145,6 +146,13 @@ export interface ErrorMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.ERROR
 }
 
+// Compact块 - 用于显示 /compact 命令的响应
+export interface CompactMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.COMPACT
+  content: string // 总结消息
+  compactedContent: string // 从 <local-command-stdout> 提取的内容
+}
+
 // MessageBlock 联合类型
 export type MessageBlock =
   | PlaceholderMessageBlock
@@ -158,6 +166,7 @@ export type MessageBlock =
   | ErrorMessageBlock
   | CitationMessageBlock
   | VideoMessageBlock
+  | CompactMessageBlock
 
 export enum UserMessageStatus {
   SUCCESS = 'success'

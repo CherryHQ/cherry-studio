@@ -1,12 +1,12 @@
-import {
+import type {
   AnthropicSearchConfig,
   OpenAISearchConfig,
   WebSearchPluginConfig
 } from '@cherrystudio/ai-core/core/plugins/built-in/webSearchPlugin/helper'
-import { BaseProviderId } from '@cherrystudio/ai-core/provider'
+import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
-import { CherryWebSearchConfig } from '@renderer/store/websearch'
-import { Model } from '@renderer/types'
+import type { CherryWebSearchConfig } from '@renderer/store/websearch'
+import type { Model } from '@renderer/types'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 
 export function getWebSearchParams(model: Model): Record<string, any> {
@@ -106,6 +106,11 @@ export function buildProviderBuiltinWebSearchConfig(
           ]
         }
       }
+    }
+    case 'cherryin': {
+      const _providerId =
+        { 'openai-response': 'openai', openai: 'openai-chat' }[model?.endpoint_type ?? ''] ?? model?.endpoint_type
+      return buildProviderBuiltinWebSearchConfig(_providerId, webSearchConfig, model)
     }
     default: {
       return {}
