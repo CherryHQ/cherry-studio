@@ -36,7 +36,14 @@ export abstract class BaseService {
   protected static db: LibSQLDatabase<typeof schema> | null = null
   protected static isInitialized = false
   protected static initializationPromise: Promise<void> | null = null
-  protected jsonFields: string[] = ['tools', 'mcps', 'configuration', 'accessible_paths', 'allowed_tools']
+  protected jsonFields: string[] = [
+    'tools',
+    'mcps',
+    'configuration',
+    'accessible_paths',
+    'allowed_tools',
+    'slash_commands'
+  ]
 
   /**
    * Initialize database with retry logic and proper error handling

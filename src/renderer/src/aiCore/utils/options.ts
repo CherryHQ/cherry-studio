@@ -113,6 +113,9 @@ export function buildProviderOptions(
         }
         break
       }
+      case 'cherryin':
+        providerSpecificOptions = buildCherryInProviderOptions(assistant, model, capabilities, actualProvider)
+        break
       default:
         throw new Error(`Unsupported base provider ${baseProviderId}`)
     }
@@ -268,6 +271,34 @@ function buildXAIProviderOptions(
   }
 
   return providerOptions
+}
+
+function buildCherryInProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  },
+  actualProvider: Provider
+): Record<string, any> {
+  const serviceTierSetting = getServiceTier(model, actualProvider)
+
+  switch (actualProvider.type) {
+    case 'openai':
+      return {
+        ...buildOpenAIProviderOptions(assistant, model, capabilities),
+        serviceTier: serviceTierSetting
+      }
+
+    case 'anthropic':
+      return buildAnthropicProviderOptions(assistant, model, capabilities)
+
+    case 'gemini':
+      return buildGeminiProviderOptions(assistant, model, capabilities)
+  }
+  return {}
 }
 
 /**

@@ -631,6 +631,15 @@
       "view_full_content": "查看完整内容"
     },
     "input": {
+      "activity_directory": {
+        "description": "从活动目录中选择文件",
+        "loading": "正在加载文件...",
+        "no_file_found": {
+          "description": "可访问目录中没有可用文件",
+          "label": "未找到文件"
+        },
+        "title": "活动目录"
+      },
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
@@ -654,6 +663,7 @@
       "new": {
         "context": "清除上下文 {{Command}}"
       },
+      "new_session": "新会话 {{Command}}",
       "new_topic": "新话题 {{Command}}",
       "paste_text_file_confirm": "粘贴到输入框？",
       "pause": "暂停",
@@ -661,6 +671,10 @@
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "send": "发送",
       "settings": "设置",
+      "slash_commands": {
+        "description": "代理会话斜杠命令",
+        "title": "斜杠命令"
+      },
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
         "label": "思考",
@@ -1771,6 +1785,9 @@
     },
     "message": {
       "code_style": "代码风格",
+      "compact": {
+        "title": "对话已压缩"
+      },
       "delete": {
         "content": "确定要删除此消息吗？",
         "title": "删除消息"
@@ -3801,6 +3818,7 @@
         "description": "不启用 MCP 服务功能",
         "label": "不使用 MCP 服务器"
       },
+      "discover": "发现",
       "duplicateName": "已存在同名服务器",
       "editJson": "编辑 JSON",
       "editMcpJson": "编辑 MCP 配置",
@@ -3810,6 +3828,10 @@
       "errors": {
         "32000": "MCP 服务器启动失败，请根据教程检查参数是否填写完整",
         "toolNotFound": "未找到工具 {{name}}"
+      },
+      "fetch": {
+        "button": "获取服务器",
+        "success": "服务器获取成功"
       },
       "findMore": "更多 MCP",
       "headers": "请求头",
@@ -3826,6 +3848,7 @@
       "logoUrl": "标志网址",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
+      "marketplaces": "市场",
       "missingDependencies": "缺失，请安装它以继续",
       "more": {
         "awesome": "精选的 MCP 服务器列表",
@@ -3857,6 +3880,12 @@
         "usage": "用法",
         "version": "版本"
       },
+      "oauth": {
+        "callback": {
+          "message": "您可以关闭此页面并返回 Cherry Studio",
+          "title": "认证成功"
+        }
+      },
       "prompts": {
         "arguments": "参数",
         "availablePrompts": "可用提示",
@@ -3874,6 +3903,7 @@
       "provider": "提供者",
       "providerPlaceholder": "提供者名称",
       "providerUrl": "提供者网址",
+      "providers": "提供商",
       "registry": "包管理源",
       "registryDefault": "默认",
       "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题",
@@ -3896,6 +3926,7 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "服务器",
       "serverSingular": "服务器",
+      "servers": "MCP 服务器",
       "sse": "服务器发送事件 (sse)",
       "startError": "启动失败",
       "stdio": "标准输入 / 输出 (stdio)",
@@ -4445,6 +4476,7 @@
       "confirm": "确认",
       "forward": "前进",
       "multiple": "多选",
+      "noResult": "[to be translated]:No results found",
       "page": "翻页",
       "select": "选择",
       "title": "快捷菜单"

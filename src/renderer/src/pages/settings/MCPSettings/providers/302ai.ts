@@ -30,6 +30,7 @@ interface Ai302SyncResult {
   message: string
   addedServers: MCPServer[]
   updatedServers: MCPServer[]
+  allServers: MCPServer[]
   errorDetails?: string
 }
 
@@ -53,7 +54,8 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
@@ -64,6 +66,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
         message: t('settings.mcp.sync.error'),
         addedServers: [],
         updatedServers: [],
+        allServers: [],
         errorDetails: `Status: ${response.status}`
       }
     }
@@ -78,13 +81,15 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
         addedServers: [],
-        updatedServers: []
+        updatedServers: [],
+        allServers: []
       }
     }
 
     // Transform 302ai servers to MCP servers format
     const addedServers: MCPServer[] = []
     const updatedServers: MCPServer[] = []
+    const allServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
@@ -121,7 +126,8 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       success: true,
       message: t('settings.mcp.sync.success', { count: totalServers }),
       addedServers,
-      updatedServers
+      updatedServers,
+      allServers
     }
   } catch (error) {
     logger.error('302ai sync error:', error as Error)
@@ -130,6 +136,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       message: t('settings.mcp.sync.error'),
       addedServers: [],
       updatedServers: [],
+      allServers: [],
       errorDetails: String(error)
     }
   }

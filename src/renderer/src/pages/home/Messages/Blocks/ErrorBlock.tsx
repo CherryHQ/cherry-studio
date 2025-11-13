@@ -304,7 +304,7 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
   )
 }
 
-// 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
+// Base component to render common fields, should be rendered inside ErrorDetailList
 const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
   const { highlightCode } = useCodeStyle()

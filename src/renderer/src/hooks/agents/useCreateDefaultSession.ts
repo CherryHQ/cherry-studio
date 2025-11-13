@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useAppDispatch } from '@renderer/store'
@@ -5,6 +6,8 @@ import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@render
 import type { CreateSessionForm } from '@renderer/types'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('useCreateDefaultSession')
 
 /**
  * Returns a stable callback that creates a default agent session and updates UI state.
@@ -37,6 +40,9 @@ export const useCreateDefaultSession = (agentId: string | null) => {
       }
 
       return created
+    } catch (error) {
+      logger.error('Error creating default session:', error as Error)
+      return null
     } finally {
       setCreatingSession(false)
     }
