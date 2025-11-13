@@ -1377,7 +1377,7 @@
     "chatgpt": {
       "assistant_name": "ChatGPT Import",
       "button": "Select File",
-      "description": "Select the conversations.json file exported from ChatGPT",
+      "description": "Only imports conversation text, does not include images and attachments",
       "error": {
         "invalid_json": "Invalid JSON file format",
         "no_conversations": "No conversations found in file",
@@ -1386,7 +1386,7 @@
       },
       "help": {
         "step1": "1. Log in to ChatGPT, go to Settings > Data controls > Export data",
-        "step2": "2. Wait for the export file via email (may take minutes to hours)",
+        "step2": "2. Wait for the export file via email",
         "step3": "3. Extract the downloaded file and find conversations.json",
         "title": "How to export ChatGPT conversations?"
       },

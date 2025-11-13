@@ -1,12 +1,16 @@
-import { importChatGPTConversations } from '@renderer/services/ImportService'
+import { importChatGPTConversations } from '@renderer/services/import'
 import { Alert, Modal, Progress, Space } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
 
+interface PopupResult {
+  success?: boolean
+}
+
 interface Props {
-  resolve: (data: any) => void
+  resolve: (data: PopupResult) => void
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
@@ -94,7 +98,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       )}
       {importing && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Progress percent={0} status="active" strokeColor="var(--color-primary)" />
+          <Progress percent={100} status="active" strokeColor="var(--color-primary)" showInfo={false} />
           <div style={{ marginTop: 16 }}>{t('import.chatgpt.importing')}</div>
         </div>
       )}
@@ -102,7 +106,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-const TopViewKey = 'RestorePopup'
+const TopViewKey = 'ImportPopup'
 
 export default class ImportPopup {
   static topviewId = 0
@@ -110,7 +114,7 @@ export default class ImportPopup {
     TopView.hide(TopViewKey)
   }
   static show() {
-    return new Promise<any>((resolve) => {
+    return new Promise<PopupResult>((resolve) => {
       TopView.show(
         <PopupContainer
           resolve={(v) => {

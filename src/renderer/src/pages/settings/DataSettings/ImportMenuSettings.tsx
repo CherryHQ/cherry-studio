@@ -1,18 +1,15 @@
 import { HStack } from '@renderer/components/Layout'
 import ImportPopup from '@renderer/components/Popups/ImportPopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import type { RootState } from '@renderer/store'
 import { Button } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  useSelector((state: RootState) => state.settings.exportMenuOptions)
   return (
     <SettingGroup theme={theme}>
       <SettingRow>
