@@ -207,14 +207,15 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
           {t('common.close')}
         </Button>
       ]}
-      width={600}>
+      width="80%"
+      style={{ maxWidth: '1200px', minWidth: '600px' }}>
       <ErrorDetailContainer>{renderErrorDetails(error)}</ErrorDetailContainer>
     </Modal>
   )
 }
 
 const ErrorDetailContainer = styled.div`
-  max-height: 400px;
+  max-height: 60vh;
   overflow-y: auto;
 `
 
@@ -347,16 +348,8 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
   return (
     <ErrorDetailList>
-      <AiSdkErrorBase error={error} />
-
       {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && (
         <>
-          {error.statusCode && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
           {error.url && (
             <ErrorDetailItem>
               <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
@@ -374,12 +367,27 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
               <CodeViewer value={error.responseBody} className="source-view" language="json" expanded />
             </ErrorDetailItem>
           )}
+        </>
+      )}
 
-          {error.requestBodyValues && (
+      {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && (
+        <>
+          {error.statusCode && (
             <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.requestBodyValues')}:</ErrorDetailLabel>
+              <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {isSerializedAiSdkAPICallError(error) && (
+        <>
+          {error.responseHeaders && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
               <CodeViewer
-                value={safeToString(error.requestBodyValues)}
+                value={JSON.stringify(error.responseHeaders, null, 2)}
                 className="source-view"
                 language="json"
                 expanded
@@ -387,11 +395,11 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
             </ErrorDetailItem>
           )}
 
-          {error.responseHeaders && (
+          {error.requestBodyValues && (
             <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
+              <ErrorDetailLabel>{t('error.requestBodyValues')}:</ErrorDetailLabel>
               <CodeViewer
-                value={JSON.stringify(error.responseHeaders, null, 2)}
+                value={safeToString(error.requestBodyValues)}
                 className="source-view"
                 language="json"
                 expanded
@@ -627,6 +635,8 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
           <ErrorDetailValue>{error.functionality}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
+
+      <AiSdkErrorBase error={error} />
     </ErrorDetailList>
   )
 }
