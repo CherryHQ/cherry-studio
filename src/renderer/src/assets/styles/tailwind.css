@@ -2,7 +2,7 @@
 @import 'tw-animate-css';
 
 @import '../../../../../packages/ui/src/styles/theme.css';
-@source '../../../../../packages/ui/src/components/*.{js,ts,jsx,tsx}';
+@source '../../../../../packages/ui/src/components/**/*.{js,ts,jsx,tsx}';
 @custom-variant dark (&:is(.dark *));
 
 /* 如需自定义:
