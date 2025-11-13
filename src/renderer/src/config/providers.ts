@@ -12,6 +12,7 @@ import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-clou
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
+import CerebrasProviderLogo from '@renderer/assets/images/providers/cerebras.webp'
 import CherryInProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
@@ -686,6 +687,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: [],
     isSystem: true,
     enabled: false
+  },
+  cerebras: {
+    id: 'cerebras',
+    name: 'Cerebras AI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.cerebras.ai/v1',
+    models: SYSTEM_MODELS.cerebras,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -753,7 +764,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   longcat: LongCatProviderLogo,
   huggingface: HuggingfaceProviderLogo,
   sophnet: SophnetProviderLogo,
-  'ai-gateway': AIGatewayProviderLogo
+  'ai-gateway': AIGatewayProviderLogo,
+  cerebras: CerebrasProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1413,6 +1425,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       docs: 'https://vercel.com/docs/ai-gateway',
       models: 'https://vercel.com/ai-gateway/models'
     }
+  },
+  cerebras: {
+    api: {
+      url: 'https://api.cerebras.ai/v1'
+    },
+    websites: {
+      official: 'https://www.cerebras.ai',
+      apiKey: 'https://cloud.cerebras.ai',
+      docs: 'https://inference-docs.cerebras.ai/introduction',
+      models: 'https://inference-docs.cerebras.ai/models/overview'
+    }
   }
 }
 
@@ -1475,7 +1498,7 @@ export const isSupportEnableThinkingProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot', 'cerebras'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 service_tier 设置。 Only for OpenAI API.

@@ -79,6 +79,13 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     creatorFunctionName: 'createGateway',
     supportsImageGeneration: true,
     aliases: ['gateway']
+  },
+  {
+    id: 'cerebras',
+    name: 'Cerebras',
+    import: () => import('@ai-sdk/cerebras'),
+    creatorFunctionName: 'createCerebras',
+    supportsImageGeneration: false
   }
 ] as const
 

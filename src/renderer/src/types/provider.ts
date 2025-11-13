@@ -178,7 +178,8 @@ export const SystemProviderIds = {
   aionly: 'aionly',
   longcat: 'longcat',
   huggingface: 'huggingface',
-  'ai-gateway': 'ai-gateway'
+  'ai-gateway': 'ai-gateway',
+  cerebras: 'cerebras'
 } as const
 
 export type SystemProviderId = keyof typeof SystemProviderIds
