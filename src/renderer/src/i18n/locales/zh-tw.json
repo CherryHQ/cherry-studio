@@ -1373,6 +1373,35 @@
     "preview": "預覽",
     "split": "分屏"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT 匯入",
+      "button": "選擇檔案",
+      "description": "選擇從 ChatGPT 匯出的 conversations.json 檔案",
+      "error": {
+        "invalid_json": "無效的 JSON 檔案格式",
+        "no_conversations": "檔案中未找到任何對話",
+        "no_valid_conversations": "沒有可匯入的有效對話",
+        "unknown": "匯入失敗，請檢查檔案格式"
+      },
+      "help": {
+        "step1": "1. 登入 ChatGPT，進入設定 > 資料控制 > 匯出資料",
+        "step2": "2. 等待郵件接收匯出檔案（可能需要幾分鐘到幾小時）",
+        "step3": "3. 解壓下載的檔案，找到 conversations.json",
+        "title": "如何匯出 ChatGPT 對話？"
+      },
+      "importing": "正在匯入對話...",
+      "success": "成功匯入 {{topics}} 個對話，共 {{messages}} 則訊息",
+      "title": "匯入 ChatGPT 對話",
+      "untitled_conversation": "未命名對話"
+    },
+    "confirm": {
+      "button": "選擇匯入檔案",
+      "label": "確定要匯入外部資料嗎？"
+    },
+    "content": "選擇要匯入的外部應用對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
+    "title": "匯入外部對話"
+  },
   "knowledge": {
     "add": {
       "title": "新增知識庫"
@@ -3082,6 +3111,7 @@
         "basic": "基礎數據設定",
         "cloud_storage": "雲備份設定",
         "export_settings": "匯出設定",
+        "import_settings": "匯入設定",
         "third_party": "第三方連接"
       },
       "export_menu": {
@@ -3140,6 +3170,11 @@
       },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
+      "import_settings": {
+        "button": "匯入 Json 檔案",
+        "chatgpt": "匯入 ChatGPT 數據",
+        "title": "匯入外部應用程式數據"
+      },
       "joplin": {
         "check": {
           "button": "檢查",

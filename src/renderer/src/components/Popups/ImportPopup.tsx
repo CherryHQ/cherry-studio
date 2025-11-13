@@ -1,0 +1,125 @@
+import { importChatGPTConversations } from '@renderer/services/ImportService'
+import { Alert, Modal, Progress, Space } from 'antd'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { TopView } from '../TopView'
+
+interface Props {
+  resolve: (data: any) => void
+}
+
+const PopupContainer: React.FC<Props> = ({ resolve }) => {
+  const [open, setOpen] = useState(true)
+  const [importing, setImporting] = useState(false)
+  const { t } = useTranslation()
+
+  const onOk = async () => {
+    setImporting(true)
+    try {
+      // Select ChatGPT JSON file
+      const file = await window.api.file.open({
+        filters: [{ name: 'ChatGPT Conversations', extensions: ['json'] }]
+      })
+
+      if (!file) {
+        setImporting(false)
+        return
+      }
+
+      // Parse file content
+      const fileContent = typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
+
+      // Import conversations
+      const result = await importChatGPTConversations(fileContent)
+
+      if (result.success) {
+        window.toast.success(
+          t('import.chatgpt.success', {
+            topics: result.topicsCount,
+            messages: result.messagesCount
+          })
+        )
+        setOpen(false)
+      } else {
+        window.toast.error(result.error || t('import.chatgpt.error.unknown'))
+      }
+    } catch (error) {
+      window.toast.error(t('import.chatgpt.error.unknown'))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const onCancel = () => {
+    setOpen(false)
+  }
+
+  const onClose = () => {
+    resolve({})
+  }
+
+  ImportPopup.hide = onCancel
+
+  return (
+    <Modal
+      title={t('import.chatgpt.title')}
+      open={open}
+      onOk={onOk}
+      onCancel={onCancel}
+      afterClose={onClose}
+      okText={t('import.chatgpt.button')}
+      okButtonProps={{ disabled: importing, loading: importing }}
+      cancelButtonProps={{ disabled: importing }}
+      maskClosable={false}
+      transitionName="animation-move-down"
+      centered>
+      {!importing && (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div>{t('import.chatgpt.description')}</div>
+          <Alert
+            message={t('import.chatgpt.help.title')}
+            description={
+              <div>
+                <p>{t('import.chatgpt.help.step1')}</p>
+                <p>{t('import.chatgpt.help.step2')}</p>
+                <p>{t('import.chatgpt.help.step3')}</p>
+              </div>
+            }
+            type="info"
+            showIcon
+            style={{ marginTop: 12 }}
+          />
+        </Space>
+      )}
+      {importing && (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <Progress percent={0} status="active" strokeColor="var(--color-primary)" />
+          <div style={{ marginTop: 16 }}>{t('import.chatgpt.importing')}</div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+const TopViewKey = 'RestorePopup'
+
+export default class ImportPopup {
+  static topviewId = 0
+  static hide() {
+    TopView.hide(TopViewKey)
+  }
+  static show() {
+    return new Promise<any>((resolve) => {
+      TopView.show(
+        <PopupContainer
+          resolve={(v) => {
+            resolve(v)
+            TopView.hide(TopViewKey)
+          }}
+        />,
+        TopViewKey
+      )
+    })
+  }
+}
