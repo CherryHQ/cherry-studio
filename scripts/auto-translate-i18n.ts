@@ -18,8 +18,10 @@ import { sortedObjectByKeys } from './sort'
 // ========== SCRIPT CONFIGURATION AREA - MODIFY SETTINGS HERE ==========
 const SCRIPT_CONFIG = {
   // 🔧 Concurrency Control Configuration
-  MAX_CONCURRENT_TRANSLATIONS: 5, // Max concurrent requests (Make sure the concurrency level does not exceed your provider's limits.)
-  TRANSLATION_DELAY_MS: 100, // Delay between requests to avoid rate limiting (Recommended: 100-500ms, Range: 0-5000ms)
+  MAX_CONCURRENT_TRANSLATIONS: process.env.TRANSLATION_MAX_CONCURRENT_REQUESTS
+    ? parseInt(process.env.TRANSLATION_MAX_CONCURRENT_REQUESTS)
+    : 5, // Max concurrent requests (Make sure the concurrency level does not exceed your provider's limits.)
+  TRANSLATION_DELAY_MS: process.env.TRANSLATION_DELAY_MS ? parseInt(process.env.TRANSLATION_DELAY_MS) : 500, // Delay between requests to avoid rate limiting (Recommended: 100-500ms, Range: 0-5000ms)
 
   // 🔑 API Configuration
   API_KEY: process.env.TRANSLATION_API_KEY || '', // API key from environment variable

@@ -135,128 +135,50 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.3
+    What's New in v1.7.0-beta.5
 
     New Features:
-    - Enhanced Tool Permission System: Real-time tool approval interface with improved UX
-    - Plugin Management System: Support for Claude Agent plugins (agents, commands, skills)
-    - Skill Tool: Add skill execution capabilities for agents
-    - Mobile App Data Restore: Support restoring data to mobile applications
-    - OpenMinerU Preprocessor: Knowledge base now supports open-source MinerU for document processing
-    - HuggingFace Provider: Added HuggingFace as AI provider
-    - Claude Haiku 4.5: Support for the latest Claude Haiku 4.5 model
-    - Ling Series Models: Added support for Ling-1T and related models
-    - Intel OVMS Painting: New painting provider using Intel OpenVINO Model Server
-    - Automatic Update Checks: Implement periodic update checking with configurable intervals
-    - HuggingChat Mini App: New mini app for HuggingChat integration
+    - MCPRouter Provider: Added MCPRouter provider integration with token management and server synchronization
+    - MCP Marketplace: Enhanced MCP server discovery and management with multi-provider marketplace support
+    - Agent Permission Mode Display: Visual permission mode cards in empty session states
+    - Assistant Subscription Settings: Added subscription URL management in assistant presets
 
     Improvements:
-    - Agent Creation: New agents are now automatically activated upon creation
-    - Lazy Loading: Optimize page load performance with route lazy loading
-    - UI Enhancements: Improved agent item styling and layout consistency
-    - Navigation: Better navbar layout for fullscreen mode on macOS
-    - Settings Tab: Enhanced context slider consistency
-    - Backup Manager: Unified footer layout for local and S3 backup managers
-    - Menu System: Enhanced application menu with improved help section
-    - Proxy Rules: Comprehensive proxy bypass rule matching
-    - German Language: Added German language support
-    - MCP Confirmation: Added confirmation modal when activating protocol-installed MCP servers
-    - Translation: Enhanced translation script with concurrency and validation
-    - Electron & Vite: Updated to Electron 38 and Vite 4.0.1
-    - QR Code Generation: Optimized performance for phone LAN export
-    - Enterprise Settings: Added enterprise section in About settings
-    - Assistant/Agent Popup: Enhanced UI for adding assistants and agents
-
-    Claude Code Tool Improvements:
-    - GlobTool: Now counts lines instead of files in output for better clarity
-    - ReadTool: Automatically removes system reminder tags from output
-    - TodoWriteTool: Improved rendering behavior
-    - Environment Variables: Updated model-related environment variable names
+    - UI Optimization: Sidebar tooltip placement improved on macOS to avoid overlapping window controls
+    - MCP Server Logos: Display server logos in Agent settings tooling section
+    - Long Command Handling: Bash command tags now auto-truncate (hover to view full command for commands over 100 chars)
+    - MCP OAuth Callback: Fixed callback page hanging and added multilingual support (10 languages)
+    - Error Display: Improved error block display order for better readability
+    - Plugin Browser: Centered tab alignment for better visual consistency
 
     Bug Fixes:
-    - Fixed session model not being used when sending messages
-    - Fixed tool approval UI and shared workspace plugin inconsistencies
-    - Fixed API server readiness notification to renderer
-    - Fixed grouped items not respecting saved tag order
-    - Fixed assistant/agent activation when creating new ones
-    - Fixed Dashscope Anthropic API host and migrated old configs
-    - Fixed Qwen3 thinking mode control for Ollama
-    - Fixed disappeared MCP button
-    - Fixed create assistant causing blank screen
-    - Fixed up-down button visibility in some cases
-    - Fixed hooks preventing save on composing enter key
-    - Fixed Azure GPT-image-1 and OpenRouter Gemini-image
-    - Fixed Silicon reasoning issues
-    - Fixed topic branch incomplete copy with two-pass ID mapping
-    - Fixed deep research model search context restrictions
-    - Fixed model capability checking logic
-    - Fixed reranker API error response capture
-    - Fixed right-click paste file content into inputbar
-    - Fixed minimax-m2 support in aiCore
-    - Fixed Azure embedding issues
-    - Fixed agent edit modal loading race condition
-    - Fixed debounced save cancellation on file path update
+    - Fixed Agent sessions not inheriting allowed_tools configuration
+    - Fixed Gemini endpoint thinking budget spelling error
+    - Fixed MCP card description text overflow
+    - Fixed unnecessary message timestamp updates on UI-only state changes
+    - Updated dependencies: Bun to 1.3.1, uv to 0.9.5
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.3 新特性
+    v1.7.0-beta.5 新特性
 
     新功能:
-    - 增强工具权限系统：实时工具审批界面，改进用户体验
-    - 插件管理系统：支持 Claude Agent 插件（agents、commands、skills）
-    - 技能工具：为 Agent 添加技能执行能力
-    - 移动应用数据恢复：支持将数据恢复到移动应用程序
-    - OpenMinerU 预处理器：知识库现支持使用开源 MinerU 处理文档
-    - HuggingFace 提供商：添加 HuggingFace 作为 AI 提供商
-    - Claude Haiku 4.5：支持最新的 Claude Haiku 4.5 模型
-    - Ling 系列模型：添加 Ling-1T 及相关模型支持
-    - Intel OVMS 绘图：使用 Intel OpenVINO 模型服务器的新绘图提供商
-    - 自动更新检查：实现可配置间隔的定期更新检查
-    - HuggingChat 小程序：新增 HuggingChat 集成小程序
+    - MCPRouter 提供商：新增 MCPRouter 提供商集成，支持 token 管理和服务器同步
+    - MCP 市场：增强 MCP 服务器发现和管理功能，支持多提供商市场
+    - Agent 权限模式展示：空会话状态显示可视化权限模式卡片
+    - 助手订阅设置：在助手预设中添加订阅 URL 管理功能
 
     改进:
-    - Agent 创建：新创建的 Agent 现在会自动激活
-    - 懒加载：通过路由懒加载优化页面加载性能
-    - UI 增强：改进 Agent 项目样式和布局一致性
-    - 导航：改进 macOS 全屏模式下的导航栏布局
-    - 设置选项卡：增强上下文滑块一致性
-    - 备份管理器：统一本地和 S3 备份管理器的页脚布局
-    - 菜单系统：增强应用菜单，改进帮助部分
-    - 代理规则：全面的代理绕过规则匹配
-    - 德语支持：添加德语语言支持
-    - MCP 确认：添加激活协议安装的 MCP 服务器时的确认模态框
-    - 翻译：增强翻译脚本的并发和验证功能
-    - Electron & Vite：更新至 Electron 38 和 Vite 4.0.1
-    - 二维码生成：优化手机局域网导出性能
-    - 企业设置：在关于设置中添加企业部分
-    - 助手/Agent 弹窗：增强添加助手和 Agent 的界面
-
-    Claude Code 工具改进:
-    - GlobTool：现在计算行数而不是文件数，提供更清晰的输出
-    - ReadTool：自动从输出中移除系统提醒标签
-    - TodoWriteTool：改进渲染行为
-    - 环境变量：更新模型相关的环境变量名称
+    - UI 优化：macOS 上侧边栏工具提示位置优化，避免与窗口控制按钮重叠
+    - MCP 服务器标志：在 Agent 设置工具部分显示服务器 logo
+    - 长命令处理：Bash 命令标签自动截断（超过 100 字符时悬停查看完整内容）
+    - MCP OAuth 回调：修复回调页面挂起问题并添加多语言支持（10 种语言）
+    - 错误信息展示：改进错误块显示顺序，提高可读性
+    - 插件浏览器：标签页居中对齐，视觉效果更统一
 
     问题修复:
-    - 修复发送消息时未使用会话模型
-    - 修复工具审批 UI 和共享工作区插件不一致
-    - 修复 API 服务器就绪通知到渲染器
-    - 修复分组项目不遵守已保存标签顺序
-    - 修复创建新的助手/Agent 时的激活问题
-    - 修复 Dashscope Anthropic API 主机并迁移旧配置
-    - 修复 Ollama 的 Qwen3 思考模式控制
-    - 修复 MCP 按钮消失
-    - 修复创建助手导致空白屏幕
-    - 修复某些情况下上下按钮可见性
-    - 修复钩子在输入法输入时阻止保存
-    - 修复 Azure GPT-image-1 和 OpenRouter Gemini-image
-    - 修复 Silicon 推理问题
-    - 修复主题分支不完整复制，采用两阶段 ID 映射
-    - 修复深度研究模型搜索上下文限制
-    - 修复模型能力检查逻辑
-    - 修复 reranker API 错误响应捕获
-    - 修复右键粘贴文件内容到输入栏
-    - 修复 aiCore 中的 minimax-m2 支持
-    - 修复 Azure embedding 问题
-    - 修复 Agent 编辑模态框加载竞态条件
-    - 修复文件路径更新时防抖保存取消问题
+    - 修复 Agent 会话未继承 allowed_tools 配置
+    - 修复 Gemini 端点 thinking budget 拼写错误
+    - 修复 MCP 卡片描述文本溢出问题
+    - 修复仅 UI 状态变化时消息时间戳不必要的更新
+    - 依赖更新：Bun 升级到 1.3.1，uv 升级到 0.9.5
     <!--LANG:END-->

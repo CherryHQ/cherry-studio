@@ -74,12 +74,20 @@ const emptyUsage: LanguageModelUsage = {
 const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
 
 /**
+ * Removes any local command stdout/stderr XML wrappers that should never surface to the UI.
+ */
+export const stripLocalCommandTags = (text: string): string => {
+  return text.replace(/<local-command-(stdout|stderr)>(.*?)<\/local-command-\1>/gs, '$2')
+}
+
+/**
  * Filters out command-* tags from text content to prevent internal command
  * messages from appearing in the user-facing UI.
  * Removes tags like <command-message>...</command-message> and <command-name>...</command-name>
  */
 const filterCommandTags = (text: string): string => {
-  return text.replace(/<command-[^>]+>.*?<\/command-[^>]+>/gs, '').trim()
+  const withoutLocalCommandTags = stripLocalCommandTags(text)
+  return withoutLocalCommandTags.replace(/<command-[^>]+>.*?<\/command-[^>]+>/gs, '').trim()
 }
 
 /**
@@ -102,6 +110,7 @@ const sdkMessageToProviderMetadata = (message: SDKMessage): ProviderMetadata => 
  * blocks across calls so that incremental deltas can be correlated correctly.
  */
 export function transformSDKMessageToStreamParts(sdkMessage: SDKMessage, state: ClaudeStreamState): AgentStreamPart[] {
+  logger.silly('Transforming SDKMessage', { message: sdkMessage })
   switch (sdkMessage.type) {
     case 'assistant':
       return handleAssistantMessage(sdkMessage, state)
@@ -135,7 +144,8 @@ function handleAssistantMessage(
   const isStreamingActive = state.hasActiveStep()
 
   if (typeof content === 'string') {
-    if (!content) {
+    const sanitizedContent = stripLocalCommandTags(content)
+    if (!sanitizedContent) {
       return chunks
     }
 
@@ -157,7 +167,7 @@ function handleAssistantMessage(
     chunks.push({
       type: 'text-delta',
       id: textId,
-      text: content,
+      text: sanitizedContent,
       providerMetadata
     })
     chunks.push({
@@ -178,7 +188,10 @@ function handleAssistantMessage(
     switch (block.type) {
       case 'text':
         if (!isStreamingActive) {
-          textBlocks.push(block.text)
+          const sanitizedText = stripLocalCommandTags(block.text)
+          if (sanitizedText) {
+            textBlocks.push(sanitizedText)
+          }
         }
         break
       case 'tool_use':
@@ -536,6 +549,10 @@ function handleContentBlockDelta(
       if (!block) {
         logger.warn('Received text_delta for unknown block', { index })
         return
+      }
+      block.text = stripLocalCommandTags(block.text)
+      if (!block.text) {
+        break
       }
       chunks.push({
         type: 'text-delta',

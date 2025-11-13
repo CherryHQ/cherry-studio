@@ -15,6 +15,13 @@
       "when": 1758187378775,
       "tag": "0001_woozy_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1762526423527,
+      "tag": "0002_wealthy_naoko",
+      "breakpoints": true
     }
   ]
 }

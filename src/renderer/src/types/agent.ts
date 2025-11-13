@@ -82,6 +82,7 @@ export const AgentBaseSchema = z.object({
   // Tools
   mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
   allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
+  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands merged from builtin and SDK
 
   // Configuration
   configuration: AgentConfigurationSchema.optional() // Extensible settings like temperature, top_p, etc.
@@ -286,7 +287,6 @@ export interface UpdateSessionRequest extends Partial<AgentBase> {}
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
   messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
-  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands to trigger the agent
   plugins: z
     .array(
       z.object({

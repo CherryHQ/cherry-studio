@@ -339,6 +339,41 @@
     },
     "title": "API 伺服器"
   },
+  "appMenu": {
+    "about": "關於",
+    "close": "關閉視窗",
+    "copy": "複製",
+    "cut": "剪下",
+    "delete": "刪除",
+    "documentation": "文件",
+    "edit": "編輯",
+    "feedback": "回饋",
+    "file": "檔案",
+    "forceReload": "強制重新載入",
+    "front": "全部置於頂層",
+    "help": "幫助",
+    "hide": "隱藏",
+    "hideOthers": "隱藏其他",
+    "minimize": "最小化",
+    "paste": "貼上",
+    "quit": "結束",
+    "redo": "重做",
+    "releases": "版本發布",
+    "reload": "重新載入",
+    "resetZoom": "實際大小",
+    "selectAll": "全選",
+    "services": "服務",
+    "toggleDevTools": "切換開發者工具",
+    "toggleFullscreen": "切換全螢幕",
+    "undo": "復原",
+    "unhide": "全部顯示",
+    "view": "檢視",
+    "website": "網站",
+    "window": "視窗",
+    "zoom": "縮放",
+    "zoomIn": "放大",
+    "zoomOut": "縮小"
+  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -596,6 +631,15 @@
       "view_full_content": "查看完整內容"
     },
     "input": {
+      "activity_directory": {
+        "description": "從活動目錄中選擇檔案",
+        "loading": "載入檔案中...",
+        "no_file_found": {
+          "description": "可存取的目錄中沒有檔案",
+          "label": "找不到檔案"
+        },
+        "title": "活動目錄"
+      },
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -619,6 +663,7 @@
       "new": {
         "context": "清除上下文 {{Command}}"
       },
+      "new_session": "新工作階段 {{Command}}",
       "new_topic": "新話題 {{Command}}",
       "paste_text_file_confirm": "貼到輸入框？",
       "pause": "暫停",
@@ -626,6 +671,10 @@
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "send": "傳送",
       "settings": "設定",
+      "slash_commands": {
+        "description": "代理會話斜線命令",
+        "title": "斜線指令"
+      },
       "thinking": {
         "budget_exceeds_max": "思考預算超過最大 Token 數",
         "label": "思考",
@@ -1611,7 +1660,7 @@
     },
     "assistant": {
       "added": {
-        "content": "智慧代理人新增成功"
+        "content": "助手新增成功"
       }
     },
     "attachments": {
@@ -1736,6 +1785,9 @@
     },
     "message": {
       "code_style": "程式碼風格",
+      "compact": {
+        "title": "對話已壓縮"
+      },
       "delete": {
         "content": "確定要刪除此訊息嗎？",
         "title": "刪除訊息"
@@ -3767,6 +3819,7 @@
         "description": "不啟用 MCP 服務功能",
         "label": "不使用 MCP 伺服器"
       },
+      "discover": "發現",
       "duplicateName": "已存在相同名稱的伺服器",
       "editJson": "編輯 JSON",
       "editMcpJson": "編輯 MCP 配置",
@@ -3776,6 +3829,10 @@
       "errors": {
         "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整",
         "toolNotFound": "未找到工具 {{name}}"
+      },
+      "fetch": {
+        "button": "獲取伺服器",
+        "success": "伺服器獲取成功"
       },
       "findMore": "更多 MCP",
       "headers": "請求標頭",
@@ -3792,6 +3849,7 @@
       "logoUrl": "標誌網址",
       "longRunning": "長時間運行模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務，接收到進度通知時會重置超時計時器，並延長最大超時時間至10分鐘",
+      "marketplaces": "市場",
       "missingDependencies": "缺失，請安裝它以繼續",
       "more": {
         "awesome": "精選的 MCP 伺服器清單",
@@ -3823,6 +3881,12 @@
         "usage": "用法",
         "version": "版本"
       },
+      "oauth": {
+        "callback": {
+          "message": "您可以關閉此頁面並返回 Cherry Studio",
+          "title": "認證成功"
+        }
+      },
       "prompts": {
         "arguments": "參數",
         "availablePrompts": "可用提示",
@@ -3840,6 +3904,7 @@
       "provider": "提供者",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
+      "providers": "提供商",
       "registry": "套件管理源",
       "registryDefault": "預設",
       "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題",
@@ -3862,6 +3927,7 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
+      "servers": "MCP 伺服器",
       "sse": "伺服器傳送事件 (sse)",
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
@@ -4411,6 +4477,7 @@
       "confirm": "確認",
       "forward": "前進",
       "multiple": "多選",
+      "noResult": "[to be translated]:No results found",
       "page": "翻頁",
       "select": "選擇",
       "title": "快捷選單"
