@@ -728,6 +728,7 @@ const Container = styled.div`
   position: relative;
   z-index: 2;
   padding: 0 18px 18px 18px;
+  box-sizing: border-box;
   [navbar-position='top'] & {
     padding: 0 18px 10px 18px;
   }
