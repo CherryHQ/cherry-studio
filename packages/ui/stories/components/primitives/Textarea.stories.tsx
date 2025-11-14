@@ -105,9 +105,7 @@ export const WithCharacterCount: Story = {
           <Textarea.Input value={value} onValueChange={setValue} maxLength={280} placeholder="What's happening?" />
           <Textarea.CharCount value={value} maxLength={280} />
         </div>
-        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
-          Maximum 280 characters
-        </div>
+        <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">Maximum 280 characters</div>
       </Textarea.Root>
     )
   }
