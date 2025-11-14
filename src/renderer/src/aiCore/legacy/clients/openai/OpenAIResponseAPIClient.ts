@@ -520,7 +520,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  verbosity: this.getVerbosity()
+                  // gpt-5-pro only supports 'high' verbosity
+                  verbosity: model.id.toLowerCase().includes('gpt-5-pro') ? 'high' : this.getVerbosity()
                 }
               }
             : {}),
