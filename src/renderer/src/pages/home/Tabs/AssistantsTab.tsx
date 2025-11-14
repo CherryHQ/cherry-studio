@@ -6,7 +6,8 @@ import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import type { Assistant, AssistantsSortType, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useCallback, useRef, useState } from 'react'
 import styled from 'styled-components'
@@ -85,7 +86,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   )
 
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
+    (sortType: AssistantTabSortType) => {
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]

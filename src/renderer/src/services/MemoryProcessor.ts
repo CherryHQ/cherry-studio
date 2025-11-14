@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
 import type { AssistantMessage } from '@renderer/types'
@@ -103,7 +104,7 @@ export class MemoryProcessor {
     if (!memoryConfig.llmApiClient) {
       throw new Error('No LLM model configured for memory processing')
     }
-    const existingMemoriesResult = (window.keyv.get(`memory-search-${lastMessageId}`) as MemoryItem[]) || []
+    const existingMemoriesResult = (cacheService.get(`memory-search-${lastMessageId}`) as MemoryItem[]) || []
 
     const existingMemories = existingMemoriesResult.map((memory) => ({
       id: memory.id,

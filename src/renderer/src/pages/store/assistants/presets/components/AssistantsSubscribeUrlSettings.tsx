@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
@@ -26,7 +26,7 @@ const AssistantsSubscribeUrlSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <HStack alignItems="center" gap="8px">
+      <RowFlex className="items-center gap-2">
         <SettingTitle>
           {t('assistants.presets.tag.agent')}
           {t('settings.tool.websearch.subscribe_add')}
@@ -37,19 +37,19 @@ const AssistantsSubscribeUrlSettings: FC = () => {
           onClick={handleHelpClick}
           className="hover:!text-[var(--color-primary)] cursor-pointer transition-colors"
         />
-      </HStack>
+      </RowFlex>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.websearch.subscribe_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={agentssubscribeUrl || ''}
             onChange={handleAgentChange}
-            style={{ width: 315 }}
+            className="w-[315px]"
             placeholder={t('settings.tool.websearch.subscribe_url')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

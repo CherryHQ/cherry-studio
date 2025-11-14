@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // Mock HStack component
-vi.mock('@renderer/components/Layout', () => ({
-  HStack: ({ children, ...props }: any) => (
+vi.mock('@cherrystudio/ui', () => ({
+  RowFlex: ({ children, ...props }: any) => (
     <div data-testid="hstack" {...props}>
       {children}
     </div>

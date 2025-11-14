@@ -1,5 +1,4 @@
-import store from '@renderer/store'
-import { initialState as defaultNotificationSettings } from '@renderer/store/settings'
+import { preferenceService } from '@data/PreferenceService'
 import type { Notification } from '@renderer/types/notification'
 
 import { NotificationQueue } from '../queue/NotificationQueue'
@@ -25,7 +24,11 @@ export class NotificationService {
    * @param notification 要发送的通知
    */
   public async send(notification: Notification): Promise<void> {
-    const notificationSettings = store.getState().settings.notification || defaultNotificationSettings
+    const notificationSettings = await preferenceService.getMultiple({
+      assistant: 'app.notification.assistant.enabled',
+      backup: 'app.notification.backup.enabled',
+      knowledge: 'app.notification.knowledge.enabled'
+    })
 
     if (notificationSettings[notification.source]) {
       this.queue.add(notification)

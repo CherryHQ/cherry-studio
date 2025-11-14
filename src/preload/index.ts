@@ -2,9 +2,16 @@ import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
-import type { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
+import type { TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
+import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type {
+  PreferenceDefaultScopeType,
+  PreferenceKeyType,
+  SelectionActionItem
+} from '@shared/data/preference/preferenceTypes'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
 import type {
@@ -30,7 +37,6 @@ import type {
   StartApiServerStatusResult,
   StopApiServerStatusResult,
   SupportedOcrFile,
-  ThemeMode,
   WebDavConfig
 } from '@types'
 import type { OpenDialogOptions } from 'electron'
@@ -46,7 +52,6 @@ import type {
   UninstallPluginOptions,
   WritePluginContentOptions
 } from '../renderer/src/types/plugin'
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 type DirectoryListOptions = {
   recursive?: boolean
@@ -77,7 +82,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
-  setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
+  // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
@@ -86,7 +91,7 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
   setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
-  setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
@@ -438,15 +443,7 @@ const api = {
     writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
     determineToolbarSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
-    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IpcChannel.Selection_SetEnabled, enabled),
-    setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
-    setFollowToolbar: (isFollowToolbar: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
-    setRemeberWinSize: (isRemeberWinSize: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Selection_SetRemeberWinSize, isRemeberWinSize),
-    setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
-    setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
-    processAction: (actionItem: ActionItem, isFullScreen: boolean = false) =>
+    processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
@@ -462,8 +459,8 @@ const api = {
     }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
-  setDisableHardwareAcceleration: (isDisable: boolean) =>
-    ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
+  // setDisableHardwareAcceleration: (isDisable: boolean) =>
+  //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
     getData: (topicId: string, traceId: string, modelName?: string) =>
@@ -532,6 +529,50 @@ const api = {
       return () => {
         ipcRenderer.removeListener(channel, listener)
       }
+    }
+  },
+  // CacheService related APIs
+  cache: {
+    // Broadcast sync message to other windows
+    broadcastSync: (message: CacheSyncMessage): void => ipcRenderer.send(IpcChannel.Cache_Sync, message),
+
+    // Listen for sync messages from other windows
+    onSync: (callback: (message: CacheSyncMessage) => void) => {
+      const listener = (_: any, message: CacheSyncMessage) => callback(message)
+      ipcRenderer.on(IpcChannel.Cache_Sync, listener)
+      return () => ipcRenderer.off(IpcChannel.Cache_Sync, listener)
+    }
+  },
+
+  // PreferenceService related APIs
+  // DO NOT MODIFY THIS SECTION
+  preference: {
+    get: <K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> =>
+      ipcRenderer.invoke(IpcChannel.Preference_Get, key),
+    set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
+    getMultiple: (keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> =>
+      ipcRenderer.invoke(IpcChannel.Preference_GetMultiple, keys),
+    setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
+      ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
+    getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
+    subscribe: (keys: PreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
+    onChanged: (callback: (key: PreferenceKeyType, value: any) => void) => {
+      const listener = (_: any, key: PreferenceKeyType, value: any) => callback(key, value)
+      ipcRenderer.on(IpcChannel.Preference_Changed, listener)
+      return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
+    }
+  },
+  // Data API related APIs
+  dataApi: {
+    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    batch: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Batch, req),
+    transaction: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Transaction, req),
+    subscribe: (path: string, callback: (data: any, event: string) => void) => {
+      const channel = `${IpcChannel.DataApi_Stream}:${path}`
+      const listener = (_: any, data: any, event: string) => callback(data, event)
+      ipcRenderer.on(channel, listener)
+      return () => ipcRenderer.off(channel, listener)
     }
   },
   apiServer: {

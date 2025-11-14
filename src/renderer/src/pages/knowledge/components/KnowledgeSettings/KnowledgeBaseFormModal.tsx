@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import type { ModalProps } from 'antd'
 import { Menu, Modal } from 'antd'
 import React, { useState } from 'react'
@@ -42,7 +42,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
         }
       }}
       {...rest}>
-      <HStack height="100%">
+      <RowFlex className="h-full">
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={[selectedMenu]}
@@ -52,7 +52,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
           />
         </LeftMenu>
         <SettingsContentPanel>{activePanel}</SettingsContentPanel>
-      </HStack>
+      </RowFlex>
     </StyledModal>
   )
 }

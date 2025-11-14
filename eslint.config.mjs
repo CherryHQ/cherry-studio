@@ -72,8 +72,9 @@ export default defineConfig([
   ...oxlint.configs['flat/eslint'],
   ...oxlint.configs['flat/typescript'],
   ...oxlint.configs['flat/unicorn'],
+  // Custom rules should be after oxlint to overwrite
+  // LoggerService Custom Rules - only apply to src directory
   {
-    // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
@@ -87,6 +88,7 @@ export default defineConfig([
       ]
     }
   },
+  // i18n
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
     languageOptions: {
@@ -132,6 +134,27 @@ export default defineConfig([
     },
     rules: {
       'i18n/no-template-in-t': 'warn'
+    }
+  },
+  // ui migration
+  {
+    // Component Rules - prevent importing antd components when migration completed
+    files: ['**/*.{ts,tsx,js,jsx}'],
+    ignores: ['src/renderer/src/windows/dataRefactorTest/**/*.{ts,tsx}'],
+    rules: {
+      // 'no-restricted-imports': [
+      //   'error',
+      //   {
+      //     paths: [
+      //       {
+      //         name: 'antd',
+      //         importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
+      //         message:
+      //           '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+      //       }
+      //     ]
+      //   }
+      // ]
     }
   },
 ])
