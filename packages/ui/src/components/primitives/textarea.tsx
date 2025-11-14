@@ -184,5 +184,5 @@ const Root = TextareaRoot
 const Input = TextareaInput
 const CharCount = TextareaCharCount
 
-export { CharCount, Input, Root, TextareaCharCount, TextareaInput, TextareaRoot, textareaVariants }
+export { CharCount, Input, Root }
 export type { TextareaCharCountProps, TextareaInputProps, TextareaRootProps }
