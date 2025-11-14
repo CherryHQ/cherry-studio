@@ -1,7 +1,9 @@
 import { cn } from '@cherrystudio/ui/utils'
 import * as React from 'react'
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+interface InputProps extends React.ComponentProps<'input'> {}
+
+function Input({ className, type, ...props }: InputProps) {
   return (
     <input
       type={type}
@@ -17,4 +19,4 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
   )
 }
 
-export { Input }
+export { Input, type InputProps }

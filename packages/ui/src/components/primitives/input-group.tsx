@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
+import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
 import { Textarea } from '@cherrystudio/ui/components/primitives/textarea'
 import { cn } from '@cherrystudio/ui/utils/index'
@@ -117,7 +118,7 @@ function InputGroupText({ className, ...props }: React.ComponentProps<'span'>) {
   )
 }
 
-function InputGroupInput({ className, ...props }: React.ComponentProps<'input'>) {
+function InputGroupInput({ className, ...props }: InputProps) {
   return (
     <Input
       data-slot="input-group-control"
