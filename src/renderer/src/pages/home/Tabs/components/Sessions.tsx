@@ -131,6 +131,7 @@ const Container = styled(Scrollbar)`
   flex-direction: column;
   padding: 12px 10px;
   overflow-x: hidden;
+  height: 100%;
 `
 
 export default memo(Sessions)
