@@ -219,24 +219,6 @@ function CompositeInput({
   const isPassword = type === 'password'
   const [htmlType, setHtmlType] = useState<'text' | 'password'>('password')
 
-  const startContent = useMemo(() => {
-    switch (variant) {
-      case 'default':
-      case 'button':
-        return <Edit2Icon className={iconVariants({ size, disabled })} />
-      case 'email':
-        return
-    }
-  }, [disabled, size, variant])
-
-  const endContent = useMemo(() => {
-    if ((variant === 'default' || variant === 'button') && isPassword) {
-      return <ShowPasswordButton type={htmlType} setType={setHtmlType} size={size} disabled={!!disabled} />
-    } else {
-      return null
-    }
-  }, [disabled, htmlType, isPassword, size, variant])
-
   const buttonContent = useMemo(() => {
     if (buttonProps === undefined) {
       console.warn("CustomizedInput: 'button' variant requires a 'button' prop to be provided.")
@@ -268,10 +250,16 @@ function CompositeInput({
           className={cn(inputVariants({ size, variant, disabled }), className)}
           {...rest}
         />
-        <InputGroupAddon className="p-0">{startContent}</InputGroupAddon>
-        <InputGroupAddon align="inline-end" className="p-0">
-          {endContent}
-        </InputGroupAddon>
+        {(variant === 'default' || variant === 'button') && (
+          <>
+            <InputGroupAddon className="p-0">
+              <Edit2Icon className={iconVariants({ size, disabled })} />
+            </InputGroupAddon>
+            <InputGroupAddon align="inline-end" className="p-0">
+              <ShowPasswordButton type={htmlType} setType={setHtmlType} size={size} disabled={!!disabled} />
+            </InputGroupAddon>
+          </>
+        )}
       </div>
       {variant === 'button' && buttonContent}
     </InputGroup>
