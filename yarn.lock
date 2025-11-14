@@ -10088,7 +10088,7 @@ __metadata:
     dotenv-cli: "npm:^7.4.2"
     drizzle-kit: "npm:^0.31.4"
     drizzle-orm: "npm:^0.44.5"
-    electron: "npm:37.10.0"
+    electron: "npm:38.7.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-reload: "npm:^2.0.0-alpha.1"
@@ -13756,16 +13756,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:37.10.0":
-  version: 37.10.0
-  resolution: "electron@npm:37.10.0"
+"electron@npm:38.7.0":
+  version: 38.7.0
+  resolution: "electron@npm:38.7.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/c6f115e4a44edd1e719ef99b6fdb1a47ebb1c8f26e836692f029a82ff8e07538967271f4aec1533a74c098c950217ff295ef43821f8c12c7795e81306ce61350
+  checksum: 10c0/78a0917141b7a90253aff16e83b9683fb0facb098e8d9d5a71e7100b15fc3c00cd5d92e2ed3aba70067365022920293a7335ccfda5e8de1ef0d9a7d350e24c3c
   languageName: node
   linkType: hard
 
