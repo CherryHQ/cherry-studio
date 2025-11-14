@@ -86,6 +86,7 @@ const ThinkModelTypes = [
   'gpt5_1',
   'gpt5_codex',
   'gpt5_1_codex',
+  'gpt5pro',
   'grok',
   'grok4_fast',
   'gemini',

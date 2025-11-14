@@ -7,6 +7,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isGPT51Model,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIDeepResearchModel,
@@ -115,6 +116,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         }
       }
       return { thinking: { type: 'disabled' } }
+    }
+
+    if (isGPT51Model(model)) {
+      return {
+        reasoningEffort: 'none'
+      }
     }
 
     return {}
