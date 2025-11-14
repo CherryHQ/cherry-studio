@@ -432,7 +432,7 @@ export const SelectVariantSizes: Story = {
 export const SelectVariantInteractive: Story = {
   render: function SelectVariantInteractiveExample() {
     const [amount, setAmount] = useState('')
-    const [currency, setCurrency] = useState('usd')
+    const [currency] = useState('usd')
     const [converted, setConverted] = useState<{ value: number; currency: string } | null>(null)
 
     // Mock exchange rates
