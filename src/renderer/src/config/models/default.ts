@@ -1840,5 +1840,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'LongCat'
     }
   ],
-  huggingface: []
+  huggingface: [],
+  kwaikat: []
 }
