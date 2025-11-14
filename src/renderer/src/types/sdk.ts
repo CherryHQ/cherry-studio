@@ -126,6 +126,10 @@ export type OpenAIExtraBody = {
     source_lang: 'auto'
     target_lang: string
   }
+  // for gpt-5 series models verbosity control
+  text?: {
+    verbosity?: 'low' | 'medium' | 'high'
+  }
 }
 // image is for openrouter. audio is ignored for now
 export type OpenAIModality = OpenAI.ChatCompletionModality | 'image'
