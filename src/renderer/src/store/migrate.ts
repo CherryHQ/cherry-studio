@@ -2819,6 +2819,25 @@ const migrateConfig = {
       logger.error('migrate 174 error', error as Error)
       return state
     }
+  },
+  '175': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        // @ts-expect-error removed type 'off'
+        if (assistant.settings?.reasoning_effort === 'off') {
+          assistant.settings.reasoning_effort = 'none'
+        }
+        // @ts-expect-error removed type 'off'
+        if (assistant.settings?.reasoning_effort_cache === 'off') {
+          assistant.settings.reasoning_effort_cache = 'none'
+        }
+      })
+      logger.info('migrate 175 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 175 error', error as Error)
+      return state
+    }
   }
 }
 

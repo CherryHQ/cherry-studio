@@ -311,7 +311,7 @@ export const getHttpMessageLabel = (key: string): string => {
 }
 
 const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
-  off: 'assistants.settings.reasoning_effort.off',
+  none: 'assistants.settings.reasoning_effort.off',
   minimal: 'assistants.settings.reasoning_effort.minimal',
   high: 'assistants.settings.reasoning_effort.high',
   low: 'assistants.settings.reasoning_effort.low',
