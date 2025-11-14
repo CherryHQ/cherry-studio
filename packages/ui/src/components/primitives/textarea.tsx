@@ -4,7 +4,6 @@ import { createContext } from '@radix-ui/react-context'
 import { useCallbackRef } from '@radix-ui/react-use-callback-ref'
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { cva } from 'class-variance-authority'
-import { TriangleAlert } from 'lucide-react'
 import * as React from 'react'
 
 /* -------------------------------------------------------------------------------------------------
@@ -50,29 +49,6 @@ const textareaVariants = cva(
   }
 )
 
-const labelVariants = cva('text-lg font-bold leading-[22px]', {
-  variants: {
-    disabled: {
-      true: 'cursor-not-allowed opacity-70',
-      false: ''
-    }
-  },
-  defaultVariants: {
-    disabled: false
-  }
-})
-
-const captionVariants = cva('text-sm flex items-center gap-1.5 leading-4', {
-  variants: {
-    hasError: {
-      true: 'text-destructive',
-      false: 'text-foreground-muted'
-    }
-  },
-  defaultVariants: {
-    hasError: false
-  }
-})
 
 /* -------------------------------------------------------------------------------------------------
  * TextareaRoot
@@ -99,33 +75,6 @@ function TextareaRoot({ error, disabled, className, children, ...props }: Textar
 }
 
 TextareaRoot.displayName = ROOT_NAME
-
-/* -------------------------------------------------------------------------------------------------
- * TextareaLabel
- * -----------------------------------------------------------------------------------------------*/
-
-const LABEL_NAME = 'TextareaLabel'
-
-interface TextareaLabelProps extends React.ComponentPropsWithoutRef<'label'> {
-  required?: boolean
-}
-
-function TextareaLabel({ required, className, children, ...props }: TextareaLabelProps) {
-  const context = useTextareaContext(LABEL_NAME)
-
-  return (
-    <label
-      data-slot="textarea-label"
-      {...props}
-      htmlFor={context.textareaId}
-      className={cn(labelVariants({ disabled: context.disabled }), className)}>
-      {required && <span className="text-destructive mr-1">*</span>}
-      {children}
-    </label>
-  )
-}
-
-TextareaLabel.displayName = LABEL_NAME
 
 /* -------------------------------------------------------------------------------------------------
  * TextareaInput
@@ -206,30 +155,6 @@ function TextareaInput({
 TextareaInput.displayName = INPUT_NAME
 
 /* -------------------------------------------------------------------------------------------------
- * TextareaCaption
- * -----------------------------------------------------------------------------------------------*/
-
-const CAPTION_NAME = 'TextareaCaption'
-
-type TextareaCaptionProps = React.ComponentPropsWithoutRef<'div'>
-
-function TextareaCaption({ className, children, ...props }: TextareaCaptionProps) {
-  const context = useTextareaContext(CAPTION_NAME)
-
-  return (
-    <div
-      data-slot="textarea-caption"
-      {...props}
-      className={cn(captionVariants({ hasError: context.hasError }), className)}>
-      {context.hasError && <TriangleAlert className="h-4 w-4 shrink-0" />}
-      <span>{children}</span>
-    </div>
-  )
-}
-
-TextareaCaption.displayName = CAPTION_NAME
-
-/* -------------------------------------------------------------------------------------------------
  * TextareaCharCount
  * -----------------------------------------------------------------------------------------------*/
 
@@ -256,24 +181,8 @@ TextareaCharCount.displayName = CHAR_COUNT_NAME
 /* ---------------------------------------------------------------------------------------------- */
 
 const Root = TextareaRoot
-const Label = TextareaLabel
 const Input = TextareaInput
-const Caption = TextareaCaption
 const CharCount = TextareaCharCount
 
-export {
-  Caption,
-  captionVariants,
-  CharCount,
-  Input,
-  Label,
-  labelVariants,
-  Root,
-  TextareaCaption,
-  TextareaCharCount,
-  TextareaInput,
-  TextareaLabel,
-  TextareaRoot,
-  textareaVariants
-}
-export type { TextareaCaptionProps, TextareaCharCountProps, TextareaInputProps, TextareaLabelProps, TextareaRootProps }
+export { CharCount, Input, Root, TextareaCharCount, TextareaInput, TextareaRoot, textareaVariants }
+export type { TextareaCharCountProps, TextareaInputProps, TextareaRootProps }
