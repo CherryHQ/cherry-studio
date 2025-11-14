@@ -275,6 +275,94 @@ export const WithErrorMessage: Story = {
   )
 }
 
+// Validation States
+export const ValidationStates: Story = {
+  render: () => (
+    <div className="flex w-80 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm font-medium">Valid Input</p>
+        <Input type="email" placeholder="email@example.com" defaultValue="user@example.com" />
+        <p className="mt-1 text-xs text-green-600">✓ Email is valid</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Invalid Email Format</p>
+        <Input type="email" placeholder="email@example.com" defaultValue="invalid-email" aria-invalid />
+        <p className="mt-1 text-xs text-destructive">✗ Please enter a valid email address</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Required Field Empty</p>
+        <Input placeholder="Required field" aria-invalid aria-required />
+        <p className="mt-1 text-xs text-destructive">✗ This field is required</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Password Too Short</p>
+        <Input type="password" placeholder="Enter password..." defaultValue="123" aria-invalid />
+        <p className="mt-1 text-xs text-destructive">✗ Password must be at least 8 characters</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Number Out of Range</p>
+        <Input type="number" placeholder="1-100" defaultValue="150" min="1" max="100" aria-invalid />
+        <p className="mt-1 text-xs text-destructive">✗ Value must be between 1 and 100</p>
+      </div>
+    </div>
+  )
+}
+
+// Real-time Validation
+export const RealTimeValidation: Story = {
+  render: function RealTimeValidationExample() {
+    const [email, setEmail] = useState('')
+    const [emailError, setEmailError] = useState('')
+
+    const validateEmail = (value: string) => {
+      if (!value) {
+        setEmailError('Email is required')
+        return false
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(value)) {
+        setEmailError('Please enter a valid email address')
+        return false
+      }
+      setEmailError('')
+      return true
+    }
+
+    return (
+      <div className="w-80 space-y-4">
+        <h3 className="text-base font-semibold">Real-time Email Validation</h3>
+        <div>
+          <label htmlFor="realtime-email" className="mb-1 block text-sm font-medium">
+            Email Address
+          </label>
+          <Input
+            id="realtime-email"
+            type="email"
+            placeholder="email@example.com"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              validateEmail(e.target.value)
+            }}
+            aria-invalid={!!emailError}
+          />
+          {emailError ? (
+            <p className="mt-1 text-xs text-destructive">{emailError}</p>
+          ) : email ? (
+            <p className="mt-1 text-xs text-green-600">✓ Email is valid</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Enter your email address</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+}
+
 // File Input
 export const FileInput: Story = {
   render: () => (

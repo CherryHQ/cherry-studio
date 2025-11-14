@@ -358,6 +358,240 @@ export const ErrorState: Story = {
   )
 }
 
+export const ValidationStates: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm font-medium">Valid Input</p>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>
+              <Mail />
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput type="email" placeholder="email@example.com" defaultValue="user@example.com" />
+          <InputGroupAddon align="inline-end">
+            <InputGroupText className="text-green-600">✓</InputGroupText>
+          </InputGroupAddon>
+        </InputGroup>
+        <p className="mt-1 text-xs text-green-600">Email is valid</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Invalid Email</p>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>
+              <Mail />
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput type="email" placeholder="email@example.com" defaultValue="invalid-email" aria-invalid />
+        </InputGroup>
+        <p className="mt-1 text-xs text-destructive">Please enter a valid email address</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Required Field Empty</p>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>
+              <User />
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput placeholder="Username (required)" aria-invalid aria-required />
+        </InputGroup>
+        <p className="mt-1 text-xs text-destructive">This field is required</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Password Too Short</p>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>
+              <Lock />
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput type="password" placeholder="Enter password..." defaultValue="123" aria-invalid />
+        </InputGroup>
+        <p className="mt-1 text-xs text-destructive">Password must be at least 8 characters</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">Invalid Amount</p>
+        <InputGroup>
+          <InputGroupAddon align="inline-start">
+            <InputGroupText>
+              <DollarSign />
+            </InputGroupText>
+          </InputGroupAddon>
+          <InputGroupInput type="number" placeholder="0.00" defaultValue="-10" aria-invalid />
+          <InputGroupAddon align="inline-end">
+            <InputGroupText>USD</InputGroupText>
+          </InputGroupAddon>
+        </InputGroup>
+        <p className="mt-1 text-xs text-destructive">Amount must be positive</p>
+      </div>
+    </div>
+  )
+}
+
+export const ValidationForm: Story = {
+  render: function ValidationFormExample() {
+    const [formData, setFormData] = useState({
+      email: '',
+      password: '',
+      amount: ''
+    })
+    const [errors, setErrors] = useState<Record<string, string>>({})
+    const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+    const validateEmail = (email: string) => {
+      if (!email) return 'Email is required'
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) return 'Please enter a valid email address'
+      return ''
+    }
+
+    const validatePassword = (password: string) => {
+      if (!password) return 'Password is required'
+      if (password.length < 8) return 'Password must be at least 8 characters'
+      return ''
+    }
+
+    const validateAmount = (amount: string) => {
+      if (!amount) return 'Amount is required'
+      const num = parseFloat(amount)
+      if (isNaN(num)) return 'Please enter a valid number'
+      if (num <= 0) return 'Amount must be positive'
+      return ''
+    }
+
+    const handleBlur = (field: string) => {
+      setTouched({ ...touched, [field]: true })
+      const newErrors = { ...errors }
+
+      if (field === 'email') {
+        const error = validateEmail(formData.email)
+        if (error) newErrors.email = error
+        else delete newErrors.email
+      } else if (field === 'password') {
+        const error = validatePassword(formData.password)
+        if (error) newErrors.password = error
+        else delete newErrors.password
+      } else if (field === 'amount') {
+        const error = validateAmount(formData.amount)
+        if (error) newErrors.amount = error
+        else delete newErrors.amount
+      }
+
+      setErrors(newErrors)
+    }
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault()
+
+      const newErrors: Record<string, string> = {}
+      const emailError = validateEmail(formData.email)
+      const passwordError = validatePassword(formData.password)
+      const amountError = validateAmount(formData.amount)
+
+      if (emailError) newErrors.email = emailError
+      if (passwordError) newErrors.password = passwordError
+      if (amountError) newErrors.amount = amountError
+
+      setErrors(newErrors)
+      setTouched({ email: true, password: true, amount: true })
+
+      if (Object.keys(newErrors).length === 0) {
+        alert('Form submitted successfully!')
+      }
+    }
+
+    return (
+      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+        <h3 className="text-base font-semibold">Payment Form with Validation</h3>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Email <span className="text-destructive">*</span>
+          </label>
+          <InputGroup>
+            <InputGroupAddon align="inline-start">
+              <InputGroupText>
+                <Mail />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              type="email"
+              placeholder="email@example.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onBlur={() => handleBlur('email')}
+              aria-invalid={touched.email && !!errors.email}
+            />
+          </InputGroup>
+          {touched.email && errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Password <span className="text-destructive">*</span>
+          </label>
+          <InputGroup>
+            <InputGroupAddon align="inline-start">
+              <InputGroupText>
+                <Lock />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              type="password"
+              placeholder="Enter password..."
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              onBlur={() => handleBlur('password')}
+              aria-invalid={touched.password && !!errors.password}
+            />
+          </InputGroup>
+          {touched.password && errors.password && <p className="mt-1 text-xs text-destructive">{errors.password}</p>}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Amount <span className="text-destructive">*</span>
+          </label>
+          <InputGroup>
+            <InputGroupAddon align="inline-start">
+              <InputGroupText>
+                <DollarSign />
+              </InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              type="number"
+              placeholder="0.00"
+              value={formData.amount}
+              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              onBlur={() => handleBlur('amount')}
+              aria-invalid={touched.amount && !!errors.amount}
+            />
+            <InputGroupAddon align="inline-end">
+              <InputGroupText>USD</InputGroupText>
+            </InputGroupAddon>
+          </InputGroup>
+          {touched.amount && errors.amount && <p className="mt-1 text-xs text-destructive">{errors.amount}</p>}
+        </div>
+
+        <button
+          type="submit"
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+          Submit Payment
+        </button>
+
+        <p className="text-xs text-muted-foreground">* Required fields</p>
+      </form>
+    )
+  }
+}
+
 // Interactive Examples
 export const PasswordToggle: Story = {
   render: function PasswordToggleExample() {

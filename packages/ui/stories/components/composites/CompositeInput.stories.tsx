@@ -323,6 +323,215 @@ export const DisabledPassword: Story = {
   )
 }
 
+export const ValidationError: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Invalid Email - Default Variant</p>
+        <CompositeInput
+          variant="default"
+          type="email"
+          placeholder="email@example.com"
+          defaultValue="invalid-email"
+          aria-invalid
+        />
+        <p className="mt-1 text-xs text-destructive">Please enter a valid email address</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Invalid Email - Email Variant</p>
+        <CompositeInput
+          variant="email"
+          type="email"
+          placeholder="email@example.com"
+          defaultValue="notanemail"
+          aria-invalid
+        />
+        <p className="mt-1 text-xs text-destructive">Email format is incorrect</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Invalid Email - Button Variant</p>
+        <CompositeInput
+          variant="button"
+          type="email"
+          placeholder="Enter your email..."
+          defaultValue="bad@email"
+          aria-invalid
+          buttonProps={{
+            label: 'Subscribe',
+            onClick: () => {}
+          }}
+        />
+        <p className="mt-1 text-xs text-destructive">Please provide a complete email address</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Invalid Password - Too Short</p>
+        <CompositeInput
+          variant="default"
+          type="password"
+          placeholder="Enter password..."
+          defaultValue="123"
+          aria-invalid
+        />
+        <p className="mt-1 text-xs text-destructive">Password must be at least 8 characters long</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Required Field - Empty</p>
+        <CompositeInput
+          variant="default"
+          placeholder="This field is required"
+          aria-invalid
+        />
+        <p className="mt-1 text-xs text-destructive">This field is required</p>
+      </div>
+    </div>
+  )
+}
+
+export const ValidationForm: Story = {
+  render: function ValidationFormExample() {
+    const [formData, setFormData] = useState({
+      email: '',
+      password: '',
+      confirmPassword: ''
+    })
+    const [errors, setErrors] = useState<Record<string, string>>({})
+    const [touched, setTouched] = useState<Record<string, boolean>>({})
+
+    const validateEmail = (email: string) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!email) return 'Email is required'
+      if (!emailRegex.test(email)) return 'Please enter a valid email address'
+      return ''
+    }
+
+    const validatePassword = (password: string) => {
+      if (!password) return 'Password is required'
+      if (password.length < 8) return 'Password must be at least 8 characters'
+      return ''
+    }
+
+    const validateConfirmPassword = (confirmPassword: string, password: string) => {
+      if (!confirmPassword) return 'Please confirm your password'
+      if (confirmPassword !== password) return 'Passwords do not match'
+      return ''
+    }
+
+    const handleBlur = (field: string) => {
+      setTouched({ ...touched, [field]: true })
+
+      const newErrors = { ...errors }
+      if (field === 'email') {
+        const error = validateEmail(formData.email)
+        if (error) newErrors.email = error
+        else delete newErrors.email
+      } else if (field === 'password') {
+        const error = validatePassword(formData.password)
+        if (error) newErrors.password = error
+        else delete newErrors.password
+      } else if (field === 'confirmPassword') {
+        const error = validateConfirmPassword(formData.confirmPassword, formData.password)
+        if (error) newErrors.confirmPassword = error
+        else delete newErrors.confirmPassword
+      }
+      setErrors(newErrors)
+    }
+
+    const handleSubmit = (e: React.FormEvent) => {
+      e.preventDefault()
+
+      const newErrors: Record<string, string> = {}
+      const emailError = validateEmail(formData.email)
+      const passwordError = validatePassword(formData.password)
+      const confirmError = validateConfirmPassword(formData.confirmPassword, formData.password)
+
+      if (emailError) newErrors.email = emailError
+      if (passwordError) newErrors.password = passwordError
+      if (confirmError) newErrors.confirmPassword = confirmError
+
+      setErrors(newErrors)
+      setTouched({ email: true, password: true, confirmPassword: true })
+
+      if (Object.keys(newErrors).length === 0) {
+        alert('Form submitted successfully!')
+      }
+    }
+
+    return (
+      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+        <h3 className="text-base font-semibold">Sign Up with Validation</h3>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Email <span className="text-destructive">*</span>
+          </label>
+          <CompositeInput
+            variant="email"
+            type="email"
+            placeholder="email@example.com"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            onBlur={() => handleBlur('email')}
+            aria-invalid={touched.email && !!errors.email}
+          />
+          {touched.email && errors.email && (
+            <p className="mt-1 text-xs text-destructive">{errors.email}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Password <span className="text-destructive">*</span>
+          </label>
+          <CompositeInput
+            variant="default"
+            type="password"
+            placeholder="Enter password..."
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            onBlur={() => handleBlur('password')}
+            aria-invalid={touched.password && !!errors.password}
+          />
+          {touched.password && errors.password && (
+            <p className="mt-1 text-xs text-destructive">{errors.password}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Confirm Password <span className="text-destructive">*</span>
+          </label>
+          <CompositeInput
+            variant="default"
+            type="password"
+            placeholder="Confirm password..."
+            value={formData.confirmPassword}
+            onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+            onBlur={() => handleBlur('confirmPassword')}
+            aria-invalid={touched.confirmPassword && !!errors.confirmPassword}
+          />
+          {touched.confirmPassword && errors.confirmPassword && (
+            <p className="mt-1 text-xs text-destructive">{errors.confirmPassword}</p>
+          )}
+        </div>
+
+        <button
+          type="submit"
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
+          Create Account
+        </button>
+
+        <p className="text-xs text-muted-foreground">
+          * Fields marked with an asterisk are required
+        </p>
+      </form>
+    )
+  }
+}
+
 // Interactive Examples
 export const SubscribeNewsletter: Story = {
   render: function SubscribeNewsletterExample() {

@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 
 import type { InputProps } from '../../primitives/input'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '../../primitives/input-group'
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../../primitives/input-group'
 
 const inputGroupVariants = cva(
   [
@@ -43,7 +43,7 @@ const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
     },
     disabled: {
       false: null,
-      true: ['text-black/40', 'placeholder:text-black/40', 'disabled:opacity-100']
+      true: ['text-foreground/40', 'placeholder:text-foreground/40', 'disabled:opacity-100']
     }
   },
   defaultVariants: {
@@ -86,7 +86,7 @@ const iconVariants = cva([], {
     },
     disabled: {
       false: null,
-      true: ['text-black/40']
+      true: ['text-foreground/40']
     }
   },
   defaultVariants: {
@@ -95,7 +95,7 @@ const iconVariants = cva([], {
   }
 })
 
-const iconButtonVariants = cva(['cursor-pointer'], {
+const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'], {
   variants: {
     disabled: {
       false: null,
@@ -107,23 +107,26 @@ const iconButtonVariants = cva(['cursor-pointer'], {
   }
 })
 
-const buttonVariants = cva(['flex', 'flex-col'], {
-  variants: {
-    size: {
-      sm: ['p-3xs'],
-      md: ['p-3xs'],
-      lg: ['px-2xs', 'py-3xs']
+const buttonVariants = cva(
+  ['flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
+  {
+    variants: {
+      size: {
+        sm: ['p-3xs'],
+        md: ['p-3xs'],
+        lg: ['px-2xs', 'py-3xs']
+      },
+      disabled: {
+        false: null,
+        true: ['pointer-events-none']
+      }
     },
-    disabled: {
-      false: null,
-      true: ['pointer-events-none']
+    defaultVariants: {
+      size: 'md',
+      disabled: false
     }
-  },
-  defaultVariants: {
-    size: 'md',
-    disabled: false
   }
-})
+)
 
 const buttonLabelVariants = cva([], {
   variants: {
@@ -135,7 +138,7 @@ const buttonLabelVariants = cva([], {
     },
     disabled: {
       false: null,
-      true: ['text-black/40']
+      true: ['text-foreground/40']
     }
   },
   defaultVariants: {
@@ -167,10 +170,10 @@ function ShowPasswordButton({
   const iconClassName = iconVariants({ size, disabled })
 
   return (
-    <button type="button" onClick={togglePassword} disabled={disabled} className={iconButtonVariants({ disabled })}>
+    <InputGroupButton onClick={togglePassword} disabled={disabled} className={iconButtonVariants({ disabled })}>
       {type === 'text' && <EyeIcon className={iconClassName} />}
       {type === 'password' && <EyeOffIcon className={iconClassName} />}
-    </button>
+    </InputGroupButton>
   )
 }
 
@@ -217,9 +220,9 @@ function CompositeInput({
       return null
     } else {
       return (
-        <button type="button" className={buttonVariants({ size, disabled })} onClick={buttonProps.onClick}>
+        <InputGroupButton className={buttonVariants({ size, disabled })} onClick={buttonProps.onClick}>
           <div className={buttonLabelVariants({ size, disabled })}>{buttonProps.label}</div>
-        </button>
+        </InputGroupButton>
       )
     }
   }, [buttonProps, disabled, size])
@@ -234,7 +237,7 @@ function CompositeInput({
           {...rest}
         />
         <InputGroupAddon className="p-0">{startContent}</InputGroupAddon>
-        <InputGroupAddon align="inline-end" className="p-0 has-[>button]:mr-0">
+        <InputGroupAddon align="inline-end" className="p-0">
           {endContent}
         </InputGroupAddon>
       </div>
