@@ -85,7 +85,6 @@
     "react-dom": "^19.0.0",
     "storybook": "^10.0.5",
     "styled-components": "^6.1.15",
-    "svgo": "^4.0.0",
     "tsdown": "^0.15.5",
     "tsx": "^4.20.6",
     "typescript": "^5.6.2",
@@ -132,6 +131,13 @@
       "import": "./dist/utils/index.mjs",
       "require": "./dist/utils/index.js",
       "default": "./dist/utils/index.js"
+    },
+    "./icons": {
+      "types": "./dist/components/icons/index.d.ts",
+      "react-native": "./dist/components/icons/index.js",
+      "import": "./dist/components/icons/index.mjs",
+      "require": "./dist/components/icons/index.js",
+      "default": "./dist/components/icons/index.js"
     },
     "./styles": "./src/styles/index.css",
     "./styles/tokens.css": "./src/styles/tokens.css",
