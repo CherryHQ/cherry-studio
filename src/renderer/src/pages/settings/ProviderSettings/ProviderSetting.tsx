@@ -5,6 +5,7 @@ import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import {
+  isAIGatewayProvider,
   isAnthropicProvider,
   isAzureOpenAIProvider,
   isGeminiProvider,
@@ -80,7 +81,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.aihubmix,
   SystemProviderIds.grok,
   SystemProviderIds.cherryin,
-  SystemProviderIds.longcat
+  SystemProviderIds.longcat,
+  SystemProviderIds.minimax
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -305,6 +307,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (isVertexProvider(provider)) {
       return formatVertexApiHost(provider) + '/publishers/google'
     }
+    if (isAIGatewayProvider(provider)) {
+      return formatApiHost(apiHost) + '/language-model'
+    }
     return formatApiHost(apiHost)
   }
 
@@ -520,24 +525,17 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>
                     </SettingHelpTextRow>
                   )}
-                  {(isOpenAICompatibleProvider(provider) ||
-                    isAzureOpenAIProvider(provider) ||
-                    isAnthropicProvider(provider) ||
-                    isGeminiProvider(provider) ||
-                    isVertexProvider(provider) ||
-                    isOpenAIProvider(provider)) && (
-                    <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-                      <SettingHelpText
-                        style={{
-                          marginLeft: 6,
-                          marginRight: '1em',
-                          whiteSpace: 'break-spaces',
-                          wordBreak: 'break-all'
-                        }}>
-                        {t('settings.provider.api_host_preview', { url: hostPreview() })}
-                      </SettingHelpText>
-                    </SettingHelpTextRow>
-                  )}
+                  <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                    <SettingHelpText
+                      style={{
+                        marginLeft: 6,
+                        marginRight: '1em',
+                        whiteSpace: 'break-spaces',
+                        wordBreak: 'break-all'
+                      }}>
+                      {t('settings.provider.api_host_preview', { url: hostPreview() })}
+                    </SettingHelpText>
+                  </SettingHelpTextRow>
                 </>
               )}
 
@@ -550,6 +548,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       onChange={(e) => setAnthropicHost(e.target.value)}
                       onBlur={onUpdateAnthropicHost}
                     />
+                    {/* TODO: Add a reset button here. */}
                   </Space.Compact>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>

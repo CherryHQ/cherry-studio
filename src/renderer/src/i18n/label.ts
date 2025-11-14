@@ -86,7 +86,9 @@ const providerKeyMap = {
   aionly: 'provider.aionly',
   longcat: 'provider.longcat',
   huggingface: 'provider.huggingface',
-  sophnet: 'provider.sophnet'
+  sophnet: 'provider.sophnet',
+  'ai-gateway': 'provider.ai-gateway',
+  cerebras: 'provider.cerebras'
 } as const
 
 /**

@@ -1447,7 +1447,7 @@ export const appendAssistantResponseThunk =
       }
 
       // 2. Create the new assistant message stub
-      const newAssistantStub = createAssistantMessage(assistant.id, topicId, {
+      const newAssistantMessageStub = createAssistantMessage(assistant.id, topicId, {
         askId: askId, // Crucial: Use the original askId
         model: newModel,
         modelId: newModel.id,
@@ -1460,9 +1460,14 @@ export const appendAssistantResponseThunk =
       const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
 
       // 4. Update Database (Save the stub to the topic's message list)
-      await saveMessageAndBlocksToDB(newAssistantStub, [], insertAtIndex)
+      await saveMessageAndBlocksToDB(newAssistantMessageStub, [], insertAtIndex)
 
-      dispatch(newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantStub, index: insertAtIndex }))
+      dispatch(
+        newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantMessageStub, index: insertAtIndex })
+      )
+
+      dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
+      dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
@@ -1476,7 +1481,7 @@ export const appendAssistantResponseThunk =
           getState,
           topicId,
           assistantConfigForThisCall,
-          newAssistantStub // Pass the newly created stub
+          newAssistantMessageStub // Pass the newly created stub
         )
       })
     } catch (error) {

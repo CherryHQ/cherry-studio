@@ -98,7 +98,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -136,50 +135,58 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.5
+    What's New in v1.7.0-rc.1
 
-    New Features:
-    - MCPRouter Provider: Added MCPRouter provider integration with token management and server synchronization
-    - MCP Marketplace: Enhanced MCP server discovery and management with multi-provider marketplace support
-    - Agent Permission Mode Display: Visual permission mode cards in empty session states
-    - Assistant Subscription Settings: Added subscription URL management in assistant presets
+    🎉 MAJOR NEW FEATURE: AI Agents
+    - Create and manage custom AI agents with specialized tools and permissions
+    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
+    - Real-time tool approval system - review and approve agent actions dynamically
+    - MCP (Model Context Protocol) integration for connecting external tools
+    - Slash commands support for quick agent interactions
+    - OpenAI-compatible REST API for agent access
 
-    Improvements:
-    - UI Optimization: Sidebar tooltip placement improved on macOS to avoid overlapping window controls
-    - MCP Server Logos: Display server logos in Agent settings tooling section
-    - Long Command Handling: Bash command tags now auto-truncate (hover to view full command for commands over 100 chars)
-    - MCP OAuth Callback: Fixed callback page hanging and added multilingual support (10 languages)
-    - Error Display: Improved error block display order for better readability
-    - Plugin Browser: Centered tab alignment for better visual consistency
+    ✨ New Features:
+    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
+    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
+    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
+    - MCP Management: Redesigned interface with dual-column layout for easier management
+    - Languages: Added German language support
 
-    Bug Fixes:
-    - Fixed Agent sessions not inheriting allowed_tools configuration
-    - Fixed Gemini endpoint thinking budget spelling error
-    - Fixed MCP card description text overflow
-    - Fixed unnecessary message timestamp updates on UI-only state changes
-    - Updated dependencies: Bun to 1.3.1, uv to 0.9.5
+    ⚡ Improvements:
+    - Upgraded to Electron 38.7.0
+    - Enhanced system shutdown handling and automatic update checks
+    - Improved proxy bypass rules
+
+    🐛 Important Bug Fixes:
+    - Fixed streaming response issues across multiple AI providers
+    - Fixed session list scrolling problems
+    - Fixed knowledge base deletion errors
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.5 新特性
+    v1.7.0-rc.1 新特性
 
-    新功能:
-    - MCPRouter 提供商：新增 MCPRouter 提供商集成，支持 token 管理和服务器同步
-    - MCP 市场：增强 MCP 服务器发现和管理功能，支持多提供商市场
-    - Agent 权限模式展示：空会话状态显示可视化权限模式卡片
-    - 助手订阅设置：在助手预设中添加订阅 URL 管理功能
+    🎉 重大更新：AI Agent 智能体系统
+    - 创建和管理专属 AI Agent，配置专用工具和权限
+    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
+    - 实时工具审批系统 - 动态审查和批准 Agent 操作
+    - MCP（模型上下文协议）集成，连接外部工具
+    - 支持斜杠命令快速交互
+    - 兼容 OpenAI 的 REST API 访问
 
-    改进:
-    - UI 优化：macOS 上侧边栏工具提示位置优化，避免与窗口控制按钮重叠
-    - MCP 服务器标志：在 Agent 设置工具部分显示服务器 logo
-    - 长命令处理：Bash 命令标签自动截断（超过 100 字符时悬停查看完整内容）
-    - MCP OAuth 回调：修复回调页面挂起问题并添加多语言支持（10 种语言）
-    - 错误信息展示：改进错误块显示顺序，提高可读性
-    - 插件浏览器：标签页居中对齐，视觉效果更统一
+    ✨ 新功能:
+    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
+    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
+    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
+    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
+    - 语言：新增德语支持
 
-    问题修复:
-    - 修复 Agent 会话未继承 allowed_tools 配置
-    - 修复 Gemini 端点 thinking budget 拼写错误
-    - 修复 MCP 卡片描述文本溢出问题
-    - 修复仅 UI 状态变化时消息时间戳不必要的更新
-    - 依赖更新：Bun 升级到 1.3.1，uv 升级到 0.9.5
+    ⚡ 改进:
+    - 升级到 Electron 38.7.0
+    - 增强的系统关机处理和自动更新检查
+    - 改进的代理绕过规则
+
+    🐛 重要修复:
+    - 修复多个 AI 提供商的流式响应问题
+    - 修复会话列表滚动问题
+    - 修复知识库删除错误
     <!--LANG:END-->
