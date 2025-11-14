@@ -147,6 +147,25 @@ const buttonLabelVariants = cva([], {
   }
 })
 
+const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60'], {
+  variants: {
+    size: {
+      // TODO: semantic letter-spacing
+      sm: ['text-sm leading-4', 'p-3xs'],
+      md: ['leading-4.5', 'p-3xs'],
+      lg: ['leading-5 tracking-normal', 'px-2xs py-3xs']
+    },
+    disabled: {
+      false: null,
+      true: 'text-foreground/40'
+    }
+  },
+  defaultVariants: {
+    size: 'md',
+    disabled: false
+  }
+})
+
 function ShowPasswordButton({
   type,
   setType,
@@ -177,11 +196,14 @@ function ShowPasswordButton({
   )
 }
 
-interface CompositeInputProps extends Omit<InputProps, 'size' | 'disabled'>, VariantProps<typeof inputVariants> {
+interface CompositeInputProps
+  extends Omit<InputProps, 'size' | 'disabled' | 'prefix'>,
+    VariantProps<typeof inputVariants> {
   buttonProps?: {
     label: ReactNode
     onClick: React.DOMAttributes<HTMLButtonElement>['onClick']
   }
+  prefix?: ReactNode
 }
 
 function CompositeInput({
@@ -190,6 +212,7 @@ function CompositeInput({
   variant = 'default',
   disabled = false,
   buttonProps,
+  prefix,
   className,
   ...rest
 }: CompositeInputProps) {
@@ -227,8 +250,17 @@ function CompositeInput({
     }
   }, [buttonProps, disabled, size])
 
+  const emailContent = useMemo(() => {
+    if (!prefix) {
+      console.warn('')
+    } else {
+      return <div className={prefixVariants({ size, disabled })}>{prefix}</div>
+    }
+  }, [disabled, prefix, size])
+
   return (
     <InputGroup className={inputGroupVariants({ disabled })}>
+      {variant === 'email' && emailContent}
       <div className={inputWrapperVariants({ size, variant, disabled })}>
         <InputGroupInput
           type={isPassword ? htmlType : type}

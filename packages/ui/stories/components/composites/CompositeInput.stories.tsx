@@ -74,14 +74,41 @@ export const DefaultWithValue: Story = {
 }
 
 export const EmailVariant: Story = {
-  args: {
-    variant: 'email',
-    type: 'email',
-    placeholder: 'email@example.com'
-  },
-  render: (args) => (
+  render: () => (
     <div className="w-80">
-      <CompositeInput {...args} />
+      <CompositeInput variant="email" type="email" placeholder="example.com" prefix="user@" />
+    </div>
+  )
+}
+
+export const EmailVariantExamples: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Email with @domain prefix</p>
+        <CompositeInput variant="email" type="email" placeholder="example.com" prefix="user@" />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Email with custom prefix</p>
+        <CompositeInput variant="email" type="email" placeholder="email.com" prefix="contact@" />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Email with company domain</p>
+        <CompositeInput variant="email" type="email" placeholder="company.com" prefix="admin@" />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Email with value</p>
+        <CompositeInput
+          variant="email"
+          type="email"
+          placeholder="example.com"
+          prefix="john@"
+          defaultValue="example.com"
+        />
+      </div>
     </div>
   )
 }
@@ -213,7 +240,7 @@ export const AllVariants: Story = {
 
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Email Variant</p>
-        <CompositeInput variant="email" type="email" placeholder="email@example.com" />
+        <CompositeInput variant="email" type="email" placeholder="example.com" prefix="user@" />
       </div>
 
       <div>
@@ -249,6 +276,28 @@ export const AllVariants: Story = {
   )
 }
 
+// Email Sizes
+export const EmailVariantSizes: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Small (sm)</p>
+        <CompositeInput variant="email" type="email" size="sm" placeholder="example.com" prefix="user@" />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Medium (md) - Default</p>
+        <CompositeInput variant="email" type="email" size="md" placeholder="example.com" prefix="user@" />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Large (lg)</p>
+        <CompositeInput variant="email" type="email" size="lg" placeholder="example.com" prefix="user@" />
+      </div>
+    </div>
+  )
+}
+
 // States
 export const DisabledState: Story = {
   render: () => (
@@ -273,7 +322,14 @@ export const DisabledState: Story = {
 
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Disabled - Email Variant</p>
-        <CompositeInput variant="email" type="email" placeholder="email@example.com" disabled />
+        <CompositeInput
+          variant="email"
+          type="email"
+          placeholder="example.com"
+          prefix="user@"
+          disabled
+          defaultValue="example.com"
+        />
       </div>
     </div>
   )
@@ -343,8 +399,9 @@ export const ValidationError: Story = {
         <CompositeInput
           variant="email"
           type="email"
-          placeholder="email@example.com"
-          defaultValue="notanemail"
+          placeholder="example.com"
+          prefix="user@"
+          defaultValue="invalid domain"
           aria-invalid
         />
         <p className="mt-1 text-xs text-destructive">Email format is incorrect</p>
@@ -380,15 +437,74 @@ export const ValidationError: Story = {
 
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Required Field - Empty</p>
-        <CompositeInput
-          variant="default"
-          placeholder="This field is required"
-          aria-invalid
-        />
+        <CompositeInput variant="default" placeholder="This field is required" aria-invalid />
         <p className="mt-1 text-xs text-destructive">This field is required</p>
       </div>
     </div>
   )
+}
+
+export const EmailVariantInteractive: Story = {
+  render: function EmailVariantInteractiveExample() {
+    const [domain, setDomain] = useState('')
+    const [error, setError] = useState('')
+
+    const validateDomain = (value: string) => {
+      if (!value) {
+        setError('Domain is required')
+        return false
+      }
+      // Simple domain validation
+      const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/
+      if (!domainRegex.test(value)) {
+        setError('Please enter a valid domain (e.g., example.com)')
+        return false
+      }
+      setError('')
+      return true
+    }
+
+    const handleSubmit = () => {
+      if (validateDomain(domain)) {
+        alert(`Email created: user@${domain}`)
+      }
+    }
+
+    return (
+      <div className="w-96 space-y-4">
+        <h3 className="text-base font-semibold">Create Email Address</h3>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Email Domain</label>
+          <CompositeInput
+            variant="email"
+            type="email"
+            placeholder="example.com"
+            prefix="user@"
+            value={domain}
+            onChange={(e) => {
+              setDomain(e.target.value)
+              if (error) validateDomain(e.target.value)
+            }}
+            onBlur={() => validateDomain(domain)}
+            aria-invalid={!!error}
+          />
+          {error ? (
+            <p className="mt-1 text-xs text-destructive">{error}</p>
+          ) : domain ? (
+            <p className="mt-1 text-xs text-green-600">✓ Valid email: user@{domain}</p>
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground">Enter the domain for your email address</p>
+          )}
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={!domain || !!error}
+          className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          Create Email
+        </button>
+      </div>
+    )
+  }
 }
 
 export const ValidationForm: Story = {
@@ -979,7 +1095,7 @@ export const AllCombinations: Story = {
         <h3 className="mb-4 text-base font-semibold">Small Size (sm)</h3>
         <div className="space-y-3">
           <CompositeInput variant="default" size="sm" placeholder="Default variant" />
-          <CompositeInput variant="email" type="email" size="sm" placeholder="email@example.com" />
+          <CompositeInput variant="email" type="email" size="sm" placeholder="example.com" prefix="user@" />
           <CompositeInput
             variant="button"
             size="sm"
@@ -998,7 +1114,7 @@ export const AllCombinations: Story = {
         <h3 className="mb-4 text-base font-semibold">Medium Size (md) - Default</h3>
         <div className="space-y-3">
           <CompositeInput variant="default" size="md" placeholder="Default variant" />
-          <CompositeInput variant="email" type="email" size="md" placeholder="email@example.com" />
+          <CompositeInput variant="email" type="email" size="md" placeholder="example.com" prefix="user@" />
           <CompositeInput
             variant="button"
             size="md"
@@ -1017,7 +1133,7 @@ export const AllCombinations: Story = {
         <h3 className="mb-4 text-base font-semibold">Large Size (lg)</h3>
         <div className="space-y-3">
           <CompositeInput variant="default" size="lg" placeholder="Default variant" />
-          <CompositeInput variant="email" type="email" size="lg" placeholder="email@example.com" />
+          <CompositeInput variant="email" type="email" size="lg" placeholder="example.com" prefix="user@" />
           <CompositeInput
             variant="button"
             size="lg"
