@@ -450,14 +450,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                 )}
               </SettingSubtitle>
               <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-                <Input.Password
+                <Input
+                  type="password"
                   value={localApiKey}
                   placeholder={t('settings.provider.api_key.label')}
                   onChange={(e) => setLocalApiKey(e.target.value)}
                   spellCheck={false}
                   autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
                   disabled={provider.id === 'copilot'}
-                  suffix={renderStatusIndicator()}
+                  endContent={renderStatusIndicator()}
                 />
                 <Button
                   variant={isApiKeyConnectable ? 'ghost' : undefined}

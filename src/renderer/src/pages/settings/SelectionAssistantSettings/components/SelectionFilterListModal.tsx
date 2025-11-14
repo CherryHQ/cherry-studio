@@ -1,5 +1,4 @@
-import { Button } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
+import { Button, Textarea } from '@cherrystudio/ui'
 import { isWin } from '@renderer/config/constant'
 import { Form, Modal } from 'antd'
 import type { FC } from 'react'
@@ -72,7 +71,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
   )
 }
 
-const StyledTextArea = styled(Input.TextArea)`
+const StyledTextArea = styled(Textarea)`
   margin-top: 16px;
   width: 100%;
 `
