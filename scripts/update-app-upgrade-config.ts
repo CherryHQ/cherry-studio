@@ -493,7 +493,7 @@ async function ensureReleaseAvailability(releaseInfo: ReleaseInfo): Promise<Rele
     const url = getReleasePageUrl(mirror, releaseInfo.tag)
     try {
       const response = await fetch(url, {
-        method: 'HEAD',
+        method: mirror === 'github' ? 'HEAD' : 'GET',
         redirect: 'follow'
       })
 
@@ -521,7 +521,8 @@ function getReleasePageUrl(mirror: UpdateMirror, tag: string): string {
   if (mirror === 'github') {
     return `https://github.com/${GITHUB_REPO}/releases/tag/${encodeURIComponent(tag)}`
   }
-  // Use latest.yml download URL for GitCode to check if release exists (returns 404 if not exists)
+  // Use latest.yml download URL for GitCode to check if release exists
+  // Note: GitCode returns 401 for HEAD requests, so we use GET in ensureReleaseAvailability
   return `https://gitcode.com/${GITCODE_REPO}/releases/download/${encodeURIComponent(tag)}/latest.yml`
 }
 
