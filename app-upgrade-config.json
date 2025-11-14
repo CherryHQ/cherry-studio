@@ -1,0 +1,49 @@
+{
+  "lastUpdated": "2025-11-10T08:14:28Z",
+  "versions": {
+    "1.6.7": {
+      "metadata": {
+        "segmentId": "legacy-v1",
+        "segmentType": "legacy"
+      },
+      "minCompatibleVersion": "1.0.0",
+      "description": "Last stable v1.7.x release - required intermediate version for users below v1.7",
+      "channels": {
+        "latest": {
+          "version": "1.6.7",
+          "feedUrls": {
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.6.7",
+            "gitcode": "https://releases.cherry-ai.com"
+          }
+        },
+        "rc": {
+          "version": "1.6.0-rc.5",
+          "feedUrls": {
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.6.0-rc.5",
+            "gitcode": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.6.0-rc.5"
+          }
+        },
+        "beta": {
+          "version": "1.7.0-beta.3",
+          "feedUrls": {
+            "github": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.7.0-beta.3",
+            "gitcode": "https://github.com/CherryHQ/cherry-studio/releases/download/v1.7.0-beta.3"
+          }
+        }
+      }
+    },
+    "2.0.0": {
+      "metadata": {
+        "segmentId": "gateway-v2",
+        "segmentType": "breaking"
+      },
+      "minCompatibleVersion": "1.7.0",
+      "description": "Major release v2.0 - required intermediate version for v2.x upgrades",
+      "channels": {
+        "latest": null,
+        "rc": null,
+        "beta": null
+      }
+    }
+  }
+}

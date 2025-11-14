@@ -197,10 +197,20 @@ export enum FeedUrl {
   GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
 
+export enum UpdateConfigUrl {
+  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/cs-releases/app-upgrade-config.json',
+  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/cs-releases/app-upgrade-config.json'
+}
+
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
   RC = 'rc', // 公测版本
   BETA = 'beta' // 预览版本
+}
+
+export enum UpdateMirror {
+  GITHUB = 'github',
+  GITCODE = 'gitcode'
 }
 
 export const defaultTimeout = 10 * 1000 * 60
