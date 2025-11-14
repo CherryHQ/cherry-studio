@@ -1,23 +1,23 @@
 /**
- * CherryStudio Styles - npm 包入口
+ * CherryStudio Styles - npm Package Entry Point
  *
- * 用途：仅导出 CSS 变量，不生成工具类，不覆盖用户主题
- * 使用场景：
- * - npm 用户想使用设计系统的变量，但不想覆盖 Tailwind 默认主题
- * - 可以通过 var(--cs-primary) 等方式使用
- * - 不会生成 bg-primary 等工具类（用户自己的 bg-primary 不受影响）
+ * Purpose: Export CSS variables only, without generating utility classes or overriding user themes
+ * Use Cases:
+ * - npm users who want to use design system variables without overriding Tailwind's default theme
+ * - Can be used via var(--cs-primary) and similar patterns
+ * - Does not generate utility classes like bg-primary (user's own bg-primary won't be affected)
  *
- * 示例：
+ * Example:
  * ```css
  * @import '@cherrystudio/ui/styles/index.css';
  *
  * .my-button {
- *   background: var(--cs-primary);     // 使用 CS 的品牌色
- *   padding: var(--cs-size-md);        // 使用 CS 的间距
+ *   background: var(--cs-primary);     // Use CS brand color
+ *   padding: var(--cs-size-md);        // Use CS spacing
  * }
  * ```
  *
- * 如果想要完整的主题覆盖（生成 bg-primary 等类），请导入：
+ * For complete theme override (generating bg-primary classes), import:
  * @import '@cherrystudio/ui/styles/theme.css';
  */
 

@@ -20,7 +20,7 @@ Cherry Studio UI 组件库 - 为 Cherry Studio 设计的 React 组件集合
 ```bash
 npm install @cherrystudio/ui
 # peer dependencies
-npm install @heroui/react framer-motion react react-dom tailwindcss
+npm install framer-motion react react-dom tailwindcss
 ```
 
 ### 两种使用方式

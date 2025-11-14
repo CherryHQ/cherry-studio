@@ -6,7 +6,7 @@ import { FilePngIcon, FileSvgIcon } from '../../../src/components/icons/FileIcon
 const FileIconsShowcase = () => <div />
 
 const meta: Meta<typeof FileIconsShowcase> = {
-  title: 'Icons/FileIcons',
+  title: 'Components/Icons/FileIcons',
   component: FileIconsShowcase,
   parameters: {
     layout: 'centered'

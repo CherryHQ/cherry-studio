@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "Maneja tareas complejas con varias herramientas",
       "error": {
         "failed": "Error al añadir agente",
         "invalid_agent": "Agent inválido"
@@ -338,6 +339,41 @@
     },
     "title": "Servidor API"
   },
+  "appMenu": {
+    "about": "Acerca de",
+    "close": "Cerrar ventana",
+    "copy": "Copiar",
+    "cut": "Cortar",
+    "delete": "Eliminar",
+    "documentation": "Documentación",
+    "edit": "Editar",
+    "feedback": "Retroalimentación",
+    "file": "Archivo",
+    "forceReload": "Forzar recarga",
+    "front": "Traer todo al frente",
+    "help": "Ayuda",
+    "hide": "Ocultar",
+    "hideOthers": "Ocultar Otros",
+    "minimize": "Minimizar",
+    "paste": "Pegar",
+    "quit": "Abandonar",
+    "redo": "Rehacer",
+    "releases": "Lanzamientos",
+    "reload": "Recargar",
+    "resetZoom": "Tamaño Real",
+    "selectAll": "Seleccionar todo",
+    "services": "Servicios",
+    "toggleDevTools": "Alternar herramientas de desarrollo",
+    "toggleFullscreen": "Activar pantalla completa",
+    "undo": "Deshacer",
+    "unhide": "Mostrar todo",
+    "view": "Vista",
+    "website": "Sitio web",
+    "window": "Ventana",
+    "zoom": "Zoom",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar"
+  },
   "assistants": {
     "abbr": "Asistente",
     "clear": {
@@ -547,7 +583,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "Conversaciones diarias y preguntas y respuestas rápidas",
         "title": "Agregar asistente"
+      },
+      "option": {
+        "title": "Seleccionar Tipo"
       },
       "topic": {
         "title": "Crear nuevo tema"
@@ -591,6 +631,15 @@
       "view_full_content": "Ver contenido completo"
     },
     "input": {
+      "activity_directory": {
+        "description": "Seleccionar archivo del directorio de actividad",
+        "loading": "Cargando archivos...",
+        "no_file_found": {
+          "description": "No hay archivos disponibles en los directorios accesibles",
+          "label": "No se encontró ningún archivo"
+        },
+        "title": "Directorio de Actividades"
+      },
       "auto_resize": "Ajuste automático de altura",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
@@ -614,6 +663,7 @@
       "new": {
         "context": "Limpiar contexto {{Command}}"
       },
+      "new_session": "Nueva Sesión {{Command}}",
       "new_topic": "Nuevo tema {{Command}}",
       "paste_text_file_confirm": "¿Pegar en el cuadro de entrada?",
       "pause": "Pausar",
@@ -621,6 +671,10 @@
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
       "send": "Enviar",
       "settings": "Configuración",
+      "slash_commands": {
+        "description": "Comandos de sesión de agente con barra",
+        "title": "Comandos de barra"
+      },
       "thinking": {
         "budget_exceeds_max": "El presupuesto de pensamiento excede el número máximo de tokens",
         "label": "Pensando",
@@ -1731,6 +1785,9 @@
     },
     "message": {
       "code_style": "Estilo de código",
+      "compact": {
+        "title": "Conversación Compactada"
+      },
       "delete": {
         "content": "¿Está seguro de querer eliminar este mensaje?",
         "title": "Eliminar mensaje"
@@ -2471,12 +2528,13 @@
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "perplexity": "Perplejidad",
-    "ph8": "Plataforma Abierta de Grandes Modelos PH8",
+    "ph8": "PH8",
     "poe": "Poe",
     "ppio": "PPIO Cloud Piao",
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "Silicio Fluido",
+    "sophnet": "SophNet",
     "stepfun": "Función Salto",
     "tencent-cloud-ti": "Tencent Nube TI",
     "together": "Juntos",
@@ -3760,6 +3818,7 @@
         "description": "No habilitar funciones del servicio MCP",
         "label": "No utilizar servidor MCP"
       },
+      "discover": "Descubrir",
       "duplicateName": "Ya existe un servidor con el mismo nombre",
       "editJson": "Editar JSON",
       "editMcpJson": "Editar configuración MCP",
@@ -3769,6 +3828,10 @@
       "errors": {
         "32000": "El servidor MCP no se pudo iniciar, verifique si los parámetros están completos según la guía",
         "toolNotFound": "Herramienta no encontrada {{name}}"
+      },
+      "fetch": {
+        "button": "Obtener Servidores",
+        "success": "Servidores MCP obtenidos con éxito"
       },
       "findMore": "Más servidores MCP",
       "headers": "Encabezados",
@@ -3785,6 +3848,7 @@
       "logoUrl": "URL del logotipo",
       "longRunning": "Modo de ejecución prolongada",
       "longRunningTooltip": "Una vez habilitado, el servidor admite tareas de larga duración, reinicia el temporizador de tiempo de espera al recibir notificaciones de progreso y amplía el tiempo máximo de espera hasta 10 minutos.",
+      "marketplaces": "Mercados",
       "missingDependencies": "Faltan, instalelas para continuar",
       "more": {
         "awesome": "Lista seleccionada de servidores MCP",
@@ -3816,6 +3880,12 @@
         "usage": "Uso",
         "version": "Versión"
       },
+      "oauth": {
+        "callback": {
+          "message": "Puede cerrar esta página y volver a Cherry Studio",
+          "title": "Autenticación Exitosa"
+        }
+      },
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Indicaciones disponibles",
@@ -3833,6 +3903,7 @@
       "provider": "Proveedor",
       "providerPlaceholder": "Nombre del proveedor",
       "providerUrl": "URL del proveedor",
+      "providers": "Proveedores",
       "registry": "Repositorio de paquetes",
       "registryDefault": "Predeterminado",
       "registryTooltip": "Seleccione un repositorio para instalar paquetes, útil para resolver problemas de red con el repositorio predeterminado.",
@@ -3855,6 +3926,7 @@
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
       "serverSingular": "Servidor",
+      "servers": "Servidores MCP",
       "sse": "Eventos enviados por el servidor (sse)",
       "startError": "Inicio fallido",
       "stdio": "Entrada/Salida estándar (stdio)",
@@ -4254,6 +4326,12 @@
       "aws-bedrock": {
         "access_key_id": "ID de clave de acceso de AWS",
         "access_key_id_help": "Su ID de clave de acceso de AWS, utilizado para acceder al servicio AWS Bedrock",
+        "api_key": "Clave de API de Bedrock",
+        "api_key_help": "Tu clave de API de AWS Bedrock para autenticación",
+        "auth_type": "Tipo de autenticación",
+        "auth_type_api_key": "Clave de API de Bedrock",
+        "auth_type_help": "Elige entre credenciales IAM o autenticación con clave API de Bedrock",
+        "auth_type_iam": "Credenciales de IAM",
         "description": "AWS Bedrock es un servicio de modelos fundamentales completamente gestionado proporcionado por Amazon, que admite diversos modelos avanzados de lenguaje de gran tamaño.",
         "region": "Región de AWS",
         "region_help": "Su región de servicio AWS, por ejemplo us-east-1",
@@ -4398,6 +4476,7 @@
       "confirm": "Confirmar",
       "forward": "Adelante",
       "multiple": "Selección múltiple",
+      "noResult": "[to be translated]:No results found",
       "page": "Página",
       "select": "Seleccionar",
       "title": "Menú de acceso rápido"

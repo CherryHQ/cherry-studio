@@ -1,4 +1,3 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
@@ -29,7 +28,7 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
+import { Dropdown, Tooltip } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
@@ -504,9 +503,12 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
       style={{ height: '100%', padding: '11px 0 10px 10px' }}
       itemContainerStyle={{ paddingBottom: '8px' }}
       header={
-        <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="mb-2">
-          {t('chat.add.topic.title')}
-        </AddButton>
+        <>
+          <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} className="">
+            {t('chat.add.topic.title')}
+          </AddButton>
+          <div className="my-1"></div>
+        </>
       }>
       {(topic) => {
         const isActive = topic.id === activeTopic?.id
@@ -555,9 +557,9 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
-                    delay={700}
-                    closeDelay={0}
-                    content={
+                    mouseEnterDelay={0.7}
+                    mouseLeaveDelay={0}
+                    title={
                       <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
                         {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
                       </div>

@@ -17,6 +17,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
+  getBedrockReasoningParams,
   getCustomParameters,
   getGeminiReasoningParams,
   getOpenAIReasoningParams,
@@ -112,6 +113,9 @@ export function buildProviderOptions(
         }
         break
       }
+      case 'cherryin':
+        providerSpecificOptions = buildCherryInProviderOptions(assistant, model, capabilities, actualProvider)
+        break
       default:
         throw new Error(`Unsupported base provider ${baseProviderId}`)
     }
@@ -126,6 +130,9 @@ export function buildProviderOptions(
           break
         case 'google-vertex-anthropic':
           providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
+          break
+        case 'bedrock':
+          providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
@@ -257,6 +264,60 @@ function buildXAIProviderOptions(
 
   if (enableReasoning) {
     const reasoningParams = getXAIReasoningParams(assistant, model)
+    providerOptions = {
+      ...providerOptions,
+      ...reasoningParams
+    }
+  }
+
+  return providerOptions
+}
+
+function buildCherryInProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  },
+  actualProvider: Provider
+): Record<string, any> {
+  const serviceTierSetting = getServiceTier(model, actualProvider)
+
+  switch (actualProvider.type) {
+    case 'openai':
+      return {
+        ...buildOpenAIProviderOptions(assistant, model, capabilities),
+        serviceTier: serviceTierSetting
+      }
+
+    case 'anthropic':
+      return buildAnthropicProviderOptions(assistant, model, capabilities)
+
+    case 'gemini':
+      return buildGeminiProviderOptions(assistant, model, capabilities)
+  }
+  return {}
+}
+
+/**
+ * Build Bedrock providerOptions
+ */
+function buildBedrockProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  }
+): Record<string, any> {
+  const { enableReasoning } = capabilities
+  let providerOptions: Record<string, any> = {}
+
+  if (enableReasoning) {
+    const reasoningParams = getBedrockReasoningParams(assistant, model)
     providerOptions = {
       ...providerOptions,
       ...reasoningParams

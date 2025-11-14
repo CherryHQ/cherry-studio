@@ -8,24 +8,20 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import type { AgentSessionEntity } from '@renderer/types'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
-  ContextMenuTrigger
-} from '@renderer/ui/context-menu'
+import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
+import type { AgentSessionEntity, Assistant } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { MenuIcon, XIcon } from 'lucide-react'
-import React, { type FC, memo, startTransition, useEffect, useMemo, useState } from 'react'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
+import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
+import type { FC } from 'react'
+import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
 // const logger = loggerService.withContext('AgentItem')
 
 interface SessionItemProps {
@@ -43,6 +39,8 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
   const activeSessionId = chat.activeSessionIdMap[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
+  const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
+  const targetSession = useDeferredValue(_targetSession)
   const dispatch = useAppDispatch()
 
   const { isEditing, isSaving, editValue, inputRef, startEdit, handleKeyDown, handleValueChange } = useInPlaceEdit({
@@ -109,80 +107,98 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
   const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const singlealone = topicPosition === 'right'
 
+  const menuItems: MenuProps['items'] = useMemo(
+    () => [
+      {
+        label: t('common.edit'),
+        key: 'edit',
+        icon: <EditIcon size={14} />,
+        onClick: () => {
+          SessionSettingsPopup.show({
+            agentId,
+            sessionId: session.id
+          })
+        }
+      },
+      {
+        label: t('chat.topics.auto_rename'),
+        key: 'auto-rename',
+        icon: <Sparkles size={14} />,
+        onClick: () => {
+          const assistant = {} as Assistant
+          const agentSession = { agentId: agentId, sessionId: targetSession.id }
+          dispatch(loadTopicMessagesThunk(sessionTopicId))
+          renameAgentSessionIfNeeded(agentSession, assistant, sessionTopicId, store.getState)
+        }
+      },
+      {
+        label: t('settings.topic.position.label'),
+        key: 'topic-position',
+        icon: <MenuIcon size={14} />,
+        children: [
+          {
+            label: t('settings.topic.position.left'),
+            key: 'left',
+            onClick: () => setTopicPosition('left')
+          },
+          {
+            label: t('settings.topic.position.right'),
+            key: 'right',
+            onClick: () => setTopicPosition('right')
+          }
+        ]
+      },
+      {
+        label: t('common.delete'),
+        key: 'delete',
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
+        danger: true,
+        onClick: () => {
+          onDelete()
+        }
+      }
+    ],
+    [agentId, dispatch, onDelete, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
+  )
+
   return (
-    <>
-      <ContextMenu modal={false}>
-        <ContextMenuTrigger>
-          <SessionListItem
-            className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-            onClick={isEditing ? undefined : onPress}
-            onDoubleClick={() => startEdit(session.name ?? '')}
-            title={session.name ?? session.id}
-            style={{
-              borderRadius: 'var(--list-item-border-radius)',
-              cursor: isEditing ? 'default' : 'pointer'
-            }}>
-            {isPending && !isActive && <PendingIndicator />}
-            {isFulfilled && !isActive && <FulfilledIndicator />}
-            <SessionNameContainer>
-              {isEditing ? (
-                <SessionEditInput
-                  ref={inputRef}
-                  value={editValue}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleValueChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                  style={{ opacity: isSaving ? 0.5 : 1 }}
-                />
-              ) : (
-                <>
-                  <SessionName>
-                    <SessionLabel session={session} />
-                  </SessionName>
-                  <DeleteButton />
-                </>
-              )}
-            </SessionNameContainer>
-          </SessionListItem>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            key="edit"
-            onClick={() => {
-              SessionSettingsPopup.show({
-                agentId,
-                sessionId: session.id
-              })
-            }}>
-            <EditIcon size={14} />
-            {t('common.edit')}
-          </ContextMenuItem>
-          <ContextMenuSub>
-            <ContextMenuSubTrigger className="gap-2">
-              <MenuIcon size={14} />
-              {t('settings.topic.position.label')}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent>
-              <ContextMenuItem key="left" onClick={() => setTopicPosition('left')}>
-                {t('settings.topic.position.left')}
-              </ContextMenuItem>
-              <ContextMenuItem key="right" onClick={() => setTopicPosition('right')}>
-                {t('settings.topic.position.right')}
-              </ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-          <ContextMenuItem
-            key="delete"
-            className="text-danger"
-            onClick={() => {
-              onDelete()
-            }}>
-            <DeleteIcon size={14} className="lucide-custom text-danger" />
-            <span className="text-danger">{t('common.delete')}</span>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    </>
+    <Dropdown
+      menu={{ items: menuItems }}
+      trigger={['contextMenu']}
+      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+      <SessionListItem
+        className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+        onClick={isEditing ? undefined : onPress}
+        onDoubleClick={() => startEdit(session.name ?? '')}
+        title={session.name ?? session.id}
+        onContextMenu={() => setTargetSession(session)}
+        style={{
+          borderRadius: 'var(--list-item-border-radius)',
+          cursor: isEditing ? 'default' : 'pointer'
+        }}>
+        {isPending && !isActive && <PendingIndicator />}
+        {isFulfilled && !isActive && <FulfilledIndicator />}
+        <SessionNameContainer>
+          {isEditing ? (
+            <SessionEditInput
+              ref={inputRef}
+              value={editValue}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleValueChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+              style={{ opacity: isSaving ? 0.5 : 1 }}
+            />
+          ) : (
+            <>
+              <SessionName>
+                <SessionLabel session={session} />
+              </SessionName>
+              <DeleteButton />
+            </>
+          )}
+        </SessionNameContainer>
+      </SessionListItem>
+    </Dropdown>
   )
 }
 

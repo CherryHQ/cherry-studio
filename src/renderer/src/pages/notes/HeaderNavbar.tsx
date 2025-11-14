@@ -1,13 +1,11 @@
-import { RowFlex, Tooltip } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
-import { BreadcrumbItem, Breadcrumbs } from '@heroui/react'
+import { Input, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNode } from '@renderer/services/NotesTreeService'
-import { Dropdown } from 'antd'
+import { Breadcrumb, Dropdown, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -176,14 +174,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip content={t('navbar.hide_sidebar')} placement="bottom" delay={800}>
+          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip content={t('navbar.show_sidebar')} placement="bottom" delay={800}>
+          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -192,47 +190,48 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       </RowFlex>
       <NavbarCenter style={{ flex: 1, minWidth: 0 }}>
         <BreadcrumbsContainer>
-          <Breadcrumbs style={{ borderRadius: 0 }}>
-            {breadcrumbItems.map((item, index) => {
+          <Breadcrumb
+            separator={'>'}
+            items={breadcrumbItems.map((item, index) => {
               const isLastItem = index === breadcrumbItems.length - 1
               const isCurrentNote = isLastItem && !item.isFolder
-
-              return (
-                <BreadcrumbItem key={item.key} isCurrent={isLastItem}>
-                  {isCurrentNote ? (
-                    <TitleInputWrapper>
-                      <TitleInput
-                        ref={titleInputRef}
-                        value={titleValue}
-                        onChange={handleTitleChange}
-                        onBlur={handleTitleBlur}
-                        onKeyDown={handleTitleKeyDown}
-                        size="small"
-                        variant="borderless"
-                        style={{
-                          fontSize: 'inherit',
-                          padding: 0,
-                          height: 'auto',
-                          lineHeight: 'inherit'
-                        }}
-                      />
-                    </TitleInputWrapper>
-                  ) : (
-                    <BreadcrumbTitle
-                      onClick={() => handleBreadcrumbClick(item)}
-                      $clickable={item.isFolder && !isLastItem}>
-                      {item.title}
-                    </BreadcrumbTitle>
-                  )}
-                </BreadcrumbItem>
-              )
-            })}
-          </Breadcrumbs>
+              return {
+                title: (
+                  <div key={item.key} className="flex">
+                    {isCurrentNote ? (
+                      <TitleInputWrapper>
+                        <TitleInput
+                          ref={titleInputRef}
+                          value={titleValue}
+                          onChange={handleTitleChange}
+                          onBlur={handleTitleBlur}
+                          onKeyDown={handleTitleKeyDown}
+                          size="sm"
+                          variant="borderless"
+                          style={{
+                            fontSize: 'inherit',
+                            padding: 0,
+                            height: 'auto',
+                            lineHeight: 'inherit'
+                          }}
+                        />
+                      </TitleInputWrapper>
+                    ) : (
+                      <BreadcrumbTitle
+                        onClick={() => handleBreadcrumbClick(item)}
+                        $clickable={item.isFolder && !isLastItem}>
+                        {item.title}
+                      </BreadcrumbTitle>
+                    )}
+                  </div>
+                )
+              }
+            })}></Breadcrumb>
         </BreadcrumbsContainer>
       </NavbarCenter>
       <NavbarRight style={{ paddingRight: 0 }}>
         {canShowStarButton && (
-          <Tooltip content={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
+          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} mouseEnterDelay={0.8}>
             <StarButton onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
@@ -242,18 +241,16 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
             </StarButton>
           </Tooltip>
         )}
-        <Tooltip content={t('notes.settings.title')} delay={800}>
-          <div>
-            <Dropdown
-              menu={{ items: menuItems.map(buildMenuItem) }}
-              trigger={['click']}
-              placement="bottomRight"
-              destroyOnHidden={false}>
-              <NavbarIcon>
-                <MoreHorizontal size={18} />
-              </NavbarIcon>
-            </Dropdown>
-          </div>
+        <Tooltip title={t('notes.settings.title')} mouseEnterDelay={0.8}>
+          <Dropdown
+            menu={{ items: menuItems.map(buildMenuItem) }}
+            trigger={['click']}
+            placement="bottomRight"
+            destroyOnHidden={false}>
+            <NavbarIcon>
+              <MoreHorizontal size={18} />
+            </NavbarIcon>
+          </Dropdown>
         </Tooltip>
       </NavbarRight>
     </NavbarHeader>
@@ -347,13 +344,6 @@ export const BreadcrumbsContainer = styled.div`
   & li:last-child {
     flex: 1 !important;
     min-width: 0 !important;
-    max-width: none !important;
-  }
-
-  /* 覆盖 HeroUI BreadcrumbItem 的样式 */
-  & li:last-child [data-slot="item"] {
-    flex: 1 !important;
-    width: 100% !important;
     max-width: none !important;
   }
 

@@ -1,13 +1,16 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
-import { Button, DividerWithText, ListItem } from '@cherrystudio/ui'
-import { RowFlex, Scrollbar } from '@cherrystudio/ui'
 import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
+import MCPRouterProviderLogo from '@renderer/assets/images/providers/mcprouter.webp'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import DividerWithText from '@renderer/components/DividerWithText'
+import ListItem from '@renderer/components/ListItem'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { Button, Flex } from 'antd'
 import { FolderCog, Package, ShoppingBag } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,37 +73,37 @@ const MCPSettings: FC = () => {
     tokenflux: <ProviderIcon src={TokenFluxProviderLogo} alt="TokenFlux" />,
     lanyun: <ProviderIcon src={LanyunProviderLogo} alt="Lanyun" />,
     '302ai': <ProviderIcon src={Ai302ProviderLogo} alt="302AI" />,
-    bailian: <ProviderIcon src={BailianProviderLogo} alt="Bailian" />
+    bailian: <ProviderIcon src={BailianProviderLogo} alt="Bailian" />,
+    mcprouter: <ProviderIcon src={MCPRouterProviderLogo} alt="MCPRouter" />
   }
 
   return (
     <Container>
       <MainContainer>
         <MenuList>
-          <DividerWithText text={t('settings.mcp.management', 'Management')} style={{ margin: '8px 0' }} />
           <ListItem
             title={t('settings.mcp.servers', 'MCP Servers')}
             active={activeView === 'servers'}
             onClick={() => navigate('/settings/mcp/servers')}
-            icon={<FolderCog size={16} />}
+            icon={<FolderCog size={18} />}
             titleStyle={{ fontWeight: 500 }}
           />
-          <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '16px 0 8px 0' }} />
+          <DividerWithText text={t('settings.mcp.discover', 'Discover')} style={{ margin: '10px 0 8px 0' }} />
           <ListItem
             title={t('settings.mcp.builtinServers', 'Built-in Servers')}
             active={activeView === 'builtin'}
             onClick={() => navigate('/settings/mcp/builtin')}
-            icon={<Package size={16} />}
+            icon={<Package size={18} />}
             titleStyle={{ fontWeight: 500 }}
           />
           <ListItem
             title={t('settings.mcp.marketplaces', 'Marketplaces')}
             active={activeView === 'marketplaces'}
             onClick={() => navigate('/settings/mcp/marketplaces')}
-            icon={<ShoppingBag size={16} />}
+            icon={<ShoppingBag size={18} />}
             titleStyle={{ fontWeight: 500 }}
           />
-          <DividerWithText text={t('settings.mcp.providers', 'Providers')} style={{ margin: '16px 0 8px 0' }} />
+          <DividerWithText text={t('settings.mcp.providers', 'Providers')} style={{ margin: '10px 0 8px 0' }} />
           {providers.map((provider) => (
             <ListItem
               key={provider.key}
@@ -116,7 +119,7 @@ const MCPSettings: FC = () => {
           {!isHomePage() && (
             <BackButtonContainer>
               <Link to="/settings/mcp/servers">
-                <Button variant="default" className="rounded-full" size="icon">
+                <Button type="default" shape="circle" size="small">
                   <ArrowLeftOutlined />
                 </Button>
               </Link>
@@ -172,7 +175,7 @@ const MCPSettings: FC = () => {
   )
 }
 
-const Container = styled(RowFlex)`
+const Container = styled(Flex)`
   flex: 1;
 `
 
@@ -196,7 +199,7 @@ const MenuList = styled(Scrollbar)`
   height: calc(100vh - var(--navbar-height));
 `
 
-const RightContainer = styled(Scrollbar)`
+const RightContainer = styled.div`
   flex: 1;
   position: relative;
 `

@@ -3,12 +3,18 @@ import type { Meta, StoryObj } from '@storybook/react'
 import ToolsCallingIcon from '../../../src/components/icons/ToolsCallingIcon'
 
 const meta: Meta<typeof ToolsCallingIcon> = {
-  title: 'Icons/ToolsCallingIcon',
+  title: 'Components/Icons/ToolsCallingIcon',
   component: ToolsCallingIcon,
   parameters: {
-    layout: 'centered'
+    layout: 'centered',
+    docs: {
+      description: {
+        component:
+          '⚠️ **已废弃** - 此组件使用频率仅为 1 次，不符合 UI 库提取标准（需 ≥3 次）。计划在未来版本中移除。建议直接使用 lucide-react 的 Wrench 图标。'
+      }
+    }
   },
-  tags: ['autodocs'],
+  tags: ['autodocs', 'deprecated'],
   argTypes: {
     className: {
       description: '容器的自定义 CSS 类名',

@@ -1,6 +1,5 @@
-import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { Alert } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
@@ -10,18 +9,19 @@ import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { Alert, Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -52,7 +52,7 @@ const Chat: FC<Props> = (props) => {
   const [apiServerEnabled] = usePreference('feature.csaas.enabled')
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
-  const { isTopNavbar } = useNavbarPosition()
+  const [isTopNavbar] = usePreference('ui.navbar.position')
   const chatMaxWidth = useChatMaxWidth()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId, activeSessionIdMap } = chat
@@ -164,51 +164,16 @@ const Chat: FC<Props> = (props) => {
 
   const mainHeight = isTopNavbar ? 'calc(100vh - var(--navbar-height) - 6px)' : 'calc(100vh - var(--navbar-height))'
 
-  const SessionMessages = useMemo(() => {
-    if (activeAgentId === null) {
-      return () => <div> Active Agent ID is invalid.</div>
-    }
-    if (!activeSessionId) {
-      return () => <div> Active Session ID is invalid.</div>
-    }
-    if (!apiServerEnabled) {
-      return () => (
-        <div>
-          <Alert color="warning" title={t('agent.warning.enable_server')} />
-        </div>
-      )
-    }
-    return () => <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-  }, [activeAgentId, activeSessionId, apiServerEnabled, t])
-
-  const SessionInputBar = useMemo(() => {
-    if (activeAgentId === null) {
-      return () => <div> Active Agent ID is invalid.</div>
-    }
-    if (!activeSessionId) {
-      return () => <div> Active Session ID is invalid.</div>
-    }
-    return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-  }, [activeAgentId, activeSessionId])
-
   // TODO: more info
   const AgentInvalid = useCallback(() => {
-    return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div>
-          <Alert color="warning" title="Select an agent" />
-        </div>
-      </div>
-    )
+    return <Alert type="warning" message="Select an agent" style={{ margin: '5px 16px' }} />
   }, [])
 
   // TODO: more info
   const SessionInvalid = useCallback(() => {
     return (
       <div className="flex h-full w-full items-center justify-center">
-        <div>
-          <Alert color="warning" title="Create a session" />
-        </div>
+        <Alert type="warning" message="Create a session" style={{ margin: '5px 16px' }} />
       </div>
     )
   }, [])
@@ -225,7 +190,10 @@ const Chat: FC<Props> = (props) => {
           <Main
             ref={mainRef}
             id="chat-main"
-            style={{ maxWidth: chatMaxWidth, width: chatMaxWidth, height: mainHeight }}>
+            vertical
+            flex={1}
+            justify="space-between"
+            style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
             <QuickPanelProvider>
               <ChatNavbar
                 activeAssistant={props.assistant}
@@ -262,8 +230,12 @@ const Chat: FC<Props> = (props) => {
                 {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId && <SessionInvalid />}
                 {activeTopicOrSession === 'session' && activeAgentId && activeSessionId && (
                   <>
-                    <SessionMessages />
-                    <SessionInputBar />
+                    {!apiServerEnabled ? (
+                      <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: '5px 16px' }} />
+                    ) : (
+                      <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
+                    )}
+                    <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
                   </>
                 )}
                 {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
@@ -303,9 +275,9 @@ const Chat: FC<Props> = (props) => {
 }
 
 export const useChatMaxWidth = () => {
-  const [showTopics] = usePreference('topic.tab.show')
-  const [topicPosition] = usePreference('topic.position')
-  const { isLeftNavbar, isTopNavbar } = useNavbarPosition()
+  const { showTopics, topicPosition } = useSettings()
+  const [isLeftNavbar] = usePreference('ui.navbar.position')
+  const [isTopNavbar] = usePreference('ui.navbar.position')
   const { showAssistants } = useShowAssistants()
   const showRightTopics = showTopics && topicPosition === 'right'
   const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
@@ -329,7 +301,7 @@ const Container = styled.div`
   }
 `
 
-const Main = styled(ColFlex)`
+const Main = styled(Flex)`
   [navbar-position='left'] & {
     height: calc(100vh - var(--navbar-height));
   }

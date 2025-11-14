@@ -1,3 +1,11 @@
+/**
+ * @deprecated 此组件使用频率仅为 1 次，不符合 UI 库提取标准（需 ≥3 次）
+ * 计划在未来版本中移除。此组件与业务逻辑耦合，不适合通用 UI 库。
+ *
+ * This component has only 1 usage and does not meet the UI library extraction criteria (requires ≥3 usages).
+ * Planned for removal in future versions. This component is coupled with business logic and not suitable for a general UI library.
+ */
+
 // Original path: src/renderer/src/components/MaxContextCount.tsx
 import { Infinity as InfinityIcon } from 'lucide-react'
 import type { CSSProperties } from 'react'

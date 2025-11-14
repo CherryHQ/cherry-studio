@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
@@ -145,7 +146,7 @@ class OvmsManager {
    */
   public async runOvms(): Promise<{ success: boolean; message?: string }> {
     const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms')
+    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
     const runBatPath = path.join(ovmsDir, 'run.bat')
 
@@ -195,7 +196,7 @@ class OvmsManager {
    */
   public async getOvmsStatus(): Promise<'not-installed' | 'not-running' | 'running'> {
     const homeDir = homedir()
-    const ovmsPath = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms', 'ovms.exe')
+    const ovmsPath = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms', 'ovms.exe')
 
     try {
       // Check if OVMS executable exists
@@ -273,7 +274,7 @@ class OvmsManager {
     }
 
     const homeDir = homedir()
-    const configPath = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms', 'models', 'config.json')
+    const configPath = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms', 'models', 'config.json')
     try {
       if (!(await fs.pathExists(configPath))) {
         logger.warn(`Config file does not exist: ${configPath}`)
@@ -304,7 +305,7 @@ class OvmsManager {
 
   private async applyModelPath(modelDirPath: string): Promise<boolean> {
     const homeDir = homedir()
-    const patchDir = path.join(homeDir, '.cherrystudio', 'ovms', 'patch')
+    const patchDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'patch')
     if (!(await fs.pathExists(patchDir))) {
       return true
     }
@@ -355,7 +356,7 @@ class OvmsManager {
     logger.info(`Adding model: ${modelName} with ID: ${modelId}, Source: ${modelSource}, Task: ${task}`)
 
     const homeDir = homedir()
-    const ovdndDir = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms')
+    const ovdndDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
     const pathModel = path.join(ovdndDir, 'models', modelId)
 
     try {
@@ -468,7 +469,7 @@ class OvmsManager {
    */
   public async checkModelExists(modelId: string): Promise<boolean> {
     const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms')
+    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
 
     try {
@@ -495,7 +496,7 @@ class OvmsManager {
    */
   public async updateModelConfig(modelName: string, modelId: string): Promise<boolean> {
     const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms')
+    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
 
     try {
@@ -548,7 +549,7 @@ class OvmsManager {
    */
   public async getModels(): Promise<ModelConfig[]> {
     const homeDir = homedir()
-    const ovmsDir = path.join(homeDir, '.cherrystudio', 'ovms', 'ovms')
+    const ovmsDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
     const configPath = path.join(ovmsDir, 'models', 'config.json')
 
     try {

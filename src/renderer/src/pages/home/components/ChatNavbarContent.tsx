@@ -1,4 +1,3 @@
-import { BreadcrumbItem, Breadcrumbs, cn } from '@heroui/react'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
@@ -7,14 +6,17 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
-import { Folder } from 'lucide-react'
+import { ChevronRight, Folder } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback } from 'react'
+import { twMerge } from 'tailwind-merge'
 
 import { AgentSettingsPopup, SessionSettingsPopup } from '../../settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '../../settings/AgentSettings/shared'
 import SelectAgentBaseModelButton from './SelectAgentBaseModelButton'
 import SelectModelButton from './SelectModelButton'
+
+const cn = (...inputs: any[]) => twMerge(inputs)
 
 interface Props {
   assistant: Assistant
@@ -40,43 +42,53 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
       {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
       {activeTopicOrSession === 'session' && activeAgent && (
         <HorizontalScrollContainer className="ml-2 flex-initial">
-          <Breadcrumbs classNames={{ base: 'flex', list: 'flex-nowrap' }}>
-            <BreadcrumbItem
-              onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
-              classNames={{ base: 'self-stretch', item: 'h-full' }}>
+          <div className="flex flex-nowrap items-center gap-2">
+            {/* Agent Label */}
+            <div
+              className="flex h-full cursor-pointer items-center"
+              onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}>
               <AgentLabel
                 agent={activeAgent}
                 classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
               />
-            </BreadcrumbItem>
+            </div>
+
             {activeSession && (
-              <BreadcrumbItem
-                onClick={() =>
-                  SessionSettingsPopup.show({
-                    agentId: activeAgent.id,
-                    sessionId: activeSession.id
-                  })
-                }
-                classNames={{ base: 'self-stretch', item: 'h-full' }}>
-                <SessionLabel session={activeSession} className="max-w-40 text-xs" />
-              </BreadcrumbItem>
-            )}
-            {activeSession && (
-              <BreadcrumbItem>
+              <>
+                {/* Separator */}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
+
+                {/* Session Label */}
+                <div
+                  className="flex h-full cursor-pointer items-center"
+                  onClick={() =>
+                    SessionSettingsPopup.show({
+                      agentId: activeAgent.id,
+                      sessionId: activeSession.id
+                    })
+                  }>
+                  <SessionLabel session={activeSession} className="max-w-40 text-xs" />
+                </div>
+
+                {/* Separator */}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
+
+                {/* Model Button */}
                 <SelectAgentBaseModelButton
                   agentBase={activeSession}
                   onSelect={async (model) => {
                     await handleUpdateModel(model)
                   }}
                 />
-              </BreadcrumbItem>
-            )}
-            {activeAgent && activeSession && (
-              <BreadcrumbItem>
+
+                {/* Separator */}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
+
+                {/* Workspace Meta */}
                 <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
-              </BreadcrumbItem>
+              </>
             )}
-          </Breadcrumbs>
+          </div>
         </HorizontalScrollContainer>
       )}
     </>

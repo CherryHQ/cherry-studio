@@ -22,6 +22,7 @@ import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
+import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -31,6 +32,7 @@ import {
 import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
+import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefactorMigrateService'
 import { dataApiService } from '@data/DataApiService'
@@ -188,6 +190,10 @@ if (!app.requestSingleInstanceLock()) {
 
     /************FOR TESTING ONLY END****************/
 
+    // Record current version for tracking
+    // A preparation for v2 data refactoring
+    versionService.recordCurrentVersion()
+
     initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
@@ -206,6 +212,7 @@ if (!app.requestSingleInstanceLock()) {
     // Setup macOS application menu
     appMenuService?.setupApplicationMenu()
     nodeTraceService.init()
+    powerMonitorService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()

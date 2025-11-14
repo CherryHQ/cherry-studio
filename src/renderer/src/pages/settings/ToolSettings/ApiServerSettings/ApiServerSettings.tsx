@@ -1,5 +1,3 @@
-// TODO: Refactor this component to use HeroUI
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { Input } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
@@ -7,7 +5,7 @@ import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { InputNumber, Typography } from 'antd'
+import { Alert, Button, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -82,12 +80,15 @@ const ApiServerSettings: FC = () => {
           <Text type="secondary">{t('apiServer.description')}</Text>
         </HeaderContent>
         {apiServerRunning && (
-          <Button onClick={openApiDocs}>
-            <ExternalLink size={14} />
+          <Button type="primary" icon={<ExternalLink size={14} />} onClick={openApiDocs}>
             {t('apiServer.documentation.title')}
           </Button>
         )}
       </HeaderSection>
+
+      {!apiServerRunning && (
+        <Alert type="warning" message={t('agent.warning.enable_server')} style={{ marginBottom: 10 }} showIcon />
+      )}
 
       {/* Server Control Panel with integrated configuration */}
       <ServerControlPanel $status={apiServerRunning}>
@@ -105,7 +106,7 @@ const ApiServerSettings: FC = () => {
 
         <ControlSection>
           {apiServerRunning && (
-            <Tooltip content={t('apiServer.actions.restart.tooltip')}>
+            <Tooltip title={t('apiServer.actions.restart.tooltip')}>
               <RestartButton
                 $loading={apiServerLoading}
                 onClick={apiServerLoading ? undefined : handleApiServerRestart}>
@@ -128,7 +129,7 @@ const ApiServerSettings: FC = () => {
             />
           )}
 
-          <Tooltip content={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
+          <Tooltip title={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
             {apiServerRunning ? (
               <StopButton
                 $loading={apiServerLoading}
@@ -155,18 +156,16 @@ const ApiServerSettings: FC = () => {
           value={apiServerConfig.apiKey}
           readOnly
           placeholder={t('apiServer.fields.apiKey.placeholder')}
-          size="middle"
+          size="md"
           suffix={
             <InputButtonContainer>
               {!apiServerRunning && (
-                <Button onClick={regenerateApiKey} disabled={apiServerRunning} variant="ghost">
+                <RegenerateButton onClick={regenerateApiKey} disabled={apiServerRunning} type="link">
                   {t('apiServer.actions.regenerate')}
-                </Button>
+                </RegenerateButton>
               )}
-              <Tooltip content={t('apiServer.fields.apiKey.copyTooltip')}>
-                <Button variant="ghost" size="icon" onClick={copyApiKey} disabled={!apiServerConfig.apiKey}>
-                  <Copy size={14} />
-                </Button>
+              <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
+                <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} />
               </Tooltip>
             </InputButtonContainer>
           }
@@ -179,7 +178,7 @@ const ApiServerSettings: FC = () => {
             style={{ height: 38 }}
             value={`Authorization: Bearer ${apiServerConfig.apiKey || 'your-api-key'}`}
             readOnly
-            size="middle"
+            size="md"
           />
         </AuthHeaderSection>
       </ConfigurationField>
@@ -360,6 +359,21 @@ const InputButtonContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
+`
+
+const InputButton = styled(Button)`
+  border: none;
+  padding: 0 4px;
+  background: transparent;
+`
+
+const RegenerateButton = styled(Button)`
+  padding: 0 4px;
+  font-size: 12px;
+  height: auto;
+  line-height: 1;
+  border: none;
+  background: transparent;
 `
 
 const AuthHeaderSection = styled.div`

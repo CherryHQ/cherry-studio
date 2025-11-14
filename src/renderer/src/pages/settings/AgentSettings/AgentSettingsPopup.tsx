@@ -1,7 +1,8 @@
-import { Alert, Spinner } from '@heroui/react'
+import { Center } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { Alert, Spin } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -71,18 +72,25 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const ModalContent = () => {
     if (isLoading) {
       // TODO: use skeleton for better ux
-      return <Spinner />
-    }
-    if (error) {
       return (
-        <div>
-          <Alert color="danger" title={t('agent.get.error.failed')} />
-        </div>
+        <Center>
+          <Spin />
+        </Center>
       )
     }
+
+    if (error) {
+      return (
+        <Center>
+          <Alert type="error" message={t('agent.get.error.failed')} />
+        </Center>
+      )
+    }
+
     if (!agent) {
       return null
     }
+
     return (
       <div className="flex w-full flex-1">
         <LeftMenu>

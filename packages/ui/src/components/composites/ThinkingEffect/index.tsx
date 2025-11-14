@@ -1,3 +1,11 @@
+/**
+ * @deprecated 此组件使用频率仅为 1 次，不符合 UI 库提取标准（需 ≥3 次）
+ * 计划在未来版本中移除。此组件是 AI 思考特效，可能需要保留在主项目中而不是 UI 库。
+ *
+ * This component has only 1 usage and does not meet the UI library extraction criteria (requires ≥3 usages).
+ * Planned for removal in future versions. This is an AI thinking effect component that may need to stay in the main project.
+ */
+
 // Original path: src/renderer/src/components/ThinkingEffect.tsx
 import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'

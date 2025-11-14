@@ -98,7 +98,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           extra_body: {
             google: {
               thinking_config: {
-                thinkingBudget: 0
+                thinking_budget: 0
               }
             }
           }
@@ -259,8 +259,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         extra_body: {
           google: {
             thinking_config: {
-              thinkingBudget: -1,
-              includeThoughts: true
+              thinking_budget: -1,
+              include_thoughts: true
             }
           }
         }
@@ -270,8 +270,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       extra_body: {
         google: {
           thinking_config: {
-            thinkingBudget: budgetTokens,
-            includeThoughts: true
+            thinking_budget: budgetTokens ?? -1,
+            include_thoughts: true
           }
         }
       }
@@ -418,6 +418,8 @@ export function getAnthropicReasoningParams(assistant: Assistant, model: Model):
 /**
  * 获取 Gemini 推理参数
  * 从 GeminiAPIClient 中提取的逻辑
+ * 注意：Gemini/GCP 端点所使用的 thinkingBudget 等参数应该按照驼峰命名法传递
+ * 而在 Google 官方提供的 OpenAI 兼容端点中则使用蛇形命名法 thinking_budget
  */
 export function getGeminiReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
   if (!isReasoningModel(model)) {
@@ -482,6 +484,34 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Recor
   // For XAI provider Grok models, use reasoningEffort parameter directly
   return {
     reasoningEffort
+  }
+}
+
+/**
+ * Get Bedrock reasoning parameters
+ */
+export function getBedrockReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+  if (!isReasoningModel(model)) {
+    return {}
+  }
+
+  const reasoningEffort = assistant?.settings?.reasoning_effort
+
+  if (reasoningEffort === undefined) {
+    return {}
+  }
+
+  // Only apply thinking budget for Claude reasoning models
+  if (!isSupportedThinkingTokenClaudeModel(model)) {
+    return {}
+  }
+
+  const budgetTokens = getAnthropicThinkingBudget(assistant, model)
+  return {
+    reasoningConfig: {
+      type: 'enabled',
+      budgetTokens: budgetTokens
+    }
   }
 }
 

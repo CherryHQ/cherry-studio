@@ -51,6 +51,7 @@ import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import OvmsManager from './services/OvmsManager'
+import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -115,8 +116,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
 
-  // Initialize Python service with main window
-  pythonService.setMainWindow(mainWindow)
+  // Register shutdown handlers
+  powerMonitorService.registerShutdownHandler(() => {
+    appUpdater.setAutoUpdate(false)
+  })
+
+  powerMonitorService.registerShutdownHandler(() => {
+    const mw = windowService.getMainWindow()
+    if (mw && !mw.isDestroyed()) {
+      mw.webContents.send(IpcChannel.App_SaveData)
+    }
+  })
 
   const checkMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -542,6 +552,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ListDirectory, fileManager.listDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_GetDirectoryStructure, fileManager.getDirectoryStructure.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))

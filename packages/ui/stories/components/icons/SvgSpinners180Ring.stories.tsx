@@ -3,12 +3,18 @@ import type { Meta, StoryObj } from '@storybook/react'
 import SvgSpinners180Ring from '../../../src/components/icons/SvgSpinners180Ring'
 
 const meta: Meta<typeof SvgSpinners180Ring> = {
-  title: 'Icons/SvgSpinners180Ring',
+  title: 'Components/Icons/SvgSpinners180Ring',
   component: SvgSpinners180Ring,
   parameters: {
-    layout: 'centered'
+    layout: 'centered',
+    docs: {
+      description: {
+        component:
+          '⚠️ **已废弃** - 此组件使用频率为 0 次，不符合 UI 库提取标准（需 ≥3 次）。计划在未来版本中移除。虽然主项目中有本地副本，但完全未被导入使用。'
+      }
+    }
   },
-  tags: ['autodocs'],
+  tags: ['autodocs', 'deprecated'],
   argTypes: {
     size: {
       description: '加载图标大小',

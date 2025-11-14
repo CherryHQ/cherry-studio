@@ -67,5 +67,20 @@ const BaseFileIcon = ({ size = '1.1em', text = 'SVG', ...props }: BaseFileIconPr
   </svg>
 )
 
+/**
+ * @deprecated 此图标使用频率仅为 1 次，不符合 UI 库提取标准（需 ≥3 次）
+ * 计划在未来版本中移除。
+ *
+ * This icon has only 1 usage and does not meet the UI library extraction criteria (requires ≥3 usages).
+ * Planned for removal in future versions.
+ */
 export const FileSvgIcon = (props: Omit<BaseFileIconProps, 'text'>) => <BaseFileIcon text="SVG" {...props} />
+
+/**
+ * @deprecated 此图标使用频率仅为 2 次，不符合 UI 库提取标准（需 ≥3 次）
+ * 计划在未来版本中移除。
+ *
+ * This icon has only 2 usages and does not meet the UI library extraction criteria (requires ≥3 usages).
+ * Planned for removal in future versions.
+ */
 export const FilePngIcon = (props: Omit<BaseFileIconProps, 'text'>) => <BaseFileIcon text="PNG" {...props} />

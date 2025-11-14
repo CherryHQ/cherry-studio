@@ -339,6 +339,41 @@
     },
     "title": "API Server"
   },
+  "appMenu": {
+    "about": "About",
+    "close": "Close Window",
+    "copy": "Copy",
+    "cut": "Cut",
+    "delete": "Delete",
+    "documentation": "Documentation",
+    "edit": "Edit",
+    "feedback": "Feedback",
+    "file": "File",
+    "forceReload": "Force Reload",
+    "front": "Bring All to Front",
+    "help": "Help",
+    "hide": "Hide",
+    "hideOthers": "Hide Others",
+    "minimize": "Minimize",
+    "paste": "Paste",
+    "quit": "Quit",
+    "redo": "Redo",
+    "releases": "Releases",
+    "reload": "Reload",
+    "resetZoom": "Actual Size",
+    "selectAll": "Select All",
+    "services": "Services",
+    "toggleDevTools": "Toggle Developer Tools",
+    "toggleFullscreen": "Toggle Fullscreen",
+    "undo": "Undo",
+    "unhide": "Show All",
+    "view": "View",
+    "website": "Website",
+    "window": "Window",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
+  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -596,6 +631,15 @@
       "view_full_content": "View Full Content"
     },
     "input": {
+      "activity_directory": {
+        "description": "Select file from activity directory",
+        "loading": "Loading Files...",
+        "no_file_found": {
+          "description": "No files available in accessible directories",
+          "label": "No File Found"
+        },
+        "title": "Activity Directory"
+      },
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
@@ -619,6 +663,7 @@
       "new": {
         "context": "Clear Context {{Command}}"
       },
+      "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
       "paste_text_file_confirm": "Paste into input bar?",
       "pause": "Pause",
@@ -626,6 +671,10 @@
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "send": "Send",
       "settings": "Settings",
+      "slash_commands": {
+        "description": "Agent session slash commands",
+        "title": "Slash Commands"
+      },
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
         "label": "Thinking",
@@ -1736,6 +1785,9 @@
     },
     "message": {
       "code_style": "Code style",
+      "compact": {
+        "title": "Conversation Compacted"
+      },
       "delete": {
         "content": "Are you sure you want to delete this message?",
         "title": "Delete Message"
@@ -2482,6 +2534,7 @@
     "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "Tencent Cloud TI",
     "together": "Together",
@@ -3765,6 +3818,7 @@
         "description": "Do not enable MCP server functionality",
         "label": "Disable MCP Server"
       },
+      "discover": "Discover",
       "duplicateName": "A server with this name already exists",
       "editJson": "Edit JSON",
       "editMcpJson": "Edit MCP Configuration",
@@ -3774,6 +3828,10 @@
       "errors": {
         "32000": "MCP server failed to start, please check the parameters according to the tutorial",
         "toolNotFound": "Tool {{name}} not found"
+      },
+      "fetch": {
+        "button": "Fetch Servers",
+        "success": "Successfully fetched MCP servers"
       },
       "findMore": "Find More MCP",
       "headers": "Headers",
@@ -3790,6 +3848,7 @@
       "logoUrl": "Logo URL",
       "longRunning": "Long Running Mode",
       "longRunningTooltip": "When enabled, the server supports long-running tasks. When receiving progress notifications, the timeout will be reset and the maximum execution time will be extended to 10 minutes.",
+      "marketplaces": "Marketplaces",
       "missingDependencies": "is Missing, please install it to continue.",
       "more": {
         "awesome": "Curated MCP Server List",
@@ -3821,6 +3880,12 @@
         "usage": "Usage",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "You can close this page and return to Cherry Studio",
+          "title": "Authentication Successful"
+        }
+      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -3838,6 +3903,7 @@
       "provider": "Provider",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
+      "providers": "Providers",
       "registry": "Package Registry",
       "registryDefault": "Default",
       "registryTooltip": "Choose the registry for package installation to resolve network issues with the default registry.",
@@ -3860,6 +3926,7 @@
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
+      "servers": "MCP Servers",
       "sse": "Server-Sent Events (sse)",
       "startError": "Start failed",
       "stdio": "Standard Input/Output (stdio)",
@@ -4259,6 +4326,12 @@
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",
         "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
+        "api_key": "Bedrock API Key",
+        "api_key_help": "Your AWS Bedrock API Key for authentication",
+        "auth_type": "Authentication Type",
+        "auth_type_api_key": "Bedrock API Key",
+        "auth_type_help": "Choose between IAM credentials or Bedrock API Key authentication",
+        "auth_type_iam": "IAM Credentials",
         "description": "AWS Bedrock is Amazon's fully managed foundation model service that supports various advanced large language models",
         "region": "AWS Region",
         "region_help": "Your AWS service region, e.g., us-east-1",
@@ -4403,6 +4476,7 @@
       "confirm": "Confirm",
       "forward": "Forward",
       "multiple": "Multiple Select",
+      "noResult": "No results found",
       "page": "Page",
       "select": "Select",
       "title": "Quick Menu"

@@ -9,7 +9,8 @@
     "packages/mcp-trace/**/*",
     "packages/aiCore/src/**/*",
     "src/main/integration/cherryai/index.js",
-    "packages/extension-table-plus/**/*"
+    "packages/extension-table-plus/**/*",
+    "packages/ai-sdk-provider/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -29,6 +30,7 @@
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
       "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
       "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
       "@cherrystudio/ui/*": ["./packages/ui/src/*"]
 

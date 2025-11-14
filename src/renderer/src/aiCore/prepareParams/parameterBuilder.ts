@@ -34,6 +34,7 @@ import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { supportsTopP } from './modelCapabilities'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
@@ -176,20 +177,27 @@ export async function buildStreamTextParams(
     messages: sdkMessages,
     maxOutputTokens: maxTokens,
     temperature: getTemperature(assistant, model),
-    topP: getTopP(assistant, model),
     abortSignal: options.requestOptions?.signal,
     headers: options.requestOptions?.headers,
     providerOptions,
     stopWhen: stepCountIs(20),
     maxRetries: 0
   }
+
+  if (supportsTopP(model)) {
+    params.topP = getTopP(assistant, model)
+  }
+
   if (tools) {
     params.tools = tools
   }
+
   if (assistant.prompt) {
     params.system = await replacePromptVariables(assistant.prompt, model.name)
   }
+
   logger.debug('params', params)
+
   return {
     params,
     modelId: model.id,

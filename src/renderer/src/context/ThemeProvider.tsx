@@ -55,7 +55,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   useEffect(() => {
     // Set initial theme and OS attributes on body
     document.body.setAttribute('os', isMac ? 'mac' : isWin ? 'windows' : 'linux')
-    document.body.setAttribute('theme-mode', actualTheme)
     if (actualTheme === ThemeMode.dark) {
       document.body.classList.remove('light')
       document.body.classList.add('dark')
@@ -76,7 +75,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     // listen for theme updates from main process
     return window.electron.ipcRenderer.on(IpcChannel.NativeThemeUpdated, (_, actualTheme: ThemeMode) => {
-      document.body.setAttribute('theme-mode', actualTheme)
       setActualTheme(actualTheme)
     })
   }, [actualTheme, initUserTheme, language, navbarPosition, setSettedTheme, settedTheme])

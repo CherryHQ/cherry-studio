@@ -6,9 +6,7 @@ import {
   WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
@@ -23,8 +21,8 @@ import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Progress, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
+import { Progress, Switch, Typography } from 'antd'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +37,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -127,11 +124,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'agentssubscribe_url',
-      title: t('assistants.presets.settings.title'),
-      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -291,16 +283,11 @@ const DataSettings: FC = () => {
       <div>
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
-            defaultSelected={shouldCopyData}
-            onValueChange={(checked) => {
-              shouldCopyData = checked
-            }}
-            size="sm">
-            <span style={{ fontWeight: 'normal', fontSize: '14px' }}>
-              {t('settings.data.app_data.copy_data_option')}
-            </span>
-          </Switch>
-
+            defaultChecked={shouldCopyData}
+            onChange={(checked) => (shouldCopyData = checked)}
+            style={{ marginRight: '8px' }}
+            title={t('settings.data.app_data.copy_data_option')}
+          />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
           </MigrationPathLabel>
@@ -622,7 +609,7 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-                <Switch isSelected={skipBackupFile} onValueChange={onSkipBackupFilesChange} size="sm" />
+                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -715,7 +702,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>

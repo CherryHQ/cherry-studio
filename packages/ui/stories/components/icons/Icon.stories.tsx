@@ -20,7 +20,7 @@ import {
 const IconShowcase = () => <div />
 
 const meta: Meta<typeof IconShowcase> = {
-  title: 'Icons/Icon',
+  title: 'Components/Icons/Icon',
   component: IconShowcase,
   parameters: {
     layout: 'centered'

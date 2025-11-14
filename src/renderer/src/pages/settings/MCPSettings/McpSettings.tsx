@@ -4,6 +4,7 @@ import { Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
@@ -743,47 +744,53 @@ const McpSettings: React.FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-      <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
-        <SettingTitle>
-          <Flex className="mr-2.5 items-center justify-between gap-[5px]">
-            <Flex className="items-center gap-2">
-              <ServerName className="text-nowrap">{server?.name}</ServerName>
-              {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+    <Container>
+      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
+          <SettingTitle>
+            <Flex className="mr-10 items-center justify-between gap-5">
+              <Flex className="items-center gap-2">
+                <ServerName className="text-nowrap">{server?.name}</ServerName>
+                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+              </Flex>
+              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
+                <DeleteIcon size={14} className="lucide-custom text-destructive" />
+              </Button>
             </Flex>
-            <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
-              <DeleteIcon size={14} className="lucide-custom text-destructive" />
-            </Button>
-          </Flex>
-          <Flex className="items-center gap-4">
-            <Switch
-              isSelected={server.isActive}
-              key={server.id}
-              isLoading={loadingServer === server.id}
-              onValueChange={onToggleActive}
-            />
-            <Button
-              size="sm"
-              variant="default"
-              onClick={onSave}
-              disabled={loading || !isFormChanged || activeTab !== 'settings'}
-              className="rounded-full">
-              <SaveIcon size={14} />
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
-        <Tabs
-          defaultActiveKey="settings"
-          items={tabs}
-          onChange={(key) => setActiveTab(key as TabKey)}
-          style={{ marginTop: 8, backgroundColor: 'transparent' }}
-        />
-      </SettingGroup>
-    </SettingContainer>
+            <Flex className="items-center gap-4">
+              <Switch
+                isSelected={server.isActive}
+                key={server.id}
+                isLoading={loadingServer === server.id}
+                onValueChange={onToggleActive}
+              />
+              <Button
+                size="sm"
+                variant="default"
+                onClick={onSave}
+                disabled={loading || !isFormChanged || activeTab !== 'settings'}
+                className="rounded-full">
+                <SaveIcon size={14} />
+                {t('common.save')}
+              </Button>
+            </Flex>
+          </SettingTitle>
+          <SettingDivider />
+          <Tabs
+            defaultActiveKey="settings"
+            items={tabs}
+            onChange={(key) => setActiveTab(key as TabKey)}
+            style={{ marginTop: 8, backgroundColor: 'transparent' }}
+          />
+        </SettingGroup>
+      </SettingContainer>
+    </Container>
   )
 }
+
+const Container = styled(Scrollbar)`
+  height: calc(100vh - var(--navbar-height));
+`
 
 const ServerName = styled.span`
   font-size: 14px;

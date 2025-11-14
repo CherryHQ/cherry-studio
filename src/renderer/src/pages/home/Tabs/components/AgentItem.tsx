@@ -1,14 +1,16 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { cn, Tooltip } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentEntity } from '@renderer/types'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
+import { cn } from '@renderer/utils'
+import type { MenuProps } from 'antd'
+import { Dropdown, Tooltip } from 'antd'
 import { Bot } from 'lucide-react'
-import { type FC, memo, useCallback } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // const logger = loggerService.withContext('AgentItem')
@@ -36,45 +38,52 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
     onPress()
   }, [clickAssistantToShowTopic, topicPosition, onPress])
 
+  const menuItems: MenuProps['items'] = useMemo(
+    () => [
+      {
+        label: t('common.edit'),
+        key: 'edit',
+        icon: <EditIcon size={14} />,
+        onClick: () => AgentSettingsPopup.show({ agentId: agent.id })
+      },
+      {
+        label: t('common.delete'),
+        key: 'delete',
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
+        danger: true,
+        onClick: () => {
+          window.modal.confirm({
+            title: t('agent.delete.title'),
+            content: t('agent.delete.content'),
+            centered: true,
+            okButtonProps: { danger: true },
+            onOk: () => onDelete(agent)
+          })
+        }
+      }
+    ],
+    [t, agent, onDelete]
+  )
+
   return (
-    <ContextMenu modal={false}>
-      <ContextMenuTrigger>
-        <Container onClick={handlePress} isActive={isActive}>
-          <AssistantNameRow className="name" title={agent.name ?? agent.id}>
-            <AgentNameWrapper>
-              <AgentLabel agent={agent} />
-            </AgentNameWrapper>
-            {isActive && (
-              <MenuButton>
-                <SessionCount>{sessions.length}</SessionCount>
-              </MenuButton>
-            )}
-            {!isActive && <BotIcon />}
-          </AssistantNameRow>
-        </Container>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem key="edit" onClick={() => AgentSettingsPopup.show({ agentId: agent.id })}>
-          <EditIcon size={14} />
-          {t('common.edit')}
-        </ContextMenuItem>
-        <ContextMenuItem
-          key="delete"
-          className="text-danger"
-          onClick={() => {
-            window.modal.confirm({
-              title: t('agent.delete.title'),
-              content: t('agent.delete.content'),
-              centered: true,
-              okButtonProps: { danger: true },
-              onOk: () => onDelete(agent)
-            })
-          }}>
-          <DeleteIcon size={14} className="lucide-custom text-danger" />
-          <span className="text-danger">{t('common.delete')}</span>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <Dropdown
+      menu={{ items: menuItems }}
+      trigger={['contextMenu']}
+      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+      <Container onClick={handlePress} isActive={isActive}>
+        <AssistantNameRow className="name" title={agent.name ?? agent.id}>
+          <AgentNameWrapper>
+            <AgentLabel agent={agent} />
+          </AgentNameWrapper>
+          {isActive && (
+            <MenuButton>
+              <SessionCount>{sessions.length}</SessionCount>
+            </MenuButton>
+          )}
+          {!isActive && <BotIcon />}
+        </AssistantNameRow>
+      </Container>
+    </Dropdown>
   )
 }
 
@@ -118,7 +127,7 @@ export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ cla
 export const BotIcon: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ ...props }) => {
   const { t } = useTranslation()
   return (
-    <Tooltip content={t('common.agent_one')} delay={500} closeDelay={0}>
+    <Tooltip title={t('common.agent_one')} mouseEnterDelay={0.5}>
       <MenuButton {...props}>
         <Bot size={14} className="text-primary" />
       </MenuButton>
