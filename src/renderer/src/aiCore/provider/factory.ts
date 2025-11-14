@@ -1,7 +1,7 @@
 import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import { initializeNewProviders } from './providerInitialization'
@@ -84,6 +84,8 @@ export async function createAiSdkProvider(config) {
       config.providerId = `${config.providerId}-chat`
     } else if (config.providerId === 'azure' && config.options?.mode === 'responses') {
       config.providerId = `${config.providerId}-responses`
+    } else if (config.providerId === 'cherryin' && config.options?.mode === 'chat') {
+      config.providerId = 'cherryin-chat'
     }
     localProvider = await createProviderCore(config.providerId, config.options)
 

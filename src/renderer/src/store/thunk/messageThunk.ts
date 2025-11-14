@@ -122,7 +122,7 @@ const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
   return `${baseHost}${portSegment}`
 }
 
-const renameAgentSessionIfNeeded = async (
+export const renameAgentSessionIfNeeded = async (
   agentSession: AgentSessionContext,
   assistant: Assistant,
   topicId: string,
@@ -576,7 +576,9 @@ const fetchAndProcessAgentResponseImpl = async (
       abortController.signal
     )
 
-    let latestAgentSessionId = ''
+    // Store the previous session ID to detect /clear command
+    let latestAgentSessionId = agentSession.agentSessionId || ''
+    let sessionWasCleared = false
 
     const persistAgentSessionId = async (sessionId: string) => {
       if (!sessionId || sessionId === latestAgentSessionId) {
@@ -585,6 +587,7 @@ const fetchAndProcessAgentResponseImpl = async (
 
       latestAgentSessionId = sessionId
       agentSession.agentSessionId = sessionId
+      sessionWasCleared = true
 
       logger.debug(`Agent session ID updated`, {
         topicId,
@@ -624,14 +627,40 @@ const fetchAndProcessAgentResponseImpl = async (
         if (persistTasks.length > 0) {
           await Promise.all(persistTasks)
         }
+
+        // Refresh session data to get updated slash_commands from backend
+        // This happens after the SDK init message updates the session in the database
+        const apiServer = stateAfterUpdate.settings.apiServer
+        if (apiServer?.apiKey) {
+          const baseURL = buildAgentBaseURL(apiServer)
+          const client = new AgentApiClient({
+            baseURL,
+            headers: {
+              Authorization: `Bearer ${apiServer.apiKey}`
+            }
+          })
+          const paths = client.getSessionPaths(agentSession.agentId)
+          await mutate(paths.withId(agentSession.sessionId))
+          logger.info('Refreshed session data after sessionId update', {
+            agentId: agentSession.agentId,
+            sessionId: agentSession.sessionId
+          })
+        }
       } catch (error) {
         logger.error('Failed to persist agent session ID during stream', error as Error)
       }
     }
 
-    const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false, (sessionId) => {
-      persistAgentSessionId(sessionId)
-    })
+    const adapter = new AiSdkToChunkAdapter(
+      streamProcessorCallbacks,
+      [],
+      false,
+      false,
+      (sessionId) => {
+        persistAgentSessionId(sessionId)
+      },
+      () => sessionWasCleared // Provide getter for session cleared flag
+    )
 
     await adapter.processStream({
       fullStream: stream,
@@ -649,9 +678,9 @@ const fetchAndProcessAgentResponseImpl = async (
       callbacks.onError?.(error)
     } catch (callbackError) {
       logger.error('Error in agent onError callback:', callbackError as Error)
-    } finally {
-      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
+  } finally {
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   }
 }
 
@@ -1417,7 +1446,7 @@ export const appendAssistantResponseThunk =
       }
 
       // 2. Create the new assistant message stub
-      const newAssistantStub = createAssistantMessage(assistant.id, topicId, {
+      const newAssistantMessageStub = createAssistantMessage(assistant.id, topicId, {
         askId: askId, // Crucial: Use the original askId
         model: newModel,
         modelId: newModel.id,
@@ -1430,9 +1459,14 @@ export const appendAssistantResponseThunk =
       const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
 
       // 4. Update Database (Save the stub to the topic's message list)
-      await saveMessageAndBlocksToDB(newAssistantStub, [], insertAtIndex)
+      await saveMessageAndBlocksToDB(newAssistantMessageStub, [], insertAtIndex)
 
-      dispatch(newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantStub, index: insertAtIndex }))
+      dispatch(
+        newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantMessageStub, index: insertAtIndex })
+      )
+
+      dispatch(updateMessageAndBlocksThunk(topicId, { id: existingAssistantMessageId, foldSelected: false }, []))
+      dispatch(updateMessageAndBlocksThunk(topicId, { id: newAssistantMessageStub.id, foldSelected: true }, []))
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
@@ -1446,7 +1480,7 @@ export const appendAssistantResponseThunk =
           getState,
           topicId,
           assistantConfigForThisCall,
-          newAssistantStub // Pass the newly created stub
+          newAssistantMessageStub // Pass the newly created stub
         )
       })
     } catch (error) {
@@ -1500,10 +1534,15 @@ export const cloneMessagesToNewTopicThunk =
       const filesToUpdateCount: FileMetadata[] = []
       const originalToNewMsgIdMap = new Map<string, string>() // Map original message ID -> new message ID
 
-      // 3. Clone Messages and Blocks with New IDs
+      // 3. First pass: Create ID mappings for all messages
       for (const oldMessage of messagesToClone) {
         const newMsgId = uuid()
         originalToNewMsgIdMap.set(oldMessage.id, newMsgId) // Store mapping for all cloned messages
+      }
+
+      // 4. Second pass: Clone Messages and Blocks with New IDs using complete mapping
+      for (const oldMessage of messagesToClone) {
+        const newMsgId = originalToNewMsgIdMap.get(oldMessage.id)!
 
         let newAskId: string | undefined = undefined // Initialize newAskId
         if (oldMessage.role === 'assistant' && oldMessage.askId) {
@@ -1564,7 +1603,7 @@ export const cloneMessagesToNewTopicThunk =
         clonedMessages.push(newMessage)
       }
 
-      // 4. Update Database (Atomic Transaction)
+      // 5. Update Database (Atomic Transaction)
       await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
         // Update the NEW topic with the cloned messages
         // Assumes topic entry was added by caller, so we UPDATE.

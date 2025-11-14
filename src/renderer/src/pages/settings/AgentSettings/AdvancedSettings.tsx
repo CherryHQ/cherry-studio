@@ -1,13 +1,13 @@
-import { Input, Tooltip } from '@heroui/react'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import {
+import type { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import type {
   AgentConfiguration,
-  AgentConfigurationSchema,
   GetAgentResponse,
   GetAgentSessionResponse,
   UpdateAgentBaseForm
 } from '@renderer/types'
+import { AgentConfigurationSchema } from '@renderer/types'
+import { InputNumber, Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,34 +31,33 @@ const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.p
 export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
-  const [maxTurnsInput, setMaxTurnsInput] = useState<string>(String(defaultConfiguration.max_turns))
+  const [maxTurnsInput, setMaxTurnsInput] = useState<number>(defaultConfiguration.max_turns)
 
   useEffect(() => {
     if (!agentBase) {
       setConfiguration(defaultConfiguration)
-      setMaxTurnsInput(String(defaultConfiguration.max_turns))
+      setMaxTurnsInput(defaultConfiguration.max_turns)
       return
     }
     const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
-    setMaxTurnsInput(String(parsed.max_turns))
+    setMaxTurnsInput(parsed.max_turns)
   }, [agentBase])
 
   const commitMaxTurns = useCallback(() => {
     if (!agentBase) return
-    const parsedValue = Number.parseInt(maxTurnsInput, 10)
-    if (!Number.isFinite(parsedValue)) {
-      setMaxTurnsInput(String(configuration.max_turns))
+    if (!Number.isFinite(maxTurnsInput)) {
+      setMaxTurnsInput(configuration.max_turns)
       return
     }
-    const sanitized = Math.max(1, parsedValue)
+    const sanitized = Math.max(1, maxTurnsInput)
     if (sanitized === configuration.max_turns) {
-      setMaxTurnsInput(String(configuration.max_turns))
+      setMaxTurnsInput(configuration.max_turns)
       return
     }
     const next: AgentConfigurationState = { ...configuration, max_turns: sanitized }
     setConfiguration(next)
-    setMaxTurnsInput(String(sanitized))
+    setMaxTurnsInput(sanitized)
     update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
   }, [agentBase, configuration, maxTurnsInput, update])
 
@@ -71,27 +70,23 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ agentBase, u
       <SettingsItem divider={false}>
         <SettingsTitle
           actions={
-            <Tooltip content={t('agent.settings.advance.maxTurns.description')} placement="right">
+            <Tooltip title={t('agent.settings.advance.maxTurns.description')} placement="left">
               <Info size={16} className="text-foreground-400" />
             </Tooltip>
           }>
           {t('agent.settings.advance.maxTurns.label')}
         </SettingsTitle>
-        <div className="flex w-full flex-col gap-2">
-          <Input
-            type="number"
+        <div className="my-2 flex w-full flex-col gap-2">
+          <InputNumber
             min={1}
             value={maxTurnsInput}
-            onValueChange={setMaxTurnsInput}
+            onChange={(value) => setMaxTurnsInput(value ?? 1)}
             onBlur={commitMaxTurns}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                commitMaxTurns()
-              }
-            }}
+            onPressEnter={commitMaxTurns}
             aria-label={t('agent.settings.advance.maxTurns.label')}
+            style={{ width: '100%' }}
           />
-          <span className="text-foreground-500 text-xs">{t('agent.settings.advance.maxTurns.helper')}</span>
+          <span className="mt-1 text-foreground-500 text-xs">{t('agent.settings.advance.maxTurns.helper')}</span>
         </div>
       </SettingsItem>
     </SettingsContainer>

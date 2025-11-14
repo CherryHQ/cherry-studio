@@ -3,9 +3,11 @@
  * 构建AI SDK的流式和非流式参数
  */
 
+import { anthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
-import { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
@@ -19,7 +21,7 @@ import {
 } from '@renderer/config/models'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { CherryWebSearchConfig } from '@renderer/store/websearch'
+import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
@@ -32,6 +34,7 @@ import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { supportsTopP } from './modelCapabilities'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
@@ -97,10 +100,6 @@ export async function buildStreamTextParams(
 
   let tools = setupToolsConfig(mcpTools)
 
-  // if (webSearchProviderId) {
-  //   tools['builtin_web_search'] = webSearchTool(webSearchProviderId)
-  // }
-
   // 构建真正的 providerOptions
   const webSearchConfig: CherryWebSearchConfig = {
     maxResults: store.getState().websearch.maxResults,
@@ -127,7 +126,7 @@ export async function buildStreamTextParams(
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
     if (isBaseProvider(aiSdkProviderId)) {
-      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig)
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
     }
     if (!tools) {
       tools = {}
@@ -143,12 +142,34 @@ export async function buildStreamTextParams(
     }
   }
 
-  // google-vertex
-  if (enableUrlContext && aiSdkProviderId === 'google-vertex') {
+  if (enableUrlContext) {
     if (!tools) {
       tools = {}
     }
-    tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+    const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+
+    switch (aiSdkProviderId) {
+      case 'google-vertex':
+        tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'google':
+        tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'anthropic':
+      case 'google-vertex-anthropic':
+        tools.web_fetch = (
+          aiSdkProviderId === 'anthropic'
+            ? anthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+            : vertexAnthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+        ) as ProviderDefinedTool
+        break
+    }
   }
 
   // 构建基础参数
@@ -156,20 +177,27 @@ export async function buildStreamTextParams(
     messages: sdkMessages,
     maxOutputTokens: maxTokens,
     temperature: getTemperature(assistant, model),
-    topP: getTopP(assistant, model),
     abortSignal: options.requestOptions?.signal,
     headers: options.requestOptions?.headers,
     providerOptions,
     stopWhen: stepCountIs(20),
     maxRetries: 0
   }
+
+  if (supportsTopP(model)) {
+    params.topP = getTopP(assistant, model)
+  }
+
   if (tools) {
     params.tools = tools
   }
+
   if (assistant.prompt) {
     params.system = await replacePromptVariables(assistant.prompt, model.name)
   }
+
   logger.debug('params', params)
+
   return {
     params,
     modelId: model.id,

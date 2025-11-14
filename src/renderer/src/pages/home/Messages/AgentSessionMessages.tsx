@@ -5,11 +5,13 @@ import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import { type Topic, TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { Spin } from 'antd'
 import { memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
+import PermissionModeDisplay from './PermissionModeDisplay'
 import { MessagesContainer, ScrollContainer } from './shared'
 
 const logger = loggerService.withContext('AgentSessionMessages')
@@ -67,8 +69,12 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
               groupedMessages.map(([key, groupMessages]) => (
                 <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
               ))
+            ) : session ? (
+              <PermissionModeDisplay session={session} agentId={agentId} />
             ) : (
-              <EmptyState>{session ? 'No messages yet.' : 'Loading session...'}</EmptyState>
+              <LoadingState>
+                <Spin size="small" />
+              </LoadingState>
             )}
           </ScrollContainer>
         </ContextMenu>
@@ -77,10 +83,10 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   )
 }
 
-const EmptyState = styled.div`
-  color: var(--color-text-3);
-  font-size: 12px;
-  text-align: center;
+const LoadingState = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
   padding: 20px 0;
 `
 

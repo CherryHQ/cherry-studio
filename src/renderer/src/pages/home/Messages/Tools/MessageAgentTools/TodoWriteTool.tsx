@@ -1,12 +1,10 @@
-import { AccordionItem, Card, CardBody, Chip } from '@heroui/react'
+import { cn } from '@renderer/utils'
+import type { CollapseProps } from 'antd'
+import { Card } from 'antd'
 import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
 
 import { ToolTitle } from './GenericTools'
-import type {
-  TodoItem,
-  TodoWriteToolInput as TodoWriteToolInputType,
-  TodoWriteToolOutput as TodoWriteToolOutputType
-} from './types'
+import type { TodoItem, TodoWriteToolInput as TodoWriteToolInputType } from './types'
 import { AgentToolsType } from './types'
 
 const getStatusConfig = (status: TodoItem['status']) => {
@@ -34,45 +32,59 @@ const getStatusConfig = (status: TodoItem['status']) => {
   }
 }
 
-export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType; output?: TodoWriteToolOutputType }) {
+export function TodoWriteTool({
+  input
+}: {
+  input: TodoWriteToolInputType
+}): NonNullable<CollapseProps['items']>[number] {
   const doneCount = input.todos.filter((todo) => todo.status === 'completed').length
-  return (
-    <AccordionItem
-      key={AgentToolsType.TodoWrite}
-      aria-label="Todo Write Tool"
-      title={
-        <ToolTitle
-          icon={<ListTodo className="h-4 w-4" />}
-          label="Todo Write"
-          params={`${doneCount} Done`}
-          stats={`${input.todos.length} ${input.todos.length === 1 ? 'item' : 'items'}`}
-        />
-      }>
+
+  return {
+    key: AgentToolsType.TodoWrite,
+    label: (
+      <ToolTitle
+        icon={<ListTodo className="h-4 w-4" />}
+        label="Todo Write"
+        params={`${doneCount} Done`}
+        stats={`${input.todos.length} ${input.todos.length === 1 ? 'item' : 'items'}`}
+      />
+    ),
+    children: (
       <div className="space-y-3">
         {input.todos.map((todo, index) => {
           const statusConfig = getStatusConfig(todo.status)
           return (
-            <Card key={index} className="shadow-sm">
-              <CardBody className="p-2">
-                <div className="flex items-start gap-3">
-                  <Chip color={statusConfig.color} variant="flat" size="sm" className="flex-shrink-0">
-                    {statusConfig.icon}
-                  </Chip>
-                  <div className="min-w-0 flex-1">
-                    <div className={`text-sm ${todo.status === 'completed' ? 'text-default-500 line-through' : ''}`}>
-                      {todo.status === 'completed' ? <s>{todo.content}</s> : todo.content}
+            <div key={index}>
+              <Card
+                key={index}
+                className="shadow-sm"
+                styles={{
+                  body: { padding: 2 }
+                }}>
+                <div className="p-2">
+                  <div className="flex items-center justify-center gap-3">
+                    <div
+                      className={cn(
+                        'flex items-center justify-center rounded-full border bg-opacity-50 p-2',
+                        `bg-${statusConfig.color}`
+                      )}>
+                      {statusConfig.icon}
                     </div>
-                    {todo.status === 'in_progress' && (
-                      <div className="mt-1 text-default-400 text-xs">{todo.activeForm}</div>
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className={`text-sm ${todo.status === 'completed' ? 'text-default-500 line-through' : ''}`}>
+                        {todo.status === 'completed' ? <s>{todo.content}</s> : todo.content}
+                      </div>
+                      {todo.status === 'in_progress' && (
+                        <div className="mt-1 text-default-400 text-xs">{todo.activeForm}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </CardBody>
-            </Card>
+              </Card>
+            </div>
           )
         })}
       </div>
-      {output}
-    </AccordionItem>
-  )
+    )
+  }
 }

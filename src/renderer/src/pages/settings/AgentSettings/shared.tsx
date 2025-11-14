@@ -1,9 +1,10 @@
-import { cn } from '@heroui/react'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import type { AgentEntity, AgentSessionEntity } from '@renderer/types'
+import { cn } from '@renderer/utils'
 import { Menu, Modal } from 'antd'
-import React, { ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import React from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
@@ -36,7 +37,7 @@ export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames }) => 
   return (
     <div className={cn('flex w-full items-center gap-2 truncate', classNames?.container)}>
       <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />
-      <span className={cn('truncate', classNames?.name)}>
+      <span className={cn('truncate', 'text-[var(--color-text)]', classNames?.name)}>
         {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
       </span>
     </div>
@@ -52,7 +53,7 @@ export const SessionLabel: React.FC<SessionLabelProps> = ({ session, className }
   const displayName = session?.name ?? session?.id
   return (
     <>
-      <span className={cn('truncate px-2 text-sm', className)}>{displayName}</span>
+      <span className={cn('truncate text-[var(--color-text)] text-sm', className)}>{displayName}</span>
     </>
   )
 }

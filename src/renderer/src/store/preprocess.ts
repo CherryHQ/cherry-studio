@@ -1,5 +1,6 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { PreprocessProvider } from '@renderer/types'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { PreprocessProvider } from '@renderer/types'
 
 export interface PreprocessState {
   providers: PreprocessProvider[]
@@ -26,10 +27,19 @@ const initialState: PreprocessState = {
       model: 'mistral-ocr-latest',
       apiKey: '',
       apiHost: 'https://api.mistral.ai'
+    },
+    {
+      id: 'open-mineru',
+      name: 'Open MinerU',
+      apiKey: '',
+      apiHost: ''
     }
   ],
   defaultProvider: 'mineru'
 }
+
+export const defaultPreprocessProviders = initialState.providers
+
 const preprocessSlice = createSlice({
   name: 'preprocess',
   initialState,

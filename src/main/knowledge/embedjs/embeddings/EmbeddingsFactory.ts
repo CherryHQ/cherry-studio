@@ -1,15 +1,15 @@
 import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
-import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-openai-embeddings'
-import { ApiClient } from '@types'
+import type { ApiClient } from '@types'
+import { net } from 'electron'
 
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 
 export default class EmbeddingsFactory {
   static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): BaseEmbeddings {
     const batchSize = 10
-    const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
+    const { model, provider, apiKey, baseURL } = embedApiClient
     if (provider === 'voyageai') {
       return new VoyageEmbeddings({
         modelName: model,
@@ -38,22 +38,13 @@ export default class EmbeddingsFactory {
         }
       })
     }
-    if (apiVersion !== undefined) {
-      return new AzureOpenAiEmbeddings({
-        azureOpenAIApiKey: apiKey,
-        azureOpenAIApiVersion: apiVersion,
-        azureOpenAIApiDeploymentName: model,
-        azureOpenAIEndpoint: baseURL,
-        dimensions,
-        batchSize
-      })
-    }
+    // NOTE: Azure OpenAI 也走 OpenAIEmbeddings, baseURL是https://xxxx.openai.azure.com/openai/v1
     return new OpenAiEmbeddings({
       model,
       apiKey,
       dimensions,
       batchSize,
-      configuration: { baseURL }
+      configuration: { baseURL, fetch: net.fetch as typeof fetch }
     })
   }
 }

@@ -1,8 +1,9 @@
 import path from 'node:path'
 
+import { loggerService } from '@logger'
+import { pluginService } from '@main/services/agents/plugins/PluginService'
 import { getDataPath } from '@main/utils'
-import {
-  AgentBaseSchema,
+import type {
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -11,11 +12,14 @@ import {
   UpdateAgentRequest,
   UpdateAgentResponse
 } from '@types'
-import { count, eq } from 'drizzle-orm'
+import { AgentBaseSchema } from '@types'
+import { asc, count, desc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
-import { AgentModelField } from '../errors'
+import type { AgentModelField } from '../errors'
+
+const logger = loggerService.withContext('AgentService')
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null
@@ -92,6 +96,24 @@ export class AgentService extends BaseService {
 
     const agent = this.deserializeJsonFields(result[0]) as GetAgentResponse
     agent.tools = await this.listMcpTools(agent.type, agent.mcps)
+
+    // Load installed_plugins from cache file instead of database
+    const workdir = agent.accessible_paths?.[0]
+    if (workdir) {
+      try {
+        agent.installed_plugins = await pluginService.listInstalledFromCache(workdir)
+      } catch (error) {
+        // Log error but don't fail the request
+        logger.warn(`Failed to load installed plugins for agent ${id}`, {
+          workdir,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        agent.installed_plugins = []
+      }
+    } else {
+      agent.installed_plugins = []
+    }
+
     return agent
   }
 
@@ -100,7 +122,13 @@ export class AgentService extends BaseService {
 
     const totalResult = await this.database.select({ count: count() }).from(agentsTable)
 
-    const baseQuery = this.database.select().from(agentsTable).orderBy(agentsTable.created_at)
+    const sortBy = options.sortBy || 'created_at'
+    const orderBy = options.orderBy || 'desc'
+
+    const sortField = agentsTable[sortBy]
+    const orderFn = orderBy === 'asc' ? asc : desc
+
+    const baseQuery = this.database.select().from(agentsTable).orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined

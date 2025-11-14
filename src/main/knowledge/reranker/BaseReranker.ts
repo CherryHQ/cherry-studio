@@ -1,7 +1,7 @@
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
-import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import type { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 
-import { MultiModalDocument, RerankStrategy } from './strategies/RerankStrategy'
+import type { MultiModalDocument, RerankStrategy } from './strategies/RerankStrategy'
 import { StrategyFactory } from './strategies/StrategyFactory'
 
 export default abstract class BaseReranker {
@@ -80,6 +80,7 @@ export default abstract class BaseReranker {
       message: error.message,
       status: error.response?.status,
       statusText: error.response?.statusText,
+      responseBody: error.response?.body, // Include the actual API error response
       requestBody: requestBody
     }
     return JSON.stringify(errorDetails, null, 2)

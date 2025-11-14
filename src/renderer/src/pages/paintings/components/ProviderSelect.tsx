@@ -1,10 +1,11 @@
-import { Select, SelectItem } from '@heroui/react'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLogo } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { Provider } from '@types'
-import React, { FC, useEffect, useState } from 'react'
+import type { Provider } from '@types'
+import { Select } from 'antd'
+import type { FC } from 'react'
+import React, { useEffect, useState } from 'react'
 
 type ProviderSelectProps = {
   provider: Provider
@@ -53,46 +54,46 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
 
   return (
     <Select
-      selectedKeys={[provider.id]}
-      onSelectionChange={(keys) => {
-        const selectedKey = Array.from(keys)[0] as string
-        onChange(selectedKey)
-      }}
-      style={style}
-      className={`w-full ${className || ''}`}
-      renderValue={(items) => {
-        return items.map((item) => (
-          <div key={item.key} className="flex items-center gap-2">
+      value={provider.id}
+      onChange={onChange}
+      style={{ width: '100%', ...style }}
+      className={className}
+      options={providerOptions}
+      labelRender={(props) => {
+        const providerId = props.value as string
+        const providerName = providerOptions.find((opt) => opt.value === providerId)?.label || ''
+        return (
+          <div className="flex items-center gap-2">
             <div className="flex h-4 w-4 items-center justify-center">
               <ProviderAvatarPrimitive
-                providerId={item.key as string}
-                providerName={item.textValue || ''}
-                logoSrc={getProviderLogoSrc(item.key as string)}
+                providerId={providerId}
+                providerName={providerName}
+                logoSrc={getProviderLogoSrc(providerId)}
                 size={16}
               />
             </div>
-            <span>{item.textValue}</span>
+            <span>{providerName}</span>
           </div>
-        ))
-      }}>
-      {providerOptions.map((providerOption) => (
-        <SelectItem
-          key={providerOption.value}
-          textValue={providerOption.label}
-          startContent={
+        )
+      }}
+      optionRender={(option) => {
+        const providerId = option.value as string
+        const providerName = option.label as string
+        return (
+          <div className="flex items-center gap-2">
             <div className="flex h-4 w-4 items-center justify-center">
               <ProviderAvatarPrimitive
-                providerId={providerOption.value}
-                providerName={providerOption.label}
-                logoSrc={getProviderLogoSrc(providerOption.value)}
+                providerId={providerId}
+                providerName={providerName}
+                logoSrc={getProviderLogoSrc(providerId)}
                 size={16}
               />
             </div>
-          }>
-          {providerOption.label}
-        </SelectItem>
-      ))}
-    </Select>
+            <span>{providerName}</span>
+          </div>
+        )
+      }}
+    />
   )
 }
 

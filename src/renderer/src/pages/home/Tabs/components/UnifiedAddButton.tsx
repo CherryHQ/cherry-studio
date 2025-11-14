@@ -1,59 +1,69 @@
-import { Button, Popover, PopoverContent, PopoverTrigger } from '@heroui/react'
-import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
-import { Bot, MessageSquare } from 'lucide-react'
-import { FC, useState } from 'react'
+import AddAssistantOrAgentPopup from '@renderer/components/Popups/AddAssistantOrAgentPopup'
+import AgentModalPopup from '@renderer/components/Popups/agent/AgentModal'
+import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import type { AgentEntity, Assistant, Topic } from '@renderer/types'
+import type { FC } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddButton from './AddButton'
 
 interface UnifiedAddButtonProps {
   onCreateAssistant: () => void
+  setActiveAssistant: (a: Assistant) => void
+  setActiveAgentId: (id: string) => void
 }
 
-const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant }) => {
+const UnifiedAddButton: FC<UnifiedAddButtonProps> = ({ onCreateAssistant, setActiveAssistant, setActiveAgentId }) => {
   const { t } = useTranslation()
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
-  const [isAgentModalOpen, setIsAgentModalOpen] = useState(false)
+  const dispatch = useAppDispatch()
+  const { apiServerRunning, startApiServer } = useApiServer()
 
-  const handleAddAssistant = () => {
-    setIsPopoverOpen(false)
-    onCreateAssistant()
-  }
+  const afterCreate = useCallback(
+    (a: AgentEntity) => {
+      // TODO: should allow it to be null
+      setActiveAssistant({
+        id: 'fake',
+        name: '',
+        prompt: '',
+        topics: [
+          {
+            id: 'fake',
+            assistantId: 'fake',
+            name: 'fake',
+            createdAt: '',
+            updatedAt: '',
+            messages: []
+          } as unknown as Topic
+        ],
+        type: 'chat'
+      })
+      setActiveAgentId(a.id)
+      dispatch(setActiveTopicOrSessionAction('session'))
+    },
+    [dispatch, setActiveAgentId, setActiveAssistant]
+  )
 
-  const handleAddAgent = () => {
-    setIsPopoverOpen(false)
-    setIsAgentModalOpen(true)
+  const handleAddButtonClick = async () => {
+    AddAssistantOrAgentPopup.show({
+      onSelect: (type) => {
+        if (type === 'assistant') {
+          onCreateAssistant()
+        }
+
+        if (type === 'agent') {
+          !apiServerRunning && startApiServer()
+          AgentModalPopup.show({ afterSubmit: afterCreate })
+        }
+      }
+    })
   }
 
   return (
-    <div className="mb-1">
-      <Popover
-        isOpen={isPopoverOpen}
-        onOpenChange={setIsPopoverOpen}
-        placement="bottom"
-        classNames={{ content: 'p-0 min-w-[200px]' }}>
-        <PopoverTrigger>
-          <AddButton>{t('chat.add.assistant.title')}</AddButton>
-        </PopoverTrigger>
-        <PopoverContent>
-          <div className="flex w-full flex-col gap-1 p-1">
-            <Button
-              onPress={handleAddAssistant}
-              className="w-full justify-start bg-transparent hover:bg-[var(--color-list-item)]"
-              startContent={<MessageSquare size={16} className="shrink-0" />}>
-              {t('chat.add.assistant.title')}
-            </Button>
-            <Button
-              onPress={handleAddAgent}
-              className="w-full justify-start bg-transparent hover:bg-[var(--color-list-item)]"
-              startContent={<Bot size={16} className="shrink-0" />}>
-              {t('agent.add.title')}
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      <AgentModal isOpen={isAgentModalOpen} onClose={() => setIsAgentModalOpen(false)} />
+    <div className="-mt-[4px] mb-[6px]">
+      <AddButton onClick={handleAddButtonClick}>{t('chat.add.assistant.title')}</AddButton>
     </div>
   )
 }

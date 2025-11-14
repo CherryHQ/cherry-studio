@@ -1,4 +1,4 @@
-import { Model } from '@types'
+import type { Model } from '@types'
 import * as z from 'zod'
 
 export const ProviderTypeSchema = z.enum([
@@ -6,13 +6,13 @@ export const ProviderTypeSchema = z.enum([
   'openai-response',
   'anthropic',
   'gemini',
-  'qwenlm',
   'azure-openai',
   'vertexai',
   'mistral',
   'aws-bedrock',
   'vertex-anthropic',
-  'new-api'
+  'new-api',
+  'ai-gateway'
 ])
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>
@@ -37,6 +37,8 @@ export type ProviderApiOptions = {
   isSupportServiceTier?: boolean
   /** 是否不支持 enable_thinking 参数 */
   isNotSupportEnableThinking?: boolean
+  /** 是否不支持 APIVersion */
+  isNotSupportAPIVersion?: boolean
 }
 
 export const OpenAIServiceTiers = {
@@ -70,6 +72,17 @@ export type ServiceTier = OpenAIServiceTier | GroqServiceTier
 
 export function isServiceTier(tier: string): tier is ServiceTier {
   return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
+}
+
+export const AwsBedrockAuthTypes = {
+  iam: 'iam',
+  apiKey: 'apiKey'
+} as const
+
+export type AwsBedrockAuthType = keyof typeof AwsBedrockAuthTypes
+
+export function isAwsBedrockAuthType(type: string): type is AwsBedrockAuthType {
+  return Object.hasOwn(AwsBedrockAuthTypes, type)
 }
 
 export type Provider = {
@@ -122,6 +135,7 @@ export const SystemProviderIds = {
   cephalon: 'cephalon',
   lanyun: 'lanyun',
   ph8: 'ph8',
+  sophnet: 'sophnet',
   openrouter: 'openrouter',
   ollama: 'ollama',
   ovms: 'ovms',
@@ -162,7 +176,10 @@ export const SystemProviderIds = {
   'aws-bedrock': 'aws-bedrock',
   poe: 'poe',
   aionly: 'aionly',
-  longcat: 'longcat'
+  longcat: 'longcat',
+  huggingface: 'huggingface',
+  'ai-gateway': 'ai-gateway',
+  cerebras: 'cerebras'
 } as const
 
 export type SystemProviderId = keyof typeof SystemProviderIds
@@ -184,6 +201,11 @@ export type VertexProvider = Provider & {
   }
   project: string
   location: string
+}
+
+export type AzureOpenAIProvider = Provider & {
+  type: 'azure-openai'
+  apiVersion: string
 }
 
 /**

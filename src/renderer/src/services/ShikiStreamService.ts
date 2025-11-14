@@ -9,7 +9,8 @@ import {
 import { LRUCache } from 'lru-cache'
 import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
-import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from './ShikiStreamTokenizer'
+import type { ShikiStreamTokenizerOptions } from './ShikiStreamTokenizer'
+import { ShikiStreamTokenizer } from './ShikiStreamTokenizer'
 
 const logger = loggerService.withContext('ShikiStreamService')
 

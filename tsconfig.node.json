@@ -9,7 +9,8 @@
     "packages/shared/**/*",
     "scripts",
     "packages/mcp-trace/**/*",
-    "src/renderer/src/services/traceApi.ts"  ],
+    "src/renderer/src/services/traceApi.ts"
+  ],
   "compilerOptions": {
     "composite": true,
     "incremental": true,

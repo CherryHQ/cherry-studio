@@ -1,8 +1,8 @@
 import { isLinux, isWin } from '@renderer/config/constant'
 import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
+import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
-import { SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ControlButton, WindowControlsContainer } from './WindowControls.styled'

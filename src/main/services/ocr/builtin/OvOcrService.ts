@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
-import { isImageFileMetadata, OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
+import { isImageFileMetadata } from '@types'
 import { exec } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -12,7 +14,7 @@ import { OcrBaseService } from './OcrBaseService'
 const logger = loggerService.withContext('OvOcrService')
 const execAsync = promisify(exec)
 
-const PATH_BAT_FILE = path.join(os.homedir(), '.cherrystudio', 'ovms', 'ovocr', 'run.npu.bat')
+const PATH_BAT_FILE = path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr', 'run.npu.bat')
 
 export class OvOcrService extends OcrBaseService {
   constructor() {
@@ -29,7 +31,7 @@ export class OvOcrService extends OcrBaseService {
   }
 
   private getOvOcrPath(): string {
-    return path.join(os.homedir(), '.cherrystudio', 'ovms', 'ovocr')
+    return path.join(os.homedir(), HOME_CHERRY_DIR, 'ovms', 'ovocr')
   }
 
   private getImgDir(): string {

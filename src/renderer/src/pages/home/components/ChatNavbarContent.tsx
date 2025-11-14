@@ -1,19 +1,22 @@
-import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { AgentEntity, AgentSessionEntity, ApiModel, Assistant, PermissionMode } from '@renderer/types'
+import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
-import { FC, ReactNode, useCallback } from 'react'
+import { ChevronRight, Folder } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useCallback } from 'react'
+import { twMerge } from 'tailwind-merge'
 
 import { AgentSettingsPopup, SessionSettingsPopup } from '../../settings/AgentSettings'
 import { AgentLabel, SessionLabel } from '../../settings/AgentSettings/shared'
 import SelectAgentBaseModelButton from './SelectAgentBaseModelButton'
 import SelectModelButton from './SelectModelButton'
+
+const cn = (...inputs: any[]) => twMerge(inputs)
 
 interface Props {
   assistant: Assistant
@@ -38,53 +41,54 @@ const ChatNavbarContent: FC<Props> = ({ assistant }) => {
     <>
       {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
       {activeTopicOrSession === 'session' && activeAgent && (
-        <HorizontalScrollContainer>
-          <Breadcrumbs
-            classNames={{
-              base: 'flex',
-              list: 'flex-nowrap'
-            }}>
-            <BreadcrumbItem
-              onPress={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}
-              classNames={{
-                base: 'self-stretch',
-                item: 'h-full'
-              }}>
-              <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
-                <AgentLabel
-                  agent={activeAgent}
-                  classNames={{ name: 'max-w-40 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+        <HorizontalScrollContainer className="ml-2 flex-initial">
+          <div className="flex flex-nowrap items-center gap-2">
+            {/* Agent Label */}
+            <div
+              className="flex h-full cursor-pointer items-center"
+              onClick={() => AgentSettingsPopup.show({ agentId: activeAgent.id })}>
+              <AgentLabel
+                agent={activeAgent}
+                classNames={{ name: 'max-w-40 text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+              />
+            </div>
+
+            {activeSession && (
+              <>
+                {/* Separator */}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
+
+                {/* Session Label */}
+                <div
+                  className="flex h-full cursor-pointer items-center"
+                  onClick={() =>
+                    SessionSettingsPopup.show({
+                      agentId: activeAgent.id,
+                      sessionId: activeSession.id
+                    })
+                  }>
+                  <SessionLabel session={activeSession} className="max-w-40 text-xs" />
+                </div>
+
+                {/* Separator */}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
+
+                {/* Model Button */}
+                <SelectAgentBaseModelButton
+                  agentBase={activeSession}
+                  onSelect={async (model) => {
+                    await handleUpdateModel(model)
+                  }}
                 />
-              </Chip>
-            </BreadcrumbItem>
-            {activeSession && (
-              <BreadcrumbItem
-                onPress={() =>
-                  SessionSettingsPopup.show({
-                    agentId: activeAgent.id,
-                    sessionId: activeSession.id
-                  })
-                }
-                classNames={{
-                  base: 'self-stretch',
-                  item: 'h-full'
-                }}>
-                <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
-                  <SessionLabel session={activeSession} className="max-w-40 font-bold text-xs" />
-                </Chip>
-              </BreadcrumbItem>
-            )}
-            {activeSession && (
-              <BreadcrumbItem>
-                <SelectAgentBaseModelButton agentBase={activeSession} onSelect={handleUpdateModel} />
-              </BreadcrumbItem>
-            )}
-            {activeAgent && activeSession && (
-              <BreadcrumbItem>
+
+                {/* Separator */}
+                <ChevronRight className="h-4 w-4 text-gray-400" />
+
+                {/* Workspace Meta */}
                 <SessionWorkspaceMeta agent={activeAgent} session={activeSession} />
-              </BreadcrumbItem>
+              </>
             )}
-          </Breadcrumbs>
+          </div>
         </HorizontalScrollContainer>
       )}
     </>
@@ -97,11 +101,11 @@ const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity
   }
 
   const firstAccessiblePath = session.accessible_paths?.[0]
-  const permissionMode = (session.configuration?.permission_mode ?? 'default') as PermissionMode
-  const permissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
-  const permissionModeLabel = permissionModeCard
-    ? t(permissionModeCard.titleKey, permissionModeCard.titleFallback)
-    : permissionMode
+  // const permissionMode = (session.configuration?.permission_mode ?? 'default') as PermissionMode
+  // const permissionModeCard = permissionModeCards.find((card) => card.mode === permissionMode)
+  // const permissionModeLabel = permissionModeCard
+  //   ? t(permissionModeCard.titleKey, permissionModeCard.titleFallback)
+  //   : permissionMode
 
   const infoItems: ReactNode[] = []
 
@@ -117,12 +121,13 @@ const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity
   }) => (
     <div
       className={cn(
-        'rounded-medium border border-default-200 px-2 py-1 text-foreground-500 text-xs dark:text-foreground-400',
+        'flex items-center gap-1.5 text-foreground-500 text-xs dark:text-foreground-400',
         onClick !== undefined ? 'cursor-pointer' : undefined,
         className
       )}
       title={text}
       onClick={onClick}>
+      <Folder className="h-3.5 w-3.5 shrink-0" />
       <span className="block truncate">{text}</span>
     </div>
   )
@@ -148,7 +153,7 @@ const SessionWorkspaceMeta: FC<{ agent: AgentEntity; session: AgentSessionEntity
     )
   }
 
-  infoItems.push(<InfoTag key="permission-mode" text={permissionModeLabel} className="max-w-50" />)
+  // infoItems.push(<InfoTag key="permission-mode" text={permissionModeLabel} className="max-w-50" />)
 
   if (infoItems.length === 0) {
     return null

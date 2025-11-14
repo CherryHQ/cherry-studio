@@ -1,7 +1,7 @@
 import { UploadOutlined } from '@ant-design/icons'
 import FileManager from '@renderer/services/FileManager'
 import { loggerService } from '@renderer/services/LoggerService'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { mime2type, uuid } from '@renderer/utils'
 import { Modal, Space, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'

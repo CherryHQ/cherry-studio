@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
-import { QuickPhrase } from '@renderer/types'
+import type { QuickPhrase } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('QuickPhraseService')

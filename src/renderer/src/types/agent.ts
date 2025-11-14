@@ -4,10 +4,11 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
-import { ModelMessage, TextStreamPart } from 'ai'
+import type { ModelMessage, TextStreamPart } from 'ai'
 import * as z from 'zod'
 
 import type { Message, MessageBlock } from './newMessage'
+import { InstalledPluginSchema, PluginMetadataSchema } from './plugin'
 
 // ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
@@ -81,6 +82,7 @@ export const AgentBaseSchema = z.object({
   // Tools
   mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
   allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
+  slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands merged from builtin and SDK
 
   // Configuration
   configuration: AgentConfigurationSchema.optional() // Extensible settings like temperature, top_p, etc.
@@ -121,6 +123,8 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
 export interface ListOptions {
   limit?: number
   offset?: number
+  sortBy?: 'created_at' | 'updated_at' | 'name'
+  orderBy?: 'asc' | 'desc'
 }
 
 // AgentSession entity representing a conversation session with one or more agents
@@ -224,6 +228,25 @@ export type SessionForm = CreateSessionForm | UpdateSessionForm
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
+// --------------------- Components & Hooks ----------------------
+
+export type UpdateAgentBaseOptions = {
+  /** Whether to show success toast after updating. Defaults to true. */
+  showSuccessToast?: boolean
+}
+
+export type UpdateAgentFunction = (
+  form: UpdateAgentForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentEntity | undefined>
+
+export type UpdateAgentSessionFunction = (
+  form: UpdateSessionForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentSessionEntity | undefined>
+
+export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
+
 // ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {
   type: AgentType
@@ -238,7 +261,8 @@ export interface UpdateAgentRequest extends Partial<AgentBase> {}
 export type ReplaceAgentRequest = AgentBase
 
 export const GetAgentResponseSchema = AgentEntitySchema.extend({
-  tools: z.array(ToolSchema).optional() // All tools available to the agent (including built-in and custom)
+  tools: z.array(ToolSchema).optional(), // All tools available to the agent (including built-in and custom)
+  installed_plugins: z.array(InstalledPluginSchema).optional() // Plugins loaded from .claude/plugins.json cache
 })
 
 export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
@@ -263,7 +287,15 @@ export interface UpdateSessionRequest extends Partial<AgentBase> {}
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
   messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
-  slash_commands: z.array(SlashCommandSchema).optional() // Array of slash commands to trigger the agent
+  plugins: z
+    .array(
+      z.object({
+        filename: z.string(),
+        type: z.enum(['agent', 'command', 'skill']),
+        metadata: PluginMetadataSchema
+      })
+    )
+    .optional() // Installed plugins from workdir
 })
 
 export const CreateAgentSessionResponseSchema = GetAgentSessionResponseSchema
@@ -346,3 +378,15 @@ export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 export const CreateSessionMessageRequestSchema = z.object({
   content: z.string().min(1, 'Content must be a valid string')
 })
+
+export type PermissionModeCard = {
+  mode: PermissionMode
+  titleKey: string
+  titleFallback: string
+  descriptionKey: string
+  descriptionFallback: string
+  behaviorKey: string
+  behaviorFallback: string
+  caution?: boolean
+  unsupported?: boolean
+}

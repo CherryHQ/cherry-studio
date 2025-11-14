@@ -1,16 +1,10 @@
 import { CloseOutlined } from '@ant-design/icons'
-import {
-  DragDropContext,
-  Draggable,
-  DraggableProvided,
-  Droppable,
-  DroppableProvided,
-  DropResult
-} from '@hello-pangea/dnd'
+import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
-import { SidebarIcon } from '@renderer/types'
+import type { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import {
   Code,
@@ -23,7 +17,8 @@ import {
   Palette,
   Sparkle
 } from 'lucide-react'
-import { FC, useCallback, useMemo } from 'react'
+import type { FC, ReactNode } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -118,17 +113,18 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
 
   // 使用useMemo缓存图标映射
   const iconMap = useMemo(
-    () => ({
-      assistants: <MessageSquareQuote size={16} />,
-      agents: <Sparkle size={16} />,
-      paintings: <Palette size={16} />,
-      translate: <Languages size={16} />,
-      minapp: <LayoutGrid size={16} />,
-      knowledge: <FileSearch size={16} />,
-      files: <Folder size={16} />,
-      notes: <NotepadText size={16} />,
-      code_tools: <Code size={16} />
-    }),
+    () =>
+      ({
+        assistants: <MessageSquareQuote size={16} />,
+        store: <Sparkle size={16} />,
+        paintings: <Palette size={16} />,
+        translate: <Languages size={16} />,
+        minapp: <LayoutGrid size={16} />,
+        knowledge: <FileSearch size={16} />,
+        files: <Folder size={16} />,
+        notes: <NotepadText size={16} />,
+        code_tools: <Code size={16} />
+      }) satisfies Record<SidebarIcon, ReactNode>,
     []
   )
 
