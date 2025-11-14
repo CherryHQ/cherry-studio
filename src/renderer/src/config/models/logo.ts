@@ -59,6 +59,7 @@ import {
 } from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
+import GPT51ModelLogo from '@renderer/assets/images/models/gpt-5.1.png'
 import GPT5ModelLogo from '@renderer/assets/images/models/gpt-5.png'
 import GPT5ChatModelLogo from '@renderer/assets/images/models/gpt-5-chat.png'
 import GPT5CodexModelLogo from '@renderer/assets/images/models/gpt-5-codex.png'
@@ -182,6 +183,7 @@ export function getModelLogoById(modelId: string): string | undefined {
     'gpt-5-nano': GPT5NanoModelLogo,
     'gpt-5-chat': GPT5ChatModelLogo,
     'gpt-5-codex': GPT5CodexModelLogo,
+    'gpt-5.1': GPT51ModelLogo,
     'gpt-5': GPT5ModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
