@@ -259,7 +259,7 @@
     "dotenv-cli": "^7.4.2",
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.5",
-    "electron": "37.10.0",
+    "electron": "38.7.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
     "electron-reload": "^2.0.0-alpha.1",

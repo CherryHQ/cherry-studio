@@ -375,16 +375,16 @@ export class WindowService {
 
       mainWindow.hide()
 
-       //for mac users, should hide dock icon if close to tray
-       if (isMac && isTrayOnClose) {
-         app.dock?.hide()
+      //for mac users, should hide dock icon if close to tray
+      if (isMac && isTrayOnClose) {
+        app.dock?.hide()
 
-         mainWindow.once('show', () => {
-         //restore the window can hide by cmd+h when the window is shown again
-         // https://github.com/electron/electron/pull/47970
+        mainWindow.once('show', () => {
+          //restore the window can hide by cmd+h when the window is shown again
+          // https://github.com/electron/electron/pull/47970
           app.dock?.show()
-         })
-       }
+        })
+      }
     })
 
     mainWindow.on('closed', () => {

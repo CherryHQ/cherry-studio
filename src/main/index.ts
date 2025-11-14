@@ -10,7 +10,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
-import { isDev, isLinux, isMac, isWin } from './constant'
+import { isDev, isLinux, isWin } from './constant'
 
 import process from 'node:process'
 
@@ -61,10 +61,6 @@ if (isWin) {
  */
 if (isLinux && process.env.XDG_SESSION_TYPE === 'wayland') {
   app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
-}
-
-if(isMac) {
-  app.commandLine.appendSwitch('disalbe-features', 'WebAssemblyTrapHandler')
 }
 
 // DocumentPolicyIncludeJSCallStacksInCrashReports: Enable features for unresponsive renderer js call stacks
