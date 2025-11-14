@@ -16,8 +16,9 @@ import { renderSvgInShadowHost } from './utils'
 const MermaidPreview = ({
   children,
   enableToolbar = false,
-  ref
-}: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
+  ref,
+  onError
+}: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null>; onError?: (error: unknown) => void }) => {
   const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [isVisible, setIsVisible] = useState(true)
@@ -121,6 +122,12 @@ const MermaidPreview = ({
   // 合并加载状态和错误状态
   const isLoading = isLoadingMermaid || isRendering
   const error = mermaidError || renderError
+
+  useEffect(() => {
+    if (onError !== undefined) {
+      onError(error)
+    }
+  }, [error, onError])
 
   return (
     <ImagePreviewLayout

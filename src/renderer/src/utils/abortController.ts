@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 
+// TODO: We may refactor it to a service with pendingMap
+
 const logger = loggerService.withContext('AbortController')
 
 export const abortMap = new Map<string, (() => void)[]>()

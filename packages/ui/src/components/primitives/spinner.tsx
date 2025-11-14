@@ -17,6 +17,7 @@ const spinnerVariants = {
   }
 }
 
+// FIXME: This is not a general spinner. It's just for searching.
 export default function Spinner({ text, className = '' }: Props) {
   return (
     <motion.div

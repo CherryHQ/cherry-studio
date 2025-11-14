@@ -7,7 +7,7 @@ export { default as EmojiIcon } from './primitives/emojiIcon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/ErrorBoundary'
 export { ErrorBoundary } from './primitives/ErrorBoundary'
 export { default as IndicatorLight } from './primitives/indicatorLight'
-export { default as Spinner } from './primitives/spinner'
+export { default as SearchSpinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
 export { Tooltip, type TooltipProps } from './primitives/tooltip'
 
@@ -82,6 +82,8 @@ export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './
 export { default as ImageToolButton } from './composites/ImageToolButton'
 // Sortable
 export { Sortable } from './composites/Sortable'
+// BlockingOverlay
+export { BlockingOverlay } from './composites/BlockingOverlay'
 
 /* Shadcn Primitive Components */
 export * from './primitives/button'
@@ -93,3 +95,4 @@ export * from './primitives/popover'
 export * from './primitives/radioGroup'
 export * from './primitives/select'
 export * from './primitives/shadcn-io/dropzone'
+export * from './primitives/shadcn-io/spinner'
