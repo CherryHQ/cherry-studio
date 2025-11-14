@@ -17,7 +17,8 @@ type TextareaContextValue = {
   disabled?: boolean
 }
 
-const [TextareaContextProvider, useTextareaContext] = createContext<TextareaContextValue>('Textarea.TextareaContext', {
+// eslint-disable-next-line @eslint-react/naming-convention/context-name
+const [TextareaContext, useTextareaContext] = createContext<TextareaContextValue>('Textarea.TextareaContext', {
   textareaId: '',
   hasError: false,
   disabled: false
@@ -89,11 +90,11 @@ function TextareaRoot({ error, disabled, className, children, ...props }: Textar
   const hasError = !!error
 
   return (
-    <TextareaContextProvider textareaId={textareaId} hasError={hasError} disabled={disabled}>
+    <TextareaContext textareaId={textareaId} hasError={hasError} disabled={disabled}>
       <div data-slot="textarea-root" {...props} className={cn('flex w-full flex-col gap-2', className)}>
         {children}
       </div>
-    </TextareaContextProvider>
+    </TextareaContext>
   )
 }
 

@@ -81,12 +81,7 @@ export const WithCharacterCount: Story = {
       <Textarea.Root className="w-[400px]">
         <Textarea.Label>Tweet</Textarea.Label>
         <div className="relative">
-          <Textarea.Input
-            value={value}
-            onValueChange={setValue}
-            maxLength={280}
-            placeholder="What's happening?"
-          />
+          <Textarea.Input value={value} onValueChange={setValue} maxLength={280} placeholder="What's happening?" />
           <Textarea.CharCount value={value} maxLength={280} />
         </div>
         <Textarea.Caption>Maximum 280 characters</Textarea.Caption>
@@ -134,11 +129,7 @@ export const Controlled: Story = {
       <div className="flex flex-col gap-4">
         <Textarea.Root className="w-[400px]">
           <Textarea.Label>Controlled Textarea</Textarea.Label>
-          <Textarea.Input
-            value={value}
-            onValueChange={setValue}
-            placeholder="Type something..."
-          />
+          <Textarea.Input value={value} onValueChange={setValue} placeholder="Type something..." />
         </Textarea.Root>
 
         <div className="w-[400px] text-sm text-muted-foreground">
@@ -166,11 +157,7 @@ export const AllStates: Story = {
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Default State</p>
           <Textarea.Root className="w-[400px]">
             <Textarea.Label>Default</Textarea.Label>
-            <Textarea.Input
-              value={value1}
-              onValueChange={setValue1}
-              placeholder="Enter text..."
-            />
+            <Textarea.Input value={value1} onValueChange={setValue1} placeholder="Enter text..." />
           </Textarea.Root>
         </div>
 
@@ -194,10 +181,7 @@ export const AllStates: Story = {
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Error State</p>
           <Textarea.Root error="This field is required" className="w-[400px]">
             <Textarea.Label>Error</Textarea.Label>
-            <Textarea.Input
-              value={value4}
-              onValueChange={setValue4}
-            />
+            <Textarea.Input value={value4} onValueChange={setValue4} />
             <Textarea.Caption>This field is required</Textarea.Caption>
           </Textarea.Root>
         </div>
@@ -222,7 +206,8 @@ export const RealWorldExamples: Story = {
     const [message, setMessage] = useState('')
 
     const tweetError = tweet.length > 280 ? 'Tweet is too long' : undefined
-    const messageError = message.length > 0 && message.length < 10 ? 'Message must be at least 10 characters' : undefined
+    const messageError =
+      message.length > 0 && message.length < 10 ? 'Message must be at least 10 characters' : undefined
 
     return (
       <div className="flex flex-col gap-8">
@@ -264,12 +249,7 @@ export const RealWorldExamples: Story = {
           <h3 className="mb-3 text-sm font-semibold">Contact Us</h3>
           <Textarea.Root error={messageError} className="w-[500px]">
             <Textarea.Label required>Message</Textarea.Label>
-            <Textarea.Input
-              value={message}
-              onValueChange={setMessage}
-              placeholder="How can we help you?"
-              rows={6}
-            />
+            <Textarea.Input value={message} onValueChange={setMessage} placeholder="How can we help you?" rows={6} />
             {messageError ? (
               <Textarea.Caption>{messageError}</Textarea.Caption>
             ) : (
