@@ -81,7 +81,8 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.aihubmix,
   SystemProviderIds.grok,
   SystemProviderIds.cherryin,
-  SystemProviderIds.longcat
+  SystemProviderIds.longcat,
+  SystemProviderIds.minimax
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -547,6 +548,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       onChange={(e) => setAnthropicHost(e.target.value)}
                       onBlur={onUpdateAnthropicHost}
                     />
+                    {/* TODO: Add a reset button here. */}
                   </Space.Compact>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>

@@ -472,7 +472,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'MiniMax',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.minimax.com/v1/',
+    apiHost: 'https://api.minimaxi.com/v1',
+    anthropicApiHost: 'https://api.minimaxi.com/anthropic',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
     enabled: false
@@ -1072,7 +1073,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   minimax: {
     api: {
-      url: 'https://api.minimax.com/v1/'
+      url: 'https://api.minimaxi.com/v1/'
     },
     websites: {
       official: 'https://platform.minimaxi.com/',
