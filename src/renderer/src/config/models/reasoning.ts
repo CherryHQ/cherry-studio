@@ -8,7 +8,7 @@ import type {
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isGPT5SeriesModel } from './utils'
+import { isGPT5SeriesModel, isGPT51SeriesModel } from './utils'
 import { isTextToImageModel } from './vision'
 import { GEMINI_FLASH_MODEL_REGEX, isOpenAIDeepResearchModel } from './websearch'
 
@@ -77,7 +77,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
   }
-  if (isGPT5SeriesModel(model)) {
+  if (isGPT51SeriesModel(model)) {
+    thinkingModelType = 'gpt5_1'
+  } else if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_codex'
     } else {
@@ -528,7 +530,7 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
     modelId.includes('o3') ||
     modelId.includes('o4') ||
     modelId.includes('gpt-oss') ||
-    (isGPT5SeriesModel(model) && !modelId.includes('chat'))
+    ((isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat'))
   )
 }
 

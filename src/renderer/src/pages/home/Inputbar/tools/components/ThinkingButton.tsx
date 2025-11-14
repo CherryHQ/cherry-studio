@@ -59,8 +59,8 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       // 然后更新设置
       if (!isEnabled) {
         updateAssistantSettings({
-          reasoning_effort: undefined,
-          reasoning_effort_cache: undefined,
+          reasoning_effort: option,
+          reasoning_effort_cache: option,
           qwenThinkMode: false
         })
         return
