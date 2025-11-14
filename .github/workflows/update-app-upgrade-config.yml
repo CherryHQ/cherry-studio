@@ -141,11 +141,11 @@ jobs:
           path: main
           fetch-depth: 0
 
-      - name: Checkout cs-releases branch
+      - name: Checkout x-files/app-upgrade-config branch
         if: steps.check.outputs.should_run == 'true'
         uses: actions/checkout@v5
         with:
-          ref: cs-releases
+          ref: x-files/app-upgrade-config
           path: cs
           fetch-depth: 0
 
@@ -192,7 +192,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           path: cs
-          base: cs-releases
+          base: x-files/app-upgrade-config
           branch: chore/update-app-upgrade-config/${{ steps.meta.outputs.safe_tag }}
           commit-message: "🤖 chore: sync app-upgrade-config for ${{ steps.meta.outputs.tag }}"
           title: "chore: update app-upgrade-config for ${{ steps.meta.outputs.tag }}"
@@ -209,4 +209,4 @@ jobs:
 
       - name: No changes detected
         if: steps.check.outputs.should_run == 'true' && steps.diff.outputs.changed != 'true'
-        run: echo "No updates required for cs-releases/app-upgrade-config.json"
+        run: echo "No updates required for x-files/app-upgrade-config/app-upgrade-config.json"
