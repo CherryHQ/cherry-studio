@@ -279,6 +279,50 @@ export const DisabledState: Story = {
   )
 }
 
+export const DisabledPassword: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-4">
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Disabled Password - Default Variant</p>
+        <CompositeInput
+          variant="default"
+          type="password"
+          placeholder="Disabled password"
+          disabled
+          defaultValue="secret123"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">Password field is disabled, eye icon still visible but non-functional</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Disabled Password - Button Variant</p>
+        <CompositeInput
+          variant="button"
+          type="password"
+          placeholder="Disabled password"
+          disabled
+          defaultValue="mypassword"
+          buttonProps={{
+            label: 'Reset',
+            onClick: () => {}
+          }}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">Both input and button are disabled</p>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Disabled Password - Empty</p>
+        <CompositeInput
+          variant="default"
+          type="password"
+          placeholder="Enter password..."
+          disabled
+        />
+      </div>
+    </div>
+  )
+}
+
 // Interactive Examples
 export const SubscribeNewsletter: Story = {
   render: function SubscribeNewsletterExample() {

@@ -16,7 +16,15 @@ const inputGroupVariants = cva(
     'has-[[data-slot=input-group-control]:focus-visible]:border-[#3CD45A]'
   ],
   {
-    variants: {}
+    variants: {
+      disabled: {
+        false: null,
+        true: ['bg-background-subtle', 'border-border-hover', 'cursor-not-allowed']
+      }
+    },
+    defaultVariants: {
+      disabled: false
+    }
   }
 )
 
@@ -35,7 +43,7 @@ const inputVariants = cva(['p-0', 'h-fit', 'min-w-0'], {
     },
     disabled: {
       false: null,
-      true: []
+      true: ['text-black/40', 'placeholder:text-black/40', 'disabled:opacity-100']
     }
   },
   defaultVariants: {
@@ -58,7 +66,14 @@ const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
       button: ['border-r-[1px]'],
       email: [],
       select: []
+    },
+    disabled: {
+      false: null,
+      true: ['border-background-subtle']
     }
+  },
+  defaultVariants: {
+    disabled: false
   }
 })
 
@@ -68,10 +83,27 @@ const iconVariants = cva([], {
       sm: ['size-4.5'],
       md: ['size-5'],
       lg: ['size-6']
+    },
+    disabled: {
+      false: null,
+      true: ['text-black/40']
     }
   },
   defaultVariants: {
-    size: 'md'
+    size: 'md',
+    disabled: false
+  }
+})
+
+const iconButtonVariants = cva(['cursor-pointer'], {
+  variants: {
+    disabled: {
+      false: null,
+      true: []
+    }
+  },
+  defaultVariants: {
+    disabled: false
   }
 })
 
@@ -81,10 +113,15 @@ const buttonVariants = cva(['flex', 'flex-col'], {
       sm: ['p-3xs'],
       md: ['p-3xs'],
       lg: ['px-2xs', 'py-3xs']
+    },
+    disabled: {
+      false: null,
+      true: ['pointer-events-none']
     }
   },
   defaultVariants: {
-    size: 'md'
+    size: 'md',
+    disabled: false
   }
 })
 
@@ -95,34 +132,44 @@ const buttonLabelVariants = cva([], {
       sm: ['text-sm leading-4'],
       md: ['leading-4.5'],
       lg: ['text-lg leading-5 tracking-normal']
+    },
+    disabled: {
+      false: null,
+      true: ['text-black/40']
     }
   },
   defaultVariants: {
-    size: 'md'
+    size: 'md',
+    disabled: false
   }
 })
 
 function ShowPasswordButton({
   type,
   setType,
-  size = 'md'
+  size = 'md',
+  disabled = false
 }: {
   type: 'text' | 'password'
   setType: React.Dispatch<React.SetStateAction<'text' | 'password'>>
   size: VariantProps<typeof inputVariants>['size']
+  disabled: boolean
 }) {
   const togglePassword = useCallback(() => {
+    if (disabled) return
     if (type === 'password') {
       setType('text')
     } else if (type === 'text') {
       setType('password')
     }
-  }, [setType, type])
+  }, [disabled, setType, type])
+
+  const iconClassName = iconVariants({ size, disabled })
 
   return (
-    <button type="button" onClick={togglePassword} className="w-auto">
-      {type === 'text' && <EyeIcon className={iconVariants({ size })} />}
-      {type === 'password' && <EyeOffIcon className={iconVariants({ size })} />}
+    <button type="button" onClick={togglePassword} disabled={disabled} className={iconButtonVariants({ disabled })}>
+      {type === 'text' && <EyeIcon className={iconClassName} />}
+      {type === 'password' && <EyeOffIcon className={iconClassName} />}
     </button>
   )
 }
@@ -150,19 +197,19 @@ function CompositeInput({
     switch (variant) {
       case 'default':
       case 'button':
-        return <Edit2Icon className={iconVariants({ size })} />
+        return <Edit2Icon className={iconVariants({ size, disabled })} />
       case 'email':
         return
     }
-  }, [size, variant])
+  }, [disabled, size, variant])
 
   const endContent = useMemo(() => {
     if ((variant === 'default' || variant === 'button') && isPassword) {
-      return <ShowPasswordButton type={htmlType} setType={setHtmlType} size={size} />
+      return <ShowPasswordButton type={htmlType} setType={setHtmlType} size={size} disabled={!!disabled} />
     } else {
       return null
     }
-  }, [htmlType, isPassword, size, variant])
+  }, [disabled, htmlType, isPassword, size, variant])
 
   const buttonContent = useMemo(() => {
     if (buttonProps === undefined) {
@@ -170,16 +217,16 @@ function CompositeInput({
       return null
     } else {
       return (
-        <button type="button" className={buttonVariants({ size })} onClick={buttonProps.onClick}>
-          <div className={buttonLabelVariants({ size })}>{buttonProps.label}</div>
+        <button type="button" className={buttonVariants({ size, disabled })} onClick={buttonProps.onClick}>
+          <div className={buttonLabelVariants({ size, disabled })}>{buttonProps.label}</div>
         </button>
       )
     }
-  }, [buttonProps, size])
+  }, [buttonProps, disabled, size])
 
   return (
-    <InputGroup className={inputGroupVariants()}>
-      <div className={inputWrapperVariants({ size, variant })}>
+    <InputGroup className={inputGroupVariants({ disabled })}>
+      <div className={inputWrapperVariants({ size, variant, disabled })}>
         <InputGroupInput
           type={isPassword ? htmlType : type}
           disabled={toUndefinedIfNull(disabled)}
