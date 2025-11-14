@@ -3,9 +3,19 @@ name: Update App Upgrade Config
 on:
   release:
     types:
-      - prereleased
       - released
-      - published
+      - prereleased
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., v1.2.3)"
+        required: true
+        type: string
+      is_prerelease:
+        description: "Mark the tag as a prerelease when running manually"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -14,18 +24,117 @@ permissions:
 jobs:
   propose-update:
     runs-on: ubuntu-latest
-    if: ${{ github.event.release }}
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'release' && github.event.release.draft == false)
 
     steps:
+      - name: Check if should proceed
+        id: check
+        run: |
+          EVENT="${{ github.event_name }}"
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+
+          latest_tag=$(
+            curl -L \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${{ github.token }}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/${{ github.repository }}/releases/latest \
+              | jq -r '.tag_name'
+          )
+
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            MANUAL_IS_PRERELEASE="${{ github.event.inputs.is_prerelease }}"
+            if [ -z "$MANUAL_IS_PRERELEASE" ]; then
+              MANUAL_IS_PRERELEASE="false"
+            fi
+            if [ "$MANUAL_IS_PRERELEASE" = "true" ]; then
+              if ! echo "$TAG" | grep -E '(-beta([.-][0-9]+)?|-rc([.-][0-9]+)?)' >/dev/null; then
+                echo "Manual prerelease flag set but tag $TAG lacks beta/rc suffix. Skipping." >&2
+                echo "should_run=false" >> "$GITHUB_OUTPUT"
+                echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+                echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=$MANUAL_IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+            echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IS_PRERELEASE="${{ github.event.release.prerelease }}"
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            if ! echo "$TAG" | grep -E '(-beta([.-][0-9]+)?|-rc([.-][0-9]+)?)' >/dev/null; then
+              echo "Release marked as prerelease but tag $TAG lacks beta/rc suffix. Skipping." >&2
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+              echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+            echo "Release is prerelease, proceeding"
+            exit 0
+          fi
+
+          if [[ "${latest_tag}" == "$TAG" ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+            echo "Release is latest, proceeding"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+            echo "Release is neither prerelease nor latest, skipping"
+          fi
+
       - name: Prepare metadata
         id: meta
+        if: steps.check.outputs.should_run == 'true'
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          EVENT="${{ github.event_name }}"
+          LATEST_TAG="${{ steps.check.outputs.latest_tag }}"
+          if [ "$EVENT" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            PRE="${{ github.event.release.prerelease }}"
+
+            if [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" = "$TAG" ]; then
+              LATEST="true"
+            else
+              LATEST="false"
+            fi
+            TRIGGER="release"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+            PRE="${{ github.event.inputs.is_prerelease }}"
+            if [ -z "$PRE" ]; then
+              PRE="false"
+            fi
+            if [ -n "$LATEST_TAG" ] && [ "$LATEST_TAG" = "$TAG" ] && [ "$PRE" != "true" ]; then
+              LATEST="true"
+            else
+              LATEST="false"
+            fi
+            TRIGGER="manual"
+          fi
+
           SAFE_TAG=$(echo "$TAG" | sed 's/[^A-Za-z0-9._-]/-/g')
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "safe_tag=$SAFE_TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRE" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "trigger=$TRIGGER" >> "$GITHUB_OUTPUT"
 
       - name: Checkout default branch
+        if: steps.check.outputs.should_run == 'true'
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.repository.default_branch }}
@@ -33,6 +142,7 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout cs-releases branch
+        if: steps.check.outputs.should_run == 'true'
         uses: actions/checkout@v5
         with:
           ref: cs-releases
@@ -40,27 +150,34 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
+        if: steps.check.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Enable Corepack
+        if: steps.check.outputs.should_run == 'true'
         run: corepack enable && corepack prepare yarn@4.9.1 --activate
 
       - name: Install dependencies
+        if: steps.check.outputs.should_run == 'true'
         working-directory: main
         run: yarn install --immutable
 
       - name: Update upgrade config
+        if: steps.check.outputs.should_run == 'true'
         working-directory: main
         env:
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          IS_PRERELEASE: ${{ steps.check.outputs.is_prerelease }}
         run: |
           yarn tsx scripts/update-app-upgrade-config.ts \
             --tag "$RELEASE_TAG" \
-            --config ../cs/app-upgrade-config.json
+            --config ../cs/app-upgrade-config.json \
+            --is-prerelease "$IS_PRERELEASE"
 
       - name: Detect changes
+        if: steps.check.outputs.should_run == 'true'
         id: diff
         working-directory: cs
         run: |
@@ -71,7 +188,7 @@ jobs:
           fi
 
       - name: Create pull request
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.check.outputs.should_run == 'true' && steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           path: cs
@@ -80,15 +197,16 @@ jobs:
           commit-message: "🤖 chore: sync app-upgrade-config for ${{ steps.meta.outputs.tag }}"
           title: "chore: update app-upgrade-config for ${{ steps.meta.outputs.tag }}"
           body: |
-            Automated update triggered by release `${{ steps.meta.outputs.tag }}`.
+            Automated update triggered by `${{ steps.meta.outputs.trigger }}`.
 
             - Source tag: `${{ steps.meta.outputs.tag }}`
-            - Pre-release: `${{ github.event.release.prerelease }}`
+            - Pre-release: `${{ steps.meta.outputs.prerelease }}`
+            - Latest: `${{ steps.meta.outputs.latest }}`
             - Workflow run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           labels: |
             automation
             app-upgrade
 
       - name: No changes detected
-        if: steps.diff.outputs.changed != 'true'
+        if: steps.check.outputs.should_run == 'true' && steps.diff.outputs.changed != 'true'
         run: echo "No updates required for cs-releases/app-upgrade-config.json"

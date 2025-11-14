@@ -7,10 +7,13 @@ type UpdateMirror = 'github' | 'gitcode'
 
 const CHANNELS: UpgradeChannel[] = ['latest', 'rc', 'beta']
 const MIRRORS: UpdateMirror[] = ['github', 'gitcode']
+const GITHUB_REPO = 'CherryHQ/cherry-studio'
+const GITCODE_REPO = 'CherryHQ/cherry-studio'
 const DEFAULT_FEED_TEMPLATES: Record<UpdateMirror, string> = {
-  github: 'https://github.com/CherryHQ/cherry-studio/releases/download/{{tag}}',
-  gitcode: 'https://gitcode.com/CherryHQ/cherry-studio/releases/download/{{tag}}'
+  github: `https://github.com/${GITHUB_REPO}/releases/download/{{tag}}`,
+  gitcode: `https://gitcode.com/${GITCODE_REPO}/releases/download/{{tag}}`
 }
+const GITCODE_LATEST_FALLBACK = 'https://releases.cherry-ai.com'
 
 interface CliOptions {
   tag?: string
@@ -18,6 +21,7 @@ interface CliOptions {
   segmentsPath?: string
   dryRun?: boolean
   skipReleaseChecks?: boolean
+  isPrerelease?: boolean
 }
 
 interface ChannelTemplateConfig {
@@ -91,6 +95,25 @@ async function main() {
     return
   }
 
+  // Validate version format matches prerelease status
+  if (options.isPrerelease !== undefined) {
+    const hasPrereleaseSuffix = releaseChannel === 'beta' || releaseChannel === 'rc'
+
+    if (options.isPrerelease && !hasPrereleaseSuffix) {
+      console.warn(
+        `[update-app-upgrade-config] ⚠️  Release marked as prerelease but version ${normalizedVersion} has no beta/rc suffix. Skipping.`
+      )
+      return
+    }
+
+    if (!options.isPrerelease && hasPrereleaseSuffix) {
+      console.warn(
+        `[update-app-upgrade-config] ⚠️  Release marked as latest but version ${normalizedVersion} has prerelease suffix (${releaseChannel}). Skipping.`
+      )
+      return
+    }
+  }
+
   const [config, segmentFile] = await Promise.all([
     readJson<UpgradeConfigFile>(options.configPath ?? DEFAULT_CONFIG_PATH),
     readJson<SegmentMetadataFile>(options.segmentsPath ?? DEFAULT_SEGMENTS_PATH)
@@ -119,10 +142,9 @@ async function main() {
   )
 
   if (!updated) {
-    console.warn(
-      `[update-app-upgrade-config] Skipped updating config for ${releaseInfo.version} (${releaseInfo.channel}) because feed URLs are not ready.`
+    throw new Error(
+      `[update-app-upgrade-config] Feed URLs are not ready for ${releaseInfo.version} (${releaseInfo.channel}). Try again after the release mirrors finish syncing.`
     )
-    return
   }
 
   const updatedConfig: UpgradeConfigFile = {
@@ -164,6 +186,9 @@ function parseArgs(): CliOptions {
       options.dryRun = true
     } else if (arg === '--skip-release-checks') {
       options.skipReleaseChecks = true
+    } else if (arg === '--is-prerelease') {
+      options.isPrerelease = args[i + 1] === 'true'
+      i += 1
     } else if (arg === '--help') {
       printHelp()
       process.exit(0)
@@ -186,6 +211,7 @@ Options:
   --tag <tag>         Release tag (e.g. v2.1.6). Falls back to GITHUB_REF_NAME/RELEASE_TAG.
   --config <path>     Path to app-upgrade-config.json.
   --segments <path>   Path to app-upgrade-segments.json.
+  --is-prerelease <true|false>  Whether this is a prerelease (validates version format).
   --dry-run           Print the result without writing to disk.
   --skip-release-checks  Skip release page availability checks (only valid with --dry-run).
   --help              Show this help message.`)
@@ -397,9 +423,15 @@ async function applyChannelUpdate(
       `[update-app-upgrade-config] Skipping release availability validation for ${releaseInfo.version} (${releaseInfo.channel}).`
     )
   } else {
-    const releaseReady = await ensureReleaseAvailability(releaseInfo)
-    if (!releaseReady) {
+    const availability = await ensureReleaseAvailability(releaseInfo)
+    if (!availability.github) {
       return false
+    }
+    if (releaseInfo.channel === 'latest' && !availability.gitcode) {
+      console.warn(
+        `[update-app-upgrade-config] gitcode release page not ready for ${releaseInfo.tag}. Falling back to ${GITCODE_LATEST_FALLBACK}.`
+      )
+      feedUrls.gitcode = GITCODE_LATEST_FALLBACK
     }
   }
 
@@ -445,39 +477,52 @@ function sortVersionMap(versions: Record<string, VersionEntry>): Record<string, 
   )
 }
 
-async function ensureReleaseAvailability(releaseInfo: ReleaseInfo): Promise<boolean> {
+interface ReleaseAvailability {
+  github: boolean
+  gitcode: boolean
+}
+
+async function ensureReleaseAvailability(releaseInfo: ReleaseInfo): Promise<ReleaseAvailability> {
   const mirrorsToCheck: UpdateMirror[] = releaseInfo.channel === 'latest' ? MIRRORS : ['github']
+  const availability: ReleaseAvailability = {
+    github: false,
+    gitcode: releaseInfo.channel === 'latest' ? false : true
+  }
 
   for (const mirror of mirrorsToCheck) {
-    const url = getReleasePageUrl(mirror, releaseInfo.tag, releaseInfo.channel)
+    const url = getReleasePageUrl(mirror, releaseInfo.tag)
     try {
       const response = await fetch(url, {
         method: 'HEAD',
         redirect: 'follow'
       })
 
-      if (response.status === 404) {
+      if (response.ok) {
+        availability[mirror] = true
+      } else {
         console.warn(
-          `[update-app-upgrade-config] ${mirror} release page missing for ${releaseInfo.tag} (${url}). Skipping update.`
+          `[update-app-upgrade-config] ${mirror} release not available for ${releaseInfo.tag} (status ${response.status}, ${url}).`
         )
-        return false
+        availability[mirror] = false
       }
     } catch (error) {
       console.warn(
         `[update-app-upgrade-config] Failed to verify ${mirror} release page for ${releaseInfo.tag} (${url}). Continuing.`,
         error
       )
+      availability[mirror] = false
     }
   }
 
-  return true
+  return availability
 }
 
-function getReleasePageUrl(mirror: UpdateMirror, tag: string, channel: UpgradeChannel): string {
-  if (mirror === 'github' || channel !== 'latest') {
-    return `https://github.com/CherryHQ/cherry-studio/releases/tag/${encodeURIComponent(tag)}`
+function getReleasePageUrl(mirror: UpdateMirror, tag: string): string {
+  if (mirror === 'github') {
+    return `https://github.com/${GITHUB_REPO}/releases/tag/${encodeURIComponent(tag)}`
   }
-  return `https://gitcode.com/CherryHQ/cherry-studio/releases/${encodeURIComponent(tag)}`
+  // Use latest.yml download URL for GitCode to check if release exists (returns 404 if not exists)
+  return `https://gitcode.com/${GITCODE_REPO}/releases/download/${encodeURIComponent(tag)}/latest.yml`
 }
 
 main().catch((error) => {
