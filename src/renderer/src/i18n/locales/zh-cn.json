@@ -904,7 +904,7 @@
       "show_line_numbers": "代码显示行号",
       "temperature": {
         "label": "模型温度",
-        "tip": "模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7"
+        "tip": "模型生成文本的随机程度。值越大，回复内容越富有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7"
       },
       "thought_auto_collapse": {
         "label": "思考内容自动折叠",
@@ -2484,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2495,7 @@
     "baidu-cloud": "百度云千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里云百炼",
@@ -4342,7 +4344,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 preview 版本"
+          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 v1 版本"
         }
       },
       "basic_auth": {

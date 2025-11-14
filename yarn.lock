@@ -127,6 +127,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/cerebras@npm:^1.0.31":
+  version: 1.0.31
+  resolution: "@ai-sdk/cerebras@npm:1.0.31"
+  dependencies:
+    "@ai-sdk/openai-compatible": "npm:1.0.27"
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/0723f0041b767acfb7a9d903d51d5c95af83c31c89b83f242cb5c02a076d8b98f6567334eb32dcdbc8565b55ded2aa5195ca68612bbe7b13e68253cf4ef412d6
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/deepseek@npm:^1.0.27":
   version: 1.0.27
   resolution: "@ai-sdk/deepseek@npm:1.0.27"
@@ -150,6 +163,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/b57db87ccfbda6d28c8ac6e24df5e57a45f18826bff3ca5d1b65b00d863dd779d2b0d80496eee8eea8cbf6db232c31bd00494cd0d25e745cb402aa98b0b4d50d
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/gateway@npm:^2.0.9":
+  version: 2.0.9
+  resolution: "@ai-sdk/gateway@npm:2.0.9"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+    "@vercel/oidc": "npm:3.0.3"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/840f94795b96c0fa6e73897ea8dba95fc78af1f8482f3b7d8439b6233b4f4de6979a8b67206f4bbf32649baf2acfb1153a46792dfa20259ca9f5fd214fb25fa5
   languageName: node
   linkType: hard
 
@@ -242,6 +268,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/openai-compatible@npm:1.0.27":
+  version: 1.0.27
+  resolution: "@ai-sdk/openai-compatible@npm:1.0.27"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/9f656e4f2ea4d714dc05be588baafd962b2e0360e9195fef373e745efeb20172698ea87e1033c0c5e1f1aa6e0db76a32629427bc8433eb42bd1a0ee00e04af0c
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/openai-compatible@npm:^1.0.19":
   version: 1.0.19
   resolution: "@ai-sdk/openai-compatible@npm:1.0.19"
@@ -316,7 +354,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/provider-utils@npm:3.0.17, @ai-sdk/provider-utils@npm:^3.0.10, @ai-sdk/provider-utils@npm:^3.0.12":
+"@ai-sdk/provider-utils@npm:3.0.17, @ai-sdk/provider-utils@npm:^3.0.10":
   version: 3.0.17
   resolution: "@ai-sdk/provider-utils@npm:3.0.17"
   dependencies:
@@ -326,6 +364,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/1bae6dc4cacd0305b6aa152f9589bbd61c29f150155482c285a77f83d7ed416d52bc2aa7fdaba2e5764530392d9e8f799baea34a63dce6c72ecd3de364dc62d1
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider-utils@npm:^3.0.12":
+  version: 3.0.12
+  resolution: "@ai-sdk/provider-utils@npm:3.0.12"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@standard-schema/spec": "npm:^1.0.0"
+    eventsource-parser: "npm:^3.0.5"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/83886bf188cad0cc655b680b710a10413989eaba9ec59dd24a58b985c02a8a1d50ad0f96dd5259385c07592ec3c37a7769fdf4a1ef569a73c9edbdb2cd585915
   languageName: node
   linkType: hard
 
@@ -9879,6 +9930,8 @@ __metadata:
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
     "@ai-sdk/amazon-bedrock": "npm:^3.0.53"
+    "@ai-sdk/cerebras": "npm:^1.0.31"
+    "@ai-sdk/gateway": "npm:^2.0.9"
     "@ai-sdk/google-vertex": "npm:^3.0.62"
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch"
     "@ai-sdk/mistral": "npm:^2.0.23"

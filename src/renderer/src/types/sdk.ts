@@ -97,6 +97,7 @@ export type ReasoningEffortOptionalParams = {
       }
     }
   }
+  disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist
 }
 

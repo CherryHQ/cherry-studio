@@ -2484,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "Πύλη Τεχνητής Νοημοσύνης",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2495,7 @@
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
@@ -4341,7 +4343,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια προεπισκόπηση έκδοσης"
+          "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
       "basic_auth": {

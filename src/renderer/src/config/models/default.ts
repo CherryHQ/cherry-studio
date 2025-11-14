@@ -1003,6 +1003,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'minimax',
       name: 'minimax-01',
       group: 'minimax-01'
+    },
+    {
+      id: 'MiniMax-M2',
+      provider: 'minimax',
+      name: 'MiniMax M2',
+      group: 'minimax-m2'
+    },
+    {
+      id: 'MiniMax-M2-Stable',
+      provider: 'minimax',
+      name: 'MiniMax M2 Stable',
+      group: 'minimax-m2'
     }
   ],
   hyperbolic: [
@@ -1841,5 +1853,26 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   huggingface: [],
-  kwaikat: []
+  kwaikat: [],
+  'ai-gateway': [],
+  cerebras: [
+    {
+      id: 'gpt-oss-120b',
+      name: 'GPT oss 120B',
+      provider: 'cerebras',
+      group: 'openai'
+    },
+    {
+      id: 'zai-glm-4.6',
+      name: 'GLM 4.6',
+      provider: 'cerebras',
+      group: 'zai'
+    },
+    {
+      id: 'qwen-3-235b-a22b-instruct-2507',
+      name: 'Qwen 3 235B A22B Instruct',
+      provider: 'cerebras',
+      group: 'qwen'
+    }
+  ]
 }

@@ -2484,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI 閘道器",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2495,7 @@
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
@@ -4342,7 +4344,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
+          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
       "basic_auth": {

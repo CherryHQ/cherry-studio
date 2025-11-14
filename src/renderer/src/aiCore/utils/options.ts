@@ -151,11 +151,12 @@ export function buildProviderOptions(
     ...providerSpecificOptions,
     ...getCustomParameters(assistant)
   }
-  // vertex需要映射到google或anthropic
+
   const rawProviderKey =
     {
       'google-vertex': 'google',
-      'google-vertex-anthropic': 'anthropic'
+      'google-vertex-anthropic': 'anthropic',
+      'ai-gateway': 'gateway'
     }[rawProviderId] || rawProviderId
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
