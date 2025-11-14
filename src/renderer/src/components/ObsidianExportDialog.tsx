@@ -415,7 +415,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         </Form.Item>
         {!rawContent && (
           <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
-            <Switch isSelected={exportReasoning} onValueChange={setExportReasoning} />
+            <Switch checked={exportReasoning} onCheckedChange={setExportReasoning} />
           </Form.Item>
         )}
       </Form>

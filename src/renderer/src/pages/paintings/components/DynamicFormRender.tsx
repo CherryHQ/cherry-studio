@@ -198,8 +198,8 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   if (type === 'boolean') {
     return (
       <Switch
-        isSelected={value !== undefined ? value : defaultValue}
-        onValueChange={(checked) => onChange(propertyName, checked)}
+        checked={value !== undefined ? value : defaultValue}
+        onCheckedChange={(checked) => onChange(propertyName, checked)}
         style={{ width: '2px' }}
       />
     )

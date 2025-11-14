@@ -201,7 +201,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch isSelected={webdavSkipBackupFile} onValueChange={onSkipBackupFilesChange} />
+        <Switch checked={webdavSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -209,7 +209,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
-        <Switch isSelected={webdavDisableStream} onValueChange={onDisableStreamChange} />
+        <Switch checked={webdavDisableStream} onCheckedChange={onDisableStreamChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
