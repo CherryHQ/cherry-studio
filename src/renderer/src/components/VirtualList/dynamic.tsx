@@ -81,6 +81,16 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    * Hide the scrollbar automatically when scrolling is stopped
    */
   autoHideScrollbar?: boolean
+
+  /**
+   * Header content to display above the list
+   */
+  header?: React.ReactNode
+
+  /**
+   * Additional CSS class name for the container
+   */
+  className?: string
 }
 
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
@@ -95,6 +105,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     itemContainerStyle,
     scrollerStyle,
     autoHideScrollbar = false,
+    header,
+    className,
     ...restOptions
   } = props
 
@@ -189,7 +201,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   return (
     <ScrollContainer
       ref={scrollerRef}
-      className="dynamic-virtual-list"
+      className={className ? `dynamic-virtual-list ${className}` : 'dynamic-virtual-list'}
       role="region"
       aria-label="Dynamic Virtual List"
       aria-hidden={!showScrollbar}
@@ -200,6 +212,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
         ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
       }}>
+      {header}
       <div
         style={{
           position: 'relative',
