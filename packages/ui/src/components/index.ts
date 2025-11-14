@@ -77,7 +77,12 @@ export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './
 // ImageToolButton
 export { default as ImageToolButton } from './composites/ImageToolButton'
 // Sortable
-export { CompositeInput, type CompositeInputProps } from './composites/Input'
+export {
+  CompositeInput,
+  type CompositeInputProps,
+  type SelectGroup as CompositeInputSelectGroup,
+  type SelectItem as CompositeInputSelectItem
+} from './composites/Input'
 export { Sortable } from './composites/Sortable'
 
 /* Shadcn Primitive Components */

@@ -25,7 +25,7 @@ const meta: Meta<typeof CompositeInput> = {
     },
     variant: {
       control: { type: 'select' },
-      options: ['default', 'button', 'email'],
+      options: ['default', 'button', 'email', 'select'],
       description: 'The visual variant of the input'
     },
     size: {
@@ -128,6 +128,132 @@ export const ButtonVariant: Story = {
   )
 }
 
+export const SelectVariant: Story = {
+  render: () => (
+    <div className="w-80">
+      <CompositeInput
+        variant="select"
+        placeholder="Enter amount..."
+        selectProps={{
+          placeholder: 'Currency',
+          groups: [
+            {
+              label: 'Popular',
+              items: [
+                { label: 'USD', value: 'usd' },
+                { label: 'EUR', value: 'eur' },
+                { label: 'GBP', value: 'gbp' }
+              ]
+            }
+          ]
+        }}
+      />
+    </div>
+  )
+}
+
+export const SelectVariantExamples: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Currency Input</p>
+        <CompositeInput
+          variant="select"
+          placeholder="0.00"
+          type="number"
+          selectProps={{
+            placeholder: 'Currency',
+            groups: [
+              {
+                label: 'Popular',
+                items: [
+                  { label: 'USD', value: 'usd' },
+                  { label: 'EUR', value: 'eur' },
+                  { label: 'GBP', value: 'gbp' }
+                ]
+              },
+              {
+                label: 'Other',
+                items: [
+                  { label: 'JPY', value: 'jpy' },
+                  { label: 'CNY', value: 'cny' },
+                  { label: 'AUD', value: 'aud' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">URL with Protocol</p>
+        <CompositeInput
+          variant="select"
+          placeholder="example.com"
+          selectProps={{
+            placeholder: 'Protocol',
+            groups: [
+              {
+                label: 'Protocol',
+                items: [
+                  { label: 'https://', value: 'https' },
+                  { label: 'http://', value: 'http' },
+                  { label: 'ftp://', value: 'ftp' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Phone with Country Code</p>
+        <CompositeInput
+          variant="select"
+          placeholder="123-456-7890"
+          type="tel"
+          selectProps={{
+            placeholder: 'Code',
+            groups: [
+              {
+                label: 'Countries',
+                items: [
+                  { label: '+1', value: 'us' },
+                  { label: '+44', value: 'uk' },
+                  { label: '+86', value: 'cn' },
+                  { label: '+81', value: 'jp' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Temperature with Unit</p>
+        <CompositeInput
+          variant="select"
+          placeholder="0"
+          type="number"
+          selectProps={{
+            placeholder: 'Unit',
+            groups: [
+              {
+                label: 'Temperature',
+                items: [
+                  { label: '°C', value: 'celsius' },
+                  { label: '°F', value: 'fahrenheit' },
+                  { label: 'K', value: 'kelvin' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 // Password Input with Toggle
 export const PasswordDefault: Story = {
   args: {
@@ -155,9 +281,7 @@ export const PasswordWithButton: Story = {
           onClick: () => alert('Password reset requested')
         }}
       />
-      <p className="mt-2 text-xs text-muted-foreground">
-        Password field with action button and visibility toggle
-      </p>
+      <p className="mt-2 text-xs text-muted-foreground">Password field with action button and visibility toggle</p>
     </div>
   )
 }
@@ -229,6 +353,171 @@ export const SizesWithButton: Story = {
   )
 }
 
+// Select Sizes
+export const SelectVariantSizes: Story = {
+  render: () => (
+    <div className="flex w-96 flex-col gap-6">
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Small (sm)</p>
+        <CompositeInput
+          variant="select"
+          size="sm"
+          placeholder="0.00"
+          type="number"
+          selectProps={{
+            placeholder: 'USD',
+            groups: [
+              {
+                label: 'Currency',
+                items: [
+                  { label: 'USD', value: 'usd' },
+                  { label: 'EUR', value: 'eur' },
+                  { label: 'GBP', value: 'gbp' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Medium (md) - Default</p>
+        <CompositeInput
+          variant="select"
+          size="md"
+          placeholder="0.00"
+          type="number"
+          selectProps={{
+            placeholder: 'USD',
+            groups: [
+              {
+                label: 'Currency',
+                items: [
+                  { label: 'USD', value: 'usd' },
+                  { label: 'EUR', value: 'eur' },
+                  { label: 'GBP', value: 'gbp' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Large (lg)</p>
+        <CompositeInput
+          variant="select"
+          size="lg"
+          placeholder="0.00"
+          type="number"
+          selectProps={{
+            placeholder: 'USD',
+            groups: [
+              {
+                label: 'Currency',
+                items: [
+                  { label: 'USD', value: 'usd' },
+                  { label: 'EUR', value: 'eur' },
+                  { label: 'GBP', value: 'gbp' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+export const SelectVariantInteractive: Story = {
+  render: function SelectVariantInteractiveExample() {
+    const [amount, setAmount] = useState('')
+    const [currency, setCurrency] = useState('usd')
+    const [converted, setConverted] = useState<{ value: number; currency: string } | null>(null)
+
+    // Mock exchange rates
+    const rates: Record<string, number> = {
+      usd: 1,
+      eur: 0.92,
+      gbp: 0.79,
+      jpy: 149.5,
+      cny: 7.24,
+      aud: 1.52
+    }
+
+    const handleConvert = () => {
+      const numAmount = parseFloat(amount)
+      if (!isNaN(numAmount) && numAmount > 0) {
+        const convertedValue = numAmount * rates[currency]
+        setConverted({ value: convertedValue, currency })
+      }
+    }
+
+    return (
+      <div className="w-96 space-y-4">
+        <h3 className="text-base font-semibold">Currency Converter</h3>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Amount in USD</label>
+          <CompositeInput
+            variant="select"
+            placeholder="0.00"
+            type="number"
+            value={amount}
+            onChange={(e) => {
+              setAmount(e.target.value)
+              setConverted(null)
+            }}
+            selectProps={{
+              placeholder: 'Currency',
+              groups: [
+                {
+                  label: 'Popular',
+                  items: [
+                    { label: 'USD', value: 'usd' },
+                    { label: 'EUR', value: 'eur' },
+                    { label: 'GBP', value: 'gbp' }
+                  ]
+                },
+                {
+                  label: 'Other',
+                  items: [
+                    { label: 'JPY', value: 'jpy' },
+                    { label: 'CNY', value: 'cny' },
+                    { label: 'AUD', value: 'aud' }
+                  ]
+                }
+              ]
+            }}
+          />
+          {amount && !converted && (
+            <p className="mt-1 text-xs text-muted-foreground">Enter amount to convert to selected currency</p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleConvert}
+          disabled={!amount || parseFloat(amount) <= 0}
+          className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+          Convert
+        </button>
+
+        {converted && (
+          <div className="rounded-md border bg-muted/20 p-4">
+            <p className="text-sm font-medium">Converted Amount</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {converted.value.toFixed(2)} {converted.currency.toUpperCase()}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {amount} USD = {converted.value.toFixed(2)} {converted.currency.toUpperCase()}
+            </p>
+          </div>
+        )}
+      </div>
+    )
+  }
+}
+
 // All Variants
 export const AllVariants: Story = {
   render: () => (
@@ -241,6 +530,27 @@ export const AllVariants: Story = {
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Email Variant</p>
         <CompositeInput variant="email" type="email" placeholder="example.com" prefix="user@" />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Select Variant</p>
+        <CompositeInput
+          variant="select"
+          placeholder="0.00"
+          type="number"
+          selectProps={{
+            placeholder: 'Currency',
+            groups: [
+              {
+                label: 'Popular',
+                items: [
+                  { label: 'USD', value: 'usd' },
+                  { label: 'EUR', value: 'eur' }
+                ]
+              }
+            ]
+          }}
+        />
       </div>
 
       <div>
@@ -308,6 +618,41 @@ export const DisabledState: Story = {
       </div>
 
       <div>
+        <p className="mb-2 text-sm text-muted-foreground">Disabled - Email Variant</p>
+        <CompositeInput
+          variant="email"
+          type="email"
+          placeholder="example.com"
+          prefix="user@"
+          disabled
+          defaultValue="example.com"
+        />
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm text-muted-foreground">Disabled - Select Variant</p>
+        <CompositeInput
+          variant="select"
+          placeholder="0.00"
+          type="number"
+          disabled
+          defaultValue="100.00"
+          selectProps={{
+            placeholder: 'USD',
+            groups: [
+              {
+                label: 'Currency',
+                items: [
+                  { label: 'USD', value: 'usd' },
+                  { label: 'EUR', value: 'eur' }
+                ]
+              }
+            ]
+          }}
+        />
+      </div>
+
+      <div>
         <p className="mb-2 text-sm text-muted-foreground">Disabled - Button Variant</p>
         <CompositeInput
           variant="button"
@@ -317,18 +662,6 @@ export const DisabledState: Story = {
             label: 'Submit',
             onClick: () => {}
           }}
-        />
-      </div>
-
-      <div>
-        <p className="mb-2 text-sm text-muted-foreground">Disabled - Email Variant</p>
-        <CompositeInput
-          variant="email"
-          type="email"
-          placeholder="example.com"
-          prefix="user@"
-          disabled
-          defaultValue="example.com"
         />
       </div>
     </div>
@@ -347,7 +680,9 @@ export const DisabledPassword: Story = {
           disabled
           defaultValue="secret123"
         />
-        <p className="mt-1 text-xs text-muted-foreground">Password field is disabled, eye icon still visible but non-functional</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Password field is disabled, eye icon still visible but non-functional
+        </p>
       </div>
 
       <div>
@@ -368,12 +703,7 @@ export const DisabledPassword: Story = {
 
       <div>
         <p className="mb-2 text-sm text-muted-foreground">Disabled Password - Empty</p>
-        <CompositeInput
-          variant="default"
-          type="password"
-          placeholder="Enter password..."
-          disabled
-        />
+        <CompositeInput variant="default" type="password" placeholder="Enter password..." disabled />
       </div>
     </div>
   )
@@ -497,6 +827,7 @@ export const EmailVariantInteractive: Story = {
           )}
         </div>
         <button
+          type="button"
           onClick={handleSubmit}
           disabled={!domain || !!error}
           className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
@@ -593,9 +924,7 @@ export const ValidationForm: Story = {
             onBlur={() => handleBlur('email')}
             aria-invalid={touched.email && !!errors.email}
           />
-          {touched.email && errors.email && (
-            <p className="mt-1 text-xs text-destructive">{errors.email}</p>
-          )}
+          {touched.email && errors.email && <p className="mt-1 text-xs text-destructive">{errors.email}</p>}
         </div>
 
         <div>
@@ -611,9 +940,7 @@ export const ValidationForm: Story = {
             onBlur={() => handleBlur('password')}
             aria-invalid={touched.password && !!errors.password}
           />
-          {touched.password && errors.password && (
-            <p className="mt-1 text-xs text-destructive">{errors.password}</p>
-          )}
+          {touched.password && errors.password && <p className="mt-1 text-xs text-destructive">{errors.password}</p>}
         </div>
 
         <div>
@@ -640,9 +967,7 @@ export const ValidationForm: Story = {
           Create Account
         </button>
 
-        <p className="text-xs text-muted-foreground">
-          * Fields marked with an asterisk are required
-        </p>
+        <p className="text-xs text-muted-foreground">* Fields marked with an asterisk are required</p>
       </form>
     )
   }
@@ -1097,6 +1422,24 @@ export const AllCombinations: Story = {
           <CompositeInput variant="default" size="sm" placeholder="Default variant" />
           <CompositeInput variant="email" type="email" size="sm" placeholder="example.com" prefix="user@" />
           <CompositeInput
+            variant="select"
+            size="sm"
+            placeholder="0.00"
+            type="number"
+            selectProps={{
+              placeholder: 'USD',
+              groups: [
+                {
+                  label: 'Currency',
+                  items: [
+                    { label: 'USD', value: 'usd' },
+                    { label: 'EUR', value: 'eur' }
+                  ]
+                }
+              ]
+            }}
+          />
+          <CompositeInput
             variant="button"
             size="sm"
             placeholder="Button variant"
@@ -1116,6 +1459,24 @@ export const AllCombinations: Story = {
           <CompositeInput variant="default" size="md" placeholder="Default variant" />
           <CompositeInput variant="email" type="email" size="md" placeholder="example.com" prefix="user@" />
           <CompositeInput
+            variant="select"
+            size="md"
+            placeholder="0.00"
+            type="number"
+            selectProps={{
+              placeholder: 'USD',
+              groups: [
+                {
+                  label: 'Currency',
+                  items: [
+                    { label: 'USD', value: 'usd' },
+                    { label: 'EUR', value: 'eur' }
+                  ]
+                }
+              ]
+            }}
+          />
+          <CompositeInput
             variant="button"
             size="md"
             placeholder="Button variant"
@@ -1134,6 +1495,24 @@ export const AllCombinations: Story = {
         <div className="space-y-3">
           <CompositeInput variant="default" size="lg" placeholder="Default variant" />
           <CompositeInput variant="email" type="email" size="lg" placeholder="example.com" prefix="user@" />
+          <CompositeInput
+            variant="select"
+            size="lg"
+            placeholder="0.00"
+            type="number"
+            selectProps={{
+              placeholder: 'USD',
+              groups: [
+                {
+                  label: 'Currency',
+                  items: [
+                    { label: 'USD', value: 'usd' },
+                    { label: 'EUR', value: 'eur' }
+                  ]
+                }
+              ]
+            }}
+          />
           <CompositeInput
             variant="button"
             size="lg"

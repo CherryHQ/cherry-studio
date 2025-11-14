@@ -7,6 +7,15 @@ import { useCallback, useMemo, useState } from 'react'
 
 import type { InputProps } from '../../primitives/input'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '../../primitives/input-group'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue
+} from '../../primitives/select'
 
 const inputGroupVariants = cva(
   [
@@ -112,9 +121,9 @@ const buttonVariants = cva(
   {
     variants: {
       size: {
-        sm: ['p-3xs'],
-        md: ['p-3xs'],
-        lg: ['px-2xs', 'py-3xs']
+        sm: ['px-3xs py-3xs'],
+        md: ['px-3xs py-3xs'],
+        lg: ['px-2xs py-3xs']
       },
       disabled: {
         false: null,
@@ -166,6 +175,36 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60
   }
 })
 
+const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60'], {
+  variants: {
+    size: {
+      // TODO: semantic letter-spacing
+      sm: ['text-sm leading-4', 'px-3xs py-4xs'],
+      md: ['leading-4.5', 'px-3xs py-4xs'],
+      lg: ['leading-5 tracking-normal', 'px-2xs py-3xs']
+    },
+    disabled: {
+      false: null,
+      true: 'text-foreground/40'
+    }
+  },
+  defaultVariants: {
+    size: 'md',
+    disabled: false
+  }
+})
+
+const selectTriggerLabelVariants = cva([], {
+  variants: {
+    size: {
+      // TODO: p/font-family, p/letter-spacing ... p?
+      sm: ['text-sm leading-4'],
+      md: ['leading-4.5'],
+      lg: ['text-lg leading-5 tracking-normal']
+    }
+  }
+})
+
 function ShowPasswordButton({
   type,
   setType,
@@ -196,14 +235,28 @@ function ShowPasswordButton({
   )
 }
 
+interface SelectItem {
+  label: ReactNode
+  value: string
+}
+
+interface SelectGroup {
+  label: ReactNode
+  items: SelectItem[]
+}
+
 interface CompositeInputProps
   extends Omit<InputProps, 'size' | 'disabled' | 'prefix'>,
     VariantProps<typeof inputVariants> {
   buttonProps?: {
-    label: ReactNode
+    label?: ReactNode
     onClick: React.DOMAttributes<HTMLButtonElement>['onClick']
   }
   prefix?: ReactNode
+  selectProps?: {
+    groups: SelectGroup[]
+    placeholder?: string
+  }
 }
 
 function CompositeInput({
@@ -213,6 +266,7 @@ function CompositeInput({
   disabled = false,
   buttonProps,
   prefix,
+  selectProps,
   className,
   ...rest
 }: CompositeInputProps) {
@@ -234,15 +288,44 @@ function CompositeInput({
 
   const emailContent = useMemo(() => {
     if (!prefix) {
-      console.warn('')
+      console.warn('CompositeInput: "email" variant requires a "prefix" prop to be provided.')
     } else {
       return <div className={prefixVariants({ size, disabled })}>{prefix}</div>
     }
   }, [disabled, prefix, size])
 
+  const selectContent = useMemo(() => {
+    if (!selectProps) {
+      console.warn('CompositeInput: "select" variant requires a "selectProps" prop to be provided.')
+    } else {
+      return (
+        <div className={selectPrefixVariants({ size, disabled })}>
+          <Select>
+            <SelectTrigger className={cn('border-none py-2 pl-3 aria-expanded:border-none aria-expanded:ring-0')}>
+              <SelectValue placeholder={selectProps.placeholder} className={selectTriggerLabelVariants({ size })} />
+            </SelectTrigger>
+            <SelectContent>
+              {selectProps.groups.map((group, index) => (
+                <SelectGroup key={index}>
+                  <SelectLabel>{group.label}</SelectLabel>
+                  {group.items.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )
+    }
+  }, [disabled, selectProps, size])
+
   return (
     <InputGroup className={inputGroupVariants({ disabled })}>
       {variant === 'email' && emailContent}
+      {variant === 'select' && selectContent}
       <div className={inputWrapperVariants({ size, variant, disabled })}>
         <InputGroupInput
           type={isPassword ? htmlType : type}
@@ -266,4 +349,4 @@ function CompositeInput({
   )
 }
 
-export { CompositeInput, type CompositeInputProps }
+export { CompositeInput, type CompositeInputProps, type SelectGroup, type SelectItem }
