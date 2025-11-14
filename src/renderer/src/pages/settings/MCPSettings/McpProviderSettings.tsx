@@ -1,11 +1,10 @@
-import { Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
-import { Button, Divider, Flex, Space } from 'antd'
+import { Button, Divider, Flex, Input, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -140,8 +139,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key.label')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input
-          type="password"
+        <Input.Password
           value={token}
           placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
           onChange={(e) => handleTokenChange(e.target.value)}

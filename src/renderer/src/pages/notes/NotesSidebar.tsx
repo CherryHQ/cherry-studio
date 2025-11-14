@@ -1,4 +1,3 @@
-import { Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import HighlightText from '@renderer/components/HighlightText'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -18,7 +17,7 @@ import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { InputRef, MenuProps } from 'antd'
-import { Dropdown } from 'antd'
+import { Dropdown, Input } from 'antd'
 import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import {
   ChevronDown,

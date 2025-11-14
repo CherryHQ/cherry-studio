@@ -1,6 +1,6 @@
-import { Button, Textarea } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { isWin } from '@renderer/config/constant'
-import { Form, Modal } from 'antd'
+import { Form, Input, Modal } from 'antd'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,7 +71,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
   )
 }
 
-const StyledTextArea = styled(Textarea)`
+const StyledTextArea = styled(Input.TextArea)`
   margin-top: 16px;
   width: 100%;
 `

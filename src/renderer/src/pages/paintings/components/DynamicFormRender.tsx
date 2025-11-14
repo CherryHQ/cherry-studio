@@ -1,10 +1,9 @@
 import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { convertToBase64 } from '@renderer/utils'
-import { InputNumber, Select, Upload } from 'antd'
+import { Input, InputNumber, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
 

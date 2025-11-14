@@ -1,5 +1,4 @@
 import { Button, Flex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -23,7 +22,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import type { ModalProps } from 'antd'
-import { Divider, Form, InputNumber, Modal, Select } from 'antd'
+import { Divider, Form, Input, InputNumber, Modal, Select } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'

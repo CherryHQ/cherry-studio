@@ -1,11 +1,10 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Provider } from '@renderer/types'
 import type { FormProps } from 'antd'
-import { AutoComplete, Form, Modal, Progress, Select } from 'antd'
+import { AutoComplete, Form, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

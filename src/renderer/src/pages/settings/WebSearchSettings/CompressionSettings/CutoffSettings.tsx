@@ -1,8 +1,7 @@
 import { InfoTooltip } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { Select, Space } from 'antd'
+import { Input, Select, Space } from 'antd'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

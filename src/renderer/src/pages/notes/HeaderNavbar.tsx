@@ -1,11 +1,11 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNode } from '@renderer/services/NotesTreeService'
-import { Breadcrumb, Dropdown, Tooltip } from 'antd'
+import { Breadcrumb, Dropdown, Input, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -206,7 +206,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
                           onChange={handleTitleChange}
                           onBlur={handleTitleBlur}
                           onKeyDown={handleTitleKeyDown}
-                          size="sm"
+                          size="small"
                           variant="borderless"
                           style={{
                             fontSize: 'inherit',

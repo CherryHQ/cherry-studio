@@ -1,6 +1,5 @@
-import { Input } from '@cherrystudio/ui'
 import { backupToWebdav } from '@renderer/services/BackupService'
-import { Modal } from 'antd'
+import { Input, Modal } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'

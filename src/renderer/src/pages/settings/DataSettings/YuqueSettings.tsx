@@ -1,10 +1,10 @@
 import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Space } from 'antd'
+import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,6 +1,5 @@
-import { Input } from '@cherrystudio/ui'
 import { loggerService } from '@renderer/services/LoggerService'
-import { Alert, Button, Card, Col, Divider, message, Row, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Divider, Input, message, Row, Space, Table, Tag, Typography } from 'antd'
 import { Check, Database, Play, RotateCcw, X } from 'lucide-react'
 import React, { useState } from 'react'
 import styled from 'styled-components'

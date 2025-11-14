@@ -1,7 +1,6 @@
-import { Input } from '@cherrystudio/ui'
 import { backupToS3 } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Modal, Select, Spin } from 'antd'
+import { Input, Modal, Select, Spin } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'

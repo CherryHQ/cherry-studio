@@ -1,11 +1,10 @@
-import { Input } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button, InputNumber, Tooltip, Typography } from 'antd'
+import { Alert, Button, Input, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -156,7 +155,7 @@ const ApiServerSettings: FC = () => {
           value={apiServerConfig.apiKey}
           readOnly
           placeholder={t('apiServer.fields.apiKey.placeholder')}
-          size="md"
+          size="middle"
           suffix={
             <InputButtonContainer>
               {!apiServerRunning && (
@@ -178,7 +177,7 @@ const ApiServerSettings: FC = () => {
             style={{ height: 38 }}
             value={`Authorization: Bearer ${apiServerConfig.apiKey || 'your-api-key'}`}
             readOnly
-            size="md"
+            size="middle"
           />
         </AuthHeaderSection>
       </ConfigurationField>

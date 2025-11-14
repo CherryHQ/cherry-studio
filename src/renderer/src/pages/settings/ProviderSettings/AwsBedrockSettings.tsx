@@ -1,8 +1,7 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useAwsBedrockSettings } from '@renderer/hooks/useAwsBedrock'
-import { Alert, Radio } from 'antd'
+import { Alert, Input, Radio } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -67,8 +66,7 @@ const AwsBedrockSettings: FC = () => {
           <SettingSubtitle style={{ marginTop: 15 }}>
             {t('settings.provider.aws-bedrock.secret_access_key')}
           </SettingSubtitle>
-          <Input
-            type="password"
+          <Input.Password
             value={localSecretAccessKey}
             placeholder="Secret Access Key"
             onChange={(e) => setLocalSecretAccessKey(e.target.value)}
@@ -92,8 +90,7 @@ const AwsBedrockSettings: FC = () => {
       {authType === 'apiKey' && (
         <>
           <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.aws-bedrock.api_key')}</SettingSubtitle>
-          <Input
-            type="password"
+          <Input.Password
             value={localApiKey}
             placeholder="Bedrock API Key"
             onChange={(e) => setLocalApiKey(e.target.value)}

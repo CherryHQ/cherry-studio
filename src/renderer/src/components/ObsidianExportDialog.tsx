@@ -1,5 +1,4 @@
 import { Switch } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
@@ -12,7 +11,7 @@ import {
   messageToMarkdownWithReasoning,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Alert, Empty, Form, Modal, Select, Spin, TreeSelect } from 'antd'
+import { Alert, Empty, Form, Input, Modal, Select, Spin, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
 const logger = loggerService.withContext('ObsidianExportDialog')
 

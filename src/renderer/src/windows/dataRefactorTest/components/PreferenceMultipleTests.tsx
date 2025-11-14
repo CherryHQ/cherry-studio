@@ -1,6 +1,5 @@
-import { Input } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
-import { Button, Card, message, Select, Slider, Space, Table, Typography } from 'antd'
+import { Button, Card, Input, message, Select, Slider, Space, Table, Typography } from 'antd'
 import type { ColumnType } from 'antd/es/table'
 import React, { useState } from 'react'
 import styled from 'styled-components'

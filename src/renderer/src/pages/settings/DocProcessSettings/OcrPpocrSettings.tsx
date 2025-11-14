@@ -1,7 +1,7 @@
-import { Input } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, isOcrPpocrProvider } from '@renderer/types'
+import { Input } from 'antd'
 import { startTransition, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

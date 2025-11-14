@@ -1,8 +1,7 @@
 import { InboxOutlined, LinkOutlined, LoadingOutlined, UploadOutlined } from '@ant-design/icons'
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
-import { Modal, Spin, Tabs, Upload } from 'antd'
+import { Input, Modal, Spin, Tabs, Upload } from 'antd'
 
 const { Dragger } = Upload
 import type { RcFile } from 'antd/es/upload'

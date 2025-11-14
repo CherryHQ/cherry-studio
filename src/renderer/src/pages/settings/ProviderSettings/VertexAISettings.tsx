@@ -1,8 +1,7 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Alert } from 'antd'
+import { Alert, Input } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

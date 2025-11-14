@@ -1,7 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n'
 import type { InputRef } from 'antd'
+import { Input } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'

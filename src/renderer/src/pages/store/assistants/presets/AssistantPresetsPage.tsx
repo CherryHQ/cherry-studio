@@ -1,4 +1,4 @@
-import { Button, ColFlex, Flex, Input, RowFlex } from '@cherrystudio/ui'
+import { Button, ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
@@ -9,7 +9,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Empty } from 'antd'
+import { Empty, Input } from 'antd'
 import { omit } from 'lodash'
 import { Import, Plus, Rss, Search } from 'lucide-react'
 import type { FC } from 'react'
@@ -194,7 +194,7 @@ const AssistantPresetsPage: FC = () => {
             placeholder={t('common.search')}
             className="nodrag"
             style={{ width: '30%', height: 28, borderRadius: 15, paddingLeft: 12 }}
-            size="sm"
+            size="small"
             variant="filled"
             allowClear
             onClear={handleSearchClear}
@@ -262,7 +262,7 @@ const AssistantPresetsPage: FC = () => {
                   placeholder={t('common.search')}
                   className="nodrag"
                   style={{ width: 200, height: 28, borderRadius: 15, paddingLeft: 12 }}
-                  size="sm"
+                  size="small"
                   variant="filled"
                   allowClear
                   onClear={handleSearchClear}

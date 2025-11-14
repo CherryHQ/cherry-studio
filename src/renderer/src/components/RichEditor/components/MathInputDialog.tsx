@@ -1,7 +1,7 @@
 import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
-import { Input } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { Input } from 'antd'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

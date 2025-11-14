@@ -1,9 +1,10 @@
 // Original path: src/renderer/src/components/CollapsibleSearchBar.tsx
+import type { InputRef } from 'antd'
+import { Input } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
-import { Input } from '../../primitives/input'
 import { Tooltip } from '../../primitives/tooltip'
 
 interface CollapsibleSearchBarProps {
@@ -29,7 +30,7 @@ const CollapsibleSearchBar = ({
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<InputRef>(null)
 
   const handleTextChange = useCallback(
     (text: string) => {
