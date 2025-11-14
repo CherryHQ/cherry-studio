@@ -1391,6 +1391,7 @@
         "title": "How to export ChatGPT conversations?"
       },
       "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
       "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
       "title": "Import ChatGPT Conversations",
       "untitled_conversation": "Untitled Conversation"

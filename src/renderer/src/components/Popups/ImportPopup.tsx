@@ -1,5 +1,5 @@
 import { importChatGPTConversations } from '@renderer/services/import'
-import { Alert, Modal, Progress, Space } from 'antd'
+import { Alert, Modal, Progress, Space, Spin } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,21 +15,25 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
+  const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
   const { t } = useTranslation()
 
   const onOk = async () => {
-    setImporting(true)
+    setSelecting(true)
     try {
       // Select ChatGPT JSON file
       const file = await window.api.file.open({
         filters: [{ name: 'ChatGPT Conversations', extensions: ['json'] }]
       })
 
+      setSelecting(false)
+
       if (!file) {
-        setImporting(false)
         return
       }
+
+      setImporting(true)
 
       // Parse file content
       const fileContent = typeof file.content === 'string' ? file.content : new TextDecoder().decode(file.content)
@@ -52,6 +56,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       window.toast.error(t('import.chatgpt.error.unknown'))
       setOpen(false)
     } finally {
+      setSelecting(false)
       setImporting(false)
     }
   }
@@ -74,12 +79,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       okText={t('import.chatgpt.button')}
-      okButtonProps={{ disabled: importing, loading: importing }}
-      cancelButtonProps={{ disabled: importing }}
+      okButtonProps={{ disabled: selecting || importing, loading: selecting }}
+      cancelButtonProps={{ disabled: selecting || importing }}
       maskClosable={false}
       transitionName="animation-move-down"
       centered>
-      {!importing && (
+      {!selecting && !importing && (
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>{t('import.chatgpt.description')}</div>
           <Alert
@@ -96,6 +101,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             style={{ marginTop: 12 }}
           />
         </Space>
+      )}
+      {selecting && (
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16 }}>{t('import.chatgpt.selecting')}</div>
+        </div>
       )}
       {importing && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>

@@ -1391,6 +1391,7 @@
         "title": "如何匯出 ChatGPT 對話？"
       },
       "importing": "正在匯入對話...",
+      "selecting": "正在選擇檔案...",
       "success": "成功匯入 {{topics}} 個對話，共 {{messages}} 則訊息",
       "title": "匯入 ChatGPT 對話",
       "untitled_conversation": "未命名對話"

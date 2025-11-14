@@ -205,7 +205,16 @@ export class ChatGPTImporter implements ConversationImporter {
       createdAt,
       updatedAt: createdAt,
       status: role === 'user' ? UserMessageStatus.SUCCESS : AssistantMessageStatus.SUCCESS,
-      blocks: [blockId]
+      blocks: [blockId],
+      // Set model for assistant messages to display GPT-5 logo
+      ...(role === 'assistant' && {
+        model: {
+          id: 'gpt-5',
+          provider: 'openai',
+          name: 'GPT-5',
+          group: 'gpt-5'
+        }
+      })
     }
 
     // Create block
