@@ -10088,7 +10088,7 @@ __metadata:
     dotenv-cli: "npm:^7.4.2"
     drizzle-kit: "npm:^0.31.4"
     drizzle-orm: "npm:^0.44.5"
-    electron: "npm:38.4.0"
+    electron: "npm:37.10.0"
     electron-builder: "npm:26.0.15"
     electron-devtools-installer: "npm:^3.2.0"
     electron-reload: "npm:^2.0.0-alpha.1"
@@ -13756,16 +13756,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:38.4.0":
-  version: 38.4.0
-  resolution: "electron@npm:38.4.0"
+"electron@npm:37.10.0":
+  version: 37.10.0
+  resolution: "electron@npm:37.10.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/3458409151d12f1fcd5e95374aa36e0d2f4aa0d3421c9f57dc521c606070294f33b24a681b3f93b49b02f4a3a07eb0070100ebda51b1198efd4b49dbf1260713
+  checksum: 10c0/c6f115e4a44edd1e719ef99b6fdb1a47ebb1c8f26e836692f029a82ff8e07538967271f4aec1533a74c098c950217ff295ef43821f8c12c7795e81306ce61350
   languageName: node
   linkType: hard
 
@@ -19637,12 +19637,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-abi@npm:4.12.0":
-  version: 4.12.0
-  resolution: "node-abi@npm:4.12.0"
+"node-abi@npm:4.24.0":
+  version: 4.24.0
+  resolution: "node-abi@npm:4.24.0"
   dependencies:
     semver: "npm:^7.6.3"
-  checksum: 10c0/78a0697b1ea7da95bee5465d92772a883fb829ae01e89cf2b60c2af79bf784e422cdde9cc2f15684d5bafb9a0ac3d8e16292520107dc36eff30c541e23ac9fb7
+  checksum: 10c0/9bf9f4e79c875b98f8026f2ad80150b2d5077f48529444232c9574cfd82e45d42a3ab2dcf6fb374cf7775becbf58e7c1b8704596ad3bef27cdeab7bc93eca7a3
   languageName: node
   linkType: hard
 

@@ -375,13 +375,16 @@ export class WindowService {
 
       mainWindow.hide()
 
-      // TODO: don't hide dock icon when close to tray
-      // will cause the cmd+h behavior not working
-      // after the electron fix the bug, we can restore this code
-      // //for mac users, should hide dock icon if close to tray
-      // if (isMac && isTrayOnClose) {
-      //   app.dock?.hide()
-      // }
+       //for mac users, should hide dock icon if close to tray
+       if (isMac && isTrayOnClose) {
+         app.dock?.hide()
+
+         mainWindow.once('show', () => {
+         //restore the window can hide by cmd+h when the window is shown again
+         // https://github.com/electron/electron/pull/47970
+          app.dock?.show()
+         })
+       }
     })
 
     mainWindow.on('closed', () => {
