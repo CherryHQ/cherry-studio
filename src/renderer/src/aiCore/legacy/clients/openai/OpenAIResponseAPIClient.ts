@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import type { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
 import type { CompletionsContext } from '@renderer/aiCore/legacy/middleware/types'
 import {
+  getModelSupportedVerbosity,
   isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
@@ -520,8 +521,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  // gpt-5-pro only supports 'high' verbosity
-                  verbosity: model.id.toLowerCase().includes('gpt-5-pro') ? 'high' : this.getVerbosity()
+                  verbosity: (() => {
+                    const supportedVerbosity = getModelSupportedVerbosity(model)
+                    const userVerbosity = this.getVerbosity()
+                    // Use user's verbosity if supported, otherwise use the first supported option
+                    return supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+                  })()
                 }
               }
             : {}),

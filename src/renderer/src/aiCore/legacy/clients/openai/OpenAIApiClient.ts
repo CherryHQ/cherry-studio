@@ -10,6 +10,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
+  getModelSupportedVerbosity,
   getOpenAIWebSearchParams,
   getThinkModelType,
   isClaudeReasoningModel,
@@ -737,8 +738,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  // gpt-5-pro only supports 'high' verbosity
-                  verbosity: model.id.toLowerCase().includes('gpt-5-pro') ? 'high' : this.getVerbosity()
+                  verbosity: (() => {
+                    const supportedVerbosity = getModelSupportedVerbosity(model)
+                    const userVerbosity = this.getVerbosity()
+                    // Use user's verbosity if supported, otherwise use the first supported option
+                    return supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+                  })()
                 }
               }
             : {}),
