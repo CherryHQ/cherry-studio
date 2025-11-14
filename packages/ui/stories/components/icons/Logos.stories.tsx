@@ -20,7 +20,6 @@ import {
   Dashscope,
   Deepseek,
   Dmxapi,
-  DmxapiLogo,
   DmxapiToImg,
   Doc2x,
   Doubao,
@@ -105,7 +104,6 @@ const logos = [
   { Component: Dashscope, name: 'Dashscope' },
   { Component: Deepseek, name: 'Deepseek' },
   { Component: Dmxapi, name: 'Dmxapi' },
-  { Component: DmxapiLogo, name: 'DmxapiLogo' },
   { Component: DmxapiToImg, name: 'DmxapiToImg' },
   { Component: Doc2x, name: 'Doc2x' },
   { Component: Doubao, name: 'Doubao' },
@@ -218,6 +216,8 @@ type Story = StoryObj<typeof LogosShowcase>
  * ## 使用示例
  *
  * ```tsx
+ * import { Anthropic } from '@cherrystudio/ui/icons'
+ *
  * // 通过 fontSize 控制大小
  * <div style={{ fontSize: 24 }}>
  *   <Anthropic />
