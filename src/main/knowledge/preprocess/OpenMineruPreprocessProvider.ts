@@ -124,7 +124,7 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
     const formData = new FormData()
     formData.append('return_md', 'true')
     formData.append('response_format_zip', 'true')
-    formData.append('files', fileBuffer, {
+    formData.append('file', fileBuffer, {
       filename: file.origin_name
     })
 
