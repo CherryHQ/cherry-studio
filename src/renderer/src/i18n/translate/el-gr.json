@@ -4343,7 +4343,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια προεπισκόπηση έκδοσης"
+          "tip": "Η έκδοση του API για Azure OpenAI. Αν θέλετε να χρησιμοποιήσετε το Response API, εισάγετε μια v1 έκδοσης"
         }
       },
       "basic_auth": {

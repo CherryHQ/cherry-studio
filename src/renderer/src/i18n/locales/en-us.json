@@ -4343,7 +4343,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the preview version"
+          "tip": "The API version of Azure OpenAI, if you want to use Response API, please enter the v1 version"
         }
       },
       "basic_auth": {
