@@ -19,7 +19,7 @@
 
 ## 自动化工作流
 
-`cs-releases/app-upgrade-config.json` 由 [`Update App Upgrade Config`](../../.github/workflows/update-app-upgrade-config.yml) workflow 自动同步。工作流会调用 [`scripts/update-app-upgrade-config.ts`](../../scripts/update-app-upgrade-config.ts) 脚本，根据指定 tag 更新 `cs-releases` 分支上的配置文件。
+`x-files/app-upgrade-config/app-upgrade-config.json` 由 [`Update App Upgrade Config`](../../.github/workflows/update-app-upgrade-config.yml) workflow 自动同步。工作流会调用 [`scripts/update-app-upgrade-config.ts`](../../scripts/update-app-upgrade-config.ts) 脚本，根据指定 tag 更新 `x-files/app-upgrade-config` 分支上的配置文件。
 
 ### 触发条件
 
@@ -36,29 +36,29 @@
 ### 工作流步骤
 
 1. **检查与元数据准备**：`Check if should proceed` 和 `Prepare metadata` 步骤会计算 tag、prerelease 标志、是否最新版本以及用于分支名的 `safe_tag`。若任意校验失败，工作流立即退出。
-2. **检出分支**：默认分支被检出到 `main/`，长期维护的 `cs-releases` 分支则在 `cs/` 中，所有改动都发生在 `cs/`。
+2. **检出分支**：默认分支被检出到 `main/`，长期维护的 `x-files/app-upgrade-config` 分支则在 `cs/` 中，所有改动都发生在 `cs/`。
 3. **安装工具链**：安装 Node.js 22、启用 Corepack，并在 `main/` 目录执行 `yarn install --immutable`。
 4. **运行更新脚本**：执行 `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json --is-prerelease <flag>`。  
    - 脚本会标准化 tag（去掉 `v` 前缀等）、识别渠道、加载 `config/app-upgrade-segments.json` 中的分段规则。  
    - 校验 prerelease 标志与语义后缀是否匹配、强制锁定的 segment 是否满足、生成镜像的下载地址，并检查 release 是否已经在 GitHub/GitCode 可用（latest 渠道在 GitCode 不可用时会回退到 `https://releases.cherry-ai.com`）。  
    - 更新对应的渠道配置后，脚本会按 semver 排序写回 JSON，并刷新 `lastUpdated`。
-5. **检测变更并创建 PR**：若 `cs/app-upgrade-config.json` 有变更，则创建 `chore/update-app-upgrade-config/<safe_tag>` 分支，提交信息为 `🤖 chore: sync app-upgrade-config for <tag>`，并向 `cs-releases` 提 PR；无变更则输出提示。
+5. **检测变更并创建 PR**：若 `cs/app-upgrade-config.json` 有变更，则创建 `chore/update-app-upgrade-config/<safe_tag>` 分支，提交信息为 `🤖 chore: sync app-upgrade-config for <tag>`，并向 `x-files/app-upgrade-config` 提 PR；无变更则输出提示。
 
 ### 手动触发指南
 
 1. 进入 Cherry Studio 仓库的 GitHub **Actions** 页面，选择 **Update App Upgrade Config** 工作流。
 2. 点击 **Run workflow**，保持默认分支（通常为 `main`），填写 `tag`（如 `v2.1.0`）。  
 3. 只有在 tag 带 `-beta`/`-rc` 后缀时才勾选 `is_prerelease`，稳定版保持默认。  
-4. 启动运行并等待完成，随后到 `cs-releases` 分支的 PR 查看 `app-upgrade-config.json` 的变更并在验证后合并。
+4. 启动运行并等待完成，随后到 `x-files/app-upgrade-config` 分支的 PR 查看 `app-upgrade-config.json` 的变更并在验证后合并。
 
 ## JSON 配置文件格式
 
 ### 文件位置
 
-- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/cs-releases/app-upgrade-config.json`
-- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/cs-releases/app-upgrade-config.json`
+- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json`
+- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/x-files/app-upgrade-config/app-upgrade-config.json`
 
-**说明**：两个镜像源提供相同的配置文件，统一托管在 `cs-releases` 分支上。客户端根据 IP 地理位置自动选择最优镜像源。
+**说明**：两个镜像源提供相同的配置文件，统一托管在 `x-files/app-upgrade-config` 分支上。客户端根据 IP 地理位置自动选择最优镜像源。
 
 ### 配置结构（当前实际配置）
 
@@ -222,9 +222,9 @@ interface ChannelConfig {
 
 `.github/workflows/update-app-upgrade-config.yml` 会在 GitHub Release（包含正常发布与 Pre Release）触发：
 
-1. 同时 Checkout 仓库默认分支（用于脚本）和 `cs-releases` 分支（真实托管配置的分支）。
-2. 在默认分支目录执行 `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json`，直接重写 `cs-releases` 分支里的配置文件。
-3. 如果 `app-upgrade-config.json` 有变化，则通过 `peter-evans/create-pull-request` 自动创建一个指向 `cs-releases` 的 PR，Diff 仅包含该文件。
+1. 同时 Checkout 仓库默认分支（用于脚本）和 `x-files/app-upgrade-config` 分支（真实托管配置的分支）。
+2. 在默认分支目录执行 `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json`，直接重写 `x-files/app-upgrade-config` 分支里的配置文件。
+3. 如果 `app-upgrade-config.json` 有变化，则通过 `peter-evans/create-pull-request` 自动创建一个指向 `x-files/app-upgrade-config` 的 PR，Diff 仅包含该文件。
 
 如需本地调试，可执行 `yarn update:upgrade-config --tag v2.1.6 --config ../cs/app-upgrade-config.json`（加 `--dry-run` 仅打印结果）来复现 CI 行为。若需要暂时跳过 GitHub/GitCode Release 页面是否就绪的校验，可在 `--dry-run` 的同时附加 `--skip-release-checks`。不加 `--config` 时默认更新当前工作目录（通常是 main 分支）下的副本，方便文档/审查。
 

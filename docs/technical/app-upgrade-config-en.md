@@ -19,7 +19,7 @@ Currently, AppUpdater directly queries the GitHub API to retrieve beta and rc up
 
 ## Automation Workflow
 
-The `cs-releases/app-upgrade-config.json` file is synchronized by the [`Update App Upgrade Config`](../../.github/workflows/update-app-upgrade-config.yml) workflow. The workflow runs the [`scripts/update-app-upgrade-config.ts`](../../scripts/update-app-upgrade-config.ts) helper so that every release tag automatically updates the JSON in `cs-releases`.
+The `x-files/app-upgrade-config/app-upgrade-config.json` file is synchronized by the [`Update App Upgrade Config`](../../.github/workflows/update-app-upgrade-config.yml) workflow. The workflow runs the [`scripts/update-app-upgrade-config.ts`](../../scripts/update-app-upgrade-config.ts) helper so that every release tag automatically updates the JSON in `x-files/app-upgrade-config`.
 
 ### Trigger Conditions
 
@@ -36,29 +36,29 @@ The `cs-releases/app-upgrade-config.json` file is synchronized by the [`Update A
 ### Workflow Steps
 
 1. **Guard + metadata preparation** – the `Check if should proceed` and `Prepare metadata` steps compute the target tag, prerelease flag, whether the tag is the newest release, and a `safe_tag` slug used for branch names. When any rule fails, the workflow stops without touching the config.
-2. **Checkout source branches** – the default branch is checked out into `main/`, while the long-lived `cs-releases` branch lives in `cs/`. All modifications happen in the latter directory.
+2. **Checkout source branches** – the default branch is checked out into `main/`, while the long-lived `x-files/app-upgrade-config` branch lives in `cs/`. All modifications happen in the latter directory.
 3. **Install toolchain** – Node.js 22, Corepack, and frozen Yarn dependencies are installed inside `main/`.
 4. **Run the update script** – `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json --is-prerelease <flag>` updates the JSON in-place.  
    - The script normalizes the tag (e.g., strips `v` prefix), detects the release channel (`latest`, `rc`, `beta`), and loads segment rules from `config/app-upgrade-segments.json`.  
    - It validates that prerelease flags and semantic suffixes agree, enforces locked segments, builds mirror feed URLs, and performs release-availability checks (GitHub HEAD request for every channel; GitCode GET for latest channels, falling back to `https://releases.cherry-ai.com` when gitcode is delayed).  
    - After updating the relevant channel entry, the script rewrites the config with semver-sort order and a new `lastUpdated` timestamp.
-5. **Detect changes + create PR** – if `cs/app-upgrade-config.json` changed, the workflow opens a PR `chore/update-app-upgrade-config/<safe_tag>` against `cs-releases` with a commit message `🤖 chore: sync app-upgrade-config for <tag>`. Otherwise it logs that no update is required.
+5. **Detect changes + create PR** – if `cs/app-upgrade-config.json` changed, the workflow opens a PR `chore/update-app-upgrade-config/<safe_tag>` against `x-files/app-upgrade-config` with a commit message `🤖 chore: sync app-upgrade-config for <tag>`. Otherwise it logs that no update is required.
 
 ### Manual Trigger Guide
 
 1. Open the Cherry Studio repository on GitHub → **Actions** tab → select **Update App Upgrade Config**.
 2. Click **Run workflow**, choose the default branch (usually `main`), and fill in the `tag` input (e.g., `v2.1.0`).  
 3. Toggle `is_prerelease` only when the tag carries a prerelease suffix (`-beta`, `-rc`). Leave it unchecked for stable releases.  
-4. Start the run and wait for it to finish. Check the generated PR in the `cs-releases` branch, verify the diff in `app-upgrade-config.json`, and merge once validated.
+4. Start the run and wait for it to finish. Check the generated PR in the `x-files/app-upgrade-config` branch, verify the diff in `app-upgrade-config.json`, and merge once validated.
 
 ## JSON Configuration File Format
 
 ### File Location
 
-- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/cs-releases/app-upgrade-config.json`
-- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/cs-releases/app-upgrade-config.json`
+- **GitHub**: `https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json`
+- **GitCode**: `https://gitcode.com/CherryHQ/cherry-studio/raw/x-files/app-upgrade-config/app-upgrade-config.json`
 
-**Note**: Both mirrors provide the same configuration file hosted on the `cs-releases` branch. The client automatically selects the optimal mirror based on IP geolocation.
+**Note**: Both mirrors provide the same configuration file hosted on the `x-files/app-upgrade-config` branch. The client automatically selects the optimal mirror based on IP geolocation.
 
 ### Configuration Structure (Current Implementation)
 
@@ -222,9 +222,9 @@ interface ChannelConfig {
 
 Starting from this change, `.github/workflows/update-app-upgrade-config.yml` listens to GitHub release events (published + prerelease). The workflow:
 
-1. Checks out the default branch (for scripts) and the `cs-releases` branch (where the config is hosted).
-2. Runs `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json` to regenerate the config directly inside the `cs-releases` working tree.
-3. If the file changed, it opens a PR against `cs-releases` via `peter-evans/create-pull-request`, with the generated diff limited to `app-upgrade-config.json`.
+1. Checks out the default branch (for scripts) and the `x-files/app-upgrade-config` branch (where the config is hosted).
+2. Runs `yarn tsx scripts/update-app-upgrade-config.ts --tag <tag> --config ../cs/app-upgrade-config.json` to regenerate the config directly inside the `x-files/app-upgrade-config` working tree.
+3. If the file changed, it opens a PR against `x-files/app-upgrade-config` via `peter-evans/create-pull-request`, with the generated diff limited to `app-upgrade-config.json`.
 
 You can run the same script locally via `yarn update:upgrade-config --tag v2.1.6 --config ../cs/app-upgrade-config.json` (add `--dry-run` to preview) to reproduce or debug whatever the workflow does. Passing `--skip-release-checks` along with `--dry-run` lets you bypass the release-page existence check (useful when the GitHub/GitCode pages aren’t published yet). Running without `--config` continues to update the copy in your current working directory (main branch) for documentation purposes.
 
