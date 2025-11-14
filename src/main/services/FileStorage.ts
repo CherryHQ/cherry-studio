@@ -485,6 +485,12 @@ class FileStorage {
   ): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
+    // 先检查文件是否存在，避免 ENOENT 错误
+    if (!fs.existsSync(filePath)) {
+      logger.debug(`File not found: ${filePath}`)
+      throw new Error(`ENOENT: no such file or directory, open '${id}'`)
+    }
+
     const fileExtension = path.extname(filePath)
 
     if (documentExts.includes(fileExtension)) {

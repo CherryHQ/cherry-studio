@@ -32,8 +32,26 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
 
   const handleAddCustomApp = async (values: any) => {
     try {
-      const content = await window.api.file.read('custom-minapps.json')
-      const customApps = JSON.parse(content)
+      let content: string
+      let customApps: MinAppType[]
+
+      try {
+        content = await window.api.file.read('custom-minapps.json')
+        customApps = JSON.parse(content)
+        // 确保解析结果是数组
+        if (!Array.isArray(customApps)) {
+          customApps = []
+        }
+      } catch (error: any) {
+        // 如果文件不存在或解析失败，使用空数组
+        if (error.message?.includes('ENOENT') || error.message?.includes('no such file')) {
+          customApps = []
+        } else {
+          // 其他解析错误，使用空数组
+          logger.warn('Failed to read custom-minapps.json, using empty array:', error as Error)
+          customApps = []
+        }
+      }
 
       // Check for duplicate ID
       if (customApps.some((app: MinAppType) => app.id === values.id)) {

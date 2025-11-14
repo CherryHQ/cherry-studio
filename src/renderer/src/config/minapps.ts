@@ -67,13 +67,42 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
     let content: string
     try {
       content = await window.api.file.read('custom-minapps.json')
-    } catch (error) {
+    } catch (error: any) {
       // 如果文件不存在，创建一个空的 JSON 数组
-      content = '[]'
-      await window.api.file.writeWithId('custom-minapps.json', content)
+      // 检查是否是文件不存在的错误
+      if (error.message?.includes('ENOENT') || error.message?.includes('no such file')) {
+        content = '[]'
+        try {
+          await window.api.file.writeWithId('custom-minapps.json', content)
+        } catch (writeError) {
+          logger.warn('Failed to create custom-minapps.json file:', writeError as Error)
+          // 如果创建文件失败，仍然返回空数组
+        }
+      } else {
+        // 其他类型的错误，记录并返回空数组
+        logger.error('Failed to read custom-minapps.json:', error as Error)
+        return []
+      }
     }
 
-    const customApps = JSON.parse(content)
+    // 确保内容有效
+    if (!content || content.trim() === '') {
+      content = '[]'
+    }
+
+    let customApps: any[]
+    try {
+      customApps = JSON.parse(content)
+      // 确保解析结果是数组
+      if (!Array.isArray(customApps)) {
+        logger.warn('custom-minapps.json content is not an array, using empty array')
+        customApps = []
+      }
+    } catch (parseError) {
+      logger.error('Failed to parse custom-minapps.json content:', parseError as Error)
+      customApps = []
+    }
+
     const now = new Date().toISOString()
 
     return customApps.map((app: any) => ({
