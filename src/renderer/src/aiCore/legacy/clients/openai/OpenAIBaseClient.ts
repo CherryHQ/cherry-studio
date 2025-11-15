@@ -48,7 +48,7 @@ export abstract class OpenAIBaseClient<
   }
 
   // 仅适用于openai
-  override getBaseURL(isSupportedAPIVerion: boolean = true,): string {
+  override getBaseURL(isSupportedAPIVerion: boolean = true): string {
     return formatApiHost(this.provider.apiHost, isSupportedAPIVerion)
   }
 
@@ -146,7 +146,7 @@ export abstract class OpenAIBaseClient<
     let baseURLForSdkInstance = this.getBaseURL()
     let headersForSdkInstance = {
       ...this.defaultHeaders(),
-      ...this.provider.extra_headers,
+      ...this.provider.extra_headers
     }
 
     if (this.provider.id === 'copilot') {
