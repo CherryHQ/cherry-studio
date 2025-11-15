@@ -70,7 +70,7 @@ export function isWebSearchModel(model: Model): boolean {
   // bedrock和vertex不支持
   if (
     isAnthropicModel(model) &&
-    (provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
+    !(provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
   ) {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }
