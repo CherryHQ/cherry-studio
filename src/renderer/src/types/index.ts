@@ -114,7 +114,7 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
-  none: 0,
+  none: 0.01,
   minimal: 0.05,
   low: 0.05,
   medium: 0.5,
