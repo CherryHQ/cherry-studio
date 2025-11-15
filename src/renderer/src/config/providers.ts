@@ -1573,6 +1573,10 @@ export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'ai-gateway'
 }
 
+export function isAwsBedrockProvider(provider: Provider): boolean {
+  return provider.type === 'aws-bedrock'
+}
+
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
 
 export const isSupportAPIVersionProvider = (provider: Provider) => {
