@@ -11,6 +11,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIDeepResearchModel,
@@ -60,12 +61,19 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (!reasoningEffort) {
+  // Handle undefined and 'none' reasoningEffort.
+  // TODO: They should be separated.
+  if (!reasoningEffort || reasoningEffort === 'none') {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
       // Don't disable reasoning for Gemini models that support thinking tokens
       if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
         return {}
+      }
+      // 'none' is not an available value for effort for now.
+      // I think they should resolve this issue soon, so I'll just go ahead and use this value.
+      if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+        return { reasoning: { effort: 'none' } }
       }
       // Don't disable reasoning for models that require it
       if (
@@ -119,6 +127,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         }
       }
       return { thinking: { type: 'disabled' } }
+    }
+
+    // Specially for GPT-5.1. Suppose this is a OpenAI Compatible provider
+    if (isGPT51SeriesModel(model)) {
+      return {
+        reasoningEffort: 'none'
+      }
     }
 
     return {}
