@@ -178,6 +178,7 @@ export const SystemProviderIds = {
   aionly: 'aionly',
   longcat: 'longcat',
   huggingface: 'huggingface',
+  kwaikat: 'kwaikat',
   'ai-gateway': 'ai-gateway',
   cerebras: 'cerebras'
 } as const
