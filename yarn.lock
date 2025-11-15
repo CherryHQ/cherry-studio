@@ -5169,15 +5169,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opeoginni/github-copilot-openai-compatible@npm:0.1.19":
-  version: 0.1.19
-  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.19"
+"@opeoginni/github-copilot-openai-compatible@npm:0.1.21":
+  version: 0.1.21
+  resolution: "@opeoginni/github-copilot-openai-compatible@npm:0.1.21"
   dependencies:
     "@ai-sdk/openai": "npm:^2.0.42"
     "@ai-sdk/openai-compatible": "npm:^1.0.19"
     "@ai-sdk/provider": "npm:^2.1.0-beta.4"
     "@ai-sdk/provider-utils": "npm:^3.0.10"
-  checksum: 10c0/dfb01832d7c704b2eb080fc09d31b07fc26e5ac4e648ce219dc0d80cf044ef3cae504427781ec2ce3c5a2459c9c81d043046a255642108d5b3de0f83f4a9f20a
+  checksum: 10c0/05b73d935dc7f24123330ade919698b486ac2a25a7d607c1d3789471f782ead4c803ce6ffd3d97b9ca3f1aadaf6b5c1ea52363c9d24b36894fcfc403fda9cef3
   languageName: node
   linkType: hard
 
@@ -9952,7 +9952,7 @@ __metadata:
     "@opentelemetry/sdk-trace-base": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-node": "npm:^2.0.0"
     "@opentelemetry/sdk-trace-web": "npm:^2.0.0"
-    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.19"
+    "@opeoginni/github-copilot-openai-compatible": "npm:0.1.21"
     "@paymoapp/electron-shutdown-handler": "npm:^1.1.2"
     "@playwright/test": "npm:^1.52.0"
     "@radix-ui/react-context-menu": "npm:^2.2.16"
