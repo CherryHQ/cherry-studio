@@ -32,13 +32,14 @@ import { nanoid } from 'nanoid'
 
 import { isToolUseModeFunction } from './assistant'
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
-import { filterProperties, processSchemaForO3 } from './mcp-schema'
+import { filterProperties } from './mcp-schema'
 
 const logger = loggerService.withContext('Utils:MCPTools')
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
   return mcpTools.map((tool) => {
-    const parameters = processSchemaForO3(tool.inputSchema)
+    // Use the original schema without strict mode processing to maintain compatibility with all MCP types
+    const parameters = tool.inputSchema
 
     return {
       type: 'function',
@@ -46,15 +47,15 @@ export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Respo
       parameters: {
         type: 'object' as const,
         ...parameters
-      },
-      strict: true
+      }
     } satisfies OpenAI.Responses.Tool
   })
 }
 
 export function mcpToolsToOpenAIChatTools(mcpTools: MCPTool[]): Array<ChatCompletionTool> {
   return mcpTools.map((tool) => {
-    const parameters = processSchemaForO3(tool.inputSchema)
+    // Use the original schema without strict mode processing to maintain compatibility with all MCP types
+    const parameters = tool.inputSchema
 
     return {
       type: 'function',
@@ -64,8 +65,7 @@ export function mcpToolsToOpenAIChatTools(mcpTools: MCPTool[]): Array<ChatComple
         parameters: {
           type: 'object' as const,
           ...parameters
-        },
-        strict: true
+        }
       }
     } as ChatCompletionTool
   })
