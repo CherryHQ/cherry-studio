@@ -410,23 +410,6 @@ class ClaudeCodeService implements AgentServiceInterface {
           }
         }
 
-        if (message.type === 'assistant' || message.type === 'user') {
-          logger.silly('claude response', {
-            message,
-            content: JSON.stringify(message.message.content)
-          })
-        } else if (message.type === 'stream_event') {
-          // logger.silly('Claude stream event', {
-          //   message,
-          //   event: JSON.stringify(message.event)
-          // })
-        } else {
-          logger.silly('Claude response', {
-            message,
-            event: JSON.stringify(message)
-          })
-        }
-
         const chunks = transformSDKMessageToStreamParts(message, streamState)
         for (const chunk of chunks) {
           stream.emit('data', {

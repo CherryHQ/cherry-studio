@@ -124,6 +124,20 @@ export class ClaudeStreamState {
     return this.blocksByIndex.get(index)
   }
 
+  getFirstOpenTextBlock(): TextBlockState | undefined {
+    const candidates: TextBlockState[] = []
+    for (const block of this.blocksByIndex.values()) {
+      if (block.kind === 'text') {
+        candidates.push(block)
+      }
+    }
+    if (candidates.length === 0) {
+      return undefined
+    }
+    candidates.sort((a, b) => a.index - b.index)
+    return candidates[0]
+  }
+
   getToolBlockById(toolCallId: string): ToolBlockState | undefined {
     const index = this.toolIndexById.get(toolCallId)
     if (index === undefined) return undefined
@@ -182,9 +196,9 @@ export class ClaudeStreamState {
    * Persists the final input payload for a tool block once the provider signals
    * completion so that downstream tool results can reference the original call.
    */
-  completeToolBlock(toolCallId: string, input: unknown, providerMetadata?: ProviderMetadata): void {
+  completeToolBlock(toolCallId: string, toolName: string, input: unknown, providerMetadata?: ProviderMetadata): void {
     this.registerToolCall(toolCallId, {
-      toolName: this.getToolBlockById(toolCallId)?.toolName ?? 'unknown',
+      toolName,
       input,
       providerMetadata
     })
