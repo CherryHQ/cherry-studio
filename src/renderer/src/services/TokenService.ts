@@ -26,15 +26,32 @@ async function getFileContent(file: FileMetadata) {
   return ''
 }
 
+/**
+ * 将消息转换为用于token统计的消息项数组
+ * 对于助手消息，会包含主文本内容和思考内容，以匹配实际发送给模型的内容
+ *
+ * @param message - 要转换的消息对象
+ * @returns 返回消息项数组，每个项包含role和content
+ */
 async function getMessageParam(message: Message): Promise<MessageItem[]> {
   const param: MessageItem[] = []
 
   const content = getMainTextContent(message)
   const files = findFileBlocks(message)
 
+  // 对于助手消息，需要包含思考内容以匹配实际发送给模型的内容，与 convertMessageToAssistantModelMessage 的逻辑保持一致
+  let messageContent = content
+  if (message.role === 'assistant') {
+    const reasoningContent = getThinkingContent(message)
+    if (reasoningContent) {
+      // 将思考内容追加到主文本内容
+      messageContent = [content, reasoningContent].filter((s) => s !== undefined && s !== '').join(' ')
+    }
+  }
+
   param.push({
     role: message.role,
-    content
+    content: messageContent
   })
 
   if (files.length > 0) {
@@ -165,6 +182,22 @@ export async function estimateMessagesUsage({
   } as Usage
 }
 
+/**
+ * 估算历史上下文的 token 数量
+ *
+ * 该函数会统计历史消息的token数量，包括：
+ * - 系统提示词（assistant.prompt）
+ * - 历史消息的主文本内容
+ * - 助手消息的思考内容（reasoning content）
+ * - 文件内容
+ *
+ * 对于已有 usage 数据的消息，直接使用其 token 统计。
+ * 对于没有 usage 数据的消息，会通过 getMessageParam 提取内容并计算 token。
+ *
+ * @param assistant - 助手配置对象
+ * @param msgs - 消息数组
+ * @returns 返回估算的 token 数量
+ */
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {
   const { contextCount } = getAssistantSettings(assistant)
   const maxContextCount = contextCount
