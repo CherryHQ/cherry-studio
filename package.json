@@ -108,6 +108,7 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.53",
+    "@ai-sdk/anthropic": "^2.0.44",
     "@ai-sdk/cerebras": "^1.0.31",
     "@ai-sdk/gateway": "^2.0.9",
     "@ai-sdk/google": "^2.0.32",

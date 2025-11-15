@@ -102,7 +102,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/anthropic@npm:2.0.44":
+"@ai-sdk/anthropic@npm:2.0.44, @ai-sdk/anthropic@npm:^2.0.44":
   version: 2.0.44
   resolution: "@ai-sdk/anthropic@npm:2.0.44"
   dependencies:
@@ -9903,6 +9903,7 @@ __metadata:
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
     "@ai-sdk/amazon-bedrock": "npm:^3.0.53"
+    "@ai-sdk/anthropic": "npm:^2.0.44"
     "@ai-sdk/cerebras": "npm:^1.0.31"
     "@ai-sdk/gateway": "npm:^2.0.9"
     "@ai-sdk/google": "npm:^2.0.32"
