@@ -110,6 +110,7 @@
     "@ai-sdk/amazon-bedrock": "^3.0.53",
     "@ai-sdk/cerebras": "^1.0.31",
     "@ai-sdk/gateway": "^2.0.9",
+    "@ai-sdk/google": "^2.0.32",
     "@ai-sdk/google-vertex": "^3.0.62",
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch",
     "@ai-sdk/mistral": "^2.0.23",

@@ -206,6 +206,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/google@npm:^2.0.32":
+  version: 2.0.32
+  resolution: "@ai-sdk/google@npm:2.0.32"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/052de16f1f66188e126168c8a9cc903448104528c7e44d6867bbf555c9067b9d6d44a4c4e0e014838156ba39095cb417f1b76363eb65212ca4d005f3651e58d2
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch":
   version: 2.0.31
   resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch::version=2.0.31&hash=9f3835"
@@ -9893,6 +9905,7 @@ __metadata:
     "@ai-sdk/amazon-bedrock": "npm:^3.0.53"
     "@ai-sdk/cerebras": "npm:^1.0.31"
     "@ai-sdk/gateway": "npm:^2.0.9"
+    "@ai-sdk/google": "npm:^2.0.32"
     "@ai-sdk/google-vertex": "npm:^3.0.62"
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch"
     "@ai-sdk/mistral": "npm:^2.0.23"
