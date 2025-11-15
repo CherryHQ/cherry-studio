@@ -1,4 +1,5 @@
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
+import { loggerService } from '@logger'
 import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
@@ -25,6 +26,8 @@ import {
   getXAIReasoningParams
 } from './reasoning'
 import { getWebSearchParams } from './websearch'
+
+const logger = loggerService.withContext('aiCore.utils.options')
 
 // copy from BaseApiClient.ts
 const getServiceTier = (model: Model, provider: Provider) => {
@@ -70,6 +73,7 @@ export function buildProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
+  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}

@@ -54,7 +54,7 @@ export function isSupportedFlexServiceTier(model: Model): boolean {
 
 export function isSupportVerbosityModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
-  return isGPT5SeriesModel(model) && !modelId.includes('chat')
+  return (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat')
 }
 
 export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
@@ -227,12 +227,17 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
 
 export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5')
+  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1')
 }
 
 export const isGPT5SeriesReasoningModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5') && !modelId.includes('chat')
+  return isGPT5SeriesModel(model) && !modelId.includes('chat')
+}
+
+export const isGPT51SeriesModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5.1')
 }
 
 export const isGeminiModel = (model: Model) => {
