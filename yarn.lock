@@ -102,7 +102,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/anthropic@npm:2.0.44":
+"@ai-sdk/anthropic@npm:2.0.44, @ai-sdk/anthropic@npm:^2.0.44":
   version: 2.0.44
   resolution: "@ai-sdk/anthropic@npm:2.0.44"
   dependencies:
@@ -203,6 +203,18 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/d8f143f058fb62e6e67e30564ec92530d7389c22ad91b1e4bbe781c8570bf718cd417e44dcd4855e347e85c4174538a9a884eac666109e17f20d21467ab3e749
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/google@npm:^2.0.32":
+  version: 2.0.32
+  resolution: "@ai-sdk/google@npm:2.0.32"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.17"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/052de16f1f66188e126168c8a9cc903448104528c7e44d6867bbf555c9067b9d6d44a4c4e0e014838156ba39095cb417f1b76363eb65212ca4d005f3651e58d2
   languageName: node
   linkType: hard
 
@@ -9891,8 +9903,10 @@ __metadata:
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
     "@ai-sdk/amazon-bedrock": "npm:^3.0.53"
+    "@ai-sdk/anthropic": "npm:^2.0.44"
     "@ai-sdk/cerebras": "npm:^1.0.31"
     "@ai-sdk/gateway": "npm:^2.0.9"
+    "@ai-sdk/google": "npm:^2.0.32"
     "@ai-sdk/google-vertex": "npm:^3.0.62"
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch"
     "@ai-sdk/mistral": "npm:^2.0.23"
