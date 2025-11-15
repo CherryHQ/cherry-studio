@@ -21,6 +21,11 @@ describe('stripLocalCommandTags', () => {
       '<local-command-stdout>line1</local-command-stdout>\nkeep\n<local-command-stderr>Error</local-command-stderr>'
     expect(stripLocalCommandTags(input)).toBe('line1\nkeep\nError')
   })
+
+  it('if no tags present, returns original string', () => {
+    const input = 'just some normal text'
+    expect(stripLocalCommandTags(input)).toBe(input)
+  })
 })
 
 describe('Claude → AiSDK transform', () => {
@@ -188,6 +193,111 @@ describe('Claude → AiSDK transform', () => {
     expect(toolResult.output).toBe('ok')
   })
 
+  it('handles tool calls without streaming events (no content_block_start/stop)', () => {
+    const state = new ClaudeStreamState()
+    const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
+
+    const messages: SDKMessage[] = [
+      {
+        ...baseStreamMetadata,
+        type: 'assistant',
+        uuid: uuid(20),
+        message: {
+          id: 'msg-tool-no-stream',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-test',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool-read',
+              name: 'Read',
+              input: { file_path: '/test.txt' }
+            },
+            {
+              type: 'tool_use',
+              id: 'tool-bash',
+              name: 'Bash',
+              input: { command: 'ls -la' }
+            }
+          ],
+          stop_reason: 'tool_use',
+          stop_sequence: null,
+          usage: {
+            input_tokens: 10,
+            output_tokens: 20
+          }
+        }
+      } as unknown as SDKMessage,
+      {
+        ...baseStreamMetadata,
+        type: 'user',
+        uuid: uuid(21),
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool-read',
+              content: 'file contents',
+              is_error: false
+            }
+          ]
+        }
+      } as SDKMessage,
+      {
+        ...baseStreamMetadata,
+        type: 'user',
+        uuid: uuid(22),
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tool-bash',
+              content: 'total 42\n...',
+              is_error: false
+            }
+          ]
+        }
+      } as SDKMessage
+    ]
+
+    for (const message of messages) {
+      const transformed = transformSDKMessageToStreamParts(message, state)
+      parts.push(...transformed)
+    }
+
+    const types = parts.map((part) => part.type)
+    expect(types).toEqual(['tool-call', 'tool-call', 'tool-result', 'tool-result'])
+
+    const toolCalls = parts.filter((part) => part.type === 'tool-call') as Extract<
+      (typeof parts)[number],
+      { type: 'tool-call' }
+    >[]
+    expect(toolCalls).toHaveLength(2)
+    expect(toolCalls[0].toolName).toBe('Read')
+    expect(toolCalls[0].toolCallId).toBe('tool-read')
+    expect(toolCalls[1].toolName).toBe('Bash')
+    expect(toolCalls[1].toolCallId).toBe('tool-bash')
+
+    const toolResults = parts.filter((part) => part.type === 'tool-result') as Extract<
+      (typeof parts)[number],
+      { type: 'tool-result' }
+    >[]
+    expect(toolResults).toHaveLength(2)
+    // This is the key assertion - toolName should NOT be 'unknown'
+    expect(toolResults[0].toolName).toBe('Read')
+    expect(toolResults[0].toolCallId).toBe('tool-read')
+    expect(toolResults[0].input).toEqual({ file_path: '/test.txt' })
+    expect(toolResults[0].output).toBe('file contents')
+
+    expect(toolResults[1].toolName).toBe('Bash')
+    expect(toolResults[1].toolCallId).toBe('tool-bash')
+    expect(toolResults[1].input).toEqual({ command: 'ls -la' })
+    expect(toolResults[1].output).toBe('total 42\n...')
+  })
+
   it('handles streaming text completion', () => {
     const state = new ClaudeStreamState()
     const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
@@ -299,5 +409,88 @@ describe('Claude → AiSDK transform', () => {
     >
     expect(finishStep.finishReason).toBe('stop')
     expect(finishStep.usage).toEqual({ inputTokens: 2, outputTokens: 4, totalTokens: 6 })
+  })
+
+  it('emits fallback text when Claude sends a snapshot instead of deltas', () => {
+    const state = new ClaudeStreamState()
+    const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
+
+    const messages: SDKMessage[] = [
+      {
+        ...baseStreamMetadata,
+        type: 'stream_event',
+        uuid: uuid(30),
+        event: {
+          type: 'message_start',
+          message: {
+            id: 'msg-fallback',
+            type: 'message',
+            role: 'assistant',
+            model: 'claude-test',
+            content: [],
+            stop_reason: null,
+            stop_sequence: null,
+            usage: {}
+          }
+        }
+      } as unknown as SDKMessage,
+      {
+        ...baseStreamMetadata,
+        type: 'stream_event',
+        uuid: uuid(31),
+        event: {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'text',
+            text: ''
+          }
+        }
+      } as unknown as SDKMessage,
+      {
+        ...baseStreamMetadata,
+        type: 'assistant',
+        uuid: uuid(32),
+        message: {
+          id: 'msg-fallback-content',
+          type: 'message',
+          role: 'assistant',
+          model: 'claude-test',
+          content: [
+            {
+              type: 'text',
+              text: 'Final answer without streaming deltas.'
+            }
+          ],
+          stop_reason: 'end_turn',
+          stop_sequence: null,
+          usage: {
+            input_tokens: 3,
+            output_tokens: 7
+          }
+        }
+      } as unknown as SDKMessage
+    ]
+
+    for (const message of messages) {
+      const transformed = transformSDKMessageToStreamParts(message, state)
+      parts.push(...transformed)
+    }
+
+    const types = parts.map((part) => part.type)
+    expect(types).toEqual(['start-step', 'text-start', 'text-delta', 'text-end', 'finish-step'])
+
+    const delta = parts.find((part) => part.type === 'text-delta') as Extract<
+      (typeof parts)[number],
+      { type: 'text-delta' }
+    >
+    expect(delta.text).toBe('Final answer without streaming deltas.')
+
+    const finish = parts.find((part) => part.type === 'finish-step') as Extract<
+      (typeof parts)[number],
+      { type: 'finish-step' }
+    >
+    expect(finish.usage).toEqual({ inputTokens: 3, outputTokens: 7, totalTokens: 10 })
+    expect(finish.finishReason).toBe('stop')
   })
 })
