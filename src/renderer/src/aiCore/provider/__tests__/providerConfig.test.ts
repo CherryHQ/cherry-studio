@@ -53,10 +53,10 @@ vi.mock('@renderer/hooks/useVertexAI', () => ({
   createVertexProvider: vi.fn()
 }))
 
-import { isCherryAIProvider, isPerplexityProvider } from '@renderer/config/providers'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
+import { isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'

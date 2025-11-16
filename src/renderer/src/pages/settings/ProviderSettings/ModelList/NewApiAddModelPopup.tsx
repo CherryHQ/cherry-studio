@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { isNotSupportedTextDelta } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'

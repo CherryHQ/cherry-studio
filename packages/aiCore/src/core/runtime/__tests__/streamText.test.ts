@@ -385,7 +385,8 @@ describe('RuntimeExecutor.streamText', () => {
       })
 
       await expect(async () => {
-        for await (const chunk of result.textStream) {
+        // oxlint-disable-next-line no-unused-vars
+        for await (const _chunk of result.textStream) {
           // Stream should be interrupted
         }
       }).rejects.toThrow('Aborted')
@@ -429,7 +430,8 @@ describe('RuntimeExecutor.streamText', () => {
       })
 
       // Consume stream
-      for await (const chunk of result.textStream) {
+      // oxlint-disable-next-line no-unused-vars
+      for await (const _chunk of result.textStream) {
         // Stream chunks
       }
 

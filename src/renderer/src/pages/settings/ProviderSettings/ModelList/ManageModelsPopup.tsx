@@ -13,7 +13,7 @@ import {
   isWebSearchModel,
   SYSTEM_MODELS
 } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'

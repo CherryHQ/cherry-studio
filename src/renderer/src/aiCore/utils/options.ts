@@ -7,7 +7,6 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import {
@@ -18,6 +17,7 @@ import {
   OpenAIServiceTiers,
   SystemProviderIds
 } from '@renderer/types'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import { t } from 'i18next'
 
 import { getAiSdkProviderId } from '../provider/factory'

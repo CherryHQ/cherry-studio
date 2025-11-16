@@ -4,6 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import {
   isAIGatewayProvider,
   isAnthropicProvider,
@@ -12,9 +13,8 @@ import {
   isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
-  isSupportAPIVersionProvider,
-  PROVIDER_URLS
-} from '@renderer/config/providers'
+  isSupportAPIVersionProvider
+} from '@renderer/utils/provider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -287,7 +287,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAzureOpenAIProvider(provider)) {
-      const apiVersion = provider.apiVersion
+      const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
         ? `/v1/chat/completion?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`

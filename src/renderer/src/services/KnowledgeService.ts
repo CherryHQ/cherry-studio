@@ -4,7 +4,7 @@ import { ModernAiProvider } from '@renderer/aiCore'
 import AiProvider from '@renderer/aiCore/legacy'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
-import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/config/providers'
+import { isAzureOpenAIProvider, isGeminiProvider } from '@renderer/utils/provider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import type {

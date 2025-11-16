@@ -10,12 +10,12 @@ import {
 } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider,
-  SYSTEM_PROVIDERS
-} from '@renderer/config/providers'
+  isSupportStreamOptionsProvider
+} from '@renderer/utils/provider'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'

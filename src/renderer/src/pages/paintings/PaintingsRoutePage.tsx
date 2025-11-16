@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { isNewApiProvider } from '@renderer/config/providers'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
 import { updateTab } from '@renderer/store/tabs'

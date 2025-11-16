@@ -7,7 +7,6 @@ import {
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import type {
@@ -48,6 +47,7 @@ import type {
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import { defaultTimeout } from '@shared/config/constant'
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'

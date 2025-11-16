@@ -5,7 +5,6 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
@@ -14,6 +13,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier } from '@renderer/types'
 import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import type { OpenAIVerbosity } from '@types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
