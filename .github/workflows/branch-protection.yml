@@ -1,0 +1,171 @@
+name: Branch Protection and Security
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    name: Security Analysis
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 📦 Setting Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 📦 Install corepack
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+
+      - name: 📦 Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
+
+      - name: 💾 Cache yarn dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            node_modules
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: 📦 Install dependencies
+        run: yarn install
+
+      - name: 🔍 Run npm audit
+        run: yarn audit --level=moderate
+
+      - name: 🔍 Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          languages: javascript
+          queries: security-extended,security-and-quality
+
+      - name: 🔍 Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+  branch-rules:
+    runs-on: ubuntu-latest
+    name: Branch Protection Rules
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Check branch name compliance
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          if [[ "$BRANCH_NAME" =~ ^(feature|fix|hotfix|docs|test|refactor)/[a-zA-Z0-9_-]+$ ]]; then
+            echo "✅ Branch name follows conventions"
+          else
+            echo "❌ Branch name should follow format: type/description"
+            echo "Valid types: feature, fix, hotfix, docs, test, refactor"
+            exit 1
+          fi
+
+      - name: 🔍 Check for protected files modifications
+        run: |
+          PROTECTED_FILES=(".github/workflows/" "LICENSE" "SECURITY.md" "package.json")
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+
+          for file in "${PROTECTED_FILES[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^$file"; then
+              echo "⚠️ Protected file modified: $file"
+              echo "This requires additional approval from core maintainers"
+            fi
+          done
+
+  quality-gates:
+    runs-on: ubuntu-latest
+    name: Quality Gates
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+
+      - name: 📦 Setting Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 📦 Install corepack
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
+
+      - name: 📦 Install dependencies
+        run: yarn install
+
+      - name: 🔍 Lint Check
+        run: yarn lint
+
+      - name: 🔍 Type Check
+        run: yarn typecheck
+
+      - name: 🧪 Test Coverage Check
+        run: yarn test --coverage
+
+      - name: 📊 Coverage Report
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+
+  approve-requirements:
+    runs-on: ubuntu-latest
+    name: Check Approval Requirements
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: 🔍 Check PR approval status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const approvals = reviews.filter(review => review.state === 'APPROVED');
+            const requiredApprovers = 2; // Configure based on your needs
+
+            if (approvals.length < requiredApprovers) {
+              core.warning(`PR requires at least ${requiredApprovers} approvals. Current: ${approvals.length}`);
+            } else {
+              core.info(`PR has sufficient approvals: ${approvals.length}/${requiredApprovers}`);
+            }
+
+      - name: 🔍 Check if author is authorized
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const authorizedUsers = ['imrshohel']; // Add authorized GitHub usernames
+            const author = context.payload.pull_request.user.login;
+
+            if (authorizedUsers.includes(author)) {
+              core.info(`Author ${author} is authorized to merge`);
+            } else {
+              core.warning(`Author ${author} needs maintainer approval to merge`);
+            }

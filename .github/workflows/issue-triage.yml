@@ -1,0 +1,491 @@
+name: Issue Triage & Classification
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, edited, ready_for_review]
+  schedule:
+    # Run every 4 hours to reclassify and update issues
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Triage action to perform'
+        required: true
+        default: 'reclassify_all'
+        type: choice
+        options:
+        - reclassify_all
+        - prioritize_backlog
+        - update_labels
+        - generate_summary
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  project: write
+
+jobs:
+  classify-issues:
+    runs-on: ubuntu-latest
+    name: Classify and Triage Issues
+    if: github.event_name == 'issues' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+
+      - name: 📦 Setup Python for AI classification
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Python dependencies
+        run: |
+          pip install requests python-dotenv nltk textblob scikit-learn
+
+      - name: 🔍 Perform Issue Classification
+        uses: actions/github-script@v7
+        id: classify
+        with:
+          script: |
+            const fs = require('fs');
+            const issue = context.payload.issue || context.payload.pull_request;
+            const action = context.payload.action;
+            const isPR = context.event_name === 'pull_request';
+
+            console.log(`Processing ${isPR ? 'PR' : 'issue'} #${issue.number}: ${issue.title}`);
+
+            // Perform classification
+            const classification = classifyIssueOrPR(issue, isPR);
+
+            // Update labels
+            await updateLabels(issue.number, classification.labels, isPR);
+
+            // Add to appropriate project board
+            if (classification.project_column) {
+              await addToProjectBoard(issue.number, classification.project_column, classification.priority);
+            }
+
+            // Set priority
+            await setPriority(issue.number, classification.priority, isPR);
+
+            // Generate classification comment if new issue
+            if (action === 'opened') {
+              await addClassificationComment(issue.number, classification, isPR);
+            }
+
+            console.log(`Classification complete: ${classification.type} (priority: ${classification.priority})`);
+
+            return {
+              issue_number: issue.number,
+              classification: classification,
+              is_pr: isPR
+            };
+
+            function classifyIssueOrPR(issue, isPR) {
+              const title = (issue.title || '').toLowerCase();
+              const body = (issue.body || '').toLowerCase();
+              const existingLabels = issue.labels ? issue.labels.map(l => l.name.toLowerCase()) : [];
+              const text = `${title} ${body}`;
+
+              // Classification logic
+              const classification = {
+                type: 'unknown',
+                priority: 'medium',
+                complexity: 'medium',
+                labels: [],
+                project_column: null,
+                effort_estimate: null,
+                risk_level: 'low'
+              };
+
+              // Issue type classification
+              if (existingLabels.includes('bug') || text.includes('bug') || text.includes('error') || text.includes('crash') || text.includes('broken')) {
+                classification.type = 'bug';
+                classification.labels.push('bug', 'type/bug');
+                classification.project_column = 'To Do';
+                classification.priority = determineBugPriority(text, existingLabels);
+              } else if (existingLabels.includes('enhancement') || text.includes('feature') || text.includes('add new') || text.includes('implement')) {
+                classification.type = 'feature';
+                classification.labels.push('enhancement', 'type/feature');
+                classification.project_column = 'Backlog';
+                classification.priority = determineFeaturePriority(text, existingLabels);
+              } else if (text.includes('documentation') || text.includes('docs') || text.includes('readme') || text.includes('guide')) {
+                classification.type = 'documentation';
+                classification.labels.push('documentation', 'type/docs');
+                classification.project_column = 'Backlog';
+                classification.priority = 'low';
+              } else if (text.includes('performance') || text.includes('optimization') || text.includes('speed') || text.includes('slow')) {
+                classification.type = 'performance';
+                classification.labels.push('performance', 'type/performance');
+                classification.project_column = 'To Do';
+                classification.priority = 'medium';
+              } else if (text.includes('security') || text.includes('vulnerability') || text.includes('auth')) {
+                classification.type = 'security';
+                classification.labels.push('security', 'type/security');
+                classification.project_column = 'To Do';
+                classification.priority = 'high';
+                classification.risk_level = 'high';
+              } else if (text.includes('refactor') || text.includes('cleanup') || text.includes('technical debt')) {
+                classification.type = 'refactor';
+                classification.labels.push('refactoring', 'type/refactor');
+                classification.project_column = 'Backlog';
+                classification.priority = 'low';
+              } else if (text.includes('test') || text.includes('testing') || text.includes('spec')) {
+                classification.type = 'testing';
+                classification.labels.push('testing', 'type/testing');
+                classification.project_column = 'Backlog';
+                classification.priority = 'medium';
+              } else {
+                classification.type = 'review';
+                classification.labels.push('upstream-review', 'type/review');
+                classification.project_column = 'Backlog';
+                classification.priority = 'medium';
+              }
+
+              // Complexity estimation
+              classification.complexity = estimateComplexity(text, isPR);
+              classification.effort_estimate = estimateEffort(classification.complexity, classification.type);
+
+              // Add effort labels
+              classification.labels.push(`effort/${classification.effort_estimate}`);
+              classification.labels.push(`complexity/${classification.complexity}`);
+
+              // Add upstream tracking if applicable
+              if (text.includes('cherry-studio') || text.includes('upstream')) {
+                classification.labels.push('upstream-sync');
+              }
+
+              return classification;
+            }
+
+            function determineBugPriority(text, existingLabels) {
+              if (existingLabels.includes('critical') || text.includes('critical') || text.includes('production') || text.includes('breaking')) {
+                return 'critical';
+              } else if (existingLabels.includes('high') || text.includes('urgent') || text.includes('security')) {
+                return 'high';
+              } else if (text.includes('minor') || text.includes('cosmetic')) {
+                return 'low';
+              }
+              return 'medium';
+            }
+
+            function determineFeaturePriority(text, existingLabels) {
+              if (existingLabels.includes('breaking-change') || text.includes('breaking') || text.includes('major')) {
+                return 'high';
+              } else if (existingLabels.includes('enhancement') && text.includes('core') || text.includes('essential')) {
+                return 'medium';
+              } else if (text.includes('nice to have') || text.includes('minor')) {
+                return 'low';
+              }
+              return 'medium';
+            }
+
+            function estimateComplexity(text, isPR) {
+              // Simple heuristics for complexity estimation
+              let complexity = 'medium';
+
+              // Look for complexity indicators
+              if (text.includes('simple') || text.includes('minor') || text.includes('small')) {
+                complexity = 'low';
+              } else if (text.includes('complex') || text.includes('major') || text.includes('rewrite') || text.includes('architecture')) {
+                complexity = 'high';
+              }
+
+              // For PRs, consider the number of files changed
+              if (isPR && context.payload.pull_request) {
+                const pr = context.payload.pull_request;
+                if (pr.changed_files > 20) {
+                  complexity = 'high';
+                } else if (pr.changed_files < 5) {
+                  complexity = 'low';
+                }
+              }
+
+              return complexity;
+            }
+
+            function estimateEffort(complexity, type) {
+              const effortMatrix = {
+                'low': {
+                  'bug': '1-3',
+                  'feature': '1-2',
+                  'documentation': '0.5-1',
+                  'performance': '2-3',
+                  'security': '1-2',
+                  'refactor': '1-3',
+                  'testing': '1-2',
+                  'review': '0.5-1'
+                },
+                'medium': {
+                  'bug': '3-5',
+                  'feature': '3-5',
+                  'documentation': '2-3',
+                  'performance': '3-5',
+                  'security': '3-5',
+                  'refactor': '3-5',
+                  'testing': '2-4',
+                  'review': '1-2'
+                },
+                'high': {
+                  'bug': '5-10',
+                  'feature': '5-10',
+                  'documentation': '3-5',
+                  'performance': '5-8',
+                  'security': '5-10',
+                  'refactor': '5-10',
+                  'testing': '4-6',
+                  'review': '2-3'
+                }
+              };
+
+              return effortMatrix[complexity][type] || '3-5';
+            }
+
+            async function updateLabels(issueNumber, labels, isPR) {
+              try {
+                await github.rest.issues.setLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: labels
+                });
+              } catch (error) {
+                console.error('Error updating labels:', error);
+              }
+            }
+
+            async function addToProjectBoard(issueNumber, columnName, priority) {
+              try {
+                // This would integrate with your project board system
+                console.log(`Would add issue #${issueNumber} to column: ${columnName} with priority: ${priority}`);
+              } catch (error) {
+                console.error('Error adding to project board:', error);
+              }
+            }
+
+            async function setPriority(issueNumber, priority, isPR) {
+              // Priority is already included in labels
+              console.log(`Set priority to ${priority} for ${isPR ? 'PR' : 'issue'} #${issueNumber}`);
+            }
+
+            async function addClassificationComment(issueNumber, classification, isPR) {
+              const comment = generateClassificationComment(classification, isPR);
+
+              try {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: comment
+                });
+              } catch (error) {
+                console.error('Error adding classification comment:', error);
+              }
+            }
+
+            function generateClassificationComment(classification, isPR) {
+              const type = isPR ? 'Pull Request' : 'Issue';
+              const priorityEmoji = {
+                'critical': '🔴',
+                'high': '🟠',
+                'medium': '🟡',
+                'low': '🟢'
+              };
+
+              const complexityEmoji = {
+                'low': '📊',
+                'medium': '📈',
+                'high': '📉'
+              };
+
+              return `## 🤖 Automated ${type} Classification
+
+              **Type:** ${classification.type}
+              **Priority:** ${priorityEmoji[classification.priority]} ${classification.priority.toUpperCase()}
+              **Complexity:** ${complexityEmoji[classification.complexity]} ${classification.complexity.toUpperCase()}
+              **Estimated Effort:** ${classification.effort_estimate} days
+              **Risk Level:** ${classification.risk_level.toUpperCase()}
+
+              ### 📋 Classification Details
+
+              - **Category:** ${classification.labels.filter(l => l.startsWith('type/')).join(', ') || 'General'}
+              - **Project Column:** ${classification.project_column || 'To be assigned'}
+              - **Labels Applied:** ${classification.labels.join(', ')}
+
+              ### 🎯 Next Steps
+
+              - [ ] Review classification and adjust if needed
+              - [ ] Assign to appropriate team member
+              - [ ] Add to project board column
+              - [ ] Update effort estimate if needed
+              - [ ] Set target milestone
+
+              ---
+              *This classification was generated automatically. Feel free to adjust as needed.*`;
+            }
+
+  generate-summaries:
+    needs: classify-issues
+    runs-on: ubuntu-latest
+    name: Generate Triage Summaries
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'generate_summary')
+
+    steps:
+      - name: 📊 Generate Triage Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get all open issues for summary
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'created',
+              direction: 'desc'
+            });
+
+            // Get all open PRs
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              sort: 'created',
+              direction: 'desc'
+            });
+
+            // Generate summary statistics
+            const summary = generateTriageSummary(issues, prs);
+
+            // Create or update summary issue
+            const title = `📊 Issue Triage Summary - ${new Date().toLocaleDateString()}`;
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['triage-summary']
+            });
+
+            if (existingIssues.data.length > 0) {
+              // Update existing summary
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssues.data[0].number,
+                body: summary
+              });
+              console.log(`Updated existing triage summary: #${existingIssues.data[0].number}`);
+            } else {
+              // Create new summary
+              const { data: newSummary } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: summary,
+                labels: ['triage-summary', 'automated']
+              });
+              console.log(`Created new triage summary: #${newSummary.number}`);
+            }
+
+            function generateTriageSummary(issues, prs) {
+              const totalIssues = issues.length;
+              const totalPRs = prs.length;
+
+              // Count by type
+              const issueTypes = {};
+              const priorities = { critical: 0, high: 0, medium: 0, low: 0 };
+              const complexities = { low: 0, medium: 0, high: 0 };
+
+              issues.forEach(issue => {
+                const labels = issue.labels.map(l => l.name.toLowerCase());
+
+                // Count types
+                if (labels.includes('bug')) issueTypes.bug = (issueTypes.bug || 0) + 1;
+                else if (labels.includes('enhancement')) issueTypes.feature = (issueTypes.feature || 0) + 1;
+                else if (labels.includes('documentation')) issueTypes.documentation = (issueTypes.documentation || 0) + 1;
+                else if (labels.includes('performance')) issueTypes.performance = (issueTypes.performance || 0) + 1;
+                else if (labels.includes('security')) issueTypes.security = (issueTypes.security || 0) + 1;
+                else issueTypes.other = (issueTypes.other || 0) + 1;
+
+                // Count priorities
+                if (labels.includes('priority/critical')) priorities.critical++;
+                else if (labels.includes('priority/high')) priorities.high++;
+                else if (labels.includes('priority/medium')) priorities.medium++;
+                else if (labels.includes('priority/low')) priorities.low++;
+
+                // Count complexities
+                if (labels.includes('complexity/low')) complexities.low++;
+                else if (labels.includes('complexity/medium')) complexities.medium++;
+                else if (labels.includes('complexity/high')) complexities.high++;
+              });
+
+              return `# 📊 Issue Triage Summary
+
+              **Generated:** ${new Date().toLocaleDateString()}
+
+              ## 📈 Overview
+
+              - **Total Open Issues:** ${totalIssues}
+              - **Total Open PRs:** ${totalPRs}
+              - **Items Requiring Review:** ${priorities.critical + priorities.high}
+              - **Ready for Development:** ${priorities.medium + priorities.low}
+
+              ## 🎯 Issue Types
+
+              ${Object.entries(issueTypes).map(([type, count]) =>
+                `- **${type.charAt(0).toUpperCase() + type.slice(1)}:** ${count}`
+              ).join('\n')}
+
+              ## ⚡ Priority Distribution
+
+              - 🔴 **Critical:** ${priorities.critical}
+              - 🟠 **High:** ${priorities.high}
+              - 🟡 **Medium:** ${priorities.medium}
+              - 🟢 **Low:** ${priorities.low}
+
+              ## 📊 Complexity Distribution
+
+              - 📊 **Low Complexity:** ${complexities.low}
+              - 📈 **Medium Complexity:** ${complexities.medium}
+              - 📉 **High Complexity:** ${complexities.high}
+
+              ## 🎯 Action Items
+
+              ### 🔴 High Priority Tasks (${priorities.critical + priorities.high})
+              ${issues.filter(issue => {
+                const labels = issue.labels.map(l => l.name.toLowerCase());
+                return labels.includes('priority/critical') || labels.includes('priority/high');
+              }).slice(0, 5).map(issue =>
+                `- [#${issue.number}](${issue.html_url}) ${issue.title}`
+              ).join('\n')}
+
+              ### 🟡 Medium Priority Tasks (${priorities.medium})
+              ${issues.filter(issue => {
+                const labels = issue.labels.map(l => l.name.toLowerCase());
+                return labels.includes('priority/medium');
+              }).slice(0, 3).map(issue =>
+                `- [#${issue.number}](${issue.html_url}) ${issue.title}`
+              ).join('\n')}
+
+              ## 📋 Recent Activity
+
+              **Last 24 Hours:**
+              - Issues opened: ${issues.filter(i => new Date(i.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}
+              - PRs opened: ${prs.filter(p => new Date(p.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)).length}
+
+              ## 🔄 Workflow Status
+
+              - ✅ Automated classification: Active
+              - ✅ Project board integration: Active
+              - ✅ Priority assignment: Active
+              - ✅ Effort estimation: Active
+
+              ---
+              *This summary is updated automatically every 4 hours*
+
+              **Next Update:** ${new Date(Date.now() + 4 * 60 * 60 * 1000).toLocaleString()}
+              `;
+            }

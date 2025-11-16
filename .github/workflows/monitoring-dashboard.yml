@@ -1,0 +1,401 @@
+name: Monitoring Dashboard & Analytics
+
+on:
+  workflow_dispatch:
+    inputs:
+      report_type:
+        description: 'Type of report to generate'
+        required: true
+        default: 'full_dashboard'
+        type: choice
+        options:
+        - full_dashboard
+        - trends_only
+        - weekly_report
+        - sync_status
+  schedule:
+    # Generate dashboard every 6 hours
+    - cron: '0 */6 * * *'
+    # Weekly summary every Monday at 8 AM UTC
+    - cron: '0 8 * * 1'
+  issues:
+    types: [closed, reopened]
+  pull_request:
+    types: [closed, merged]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  generate-dashboard:
+    runs-on: ubuntu-latest
+    name: Generate Monitoring Dashboard
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+
+      - name: 📦 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install Python dependencies
+        run: |
+          pip install requests python-dotenv github matplotlib seaborn pandas numpy
+
+      - name: 📊 Generate Dashboard
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/monitoring-dashboard.py
+
+      - name: 📤 Upload Dashboard Artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: monitoring-dashboard
+          path: /tmp/dashboard_*.html
+          retention-days: 7
+
+      - name: 📤 Upload Data Artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: dashboard-data
+          path: /tmp/dashboard_data_*.json
+          retention-days: 30
+
+      - name: 📋 Create Dashboard Issue
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.report_type == 'full_dashboard')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get the latest dashboard files
+            const fs = require('fs');
+            const path = require('path');
+
+            // Look for the latest dashboard file
+            const dashboardFiles = fs.readdirSync('/tmp')
+              .filter(file => file.startsWith('dashboard_') && file.endsWith('.html'))
+              .sort()
+              .reverse();
+
+            if (dashboardFiles.length === 0) {
+              console.log('No dashboard files found');
+              return;
+            }
+
+            const latestDashboard = dashboardFiles[0];
+            const dashboardContent = fs.readFileSync(`/tmp/${latestDashboard}`, 'utf8');
+            const dashboardData = JSON.parse(fs.readFileSync(`/tmp/dashboard_data_${latestDashboard.replace('dashboard_', '').replace('.html', '.json')}`, 'utf8'));
+
+            // Create or update dashboard issue
+            const title = `📊 Upstream Monitoring Dashboard - ${new Date().toLocaleDateString()}`;
+
+            // Look for existing dashboard issue
+            const { data: existingIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['monitoring-dashboard']
+            });
+
+            const summary = `
+            # 📊 AutomatSEO Upstream Monitoring Dashboard
+
+            **Last Updated:** ${new Date().toLocaleString()}
+            **Data Period:** ${dashboardData.summary.data_period}
+
+            ## 📈 Key Metrics
+
+            - **📝 Upstream Issues:** ${dashboardData.summary.total_upstream_issues}
+            - **🔀 Upstream PRs:** ${dashboardData.summary.total_upstream_prs}
+            - **📋 Downstream Tasks:** ${dashboardData.summary.total_downstream_tasks}
+            - **📈 Sync Efficiency:** ${dashboardData.summary.sync_efficiency}%
+
+            ## 🔧 System Status
+
+            - **🤖 Last Sync:** ${dashboardData.current_status.last_sync}
+            - **✅ Monitoring Status:** Active
+            - **📡 Upstream Repo:** ${dashboardData.current_status.upstream_repo_status}
+            - **📡 Downstream Repo:** ${dashboardData.current_status.downstream_repo_status}
+
+            ## 📊 Full Dashboard
+
+            [🖥️ View Interactive Dashboard](https://rawcdn.githack.com/${context.repo.owner}/${context.repo.repo}/main/${latestDashboard})
+
+            ## 📋 Recent Activity Trends
+
+            ${generateTrendSummary(dashboardData.trends)}
+
+            ---
+            *Dashboard updated automatically every 6 hours*
+            `;
+
+            function generateTrendSummary(trends) {
+              let summary = '### 🎯 Top Contributors\n\n';
+
+              const topContributors = Object.entries(trends.top_contributors)
+                .slice(0, 5)
+                .map(([name, count]) => `- **@${name}**: ${count} activities`)
+                .join('\n');
+
+              summary += topContributors + '\n\n';
+
+              summary += '### 📝 Issue Categories\n\n';
+              const categories = Object.entries(trends.issue_categories)
+                .map(([category, count]) => `- **${category}**: ${count} issues`)
+                .join('\n');
+
+              summary += categories + '\n\n';
+
+              summary += `### 🚀 Release Frequency\n\n`;
+              summary += `- **Releases per month:** ${trends.release_frequency.toFixed(1)}\n`;
+
+              return summary;
+            }
+
+            if (existingIssues.data.length > 0) {
+              // Update existing issue
+              const issueNumber = existingIssues.data[0].number;
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                title: title,
+                body: summary
+              });
+              console.log(`Updated dashboard issue: #${issueNumber}`);
+            } else {
+              // Create new issue
+              const { data: newIssue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: summary,
+                labels: ['monitoring-dashboard', 'automated']
+              });
+              console.log(`Created dashboard issue: #${newIssue.number}`);
+            }
+
+  weekly-analytics:
+    runs-on: ubuntu-latest
+    name: Weekly Analytics Report
+    if: github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1'
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 📊 Generate Weekly Analytics
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+            // Get upstream activity
+            const upstreamIssues = await github.rest.issues.listForRepo({
+              owner: 'CherryHQ',
+              repo: 'cherry-studio',
+              state: 'all',
+              sort: 'updated',
+              direction: 'desc',
+              per_page: 100
+            });
+
+            // Get downstream tasks
+            const downstreamTasks = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              labels: ['upstream-sync'],
+              sort: 'updated',
+              direction: 'desc'
+            });
+
+            // Analyze data
+            const weeklyReport = generateWeeklyReport(upstreamIssues.data, downstreamTasks.data, oneWeekAgo);
+
+            // Create weekly report issue
+            const { data: reportIssue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `📈 Weekly Analytics Report - ${new Date().toLocaleDateString()}`,
+              body: weeklyReport,
+              labels: ['weekly-analytics', 'automated']
+            });
+
+            console.log(`Created weekly analytics report: #${reportIssue.number}`);
+
+            function generateWeeklyReport(upstreamIssues, downstreamTasks, sinceDate) {
+              const recentUpstream = upstreamIssues.filter(issue =>
+                new Date(issue.updated_at) > sinceDate
+              );
+
+              const recentDownstream = downstreamTasks.filter(task =>
+                new Date(task.updated_at) > sinceDate
+              );
+
+              const newIssues = recentUpstream.filter(issue =>
+                new Date(issue.created_at) > sinceDate
+              );
+
+              const closedIssues = recentUpstream.filter(issue =>
+                issue.closed_at && new Date(issue.closed_at) > sinceDate
+              );
+
+              const newTasks = recentDownstream.filter(task =>
+                new Date(task.created_at) > sinceDate
+              );
+
+              const completedTasks = recentDownstream.filter(task =>
+                task.closed_at && new Date(task.closed_at) > sinceDate
+              );
+
+              // Categorize issues
+              const categories = {};
+              newIssues.forEach(issue => {
+                const title = issue.title.toLowerCase();
+                const body = issue.body ? issue.body.toLowerCase() : '';
+                const text = `${title} ${body}`;
+
+                if (text.includes('bug') || text.includes('error')) {
+                  categories.bugs = (categories.bugs || 0) + 1;
+                } else if (text.includes('feature') || text.includes('enhancement')) {
+                  categories.features = (categories.features || 0) + 1;
+                } else if (text.includes('docs') || text.includes('documentation')) {
+                  categories.documentation = (categories.documentation || 0) + 1;
+                } else {
+                  categories.other = (categories.other || 0) + 1;
+                }
+              });
+
+              return `
+# 📈 Weekly Analytics Report
+
+**Report Period:** ${sinceDate.toLocaleDateString()} - ${new Date().toLocaleDateString()}
+
+## 📊 Executive Summary
+
+### Upstream Activity
+- **New Issues:** ${newIssues.length}
+- **Closed Issues:** ${closedIssues.length}
+- **Net Change:** ${newIssues.length - closedIssues.length}
+
+### Downstream Activity
+- **Tasks Created:** ${newTasks.length}
+- **Tasks Completed:** ${completedTasks.length}
+- **Completion Rate:** ${newTasks.length > 0 ? ((completedTasks.length / newTasks.length) * 100).toFixed(1) : 0}%
+
+### Sync Efficiency
+- **Sync Coverage:** ${newIssues.length > 0 ? ((newTasks.length / newIssues.length) * 100).toFixed(1) : 0}%
+
+## 📋 Issue Breakdown
+
+${Object.entries(categories).map(([category, count]) =>
+  `- **${category.charAt(0).toUpperCase() + category.slice(1)}:** ${count}`
+).join('\n') || 'No new issues this week'}
+
+## 🎯 Top Activities
+
+### Most Active Issues
+${newIssues.slice(0, 5).map(issue =>
+  `- [#${issue.number}](${issue.html_url}) ${issue.title}`
+).join('\n') || 'No new issues this week'}
+
+### Recently Completed Tasks
+${completedTasks.slice(0, 5).map(task =>
+  `- [#${task.number}](${task.html_url}) ${task.title}`
+).join('\n') || 'No completed tasks this week'}
+
+## 📈 Trend Analysis
+
+### Activity Patterns
+- **Peak Activity Days:** ${analyzeActivityPatterns(recentUpstream)}
+- **Response Rate:** ${calculateResponseRate(recentDownstream)}
+- **Average Resolution Time:** ${calculateAverageResolution(recentDownstream)} days
+
+## 🚀 Recommendations
+
+### Immediate Actions
+${generateRecommendations(newIssues.length, completedTasks.length, categories)}
+
+### Long-term Planning
+- Continue monitoring upstream security releases
+- Expand automation for issue classification
+- Improve sync coverage for critical bug fixes
+
+---
+*Report generated automatically on ${new Date().toISOString()}*
+
+**Next report:** ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}
+              `;
+
+              function analyzeActivityPatternss(issues) {
+                // Simple day-of-week analysis
+                const dayCounts = {};
+                issues.forEach(issue => {
+                  const day = new Date(issue.created_at).toLocaleDateString('en-US', { weekday: 'long' });
+                  dayCounts[day] = (dayCounts[day] || 0) + 1;
+                });
+
+                const sortedDays = Object.entries(dayCounts)
+                  .sort(([,a], [,b]) => b - a)
+                  .slice(0, 2)
+                  .map(([day]) => day);
+
+                return sortedDays.length > 0 ? sortedDays.join(', ') : 'Not enough data';
+              }
+
+              function calculateResponseRate(tasks) {
+                const responded = tasks.filter(task =>
+                  task.comments && task.comments > 0
+                ).length;
+
+                return tasks.length > 0 ? ((responded / tasks.length) * 100).toFixed(1) : '0';
+              }
+
+              function calculateAverageResolution(tasks) {
+                const completed = tasks.filter(task => task.closed_at && task.created_at);
+
+                if (completed.length === 0) return 'N/A';
+
+                const totalDays = completed.reduce((sum, task) => {
+                  const created = new Date(task.created_at);
+                  const closed = new Date(task.closed_at);
+                  return sum + (closed - created) / (1000 * 60 * 60 * 24);
+                }, 0);
+
+                return (totalDays / completed.length).toFixed(1);
+              }
+
+              function generateRecommendations(newIssues, completedTasks, categories) {
+                const recommendations = [];
+
+                if (newIssues > completedTasks) {
+                  recommendations.push('🔴 Task backlog increasing - consider increasing team capacity');
+                }
+
+                if (categories.bugs && categories.bugs > categories.features) {
+                  recommendations.push('🐛 High bug activity - prioritize stability improvements');
+                }
+
+                if (completedTasks / newIssues > 0.8) {
+                  recommendations.push('✅ Great completion rate - maintain current workflow');
+                } else if (completedTasks / newIssues < 0.5) {
+                  recommendations.push('⚠️ Low completion rate - review task prioritization');
+                }
+
+                if (categories.features && categories.features > 5) {
+                  recommendations.push('🚀 High feature activity - consider planning for next release');
+                }
+
+                return recommendations.length > 0 ? recommendations.map(r => `- ${r}`).join('\n') : '- Continue current workflow';
+              }
+            }

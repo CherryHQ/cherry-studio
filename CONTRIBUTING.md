@@ -1,98 +1,127 @@
-[中文](docs/CONTRIBUTING.zh.md) | [English](CONTRIBUTING.md)
+# Contributing to AutomatSEO
 
-# Cherry Studio Contributor Guide
+Thank you for your interest in contributing to AutomatSEO! This document provides guidelines and information for contributors.
 
-Welcome to the Cherry Studio contributor community! We are committed to making Cherry Studio a project that provides long-term value and hope to invite more developers to join us. Whether you are an experienced developer or a beginner just starting out, your contributions will help us better serve users and improve software quality.
+## Important Notice
+
+AutomatSEO is a **closed-source** project. While we appreciate community interest, contributions are handled differently than open-source projects.
 
 ## How to Contribute
 
-Here are several ways you can participate:
+### Reporting Issues
 
-1.  **Contribute Code**: Help us develop new features or optimize existing code. Please ensure your code adheres to our coding standards and passes all tests.
+1. **Security Issues**: Please do NOT report security vulnerabilities publicly. Email us at security@automatseo.com
+2. **Bugs & Feature Requests**: Use the GitHub Issues section with appropriate templates
+3. **Questions**: Check existing discussions before creating new ones
 
-2.  **Fix Bugs**: If you find a bug, you are welcome to submit a fix. Please confirm the issue is resolved before submitting and include relevant tests.
+### Development Contributions
 
-3.  **Maintain Issues**: Help us manage issues on GitHub by assisting with tagging, classifying, and resolving problems.
+Due to the closed-source nature of this project:
 
-4.  **Product Design**: Participate in product design discussions to help us improve user experience and interface design.
+1. **Direct Code Contributions**: Limited to core team members and approved contributors
+2. **Pull Requests**: Only accepted from contributors with signed Contributor License Agreement (CLA)
+3. **Code Access**: Source code access requires explicit permission from the project maintainers
 
-5.  **Write Documentation**: Help us improve the user manual, API documentation, and developer guides.
+### Getting Started
 
-6.  **Community Maintenance**: Participate in community discussions, help answer user questions, and promote community activity.
+If you're an approved contributor:
 
-7.  **Promote Usage**: Promote Cherry Studio through blogs, social media, and other channels to attract more users and developers.
+1. **Fork the repository** to your GitHub account
+2. **Create a feature branch** from `develop`: `git checkout -b feature/your-feature-name`
+3. **Make your changes** following our coding standards
+4. **Test thoroughly** on multiple platforms
+5. **Submit a pull request** with detailed description
 
-## Before You Start
+### Development Setup
 
-Please make sure you have read the [Code of Conduct](CODE_OF_CONDUCT.md) and the [LICENSE](LICENSE).
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/automatseo.git
+cd automatseo
 
-## Getting Started
+# Install dependencies
+yarn install
 
-To help you get familiar with the codebase, we recommend tackling issues tagged with one or more of the following labels: [good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue), [help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted), or [kind/bug](https://github.com/CherryHQ/cherry-studio/labels/kind%2Fbug). Any help is welcome.
+# Run development mode
+yarn dev
+
+# Run tests
+yarn test
+
+# Build for production
+yarn build:check
+```
+
+## Coding Standards
+
+### Code Style
+
+- Follow the existing codebase patterns and conventions
+- Use TypeScript for type safety
+- Write clear, self-documenting code
+- Include JSDoc comments for complex functions
+
+### Commit Messages
+
+Use conventional commits format:
+
+```
+type(scope): description
+
+feat(core): add new automation feature
+fix(ui): resolve button click bug
+docs(readme): update installation instructions
+```
 
 ### Testing
 
-Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/dev.md).
+- Write unit tests for new features
+- Ensure all tests pass before submitting PR
+- Test on Windows, macOS, and Linux when possible
 
-### Automated Testing for Pull Requests
+## Branch Strategy
 
-Automated tests are triggered on pull requests (PRs) opened by members of the Cherry Studio organization, except for draft PRs. PRs opened by new contributors will initially be marked with the `needs-ok-to-test` label and will not be automatically tested. Once a Cherry Studio organization member adds `/ok-to-test` to the PR, the test pipeline will be created.
+- `main`: Stable production releases
+- `develop`: Integration branch for new features
+- `feature/*`: Feature-specific branches
+- `hotfix/*`: Critical bug fixes
 
-### Consider Opening Your Pull Request as a Draft
+## Review Process
 
-Not all pull requests are ready for review when created. This might be because the author wants to start a discussion, they are not entirely sure if the changes are heading in the right direction, or the changes are not yet complete. Please consider creating these PRs as [draft pull requests](https://github.blog/2019-02-14-introducing-draft-pull-requests/). Draft PRs are skipped by CI, thus saving CI resources. This also means reviewers will not be automatically assigned, and the community will understand that this PR is not yet ready for review.
-Reviewers will be assigned after you mark the draft pull request as ready for review.
+1. **Automated Checks**: All CI/CD checks must pass
+2. **Code Review**: At least one maintainer approval required
+3. **Security Review**: For sensitive changes
+4. **Testing**: Verified by the review team
 
-### Contributor Compliance with Project Terms
+## Security
 
-We require every contributor to certify that they have the right to legally contribute to our project. Contributors express this by consciously signing their commits, thereby indicating their compliance with the [LICENSE](LICENSE).
-A signed commit is one where the commit message includes the following:
+- Follow secure coding practices
+- Report vulnerabilities privately
+- Never commit sensitive information
+- Use environment variables for secrets
 
-You can generate a signed commit using the following command [git commit --signoff](https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff):
+## Licensing
 
-```
-git commit --signoff -m "Your commit message"
-```
+All contributions become the property of AutomatSEO and are subject to the same proprietary license terms.
 
-### Getting Code Reviewed/Merged
+## Community Guidelines
 
-Maintainers are here to help you implement your use case within a reasonable timeframe. They will do their best to review your code and provide constructive feedback promptly. However, if you get stuck during the review process or feel your Pull Request is not receiving the attention it deserves, please contact us via comments in the Issue or through the [Community](README.md#-community).
+- Be respectful and professional
+- Provide constructive feedback
+- Help others when possible
+- Follow GitHub's Community Guidelines
 
-### Participating in the Test Plan
+## Contact
 
-The Test Plan aims to provide users with a more stable application experience and faster iteration speed. For details, please refer to the [Test Plan](docs/testplan-en.md).
+- **General Inquiries**: github@automatseo.com
+- **Security Issues**: security@automatseo.com
+- **Licensing**: license@automatseo.com
 
-### Other Suggestions
+## Recognition
 
-- **Contact Developers**: Before submitting a PR, you can contact the developers first to discuss or get help.
+Contributors who provide significant value will be:
+- Listed in our contributors section
+- Considered for maintainer roles
+- Eligible for special recognition programs
 
-## Important Contribution Guidelines & Focus Areas
-
-Please review the following critical information before submitting your Pull Request:
-
-### Temporary Restriction on Data-Changing Feature PRs 🚫
-
-**Currently, we are NOT accepting feature Pull Requests that introduce changes to our Redux data models or IndexedDB schemas.**
-
-Our core team is currently focused on significant architectural updates that involve these data structures. To ensure stability and focus during this period, contributions of this nature will be temporarily managed internally.
-
-*   **PRs that require changes to Redux state shape or IndexedDB schemas will be closed.**
-*   **This restriction is temporary and will be lifted with the release of `v2.0.0`.** You can track the progress of `v2.0.0` and its related discussions on issue [#10162](https://github.com/CherryHQ/cherry-studio/pull/10162).
-
-We highly encourage contributions for:
-*   Bug fixes 🐞
-*   Performance improvements 🚀
-*   Documentation updates 📚
-*   Features that **do not** alter Redux data models or IndexedDB schemas (e.g., UI enhancements, new components, minor refactors). ✨
-
-We appreciate your understanding and continued support during this important development phase. Thank you!
-
-
-## Contact Us
-
-If you have any questions or suggestions, feel free to contact us through the following ways:
-
-- WeChat: kangfenmao
-- [GitHub Issues](https://github.com/CherryHQ/cherry-studio/issues)
-
-Thank you for your support and contributions! We look forward to working with you to make Cherry Studio a better product.
+Thank you for your interest in AutomatSEO!
