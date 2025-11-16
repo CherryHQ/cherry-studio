@@ -56,7 +56,7 @@ type QuotaResponse = {
 export default class MineruPreprocessProvider extends BasePreprocessProvider {
   constructor(provider: PreprocessProvider, userId?: string) {
     super(provider, userId)
-    // todo：免费期结束后删除
+    // TODO: remove after free period ends
     this.provider.apiKey = this.provider.apiKey || import.meta.env.MAIN_VITE_MINERU_API_KEY
   }
 
@@ -69,21 +69,21 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       logger.info(`MinerU preprocess processing started: ${filePath}`)
       await this.validateFile(filePath)
 
-      // 1. 获取上传URL并上传文件
+      // 1. Get upload URL and upload file
       const batchId = await this.uploadFile(file)
       logger.info(`MinerU file upload completed: batch_id=${batchId}`)
 
-      // 2. 等待处理完成并获取结果
+      // 2. Wait for completion and fetch results
       const extractResult = await this.waitForCompletion(sourceId, batchId, file.origin_name)
       logger.info(`MinerU processing completed for batch: ${batchId}`)
 
-      // 3. 下载并解压文件
+      // 3. Download and extract output
       const { path: outputPath } = await this.downloadAndExtractFile(extractResult.full_zip_url!, file)
 
       // 4. check quota
       const quota = await this.checkQuota()
 
-      // 5. 创建处理后的文件信息
+      // 5. Create processed file metadata
       return {
         processedFile: this.createProcessedFileInfo(file, outputPath),
         quota
@@ -116,48 +116,48 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
   }
 
   private async validateFile(filePath: string): Promise<void> {
-    // 第一阶段:检查文件大小(无需读取文件到内存)
+    // Phase 1: check file size (without loading into memory)
     logger.info(`Validating PDF file: ${filePath}`)
     const stats = await fs.promises.stat(filePath)
     const fileSizeBytes = stats.size
 
-    // 文件大小小于200MB
+    // Ensure file size is under 200MB
     if (fileSizeBytes >= 200 * 1024 * 1024) {
       const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
       throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 200MB`)
     }
 
-    // 第二阶段:检查页数(需要读取文件,带错误处理)
+    // Phase 2: check page count (requires reading file with error handling)
     const pdfBuffer = await fs.promises.readFile(filePath)
 
     try {
       const doc = await this.readPdf(pdfBuffer)
 
-      // 文件页数小于600页
+      // Ensure page count is under 600 pages
       if (doc.numPages >= 600) {
         throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 600 pages`)
       }
 
       logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / (1024 * 1024))}MB`)
     } catch (error: any) {
-      // 如果是页数超限错误,直接抛出
+      // If the page limit is exceeded, rethrow immediately
       if (error.message.includes('exceeds the limit')) {
         throw error
       }
 
-      // PDF 解析失败,记录详细警告但允许继续处理
+      // If PDF parsing fails, log a detailed warning but continue processing
       logger.warn(
         `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
           `Skipping page count validation. Will attempt to process with MinerU API. ` +
           `Error details: ${error.message}. ` +
           `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
       )
-      // 不抛出错误,允许继续处理
+      // Do not throw; continue processing
     }
   }
 
   private createProcessedFileInfo(file: FileMetadata, outputPath: string): FileMetadata {
-    // 查找解压后的主要文件
+    // Locate the main extracted file
     let finalPath = ''
     let finalName = file.origin_name.replace('.pdf', '.md')
 
@@ -169,14 +169,14 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         const originalMdPath = path.join(outputPath, mdFile)
         const newMdPath = path.join(outputPath, finalName)
 
-        // 重命名文件为原始文件名
+        // Rename the file to match the original name
         try {
           fs.renameSync(originalMdPath, newMdPath)
           finalPath = newMdPath
           logger.info(`Renamed markdown file from ${mdFile} to ${finalName}`)
         } catch (renameError) {
           logger.warn(`Failed to rename file ${mdFile} to ${finalName}: ${renameError}`)
-          // 如果重命名失败，使用原文件
+          // If renaming fails, fall back to the original file
           finalPath = originalMdPath
           finalName = mdFile
         }
@@ -204,7 +204,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     logger.info(`Downloading MinerU result to: ${zipPath}`)
 
     try {
-      // 下载ZIP文件
+      // Download the ZIP file
       const response = await net.fetch(zipUrl, { method: 'GET' })
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -213,17 +213,17 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       fs.writeFileSync(zipPath, Buffer.from(arrayBuffer))
       logger.info(`Downloaded ZIP file: ${zipPath}`)
 
-      // 确保提取目录存在
+      // Ensure the extraction directory exists
       if (!fs.existsSync(extractPath)) {
         fs.mkdirSync(extractPath, { recursive: true })
       }
 
-      // 解压文件
+      // Extract the ZIP contents
       const zip = new AdmZip(zipPath)
       zip.extractAllTo(extractPath, true)
       logger.info(`Extracted files to: ${extractPath}`)
 
-      // 删除临时ZIP文件
+      // Remove the temporary ZIP file
       fs.unlinkSync(zipPath)
 
       return { path: extractPath }
@@ -235,9 +235,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
   private async uploadFile(file: FileMetadata): Promise<string> {
     try {
-      // 步骤1: 获取上传URL
+      // Step 1: obtain the upload URL
       const { batchId, fileUrls, uploadHeaders } = await this.getBatchUploadUrls(file)
-      // 步骤2: 上传文件到获取的URL
+      // Step 2: upload the file to the obtained URL
       const filePath = fileStorage.getFilePathById(file)
       await this.putFileToUrl(filePath, fileUrls[0], file.origin_name, uploadHeaders?.[0])
       logger.info(`File uploaded successfully: ${filePath}`, { batchId, fileUrls })
@@ -321,7 +321,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       })
 
       if (!response.ok) {
-        // 克隆 response 以避免消费 body stream
+        // Clone the response to avoid consuming the body stream
         const responseClone = response.clone()
 
         try {
@@ -392,20 +392,20 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       try {
         const result = await this.getExtractResults(batchId)
 
-        // 查找对应文件的处理结果
+        // Find the corresponding file result
         const fileResult = result.extract_result.find((item) => item.file_name === fileName)
         if (!fileResult) {
           throw new Error(`File ${fileName} not found in batch results`)
         }
 
-        // 检查处理状态
+        // Check the processing state
         if (fileResult.state === 'done' && fileResult.full_zip_url) {
           logger.info(`Processing completed for file: ${fileName}`)
           return fileResult
         } else if (fileResult.state === 'failed') {
           throw new Error(`Processing failed for file: ${fileName}, error: ${fileResult.err_msg}`)
         } else if (fileResult.state === 'running') {
-          // 发送进度更新
+          // Send progress updates
           if (fileResult.extract_progress) {
             const progress = Math.round(
               (fileResult.extract_progress.extracted_pages / fileResult.extract_progress.total_pages) * 100
@@ -413,7 +413,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
             await this.sendPreprocessProgress(sourceId, progress)
             logger.info(`File ${fileName} processing progress: ${progress}%`)
           } else {
-            // 如果没有具体进度信息，发送一个通用进度
+            // If no detailed progress information is available, send a generic update
             await this.sendPreprocessProgress(sourceId, 50)
             logger.info(`File ${fileName} is still processing...`)
           }
