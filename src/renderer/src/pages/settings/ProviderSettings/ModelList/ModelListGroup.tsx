@@ -1,8 +1,8 @@
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { Model } from '@renderer/types'
-import { ModelWithStatus } from '@renderer/types/healthCheck'
-import { Button, Flex, Tooltip } from 'antd'
+import type { Model } from '@renderer/types'
+import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,22 +50,22 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         defaultActiveKey={defaultOpen ? ['1'] : []}
         onChange={handleCollapseChange}
         label={
-          <Flex align="center" gap={10}>
+          <Flex className="items-center gap-[10px]">
             <span style={{ fontWeight: 'bold' }}>{groupName}</span>
           </Flex>
         }
         extra={
-          <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseLeaveDelay={0}>
+          <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0}>
             <Button
-              type="text"
+              variant="ghost"
               className="toolbar-item"
-              icon={<Minus size={14} />}
               onClick={(e) => {
                 e.stopPropagation()
                 onRemoveGroup()
               }}
-              disabled={disabled}
-            />
+              disabled={disabled}>
+              <Minus size={14} />
+            </Button>
           </Tooltip>
         }
         styles={{
@@ -116,6 +116,7 @@ const CustomCollapseWrapper = styled.div`
   .ant-collapse-content-box {
     padding: 0 !important;
   }
+
 `
 
 export default memo(ModelListGroup)

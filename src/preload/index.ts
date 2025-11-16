@@ -1,12 +1,20 @@
+import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { SpanContext } from '@opentelemetry/api'
-import { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanContext } from '@opentelemetry/api'
+import type { TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
+import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type {
+  PreferenceDefaultScopeType,
+  PreferenceKeyType,
+  SelectionActionItem
+} from '@shared/data/preference/preferenceTypes'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
-import {
+import type {
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
@@ -29,13 +37,31 @@ import {
   StartApiServerStatusResult,
   StopApiServerStatusResult,
   SupportedOcrFile,
-  ThemeMode,
   WebDavConfig
 } from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { CreateDirectoryOptions } from 'webdav'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
 
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
+import type {
+  InstalledPlugin,
+  InstallPluginOptions,
+  ListAvailablePluginsResult,
+  PluginMetadata,
+  PluginResult,
+  UninstallPluginOptions,
+  WritePluginContentOptions
+} from '../renderer/src/types/plugin'
+
+type DirectoryListOptions = {
+  recursive?: boolean
+  maxDepth?: number
+  includeHidden?: boolean
+  includeFiles?: boolean
+  includeDirectories?: boolean
+  maxEntries?: number
+  searchPattern?: string
+}
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {
@@ -56,7 +82,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
-  setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
+  // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
@@ -65,7 +91,7 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
   setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
-  setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
@@ -190,6 +216,8 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
+    listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
+      ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
@@ -415,23 +443,24 @@ const api = {
     writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
     determineToolbarSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
-    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IpcChannel.Selection_SetEnabled, enabled),
-    setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
-    setFollowToolbar: (isFollowToolbar: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
-    setRemeberWinSize: (isRemeberWinSize: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Selection_SetRemeberWinSize, isRemeberWinSize),
-    setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
-    setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
-    processAction: (actionItem: ActionItem, isFullScreen: boolean = false) =>
+    processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   },
+  agentTools: {
+    respondToPermission: (payload: {
+      requestId: string
+      behavior: 'allow' | 'deny'
+      updatedInput?: Record<string, unknown>
+      message?: string
+      updatedPermissions?: PermissionUpdate[]
+    }) => ipcRenderer.invoke(IpcChannel.AgentToolPermission_Response, payload)
+  },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
-  setDisableHardwareAcceleration: (isDisable: boolean) =>
-    ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
+  // setDisableHardwareAcceleration: (isDisable: boolean) =>
+  //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
     getData: (topicId: string, traceId: string, modelName?: string) =>
@@ -502,11 +531,86 @@ const api = {
       }
     }
   },
+  // CacheService related APIs
+  cache: {
+    // Broadcast sync message to other windows
+    broadcastSync: (message: CacheSyncMessage): void => ipcRenderer.send(IpcChannel.Cache_Sync, message),
+
+    // Listen for sync messages from other windows
+    onSync: (callback: (message: CacheSyncMessage) => void) => {
+      const listener = (_: any, message: CacheSyncMessage) => callback(message)
+      ipcRenderer.on(IpcChannel.Cache_Sync, listener)
+      return () => ipcRenderer.off(IpcChannel.Cache_Sync, listener)
+    }
+  },
+
+  // PreferenceService related APIs
+  // DO NOT MODIFY THIS SECTION
+  preference: {
+    get: <K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> =>
+      ipcRenderer.invoke(IpcChannel.Preference_Get, key),
+    set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
+    getMultiple: (keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> =>
+      ipcRenderer.invoke(IpcChannel.Preference_GetMultiple, keys),
+    setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
+      ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
+    getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
+    subscribe: (keys: PreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
+    onChanged: (callback: (key: PreferenceKeyType, value: any) => void) => {
+      const listener = (_: any, key: PreferenceKeyType, value: any) => callback(key, value)
+      ipcRenderer.on(IpcChannel.Preference_Changed, listener)
+      return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
+    }
+  },
+  // Data API related APIs
+  dataApi: {
+    request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
+    batch: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Batch, req),
+    transaction: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Transaction, req),
+    subscribe: (path: string, callback: (data: any, event: string) => void) => {
+      const channel = `${IpcChannel.DataApi_Stream}:${path}`
+      const listener = (_: any, data: any, event: string) => callback(data, event)
+      ipcRenderer.on(channel, listener)
+      return () => ipcRenderer.off(channel, listener)
+    }
+  },
   apiServer: {
     getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
     start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
     restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
+    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
+    onReady: (callback: () => void): (() => void) => {
+      const listener = () => {
+        callback()
+      }
+      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
+      }
+    }
+  },
+  claudeCodePlugin: {
+    listAvailable: (): Promise<PluginResult<ListAvailablePluginsResult>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListAvailable),
+    install: (options: InstallPluginOptions): Promise<PluginResult<PluginMetadata>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Install, options),
+    uninstall: (options: UninstallPluginOptions): Promise<PluginResult<void>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_Uninstall, options),
+    listInstalled: (agentId: string): Promise<PluginResult<InstalledPlugin[]>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ListInstalled, agentId),
+    invalidateCache: (): Promise<PluginResult<void>> => ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_InvalidateCache),
+    readContent: (sourcePath: string): Promise<PluginResult<string>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_ReadContent, sourcePath),
+    writeContent: (options: WritePluginContentOptions): Promise<PluginResult<void>> =>
+      ipcRenderer.invoke(IpcChannel.ClaudeCodePlugin_WriteContent, options)
+  },
+  webSocket: {
+    start: () => ipcRenderer.invoke(IpcChannel.WebSocket_Start),
+    stop: () => ipcRenderer.invoke(IpcChannel.WebSocket_Stop),
+    status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status),
+    sendFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.WebSocket_SendFile, filePath),
+    getAllCandidates: () => ipcRenderer.invoke(IpcChannel.WebSocket_GetAllCandidates)
   }
 }
 

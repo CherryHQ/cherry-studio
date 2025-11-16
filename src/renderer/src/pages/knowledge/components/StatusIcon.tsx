@@ -1,8 +1,10 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { Progress, Tooltip } from 'antd'
-import React, { FC, useMemo } from 'react'
+import type { KnowledgeBase, ProcessingStatus } from '@renderer/types'
+import { Progress } from 'antd'
+import type { FC } from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -35,19 +37,19 @@ const StatusIcon: FC<StatusIconProps> = ({
       if (item?.uniqueId) {
         if (isPreprocessed && item.type === 'file') {
           return (
-            <Tooltip title={t('knowledge.status_preprocess_completed')} placement="left">
+            <Tooltip placement="left" content={t('knowledge.status_preprocess_completed')}>
               <CheckCircleOutlined style={{ color: '#52c41a' }} />
             </Tooltip>
           )
         }
         return (
-          <Tooltip title={t('knowledge.status_embedding_completed')} placement="left">
+          <Tooltip placement="left" content={t('knowledge.status_embedding_completed')}>
             <CheckCircleOutlined style={{ color: '#52c41a' }} />
           </Tooltip>
         )
       }
       return (
-        <Tooltip title={t('knowledge.status_new')} placement="left">
+        <Tooltip placement="left" content={t('knowledge.status_new')}>
           <StatusDot $status="new" />
         </Tooltip>
       )
@@ -56,7 +58,7 @@ const StatusIcon: FC<StatusIconProps> = ({
     switch (status) {
       case 'pending':
         return (
-          <Tooltip title={t('knowledge.status_pending')} placement="left">
+          <Tooltip placement="left" content={t('knowledge.status_pending')}>
             <StatusDot $status="pending" />
           </Tooltip>
         )
@@ -65,20 +67,20 @@ const StatusIcon: FC<StatusIconProps> = ({
         return type === 'directory' || type === 'file' ? (
           <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} />
         ) : (
-          <Tooltip title={t('knowledge.status_processing')} placement="left">
+          <Tooltip placement="left" content={t('knowledge.status_processing')}>
             <StatusDot $status="processing" />
           </Tooltip>
         )
       }
       case 'completed':
         return (
-          <Tooltip title={t('knowledge.status_completed')} placement="left">
+          <Tooltip placement="left" content={t('knowledge.status_completed')}>
             <CheckCircleOutlined style={{ color: '#52c41a' }} />
           </Tooltip>
         )
       case 'failed':
         return (
-          <Tooltip title={errorText || t('knowledge.status_failed')} placement="left">
+          <Tooltip placement="left" content={errorText || t('knowledge.status_failed')}>
             <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
           </Tooltip>
         )

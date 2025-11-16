@@ -7,8 +7,10 @@ import '@main/config'
 
 import { loggerService } from '@logger'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { dbService } from '@data/db/DbService'
+import { preferenceService } from '@data/PreferenceService'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { app } from 'electron'
+import { app, dialog } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import { isDev, isLinux, isWin } from './constant'
 
@@ -18,9 +20,9 @@ import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
-import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
+import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -30,7 +32,11 @@ import {
 import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
+import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
+import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefactorMigrateService'
+import { dataApiService } from '@data/DataApiService'
+import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
 
 const logger = loggerService.withContext('MainEntry')
@@ -38,10 +44,12 @@ const logger = loggerService.withContext('MainEntry')
 /**
  * Disable hardware acceleration if setting is enabled
  */
-const disableHardwareAcceleration = configManager.getDisableHardwareAcceleration()
-if (disableHardwareAcceleration) {
-  app.disableHardwareAcceleration()
-}
+//FIXME should not use preferenceService before initialization
+//TODO 我们需要调整配置管理的加载位置，以保证其在 preferenceService 初始化之前被调用
+// const disableHardwareAcceleration = preferenceService.get('app.disable_hardware_acceleration')
+// if (disableHardwareAcceleration) {
+//   app.disableHardwareAcceleration()
+// }
 
 /**
  * Disable chromium's window animations
@@ -108,25 +116,103 @@ if (!app.requestSingleInstanceLock()) {
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
-
   app.whenReady().then(async () => {
+    // First of all, init & migrate the database
+    await dbService.migrateDb()
+    await dbService.migrateSeed('preference')
+
+    // Data Refactor Migration
+    // Check if data migration is needed BEFORE creating any windows
+    try {
+      logger.info('Checking if data refactor migration is needed')
+      const isMigrated = await dataRefactorMigrateService.isMigrated()
+      logger.info('Migration status check result', { isMigrated })
+
+      if (!isMigrated) {
+        logger.info('Data Refactor Migration needed, starting migration process')
+
+        try {
+          await dataRefactorMigrateService.runMigration()
+          logger.info('Migration window created successfully')
+          // Migration service will handle the migration flow, no need to continue startup
+          return
+        } catch (migrationError) {
+          logger.error('Failed to start migration process', migrationError as Error)
+
+          // Migration is required for this version - show error and exit
+          await dialog.showErrorBox(
+            'Migration Required - Application Cannot Start',
+            `This version of Cherry Studio requires data migration to function properly.\n\nMigration window failed to start: ${(migrationError as Error).message}\n\nThe application will now exit. Please try starting again or contact support if the problem persists.`
+          )
+
+          logger.error('Exiting application due to failed migration startup')
+          app.quit()
+          return
+        }
+      }
+    } catch (error) {
+      logger.error('Migration status check failed', error as Error)
+
+      // If we can't check migration status, this could indicate a serious database issue
+      // Since migration may be required, it's safer to exit and let user investigate
+      await dialog.showErrorBox(
+        'Migration Status Check Failed - Application Cannot Start',
+        `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`
+      )
+
+      logger.error('Exiting application due to migration status check failure')
+      app.quit()
+      return
+    }
+
+    // DATA REFACTOR USE
+    // TODO: remove when data refactor is stable
+    //************FOR TESTING ONLY START****************/
+
+    await preferenceService.initialize()
+
+    // Initialize DataApiService
+    await dataApiService.initialize()
+
+    // Initialize CacheService
+    await cacheService.initialize()
+
+    // // Create two test windows for cross-window preference sync testing
+    // logger.info('Creating test windows for PreferenceService cross-window sync testing')
+    // const testWindow1 = dataRefactorMigrateService.createTestWindow()
+    // const testWindow2 = dataRefactorMigrateService.createTestWindow()
+
+    // // Position windows to avoid overlap
+    // testWindow1.once('ready-to-show', () => {
+    //   const [x, y] = testWindow1.getPosition()
+    //   testWindow2.setPosition(x + 50, y + 50)
+    // })
+
+    /************FOR TESTING ONLY END****************/
+
+    // Record current version for tracking
+    // A preparation for v2 data refactoring
+    versionService.recordCurrentVersion()
+
     initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
 
     // Mac: Hide dock icon before window creation when launch to tray is set
-    const isLaunchToTray = configManager.getLaunchToTray()
+    const isLaunchToTray = preferenceService.get('app.tray.on_launch')
     if (isLaunchToTray) {
       app.dock?.hide()
     }
 
+    // Create main window - migration has either completed or was not needed
     const mainWindow = windowService.createMainWindow()
+
     new TrayService()
 
     // Setup macOS application menu
     appMenuService?.setupApplicationMenu()
-
     nodeTraceService.init()
+    powerMonitorService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
@@ -138,7 +224,6 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     registerShortcuts(mainWindow)
-
     registerIpc(mainWindow, app)
 
     replaceDevtoolsFont(mainWindow)

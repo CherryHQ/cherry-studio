@@ -1,13 +1,15 @@
 import { ExportOutlined } from '@ant-design/icons'
+import { Avatar, Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { PreprocessProvider } from '@renderer/types'
+import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Input, Tooltip } from 'antd'
+import { Divider, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -69,9 +71,12 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
-          <ProviderLogo shape="square" src={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
-
+        <Flex className="items-center gap-2">
+          <Avatar
+            radius="md"
+            src={getPreprocessProviderLogo(preprocessProvider.id)}
+            className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
+          />
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>
@@ -92,11 +97,13 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+              <Button variant="ghost" size="sm" onClick={openApiKeyList}>
+                <List size={14} />
+              </Button>
             </Tooltip>
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
               placeholder={
@@ -175,9 +182,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-`
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 export default PreprocessProviderSettings

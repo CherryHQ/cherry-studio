@@ -1,4 +1,4 @@
-import { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
+import type { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,10 +31,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // Mock InfoTooltip component
-vi.mock('@renderer/components/TooltipIcons', () => ({
+vi.mock('@cherrystudio/ui', () => ({
   InfoTooltip: ({ title, placement }: { title: string; placement: string }) => (
-    <span data-testid="info-tooltip" title={title} data-placement={placement}>
-      ℹ️
+    <span data-testid="info-tooltip" data-placement={placement}>
+      {title}
     </span>
   )
 }))

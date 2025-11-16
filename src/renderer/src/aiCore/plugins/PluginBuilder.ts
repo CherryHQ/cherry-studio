@@ -1,10 +1,10 @@
-import { AiPlugin } from '@cherrystudio/ai-core'
-import { createPromptToolUsePlugin, googleToolsPlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import type { AiPlugin } from '@cherrystudio/ai-core'
+import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 
-import { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
+import type { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
 
@@ -12,12 +12,12 @@ const logger = loggerService.withContext('PluginBuilder')
 /**
  * 根据条件构建插件数组
  */
-export function buildPlugins(
+export async function buildPlugins(
   middlewareConfig: AiSdkMiddlewareConfig & { assistant: Assistant; topicId?: string }
-): AiPlugin[] {
+): Promise<AiPlugin[]> {
   const plugins: AiPlugin[] = []
 
-  if (middlewareConfig.topicId && getEnableDeveloperMode()) {
+  if (middlewareConfig.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
     // 0. 添加 telemetry 插件
     plugins.push(
       createTelemetryPlugin({
@@ -68,9 +68,9 @@ export function buildPlugins(
     )
   }
 
-  if (middlewareConfig.enableUrlContext) {
-    plugins.push(googleToolsPlugin({ urlContext: true }))
-  }
+  // if (middlewareConfig.enableUrlContext && middlewareConfig.) {
+  //   plugins.push(googleToolsPlugin({ urlContext: true }))
+  // }
 
   logger.debug(
     'Final plugin list:',

@@ -1,8 +1,9 @@
-import { Box } from '@renderer/components/Layout'
+import { Box, ColFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Flex, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
+import { InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -135,8 +136,8 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
 
   const renderFooter = useMemo(() => {
     return (
-      <Flex vertical gap={10}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+      <ColFlex className="gap-2.5">
+        <Flex className="w-full items-center justify-between">
           <Typography.Text strong>{t('settings.models.check.use_all_keys')}:</Typography.Text>
           <Segmented
             value={keyCheckMode}
@@ -148,7 +149,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             ]}
           />
         </Flex>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+        <Flex className="w-full items-center justify-between">
           <Typography.Text strong>{t('settings.models.check.enable_concurrent')}:</Typography.Text>
           <Segmented
             value={isConcurrent ? 'enabled' : 'disabled'}
@@ -160,7 +161,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             ]}
           />
         </Flex>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+        <Flex className="w-full items-center justify-between">
           <Typography.Text strong>{t('settings.models.check.timeout')}:</Typography.Text>
           <InputNumber
             value={timeoutSeconds}
@@ -168,11 +169,11 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             min={5}
             max={60}
             size="small"
-            style={{ width: 90 }}
+            className="w-[90px]"
             addonAfter="s"
           />
         </Flex>
-      </Flex>
+      </ColFlex>
     )
   }, [isConcurrent, keyCheckMode, timeoutSeconds, t])
 
@@ -192,9 +193,9 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
       footer={(_, { OkBtn, CancelBtn }) => (
         <>
           {renderFooter}
-          <Flex justify="space-between" style={{ marginTop: 16 }}>
+          <Flex className="mt-4 justify-between">
             <div /> {/* Empty div for spacing */}
-            <Flex gap={8}>
+            <Flex className="gap-2">
               <CancelBtn />
               <OkBtn />
             </Flex>
@@ -206,20 +207,20 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
         description={t('settings.models.check.disclaimer')}
         type="warning"
         showIcon
-        style={{ fontSize: 12 }}
+        className="text-xs"
       />
 
       {/* API key selection section - only shown for 'single' mode and multiple keys */}
       {keyCheckMode === 'single' && hasMultipleKeys && (
-        <Box style={{ marginTop: 10, marginBottom: 10 }}>
+        <Box className="my-2.5">
           <strong>{t('settings.models.check.select_api_key')}</strong>
           <Radio.Group
             value={selectedKeyIndex}
             onChange={(e) => dispatch({ type: 'SET_KEY_INDEX', payload: e.target.value })}
-            style={{ display: 'block', marginTop: 8 }}>
+            className="mt-2 block">
             {apiKeys.map((key, index) => (
-              <Radio key={index} value={index} style={{ display: 'block', marginBottom: 8 }}>
-                <Typography.Text copyable={{ text: key }} style={{ maxWidth: '450px' }}>
+              <Radio key={index} value={index} className="mb-2 block">
+                <Typography.Text copyable={{ text: key }} className="max-w-[450px]">
                   {maskApiKey(key)}
                 </Typography.Text>
               </Radio>

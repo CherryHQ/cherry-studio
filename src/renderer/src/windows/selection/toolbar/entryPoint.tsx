@@ -1,30 +1,28 @@
 import '@ant-design/v5-patch-for-react-19'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import storeSyncService from '@renderer/services/StoreSyncService'
-import store, { persistor } from '@renderer/store'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
 import SelectionToolbar from './SelectionToolbar'
 
 loggerService.initWindowSource('SelectionToolbar')
-
-//subscribe to store sync
-storeSyncService.subscribe()
+await preferenceService.preload([
+  'app.language',
+  'ui.custom_css',
+  'ui.theme_mode',
+  'ui.theme_user.color_primary',
+  'feature.selection.compact',
+  'feature.selection.action_items'
+])
 
 const App: FC = () => {
   return (
-    <Provider store={store}>
-      <ThemeProvider>
-        <PersistGate loading={null} persistor={persistor}>
-          <SelectionToolbar />
-        </PersistGate>
-      </ThemeProvider>
-    </Provider>
+    <ThemeProvider>
+      <SelectionToolbar />
+    </ThemeProvider>
   )
 }
 

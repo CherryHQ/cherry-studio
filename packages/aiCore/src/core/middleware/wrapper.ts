@@ -2,7 +2,7 @@
  * 模型包装工具函数
  * 用于将中间件应用到LanguageModel上
  */
-import { LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
 import { wrapLanguageModel } from 'ai'
 
 /**

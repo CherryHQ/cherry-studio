@@ -1,44 +1,36 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { Client } from '@notionhq/client'
-import { HStack } from '@renderer/components/Layout'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import {
-  setNotionApiKey,
-  setNotionDatabaseID,
-  setNotionExportReasoning,
-  setNotionPageNameKey
-} from '@renderer/store/settings'
-import { Button, Space, Switch, Tooltip } from 'antd'
+import { Space } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
 const NotionSettings: FC = () => {
+  const [notionApiKey, setNotionApiKey] = usePreference('data.integration.notion.api_key')
+  const [notionDatabaseID, setNotionDatabaseID] = usePreference('data.integration.notion.database_id')
+  const [notionPageNameKey, setNotionPageNameKey] = usePreference('data.integration.notion.page_name_key')
+  const [notionExportReasoning, setNotionExportReasoning] = usePreference('data.integration.notion.export_reasoning')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { openSmartMinapp } = useMinappPopup()
 
-  const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
-  const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
-  const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
-  const notionExportReasoning = useSelector((state: RootState) => state.settings.notionExportReasoning)
-
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionApiKey(e.target.value))
+    setNotionApiKey(e.target.value)
   }
 
   const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionDatabaseID(e.target.value))
+    setNotionDatabaseID(e.target.value)
   }
 
   const handleNotionPageNameKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionPageNameKey(e.target.value))
+    setNotionPageNameKey(e.target.value)
   }
 
   const handleNotionConnectionCheck = () => {
@@ -67,6 +59,10 @@ const NotionSettings: FC = () => {
       })
   }
 
+  const handleNotionExportReasoningChange = (checked: boolean) => {
+    setNotionExportReasoning(checked)
+  }
+
   const handleNotionTitleClick = () => {
     openSmartMinapp({
       id: 'notion-help',
@@ -76,53 +72,47 @@ const NotionSettings: FC = () => {
     })
   }
 
-  const handleNotionExportReasoningChange = (checked: boolean) => {
-    dispatch(setNotionExportReasoning(checked))
-  }
-
   return (
     <SettingGroup theme={theme}>
       <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
         {t('settings.data.notion.title')}
-        <Tooltip title={t('settings.data.notion.help')} placement="right">
-          <InfoCircleOutlined
-            style={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
-            onClick={handleNotionTitleClick}
-          />
-        </Tooltip>
+        <InfoTooltip
+          content={t('settings.data.notion.help')}
+          placement="right"
+          iconProps={{ className: 'text-text-2 cursor-pointer' }}
+          onClick={handleNotionTitleClick}
+        />
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={notionDatabaseID || ''}
             onChange={handleNotionDatabaseIdChange}
             onBlur={handleNotionDatabaseIdChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={notionPageNameKey || ''}
             onChange={handleNotionPageNameKeyChange}
             onBlur={handleNotionPageNameKeyChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.notion.page_name_key_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={notionApiKey || ''}
@@ -133,12 +123,12 @@ const NotionSettings: FC = () => {
             />
             <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
           </Space.Compact>
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
-        <Switch checked={notionExportReasoning} onChange={handleNotionExportReasoningChange} />
+        <Switch isSelected={notionExportReasoning} onValueChange={handleNotionExportReasoningChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>

@@ -1,6 +1,6 @@
-import { ActionTool } from '@renderer/components/ActionTools'
-import { HStack } from '@renderer/components/Layout'
-import { Tooltip } from 'antd'
+import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import type { ActionTool } from '@renderer/components/ActionTools'
 import { EllipsisVertical } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +39,7 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (
-          <Tooltip title={t('code_block.more')} mouseEnterDelay={0.5}>
+          <Tooltip content={t('code_block.more')} delay={500}>
             <ToolWrapper onClick={() => setShowQuickTools(!showQuickTools)} className={showQuickTools ? 'active' : ''}>
               <EllipsisVertical className="tool-icon" />
             </ToolWrapper>
@@ -61,7 +61,7 @@ const StickyWrapper = styled.div`
   z-index: 10;
 `
 
-const ToolbarWrapper = styled(HStack)`
+const ToolbarWrapper = styled(RowFlex)`
   position: absolute;
   align-items: center;
   bottom: 0.3rem;

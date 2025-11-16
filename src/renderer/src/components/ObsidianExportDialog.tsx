@@ -1,6 +1,7 @@
+import { Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -10,9 +11,8 @@ import {
   messageToMarkdownWithReasoning,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
+import { Alert, Empty, Form, Input, Modal, Select, Spin, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
-
 const logger = loggerService.withContext('ObsidianExportDialog')
 
 const { Option } = Select
@@ -144,7 +144,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   topic,
   rawContent
 }) => {
-  const defaultObsidianVault = store.getState().settings.defaultObsidianVault
+  const [defaultObsidianVault, setDefaultObsidianVault] = usePreference('data.integration.obsidian.default_vault')
   const [state, setState] = useState({
     title,
     tags: obsidianTags || '',
@@ -204,7 +204,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       }
     }
     fetchVaults()
-  }, [defaultObsidianVault])
+  }, [defaultObsidianVault, setDefaultObsidianVault])
 
   useEffect(() => {
     if (selectedVault) {
@@ -236,9 +236,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     } else if (topic) {
       markdown = await topicToMarkdown(topic, exportReasoning)
     } else if (messages && messages.length > 0) {
-      markdown = messagesToMarkdown(messages, exportReasoning)
+      markdown = await messagesToMarkdown(messages, exportReasoning)
     } else if (message) {
-      markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
+      markdown = exportReasoning ? await messageToMarkdownWithReasoning(message) : await messageToMarkdown(message)
     } else {
       markdown = ''
     }
@@ -415,7 +415,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         </Form.Item>
         {!rawContent && (
           <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
-            <Switch checked={exportReasoning} onChange={setExportReasoning} />
+            <Switch isSelected={exportReasoning} onValueChange={setExportReasoning} />
           </Form.Item>
         )}
       </Form>

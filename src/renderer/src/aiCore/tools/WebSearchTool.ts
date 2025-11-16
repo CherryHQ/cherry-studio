@@ -1,7 +1,7 @@
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { ExtractResults } from '@renderer/utils/extract'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 

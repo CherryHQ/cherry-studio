@@ -1,16 +1,12 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
+import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { useAppDispatch } from '@renderer/store'
-import {
-  setMaxKeepAliveMinapps,
-  setMinappsOpenLinkExternal,
-  setShowOpenedMinappsInSidebar
-} from '@renderer/store/settings'
-import { Button, message, Slider, Switch, Tooltip } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { Slider } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,13 +17,17 @@ const DEFAULT_MAX_KEEPALIVE = 3
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
+
+  const [maxKeepAliveMinapps, setMaxKeepAliveMinapps] = usePreference('feature.minapp.max_keep_alive')
+  const [showOpenedMinappsInSidebar, setShowOpenedMinappsInSidebar] = usePreference(
+    'feature.minapp.show_opened_in_sidebar'
+  )
+  const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
+
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
-  const [messageApi, contextHolder] = message.useMessage()
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleResetMinApps = useCallback(() => {
@@ -45,25 +45,25 @@ const MiniAppSettings: FC = () => {
 
   // 恢复默认缓存数量
   const handleResetCacheLimit = useCallback(() => {
-    dispatch(setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE))
-    messageApi.info(t('settings.miniapps.cache_change_notice'))
-  }, [dispatch, messageApi, t])
+    setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
+    window.toast.info(t('settings.miniapps.cache_change_notice'))
+  }, [t, setMaxKeepAliveMinapps])
 
   // 处理缓存数量变更
   const handleCacheChange = useCallback(
     (value: number) => {
-      dispatch(setMaxKeepAliveMinapps(value))
+      setMaxKeepAliveMinapps(value)
 
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
       }
 
       debounceTimerRef.current = setTimeout(() => {
-        messageApi.info(t('settings.miniapps.cache_change_notice'))
+        window.toast.info(t('settings.miniapps.cache_change_notice'))
         debounceTimerRef.current = null
       }, 500)
     },
-    [dispatch, messageApi, t]
+    [t, setMaxKeepAliveMinapps]
   )
 
   // 组件卸载时清除定时器
@@ -77,7 +77,6 @@ const MiniAppSettings: FC = () => {
 
   return (
     <Container>
-      {contextHolder} {/* 添加消息上下文 */}
       <SettingTitle style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
         <ButtonWrapper>
           <Button onClick={handleSwapMinApps}>{t('common.swap')}</Button>
@@ -97,10 +96,7 @@ const MiniAppSettings: FC = () => {
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
-        <Switch
-          checked={minappsOpenLinkExternal}
-          onChange={(checked) => dispatch(setMinappsOpenLinkExternal(checked))}
-        />
+        <Switch isSelected={minappsOpenLinkExternal} onValueChange={(checked) => setMinappsOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
       {/* 缓存小程序数量设置 */}
@@ -111,7 +107,7 @@ const MiniAppSettings: FC = () => {
         </SettingLabelGroup>
         <CacheSettingControls>
           <SliderWithResetContainer>
-            <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
+            <Tooltip content={t('settings.miniapps.reset_tooltip')}>
               <ResetButton onClick={handleResetCacheLimit}>
                 <UndoOutlined />
               </ResetButton>
@@ -138,8 +134,8 @@ const MiniAppSettings: FC = () => {
           <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
         </SettingLabelGroup>
         <Switch
-          checked={showOpenedMinappsInSidebar}
-          onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
+          isSelected={showOpenedMinappsInSidebar}
+          onValueChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
         />
       </SettingRow>
     </Container>

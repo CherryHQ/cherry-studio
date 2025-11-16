@@ -1,5 +1,7 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Flex, Input } from 'antd'
+import { Input } from 'antd'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -146,11 +148,11 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
         onKeyDown={handleKeyDown}
         style={{ marginBottom: 12, fontFamily: 'monospace' }}
       />
-      <Flex justify="flex-end" gap={8}>
-        <Button size="small" onClick={onCancel}>
+      <Flex className="justify-end gap-2">
+        <Button size="sm" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Button type="primary" size="small" onClick={handleSubmit}>
+        <Button color="primary" size="sm" onClick={handleSubmit}>
           {t('common.confirm')}
         </Button>
       </Flex>

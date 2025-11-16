@@ -1,19 +1,21 @@
 import 'emoji-picker-element'
 
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
-import { AGENT_PROMPT } from '@renderer/config/prompts'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
-import { AssistantPreset, KnowledgeBase } from '@renderer/types'
+import type { AssistantPreset, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
-import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
+import { AGENT_PROMPT } from '@shared/config/prompts'
+import type { FormInstance, SelectProps } from 'antd'
+import { Form, Input, Modal, Popover, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -205,7 +207,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             }
             arrow
             trigger="click">
-            <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
+            <Button>
+              {emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}
+              {t('common.select')}
+            </Button>
           </Popover>
         </Form.Item>
         <Form.Item name="name" label={t('assistants.presets.add.name.label')} rules={[{ required: true }]}>
@@ -221,17 +226,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+            size="icon-sm"
             onClick={handleGenerateButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
-            disabled={loading}
-          />
+            disabled={loading}>
+            {loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+          </Button>
           {showUndoButton && (
-            <Button
-              icon={<RollbackOutlined />}
-              onClick={handleUndoButtonClick}
-              style={{ position: 'absolute', top: 8, right: 48 }}
-            />
+            <Button size="icon-sm" onClick={handleUndoButtonClick} style={{ position: 'absolute', top: 8, right: 48 }}>
+              <RollbackOutlined />
+            </Button>
           )}
         </div>
         {showKnowledgeIcon && (

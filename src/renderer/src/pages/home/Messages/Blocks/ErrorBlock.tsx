@@ -1,4 +1,4 @@
-import { Button } from '@heroui/button'
+import { Button } from '@cherrystudio/ui'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -6,6 +6,7 @@ import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkAPICallError,
   isSerializedAiSdkDownloadError,
@@ -28,10 +29,7 @@ import {
   isSerializedAiSdkTooManyEmbeddingValuesForCallError,
   isSerializedAiSdkTypeValidationError,
   isSerializedAiSdkUnsupportedFunctionalityError,
-  isSerializedError,
-  SerializedAiSdkError,
-  SerializedAiSdkErrorUnion,
-  SerializedError
+  isSerializedError
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
@@ -146,7 +144,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         onClick={showErrorDetail}
         style={{ cursor: 'pointer' }}
         action={
-          <Button size="sm" className="p-0" variant="light" onPress={showErrorDetail}>
+          <Button size="sm" className="p-0" variant="ghost" onClick={showErrorDetail}>
             {t('common.detail')}
           </Button>
         }
@@ -200,21 +198,22 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="copy" size="sm" variant="light" onPress={copyErrorDetails}>
+        <Button key="copy" size="sm" variant="ghost" onClick={copyErrorDetails}>
           {t('common.copy')}
         </Button>,
-        <Button key="close" size="sm" variant="light" onPress={onClose}>
+        <Button key="close" size="sm" variant="ghost" onClick={onClose}>
           {t('common.close')}
         </Button>
       ]}
-      width={600}>
+      width="80%"
+      style={{ maxWidth: '1200px', minWidth: '600px' }}>
       <ErrorDetailContainer>{renderErrorDetails(error)}</ErrorDetailContainer>
     </Modal>
   )
 }
 
 const ErrorDetailContainer = styled.div`
-  max-height: 400px;
+  max-height: 60vh;
   overflow-y: auto;
 `
 
@@ -303,7 +302,7 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
   )
 }
 
-// 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
+// Base component to render common fields, should be rendered inside ErrorDetailList
 const AiSdkErrorBase = ({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
   const { highlightCode } = useCodeStyle()
@@ -347,16 +346,8 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
   return (
     <ErrorDetailList>
-      <AiSdkErrorBase error={error} />
-
       {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && (
         <>
-          {error.statusCode && (
-            <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
-              <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
-            </ErrorDetailItem>
-          )}
           {error.url && (
             <ErrorDetailItem>
               <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
@@ -368,18 +359,28 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
       {isSerializedAiSdkAPICallError(error) && (
         <>
-          {error.requestBodyValues && (
+          {error.responseBody && (
             <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.requestBodyValues')}:</ErrorDetailLabel>
-              <CodeViewer
-                value={safeToString(error.requestBodyValues)}
-                className="source-view"
-                language="json"
-                expanded
-              />
+              <ErrorDetailLabel>{t('error.responseBody')}:</ErrorDetailLabel>
+              <CodeViewer value={error.responseBody} className="source-view" language="json" expanded />
             </ErrorDetailItem>
           )}
+        </>
+      )}
 
+      {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && (
+        <>
+          {error.statusCode && (
+            <ErrorDetailItem>
+              <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
+              <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
+            </ErrorDetailItem>
+          )}
+        </>
+      )}
+
+      {isSerializedAiSdkAPICallError(error) && (
+        <>
           {error.responseHeaders && (
             <ErrorDetailItem>
               <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
@@ -392,10 +393,15 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
             </ErrorDetailItem>
           )}
 
-          {error.responseBody && (
+          {error.requestBodyValues && (
             <ErrorDetailItem>
-              <ErrorDetailLabel>{t('error.responseBody')}:</ErrorDetailLabel>
-              <CodeViewer value={error.responseBody} className="source-view" language="json" expanded />
+              <ErrorDetailLabel>{t('error.requestBodyValues')}:</ErrorDetailLabel>
+              <CodeViewer
+                value={safeToString(error.requestBodyValues)}
+                className="source-view"
+                language="json"
+                expanded
+              />
             </ErrorDetailItem>
           )}
 
@@ -627,6 +633,8 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
           <ErrorDetailValue>{error.functionality}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
+
+      <AiSdkErrorBase error={error} />
     </ErrorDetailList>
   )
 }

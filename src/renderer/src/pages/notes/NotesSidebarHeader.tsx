@@ -1,8 +1,11 @@
 import { CheckOutlined } from '@ant-design/icons'
-import { NotesSortType } from '@renderer/types/note'
-import { Dropdown, Input, MenuProps, Tooltip } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
+import type { NotesSortType } from '@renderer/types/note'
+import type { MenuProps } from 'antd'
+import { Dropdown, Input } from 'antd'
 import { ArrowLeft, ArrowUpNarrowWide, FilePlus2, FolderPlus, Search, Star } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import type { FC } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -69,13 +72,13 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
       <HeaderActions>
         {!isShowStarred && !isShowSearch && (
           <>
-            <Tooltip title={t('notes.new_note')} mouseEnterDelay={0.8}>
+            <Tooltip content={t('notes.new_note')} delay={800}>
               <ActionButton onClick={onCreateNote}>
                 <FilePlus2 size={18} />
               </ActionButton>
             </Tooltip>
 
-            <Tooltip title={t('notes.new_folder')} mouseEnterDelay={0.8}>
+            <Tooltip content={t('notes.new_folder')} delay={800}>
               <ActionButton onClick={onCreateFolder}>
                 <FolderPlus size={18} />
               </ActionButton>
@@ -87,20 +90,20 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 onClick: handleSortMenuClick
               }}
               trigger={['click']}>
-              <Tooltip title={t('assistants.presets.sorting.title')} mouseEnterDelay={0.8}>
+              <Tooltip content={t('assistants.presets.sorting.title')} delay={800}>
                 <ActionButton>
                   <ArrowUpNarrowWide size={18} />
                 </ActionButton>
               </Tooltip>
             </Dropdown>
 
-            <Tooltip title={t('notes.show_starred')} mouseEnterDelay={0.8}>
+            <Tooltip content={t('notes.show_starred')} delay={800}>
               <ActionButton onClick={onToggleStarredView}>
                 <Star size={18} />
               </ActionButton>
             </Tooltip>
 
-            <Tooltip title={t('common.search')} mouseEnterDelay={0.8}>
+            <Tooltip content={t('common.search')} delay={800}>
               <ActionButton onClick={onToggleSearchView}>
                 <Search size={18} />
               </ActionButton>
@@ -108,7 +111,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
           </>
         )}
         {isShowStarred && (
-          <Tooltip title={t('common.back')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('common.back')} delay={800}>
             <ActionButton onClick={onToggleStarredView}>
               <ArrowLeft size={18} />
             </ActionButton>
@@ -116,7 +119,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
         )}
         {isShowSearch && (
           <>
-            <Tooltip title={t('common.back')} mouseEnterDelay={0.8}>
+            <Tooltip content={t('common.back')} delay={800}>
               <ActionButton onClick={onToggleSearchView}>
                 <ArrowLeft size={18} />
               </ActionButton>

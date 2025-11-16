@@ -1,6 +1,5 @@
-import { Alert, Spinner } from '@heroui/react'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
@@ -10,11 +9,12 @@ import {
   setActiveTopicOrSessionAction,
   setSessionWaitingAction
 } from '@renderer/store/runtime'
-import { CreateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { Alert, Spin } from 'antd'
 import { motion } from 'framer-motion'
 import { memo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import AddButton from './AddButton'
 import SessionItem from './SessionItem'
@@ -27,11 +27,11 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { agent } = useAgent(agentId)
-  const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
+  const { sessions, isLoading, error, deleteSession } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionIdMap } = chat
   const dispatch = useAppDispatch()
+  const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
 
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
@@ -40,19 +40,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     },
     [dispatch]
   )
-
-  const handleCreateSession = useCallback(async () => {
-    if (!agent) return
-    const session = {
-      ...agent,
-      id: undefined,
-      name: t('common.unnamed')
-    } satisfies CreateSessionForm
-    const created = await createSession(session)
-    if (created) {
-      dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
-    }
-  }, [agent, agentId, createSession, dispatch, t])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -101,39 +88,46 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="flex h-full items-center justify-center">
-        <Spinner size="lg" />
+        <Spin />
       </motion.div>
     )
   }
 
-  if (error) return <Alert color="danger" content={t('agent.session.get.error.failed')} />
+  if (error) {
+    return <Alert type="error" message={t('agent.session.get.error.failed')} showIcon style={{ margin: 10 }} />
+  }
 
   return (
-    <div className="sessions-tab flex h-full w-full flex-col p-2">
-      <AddButton onPress={handleCreateSession} className="mb-2">
-        {t('agent.session.add.title')}
-      </AddButton>
-      {/* h-9 */}
-      <DynamicVirtualList
-        list={sessions}
-        estimateSize={() => 9 * 4}
-        scrollerStyle={{
-          // FIXME: This component only supports CSSProperties
-          overflowX: 'hidden'
-        }}
-        autoHideScrollbar>
-        {(session) => (
-          <SessionItem
-            key={session.id}
-            session={session}
-            agentId={agentId}
-            onDelete={() => handleDeleteSession(session.id)}
-            onPress={() => setActiveSessionId(agentId, session.id)}
-          />
-        )}
-      </DynamicVirtualList>
-    </div>
+    <StyledVirtualList
+      className="sessions-tab"
+      list={sessions}
+      estimateSize={() => 9 * 4}
+      // FIXME: This component only supports CSSProperties
+      scrollerStyle={{ overflowX: 'hidden' }}
+      autoHideScrollbar
+      header={
+        <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
+          {t('agent.session.add.title')}
+        </AddButton>
+      }>
+      {(session) => (
+        <SessionItem
+          key={session.id}
+          session={session}
+          agentId={agentId}
+          onDelete={() => handleDeleteSession(session.id)}
+          onPress={() => setActiveSessionId(agentId, session.id)}
+        />
+      )}
+    </StyledVirtualList>
   )
 }
+
+const StyledVirtualList = styled(DynamicVirtualList)`
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+  height: 100%;
+` as typeof DynamicVirtualList
 
 export default memo(Sessions)

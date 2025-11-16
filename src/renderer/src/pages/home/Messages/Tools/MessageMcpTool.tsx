@@ -1,28 +1,18 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { MCPToolResponse } from '@renderer/types'
+import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { MCPProgressEvent } from '@shared/config/types'
+import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import {
-  Button,
-  Collapse,
-  ConfigProvider,
-  Dropdown,
-  Flex,
-  message as antdMessage,
-  Modal,
-  Progress,
-  Tabs,
-  Tooltip
-} from 'antd'
-import { message } from 'antd'
+import { Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs } from 'antd'
 import {
   Check,
   ChevronDown,
@@ -35,7 +25,8 @@ import {
   TriangleAlert,
   X
 } from 'lucide-react'
-import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -52,7 +43,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const [progress, setProgress] = useState<number>(0)
@@ -152,7 +144,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const copyContent = (content: string, toolId: string) => {
     navigator.clipboard.writeText(content)
-    antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+    window.toast.success(t('message.copied'))
     setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
     setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
   }
@@ -179,11 +171,11 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         if (success) {
           window.toast.success(t('message.tools.aborted'))
         } else {
-          message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+          window.toast.error(t('message.tools.abort_failed'))
         }
       } catch (error) {
         logger.error('Failed to abort tool:', error as Error)
-        message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+        window.toast.error(t('message.tools.abort_failed'))
       }
     }
   }
@@ -268,10 +260,10 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
-            <ToolName align="center" gap={4}>
+            <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')} closeDelay={0}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -283,7 +275,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             ) : (
               renderStatusIndicator(status, hasError)
             )}
-            <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+            <Tooltip content={t('common.expand')} delay={500}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => {
@@ -298,7 +290,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               </ActionButton>
             </Tooltip>
             {!isPending && (
-              <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+              <Tooltip content={t('common.copy')} delay={500}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => {
@@ -408,9 +400,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                 <ActionButtonsGroup>
                   {isWaitingConfirmation && (
                     <Button
-                      color="danger"
-                      variant="filled"
-                      size="small"
+                      variant="destructive"
+                      size="sm"
                       onClick={() => {
                         handleCancelTool()
                       }}>
@@ -420,12 +411,10 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                   )}
                   {isExecuting && toolResponse?.id ? (
                     <Button
-                      size="small"
-                      color="danger"
-                      variant="solid"
+                      size="sm"
+                      variant="destructive"
                       className="abort-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
+                      onClick={() => {
                         handleAbortTool()
                       }}>
                       <PauseCircle size={14} className="lucide-custom" />
@@ -489,7 +478,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                         ? expandedResponse.content
                         : JSON.stringify(expandedResponse.content, null, 2)
                     )
-                    antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+                    window.toast.success(t('message.copied'))
                   }}
                   aria-label={t('common.copy')}>
                   <i className="iconfont icon-copy"></i>

@@ -1,45 +1,48 @@
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
-import { Topic } from '@renderer/types'
+// import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
+import type { Topic } from '@renderer/types'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector, useStore } from 'react-redux'
-
+import { useStore } from 'react-redux'
 const logger = loggerService.withContext('useChatContext')
 
 export const useChatContext = (activeTopic: Topic) => {
   const { t } = useTranslation()
-  const dispatch = useDispatch()
   const store = useStore<RootState>()
   const { deleteMessage } = useMessageOperations(activeTopic)
 
+  const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
+  const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
+  const [, setActiveTopic] = useCache('topic.active')
+
   const [messageRefs, setMessageRefs] = useState<Map<string, HTMLElement>>(new Map())
-
-  const isMultiSelectMode = useSelector((state: RootState) => state.runtime.chat.isMultiSelectMode)
-  const selectedMessageIds = useSelector((state: RootState) => state.runtime.chat.selectedMessageIds)
-
-  useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.CHANGE_TOPIC, () => {
-      dispatch(toggleMultiSelectMode(false))
-    })
-    return () => unsubscribe()
-  }, [dispatch])
-
-  useEffect(() => {
-    dispatch(setActiveTopic(activeTopic))
-  }, [dispatch, activeTopic])
 
   const handleToggleMultiSelectMode = useCallback(
     (value: boolean) => {
-      dispatch(toggleMultiSelectMode(value))
+      setIsMultiSelectMode(value)
+      if (!value) {
+        setSelectedMessageIds([])
+      }
     },
-    [dispatch]
+    [setIsMultiSelectMode, setSelectedMessageIds]
   )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.CHANGE_TOPIC, () => {
+      handleToggleMultiSelectMode(false)
+    })
+    return () => unsubscribe()
+  }, [handleToggleMultiSelectMode])
+
+  useEffect(() => {
+    setActiveTopic(activeTopic)
+  }, [activeTopic, setActiveTopic])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     setMessageRefs((prev) => {
@@ -81,17 +84,15 @@ export const useChatContext = (activeTopic: Topic) => {
 
   const handleSelectMessage = useCallback(
     (messageId: string, selected: boolean) => {
-      dispatch(
-        setSelectedMessageIds(
-          selected
-            ? selectedMessageIds.includes(messageId)
-              ? selectedMessageIds
-              : [...selectedMessageIds, messageId]
-            : selectedMessageIds.filter((id) => id !== messageId)
-        )
+      setSelectedMessageIds(
+        selected
+          ? selectedMessageIds.includes(messageId)
+            ? selectedMessageIds
+            : [...selectedMessageIds, messageId]
+          : selectedMessageIds.filter((id) => id !== messageId)
       )
     },
-    [dispatch, selectedMessageIds]
+    [selectedMessageIds, setSelectedMessageIds]
   )
 
   const handleMultiSelectAction = useCallback(

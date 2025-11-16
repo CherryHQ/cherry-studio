@@ -1,31 +1,29 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
+import { Avatar, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setFoldDisplayMode } from '@renderer/store/settings'
+import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
-import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
+import type { MultiModelFoldDisplayMode } from '@shared/data/preference/preferenceTypes'
+import { Segmented as AntdSegmented } from 'antd'
+import { first } from 'lodash'
 import { motion } from 'motion/react'
-import { FC, memo, useCallback } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
 interface MessageGroupModelListProps {
   messages: Message[]
   selectMessageId: string
   setSelectedMessage: (message: Message) => void
 }
 
-type DisplayMode = 'compact' | 'expanded'
-
 const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
-  const dispatch = useAppDispatch()
+  const [foldDisplayMode, setFoldDisplayMode] = usePreference('chat.message.multi_model.fold_display_mode')
   const { t } = useTranslation()
-  const { foldDisplayMode } = useSettings()
   const isCompact = foldDisplayMode === 'compact'
 
   const isMessageProcessing = useCallback((message: Message) => {
@@ -43,7 +41,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -70,24 +68,42 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   return (
     <Container>
       <Tooltip
-        title={
+        content={
           isCompact
             ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
-        placement="top"
-        mouseEnterDelay={0.5}
-        mouseLeaveDelay={0}>
+        delay={500}
+        closeDelay={0}>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
-          onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
+          onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>
           {isCompact ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </DisplayModeToggle>
       </Tooltip>
       <ModelsContainer $displayMode={foldDisplayMode}>
         {isCompact ? (
           /* Compact style display */
-          <Avatar.Group className="avatar-group">{messages.map((message) => renderLabel(message))}</Avatar.Group>
+          <AvatarGroup className="p-2" isBordered>
+            {messages.map((message) => {
+              const modelTip = message.model?.name
+              const isSelected = message.id === selectMessageId
+
+              return (
+                <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
+                  <Avatar
+                    src={getModelLogo(message.model)}
+                    name={first(message.model?.name)}
+                    size="xs"
+                    isBordered={isSelected}
+                    color={isSelected ? 'primary' : 'default'}
+                    onClick={() => setSelectedMessage(message)}
+                    className="shadow-lg"
+                  />
+                </Tooltip>
+              )
+            })}
+          </AvatarGroup>
         ) : (
           /* Expanded style display */
           <Segmented
@@ -108,14 +124,14 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   )
 }
 
-const Container = styled(HStack)`
+const Container = styled(RowFlex)`
   flex: 1;
   overflow: hidden;
   align-items: center;
   margin-left: 4px;
 `
 
-const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
+const DisplayModeToggle = styled.div<{ displayMode: MultiModelFoldDisplayMode }>`
   display: flex;
   cursor: pointer;
   padding: 2px 6px 3px 6px;
@@ -128,7 +144,7 @@ const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
   }
 `
 
-const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
+const ModelsContainer = styled(Scrollbar)<{ $displayMode: MultiModelFoldDisplayMode }>`
   display: flex;
   flex-direction: ${(props) => (props.$displayMode === 'expanded' ? 'column' : 'row')};
   justify-content: ${(props) => (props.$displayMode === 'expanded' ? 'space-between' : 'flex-start')};

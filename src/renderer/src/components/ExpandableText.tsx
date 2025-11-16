@@ -1,5 +1,5 @@
-import { Button } from 'antd'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { Button } from '@cherrystudio/ui'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,18 +20,12 @@ const ExpandableText = ({
     setIsExpanded((prev) => !prev)
   }, [])
 
-  const button = useMemo(() => {
-    return (
-      <Button type="link" onClick={toggleExpand} style={{ alignSelf: 'flex-end' }}>
-        {isExpanded ? t('common.collapse') : t('common.expand')}
-      </Button>
-    )
-  }, [isExpanded, t, toggleExpand])
-
   return (
     <Container ref={ref} style={style} $expanded={isExpanded}>
       <TextContainer $expanded={isExpanded}>{text}</TextContainer>
-      {button}
+      <Button variant="ghost" onClick={toggleExpand} className="self-end">
+        {isExpanded ? t('common.collapse') : t('common.expand')}
+      </Button>
     </Container>
   )
 }
@@ -48,4 +42,4 @@ const TextContainer = styled.div<{ $expanded?: boolean }>`
   line-height: ${(props) => (props.$expanded ? 'unset' : '30px')};
 `
 
-export default memo(ExpandableText)
+export default ExpandableText

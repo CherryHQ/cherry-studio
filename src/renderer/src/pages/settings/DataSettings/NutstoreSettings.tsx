@@ -1,5 +1,6 @@
-import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined } from '@ant-design/icons'
+import { Button, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -15,20 +16,13 @@ import {
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  setNutstoreAutoSync,
-  setNutstoreMaxBackups,
-  setNutstorePath,
-  setNutstoreSkipBackupFile,
-  setNutstoreSyncInterval,
-  setNutstoreToken
-} from '@renderer/store/nutstore'
+import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Button, Input, Switch, Tooltip, Typography } from 'antd'
+import { Input, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
@@ -37,25 +31,24 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const {
-    nutstoreToken,
-    nutstorePath,
-    nutstoreSyncInterval,
-    nutstoreAutoSync,
-    nutstoreSyncState,
-    nutstoreSkipBackupFile,
-    nutstoreMaxBackups
-  } = useAppSelector((state) => state.nutstore)
+  const { nutstoreSyncState } = useAppSelector((state) => state.nutstore)
 
-  const dispatch = useAppDispatch()
+  const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
+  const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
+  const [nutstorePath, setNutstorePath] = usePreference('data.backup.nutstore.path')
+  const [nutstoreSkipBackupFile, setNutstoreSkipBackupFile] = usePreference('data.backup.nutstore.skip_backup_file')
+  const [nutstoreSyncInterval, setNutstoreSyncInterval] = usePreference('data.backup.nutstore.sync_interval')
+  const [nutstoreToken, setNutstoreToken] = usePreference('data.backup.nutstore.token')
 
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
   const [nutstorePass, setNutstorePass] = useState<string | undefined>(undefined)
-  const [storagePath, setStoragePath] = useState<string | undefined>(nutstorePath)
+  // const [storagePath, setStoragePath] = useState<string | undefined>(nutstorePath)
   const [checkConnectionLoading, setCheckConnectionLoading] = useState(false)
   const [nsConnected, setNsConnected] = useState<boolean>(false)
-  const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
-  const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
+
+  // const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
+  // const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
+
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const nutstoreSSOHandler = useNutstoreSSO()
@@ -66,8 +59,8 @@ const NutstoreSettings: FC = () => {
     window.open(ssoUrl, '_blank')
     const nutstoreToken = await nutstoreSSOHandler()
 
-    dispatch(setNutstoreToken(nutstoreToken))
-  }, [dispatch, nutstoreSSOHandler])
+    setNutstoreToken(nutstoreToken)
+  }, [nutstoreSSOHandler, setNutstoreToken])
 
   useEffect(() => {
     async function decryptTokenEffect() {
@@ -78,14 +71,14 @@ const NutstoreSettings: FC = () => {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
           if (!nutstorePath) {
-            dispatch(setNutstorePath('/cherry-studio'))
-            setStoragePath('/cherry-studio')
+            setNutstorePath('/cherry-studio')
+            // setStoragePath('/cherry-studio')
           }
         }
       }
     }
     decryptTokenEffect()
-  }, [nutstoreToken, dispatch, nutstorePath])
+  }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
     const confirmedLogout = await modalConfirm({
@@ -93,13 +86,12 @@ const NutstoreSettings: FC = () => {
       content: t('settings.data.nutstore.logout.content')
     })
     if (confirmedLogout) {
-      dispatch(setNutstoreToken(''))
-      dispatch(setNutstorePath(''))
-      dispatch(setNutstoreAutoSync(false))
+      setNutstoreToken('')
+      setNutstorePath('')
+      setNutstoreAutoSync(false)
       setNutstoreUsername('')
-      setStoragePath(undefined)
     }
-  }, [dispatch, t])
+  }, [setNutstorePath, setNutstoreToken, setNutstoreAutoSync, t])
 
   const handleCheckConnection = async () => {
     if (!nutstoreToken) return
@@ -124,25 +116,23 @@ const NutstoreSettings: FC = () => {
       backupMethod: backupToNutstore
     })
 
-  const onSyncIntervalChange = (value: number) => {
-    setSyncInterval(value)
-    dispatch(setNutstoreSyncInterval(value))
+  const onSyncIntervalChange = async (value: number) => {
+    await setNutstoreSyncInterval(value)
     if (value === 0) {
-      dispatch(setNutstoreAutoSync(false))
+      await setNutstoreAutoSync(false)
       stopNutstoreAutoSync()
     } else {
-      dispatch(setNutstoreAutoSync(true))
+      await setNutstoreAutoSync(true)
       startNutstoreAutoSync()
     }
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
-    setNutSkipBackupFile(value)
-    dispatch(setNutstoreSkipBackupFile(value))
+    setNutstoreSkipBackupFile(value)
   }
 
   const onMaxBackupsChange = (value: number) => {
-    dispatch(setNutstoreMaxBackups(value))
+    setNutstoreMaxBackups(value)
   }
 
   const handleClickPathChange = async () => {
@@ -172,8 +162,7 @@ const NutstoreSettings: FC = () => {
       return
     }
 
-    setStoragePath(targetPath)
-    dispatch(setNutstorePath(targetPath))
+    setNutstorePath(targetPath)
   }
 
   const renderSyncStatus = () => {
@@ -184,19 +173,20 @@ const NutstoreSettings: FC = () => {
     }
 
     return (
-      <HStack gap="5px" alignItems="center">
+      <RowFlex className="items-center gap-[5px]">
         {nutstoreSyncState.syncing && <SyncOutlined spin />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
-          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}>
-            <WarningOutlined style={{ color: 'red' }} />
-          </Tooltip>
+          <WarnTooltip
+            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
+            iconProps={{ style: { color: 'red' } }}
+          />
         )}
         {nutstoreSyncState.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
-      </HStack>
+      </RowFlex>
     )
   }
 
@@ -219,12 +209,11 @@ const NutstoreSettings: FC = () => {
           {isLogin ? t('settings.data.nutstore.isLogin') : t('settings.data.nutstore.notLogin')}
         </SettingRowTitle>
         {isLogin ? (
-          <HStack gap="5px" justifyContent="space-between" alignItems="center">
+          <RowFlex className="items-center justify-between gap-[5px]">
             <Button
-              type={nsConnected ? 'primary' : 'default'}
-              ghost={nsConnected}
+              variant={nsConnected ? 'ghost' : 'default'}
               onClick={handleCheckConnection}
-              loading={checkConnectionLoading}>
+              disabled={checkConnectionLoading}>
               {checkConnectionLoading ? (
                 <LoadingOutlined spin />
               ) : nsConnected ? (
@@ -233,10 +222,10 @@ const NutstoreSettings: FC = () => {
                 t('settings.data.nutstore.checkConnection.name')
               )}
             </Button>
-            <Button type="primary" danger onClick={handleLayout}>
+            <Button variant="destructive" onClick={handleLayout}>
               {t('settings.data.nutstore.logout.button')}
             </Button>
-          </HStack>
+          </RowFlex>
         ) : (
           <Button onClick={handleClickNutstoreSSO}>{t('settings.data.nutstore.login.button')}</Button>
         )}
@@ -252,39 +241,38 @@ const NutstoreSettings: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.path.label')}</SettingRowTitle>
-            <HStack gap="4px" justifyContent="space-between">
+            <RowFlex className="justify-between gap-1">
               <Input
                 placeholder={t('settings.data.nutstore.path.placeholder')}
                 style={{ width: 250 }}
                 value={nutstorePath}
                 onChange={(e) => {
-                  setStoragePath(e.target.value)
-                  dispatch(setNutstorePath(e.target.value))
+                  setNutstorePath(e.target.value)
                 }}
               />
-              <Button type="default" onClick={handleClickPathChange}>
+              <Button variant="default" onClick={handleClickPathChange} size="icon">
                 <FolderOutlined />
               </Button>
-            </HStack>
+            </RowFlex>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <HStack gap="5px" justifyContent="space-between">
-              <Button onClick={showBackupModal} loading={backuping}>
+            <RowFlex className="justify-between gap-[5px]">
+              <Button onClick={showBackupModal} disabled={backuping}>
                 {t('settings.data.nutstore.backup.button')}
               </Button>
               <Button onClick={showBackupManager} disabled={!nutstoreToken}>
                 {t('settings.data.nutstore.restore.button')}
               </Button>
-            </HStack>
+            </RowFlex>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
             <Selector
               size={14}
-              value={syncInterval}
+              value={nutstoreSyncInterval}
               onChange={onSyncIntervalChange}
               options={[
                 { label: t('settings.data.webdav.autoSync.off'), value: 0 },
@@ -300,7 +288,7 @@ const NutstoreSettings: FC = () => {
               ]}
             />
           </SettingRow>
-          {nutstoreAutoSync && syncInterval > 0 && (
+          {nutstoreAutoSync && nutstoreSyncInterval > 0 && (
             <>
               <SettingDivider />
               <SettingRow>
@@ -331,7 +319,7 @@ const NutstoreSettings: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={nutSkipBackupFile} onChange={onSkipBackupFilesChange} />
+            <Switch isSelected={nutstoreSkipBackupFile} onValueChange={onSkipBackupFilesChange} />
           </SettingRow>
           <SettingRow>
             <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -359,7 +347,7 @@ const NutstoreSettings: FC = () => {
             webdavHost: NUTSTORE_HOST,
             webdavUser: nutstoreUsername,
             webdavPass: nutstorePass,
-            webdavPath: storagePath
+            webdavPath: nutstorePath
           }}
           restoreMethod={restoreFromNutstore}
           customLabels={{

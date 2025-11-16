@@ -1,37 +1,40 @@
 import { loggerService } from '@logger'
 import { formatAgentServerError } from '@renderer/utils/error'
-import {
+import type {
   AddAgentForm,
-  AgentServerErrorSchema,
   ApiModelsFilter,
   ApiModelsResponse,
-  ApiModelsResponseSchema,
   CreateAgentRequest,
   CreateAgentResponse,
-  CreateAgentResponseSchema,
   CreateAgentSessionResponse,
-  CreateAgentSessionResponseSchema,
   CreateSessionForm,
   CreateSessionRequest,
   GetAgentResponse,
-  GetAgentResponseSchema,
   GetAgentSessionResponse,
-  GetAgentSessionResponseSchema,
   ListAgentSessionsResponse,
-  ListAgentSessionsResponseSchema,
-  type ListAgentsResponse,
-  ListAgentsResponseSchema,
+  ListAgentsResponse,
   ListOptions,
-  objectEntries,
-  objectKeys,
   UpdateAgentForm,
   UpdateAgentRequest,
   UpdateAgentResponse,
-  UpdateAgentResponseSchema,
   UpdateSessionForm,
   UpdateSessionRequest
 } from '@types'
-import axios, { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
+import {
+  AgentServerErrorSchema,
+  ApiModelsResponseSchema,
+  CreateAgentResponseSchema,
+  CreateAgentSessionResponseSchema,
+  GetAgentResponseSchema,
+  GetAgentSessionResponseSchema,
+  ListAgentSessionsResponseSchema,
+  ListAgentsResponseSchema,
+  objectEntries,
+  objectKeys,
+  UpdateAgentResponseSchema
+} from '@types'
+import type { Axios, AxiosRequestConfig } from 'axios'
+import axios, { isAxiosError } from 'axios'
 import { ZodError } from 'zod'
 
 type ApiVersion = 'v1'

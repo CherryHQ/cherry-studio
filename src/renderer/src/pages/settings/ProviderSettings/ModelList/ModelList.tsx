@@ -1,6 +1,6 @@
+import { Button, ColFlex, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { isNewApiProvider, PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -11,9 +11,9 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Flex, Spin, Tooltip } from 'antd'
+import { Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -103,10 +103,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle style={{ marginBottom: 5 }}>
-        <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
-          <HStack alignItems="center" gap={8}>
-            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
+      <SettingSubtitle className="mb-[5px]">
+        <RowFlex className="w-full items-center justify-between">
+          <RowFlex className="items-center gap-2">
+            <SettingSubtitle className="mt-0">{t('common.models')}</SettingSubtitle>
             {modelCount > 0 && (
               <CustomTag color="#8c8c8c" size={10}>
                 {modelCount}
@@ -117,21 +117,19 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               placeholder={t('models.search.placeholder')}
               tooltip={t('models.search.tooltip')}
             />
-          </HStack>
-          <HStack>
-            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-              <Button
-                type="text"
-                onClick={runHealthCheck}
-                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-              />
+          </RowFlex>
+          <RowFlex>
+            <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0}>
+              <Button variant="ghost" onClick={runHealthCheck}>
+                <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />
+              </Button>
             </Tooltip>
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
       </SettingSubtitle>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
-          <Flex gap={12} vertical>
+          <ColFlex className="gap-3">
             {Object.keys(displayedModelGroups).map((group, i) => (
               <ModelListGroup
                 key={group}
@@ -144,10 +142,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
               />
             ))}
-          </Flex>
+          </ColFlex>
         )}
       </Spin>
-      <Flex justify="space-between" align="center">
+      <Flex className="items-center justify-between">
         {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
@@ -166,19 +164,22 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         ) : (
-          <div style={{ height: 5 }} />
+          <div className="h-[5px]" />
         )}
       </Flex>
-      <Flex gap={10} style={{ marginTop: 12 }}>
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+      <Flex className="mt-3 gap-2.5">
+        <Button onClick={onManageModel} disabled={isHealthChecking}>
+          <ListCheck fill="currentColor" size={16} />
           {t('button.manage')}
         </Button>
         {provider.id !== 'ovms' ? (
-          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+          <Button variant="default" onClick={onAddModel} disabled={isHealthChecking}>
+            <Plus size={16} />
             {t('button.add')}
           </Button>
         ) : (
-          <Button type="default" onClick={onDownloadModel} icon={<Plus size={16} />}>
+          <Button onClick={onDownloadModel} disabled={isHealthChecking}>
+            <Plus size={16} />
             {t('button.download')}
           </Button>
         )}

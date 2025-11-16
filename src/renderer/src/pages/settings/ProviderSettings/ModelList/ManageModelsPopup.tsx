@@ -1,6 +1,6 @@
+import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
@@ -18,10 +18,10 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
-import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
+import { Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
@@ -131,10 +131,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     (model: Model) => {
       if (!isEmpty(model.name)) {
         if (isNewApiProvider(provider)) {
-          if (model.supported_endpoint_types && model.supported_endpoint_types.length > 0) {
+          const endpointTypes = model.supported_endpoint_types
+          if (endpointTypes && endpointTypes.length > 0) {
             addModel({
               ...model,
-              endpoint_type: model.supported_endpoint_types[0],
+              endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
               supported_text_delta: !isNotSupportedTextDelta(model)
             })
           } else {
@@ -242,35 +243,29 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
 
     return (
-      <HStack gap={8}>
+      <RowFlex className="gap-2">
         <Tooltip
-          title={
+          content={
             isAllFilteredInProvider
               ? t('settings.models.manage.remove_listed')
               : t('settings.models.manage.add_listed.label')
-          }
-          mouseLeaveDelay={0}>
+          }>
           <Button
-            type="default"
-            icon={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
-            size="large"
-            onClick={(e) => {
-              e.stopPropagation()
+            variant="ghost"
+            size="icon-lg"
+            onClick={() => {
               isAllFilteredInProvider ? onRemoveAll() : onAddAll()
             }}
-            disabled={loadingModels || list.length === 0}
-          />
+            disabled={loadingModels || list.length === 0}>
+            {isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
+          </Button>
         </Tooltip>
-        <Tooltip title={t('settings.models.manage.refetch_list')} mouseLeaveDelay={0}>
-          <Button
-            type="default"
-            icon={<RefreshCcw size={16} />}
-            size="large"
-            onClick={() => loadModels(provider)}
-            disabled={loadingModels}
-          />
+        <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
+          <Button variant="ghost" size="icon-lg" onClick={() => loadModels(provider)} disabled={loadingModels}>
+            <RefreshCcw size={16} />
+          </Button>
         </Tooltip>
-      </HStack>
+      </RowFlex>
     )
   }, [list, t, loadingModels, provider, onRemoveAll, onAddAll, loadModels])
 

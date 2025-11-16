@@ -1,8 +1,10 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { Provider, ProviderType } from '@renderer/types'
+import type { Provider, ProviderType } from '@renderer/types'
 import { getFancyProviderName, maskApiKey } from '@renderer/utils'
-import { Button, Descriptions, Flex, Modal } from 'antd'
+import { Descriptions, Modal } from 'antd'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,20 +110,15 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           <Descriptions.Item label={t('settings.models.provider_id')}>{baseProvider.id}</Descriptions.Item>
           {baseUrl && <Descriptions.Item label={t('settings.models.base_url')}>{baseUrl}</Descriptions.Item>}
           <Descriptions.Item label={t('settings.models.api_key')}>
-            <Flex justify="space-between">
+            <Flex className="justify-between">
               {showFullKey ? newApiKey : maskApiKey(newApiKey)}
-              <Button
-                type="link"
-                size="small"
-                icon={
-                  showFullKey ? (
-                    <Eye size={16} color="var(--color-text-3)" />
-                  ) : (
-                    <EyeOff size={16} color="var(--color-text-3)" />
-                  )
-                }
-                onClick={() => setShowFullKey((prev) => !prev)}
-              />
+              <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>
+                {showFullKey ? (
+                  <Eye size={16} color="var(--color-text-3)" />
+                ) : (
+                  <EyeOff size={16} color="var(--color-text-3)" />
+                )}
+              </Button>
             </Flex>
           </Descriptions.Item>
         </Descriptions>

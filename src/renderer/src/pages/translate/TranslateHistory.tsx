@@ -1,16 +1,19 @@
 import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { clearHistory, deleteHistory, updateTranslateHistory } from '@renderer/services/TranslateService'
-import { TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { Button, Drawer, Empty, Flex, Input, Popconfirm } from 'antd'
+import type { TranslateHistory, TranslateLanguage } from '@renderer/types'
+import { Drawer, Empty, Input, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
 import { SearchIcon } from 'lucide-react'
-import { FC, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -96,17 +99,17 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
 
   const Title = () => {
     return (
-      <Flex align="center">
+      <Flex className="items-center">
         {t('translate.history.title')}
         <Button
-          icon={showStared ? <StarFilled /> : <StarOutlined />}
-          color="yellow"
-          variant="text"
-          onClick={(e) => {
-            e.stopPropagation()
+          size="icon"
+          className="text-yellow-300"
+          variant="ghost"
+          onClick={() => {
             setShowStared(!showStared)
-          }}
-        />
+          }}>
+          {showStared ? <StarFilled /> : <StarOutlined />}
+        </Button>
       </Flex>
     )
   }
@@ -127,7 +130,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             title={t('translate.history.clear')}
             description={t('translate.history.clear_description')}
             onConfirm={clearHistory}>
-            <Button type="text" size="small" danger icon={<DeleteOutlined />}>
+            <Button variant="ghost" size="sm">
+              <DeleteOutlined />
               {t('translate.history.clear')}
             </Button>
           </Popconfirm>
@@ -144,7 +148,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       }}>
       <HistoryContainer>
         {/* Search Bar */}
-        <HStack style={{ padding: '0 12px', borderBottom: '1px solid var(--ant-color-split)' }}>
+        <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
           <Input
             prefix={
               <IconWrapper>
@@ -163,7 +167,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             variant="borderless"
             size="middle"
           />
-        </HStack>
+        </RowFlex>
 
         {/* Virtual List */}
         {deferredHistory.length > 0 ? (
@@ -173,23 +177,23 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 return (
                   <HistoryListItemContainer>
                     <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                      <Flex justify="space-between" vertical gap={4} style={{ width: '100%', height: '100%', flex: 1 }}>
-                        <Flex align="center" justify="space-between" style={{ height: 30 }}>
-                          <Flex align="center" gap={6}>
+                      <ColFlex className="h-full w-full flex-1 justify-between gap-1">
+                        <Flex className="h-[30px] items-center justify-between">
+                          <Flex className="items-center gap-1.5">
                             <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
                             <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                           </Flex>
                           {/* tool bar */}
-                          <Flex align="center" justify="flex-end">
+                          <Flex className="mt-2 items-center justify-end">
                             <Button
-                              icon={item.star ? <StarFilled /> : <StarOutlined />}
-                              color="yellow"
-                              variant="text"
-                              onClick={(e) => {
-                                e.stopPropagation()
+                              size="icon"
+                              className="text-yellow-300"
+                              variant="ghost"
+                              onClick={() => {
                                 handleStar(item.id)
-                              }}
-                            />
+                              }}>
+                              {item.star ? <StarFilled /> : <StarOutlined />}
+                            </Button>
                             <Popconfirm
                               title={t('translate.history.delete')}
                               onConfirm={() => {
@@ -198,14 +202,9 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                               onPopupClick={(e) => {
                                 e.stopPropagation()
                               }}>
-                              <Button
-                                icon={<DeleteOutlined />}
-                                danger
-                                type="text"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                }}
-                              />
+                              <Button size="icon" variant="ghost">
+                                <DeleteOutlined />
+                              </Button>
                             </Popconfirm>
                           </Flex>
                         </Flex>
@@ -216,7 +215,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                           </HistoryListItemTitle>
                         </HistoryListItemTextContainer>
                         <HistoryListItemDate>{item.createdAt}</HistoryListItemDate>
-                      </Flex>
+                      </ColFlex>
                     </HistoryListItem>
                   </HistoryListItemContainer>
                 )
@@ -224,7 +223,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             </DynamicVirtualList>
           </HistoryList>
         ) : (
-          <Flex justify="center" align="center" style={{ flex: 1 }}>
+          <Flex className="items-center justify-center" style={{ flex: 1 }}>
             <Empty description={t('translate.history.empty')} />
           </Flex>
         )}

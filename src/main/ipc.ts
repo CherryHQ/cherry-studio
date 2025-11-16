@@ -2,30 +2,35 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import { PreferenceService } from '@data/PreferenceService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import {
+import type {
   AgentPersistedMessage,
   FileMetadata,
   Notification,
   OcrProvider,
+  PluginError,
   Provider,
   Shortcut,
-  SupportedOcrFile,
-  ThemeMode
+  SupportedOcrFile
 } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
+import type { ProxyConfig } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
+import { PluginService } from './services/agents/plugins/PluginService'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -46,6 +51,7 @@ import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
 import OvmsManager from './services/OvmsManager'
+import powerMonitorService from './services/PowerMonitorService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -66,8 +72,8 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
-import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
+import WebSocketService from './services/WebSocketService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -93,13 +99,34 @@ const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
 const ovmsManager = new OvmsManager()
+const pluginService = PluginService.getInstance()
+
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function extractPluginError(error: unknown): PluginError | null {
+  if (error && typeof error === 'object' && 'type' in error && typeof (error as { type: unknown }).type === 'string') {
+    return error as PluginError
+  }
+  return null
+}
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
 
-  // Initialize Python service with main window
-  pythonService.setMainWindow(mainWindow)
+  // Register shutdown handlers
+  powerMonitorService.registerShutdownHandler(() => {
+    appUpdater.setAutoUpdate(false)
+  })
+
+  powerMonitorService.registerShutdownHandler(() => {
+    const mw = windowService.getMainWindow()
+    if (mw && !mw.isDestroyed()) {
+      mw.webContents.send(IpcChannel.App_SaveData)
+    }
+  })
 
   const checkMainWindow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -145,9 +172,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_QuitAndInstall, () => appUpdater.quitAndInstall())
 
   // language
-  ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-    configManager.setLanguage(language)
-  })
+  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
+  //   configManager.setLanguage(language)
+  // })
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
@@ -167,7 +194,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
     })
-    configManager.set('spellCheckLanguages', languages)
+    preferenceService.set('app.spell_check.languages', languages)
   })
 
   // launch on boot
@@ -175,40 +202,38 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
-  // launch to tray
-  ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-    configManager.setLaunchToTray(isActive)
-  })
+  // // launch to tray
+  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
+  //   configManager.setLaunchToTray(isActive)
+  // })
 
-  // tray
-  ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-    configManager.setTray(isActive)
-  })
+  // // tray
+  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
+  //   configManager.setTray(isActive)
+  // })
 
-  // to tray on close
-  ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-    configManager.setTrayOnClose(isActive)
-  })
+  // // to tray on close
+  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
+  //   configManager.setTrayOnClose(isActive)
+  // })
 
-  // auto update
-  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-    appUpdater.setAutoUpdate(isActive)
-    configManager.setAutoUpdate(isActive)
-  })
+  // // auto update
+  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+  //   appUpdater.setAutoUpdate(isActive)
+  //   configManager.setAutoUpdate(isActive)
+  // })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
     logger.info(`set test plan: ${isActive}`)
-    if (isActive !== configManager.getTestPlan()) {
+    if (isActive !== preferenceService.get('app.dist.test_plan.enabled')) {
       appUpdater.cancelDownload()
-      configManager.setTestPlan(isActive)
     }
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
     logger.info(`set test channel: ${channel}`)
-    if (channel !== configManager.getTestChannel()) {
+    if (channel !== preferenceService.get('app.dist.test_plan.channel')) {
       appUpdater.cancelDownload()
-      configManager.setTestChannel(channel)
     }
   })
 
@@ -264,23 +289,26 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
-    configManager.set(key, value, isNotify)
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string) => {
+    // Legacy config handler - will be deprecated
+    logger.warn(`Legacy Config_Set called for key: ${key}`)
   })
 
   ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
-    return configManager.get(key)
+    // Legacy config handler - will be deprecated
+    logger.warn(`Legacy Config_Get called for key: ${key}`)
+    return undefined
   })
 
-  // theme
-  ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
-    themeService.setTheme(theme)
-  })
+  // // theme
+  // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+  //   themeService.setTheme(theme)
+  // })
 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
     handleZoomFactor(windows, delta, reset)
-    return configManager.getZoomFactor()
+    return preferenceService.get('app.zoom_factor')
   })
 
   // clear cache
@@ -524,6 +552,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ListDirectory, fileManager.listDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_GetDirectoryStructure, fileManager.getDirectoryStructure.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
@@ -800,9 +829,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 
-  ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-    configManager.setDisableHardwareAcceleration(isDisable)
-  })
+  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
+  //   configManager.setDisableHardwareAcceleration(isDisable)
+  // })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
   ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
     getSpans(topicId, traceId, modelName)
@@ -890,4 +919,127 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
+
+  // Claude Code Plugins
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListAvailable, async () => {
+    try {
+      const data = await pluginService.listAvailable()
+      return { success: true, data }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to list available plugins', pluginError)
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to list available plugins', err)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-available',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Install, async (_, options) => {
+    try {
+      const data = await pluginService.install(options)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to install plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_Uninstall, async (_, options) => {
+    try {
+      await pluginService.uninstall(options)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to uninstall plugin', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ListInstalled, async (_, agentId: string) => {
+    try {
+      const data = await pluginService.listInstalled(agentId)
+      return { success: true, data }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to list installed plugins', { agentId, error: pluginError })
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to list installed plugins', { agentId, error: err })
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'list-installed',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_InvalidateCache, async () => {
+    try {
+      pluginService.invalidateCache()
+      return { success: true, data: undefined }
+    } catch (error) {
+      const pluginError = extractPluginError(error)
+      if (pluginError) {
+        logger.error('Failed to invalidate plugin cache', pluginError)
+        return { success: false, error: pluginError }
+      }
+
+      const err = normalizeError(error)
+      logger.error('Failed to invalidate plugin cache', err)
+      return {
+        success: false,
+        error: {
+          type: 'TRANSACTION_FAILED',
+          operation: 'invalidate-cache',
+          reason: err.message
+        }
+      }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_ReadContent, async (_, sourcePath: string) => {
+    try {
+      const data = await pluginService.readContent(sourcePath)
+      return { success: true, data }
+    } catch (error) {
+      logger.error('Failed to read plugin content', { sourcePath, error })
+      return { success: false, error }
+    }
+  })
+
+  ipcMain.handle(IpcChannel.ClaudeCodePlugin_WriteContent, async (_, options) => {
+    try {
+      await pluginService.writeContent(options.agentId, options.filename, options.type, options.content)
+      return { success: true, data: undefined }
+    } catch (error) {
+      logger.error('Failed to write plugin content', { options, error })
+      return { success: false, error }
+    }
+  })
+
+  // WebSocket
+  ipcMain.handle(IpcChannel.WebSocket_Start, WebSocketService.start)
+  ipcMain.handle(IpcChannel.WebSocket_Stop, WebSocketService.stop)
+  ipcMain.handle(IpcChannel.WebSocket_Status, WebSocketService.getStatus)
+  ipcMain.handle(IpcChannel.WebSocket_SendFile, WebSocketService.sendFile)
+  ipcMain.handle(IpcChannel.WebSocket_GetAllCandidates, WebSocketService.getAllCandidates)
+
+  // Preference handlers
+  PreferenceService.registerIpcHandler()
 }

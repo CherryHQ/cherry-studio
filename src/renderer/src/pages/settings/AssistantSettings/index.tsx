@@ -1,9 +1,9 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPreset } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,7 +113,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       width="min(800px, 70vw)"
       height="80vh"
       centered>
-      <HStack>
+      <RowFlex>
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={[tab || 'prompt']}
@@ -163,7 +163,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
             />
           )}
         </Settings>
-      </HStack>
+      </RowFlex>
     </StyledModal>
   )
 }

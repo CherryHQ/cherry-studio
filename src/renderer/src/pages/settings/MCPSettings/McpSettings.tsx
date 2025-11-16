@@ -1,12 +1,17 @@
+import { Flex, Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs, TabsProps } from 'antd'
+import type { TabsProps } from 'antd'
+import { Badge, Form, Input, Radio, Select, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -81,6 +86,7 @@ const McpSettings: React.FC = () => {
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
   const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
+  const { ensureServerTrusted } = useMCPServerTrust()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
   const [loading, setLoading] = useState(false)
@@ -266,6 +272,7 @@ const McpSettings: React.FC = () => {
 
       // set basic fields
       const mcpServer: MCPServer = {
+        ...server,
         id: server.id,
         name: values.name,
         type: values.serverType || server.type,
@@ -401,34 +408,43 @@ const McpSettings: React.FC = () => {
     }
 
     await form.validateFields()
-    setLoadingServer(server.id)
-    const oldActiveState = server.isActive
+    let serverForUpdate = server
+    if (active) {
+      const trustedServer = await ensureServerTrusted(server)
+      if (!trustedServer) {
+        return
+      }
+      serverForUpdate = trustedServer
+    }
+
+    setLoadingServer(serverForUpdate.id)
+    const oldActiveState = serverForUpdate.isActive
 
     try {
       if (active) {
-        const localTools = await window.api.mcp.listTools(server)
+        const localTools = await window.api.mcp.listTools(serverForUpdate)
         setTools(localTools)
 
-        const localPrompts = await window.api.mcp.listPrompts(server)
+        const localPrompts = await window.api.mcp.listPrompts(serverForUpdate)
         setPrompts(localPrompts)
 
-        const localResources = await window.api.mcp.listResources(server)
+        const localResources = await window.api.mcp.listResources(serverForUpdate)
         setResources(localResources)
 
-        const version = await window.api.mcp.getServerVersion(server)
+        const version = await window.api.mcp.getServerVersion(serverForUpdate)
         setServerVersion(version)
       } else {
-        await window.api.mcp.stopServer(server)
+        await window.api.mcp.stopServer(serverForUpdate)
         setServerVersion(null)
       }
-      updateMCPServer({ ...server, isActive: active })
+      updateMCPServer({ ...serverForUpdate, isActive: active })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error as McpError),
         centered: true
       })
-      updateMCPServer({ ...server, isActive: oldActiveState })
+      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
     } finally {
       setLoadingServer(null)
     }
@@ -637,7 +653,7 @@ const McpSettings: React.FC = () => {
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
             valuePropName="checked">
-            <Switch size="small" style={{ marginLeft: 10 }} />
+            <Switch size="sm" className="ml-2.5" />
           </Form.Item>
           <Form.Item
             name="timeout"
@@ -727,50 +743,53 @@ const McpSettings: React.FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-      <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
-        <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <Flex align="center" gap={8}>
-              <ServerName className="text-nowrap">{server?.name}</ServerName>
-              {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+    <Container>
+      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
+          <SettingTitle>
+            <Flex className="mr-10 items-center justify-between gap-5">
+              <Flex className="items-center gap-2">
+                <ServerName className="text-nowrap">{server?.name}</ServerName>
+                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+              </Flex>
+              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
+                <DeleteIcon size={14} className="lucide-custom text-destructive" />
+              </Button>
             </Flex>
-            <Button
-              danger
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              type="text"
-              onClick={() => onDeleteMcpServer(server)}
-            />
-          </Flex>
-          <Flex align="center" gap={16}>
-            <Switch
-              value={server.isActive}
-              key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
-            />
-            <Button
-              type="primary"
-              icon={<SaveIcon size={14} />}
-              onClick={onSave}
-              loading={loading}
-              shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}>
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
-        <Tabs
-          defaultActiveKey="settings"
-          items={tabs}
-          onChange={(key) => setActiveTab(key as TabKey)}
-          style={{ marginTop: 8, backgroundColor: 'transparent' }}
-        />
-      </SettingGroup>
-    </SettingContainer>
+            <Flex className="items-center gap-4">
+              <Switch
+                isSelected={server.isActive}
+                key={server.id}
+                isLoading={loadingServer === server.id}
+                onValueChange={onToggleActive}
+              />
+              <Button
+                size="sm"
+                variant="default"
+                onClick={onSave}
+                disabled={loading || !isFormChanged || activeTab !== 'settings'}
+                className="rounded-full">
+                <SaveIcon size={14} />
+                {t('common.save')}
+              </Button>
+            </Flex>
+          </SettingTitle>
+          <SettingDivider />
+          <Tabs
+            defaultActiveKey="settings"
+            items={tabs}
+            onChange={(key) => setActiveTab(key as TabKey)}
+            style={{ marginTop: 8, backgroundColor: 'transparent' }}
+          />
+        </SettingGroup>
+      </SettingContainer>
+    </Container>
   )
 }
+
+const Container = styled(Scrollbar)`
+  height: calc(100vh - var(--navbar-height));
+`
 
 const ServerName = styled.span`
   font-size: 14px;

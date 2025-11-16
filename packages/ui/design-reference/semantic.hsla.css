@@ -1,0 +1,81 @@
+/**
+ * Semantic Colors - Light Mode
+ * 语义化颜色 - 基于 Primitive Colors 的语义化映射
+ */
+
+:root {
+  /* Brand Colors */
+  --cs-primary: var(--cs-brand-500);
+  --cs-primary-hover: var(--cs-brand-300);
+  --cs-destructive: var(--cs-red-500);
+  --cs-destructive-hover: var(--cs-red-400);
+  --cs-success: var(--cs-green-500);
+  --cs-warning: var(--cs-amber-500);
+
+  /* Background & Foreground */
+  --cs-background: var(--cs-zinc-50);
+  --cs-background-subtle: hsla(0, 0%, 0%, 0.02);
+  --cs-foreground: hsla(0, 0%, 0%, 0.9);
+  --cs-foreground-secondary: hsla(0, 0%, 0%, 0.6);
+  --cs-foreground-muted: hsla(0, 0%, 0%, 0.4);
+
+  /* Card & Popover */
+  --cs-card: var(--cs-white);
+  --cs-popover: var(--cs-white);
+
+  /* Border */
+  --cs-border: hsla(0, 0%, 0%, 0.1);
+  --cs-border-hover: hsla(0, 0%, 0%, 0.2);
+  --cs-border-active: hsla(0, 0%, 0%, 0.3);
+
+  /* Ring (Focus) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
+
+  /* UI Element Colors */
+  --cs-secondary: hsla(0, 0%, 0%, 0.05); /* Secondary Button Background */
+  --cs-secondary-hover: hsla(0, 0%, 0%, 0.85);
+  --cs-secondary-active: hsla(0, 0%, 0%, 0.7);
+  --cs-muted: hsla(0, 0%, 0%, 0.05); /* Muted/Subtle Background */
+  --cs-accent: hsla(0, 0%, 0%, 0.05); /* Accent Background */
+  --cs-ghost-hover: hsla(0, 0%, 0%, 0.05); /* Ghost Button Hover */
+  --cs-ghost-active: hsla(0, 0%, 0%, 0.1); /* Ghost Button Active */
+
+  /* Sidebar */
+  --cs-sidebar: var(--cs-white);
+  --cs-sidebar-accent: hsla(0, 0%, 0%, 0.05);
+}
+
+/* Dark Mode */
+.dark {
+  /* Background & Foreground */
+  --cs-background: var(--cs-zinc-900);
+  --cs-background-subtle: hsla(0, 0%, 100%, 0.02);
+  --cs-foreground: hsla(0, 0%, 100%, 0.9);
+  --cs-foreground-secondary: hsla(0, 0%, 100%, 0.6);
+  --cs-foreground-muted: hsla(0, 0%, 100%, 0.4);
+
+  /* Card & Popover */
+  --cs-card: var(--cs-black);
+  --cs-popover: var(--cs-black);
+
+  /* Border */
+  --cs-border: hsla(0, 0%, 100%, 0.1);
+  --cs-border-hover: hsla(0, 0%, 100%, 0.2);
+  --cs-border-active: hsla(0, 0%, 100%, 0.3);
+
+  /* Ring (Focus) - 保持不变 */
+  --cs-ring: hsla(84, 81%, 44%, 0.4);
+
+  /* UI Element Colors - Dark Mode */
+  --cs-secondary: hsla(0, 0%, 100%, 0.1); /* Secondary Button Background */
+  --cs-secondary-hover: hsla(0, 0%, 100%, 0.2);
+  --cs-secondary-active: hsla(0, 0%, 100%, 0.25);
+  --cs-muted: hsla(0, 0%, 100%, 0.1); /* Muted/Subtle Background */
+  --cs-accent: hsla(0, 0%, 100%, 0.1); /* Accent Background */
+  --cs-ghost-hover: hsla(0, 0%, 100%, 0.1); /* Ghost Button Hover */
+  --cs-ghost-active: hsla(0, 0%, 100%, 0.15); /* Ghost Button Active */
+
+  /* Sidebar */
+  --cs-sidebar: var(--cs-black);
+  --cs-sidebar-accent: hsla(0, 0%, 100%, 0.1);
+}

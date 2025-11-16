@@ -1,8 +1,8 @@
-import { HStack } from '@renderer/components/Layout'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
-import { Flex, Switch } from 'antd'
+import type { Provider } from '@renderer/types'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -104,19 +104,19 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
 
   return (
-    <Flex vertical gap="middle">
+    <ColFlex className="gap-4">
       {options.map((item) => (
-        <HStack key={item.key} justifyContent="space-between">
-          <HStack alignItems="center" gap={6}>
+        <RowFlex key={item.key} className="justify-between">
+          <RowFlex className="items-center gap-1.5">
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
-            <InfoTooltip title={item.tip}></InfoTooltip>
-          </HStack>
-          <Switch id={item.key} checked={item.checked} onChange={item.onChange} />
-        </HStack>
+            <InfoTooltip content={item.tip}></InfoTooltip>
+          </RowFlex>
+          <Switch id={item.key} isSelected={item.checked} onValueChange={item.onChange} />
+        </RowFlex>
       ))}
-    </Flex>
+    </ColFlex>
   )
 }
 

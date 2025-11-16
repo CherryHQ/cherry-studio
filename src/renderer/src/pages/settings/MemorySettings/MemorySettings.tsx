@@ -1,7 +1,11 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
@@ -15,7 +19,7 @@ import {
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
+import { Badge, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
@@ -88,7 +92,7 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
       onOk={() => form.submit()}
       okButtonProps={{ loading: loading }}
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <PlusIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.add_memory')}</span>
         </Flex>
@@ -146,7 +150,7 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
   return (
     <Modal
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <EditIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.edit_memory')}</span>
         </Flex>
@@ -164,10 +168,10 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
         }
       }}
       footer={[
-        <Button key="cancel" size="large" onClick={onCancel}>
+        <Button key="cancel" size="lg" onClick={onCancel}>
           {t('common.cancel')}
         </Button>,
-        <Button key="submit" type="primary" size="large" loading={loading} onClick={() => form.submit()}>
+        <Button key="submit" variant="default" size="lg" disabled={loading} onClick={() => form.submit()}>
           {t('common.save')}
         </Button>
       ]}>
@@ -244,7 +248,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
         }
       }}
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <UserRoundPlus size={16} color="var(--color-primary)" />
           <span>{t('memory.add_user')}</span>
         </Flex>
@@ -477,8 +481,8 @@ const MemorySettings = () => {
   const handleSettingsSubmit = async () => {
     setSettingsModalVisible(false)
     await memoryService.updateConfig()
-    if (window.keyv.get('memory.wait.settings')) {
-      window.keyv.remove('memory.wait.settings')
+    if (cacheService.get('memory.wait.settings')) {
+      cacheService.delete('memory.wait.settings')
       dispatch(setGlobalMemoryEnabled(true))
     }
   }
@@ -486,7 +490,7 @@ const MemorySettings = () => {
   const handleSettingsCancel = () => {
     setSettingsModalVisible(false)
     form.resetFields()
-    window.keyv.remove('memory.wait.settings')
+    cacheService.delete('memory.wait.settings')
   }
 
   const handleResetMemories = async (userId: string) => {
@@ -552,7 +556,7 @@ const MemorySettings = () => {
 
   const handleGlobalMemoryToggle = async (enabled: boolean) => {
     if (enabled && !embedderModel) {
-      window.keyv.set('memory.wait.settings', true)
+      cacheService.set('memory.wait.settings', true)
       return setSettingsModalVisible(true)
     }
 
@@ -581,16 +585,18 @@ const MemorySettings = () => {
     <SettingContainer theme={theme}>
       {/* Memory Settings */}
       <SettingGroup style={{ justifyContent: 'space-between', alignItems: 'center' }} theme={theme}>
-        <HStack style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <HStack style={{ alignItems: 'center', gap: '2px' }}>
+        <RowFlex className="items-center justify-between">
+          <RowFlex className="items-center gap-0.5">
             <SettingRowTitle>{t('memory.global_memory')}</SettingRowTitle>
             <TextBadge text="Beta" />
-          </HStack>
-          <HStack style={{ alignItems: 'center', gap: 10 }}>
-            <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
-            <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
-          </HStack>
-        </HStack>
+          </RowFlex>
+          <RowFlex className="items-center gap-2.5">
+            <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
+            <Button variant="ghost" onClick={() => setSettingsModalVisible(true)} size="icon">
+              <Settings2 size={16} />
+            </Button>
+          </RowFlex>
+        </RowFlex>
       </SettingGroup>
 
       {/* User Management */}
@@ -635,7 +641,8 @@ const MemorySettings = () => {
               allowClear
               style={{ width: 240 }}
             />
-            <Button type="primary" icon={<PlusIcon size={18} />} onClick={() => setAddMemoryModalVisible(true)}>
+            <Button variant="default" onClick={() => setAddMemoryModalVisible(true)}>
+              <PlusIcon size={18} />
               {t('memory.add_memory')}
             </Button>
             <Dropdown
@@ -677,7 +684,10 @@ const MemorySettings = () => {
               }}
               trigger={['click']}
               placement="bottomRight">
-              <Button icon={<MenuIcon size={16} />}>{t('common.more')}</Button>
+              <Button>
+                <MenuIcon size={16} />
+                {t('common.more')}
+              </Button>
             </Dropdown>
           </Space>
         </div>
@@ -695,11 +705,8 @@ const MemorySettings = () => {
                   <div style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
                     {t('memory.no_memories_description')}
                   </div>
-                  <Button
-                    type="primary"
-                    icon={<PlusIcon size={18} />}
-                    onClick={() => setAddMemoryModalVisible(true)}
-                    size="large">
+                  <Button variant="default" onClick={() => setAddMemoryModalVisible(true)} size="lg">
+                    <PlusIcon size={18} />
                     {t('memory.add_first_memory')}
                   </Button>
                 </div>
@@ -728,17 +735,12 @@ const MemorySettings = () => {
                             <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
                           </div>
                           <Space size="small">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditMemory(memory)}>
+                              <EditIcon size={14} />
+                            </Button>
                             <Button
-                              type="text"
-                              size="small"
-                              icon={<EditIcon size={14} />}
-                              onClick={() => handleEditMemory(memory)}
-                            />
-                            <Button
-                              type="text"
-                              size="small"
-                              danger
-                              icon={<DeleteIcon size={14} className="lucide-custom" />}
+                              variant="destructive"
+                              size="sm"
                               onClick={() => {
                                 window.modal.confirm({
                                   centered: true,
@@ -748,8 +750,9 @@ const MemorySettings = () => {
                                   okText: t('common.confirm'),
                                   cancelText: t('common.cancel')
                                 })
-                              }}
-                            />
+                              }}>
+                              <DeleteIcon size={14} className="lucide-custom" />
+                            </Button>
                           </Space>
                         </div>
                         <div className="memory-content">{memory.memory}</div>

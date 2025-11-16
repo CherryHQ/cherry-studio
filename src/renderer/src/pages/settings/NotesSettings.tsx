@@ -1,11 +1,14 @@
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { EditorView } from '@renderer/types'
-import { Button, Input, message, Slider, Switch } from 'antd'
+import type { EditorView } from '@renderer/types'
+import { Input, Slider } from 'antd'
 import { FolderOpen } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -47,7 +50,7 @@ const NotesSettings: FC = () => {
       }
     } catch (error) {
       logger.error('Failed to select directory:', error as Error)
-      message.error(t('notes.settings.data.select_directory_failed'))
+      window.toast.error(t('notes.settings.data.select_directory_failed'))
     } finally {
       setIsSelecting(false)
     }
@@ -55,7 +58,7 @@ const NotesSettings: FC = () => {
 
   const handleApplyPath = async () => {
     if (!tempPath) {
-      message.error(t('notes.settings.data.path_required'))
+      window.toast.error(t('notes.settings.data.path_required'))
       return
     }
 
@@ -64,7 +67,7 @@ const NotesSettings: FC = () => {
       const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
 
       if (!isValidDir) {
-        message.error(t('notes.settings.data.invalid_directory'))
+        window.toast.error(t('notes.settings.data.invalid_directory'))
         return
       }
 
@@ -106,17 +109,13 @@ const NotesSettings: FC = () => {
               placeholder={t('notes.settings.data.work_directory_placeholder')}
               readOnly
             />
-            <Button
-              type="default"
-              icon={<FolderOpen size={16} />}
-              onClick={handleSelectWorkDirectory}
-              loading={isSelecting}
-              style={{ marginLeft: 8 }}>
+            <Button variant="default" onClick={handleSelectWorkDirectory} disabled={isSelecting} className="ml-2">
+              <FolderOpen size={16} />
               {t('notes.settings.data.select')}
             </Button>
           </PathInputContainer>
           <ActionButtons>
-            <Button type="primary" onClick={handleApplyPath} disabled={!isPathChanged}>
+            <Button onClick={handleApplyPath} disabled={!isPathChanged}>
               {t('notes.settings.data.apply')}
             </Button>
             <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
@@ -164,7 +163,10 @@ const NotesSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
-          <Switch checked={!settings.isFullWidth} onChange={(checked) => updateSettings({ isFullWidth: !checked })} />
+          <Switch
+            isSelected={!settings.isFullWidth}
+            onValueChange={(checked) => updateSettings({ isFullWidth: !checked })}
+          />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.compress_content_description')}</SettingHelpText>
         <SettingDivider />
@@ -186,8 +188,8 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.show_table_of_contents')}</SettingRowTitle>
           <Switch
-            checked={settings.showTableOfContents}
-            onChange={(checked) => updateSettings({ showTableOfContents: checked })}
+            isSelected={settings.showTableOfContents}
+            onValueChange={(checked) => updateSettings({ showTableOfContents: checked })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>

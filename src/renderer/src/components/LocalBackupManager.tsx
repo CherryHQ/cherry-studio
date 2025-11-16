@@ -1,7 +1,8 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Button, Flex, Tooltip } from '@cherrystudio/ui'
 import { restoreFromLocal } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Button, message, Modal, Table, Tooltip } from 'antd'
+import { Modal, Space, Table } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,7 +69,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      message.warning(t('settings.data.local.backup.manager.select.files.delete'))
+      window.toast.warning(t('settings.data.local.backup.manager.select.files.delete'))
       return
     }
 
@@ -120,7 +121,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         setDeleting(true)
         try {
           await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
-          message.success(t('settings.data.local.backup.manager.delete.success.single'))
+          window.toast.success(t('settings.data.local.backup.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
           window.toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
@@ -147,7 +148,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         setRestoring(true)
         try {
           await (restoreMethod || restoreFromLocal)(fileName)
-          message.success(t('settings.data.local.backup.manager.restore.success'))
+          window.toast.success(t('settings.data.local.backup.manager.restore.success'))
           onClose() // Close the modal
         } catch (error: any) {
           window.toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
@@ -167,7 +168,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="topLeft" title={fileName}>
+        <Tooltip content={fileName} placement="top-start">
           {fileName}
         </Tooltip>
       )
@@ -191,18 +192,24 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       key: 'action',
       width: 160,
       render: (_: any, record: BackupFile) => (
-        <>
-          <Button type="link" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
+        <Flex>
+          <Button
+            className="inline-flex"
+            size="sm"
+            variant="ghost"
+            onClick={() => handleRestore(record.fileName)}
+            disabled={restoring || deleting}>
             {t('settings.data.local.backup.manager.restore.text')}
           </Button>
           <Button
-            type="link"
-            danger
+            className="inline-flex"
+            size="sm"
+            variant="ghost"
             onClick={() => handleDeleteSingle(record.fileName)}
             disabled={deleting || restoring}>
             {t('settings.data.local.backup.manager.delete.text')}
           </Button>
-        </>
+        </Flex>
       )
     }
   ]
@@ -214,6 +221,26 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     }
   }
 
+  const footerContent = (
+    <Space align="center">
+      <Button key="refresh" onClick={fetchBackupFiles} disabled={loading}>
+        <ReloadOutlined />
+        {t('settings.data.local.backup.manager.refresh')}
+      </Button>
+      <Button
+        key="delete"
+        variant="destructive"
+        onClick={handleDeleteSelected}
+        disabled={selectedRowKeys.length === 0 || deleting}>
+        <DeleteOutlined />
+        {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
+      </Button>
+      <Button key="close" onClick={onClose}>
+        {t('common.close')}
+      </Button>
+    </Space>
+  )
+
   return (
     <Modal
       title={t('settings.data.local.backup.manager.title')}
@@ -222,23 +249,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
-          {t('settings.data.local.backup.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
-          {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      ]}>
+      footer={footerContent}>
       <Table
         rowKey="fileName"
         columns={columns}

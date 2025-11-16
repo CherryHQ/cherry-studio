@@ -1,8 +1,10 @@
+import { CodeEditor } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Modal } from 'antd'
 import { useState } from 'react'
 import styled from 'styled-components'
 
-import CodeEditor from '../CodeEditor'
 import { TopView } from '../TopView'
 
 interface Props {
@@ -14,6 +16,8 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
 
   const onOk = () => {
     setOpen(false)
@@ -55,6 +59,8 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
       footer={null}>
       {extension !== undefined ? (
         <Editor
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           readOnly={true}
           expanded={false}
           height="100%"

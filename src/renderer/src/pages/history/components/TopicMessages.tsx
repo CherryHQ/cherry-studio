@@ -1,25 +1,27 @@
 import { MessageOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { isGenerating, locateToMessage } from '@renderer/services/MessagesService'
+import { locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { classNames, runAsyncFunction } from '@renderer/utils'
-import { Button, Divider, Empty } from 'antd'
+import { Divider, Empty } from 'antd'
 import { t } from 'i18next'
 import { Forward } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import { default as MessageItem } from '../../home/Messages/Message'
-
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
 }
@@ -27,7 +29,7 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const navigate = NavigationService.navigate!
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
-  const { messageStyle } = useSettings()
+  const [messageStyle] = usePreference('chat.message.style')
   const { setTimeoutTimer } = useTimer()
 
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
@@ -48,7 +50,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   }
 
   const onContinueChat = async (topic: Topic) => {
-    await isGenerating()
+    await modelGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
     navigate('/', { state: { assistant, topic } })
@@ -63,22 +65,22 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
             <MessageWrapper key={message.id} className={classNames([messageStyle, message.role])}>
               <MessageItem message={message} topic={topic} hideMenuBar={true} />
               <Button
-                type="text"
-                size="middle"
-                style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 5 }}
-                onClick={() => locateToMessage(navigate, message)}
-                icon={<Forward size={16} />}
-              />
+                variant="ghost"
+                className="absolute top-[5px] right-0 text-[var(--color-text-3)]"
+                onClick={() => locateToMessage(navigate, message)}>
+                <Forward size={16} />
+              </Button>
               <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
             </MessageWrapper>
           ))}
           {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           {!isEmpty && (
-            <HStack justifyContent="center">
-              <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>
+            <RowFlex className="justify-center">
+              <Button onClick={() => onContinueChat(topic)}>
+                <MessageOutlined />
                 {t('history.continue_chat')}
               </Button>
-            </HStack>
+            </RowFlex>
           )}
         </ContainerWrapper>
       </MessagesContainer>

@@ -1,11 +1,14 @@
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
-import { Button, Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
+import { Dropdown, Modal, Splitter, Typography } from 'antd'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +26,8 @@ type ViewMode = 'split' | 'code' | 'preview'
 
 const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
@@ -79,24 +84,24 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       <HeaderCenter>
         <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
           <ViewButton
-            size="small"
-            type={viewMode === 'split' ? 'primary' : 'default'}
-            icon={<SquareSplitHorizontal size={14} />}
+            size="sm"
+            variant={viewMode === 'split' ? 'default' : 'secondary'}
             onClick={() => setViewMode('split')}>
+            <SquareSplitHorizontal size={14} />
             {t('html_artifacts.split')}
           </ViewButton>
           <ViewButton
-            size="small"
-            type={viewMode === 'code' ? 'primary' : 'default'}
-            icon={<Code size={14} />}
+            size="sm"
+            variant={viewMode === 'code' ? 'default' : 'secondary'}
             onClick={() => setViewMode('code')}>
+            <Code size={14} />
             {t('html_artifacts.code')}
           </ViewButton>
           <ViewButton
-            size="small"
-            type={viewMode === 'preview' ? 'primary' : 'default'}
-            icon={<Eye size={14} />}
+            size="sm"
+            variant={viewMode === 'preview' ? 'default' : 'secondary'}
             onClick={() => setViewMode('preview')}>
+            <Eye size={14} />
             {t('html_artifacts.preview')}
           </ViewButton>
         </ViewControls>
@@ -121,17 +126,18 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               }
             ]
           }}>
-          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
-            <Button type="text" icon={<Camera size={16} />} className="nodrag" />
+          <Tooltip content={t('html_artifacts.capture.label')} closeDelay={0}>
+            <Button variant="ghost" size="icon" className="nodrag">
+              <Camera size={16} />
+            </Button>
           </Tooltip>
         </Dropdown>
-        <Button
-          onClick={() => setIsFullscreen(!isFullscreen)}
-          type="text"
-          icon={isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          className="nodrag"
-        />
-        <Button onClick={onClose} type="text" icon={<X size={16} />} className="nodrag" />
+        <Button onClick={() => setIsFullscreen(!isFullscreen)} variant="ghost" size="icon" className="nodrag">
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </Button>
+        <Button onClick={onClose} variant="ghost" size="icon" className="nodrag">
+          <X size={16} />
+        </Button>
       </HeaderRight>
     </ModalHeader>
   )
@@ -141,6 +147,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       <CodeSection>
         <CodeEditor
           ref={codeEditorRef}
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={html}
           language="html"
           editable={true}
@@ -156,19 +164,14 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           }}
         />
         <ToolbarWrapper>
-          <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
-            <ToolbarButton
-              shape="circle"
-              size="large"
-              icon={
-                saved ? (
-                  <Check size={16} color="var(--color-status-success)" />
-                ) : (
-                  <SaveIcon size={16} className="custom-lucide" />
-                )
-              }
-              onClick={handleSave}
-            />
+          <Tooltip content={t('code_block.edit.save.label')} closeDelay={0}>
+            <ToolbarButton className="rounded-full" size="icon-lg" onClick={handleSave}>
+              {saved ? (
+                <Check size={16} color="var(--color-status-success)" />
+              ) : (
+                <SaveIcon size={16} className="custom-lucide" />
+              )}
+            </ToolbarButton>
           </Tooltip>
         </ToolbarWrapper>
       </CodeSection>

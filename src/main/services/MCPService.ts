@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
@@ -10,7 +11,8 @@ import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
   StreamableHTTPClientTransport,
@@ -29,7 +31,8 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import { MCPProgressEvent } from '@shared/config/types'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
 import {
@@ -46,7 +49,6 @@ import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 
-import { CacheService } from './CacheService'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
@@ -115,9 +117,9 @@ function withCache<T extends unknown[], R>(
   return async (...args: T): Promise<R> => {
     const cacheKey = getCacheKey(...args)
 
-    if (CacheService.has(cacheKey)) {
+    if (cacheService.has(cacheKey)) {
       logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
-      const cachedData = CacheService.get<R>(cacheKey)
+      const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
       }
@@ -125,7 +127,7 @@ function withCache<T extends unknown[], R>(
 
     const start = Date.now()
     const result = await fn(...args)
-    CacheService.set(cacheKey, result, ttl)
+    cacheService.set(cacheKey, result, ttl)
     logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
     return result
   }
@@ -468,21 +470,21 @@ class McpService {
       client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         logger.debug(`Tools list changed for server: ${server.name}`)
         // Clear tools cache
-        CacheService.remove(`mcp:list_tool:${serverKey}`)
+        cacheService.delete(`mcp:list_tool:${serverKey}`)
       })
 
       // Set up resources list changed notification handler
       client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
         logger.debug(`Resources list changed for server: ${server.name}`)
         // Clear resources cache
-        CacheService.remove(`mcp:list_resources:${serverKey}`)
+        cacheService.delete(`mcp:list_resources:${serverKey}`)
       })
 
       // Set up prompts list changed notification handler
       client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
         logger.debug(`Prompts list changed for server: ${server.name}`)
         // Clear prompts cache
-        CacheService.remove(`mcp:list_prompts:${serverKey}`)
+        cacheService.delete(`mcp:list_prompts:${serverKey}`)
       })
 
       // Set up resource updated notification handler
@@ -512,16 +514,16 @@ class McpService {
    * Clear resource-specific caches for a server
    */
   private clearResourceCaches(serverKey: string) {
-    CacheService.remove(`mcp:list_resources:${serverKey}`)
+    cacheService.delete(`mcp:list_resources:${serverKey}`)
   }
 
   /**
    * Clear all caches for a specific server
    */
   private clearServerCache(serverKey: string) {
-    CacheService.remove(`mcp:list_tool:${serverKey}`)
-    CacheService.remove(`mcp:list_prompts:${serverKey}`)
-    CacheService.remove(`mcp:list_resources:${serverKey}`)
+    cacheService.delete(`mcp:list_tool:${serverKey}`)
+    cacheService.delete(`mcp:list_prompts:${serverKey}`)
+    cacheService.delete(`mcp:list_resources:${serverKey}`)
     logger.debug(`Cleared all caches for server`, { serverKey })
   }
 
@@ -714,7 +716,7 @@ class McpService {
   }
 
   public async getInstallInfo() {
-    const dir = path.join(os.homedir(), '.cherrystudio', 'bin')
+    const dir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
     const uvName = await getBinaryName('uv')
     const bunName = await getBinaryName('bun')
     const uvPath = path.join(dir, uvName)

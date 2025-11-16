@@ -1,6 +1,7 @@
 import { ToolOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
-import React, { FC } from 'react'
+import { Tooltip } from '@cherrystudio/ui'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -9,7 +10,7 @@ const ToolsCallingIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElem
 
   return (
     <Container>
-      <Tooltip title={t('models.function_calling')} placement="top">
+      <Tooltip content={t('models.function_calling')}>
         <Icon {...(props as any)} />
       </Tooltip>
     </Container>

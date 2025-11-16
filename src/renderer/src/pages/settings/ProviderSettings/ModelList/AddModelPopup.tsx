@@ -1,9 +1,12 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
+import type { FormProps } from 'antd'
+import { Form, Input, Modal } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -93,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="left"
         colon={false}
-        style={{ marginTop: 25 }}
+        className="mt-[25px]"
         onFinish={onFinish}>
         <Form.Item
           name="id"
@@ -122,11 +125,9 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex justify="end" align="center" style={{ position: 'relative' }}>
-            <Button type="primary" htmlType="submit" size="middle">
-              {t('settings.models.add.add_model')}
-            </Button>
+        <Form.Item className="mb-2 text-center">
+          <Flex className="relative items-center justify-end">
+            <Button type="submit">{t('settings.models.add.add_model')}</Button>
           </Flex>
         </Form.Item>
       </Form>

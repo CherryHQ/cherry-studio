@@ -1,6 +1,6 @@
 import { MenuOutlined } from '@ant-design/icons'
+import { Box, RowFlex } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
-import { Box, HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { Empty, Modal } from 'antd'
@@ -46,12 +46,12 @@ const PopupContainer: React.FC = () => {
           <DraggableList list={presets} onUpdate={setAssistantPresets}>
             {(item) => (
               <AgentItem>
-                <Box mr={8}>
+                <Box className="mr-8">
                   {item.emoji} {item.name}
                 </Box>
-                <HStack gap="15px">
+                <RowFlex className="gap-[15px]">
                   <MenuOutlined style={{ cursor: 'move' }} />
-                </HStack>
+                </RowFlex>
               </AgentItem>
             )}
           </DraggableList>

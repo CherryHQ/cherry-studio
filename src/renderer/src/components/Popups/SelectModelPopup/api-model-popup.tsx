@@ -1,5 +1,5 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
-import { HStack } from '@renderer/components/Layout'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -7,7 +7,8 @@ import { getModelLogoById } from '@renderer/config/models'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType, objectEntries } from '@renderer/types'
+import type { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords } from '@renderer/utils'
 import { apiModelAdapter, getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal } from 'antd'
@@ -27,7 +28,7 @@ import styled from 'styled-components'
 import { useModelTagFilter } from './filters'
 import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
-import { FlatListApiItem, FlatListApiModel } from './types'
+import type { FlatListApiItem, FlatListApiModel } from './types'
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
@@ -104,7 +105,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
         type: 'model',
         name: (
           <ModelName>
-            <HStack alignItems="center">{model.name}</HStack>
+            <RowFlex className="items-center">{model.name}</RowFlex>
             {isCherryAi && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),

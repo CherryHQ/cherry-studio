@@ -1,3 +1,4 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -6,11 +7,11 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, message, Tooltip } from 'antd'
+import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
-import { FC, useCallback, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -73,7 +74,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       try {
         new URL(url)
         if (sitemapItems.find((item) => item.content === url)) {
-          message.success(t('knowledge.sitemap_added'))
+          window.toast.success(t('knowledge.sitemap_added'))
           return
         }
         addSitemap(url)
@@ -86,14 +87,8 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddSitemap()
-          }}
-          disabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddSitemap} disabled={disabled}>
+          <PlusIcon size={16} />
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>
       </ItemHeader>
@@ -112,7 +107,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               fileInfo={{
                 name: (
                   <ClickableSpan>
-                    <Tooltip title={item.content as string}>
+                    <Tooltip content={item.content as string}>
                       <Ellipsis>
                         <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                           {item.content as string}
@@ -125,7 +120,11 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 extra: getDisplayTime(item),
                 actions: (
                   <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    {item.uniqueId && (
+                      <Button variant="ghost" onClick={() => refreshItem(item)}>
+                        <RefreshIcon />
+                      </Button>
+                    )}
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={item.id}
@@ -134,12 +133,9 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="sitemap"
                       />
                     </StatusIconWrapper>
-                    <Button
-                      type="text"
-                      danger
-                      onClick={() => removeItem(item)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                    <Button variant="ghost" onClick={() => removeItem(item)}>
+                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}

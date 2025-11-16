@@ -17,19 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PRCI: true
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false || github.head_ref == 'v2'
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v5
 
       - name: Install Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install corepack
-        run: corepack enable && corepack prepare yarn@4.6.0 --activate
+        run: corepack enable && corepack prepare yarn@4.9.1 --activate
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path

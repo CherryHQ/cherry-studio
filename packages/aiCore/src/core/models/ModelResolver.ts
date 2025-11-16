@@ -5,7 +5,7 @@
  * 集成了来自 ModelCreator 的特殊处理逻辑
  */
 
-import { EmbeddingModelV2, ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { EmbeddingModelV2, ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
 
 import { wrapModelWithMiddlewares } from '../middleware/wrapper'
 import { DEFAULT_SEPARATOR, globalRegistryManagement } from '../providers/RegistryManagement'

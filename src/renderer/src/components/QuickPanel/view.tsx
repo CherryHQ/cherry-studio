@@ -1,19 +1,19 @@
 import { RightOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
 import { t } from 'i18next'
 import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
-import * as tinyPinyin from 'tiny-pinyin'
 
+import { defaultFilterFn, defaultSortFn } from './defaultStrategies'
 import { QuickPanelContext } from './provider'
-import {
+import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelListItem,
@@ -62,21 +62,50 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
+  const setSearchTextDebounced = useMemo(() => debounce((val: string) => setSearchText(val), 50), [])
+
   const searchTextRef = useRef('')
 
   // 缓存：按 item 缓存拼音文本，避免重复转换
   const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
 
-  // 轻量防抖：减少高频输入时的过滤调用
-  const setSearchTextDebounced = useMemo(() => debounce((val: string) => setSearchText(val), 50), [])
-
   // 跟踪上一次的搜索文本和符号，用于判断是否需要重置index
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
   const { setTimeoutTimer } = useTimer()
+
+  // Use injected filter and sort functions, or fall back to defaults
+  const filterFn = ctx.filterFn || defaultFilterFn
+  const sortFn = ctx.sortFn || defaultSortFn
   // 处理搜索，过滤列表（始终保留 alwaysVisible 项在顶部）
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
+
+    const baseList = (ctx.list || []).filter((item) => !item.hidden)
+
+    if (ctx.manageListExternally) {
+      const combinedLength = baseList.length
+      const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
+      if (isSymbolChanged) {
+        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
+        const desiredIndex =
+          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
+        setIndex(desiredIndex)
+      } else {
+        setIndex((prevIndex) => {
+          if (prevIndex >= combinedLength) {
+            return combinedLength > 0 ? combinedLength - 1 : -1
+          }
+          return prevIndex
+        })
+      }
+
+      prevSearchTextRef.current = ''
+      prevSymbolRef.current = ctx.symbol
+
+      return baseList
+    }
+
     const _searchText = searchText.replace(/^[/@]/, '')
     const lowerSearchText = _searchText.toLowerCase()
     const fuzzyPattern = lowerSearchText
@@ -86,52 +115,35 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
 
     // 拆分：固定显示项（不参与过滤）与普通项
-    const pinnedItems = (ctx.list || []).filter((item) => item.alwaysVisible)
-    const normalItems = (ctx.list || []).filter((item) => !item.alwaysVisible)
+    const pinnedItems = baseList.filter((item) => item.alwaysVisible)
+    const normalItems = baseList.filter((item) => !item.alwaysVisible)
 
+    // Filter normal items using injected filter function
     const filteredNormalItems = normalItems.filter((item) => {
-      if (!_searchText) return true
-
-      let filterText = item.filterText || ''
-      if (typeof item.label === 'string') {
-        filterText += item.label
-      }
-      if (typeof item.description === 'string') {
-        filterText += item.description
-      }
-
-      const lowerFilterText = filterText.toLowerCase()
-
-      if (lowerFilterText.includes(lowerSearchText)) {
-        return true
-      }
-
-      if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
-        try {
-          let pinyinText = pinyinCacheRef.current.get(item)
-          if (!pinyinText) {
-            pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
-            pinyinCacheRef.current.set(item, pinyinText)
-          }
-          return fuzzyRegex.test(pinyinText)
-        } catch (error) {
-          return true
-        }
-      } else {
-        return fuzzyRegex.test(filterText.toLowerCase())
-      }
+      return filterFn(item, _searchText, fuzzyRegex, pinyinCacheRef.current)
     })
+
+    // Sort filtered items using injected sort function
+    const sortedNormalItems = sortFn(filteredNormalItems, _searchText)
 
     // 只有在搜索文本变化或面板符号变化时才重置index
     const isSearchChanged = prevSearchTextRef.current !== searchText
     const isSymbolChanged = prevSymbolRef.current !== ctx.symbol
 
     if (isSearchChanged || isSymbolChanged) {
-      setIndex(-1) // 不默认高亮任何项，让用户主动选择
+      const combinedLength = pinnedItems.length + sortedNormalItems.length
+      if (isSymbolChanged) {
+        const maxIndex = combinedLength > 0 ? combinedLength - 1 : -1
+        const desiredIndex =
+          typeof ctx.defaultIndex === 'number' ? Math.min(Math.max(ctx.defaultIndex, -1), maxIndex) : -1
+        setIndex(desiredIndex)
+      } else {
+        setIndex(-1) // 搜索文本变化时不默认高亮
+      }
     } else {
       // 如果当前index超出范围，调整到有效范围内
       setIndex((prevIndex) => {
-        const combinedLength = pinnedItems.length + filteredNormalItems.length
+        const combinedLength = pinnedItems.length + sortedNormalItems.length
         if (prevIndex >= combinedLength) {
           return combinedLength > 0 ? combinedLength - 1 : -1
         }
@@ -142,9 +154,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSearchTextRef.current = searchText
     prevSymbolRef.current = ctx.symbol
 
-    // 固定项置顶 + 过滤后的普通项
-    return [...pinnedItems, ...filteredNormalItems]
-  }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
+    // 固定项置顶 + 排序后的普通项
+    return [...pinnedItems, ...sortedNormalItems]
+  }, [ctx.isVisible, ctx.symbol, ctx.manageListExternally, ctx.list, ctx.defaultIndex, searchText, filterFn, sortFn])
 
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
@@ -178,19 +190,64 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       if (deleteStart >= deleteEnd) return
 
-      // 删除文本
-      const newText = textArea.value.slice(0, deleteStart) + textArea.value.slice(deleteEnd)
-      setInputText(newText)
+      const activeSearchText = searchTextRef.current ?? ''
 
-      // 设置光标位置
-      setTimeoutTimer(
-        'quickpanel_focus',
-        () => {
-          textArea.focus()
-          textArea.setSelectionRange(deleteStart, deleteStart)
-        },
-        0
-      )
+      setInputText((currentText) => {
+        const safeText = currentText ?? ''
+        const expectedSegment = includeSymbol ? symbolSegment : symbolSegment.slice(1)
+        const typedSearch = activeSearchText
+        const normalizedTyped = includeSymbol
+          ? typedSearch
+          : typedSearch.startsWith(symbolSegment[0] ?? '')
+            ? typedSearch.slice(1)
+            : typedSearch
+
+        if (normalizedTyped && expectedSegment !== normalizedTyped) {
+          return safeText
+        }
+
+        const segmentStart = includeSymbol ? symbolStart : symbolStart + 1
+        const segmentEnd = segmentStart + expectedSegment.length
+
+        if (segmentStart < 0 || segmentStart > safeText.length) {
+          return safeText
+        }
+
+        if (segmentEnd > safeText.length) {
+          return safeText
+        }
+
+        const actualSegment = safeText.slice(segmentStart, segmentEnd)
+        if (actualSegment !== expectedSegment) {
+          return safeText
+        }
+
+        const clampedDeleteStart = Math.max(0, Math.min(deleteStart, safeText.length))
+        const clampedDeleteEnd = Math.max(clampedDeleteStart, Math.min(deleteEnd, safeText.length))
+
+        if (clampedDeleteStart >= clampedDeleteEnd) {
+          return safeText
+        }
+
+        const updatedText = safeText.slice(0, clampedDeleteStart) + safeText.slice(clampedDeleteEnd)
+
+        if (updatedText === safeText) {
+          return safeText
+        }
+
+        setTimeoutTimer(
+          'quickpanel_focus',
+          () => {
+            const textareaEl = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            if (!textareaEl) return
+            textareaEl.focus()
+            textareaEl.setSelectionRange(clampedDeleteStart, clampedDeleteStart)
+          },
+          0
+        )
+
+        return updatedText
+      })
 
       setSearchText('')
     },
@@ -210,11 +267,21 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action)) {
-        clearSearchText(true)
+      } else if (
+        action &&
+        !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action) &&
+        ctx.triggerInfo?.type === 'input'
+      ) {
+        setTimeoutTimer(
+          'quickpanel_deferred_clear',
+          () => {
+            clearSearchText(true)
+          },
+          0
+        )
       }
     },
-    [ctx, clearSearchText, setInputText, searchText]
+    [ctx, clearSearchText, setInputText, searchText, setTimeoutTimer]
   )
 
   const handleItemAction = useCallback(
@@ -284,12 +351,86 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     searchTextRef.current = searchText
   }, [searchText])
 
+  // Track onSearchChange callback and search state for debouncing
+  const prevSearchCallbackTextRef = useRef('')
+  const isFirstSearchRef = useRef(true)
+  const searchCallbackTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const onSearchChangeRef = useRef(ctx.onSearchChange)
+
+  // Keep onSearchChange ref up to date
+  useEffect(() => {
+    onSearchChangeRef.current = ctx.onSearchChange
+  }, [ctx.onSearchChange])
+
+  // Reset search history when panel closes
+  useEffect(() => {
+    if (!ctx.isVisible) {
+      prevSearchCallbackTextRef.current = ''
+      isFirstSearchRef.current = true
+      if (searchCallbackTimerRef.current) {
+        clearTimeout(searchCallbackTimerRef.current)
+        searchCallbackTimerRef.current = null
+      }
+    }
+  }, [ctx.isVisible])
+
+  // Trigger onSearchChange with debounce (called from handleInput)
+  const triggerSearchChange = useCallback((searchText: string) => {
+    if (!onSearchChangeRef.current) return
+
+    // Clean search text: remove leading symbol (/ or @) and trim
+    const cleanSearchText = searchText.replace(/^[/@]/, '').trim()
+
+    // Don't trigger if search text hasn't changed
+    if (cleanSearchText === prevSearchCallbackTextRef.current) {
+      return
+    }
+
+    // Don't trigger callback for empty search text
+    if (!cleanSearchText) {
+      prevSearchCallbackTextRef.current = ''
+      return
+    }
+
+    // Clear previous timer
+    if (searchCallbackTimerRef.current) {
+      clearTimeout(searchCallbackTimerRef.current)
+    }
+
+    // First search triggers immediately (0ms), subsequent searches have 300ms debounce
+    const delay = isFirstSearchRef.current ? 0 : 300
+
+    searchCallbackTimerRef.current = setTimeout(() => {
+      prevSearchCallbackTextRef.current = cleanSearchText
+      isFirstSearchRef.current = false
+      onSearchChangeRef.current?.(cleanSearchText)
+      searchCallbackTimerRef.current = null
+    }, delay)
+  }, [])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (searchCallbackTimerRef.current) {
+        clearTimeout(searchCallbackTimerRef.current)
+        searchCallbackTimerRef.current = null
+      }
+    }
+  }, [])
+
   // 获取当前输入的搜索词
   const isComposing = useRef(false)
+  useEffect(() => {
+    return () => {
+      setSearchTextDebounced.cancel()
+    }
+  }, [setSearchTextDebounced])
+
   useEffect(() => {
     if (!ctx.isVisible) return
 
     const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+    if (!textArea) return
 
     const handleInput = (e: Event) => {
       if (isComposing.current) return
@@ -304,6 +445,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (lastSymbolIndex !== -1) {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchTextDebounced(newSearchText)
+        // Trigger server-side search callback immediately (with its own debounce)
+        triggerSearchChange(newSearchText)
       } else {
         // 使用本地 handleClose，确保在删除触发符时同步受控输入值
         handleClose('delete-symbol')
@@ -327,16 +470,17 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('input', handleInput)
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
-      setSearchTextDebounced.cancel()
-      setTimeoutTimer(
-        'quickpanel_clear_search',
-        () => {
-          setSearchText('')
-        },
-        200
-      ) // 等待面板关闭动画结束后，再清空搜索词
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.isVisible, ctx.symbol, handleClose, setSearchTextDebounced, triggerSearchChange])
+
+  useEffect(() => {
+    if (ctx.isVisible) return
+
+    const timer = setTimeout(() => {
+      setSearchText('')
+    }, 200)
+
+    return () => clearTimeout(timer)
   }, [ctx.isVisible])
 
   useLayoutEffect(() => {
@@ -544,19 +688,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const hasSearchText = useMemo(() => searchText.replace(/^[/@]/, '').length > 0, [searchText])
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
-  const collapsed = hasSearchText && visibleNonPinnedCount === 0
-
-  useEffect(() => {
-    if (!ctx.isVisible) return
-    if (!collapsed) return
-    if (ctx.triggerInfo?.type !== 'input') return
-    if (ctx.multiple) return
-
-    const trimmedSearch = searchText.replace(/^[/@]/, '').trim()
-    if (!trimmedSearch) return
-
-    handleClose('no_result')
-  }, [collapsed, ctx.isVisible, ctx.triggerInfo, ctx.multiple, handleClose, searchText])
+  const collapsed = !ctx.manageListExternally && hasSearchText && visibleNonPinnedCount === 0
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
@@ -615,7 +747,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             return prev ? prev : true
           })
         }>
-        {!collapsed && (
+        {collapsed ? (
+          <QuickPanelEmpty>{t('settings.quickPanel.noResult', 'No results')}</QuickPanelEmpty>
+        ) : (
           <DynamicVirtualList
             ref={listRef}
             list={list}
@@ -633,13 +767,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           <QuickPanelFooterTips $footerWidth={footerWidth}>
             <span>ESC {t('settings.quickPanel.close')}</span>
 
-            <Flex align="center" gap={4}>
-              ▲▼ {t('settings.quickPanel.select')}
-            </Flex>
+            <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
 
             {footerWidth >= 500 && (
               <>
-                <Flex align="center" gap={4}>
+                <Flex className="items-center gap-1">
                   <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                     {ASSISTIVE_KEY}
                   </span>
@@ -647,7 +779,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 </Flex>
 
                 {canForwardAndBackward && (
-                  <Flex align="center" gap={4}>
+                  <Flex className="items-center gap-1">
                     <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                       {ASSISTIVE_KEY}
                     </span>
@@ -657,9 +789,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
               </>
             )}
 
-            <Flex align="center" gap={4}>
-              ↩︎ {t('settings.quickPanel.confirm')}
-            </Flex>
+            <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
           </QuickPanelFooterTips>
         </QuickPanelFooter>
       </QuickPanelBody>
@@ -723,6 +853,13 @@ const QuickPanelBody = styled.div`
   ::-webkit-scrollbar {
     width: 3px;
   }
+`
+
+const QuickPanelEmpty = styled.div`
+  padding: 16px;
+  text-align: center;
+  color: var(--color-text-3);
+  font-size: 13px;
 `
 
 const QuickPanelFooter = styled.div`

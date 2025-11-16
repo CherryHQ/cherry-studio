@@ -1,16 +1,19 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
-import { generateUserAgent } from '@main/utils/systemInfo'
-import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
+import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
+import { FeedUrl, UpdateConfigUrl, UpdateMirror } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
+import type { UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken } from 'builder-util-runtime'
 import { app, net } from 'electron'
-import { AppUpdater as _AppUpdater, autoUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import type { AppUpdater as _AppUpdater, Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
+import { autoUpdater } from 'electron-updater'
 import path from 'path'
 import semver from 'semver'
 
-import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
@@ -20,7 +23,29 @@ const LANG_MARKERS = {
   EN_START: '<!--LANG:en-->',
   ZH_CN_START: '<!--LANG:zh-CN-->',
   END: '<!--LANG:END-->'
-} as const
+}
+
+interface UpdateConfig {
+  lastUpdated: string
+  versions: {
+    [versionKey: string]: VersionConfig
+  }
+}
+
+interface VersionConfig {
+  minCompatibleVersion: string
+  description: string
+  channels: {
+    latest: ChannelConfig | null
+    rc: ChannelConfig | null
+    beta: ChannelConfig | null
+  }
+}
+
+interface ChannelConfig {
+  version: string
+  feedUrls: Record<UpdateMirror, string>
+}
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
@@ -30,12 +55,14 @@ export default class AppUpdater {
   constructor() {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = configManager.getAutoUpdate()
-    autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.autoDownload = preferenceService.get('app.dist.auto_update.enabled')
+    autoUpdater.autoInstallOnAppQuit = preferenceService.get('app.dist.auto_update.enabled')
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       'User-Agent': generateUserAgent(),
-      'X-Client-Id': configManager.getClientId()
+      'X-Client-Id': getClientId(),
+      // no-cache
+      'Cache-Control': 'no-cache'
     }
 
     autoUpdater.on('error', (error) => {
@@ -73,61 +100,6 @@ export default class AppUpdater {
     this.autoUpdater = autoUpdater
   }
 
-  private async _getReleaseVersionFromGithub(channel: UpgradeChannel) {
-    const headers = {
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Accept-Language': 'en-US,en;q=0.9'
-    }
-    try {
-      logger.info(`get release version from github: ${channel}`)
-      const responses = await net.fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
-        headers
-      })
-      const data = (await responses.json()) as GithubReleaseInfo[]
-      let mightHaveLatest = false
-      const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
-        if (!item.draft && !item.prerelease) {
-          mightHaveLatest = true
-        }
-
-        return item.prerelease && item.tag_name.includes(`-${channel}.`)
-      })
-
-      if (!release) {
-        return null
-      }
-
-      // if the release version is the same as the current version, return null
-      if (release.tag_name === app.getVersion()) {
-        return null
-      }
-
-      if (mightHaveLatest) {
-        logger.info(`might have latest release, get latest release`)
-        const latestReleaseResponse = await net.fetch(
-          'https://api.github.com/repos/CherryHQ/cherry-studio/releases/latest',
-          {
-            headers
-          }
-        )
-        const latestRelease = (await latestReleaseResponse.json()) as GithubReleaseInfo
-        if (semver.gt(latestRelease.tag_name, release.tag_name)) {
-          logger.info(
-            `latest release version is ${latestRelease.tag_name}, prerelease version is ${release.tag_name}, return null`
-          )
-          return null
-        }
-      }
-
-      logger.info(`release url is ${release.tag_name}, set channel to ${channel}`)
-      return `https://github.com/CherryHQ/cherry-studio/releases/download/${release.tag_name}`
-    } catch (error) {
-      logger.error('Failed to get latest not draft version from github:', error as Error)
-      return null
-    }
-  }
-
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
     autoUpdater.autoInstallOnAppQuit = isActive
@@ -145,7 +117,7 @@ export default class AppUpdater {
 
   private _getTestChannel() {
     const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = configManager.getTestChannel()
+    const savedChannel = preferenceService.get('app.dist.test_plan.channel')
 
     if (currentChannel === UpgradeChannel.LATEST) {
       return savedChannel || UpgradeChannel.RC
@@ -159,6 +131,88 @@ export default class AppUpdater {
     return UpgradeChannel.LATEST
   }
 
+  /**
+   * Fetch update configuration from GitHub or GitCode based on mirror
+   * @param mirror - Mirror to fetch config from
+   * @returns UpdateConfig object or null if fetch fails
+   */
+  private async _fetchUpdateConfig(mirror: UpdateMirror): Promise<UpdateConfig | null> {
+    const configUrl = mirror === UpdateMirror.GITCODE ? UpdateConfigUrl.GITCODE : UpdateConfigUrl.GITHUB
+
+    try {
+      logger.info(`Fetching update config from ${configUrl} (mirror: ${mirror})`)
+      const response = await net.fetch(configUrl, {
+        headers: {
+          'User-Agent': generateUserAgent(),
+          Accept: 'application/json',
+          'X-Client-Id': getClientId(),
+          // no-cache
+          'Cache-Control': 'no-cache'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const config = (await response.json()) as UpdateConfig
+      logger.info(`Update config fetched successfully, last updated: ${config.lastUpdated}`)
+      return config
+    } catch (error) {
+      logger.error('Failed to fetch update config:', error as Error)
+      return null
+    }
+  }
+
+  /**
+   * Find compatible channel configuration based on current version
+   * @param currentVersion - Current app version
+   * @param requestedChannel - Requested upgrade channel (latest/rc/beta)
+   * @param config - Update configuration object
+   * @returns Object containing ChannelConfig and actual channel if found, null otherwise
+   */
+  private _findCompatibleChannel(
+    currentVersion: string,
+    requestedChannel: UpgradeChannel,
+    config: UpdateConfig
+  ): { config: ChannelConfig; channel: UpgradeChannel } | null {
+    // Get all version keys and sort descending (newest first)
+    const versionKeys = Object.keys(config.versions).sort(semver.rcompare)
+
+    logger.info(
+      `Finding compatible channel for version ${currentVersion}, requested channel: ${requestedChannel}, available versions: ${versionKeys.join(', ')}`
+    )
+
+    for (const versionKey of versionKeys) {
+      const versionConfig = config.versions[versionKey]
+      const channelConfig = versionConfig.channels[requestedChannel]
+      const latestChannelConfig = versionConfig.channels[UpgradeChannel.LATEST]
+
+      // Check version compatibility and channel availability
+      if (semver.gte(currentVersion, versionConfig.minCompatibleVersion) && channelConfig !== null) {
+        logger.info(
+          `Found compatible version: ${versionKey} (minCompatibleVersion: ${versionConfig.minCompatibleVersion}), version: ${channelConfig.version}`
+        )
+
+        if (
+          requestedChannel !== UpgradeChannel.LATEST &&
+          latestChannelConfig &&
+          semver.gte(latestChannelConfig.version, channelConfig.version)
+        ) {
+          logger.info(
+            `latest channel version is greater than the requested channel version: ${latestChannelConfig.version} > ${channelConfig.version}, using latest instead`
+          )
+          return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
+        }
+
+        return { config: channelConfig, channel: requestedChannel }
+      }
+    }
+
+    logger.warn(`No compatible channel found for version ${currentVersion} and channel ${requestedChannel}`)
+    return null
+  }
+
   private _setChannel(channel: UpgradeChannel, feedUrl: string) {
     this.autoUpdater.channel = channel
     this.autoUpdater.setFeedURL(feedUrl)
@@ -170,33 +224,42 @@ export default class AppUpdater {
   }
 
   private async _setFeedUrl() {
-    const testPlan = configManager.getTestPlan()
-    if (testPlan) {
-      const channel = this._getTestChannel()
+    const currentVersion = app.getVersion()
+    const testPlan = preferenceService.get('app.dist.test_plan.enabled')
+    const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
 
-      if (channel === UpgradeChannel.LATEST) {
-        this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
-        return
-      }
-
-      const releaseUrl = await this._getReleaseVersionFromGithub(channel)
-      if (releaseUrl) {
-        logger.info(`release url is ${releaseUrl}, set channel to ${channel}`)
-        this._setChannel(channel, releaseUrl)
-        return
-      }
-
-      // if no prerelease url, use github latest to get release
-      this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
-      return
-    }
-
-    this._setChannel(UpgradeChannel.LATEST, FeedUrl.PRODUCTION)
+    // Determine mirror based on IP country
     const ipCountry = await getIpCountry()
-    logger.info(`ipCountry is ${ipCountry}, set channel to ${UpgradeChannel.LATEST}`)
-    if (ipCountry.toLowerCase() !== 'cn') {
-      this._setChannel(UpgradeChannel.LATEST, FeedUrl.GITHUB_LATEST)
+    const mirror = ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
+
+    logger.info(
+      `Setting feed URL for version ${currentVersion}, testPlan: ${testPlan}, requested channel: ${requestedChannel}, mirror: ${mirror} (IP country: ${ipCountry})`
+    )
+
+    // Try to fetch update config from remote
+    const config = await this._fetchUpdateConfig(mirror)
+
+    if (config) {
+      // Use new config-based system
+      const result = this._findCompatibleChannel(currentVersion, requestedChannel, config)
+
+      if (result) {
+        const { config: channelConfig, channel: actualChannel } = result
+        const feedUrl = channelConfig.feedUrls[mirror]
+        logger.info(
+          `Using config-based feed URL: ${feedUrl} for channel ${actualChannel} (requested: ${requestedChannel}, mirror: ${mirror})`
+        )
+        this._setChannel(actualChannel, feedUrl)
+        return
+      }
     }
+
+    logger.info('Failed to fetch update config, falling back to default feed URL')
+    // Fallback: use default feed URL based on mirror
+    const defaultFeedUrl = mirror === UpdateMirror.GITCODE ? FeedUrl.PRODUCTION : FeedUrl.GITHUB_LATEST
+
+    logger.info(`Using fallback feed URL: ${defaultFeedUrl}`)
+    this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)
   }
 
   public cancelDownload() {
@@ -265,7 +328,7 @@ export default class AppUpdater {
    */
   private parseMultiLangReleaseNotes(releaseNotes: string): string {
     try {
-      const language = configManager.getLanguage()
+      const language = preferenceService.get('app.language')
       const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
 
       // Create regex patterns using constants
@@ -317,9 +380,4 @@ export default class AppUpdater {
 
     return processedInfo
   }
-}
-interface GithubReleaseInfo {
-  draft: boolean
-  prerelease: boolean
-  tag_name: string
 }

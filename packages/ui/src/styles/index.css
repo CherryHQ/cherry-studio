@@ -1,0 +1,24 @@
+/**
+ * CherryStudio Styles - npm Package Entry Point
+ *
+ * Purpose: Export CSS variables only, without generating utility classes or overriding user themes
+ * Use Cases:
+ * - npm users who want to use design system variables without overriding Tailwind's default theme
+ * - Can be used via var(--cs-primary) and similar patterns
+ * - Does not generate utility classes like bg-primary (user's own bg-primary won't be affected)
+ *
+ * Example:
+ * ```css
+ * @import '@cherrystudio/ui/styles/index.css';
+ *
+ * .my-button {
+ *   background: var(--cs-primary);     // Use CS brand color
+ *   padding: var(--cs-size-md);        // Use CS spacing
+ * }
+ * ```
+ *
+ * For complete theme override (generating bg-primary classes), import:
+ * @import '@cherrystudio/ui/styles/theme.css';
+ */
+
+@import './tokens.css';

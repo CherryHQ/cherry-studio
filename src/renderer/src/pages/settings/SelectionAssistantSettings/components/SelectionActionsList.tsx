@@ -1,10 +1,10 @@
 import { DragDropContext } from '@hello-pangea/dnd'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { defaultActionItems } from '@renderer/store/selectionStore'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Row } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup } from '../..'
@@ -20,8 +20,8 @@ import SettingsActionsListHeader from './SettingsActionsListHeader'
 
 // Props for the main component
 interface SelectionActionsListProps {
-  actionItems: ActionItem[] | undefined // List of all available actions
-  setActionItems: (items: ActionItem[]) => void // Function to update action items
+  actionItems: SelectionActionItem[] | undefined // List of all available actions
+  setActionItems: (items: SelectionActionItem[]) => void // Function to update action items
 }
 
 const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setActionItems }) => {
@@ -49,7 +49,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
   const { theme } = useTheme()
 
   if (!actionItems || actionItems.length === 0) {
-    setActionItems(defaultActionItems)
+    setActionItems(DefaultPreferences.default['feature.selection.action_items'])
   }
 
   return (

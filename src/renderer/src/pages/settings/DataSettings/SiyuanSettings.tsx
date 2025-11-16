@@ -1,46 +1,42 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+import { Button, InfoTooltip, RowFlex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
-import { Button, Space, Tooltip } from 'antd'
+import { Space } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
 const SiyuanSettings: FC = () => {
+  const [siyuanApiUrl, setSiyuanApiUrl] = usePreference('data.integration.siyuan.api_url')
+  const [siyuanToken, setSiyuanToken] = usePreference('data.integration.siyuan.token')
+  const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
+  const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
+
   const { openSmartMinapp } = useMinappPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-
-  const siyuanApiUrl = useSelector((state: RootState) => state.settings.siyuanApiUrl)
-  const siyuanToken = useSelector((state: RootState) => state.settings.siyuanToken)
-  const siyuanBoxId = useSelector((state: RootState) => state.settings.siyuanBoxId)
-  const siyuanRootPath = useSelector((state: RootState) => state.settings.siyuanRootPath)
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanApiUrl(e.target.value))
+    setSiyuanApiUrl(e.target.value)
   }
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanToken(e.target.value))
+    setSiyuanToken(e.target.value)
   }
 
   const handleBoxIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanBoxId(e.target.value))
+    setSiyuanBoxId(e.target.value)
   }
 
   const handleRootPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanRootPath(e.target.value))
+    setSiyuanRootPath(e.target.value)
   }
 
   const handleSiyuanHelpClick = () => {
@@ -91,28 +87,27 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={siyuanApiUrl || ''}
             onChange={handleApiUrlChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.api_url_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.siyuan.token.label')}</span>
-          <Tooltip title={t('settings.data.siyuan.token.help')} placement="left">
-            <InfoCircleOutlined
-              style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleSiyuanHelpClick}
-            />
-          </Tooltip>
+          <InfoTooltip
+            content={t('settings.data.siyuan.token.help')}
+            placement="left"
+            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            onClick={handleSiyuanHelpClick}
+          />
         </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={siyuanToken || ''}
@@ -123,33 +118,31 @@ const SiyuanSettings: FC = () => {
             />
             <Button onClick={handleCheckConnection}>{t('settings.data.siyuan.check.button')}</Button>
           </Space.Compact>
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={siyuanBoxId || ''}
             onChange={handleBoxIdChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.box_id_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={siyuanRootPath || ''}
             onChange={handleRootPathChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.root_path_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

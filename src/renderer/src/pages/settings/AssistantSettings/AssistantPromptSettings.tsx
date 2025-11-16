@@ -1,15 +1,19 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled } from '@ant-design/icons'
-import CodeEditor from '@renderer/components/CodeEditor'
+import CloseCircleFilled from '@ant-design/icons/lib/icons/CloseCircleFilled'
+import { Box, RowFlex, SpaceBetweenRowFlex } from '@cherrystudio/ui'
+import { CodeEditor } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@heroui/react'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { Assistant, AssistantSettings } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Input, Popover } from 'antd'
+import { Input } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +30,8 @@ interface Props {
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
@@ -69,41 +75,36 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
 
   return (
     <Container>
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.name')}
-      </Box>
-      <HStack gap={8} alignItems="center">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
-          <EmojiButtonWrapper>
-            <Button
+      <Box className="mb-2 font-bold">{t('common.name')}</Box>
+      <RowFlex className="items-center gap-2">
+        <EmojiDeleteButtonWrapper>
+          <Popover>
+            <PopoverTrigger>
+              <Button className="h-7 min-w-7 p-1 text-lg">{emoji}</Button>
+            </PopoverTrigger>
+            <PopoverContent>
+              <EmojiPicker onEmojiClick={handleEmojiSelect} />
+            </PopoverContent>
+          </Popover>
+          {emoji && (
+            <CloseCircleFilled
+              className="delete-icon z-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEmojiDelete()
+              }}
               style={{
-                fontSize: 18,
-                padding: '4px',
-                minWidth: '28px',
-                height: '28px'
-              }}>
-              {emoji}
-            </Button>
-            {emoji && (
-              <CloseCircleFilled
-                className="delete-icon"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleEmojiDelete()
-                }}
-                style={{
-                  display: 'none',
-                  position: 'absolute',
-                  top: '-8px',
-                  right: '-8px',
-                  fontSize: '16px',
-                  color: '#ff4d4f',
-                  cursor: 'pointer'
-                }}
-              />
-            )}
-          </EmojiButtonWrapper>
-        </Popover>
+                display: 'none',
+                position: 'absolute',
+                top: '-8px',
+                right: '-8px',
+                fontSize: '16px',
+                color: '#ff4d4f',
+                cursor: 'pointer'
+              }}
+            />
+          )}
+        </EmojiDeleteButtonWrapper>
         <Input
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
@@ -111,14 +112,21 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           onBlur={onUpdate}
           style={{ flex: 1 }}
         />
-      </HStack>
+      </RowFlex>
       <SettingDivider />
-      <HStack mb={8} alignItems="center" gap={4}>
+      <RowFlex className="mb-2 items-center gap-1">
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
+        <Tooltip
+          content={
+            <>
+              <h1 className="text-lg">{t('assistants.presets.add.prompt.variables.tip.title')}</h1>
+              {promptVarsContent}
+            </>
+          }
+          showArrow>
           <HelpCircle size={14} color="var(--color-text-2)" />
-        </Popover>
-      </HStack>
+        </Tooltip>
+      </RowFlex>
       <TextAreaContainer>
         <RichEditorContainer>
           {showPreview ? (
@@ -132,10 +140,12 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
             </MarkdownContainer>
           ) : (
             <CodeEditor
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
               value={prompt}
               language="markdown"
               onChange={setPrompt}
-              height="100%"
+              className="h-full"
               expanded={false}
               style={{
                 height: '100%'
@@ -144,11 +154,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           )}
         </RichEditorContainer>
       </TextAreaContainer>
-      <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
+      <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
         <Button
-          type="primary"
-          icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
+          variant="default"
           onClick={() => {
             const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
             if (showPreview) {
@@ -162,9 +171,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
               })
             }
           }}>
+          {showPreview ? <Edit size={14} /> : <Save size={14} />}
           {showPreview ? t('common.edit') : t('common.save')}
         </Button>
-      </HSpaceBetweenStack>
+      </SpaceBetweenRowFlex>
     </Container>
   )
 }
@@ -176,7 +186,7 @@ const Container = styled.div`
   overflow: hidden;
 `
 
-const EmojiButtonWrapper = styled.div`
+const EmojiDeleteButtonWrapper = styled.div`
   position: relative;
   display: inline-block;
 

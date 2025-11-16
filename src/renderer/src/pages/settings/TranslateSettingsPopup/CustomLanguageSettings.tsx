@@ -1,9 +1,11 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
-import { CustomTranslateLanguage } from '@renderer/types'
-import { Button, Popconfirm, Space, Table, TableProps } from 'antd'
+import type { CustomTranslateLanguage } from '@renderer/types'
+import type { TableProps } from 'antd'
+import { Popconfirm, Space, Table } from 'antd'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -84,14 +86,16 @@ const CustomLanguageSettings = () => {
         render: (_, record) => {
           return (
             <Space>
-              <Button icon={<EditOutlined />} onClick={() => onClickEdit(record)}>
+              <Button onClick={() => onClickEdit(record)}>
+                <EditOutlined />
                 {t('common.edit')}
               </Button>
               <Popconfirm
                 title={t('settings.translate.custom.delete.title')}
                 description={t('settings.translate.custom.delete.description')}
                 onConfirm={() => onDelete(record.id)}>
-                <Button icon={<DeleteOutlined />} danger>
+                <Button variant="destructive">
+                  <DeleteOutlined />
                   {t('common.delete')}
                 </Button>
               </Popconfirm>
@@ -118,16 +122,13 @@ const CustomLanguageSettings = () => {
   return (
     <>
       <CustomLanguageSettingsContainer>
-        <HStack justifyContent="space-between" style={{ padding: '4px 0' }}>
+        <RowFlex className="justify-between py-1">
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
-          <Button
-            type="primary"
-            icon={<PlusOutlined size={16} />}
-            onClick={onClickAdd}
-            style={{ marginBottom: 5, marginTop: -5 }}>
+          <Button onClick={onClickAdd} style={{ marginBottom: 5, marginTop: -5 }}>
+            <PlusOutlined size={16} />
             {t('common.add')}
           </Button>
-        </HStack>
+        </RowFlex>
         <TableContainer>
           <Table<CustomTranslateLanguage>
             columns={columns}

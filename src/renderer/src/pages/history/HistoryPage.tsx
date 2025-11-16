@@ -1,12 +1,14 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { Divider, Input, InputRef } from 'antd'
+import type { InputRef } from 'antd'
+import { Divider, Input } from 'antd'
 import { last } from 'lodash'
 import { ChevronLeft, CornerDownLeft, Search } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -78,7 +80,7 @@ const HistoryPage: FC = () => {
 
   return (
     <Container>
-      <HStack style={{ padding: '0 12px', marginTop: 8 }}>
+      <RowFlex className="mt-2 px-3">
         <Input
           prefix={
             stack.length > 1 ? (
@@ -104,7 +106,7 @@ const HistoryPage: FC = () => {
           size="middle"
           onPressEnter={onSearch}
         />
-      </HStack>
+      </RowFlex>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       <TopicsHistory

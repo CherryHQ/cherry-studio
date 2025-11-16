@@ -1,70 +1,70 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
-import {
-  setExcludeCitationsInExport,
-  setForceDollarMathInMarkdown,
-  setmarkdownExportPath,
-  setShowModelNameInMarkdown,
-  setShowModelProviderInMarkdown,
-  setStandardizeCitationsInExport,
-  setUseTopicNamingForMessageTitle
-} from '@renderer/store/settings'
-import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
 
-  const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)
-  const forceDollarMathInMarkdown = useSelector((state: RootState) => state.settings.forceDollarMathInMarkdown)
-  const useTopicNamingForMessageTitle = useSelector((state: RootState) => state.settings.useTopicNamingForMessageTitle)
-  const showModelNameInExport = useSelector((state: RootState) => state.settings.showModelNameInMarkdown)
-  const showModelProviderInMarkdown = useSelector((state: RootState) => state.settings.showModelProviderInMarkdown)
-  const excludeCitationsInExport = useSelector((state: RootState) => state.settings.excludeCitationsInExport)
-  const standardizeCitationsInExport = useSelector((state: RootState) => state.settings.standardizeCitationsInExport)
+  const [markdownExportPath, setmarkdownExportPath] = usePreference('data.export.markdown.path')
+  const [forceDollarMathInMarkdown, setForceDollarMathInMarkdown] = usePreference(
+    'data.export.markdown.force_dollar_math'
+  )
+  const [useTopicNamingForMessageTitle, setUseTopicNamingForMessageTitle] = usePreference(
+    'data.export.markdown.use_topic_naming_for_message_title'
+  )
+  const [showModelNameInExport, setShowModelNameInMarkdown] = usePreference('data.export.markdown.show_model_name')
+  const [showModelProviderInMarkdown, setShowModelProviderInMarkdown] = usePreference(
+    'data.export.markdown.show_model_provider'
+  )
+  const [excludeCitationsInExport, setExcludeCitationsInExport] = usePreference(
+    'data.export.markdown.exclude_citations'
+  )
+  const [standardizeCitationsInExport, setStandardizeCitationsInExport] = usePreference(
+    'data.export.markdown.standardize_citations'
+  )
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
     if (path) {
-      dispatch(setmarkdownExportPath(path))
+      setmarkdownExportPath(path)
     }
   }
 
   const handleClearPath = () => {
-    dispatch(setmarkdownExportPath(null))
+    setmarkdownExportPath(null)
   }
 
   const handleToggleForceDollarMath = (checked: boolean) => {
-    dispatch(setForceDollarMathInMarkdown(checked))
+    setForceDollarMathInMarkdown(checked)
   }
 
   const handleToggleTopicNaming = (checked: boolean) => {
-    dispatch(setUseTopicNamingForMessageTitle(checked))
+    setUseTopicNamingForMessageTitle(checked)
   }
 
   const handleToggleShowModelName = (checked: boolean) => {
-    dispatch(setShowModelNameInMarkdown(checked))
+    setShowModelNameInMarkdown(checked)
   }
 
   const handleToggleShowModelProvider = (checked: boolean) => {
-    dispatch(setShowModelProviderInMarkdown(checked))
+    setShowModelProviderInMarkdown(checked)
   }
 
   const handleToggleExcludeCitations = (checked: boolean) => {
-    dispatch(setExcludeCitationsInExport(checked))
+    setExcludeCitationsInExport(checked)
   }
 
   const handleToggleStandardizeCitations = (checked: boolean) => {
-    dispatch(setStandardizeCitationsInExport(checked))
+    setStandardizeCitationsInExport(checked)
   }
 
   return (
@@ -73,7 +73,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={markdownExportPath || ''}
@@ -86,10 +86,11 @@ const MarkdownExportSettings: FC = () => {
               ) : null
             }
           />
-          <Button onClick={handleSelectFolder} icon={<FolderOpenOutlined />}>
+          <Button onClick={handleSelectFolder}>
+            <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}
           </Button>
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>
@@ -97,7 +98,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.force_dollar_math.title')}</SettingRowTitle>
-        <Switch checked={forceDollarMathInMarkdown} onChange={handleToggleForceDollarMath} />
+        <Switch isSelected={forceDollarMathInMarkdown} onValueChange={handleToggleForceDollarMath} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
@@ -105,7 +106,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
-        <Switch checked={useTopicNamingForMessageTitle} onChange={handleToggleTopicNaming} />
+        <Switch isSelected={useTopicNamingForMessageTitle} onValueChange={handleToggleTopicNaming} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
@@ -113,7 +114,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
-        <Switch checked={showModelNameInExport} onChange={handleToggleShowModelName} />
+        <Switch isSelected={showModelNameInExport} onValueChange={handleToggleShowModelName} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
@@ -121,7 +122,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
-        <Switch checked={showModelProviderInMarkdown} onChange={handleToggleShowModelProvider} />
+        <Switch isSelected={showModelProviderInMarkdown} onValueChange={handleToggleShowModelProvider} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
@@ -129,7 +130,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.exclude_citations.title')}</SettingRowTitle>
-        <Switch checked={excludeCitationsInExport} onChange={handleToggleExcludeCitations} />
+        <Switch isSelected={excludeCitationsInExport} onValueChange={handleToggleExcludeCitations} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
@@ -137,7 +138,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
-        <Switch checked={standardizeCitationsInExport} onChange={handleToggleStandardizeCitations} />
+        <Switch isSelected={standardizeCitationsInExport} onValueChange={handleToggleStandardizeCitations} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.standardize_citations.help')}</SettingHelpText>

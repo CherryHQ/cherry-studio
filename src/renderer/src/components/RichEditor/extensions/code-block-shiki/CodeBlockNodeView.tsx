@@ -1,8 +1,10 @@
 import { CopyOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { DEFAULT_LANGUAGES, getHighlighter, getShiki } from '@renderer/utils/shiki'
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
-import { Button, Select, Tooltip } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { Select } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const { node, updateAttributes } = props
@@ -64,14 +66,10 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           options={languageOptions.map((lang) => ({ value: lang, label: lang }))}
           style={{ minWidth: 90 }}
         />
-        <Tooltip title="Copy">
-          <Button
-            size="small"
-            type="text"
-            icon={<CopyOutlined />}
-            className="code-block-copy-btn"
-            onClick={handleCopy}
-          />
+        <Tooltip content="Copy">
+          <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
+            <CopyOutlined />
+          </Button>
         </Tooltip>
       </div>
       <pre className={`language-${language}`}>

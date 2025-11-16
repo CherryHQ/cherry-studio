@@ -1,7 +1,6 @@
-@import './color.css';
+/* @import './color.css'; */
 @import './font.css';
 @import './markdown.css';
-@import './ant.css';
 @import './scrollbar.css';
 @import './container.css';
 @import './animation.css';
@@ -12,12 +11,14 @@
 @import '../fonts/country-flag-fonts/flag.css';
 
 @layer base {
-  *,
-  *::before,
-  *::after {
-    box-sizing: border-box;
-    /* margin: 0; */
-    font-weight: normal;
+  @layer base {
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      /* margin: 0; */
+      font-weight: normal;
+    }
   }
 
   .lucide:not(.lucide-custom) {
@@ -28,7 +29,6 @@
 *:focus {
   outline-style: none;
 }
-
 * {
   -webkit-tap-highlight-color: transparent;
 }
@@ -41,11 +41,11 @@ body,
   margin: 0;
 }
 
-/* #root {
+#root {
   display: flex;
   flex-direction: row;
   flex: 1;
-} */
+}
 
 body {
   display: flex;

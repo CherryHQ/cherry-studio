@@ -1,15 +1,20 @@
 import { UploadOutlined } from '@ant-design/icons'
+import { CodeEditor } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import CodeEditor from '@renderer/components/CodeEditor'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
-import { MCPServer, objectKeys, safeValidateMcpConfig } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
+import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatZodError } from '@renderer/utils/error'
-import { Button, Form, Modal, Upload } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { Form, Modal, Upload } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AddMcpServerModal')
@@ -70,6 +75,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   initialImportMethod = 'json'
 }) => {
   const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
@@ -138,6 +145,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         // Process DXT file
         try {
+          const installTimestamp = Date.now()
           const result = await window.api.mcp.uploadDxt(dxtFile)
 
           if (!result.success) {
@@ -188,7 +196,11 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             logoUrl: manifest.icon ? `${extractDir}/${manifest.icon}` : undefined,
             provider: manifest.author?.name,
             providerUrl: manifest.homepage || manifest.repository?.url,
-            tags: manifest.keywords
+            tags: manifest.keywords,
+            installSource: 'manual',
+            isTrusted: true,
+            installedAt: installTimestamp,
+            trustedAt: installTimestamp
           }
 
           onSuccess(newServer)
@@ -253,12 +265,17 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         }
 
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
+        const installTimestamp = Date.now()
         const newServer: MCPServer = {
           id: nanoid(),
           ...serverToAdd,
           name: serverToAdd.name || t('settings.mcp.newServer'),
           baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
-          isActive: false // 初始狀態為非啟用
+          isActive: false, // 初始狀態為非啟用
+          installSource: 'manual',
+          isTrusted: true,
+          installedAt: installTimestamp,
+          trustedAt: installTimestamp
         }
 
         onSuccess(newServer)
@@ -321,7 +338,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             label={t('settings.mcp.addServer.importFrom.tooltip')}
             rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
             <CodeEditor
-              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
               value={serverConfigValue}
               placeholder={initialJsonExample}
               language="json"
@@ -351,7 +369,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               }}
               onRemove={() => setDxtFile(null)}
               fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}>
-              <Button icon={<UploadOutlined />}>{t('settings.mcp.addServer.importFrom.selectDxtFile')}</Button>
+              <Button>
+                <UploadOutlined />
+                {t('settings.mcp.addServer.importFrom.selectDxtFile')}
+              </Button>
             </Upload>
           </Form.Item>
         )}

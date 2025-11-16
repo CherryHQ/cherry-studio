@@ -1,8 +1,10 @@
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { ActionItem } from '@renderer/types/selectionTypes'
-import { Button, Form, Input, Modal, Select } from 'antd'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { Form, Input, Modal, Select } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
@@ -79,7 +81,7 @@ interface SelectionActionSearchModalProps {
   isModalOpen: boolean
   onOk: (searchEngine: string) => void
   onCancel: () => void
-  currentAction?: ActionItem
+  currentAction?: SelectionActionItem
 }
 
 const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
@@ -217,7 +219,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                   <Input
                     placeholder={EXAMPLE_URL}
                     suffix={
-                      <Button type="link" size="small" onClick={handleTest} style={{ padding: 0, height: 'auto' }}>
+                      <Button variant="ghost" size="sm" onClick={handleTest} style={{ padding: 0, height: 'auto' }}>
                         {t('selection.settings.search_modal.custom.test')}
                       </Button>
                     }

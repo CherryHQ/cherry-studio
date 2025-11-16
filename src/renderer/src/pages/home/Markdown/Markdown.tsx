@@ -3,11 +3,16 @@ import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
 import 'remark-github-blockquote-alert/alert.css'
 
+import { usePreference } from '@data/hooks/usePreference'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
+import type {
+  CompactMessageBlock,
+  MainTextMessageBlock,
+  ThinkingMessageBlock,
+  TranslationMessageBlock
+} from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
@@ -22,7 +27,7 @@ import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import remarkAlert from 'remark-github-blockquote-alert'
 import remarkMath from 'remark-math'
-import { Pluggable } from 'unified'
+import type { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
@@ -38,14 +43,15 @@ const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 interface Props {
   // message: Message & { content: string }
-  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock | CompactMessageBlock
   // 可选的后处理函数，用于在流式渲染过程中处理文本（如引用标签转换）
   postProcess?: (text: string) => string
 }
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine, mathEnableSingleDollar } = useSettings()
+  const [mathEngine] = usePreference('chat.message.math.engine')
+  const [mathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)

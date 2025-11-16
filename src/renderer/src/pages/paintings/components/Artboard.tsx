@@ -1,8 +1,10 @@
+import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
-import { Painting } from '@renderer/types'
-import { Button, Spin } from 'antd'
-import React, { FC } from 'react'
+import type { Painting } from '@renderer/types'
+import { Spin } from 'antd'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -42,7 +44,7 @@ const Artboard: FC<ArtboardProps> = ({
         {painting.files.length > 0 ? (
           <ImageContainer>
             {painting.files.length > 1 && (
-              <NavigationButton onClick={onPrevImage} style={{ left: 10 }}>
+              <NavigationButton onClick={onPrevImage} className="left-2.5">
                 ←
               </NavigationButton>
             )}
@@ -58,7 +60,7 @@ const Artboard: FC<ArtboardProps> = ({
               }}
             />
             {painting.files.length > 1 && (
-              <NavigationButton onClick={onNextImage} style={{ right: 10 }}>
+              <NavigationButton onClick={onNextImage} className="right-2.5">
                 →
               </NavigationButton>
             )}
@@ -77,7 +79,7 @@ const Artboard: FC<ArtboardProps> = ({
                 </ImageList>
                 <div>
                   {t('paintings.proxy_required')}
-                  <Button type="link" onClick={() => retry?.(painting)}>
+                  <Button variant="ghost" onClick={() => retry?.(painting)}>
                     {t('paintings.image_retry')}
                   </Button>
                 </div>

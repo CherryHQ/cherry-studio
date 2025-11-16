@@ -22,6 +22,7 @@ export default defineConfig({
       alias: {
         '@main': resolve('src/main'),
         '@types': resolve('src/renderer/src/types'),
+        '@data': resolve('src/main/data'),
         '@shared': resolve('packages/shared'),
         '@logger': resolve('src/main/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
@@ -61,7 +62,20 @@ export default defineConfig({
       }
     },
     build: {
-      sourcemap: isDev
+      sourcemap: isDev,
+      rollupOptions: {
+        // Unlike renderer which auto-discovers entries from HTML files,
+        // preload requires explicit entry point configuration for multiple scripts
+        input: {
+          index: resolve(__dirname, 'src/preload/index.ts'),
+          simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
+        },
+        external: ['electron'],
+        output: {
+          entryFileNames: '[name].js',
+          format: 'cjs'
+        }
+      }
     }
   },
   renderer: {
@@ -90,12 +104,16 @@ export default defineConfig({
         '@shared': resolve('packages/shared'),
         '@types': resolve('src/renderer/src/types'),
         '@logger': resolve('src/renderer/src/services/LoggerService'),
+        '@data': resolve('src/renderer/src/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
-        '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src')
+        '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
+        '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
+        '@cherrystudio/ui': resolve('packages/ui/src')
       }
     },
     optimizeDeps: {
@@ -115,7 +133,8 @@ export default defineConfig({
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html')
+          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
+          dataRefactorMigrate: resolve(__dirname, 'src/renderer/dataRefactorMigrate.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

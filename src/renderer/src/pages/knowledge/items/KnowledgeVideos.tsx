@@ -1,16 +1,18 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import VideoPopup from '@renderer/components/Popups/VideoPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileTypes, isKnowledgeVideoItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { FileTypes, isKnowledgeVideoItem } from '@renderer/types'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -84,14 +86,8 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<Plus size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddVideo()
-          }}
-          disabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddVideo} disabled={disabled}>
+          <Plus size={16} />
           {t('knowledge.add_video')}
         </ResponsiveButton>
       </ItemHeader>
@@ -128,7 +124,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(videoFile)}>
                           <Ellipsis>
-                            <Tooltip title={videoFile.origin_name}>{videoFile.origin_name}</Tooltip>
+                            <Tooltip content={videoFile.origin_name}>{videoFile.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),
@@ -137,7 +133,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            <Button variant="ghost" onClick={() => refreshItem(item)}>
+                              <RefreshIcon />
+                            </Button>
                           )}
 
                           <StatusIconWrapper>
@@ -148,7 +146,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          <Button variant="ghost" onClick={() => removeItem(item)}>
+                            <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                          </Button>
                         </FlexAlignCenter>
                       )
                     }}

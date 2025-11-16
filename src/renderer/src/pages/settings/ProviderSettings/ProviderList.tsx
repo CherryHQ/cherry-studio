@@ -1,4 +1,5 @@
-import { DropResult } from '@hello-pangea/dnd'
+import { Button } from '@cherrystudio/ui'
+import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
   DraggableVirtualList,
@@ -10,11 +11,14 @@ import { ProviderAvatar } from '@renderer/components/ProviderAvatar'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
-import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
+import type { Provider, ProviderType } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
-import { Button, Dropdown, Input, MenuProps, Tag } from 'antd'
+import type { MenuProps } from 'antd'
+import { Dropdown, Input, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
-import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
@@ -370,10 +374,11 @@ const ProviderList: FC = () => {
         </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
+            size="sm"
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusIcon size={16} />}
             onClick={onAddProvider}
             disabled={dragging}>
+            <PlusIcon size={16} />
             {t('button.add')}
           </Button>
         </AddButtonWrapper>

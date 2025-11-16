@@ -1,40 +1,40 @@
 import { SyncOutlined } from '@ant-design/icons'
-import { useDisclosure } from '@heroui/react'
-import UpdateDialog from '@renderer/components/UpdateDialog'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
-  const { update } = useRuntime()
+  const { appUpdateState } = useAppUpdateState()
   const { autoCheckUpdate } = useSettings()
   const { t } = useTranslation()
-  const { isOpen, onOpen, onClose } = useDisclosure()
 
-  if (!update) {
+  if (!appUpdateState) {
     return null
   }
 
-  if (!update.downloaded || !autoCheckUpdate) {
+  if (!appUpdateState.downloaded || !autoCheckUpdate) {
     return null
+  }
+
+  const handleOpenUpdateDialog = () => {
+    UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
   }
 
   return (
     <Container>
       <UpdateButton
         className="nodrag"
-        onClick={onOpen}
+        onClick={handleOpenUpdateDialog}
         icon={<SyncOutlined />}
         color="orange"
         variant="outlined"
         size="small">
         {t('button.update_available')}
       </UpdateButton>
-
-      <UpdateDialog isOpen={isOpen} onClose={onClose} releaseInfo={update.info || null} />
     </Container>
   )
 }

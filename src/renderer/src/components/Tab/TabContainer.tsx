@@ -1,6 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Sortable, useDndReorder } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
@@ -13,10 +14,10 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import { MinAppType, ThemeMode } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Tooltip } from 'antd'
-import { LRUCache } from 'lru-cache'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { LRUCache } from 'lru-cache'
 import {
   FileSearch,
   Folder,
@@ -272,9 +273,9 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         </HorizontalScrollContainer>
         <RightButtonsContainer>
           <Tooltip
-            title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-            mouseEnterDelay={0.8}
-            placement="bottom">
+            placement="bottom"
+            content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+            delay={800}>
             <ThemeButton onClick={toggleTheme}>
               {settedTheme === ThemeMode.dark ? (
                 <Moon size={16} />

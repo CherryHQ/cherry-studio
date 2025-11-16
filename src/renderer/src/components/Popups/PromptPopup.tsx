@@ -1,8 +1,9 @@
+import { Box } from '@cherrystudio/ui'
 import { Input, Modal } from 'antd'
-import { TextAreaProps } from 'antd/es/input'
-import { ReactNode, useRef, useState } from 'react'
+import type { TextAreaProps } from 'antd/es/input'
+import type { ReactNode } from 'react'
+import { useRef, useState } from 'react'
 
-import { Box } from '../Layout'
 import { TopView } from '../TopView'
 
 interface PromptPopupShowParams {
@@ -68,7 +69,7 @@ const PromptPopupContainer: React.FC<Props> = ({
       afterOpenChange={handleAfterOpenChange}
       transitionName="animation-move-down"
       centered>
-      <Box mb={8}>{message}</Box>
+      <Box className="mb-2">{message}</Box>
       <Input.TextArea
         ref={textAreaRef}
         placeholder={inputPlaceholder}

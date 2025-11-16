@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { throttle } from 'lodash'
 import { useEffect, useRef } from 'react'
 
@@ -18,12 +19,12 @@ export default function useScrollPosition(key: string, throttleWait?: number) {
   const handleScroll = throttle(() => {
     const position = containerRef.current?.scrollTop ?? 0
     window.requestAnimationFrame(() => {
-      window.keyv.set(scrollKey, position)
+      cacheService.set(scrollKey, position)
     })
   }, throttleWait ?? 100)
 
   useEffect(() => {
-    const scroll = () => containerRef.current?.scrollTo({ top: window.keyv.get(scrollKey) || 0 })
+    const scroll = () => containerRef.current?.scrollTo({ top: cacheService.get(scrollKey) || 0 })
     scroll()
     setTimeoutTimer('scrollEffect', scroll, 50)
   }, [scrollKey, setTimeoutTimer])

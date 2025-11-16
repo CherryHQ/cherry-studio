@@ -1,17 +1,16 @@
+import { SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
-import { HSpaceBetweenStack } from '@renderer/components/Layout'
+import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setEnableSpellCheck } from '@renderer/store/settings'
-import { EditorView } from '@renderer/types'
-import { Empty, Tooltip } from 'antd'
+import type { EditorView } from '@renderer/types'
+import { Empty } from 'antd'
 import { SpellCheck } from 'lucide-react'
-import { FC, memo, RefObject, useCallback, useMemo, useState } from 'react'
+import type { FC, RefObject } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -27,9 +26,8 @@ interface NotesEditorProps {
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
-    const dispatch = useAppDispatch()
     const { settings } = useNotesSettings()
-    const { enableSpellCheck } = useSettings()
+    const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
         return settings.defaultEditMode
@@ -64,11 +62,10 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
-                height="100%"
+                className="h-full"
                 expanded={false}
                 style={{
-                  height: '100%',
-                  fontSize: `${settings.fontSize}px`
+                  height: '100%'
                 }}
               />
             </SourceEditorWrapper>
@@ -84,7 +81,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
               className="notes-rich-editor"
-              isFullWidth={settings.isFullWidth}
+              isFullWidth
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
@@ -92,7 +89,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           )}
         </RichEditorContainer>
         <BottomPanel>
-          <HSpaceBetweenStack width="100%" justifyContent="space-between" alignItems="center">
+          <SpaceBetweenRowFlex className="w-full items-center">
             <TokenCount>
               {t('notes.characters')}: {tokenCount}
             </TokenCount>
@@ -105,14 +102,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 gap: 12
               }}>
               {tmpViewMode === 'preview' && (
-                <Tooltip placement="top" title={t('notes.spell_check_tooltip')} mouseLeaveDelay={0} arrow>
+                <Tooltip placement="top" content={t('notes.spell_check_tooltip')} closeDelay={0}>
                   <ActionIconButton
                     active={enableSpellCheck}
                     onClick={() => {
                       const newValue = !enableSpellCheck
-                      dispatch(setEnableSpellCheck(newValue))
+                      setEnableSpellCheck(newValue)
                       window.api.setEnableSpellCheck(newValue)
-                    }}>
+                    }}
+                    icon={<SpellCheck size={18} />}>
                     <SpellCheck size={18} />
                   </ActionIconButton>
                 </Tooltip>
@@ -127,7 +125,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 ]}
               />
             </div>
-          </HSpaceBetweenStack>
+          </SpaceBetweenRowFlex>
         </BottomPanel>
       </>
     )

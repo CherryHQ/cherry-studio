@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Data Refactor Test Window - PreferenceService Testing</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+
+  <body id="root" theme-mode="light">
+    <script type="module" src="/src/windows/dataRefactorTest/entryPoint.tsx"></script>
+    <style>
+      html {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
+
+      /* Custom button styles */
+      .ant-btn-primary {
+        background-color: var(--color-primary);
+        border-color: var(--color-primary);
+      }
+
+      .ant-btn-primary:hover {
+        background-color: var(--color-primary-soft) !important;
+        border-color: var(--color-primary-soft) !important;
+      }
+
+      .ant-btn-primary:active,
+      .ant-btn-primary:focus {
+        background-color: var(--color-primary) !important;
+        border-color: var(--color-primary) !important;
+      }
+
+      /* Non-primary button hover styles */
+      .ant-btn:not(.ant-btn-primary):hover {
+        border-color: var(--color-primary-soft) !important;
+        color: var(--color-primary) !important;
+      }
+    </style>
+  </body>
+</html>

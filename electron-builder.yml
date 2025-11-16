@@ -21,6 +21,8 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
   - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
@@ -64,6 +66,13 @@ asarUnpack:
   - resources/**
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-libvips-*/**"
+extraResources:
+  - from: "migrations/sqlite-drizzle"
+    to: "migrations/sqlite-drizzle"
+  # copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
+  - from: "./node_modules/claude-code-plugins/plugins/"
+    to: "claude-code-plugins"
+
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -89,7 +98,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -127,60 +135,58 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.2
+    What's New in v1.7.0-rc.1
 
-    New Features:
-    - Session Settings: Manage session-specific settings and model configurations independently
-    - Notes Full-Text Search: Search across all notes with match highlighting
-    - Built-in DiDi MCP Server: Integration with DiDi ride-hailing services (China only)
-    - Intel OV OCR: Hardware-accelerated OCR using Intel NPU
-    - Auto-start API Server: Automatically starts when agents exist
+    🎉 MAJOR NEW FEATURE: AI Agents
+    - Create and manage custom AI agents with specialized tools and permissions
+    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
+    - Real-time tool approval system - review and approve agent actions dynamically
+    - MCP (Model Context Protocol) integration for connecting external tools
+    - Slash commands support for quick agent interactions
+    - OpenAI-compatible REST API for agent access
 
-    Improvements:
-    - Agent model selection now requires explicit user choice
-    - Added Mistral AI provider support
-    - Added NewAPI generic provider support
-    - Improved navbar layout consistency across different modes
-    - Enhanced chat component responsiveness
-    - Better code block display on small screens
-    - Updated OVMS to 2025.3 official release
-    - Added Greek language support
+    ✨ New Features:
+    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
+    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
+    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
+    - MCP Management: Redesigned interface with dual-column layout for easier management
+    - Languages: Added German language support
 
-    Bug Fixes:
-    - Fixed GitHub Copilot gpt-5-codex streaming issues
-    - Fixed assistant creation failures
-    - Fixed translate auto-copy functionality
-    - Fixed miniapps external link opening
-    - Fixed message layout and overflow issues
-    - Fixed API key parsing to preserve spaces
-    - Fixed agent display in different navbar layouts
+    ⚡ Improvements:
+    - Upgraded to Electron 38.7.0
+    - Enhanced system shutdown handling and automatic update checks
+    - Improved proxy bypass rules
+
+    🐛 Important Bug Fixes:
+    - Fixed streaming response issues across multiple AI providers
+    - Fixed session list scrolling problems
+    - Fixed knowledge base deletion errors
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.2 新特性
+    v1.7.0-rc.1 新特性
 
-    新功能:
-    - 会话设置：独立管理会话特定的设置和模型配置
-    - 笔记全文搜索：跨所有笔记搜索并高亮匹配内容
-    - 内置滴滴 MCP 服务器：集成滴滴打车服务(仅限中国地区)
-    - Intel OV OCR：使用 Intel NPU 的硬件加速 OCR
-    - 自动启动 API 服务器：当存在 Agent 时自动启动
+    🎉 重大更新：AI Agent 智能体系统
+    - 创建和管理专属 AI Agent，配置专用工具和权限
+    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
+    - 实时工具审批系统 - 动态审查和批准 Agent 操作
+    - MCP（模型上下文协议）集成，连接外部工具
+    - 支持斜杠命令快速交互
+    - 兼容 OpenAI 的 REST API 访问
 
-    改进:
-    - Agent 模型选择现在需要用户显式选择
-    - 添加 Mistral AI 提供商支持
-    - 添加 NewAPI 通用提供商支持
-    - 改进不同模式下的导航栏布局一致性
-    - 增强聊天组件响应式设计
-    - 优化小屏幕代码块显示
-    - 更新 OVMS 至 2025.3 正式版
-    - 添加希腊语支持
+    ✨ 新功能:
+    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
+    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
+    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
+    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
+    - 语言：新增德语支持
 
-    问题修复:
-    - 修复 GitHub Copilot gpt-5-codex 流式传输问题
-    - 修复助手创建失败
-    - 修复翻译自动复制功能
-    - 修复小程序外部链接打开
-    - 修复消息布局和溢出问题
-    - 修复 API 密钥解析以保留空格
-    - 修复不同导航栏布局中的 Agent 显示
+    ⚡ 改进:
+    - 升级到 Electron 38.7.0
+    - 增强的系统关机处理和自动更新检查
+    - 改进的代理绕过规则
+
+    🐛 重要修复:
+    - 修复多个 AI 提供商的流式响应问题
+    - 修复会话列表滚动问题
+    - 修复知识库删除错误
     <!--LANG:END-->

@@ -1,12 +1,13 @@
+import { Button } from '@cherrystudio/ui'
 import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { Citation } from '@renderer/types'
+import type { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Button, message, Popover, Skeleton } from 'antd'
+import { Popover, Skeleton } from 'antd'
 import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -91,7 +92,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
             padding: '0 0 8px 0'
           }
         }}>
-        <OpenButton type="text">
+        <OpenButton variant="ghost">
           <PreviewIcons>
             {previewItems.map((c, i) => (
               <PreviewIcon key={i} style={{ zIndex: previewItems.length - i }}>
@@ -129,7 +130,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
         window.toast.success(t('common.copied'))
       })
       .catch(() => {
-        message.error(t('message.copy.failed'))
+        window.toast.error(t('message.copy.failed'))
       })
   }
 

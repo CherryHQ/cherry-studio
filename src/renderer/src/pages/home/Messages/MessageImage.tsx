@@ -11,7 +11,7 @@ import {
 import { loggerService } from '@logger'
 import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { Image as AntdImage, Space } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -62,7 +62,7 @@ const MessageImage: FC<Props> = ({ block }) => {
               byteArrays.push(byteArray)
             }
 
-            const blob = new Blob(byteArrays, { type: mimeType })
+            const blob = new Blob(byteArrays as unknown as BlobPart[], { type: mimeType })
             await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
           } else {
             throw new Error('无效的 base64 图片格式')

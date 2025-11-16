@@ -1,4 +1,4 @@
-import { AccordionItem } from '@heroui/react'
+import type { CollapseProps } from 'antd'
 import { FileEdit } from 'lucide-react'
 
 import { ToolTitle } from './GenericTools'
@@ -28,19 +28,26 @@ export const renderCodeBlock = (content: string, variant: 'old' | 'new') => {
   )
 }
 
-export function EditTool({ input, output }: { input: EditToolInput; output?: EditToolOutput }) {
-  return (
-    <AccordionItem
-      key={AgentToolsType.Edit}
-      aria-label="Edit Tool"
-      title={<ToolTitle icon={<FileEdit className="h-4 w-4" />} label="Edit" params={input.file_path} />}>
-      {/* Diff View */}
-      {/* Old Content */}
-      {renderCodeBlock(input.old_string, 'old')}
-      {/* New Content */}
-      {renderCodeBlock(input.new_string, 'new')}
-      {/* Output */}
-      {output}
-    </AccordionItem>
-  )
+export function EditTool({
+  input,
+  output
+}: {
+  input: EditToolInput
+  output?: EditToolOutput
+}): NonNullable<CollapseProps['items']>[number] {
+  return {
+    key: AgentToolsType.Edit,
+    label: <ToolTitle icon={<FileEdit className="h-4 w-4" />} label="Edit" params={input.file_path} />,
+    children: (
+      <>
+        {/* Diff View */}
+        {/* Old Content */}
+        {renderCodeBlock(input.old_string, 'old')}
+        {/* New Content */}
+        {renderCodeBlock(input.new_string, 'new')}
+        {/* Output */}
+        {output}
+      </>
+    )
+  }
 }

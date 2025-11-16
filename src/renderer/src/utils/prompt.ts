@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
+import { preferenceService } from '@renderer/data/PreferenceService'
 import store from '@renderer/store'
-import { MCPTool } from '@renderer/types'
+import type { MCPTool } from '@renderer/types'
+import { defaultLanguage } from '@shared/config/constant'
 
 const logger = loggerService.withContext('Utils:Prompt')
 
@@ -205,7 +207,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{username}}')) {
     try {
-      const userName = store.getState().settings.userName || 'Unknown Username'
+      const userName = (await preferenceService.get('app.user.name')) || 'Unknown Username'
       userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
     } catch (error) {
       logger.error('Failed to get username:', error as Error)
@@ -225,8 +227,8 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{language}}')) {
     try {
-      const language = store.getState().settings.language
-      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
+      const language = await preferenceService.get('app.language')
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language || navigator.language || defaultLanguage)
     } catch (error) {
       logger.error('Failed to get language:', error as Error)
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')

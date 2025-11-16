@@ -1,11 +1,12 @@
+import { Button, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
-import { CustomTranslateLanguage } from '@renderer/types'
-import { Button, Form, Input, Modal, Popover, Space } from 'antd'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { CustomTranslateLanguage } from '@renderer/types'
+import { Form, Input, Modal, Popover, Space } from 'antd'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {
@@ -85,7 +86,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
       <Button key="modal-cancel" onClick={onCancel}>
         {t('common.cancel')}
       </Button>,
-      <Button key="modal-save" type="primary" onClick={form.submit}>
+      <Button key="modal-save" onClick={form.submit}>
         {editingCustomLanguage ? t('common.save') : t('common.add')}
       </Button>
     ]
@@ -119,7 +120,9 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             }
             arrow
             trigger="click">
-            <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
+            <Button style={{ aspectRatio: '1/1' }} size="icon">
+              <Emoji emoji={emoji} />
+            </Button>
           </Popover>
         </Form.Item>
         <Form.Item
@@ -171,7 +174,7 @@ const Label = (label: string, help: string) => {
   return (
     <Space>
       <span>{label}</span>
-      <InfoTooltip title={help} />
+      <InfoTooltip content={help} />
     </Space>
   )
 }

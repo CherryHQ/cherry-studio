@@ -1,10 +1,10 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
+import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
-import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
+import { Divider, Input, Modal, Popover } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,10 +16,11 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
+  const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
+  const [topicNamingPrompt, setTopicNamingPrompt] = usePreference('topic.naming_prompt')
+
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { enableTopicNaming, topicNamingPrompt } = useSettings()
-  const dispatch = useAppDispatch()
 
   const onOk = () => {
     setOpen(false)
@@ -34,8 +35,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const handleReset = useCallback(() => {
-    dispatch(setTopicNamingPrompt(''))
-  }, [dispatch])
+    setTopicNamingPrompt('')
+  }, [setTopicNamingPrompt])
 
   TopicNamingModalPopup.hide = onCancel
 
@@ -55,29 +56,33 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
         {t('settings.models.topic_naming.label')}
       </SettingSubtitle>
-      <Flex vertical align="stretch" gap={8}>
-        <HStack style={{ gap: 16 }} alignItems="center">
+      <ColFlex className="items-stretch gap-2">
+        <RowFlex className="items-center gap-4">
           <div>{t('settings.models.topic_naming.auto')}</div>
-          <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
-        </HStack>
+          <Switch isSelected={enableTopicNaming} onValueChange={setEnableTopicNaming} />
+        </RowFlex>
         <Divider style={{ margin: 0 }} />
         <div>
-          <Flex align="center" gap={4} style={{ marginBottom: 4, height: 30 }}>
+          <Flex className="mb-1 h-[30px] items-center gap-1">
             <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('assistants.presets.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
-            {topicNamingPrompt && <Button icon={<ResetIcon size={14} />} onClick={handleReset} type="text" />}
+            {topicNamingPrompt && (
+              <Button onClick={handleReset} variant="ghost" size="icon">
+                <ResetIcon size={14} />
+              </Button>
+            )}
           </Flex>
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 10 }}
             value={topicNamingPrompt || t('prompts.title')}
-            onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value))}
+            onChange={(e) => setTopicNamingPrompt(e.target.value)}
             placeholder={t('prompts.title')}
             style={{ width: '100%' }}
           />
         </div>
-      </Flex>
+      </ColFlex>
     </Modal>
   )
 }

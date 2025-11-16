@@ -1,11 +1,13 @@
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { AssistantPreset } from '@renderer/types'
+import type { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Flex, Form, Input, Modal, Radio } from 'antd'
+import { Form, Input, Modal, Radio } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -98,9 +100,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       maskClosable={false}
       footer={
-        <Flex justify="end" gap={8}>
+        <Flex className="justify-end gap-2">
           <Button onClick={onCancel}>{t('common.cancel')}</Button>
-          <Button type="primary" onClick={() => form.submit()} loading={loading}>
+          <Button onClick={() => form.submit()} disabled={loading}>
             {t('assistants.presets.import.button')}
           </Button>
         </Flex>

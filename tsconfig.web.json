@@ -9,7 +9,8 @@
     "packages/mcp-trace/**/*",
     "packages/aiCore/src/**/*",
     "src/main/integration/cherryai/index.js",
-    "packages/extension-table-plus/**/*"
+    "packages/extension-table-plus/**/*",
+    "packages/ai-sdk-provider/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -19,6 +20,7 @@
     "moduleResolution": "bundler",
     "paths": {
       "@logger": ["./src/renderer/src/services/LoggerService"],
+      "@data/*": ["./src/renderer/src/data/*"],
       "@renderer/*": ["./src/renderer/src/*"],
       "@shared/*": ["./packages/shared/*"],
       "@types": ["./src/renderer/src/types/index.ts"],
@@ -27,7 +29,12 @@
       "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
-      "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"]
+      "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
+      "@cherrystudio/ui/icons": ["./packages/ui/src/components/icons/index.ts"],
+      "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
+      "@cherrystudio/ui/*": ["./packages/ui/src/*"]
+
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

@@ -1,4 +1,5 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -6,10 +7,12 @@ import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setExcludeDomains } from '@renderer/store/websearch'
 import { parseMatchPattern, parseSubscribeContent } from '@renderer/utils/blacklistMatchPattern'
-import { Alert, Button, Table, TableProps } from 'antd'
+import type { TableProps } from 'antd'
+import { Alert, Table } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import AddSubscribePopup from './AddSubscribePopup'
@@ -256,8 +259,7 @@ const BlacklistSettings: FC = () => {
         <SettingTitle>
           {t('settings.tool.websearch.subscribe')}
           <Button
-            type={subscribeValid ? 'primary' : 'default'}
-            ghost={subscribeValid}
+            variant={subscribeValid ? 'ghost' : 'default'}
             disabled={subscribeChecking}
             onClick={handleAddSubscribe}>
             {t('settings.tool.websearch.subscribe_add')}
@@ -274,8 +276,7 @@ const BlacklistSettings: FC = () => {
           />
           <SettingRow style={{ height: 50 }}>
             <Button
-              type={subscribeValid ? 'primary' : 'default'}
-              ghost={subscribeValid}
+              variant={subscribeValid ? 'ghost' : 'default'}
               disabled={subscribeChecking || selectedRowKeys.length === 0}
               style={{ width: 100 }}
               onClick={updateSubscribe}>

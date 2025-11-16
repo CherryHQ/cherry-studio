@@ -1,10 +1,11 @@
-import { Button, Divider } from '@heroui/react'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import type { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { SettingDivider } from '@renderer/pages/settings'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import AdvancedSettings from '@renderer/pages/settings/AgentSettings/AdvancedSettings'
 import EssentialSettings from '@renderer/pages/settings/AgentSettings/EssentialSettings'
-import { GetAgentSessionResponse } from '@renderer/types'
-import { FC } from 'react'
+import type { GetAgentSessionResponse } from '@renderer/types'
+import { Button } from 'antd'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -31,9 +32,10 @@ const SessionSettingsTab: FC<Props> = ({ session, update }) => {
   return (
     <div className="w-[var(--assistants-width)] p-2 px-3 pt-4">
       <EssentialSettings agentBase={session} update={update} showModelSetting={false} />
+      <SettingDivider />
       <AdvancedSettings agentBase={session} update={update} />
-      <Divider className="my-2" />
-      <Button size="sm" fullWidth onPress={onMoreSetting}>
+      <SettingDivider />
+      <Button size="small" block onClick={onMoreSetting}>
         {t('settings.moresetting.label')}
       </Button>
     </div>
