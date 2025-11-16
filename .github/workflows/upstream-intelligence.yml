@@ -1,0 +1,222 @@
+name: Upstream Intelligence Collector
+
+on:
+  schedule:
+    # Run every 6 hours at minute 0
+    - cron: '0 */6 * * *'
+
+  workflow_dispatch:
+    inputs:
+      create_issue:
+        description: 'Create tracking issue for findings'
+        required: false
+        default: 'false'
+        type: boolean
+      detailed_report:
+        description: 'Generate detailed report'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # Also run when upstream monitoring finds significant activity
+  workflow_run:
+    workflows: ["Upstream Sync Monitor"]
+    types:
+      - completed
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  collect-intelligence:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.UPSTREAM_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Intelligence Collector
+        id: intelligence
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔍 Starting upstream intelligence collection..."
+          node .github/scripts/upstream-intelligence-collector.js
+
+      - name: Analyze Results
+        id: analysis
+        run: |
+          # Get the latest report file
+          REPORT_FILE=$(ls -t upstream-intelligence-*.md | head -n1)
+          echo "report_file=$REPORT_FILE" >> $GITHUB_OUTPUT
+
+          if [ -f "$REPORT_FILE" ]; then
+            echo "✅ Intelligence report generated: $REPORT_FILE"
+
+            # Extract key metrics
+            HIGH_PRIORITY_ISSUES=$(grep -c "Priority [45]" "$REPORT_FILE" || echo "0")
+            OPEN_PRS=$(grep -o "Open: [0-9]*" "$REPORT_FILE" | grep -o "[0-9]*" || echo "0")
+
+            echo "high_priority_issues=$HIGH_PRIORITY_ISSUES" >> $GITHUB_OUTPUT
+            echo "open_prs=$OPEN_PRS" >> $GITHUB_OUTPUT
+            echo "total_issues=$(grep -o "Total Open Issues: [0-9]*" "$REPORT_FILE" | grep -o "[0-9]*" || echo "0")" >> $GITHUB_OUTPUT
+
+            # Create summary
+            echo "## 🚀 Upstream Intelligence Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Generated:** $(date)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📊 Key Metrics" >> $GITHUB_STEP_SUMMARY
+            echo "- **High Priority Issues:** $HIGH_PRIORITY_ISSUES" >> $GITHUB_STEP_SUMMARY
+            echo "- **Open Pull Requests:** $OPEN_PRS" >> $GITHUB_STEP_SUMMARY
+            echo "- **Total Issues:** $(grep -o "Total Open Issues: [0-9]*" "$REPORT_FILE" | grep -o "[0-9]*" || echo "0")" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🎯 Recent Activity" >> $GITHUB_STEP_SUMMARY
+            grep -A 5 "### Recent Open PRs" "$REPORT_FILE" >> $GITHUB_STEP_SUMMARY || echo "No recent PR activity" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📋 Recommendations" >> $GITHUB_STEP_SUMMARY
+            grep -A 3 "Actionable Recommendations" "$REPORT_FILE" | head -10 >> $GITHUB_STEP_SUMMARY || echo "No specific recommendations" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ No intelligence report generated"
+            exit 1
+          fi
+
+      - name: Create Tracking Issue (if requested)
+        if: ${{ github.event.inputs.create_issue == 'true' || (steps.analysis.outputs.high_priority_issues > 5 && github.event_name != 'workflow_dispatch') }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const reportFile = `${{ steps.analysis.outputs.report_file }}`;
+            const fs = require('fs');
+
+            if (fs.existsSync(reportFile)) {
+              const reportContent = fs.readFileSync(reportFile, 'utf8');
+              const highPriority = ${{ steps.analysis.outputs.high_priority_issues }};
+              const openPRs = ${{ steps.analysis.outputs.open_prs }};
+
+              // Create meaningful title based on findings
+              let title = '[Intelligence] Upstream Activity Analysis';
+              if (highPriority > 5) {
+                title += ` - ${highPriority} High Priority Issues`;
+              }
+              if (openPRs > 5) {
+                title += ` - ${openPRs} Open PRs`;
+              }
+
+              const body = `# Upstream Intelligence Report
+
+              **Automated Analysis:** ${new Date().toISOString()}
+
+              ## 🔍 Key Findings
+              - **High Priority Issues:** ${highPriority}
+              - **Open Pull Requests:** ${openPRs}
+              - **Source:** CherryHQ/cherry-studio
+
+              ## 📊 Full Report
+
+              ${reportContent}
+
+              ---
+              *This issue was created automatically by the Upstream Intelligence Collector*
+              *Use this information for planning, prioritization, and competitive analysis*
+              `;
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['upstream-intelligence', 'automated', 'priority/medium']
+              });
+            }
+
+      - name: Upload Report as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-intelligence-report
+          path: upstream-intelligence-*.md
+          retention-days: 30
+
+      - name: Update Monitoring Dashboard
+        run: |
+          echo "📊 Updating monitoring dashboard with latest intelligence..."
+          # This could integrate with your existing monitoring dashboard
+          # For now, we'll just note that the dashboard should be updated
+          echo "Intelligence data ready for dashboard integration"
+
+      - name: Notify Team (if significant findings)
+        if: ${{ steps.analysis.outputs.high_priority_issues > 10 || steps.analysis.outputs.open_prs > 10 }}
+        run: |
+          echo "🚨 Significant upstream activity detected!"
+          echo "High Priority Issues: ${{ steps.analysis.outputs.high_priority_issues }}"
+          echo "Open Pull Requests: ${{ steps.analysis.outputs.open_prs }}"
+          echo ""
+          echo "Consider reviewing the detailed intelligence report for action items."
+
+  detailed-analysis:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.detailed_report == 'true' }}
+    needs: collect-intelligence
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Detailed Analysis
+        env:
+          UPSTREAM_TOKEN: ${{ secrets.UPSTREAM_TOKEN }}
+        run: |
+          echo "🔬 Running detailed upstream analysis..."
+
+          # Get extended data (more issues, deeper analysis)
+          node -e "
+          const UpstreamIntelligenceCollector = require('./.github/scripts/upstream-intelligence-collector.js');
+          const collector = new UpstreamIntelligenceCollector(process.env.UPSTREAM_TOKEN);
+
+          collector.generateIntelligenceReport()
+            .then(report => {
+              console.log('📊 Detailed Analysis Results:');
+              console.log('=============================');
+
+              // Trend analysis
+              console.log('📈 Trend Analysis:');
+              console.log(\`- Bug Issues: \${report.issues.filter(i => i.classification === 'bug').length}\`);
+              console.log(\`- Feature Requests: \${report.issues.filter(i => i.classification === 'feature').length}\`);
+              console.log(\`- UI/UX Issues: \${report.issues.filter(i => i.classification === 'ui-ux').length}\`);
+
+              // PR analysis
+              console.log('\\n🔄 PR Activity:');
+              console.log(\`- Bug Fixes: \${report.pullRequests.filter(pr => pr.classification === 'bugfix').length}\`);
+              console.log(\`- New Features: \${report.pullRequests.filter(pr => pr.classification === 'feature').length}\`);
+              console.log(\`- Refactoring: \${report.pullRequests.filter(pr => pr.classification === 'refactor').length}\`);
+
+              // Contributor analysis
+              console.log('\\n👥 Top Contributors:');
+              const topContributors = report.contributors.slice(0, 5);
+              topContributors.forEach((contributor, index) => {
+                console.log(\`\${index + 1}. \${contributor.login}: \${contributor.contributions} contributions\`);
+              });
+
+              console.log('\\n✅ Detailed analysis complete!');
+            })
+            .catch(error => {
+              console.error('❌ Analysis failed:', error.message);
+              process.exit(1);
+            });
+          "

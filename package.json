@@ -1,5 +1,5 @@
 {
-  "name": "CherryStudio",
+  "name": "cherrystudio",
   "version": "1.7.0-rc.1",
   "private": true,
   "description": "A powerful AI assistant for producer.",
@@ -421,5 +421,19 @@
     "*.{json,yml,yaml,css,html}": [
       "biome format --write --no-errors-on-unmatched"
     ]
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imrshohel/automatseo.git"
+  },
+  "keywords": [],
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/imrshohel/automatseo/issues"
   }
 }
