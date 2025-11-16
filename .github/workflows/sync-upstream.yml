@@ -1,0 +1,8 @@
+# Stage the new file
+git add .github/workflows/sync-upstream.yml
+
+# Commit the change with a message
+git commit -m "feat: Add workflow to sync upstream and track issues"
+
+# Push the commit to your fork on GitHub
+git push origin main
