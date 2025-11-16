@@ -3,15 +3,19 @@
  * 处理温度、TopP、超时等基础参数的获取逻辑
  */
 
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
   isNotSupportTemperatureAndTopP,
-  isSupportedFlexServiceTier
+  isSupportedFlexServiceTier,
+  isSupportedThinkingTokenClaudeModel
 } from '@renderer/config/models'
-import { getAssistantSettings } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
 import { defaultTimeout } from '@shared/config/constant'
+
+import { getAnthropicThinkingBudget } from '../utils/reasoning'
 
 /**
  * 获取温度参数
@@ -55,4 +59,20 @@ export function getTimeout(model: Model): number {
     return 15 * 1000 * 60
   }
   return defaultTimeout
+}
+
+
+export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
+  // NOTE: ai-sdk会把maxToken和budgetToken加起来
+  let { maxTokens = DEFAULT_MAX_TOKENS } = getAssistantSettings(assistant)
+
+  const provider = getProviderByModel(model)
+    if (
+      isSupportedThinkingTokenClaudeModel(model) &&
+      ['anthropic', 'aws-bedrock'].includes(provider.type)
+    ) {
+      maxTokens -= getAnthropicThinkingBudget(assistant, model)
+    }
+    return maxTokens
+
 }

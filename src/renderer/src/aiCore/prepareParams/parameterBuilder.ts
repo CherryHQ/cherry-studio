@@ -15,11 +15,10 @@ import {
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
@@ -32,9 +31,8 @@ import { stepCountIs } from 'ai'
 import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
-import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
-import { getTemperature, getTopP } from './modelParameters'
+import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
@@ -74,8 +72,6 @@ export async function buildStreamTextParams(
   const model = assistant.model || getDefaultModel()
   const aiSdkProviderId = getAiSdkProviderId(provider)
 
-  let { maxTokens } = getAssistantSettings(assistant)
-
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
@@ -112,15 +108,6 @@ export async function buildStreamTextParams(
     enableGenerateImage
   })
 
-  // NOTE: ai-sdk会把maxToken和budgetToken加起来
-  if (
-    enableReasoning &&
-    maxTokens !== undefined &&
-    isSupportedThinkingTokenClaudeModel(model) &&
-    (provider.type === 'anthropic' || provider.type === 'aws-bedrock')
-  ) {
-    maxTokens -= getAnthropicThinkingBudget(assistant, model)
-  }
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
@@ -174,7 +161,7 @@ export async function buildStreamTextParams(
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
-    maxOutputTokens: maxTokens,
+    maxOutputTokens: getMaxTokens(assistant, model),
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
     abortSignal: options.requestOptions?.signal,
