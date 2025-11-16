@@ -3,7 +3,7 @@ import {
   isPureGenerateImageModel,
   isQwenReasoningModel,
   isSupportedThinkingTokenQwenModel,
-  isVisionModel,
+  isVisionModel
 } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'

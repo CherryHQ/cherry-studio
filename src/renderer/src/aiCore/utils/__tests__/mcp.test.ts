@@ -387,7 +387,9 @@ describe('mcp utils', () => {
       const tools = convertMcpToolsToAiSdkTools(mcpTools)
       const tool = tools['error-tool'] as Tool
 
-      await expect(tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'error-call-123' })).rejects.toEqual({
+      await expect(
+        tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'error-call-123' })
+      ).rejects.toEqual({
         content: [{ type: 'text', text: 'Error occurred' }],
         isError: true
       })
