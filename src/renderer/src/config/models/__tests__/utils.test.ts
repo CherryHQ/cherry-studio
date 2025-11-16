@@ -5,11 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isOpenAIReasoningModel } from '../reasoning'
 import {
   agentModelFilter,
+  getModelSupportedVerbosity,
   groupQwenModels,
   isAnthropicModel,
   isGeminiModel,
   isGemmaModel,
   isGenerateImageModels,
+  isGPT5ProModel,
   isGPT5SeriesModel,
   isGPT5SeriesReasoningModel,
   isGPT51SeriesModel,
@@ -144,6 +146,15 @@ describe('model utils', () => {
     expect(isSupportVerbosityModel(createModel({ id: 'gpt-5' }))).toBe(true)
     expect(isSupportVerbosityModel(createModel({ id: 'gpt-5-chat' }))).toBe(false)
     expect(isSupportVerbosityModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+  })
+
+  it('limits verbosity controls for GPT-5 Pro models', () => {
+    const proModel = createModel({ id: 'gpt-5-pro' })
+    const previewModel = createModel({ id: 'gpt-5-preview' })
+    expect(getModelSupportedVerbosity(proModel)).toEqual(['high'])
+    expect(getModelSupportedVerbosity(previewModel)).toEqual(['low', 'medium', 'high'])
+    expect(isGPT5ProModel(proModel)).toBe(true)
+    expect(isGPT5ProModel(previewModel)).toBe(false)
   })
 
   it('identifies OpenAI chat-completion-only models', () => {

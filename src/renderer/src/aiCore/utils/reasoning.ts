@@ -34,7 +34,6 @@ import {
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
-import type { SettingsState } from '@renderer/store/settings'
 import type { Assistant, Model } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
@@ -362,7 +361,7 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
     }
   }
 
-  const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+  const openAI = getStoreSetting<'openAI'>('openAI')
   const summaryText = openAI?.summaryText || 'off'
 
   let reasoningSummary: string | undefined = undefined

@@ -306,40 +306,40 @@ describe('reasoning utils', () => {
       })
     })
 
-    // it('should handle GPT-5.1 reasoning model with effort levels', async () => {
-    //   const {
-    //     isReasoningModel,
-    //     isOpenAIDeepResearchModel,
-    //     isSupportedReasoningEffortModel,
-    //     isGPT51SeriesModel,
-    //     getThinkModelType
-    //   } = await import('@renderer/config/models')
+    it('should handle GPT-5.1 reasoning model with effort levels', async () => {
+      const {
+        isReasoningModel,
+        isOpenAIDeepResearchModel,
+        isSupportedReasoningEffortModel,
+        isGPT51SeriesModel,
+        getThinkModelType
+      } = await import('@renderer/config/models')
 
-    //   vi.mocked(isReasoningModel).mockReturnValue(true)
-    //   vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
-    //   vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(true)
-    //   vi.mocked(getThinkModelType).mockReturnValue('gpt5_1')
-    //   vi.mocked(isGPT51SeriesModel).mockReturnValue(true)
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
+      vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(true)
+      vi.mocked(getThinkModelType).mockReturnValue('gpt5_1')
+      vi.mocked(isGPT51SeriesModel).mockReturnValue(true)
 
-    //   const model: Model = {
-    //     id: 'gpt-5.1',
-    //     name: 'GPT-5.1',
-    //     provider: SystemProviderIds.openai
-    //   } as Model
+      const model: Model = {
+        id: 'gpt-5.1',
+        name: 'GPT-5.1',
+        provider: SystemProviderIds.openai
+      } as Model
 
-    //   const assistant: Assistant = {
-    //     id: 'test',
-    //     name: 'Test',
-    //     settings: {
-    //       reasoning_effort: undefined
-    //     }
-    //   } as Assistant
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
 
-    //   const result = getReasoningEffort(assistant, model)
-    //   expect(result).toEqual({
-    //     reasoningEffort: 'none'
-    //   })
-    // })
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({
+        reasoningEffort: 'none'
+      })
+    })
 
     it('should handle DeepSeek hybrid inference models', async () => {
       const { isDeepSeekHybridInferenceModel } = await import('@renderer/config/models')
@@ -645,10 +645,9 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         thinking: {
           type: 'enabled',
-          budgetTokens: expect.any(Number)
+          budgetTokens: 2048
         }
       })
-      expect(result.thinking.budgetTokens).toBeGreaterThan(0)
     })
   })
 
@@ -947,10 +946,9 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         reasoningConfig: {
           type: 'enabled',
-          budgetTokens: expect.any(Number)
+          budgetTokens: 2048
         }
       })
-      expect(result.reasoningConfig.budgetTokens).toBeGreaterThan(0)
     })
   })
 

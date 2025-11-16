@@ -28,7 +28,9 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
-  isZhipuReasoningModel
+  isZhipuReasoningModel,
+  MODEL_SUPPORTED_OPTIONS,
+  MODEL_SUPPORTED_REASONING_EFFORT
 } from '../reasoning'
 import { isTextToImageModel } from '../vision'
 
@@ -536,6 +538,18 @@ describe('Thinking model classification', () => {
   })
 })
 
+describe('Reasoning option configuration', () => {
+  it('allows GPT-5.1 series models to disable reasoning', () => {
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1).toContain('none')
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5_1_codex).toContain('none')
+  })
+
+  it('restricts GPT-5 Pro reasoning to high effort only', () => {
+    expect(MODEL_SUPPORTED_REASONING_EFFORT.gpt5pro).toEqual(['high'])
+    expect(MODEL_SUPPORTED_OPTIONS.gpt5pro).toEqual(['high'])
+  })
+})
+
 describe('getThinkModelType - Comprehensive Coverage', () => {
   describe('OpenAI Deep Research models', () => {
     it('should return openai_deep_research for deep research models', () => {
@@ -567,6 +581,11 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
     it('should return gpt5 for non-codex GPT-5 models', () => {
       expect(getThinkModelType(createModel({ id: 'gpt-5' }))).toBe('gpt5')
       expect(getThinkModelType(createModel({ id: 'gpt-5-preview' }))).toBe('gpt5')
+    })
+
+    it('should return gpt5pro for GPT-5 Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5-pro' }))).toBe('gpt5pro')
+      expect(getThinkModelType(createModel({ id: 'gpt-5-pro-preview' }))).toBe('gpt5pro')
     })
   })
 

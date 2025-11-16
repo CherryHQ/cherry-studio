@@ -1,3 +1,7 @@
+import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
+import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
+import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
+import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
@@ -8,6 +12,7 @@ import {
   isSupportVerbosityModel
 } from '@renderer/config/models'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import {
   GroqServiceTiers,
@@ -186,9 +191,9 @@ function buildOpenAIProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): OpenAIResponsesProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: OpenAIResponsesProviderOptions = {}
   // OpenAI 推理参数
   if (enableReasoning) {
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
@@ -199,8 +204,8 @@ function buildOpenAIProviderOptions(
   }
 
   if (isSupportVerbosityModel(model)) {
-    const state = window.store?.getState()
-    const userVerbosity = state?.settings?.openAI?.verbosity
+    const openAI = getStoreSetting<'openAI'>('openAI')
+    const userVerbosity = openAI?.verbosity
 
     if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
       const supportedVerbosity = getModelSupportedVerbosity(model)
@@ -228,9 +233,9 @@ function buildAnthropicProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): AnthropicProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: AnthropicProviderOptions = {}
 
   // Anthropic 推理参数
   if (enableReasoning) {
@@ -255,9 +260,9 @@ function buildGeminiProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): GoogleGenerativeAIProviderOptions {
   const { enableReasoning, enableGenerateImage } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: GoogleGenerativeAIProviderOptions = {}
 
   // Gemini 推理参数
   if (enableReasoning) {
@@ -340,9 +345,9 @@ function buildBedrockProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): BedrockProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: BedrockProviderOptions = {}
 
   if (enableReasoning) {
     const reasoningParams = getBedrockReasoningParams(assistant, model)
