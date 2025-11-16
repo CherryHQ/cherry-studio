@@ -1,6 +1,33 @@
-/src/renderer/src/store/ @0xfullex
-/src/renderer/src/databases/ @0xfullex
-/src/main/services/ConfigManager.ts @0xfullex
-/packages/shared/IpcChannel.ts @0xfullex
-/src/main/ipc.ts @0xfullex
-/app-upgrade-config.json @kangfenmao
+# Core maintainers - automatic approval for all changes
+* @imrshohel
+
+# Security-sensitive files - require maintainer approval
+.github/workflows/ @imrshohel
+.github/dependabot.yml @imrshohel
+.github/CODEOWNERS @imrshohel
+LICENSE @imrshohel
+SECURITY.md @imrshohel
+CONTRIBUTING.md @imrshohel
+
+# Configuration files - require maintainer approval
+package.json @imrshohel
+yarn.lock @imrshohel
+tsconfig.json @imrshohel
+vite.config.* @imrshohel
+electron-builder.yml @imrshohel
+app-upgrade-config.json @imrshohel
+
+# Core application directories
+/src/main/ @imrshohel
+/src/renderer/ @imrshohel
+/src/preload/ @imrshohel
+/packages/ @imrshohel
+
+# Build and CI configuration
+.github/ @imrshohel
+/scripts/ @imrshohel
+/build/ @imrshohel
+
+# Documentation
+/docs/ @imrshohel
+*.md @imrshohel

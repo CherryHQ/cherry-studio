@@ -1,3 +1,115 @@
+# Auto detect text files and perform LF normalization
 * text=auto eol=lf
+
+# Yarn specific
 /.yarn/**            linguist-vendored
 /.yarn/releases/*    binary
+
+# Source code
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.vue text eol=lf
+*.svelte text eol=lf
+
+# Configuration files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.conf text eol=lf
+*.config.* text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+*.adoc text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+*.fish text eol=lf
+
+# Build scripts
+Makefile text eol=lf
+*.mk text eol=lf
+*.cmake text eol=lf
+
+# Windows-specific files - use CRLF
+*.bat text eol=cRLF
+*.cmd text eol=cRLF
+*.ps1 text eol=cRLF
+*.psm1 text eol=cRLF
+*.psd1 text eol=cRLF
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.webp binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.tgz binary
+*.rar binary
+*.7z binary
+
+# Executables and libraries
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.a binary
+
+# Fonts
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+
+# Certificate files
+*.pem text
+*.crt text
+*.key text
+*.p12 binary
+
+# Lock files
+*.lock text eol=lf
+package-lock.json text eol=lf
+yarn.lock text eol=lf
+
+# Test files
+*.test.js text eol=lf
+*.test.ts text eol=lf
+*.spec.js text eol=lf
+*.spec.ts text eol=lf
+
+# IDE files - mark as generated
+*.vscode/ linguist-generated=true
+*.idea/ linguist-generated=true
+*.sublime-* linguist-generated=true
+
+# Log files
+*.log text linguist-generated=true
+
+# Temporary files
+*.tmp text linguist-generated=true
+*.temp text linguist-generated=true
+
+# Build artifacts
+dist/ linguist-generated=true
+build/ linguist-generated=true
+out/ linguist-generated=true
+coverage/ linguist-generated=true
+node_modules/ linguist-generated=true
+
+# Local configuration (already in gitignore but added for completeness)
+.env* text linguist-generated=true

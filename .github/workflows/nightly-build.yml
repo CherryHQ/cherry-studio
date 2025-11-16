@@ -23,7 +23,7 @@ jobs:
 
           # List and delete artifacts older than cutoff date
           gh api repos/$REPO/actions/artifacts --paginate | \
-          jq -r '.artifacts[] | select(.name | startswith("cherry-studio-nightly-")) | select(.created_at < "'$cutoff_date'") | .id' | \
+          jq -r '.artifacts[] | select(.name | startswith("automatseo-nightly-")) | select(.created_at < "'$cutoff_date'") | .id' | \
           while read artifact_id; do
             echo "Deleting artifact $artifact_id"
             gh api repos/$REPO/actions/artifacts/$artifact_id -X DELETE
@@ -32,12 +32,12 @@ jobs:
   check-repository:
     runs-on: ubuntu-latest
     outputs:
-      should_run: ${{ github.repository == 'CherryHQ/cherry-studio' }}
+      should_run: ${{ github.repository == 'imrshohel/automatseo' }}
     steps:
       - name: Check if running in main repository
         run: |
           echo "Running in repository: ${{ github.repository }}"
-          echo "Should run: ${{ github.repository == 'CherryHQ/cherry-studio' }}"
+          echo "Should run: ${{ github.repository == 'imrshohel/automatseo' }}"
 
   nightly-build:
     needs: check-repository
@@ -141,24 +141,24 @@ jobs:
           # Windows artifacts - based on actual file naming pattern
           if [ "${{ matrix.os }}" == "windows-latest" ]; then
             # Setup installer
-            find dist -name "*-x64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64-setup.exe \;
-            find dist -name "*-arm64-setup.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64-setup.exe \;
+            find dist -name "*-x64-setup.exe" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-x64-setup.exe \;
+            find dist -name "*-arm64-setup.exe" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-arm64-setup.exe \;
 
             # Portable exe
-            find dist -name "*-x64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64-portable.exe \;
-            find dist -name "*-arm64-portable.exe" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64-portable.exe \;
+            find dist -name "*-x64-portable.exe" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-x64-portable.exe \;
+            find dist -name "*-arm64-portable.exe" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-arm64-portable.exe \;
           fi
 
           # macOS artifacts
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            find dist -name "*-arm64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.dmg \;
-            find dist -name "*-x64.dmg" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x64.dmg \;
+            find dist -name "*-arm64.dmg" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-arm64.dmg \;
+            find dist -name "*-x64.dmg" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-x64.dmg \;
           fi
 
           # Linux artifacts
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            find dist -name "*-x86_64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-x86_64.AppImage \;
-            find dist -name "*-arm64.AppImage" -exec cp {} renamed-artifacts/cherry-studio-nightly-${DATE}-arm64.AppImage \;
+            find dist -name "*-x86_64.AppImage" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-x86_64.AppImage \;
+            find dist -name "*-arm64.AppImage" -exec cp {} renamed-artifacts/automatseo-nightly-${DATE}-arm64.AppImage \;
           fi
 
           # Copy update files
@@ -210,7 +210,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v5
         with:
-          name: cherry-studio-nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
+          name: automatseo-nightly-${{ steps.date.outputs.date }}-${{ matrix.os }}
           path: renamed-artifacts/*
           retention-days: 3 # 保留3天
           compression-level: 8
@@ -247,7 +247,7 @@ jobs:
           # Check each platform's artifacts and show checksums if available
 
           # Windows
-          WIN_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-latest"
+          WIN_ARTIFACT_DIR="all-artifacts/automatseo-nightly-${{ steps.date.outputs.date }}-windows-latest"
           if [ -d "$WIN_ARTIFACT_DIR" ] && [ -f "$WIN_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
             echo "### Windows 安装包" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
@@ -261,7 +261,7 @@ jobs:
           fi
 
           # macOS
-          MAC_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-macos-latest"
+          MAC_ARTIFACT_DIR="all-artifacts/automatseo-nightly-${{ steps.date.outputs.date }}-macos-latest"
           if [ -d "$MAC_ARTIFACT_DIR" ] && [ -f "$MAC_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
             echo "### macOS 安装包" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY
@@ -275,7 +275,7 @@ jobs:
           fi
 
           # Linux
-          LINUX_ARTIFACT_DIR="all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-ubuntu-latest"
+          LINUX_ARTIFACT_DIR="all-artifacts/automatseo-nightly-${{ steps.date.outputs.date }}-ubuntu-latest"
           if [ -d "$LINUX_ARTIFACT_DIR" ] && [ -f "$LINUX_ARTIFACT_DIR/SHA256SUMS.txt" ]; then
             echo "### Linux 安装包" >> $GITHUB_STEP_SUMMARY
             echo '```' >> $GITHUB_STEP_SUMMARY

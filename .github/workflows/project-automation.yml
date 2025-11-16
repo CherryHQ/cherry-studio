@@ -1,0 +1,207 @@
+name: Project Automation & Management
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'weekly_report'
+        type: choice
+        options:
+        - weekly_report
+        - release_plan
+        - organize_board
+        - cleanup
+      version:
+        description: 'Version for release plan (if applicable)'
+        required: false
+        type: string
+  schedule:
+    # Weekly report every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  issues:
+    types: [opened, closed, labeled, unlabeled, assigned]
+  pull_request:
+    types: [opened, closed, merged, ready_for_review]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  projects: write
+  checks: write
+
+jobs:
+  manage-projects:
+    runs-on: ubuntu-latest
+    name: Manage GitHub Projects
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 📦 Install dependencies
+        run: npm install @octokit/rest @actions/core
+
+      - name: 🔧 Initialize Project Automation
+        uses: actions/github-script@v7
+        id: project-init
+        with:
+          script: |
+            const ProjectAutomation = require('./.github/scripts/project-automation.js');
+            const project = new ProjectAutomation(process.env.GITHUB_TOKEN, context.repo.owner, context.repo.repo);
+            await project.initialize();
+
+            // Store project instance for later steps
+            core.exportVariable('PROJECT_INITIALIZED', 'true');
+            return 'Project initialized successfully';
+
+      - name: 📊 Process New Issues
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            console.log(`Processing new issue: #${issue.number}`);
+
+            // Add to backlog for review
+            await github.rest.projects.createCard({
+              column_id: await getProjectColumnId('Backlog'),
+              content_id: issue.id,
+              content_type: 'Issue'
+            });
+
+            async function getProjectColumnId(columnName) {
+              // This would need to be implemented based on your project structure
+              return 'COLUMN_ID_HERE';
+            }
+
+      - name: 📋 Generate Weekly Report
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'weekly_report')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ProjectAutomation = require('./.github/scripts/project-automation.js');
+            const project = new ProjectAutomation(process.env.GITHUB_TOKEN, context.repo.owner, context.repo.repo);
+            await project.initialize();
+
+            const reportContent = await project.generateWeeklyReport();
+
+            const { data: reportIssue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `📊 Weekly Development Report - ${new Date().toLocaleDateString()}`,
+              body: reportContent,
+              labels: ['weekly-report', 'automated']
+            });
+
+            console.log(`Created weekly report: ${reportIssue.html_url}`);
+
+      - name: 🚀 Create Release Plan
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'release_plan'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ProjectAutomation = require('./.github/scripts/project-automation.js');
+            const project = new ProjectAutomation(process.env.GITHUB_TOKEN, context.repo.owner, context.repo.repo);
+            await project.initialize();
+
+            const version = '${{ github.event.inputs.version }}' || 'v1.0.0';
+            const releasePlan = await project.createReleasePlan(version);
+
+            console.log(`Created release plan: ${releasePlan.html_url}`);
+
+      - name: 🧹 Clean Up Old Issues
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'cleanup'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Clean up old automated issues
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'closed',
+              labels: ['weekly-report', 'automated'],
+              sort: 'updated',
+              direction: 'desc'
+            });
+
+            // Keep only the last 10 automated issues
+            const issuesToClose = issues.slice(10);
+
+            for (const issue of issuesToClose) {
+              console.log(`Closing old automated issue: ${issue.number}`);
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            }
+
+            console.log(`Cleaned up ${issuesToClose.length} old automated issues`);
+
+      - name: 📋 Organize Project Board
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'organize_board'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Organizing project board...');
+
+            // Get issues that need assignment to proper columns
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['upstream-sync']
+            });
+
+            console.log(`Found ${issues.length} upstream issues to organize`);
+
+            // This would integrate with the ProjectAutomation class
+            // to move issues to appropriate columns based on their status and labels
+
+            console.log('Project board organization complete');
+
+  notification-system:
+    needs: manage-projects
+    runs-on: ubuntu-latest
+    name: Send Notifications
+    if: always()
+
+    steps:
+      - name: 📧 Send Team Notifications
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: teamMembers } = await github.orgs.listMembers({
+              org: context.repo.owner
+            });
+
+            // Create summary of actions taken
+            const summary = `
+            ## 🤖 Project Automation Summary
+
+            **Repository:** ${context.repo.owner}/${context.repo.repo}
+            **Timestamp:** ${new Date().toISOString()}
+            **Workflow:** ${context.workflow}
+
+            **Actions Completed:**
+            ${needs.manage-projects.result || 'No specific actions completed'}
+
+            **Team Members Notified:** ${teamMembers.length}
+
+            ---
+            *This notification was sent automatically by the project automation system*
+            `;
+
+            console.log('Notification system triggered');
+            console.log(summary);

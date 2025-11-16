@@ -1,0 +1,643 @@
+name: Upstream Sync & Monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      sync_type:
+        description: 'Type of sync to perform'
+        required: true
+        default: 'monitor'
+        type: choice
+        options:
+        - monitor
+        - full_sync
+        - issues_only
+        - prs_only
+      target_branch:
+        description: 'Target branch for sync'
+        required: false
+        default: 'main'
+        type: string
+  schedule:
+    # Check upstream every 2 hours during business hours
+    - cron: '0 */2 * * *'
+  # Also trigger on upstream changes (if GitHub ever supports this)
+  repository_dispatch:
+    types: [upstream-activity]
+
+env:
+  UPSTREAM_REPO: CherryHQ/cherry-studio
+  DOWNSTREAM_REPO: imrshohel/automatseo
+  PROJECT_NUMBER: 1 # Will be updated based on your project
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  checks: write
+  project: write
+  discussions: write
+
+jobs:
+  monitor-upstream:
+    runs-on: ubuntu-latest
+    name: Monitor Upstream Activity
+    outputs:
+      new_issues: ${{ steps.check-upstream.outputs.new_issues }}
+      new_prs: ${{ steps.check-upstream.outputs.new_prs }}
+      new_releases: ${{ steps.check-upstream.outputs.new_releases }}
+
+    steps:
+      - name: 🐈‍⬛ Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: 📦 Install dependencies
+        run: npm install @octokit/rest
+
+      - name: 🔍 Check upstream activity
+        id: check-upstream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node <<'EOF'
+          const { Octokit } = require('@octokit/rest');
+          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+          const upstreamRepo = process.env.UPSTREAM_REPO;
+          const downstreamRepo = process.env.DOWNSTREAM_REPO;
+
+          async function checkUpstreamActivity() {
+            try {
+              // Get last sync timestamp
+              let lastSync = '2025-01-01T00:00:00Z'; // Start with a reasonable date
+              try {
+                const { data: repo } = await octokit.rest.repos.get({
+                  owner: downstreamRepo.split('/')[0],
+                  repo: downstreamRepo.split('/')[1]
+                });
+                lastSync = repo.pushed_at;
+              } catch (error) {
+                console.log('Using default sync timestamp');
+              }
+
+              console.log(`Checking for activity since: ${lastSync}`);
+
+              // Check new issues
+              const { data: issues } = await octokit.rest.issues.listForRepo({
+                owner: upstreamRepo.split('/')[0],
+                repo: upstreamRepo.split('/')[1],
+                state: 'all',
+                since: lastSync,
+                sort: 'created',
+                direction: 'desc'
+              });
+
+              // Check new PRs
+              const { data: pulls } = await octokit.rest.pulls.list({
+                owner: upstreamRepo.split('/')[0],
+                repo: upstreamRepo.split('/')[1],
+                state: 'all',
+                sort: 'created',
+                direction: 'desc'
+              });
+
+              // Check new releases
+              const { data: releases } = await octokit.rest.repos.listReleases({
+                owner: upstreamRepo.split('/')[0],
+                repo: upstreamRepo.split('/')[1]
+              });
+
+              const newIssues = issues.filter(issue => !issue.pull_request);
+              const newPRs = pulls;
+              const newReleases = releases.filter(rel => new Date(rel.published_at) > new Date(lastSync));
+
+              console.log(`Found ${newIssues.length} new issues`);
+              console.log(`Found ${newPRs.length} new PRs`);
+              console.log(`Found ${newReleases.length} new releases`);
+
+              // Save activity data
+              const activityData = {
+                issues: newIssues.map(issue => ({
+                  id: issue.id,
+                  number: issue.number,
+                  title: issue.title,
+                  body: issue.body,
+                  state: issue.state,
+                  labels: issue.labels.map(l => l.name),
+                  created_at: issue.created_at,
+                  updated_at: issue.updated_at,
+                  user: issue.user.login,
+                  html_url: issue.html_url
+                })),
+                pull_requests: newPRs.map(pr => ({
+                  id: pr.id,
+                  number: pr.number,
+                  title: pr.title,
+                  body: pr.body,
+                  state: pr.state,
+                  labels: pr.labels.map(l => l.name),
+                  created_at: pr.created_at,
+                  updated_at: pr.updated_at,
+                  user: pr.user.login,
+                  html_url: pr.html_url,
+                  mergeable: pr.mergeable,
+                  merged: pr.merged
+                })),
+                releases: newReleases.map(rel => ({
+                  id: rel.id,
+                  tag_name: rel.tag_name,
+                  name: rel.name,
+                  body: rel.body,
+                  published_at: rel.published_at,
+                  html_url: rel.html_url
+                }))
+              };
+
+              // Save to file for next steps
+              require('fs').writeFileSync('upstream-activity.json', JSON.stringify(activityData, null, 2));
+
+              // Set outputs
+              console.log(`::set-output name=new_issues::${newIssues.length}`);
+              console.log(`::set-output name=new_prs::${newPRs.length}`);
+              console.log(`::set-output name=new_releases::${newReleases.length}`);
+
+            } catch (error) {
+              console.error('Error checking upstream activity:', error);
+              process.exit(1);
+            }
+          }
+
+          checkUpstreamActivity();
+          EOF
+
+      - name: 📤 Upload activity data
+        uses: actions/upload-artifact@v5
+        with:
+          name: upstream-activity
+          path: upstream-activity.json
+          retention-days: 7
+
+  process-issues:
+    needs: monitor-upstream
+    if: needs.monitor-upstream.outputs.new_issues > 0
+    runs-on: ubuntu-latest
+    name: Process New Issues
+
+    steps:
+      - name: 📥 Download activity data
+        uses: actions/download-artifact@v5
+        with:
+          name: upstream-activity
+          path: .
+
+      - name: 🔍 Process upstream issues
+        uses: actions/github-script@v7
+        env:
+          PROJECT_ID: ${{ secrets.PROJECT_ID }}
+        with:
+          script: |
+            const activityData = JSON.parse(require('fs').readFileSync('upstream-activity.json', 'utf8'));
+
+            for (const issue of activityData.issues) {
+              // Check if we already track this issue
+              const existingIssues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                labels: ['upstream-sync']
+              });
+
+              const alreadyTracked = existingIssues.data.some(existing =>
+                existing.body && existing.body.includes(`Upstream Issue: #${issue.number}`)
+              );
+
+              if (!alreadyTracked) {
+                // Determine issue type and priority
+                const labels = classifyIssue(issue);
+                const priority = determinePriority(issue);
+
+                // Create tracking issue
+                const { data: trackingIssue } = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `[Upstream] ${issue.title}`,
+                  body: generateIssueBody(issue),
+                  labels: ['upstream-sync', ...labels, priority],
+                  assignees: ['imrshohel'] // Auto-assign to main maintainer
+                });
+
+                // Add to project board
+                if (process.env.PROJECT_ID) {
+                  await addIssueToProject(trackingIssue.id, issue, 'Backlog');
+                }
+
+                console.log(`Created tracking issue: ${trackingIssue.html_url}`);
+              }
+            }
+
+            function classifyIssue(issue) {
+              const title = issue.title.toLowerCase();
+              const body = issue.body ? issue.body.toLowerCase() : '';
+              const text = title + ' ' + body;
+
+              if (text.includes('bug') || text.includes('error') || text.includes('crash') || text.includes('fix')) {
+                return ['bug', 'upstream-bug'];
+              } else if (text.includes('feature') || text.includes('enhancement') || text.includes('add')) {
+                return ['enhancement', 'upstream-feature'];
+              } else if (text.includes('documentation') || text.includes('docs') || text.includes('readme')) {
+                return ['documentation'];
+              } else if (text.includes('performance') || text.includes('optimization') || text.includes('speed')) {
+                return ['performance'];
+              } else {
+                return ['upstream-review'];
+              }
+            }
+
+            function determinePriority(issue) {
+              const title = issue.title.toLowerCase();
+              const body = issue.body ? issue.body.toLowerCase() : '';
+              const text = title + ' ' + body;
+              const labels = issue.labels.map(l => l.name.toLowerCase());
+
+              if (labels.includes('critical') || labels.includes('security') || text.includes('security')) {
+                return 'priority/critical';
+              } else if (labels.includes('high') || text.includes('urgent')) {
+                return 'priority/high';
+              } else if (labels.includes('enhancement') || text.includes('feature')) {
+                return 'priority/medium';
+              } else {
+                return 'priority/low';
+              }
+            }
+
+            function generateIssueBody(issue) {
+              return `## Upstream Issue Tracking
+
+              This issue tracks the following upstream activity from CherryHQ/cherry-studio:
+
+              **Original Issue:** ${issue.html_url}
+              **Issue Number:** #${issue.number}
+              **Author:** @${issue.user}
+              **Created:** ${new Date(issue.created_at).toLocaleString()}
+              **Status:** ${issue.state}
+
+              ### Description
+              ${issue.title}
+
+              ### Original Content
+              ${issue.body || 'No description provided'}
+
+              ### Labels
+              ${issue.labels.map(l => `\`${l.name}\``).join(', ')}
+
+              ---
+
+              ### Next Steps for AutomatSEO Team
+
+              - [ ] Review the upstream issue
+              - [ ] Determine if this affects AutomatSEO
+              - [ ] Decide on action: implement, adapt, or ignore
+              - [ ] Update task status and assign team member
+              - [ ] Add to roadmap if applicable
+
+              ### Impact Assessment
+
+              - **Relevance:** Needs assessment
+              - **Effort:** TBD
+              - **Priority:** ${determinePriority(issue)}
+              - **Target Version:** TBD
+
+              **Sync Status:** 🟡 Awaiting Review
+
+              ---
+
+              *This issue was automatically created by upstream monitoring workflow*
+              `;
+            }
+
+            async function addIssueToProject(issueId, upstreamIssue, status) {
+              try {
+                // This would require GitHub GraphQL API for project management
+                // Implementation depends on your project setup
+                console.log(`Would add issue ${issueId} to project with status: ${status}`);
+              } catch (error) {
+                console.error('Error adding to project:', error);
+              }
+            }
+
+  process-prs:
+    needs: monitor-upstream
+    if: needs.monitor-upstream.outputs.new_prs > 0
+    runs-on: ubuntu-latest
+    name: Process New Pull Requests
+
+    steps:
+      - name: 📥 Download activity data
+        uses: actions/download-artifact@v5
+        with:
+          name: upstream-activity
+          path: .
+
+      - name: 🔍 Process upstream PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const activityData = JSON.parse(require('fs').readFileSync('upstream-activity.json', 'utf8'));
+
+            for (const pr of activityData.pull_requests) {
+              // Check if we already track this PR
+              const existingIssues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                labels: ['upstream-pr']
+              });
+
+              const alreadyTracked = existingIssues.data.some(existing =>
+                existing.body && existing.body.includes(`Upstream PR: #${pr.number}`)
+              );
+
+              if (!alreadyTracked) {
+                const labels = classifyPR(pr);
+                const priority = determinePRPriority(pr);
+
+                // Create tracking issue
+                const { data: trackingIssue } = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `[Upstream PR] ${pr.title}`,
+                  body: generatePRBody(pr),
+                  labels: ['upstream-pr', 'pull-request', ...labels, priority],
+                  assignees: ['imrshohel']
+                });
+
+                console.log(`Created PR tracking issue: ${trackingIssue.html_url}`);
+              }
+            }
+
+            function classifyPR(pr) {
+              const title = pr.title.toLowerCase();
+              const body = pr.body ? pr.body.toLowerCase() : '';
+              const text = title + ' ' + body;
+              const labels = pr.labels.map(l => l.name.toLowerCase());
+
+              if (text.includes('fix') || text.includes('bugfix')) {
+                return ['bug', 'upstream-fix'];
+              } else if (text.includes('feature') || text.includes('feat')) {
+                return ['enhancement', 'upstream-feature'];
+              } else if (text.includes('refactor') || text.includes('cleanup')) {
+                return ['refactoring'];
+              } else if (text.includes('docs') || text.includes('documentation')) {
+                return ['documentation'];
+              } else {
+                return ['upstream-review'];
+              }
+            }
+
+            function determinePRPriority(pr) {
+              const labels = pr.labels.map(l => l.name.toLowerCase());
+
+              if (pr.merged) {
+                return 'priority/high'; // Merged PRs are important to review
+              } else if (labels.includes('breaking-change')) {
+                return 'priority/critical';
+              } else if (pr.state === 'open') {
+                return 'priority/medium';
+              } else {
+                return 'priority/low';
+              }
+            }
+
+            function generatePRBody(pr) {
+              const statusEmoji = pr.merged ? '✅' : pr.state === 'open' ? '🟡' : '❌';
+
+              return `## Upstream Pull Request Tracking
+
+              ${statusEmoji} This issue tracks the following upstream pull request:
+
+              **Original PR:** ${pr.html_url}
+              **PR Number:** #${pr.number}
+              **Author:** @${pr.user}
+              **Created:** ${new Date(pr.created_at).toLocaleString()}
+              **Status:** ${pr.state}${pr.merged ? ' (merged)' : ''}
+
+              ### Description
+              ${pr.title}
+
+              ### Original Content
+              ${pr.body || 'No description provided'}
+
+              ### Labels
+              ${pr.labels.map(l => `\`${l.name}\``).join(', ')}
+
+              ### PR Information
+              - **Mergeable:** ${pr.mergeable || 'Unknown'}
+              - **Merged:** ${pr.merged}
+              - **Additions:** +${pr.additions || 'Unknown'}
+              - **Deletions:** -${pr.deletions || 'Unknown'}
+
+              ---
+
+              ### Review Actions for AutomatSEO Team
+
+              - [ ] Review the PR changes and impact
+              - [ ] Assess if this should be merged into AutomatSEO
+              - [ ] Check for breaking changes
+              - [ ] Test compatibility with current codebase
+              - [ ] Create implementation PR if adopting
+
+              ### Implementation Plan
+
+              - **Adopt:** Yes/No/Maybe
+              - **Effort:** TBD
+              - **Risk Level:** TBD
+              - **Target Version:** TBD
+
+              **Review Status:** 🟡 Awaiting Technical Review
+
+              ---
+
+              *This issue was automatically created by upstream monitoring workflow*
+              `;
+            }
+
+  process-releases:
+    needs: monitor-upstream
+    if: needs.monitor-upstream.outputs.new_releases > 0
+    runs-on: ubuntu-latest
+    name: Process New Releases
+
+    steps:
+      - name: 📥 Download activity data
+        uses: actions/download-artifact@v5
+        with:
+          name: upstream-activity
+          path: .
+
+      - name: 🔍 Process upstream releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const activityData = JSON.parse(require('fs').readFileSync('upstream-activity.json', 'utf8'));
+
+            for (const release of activityData.releases) {
+              // Check if we already track this release
+              const existingIssues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                labels: ['upstream-release']
+              });
+
+              const alreadyTracked = existingIssues.data.some(existing =>
+                existing.body && existing.body.includes(`Upstream Release: ${release.tag_name}`)
+              );
+
+              if (!alreadyTracked) {
+                // Create release tracking issue
+                const { data: trackingIssue } = await github.rest.issues.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `[Upstream Release] ${release.name || release.tag_name}`,
+                  body: generateReleaseBody(release),
+                  labels: ['upstream-release', 'release', 'priority/medium'],
+                  assignees: ['imrshohel']
+                });
+
+                console.log(`Created release tracking issue: ${trackingIssue.html_url}`);
+              }
+            }
+
+            function generateReleaseBody(release) {
+              return `## Upstream Release Tracking
+
+              🚀 New upstream release detected:
+
+              **Original Release:** ${release.html_url}
+              **Tag:** ${release.tag_name}
+              **Name:** ${release.name || release.tag_name}
+              **Published:** ${new Date(release.published_at).toLocaleString()}
+
+              ### Release Notes
+              ${release.body || 'No release notes provided'}
+
+              ---
+
+              ### Release Review Actions
+
+              - [ ] Review release notes and changes
+              - [ ] Identify features relevant to AutomatSEO
+              - [ ] Check for breaking changes
+              - [ ] Plan integration timeline
+              - [ ] Update AutomatSEO roadmap
+
+              ### Integration Assessment
+
+              - **Relevant Features:** TBD
+              - **Breaking Changes:** TBD
+              - **Integration Effort:** TBD
+              - **Priority:** TBD
+              - **Target Version:** TBD
+
+              **Review Status:** 🟡 Awaiting Release Review
+
+              ---
+
+              *This issue was automatically created by upstream monitoring workflow*
+              `;
+            }
+
+  create-summary:
+    needs: [monitor-upstream, process-issues, process-prs, process-releases]
+    if: always()
+    runs-on: ubuntu-latest
+    name: Create Activity Summary
+
+    steps:
+      - name: 📊 Create summary issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const newIssues = ${{ needs.monitor-upstream.outputs.new_issues }};
+            const newPRs = ${{ needs.monitor-upstream.outputs.new_prs }};
+            const newReleases = ${{ needs.monitor-upstream.outputs.new_releases }};
+
+            if (newIssues > 0 || newPRs > 0 || newReleases > 0) {
+              const { data: summary } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `📊 Upstream Activity Report - ${new Date().toLocaleDateString()}`,
+                body: generateSummaryBody(newIssues, newPRs, newReleases),
+                labels: ['upsync-report', 'automated'],
+                assignees: ['imrshohel']
+              });
+
+              console.log(`Created summary report: ${summary.html_url}`);
+            }
+
+            function generateSummaryBody(issues, prs, releases) {
+              return `# 📊 Upstream Cherry Studio Activity Report
+
+              **Report Date:** ${new Date().toLocaleDateString()}
+              **Monitoring Period:** Last 2 hours
+
+              ## 📈 Activity Summary
+
+              - 🎯 **New Issues:** ${issues}
+              - 🔀 **New Pull Requests:** ${prs}
+              - 🚀 **New Releases:** ${releases}
+              - 📋 **Total New Activities:** ${issues + prs + releases}
+
+              ## 🎯 Action Items Created
+
+              ${issues > 0 ? `### Issues (${issues})
+              Individual tracking issues have been created for each new upstream issue with:
+              - Automatic classification and priority assignment
+              - Initial assessment template
+              - Assignment to project maintainer
+              ` : ''}
+
+              ${prs > 0 ? `### Pull Requests (${prs})
+              Individual tracking issues have been created for each new upstream PR with:
+              - Technical review requirements
+              - Merge impact assessment
+              - Implementation planning template
+              ` : ''}
+
+              ${releases > 0 ? `### Releases (${releases})
+              Release tracking issues created with:
+              - Release notes review
+              - Feature identification checklist
+              - Integration planning guidance
+              ` : ''}
+
+              ## 📋 Next Steps for Team
+
+              1. **Review Classifications**: Check automatic classifications and adjust as needed
+              2. **Prioritize Tasks**: Move high-priority items to project board
+              3. **Assign Team Members**: Delegate tasks based on expertise
+              4. **Plan Implementation**: Create timeline for adopting changes
+              5. **Update Roadmap**: Incorporate relevant features into roadmap
+
+              ## 🔗 Quick Links
+
+              - [View All Upstream Issues](https://github.com/CherryHQ/cherry-studio/issues)
+              - [View All Upstream PRs](https://github.com/CherryHQ/cherry-studio/pulls)
+              - [View Upstream Releases](https://github.com/CherryHQ/cherry-studio/releases)
+              - [AutomatSEO Project Board](https://github.com/imrshohel/automatseo/projects)
+
+              ---
+
+              *This report was automatically generated by the upstream monitoring system*
+
+              **Next scheduled check:** ${new Date(Date.now() + 2 * 60 * 60 * 1000).toLocaleString()}
+              `;
+            }
