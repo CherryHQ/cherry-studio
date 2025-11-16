@@ -115,18 +115,43 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
   }
 
   private async validateFile(filePath: string): Promise<void> {
+    // 第一阶段:检查文件大小(无需读取文件到内存)
+    logger.info(`Validating PDF file: ${filePath}`)
+    const stats = await fs.promises.stat(filePath)
+    const fileSizeBytes = stats.size
+
+    // 文件大小小于200MB
+    if (fileSizeBytes >= 200 * 1024 * 1024) {
+      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
+      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 200MB`)
+    }
+
+    // 第二阶段:检查页数(需要读取文件,带错误处理)
     const pdfBuffer = await fs.promises.readFile(filePath)
 
-    const doc = await this.readPdf(pdfBuffer)
+    try {
+      const doc = await this.readPdf(pdfBuffer)
 
-    // 文件页数小于600页
-    if (doc.numPages >= 600) {
-      throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 600 pages`)
-    }
-    // 文件大小小于200MB
-    if (pdfBuffer.length >= 200 * 1024 * 1024) {
-      const fileSizeMB = Math.round(pdfBuffer.length / (1024 * 1024))
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 200MB`)
+      // 文件页数小于600页
+      if (doc.numPages >= 600) {
+        throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 600 pages`)
+      }
+
+      logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / (1024 * 1024))}MB`)
+    } catch (error: any) {
+      // 如果是页数超限错误,直接抛出
+      if (error.message.includes('exceeds the limit')) {
+        throw error
+      }
+
+      // PDF 解析失败,记录详细警告但允许继续处理
+      logger.warn(
+        `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
+          `Skipping page count validation. Will attempt to process with MinerU API. ` +
+          `Error details: ${error.message}. ` +
+          `Suggestion: If processing fails, try repairing the PDF using tools like Adobe Acrobat or online PDF repair services.`
+      )
+      // 不抛出错误,允许继续处理
     }
   }
 
