@@ -72,8 +72,8 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
     // Find the main file after extraction
     let finalPath = ''
     let finalName = file.origin_name.replace('.pdf', '.md')
-    // Find the corresponding folder by file name
-    outputPath = path.join(outputPath, `${file.origin_name.replace('.pdf', '')}`)
+    // Find the corresponding folder by file id
+    outputPath = path.join(outputPath, file.id)
     try {
       const files = fs.readdirSync(outputPath)
 
@@ -125,7 +125,7 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
     formData.append('return_md', 'true')
     formData.append('response_format_zip', 'true')
     formData.append('files', fileBuffer, {
-      filename: file.origin_name
+      filename: file.name
     })
 
     while (retries < maxRetries) {
