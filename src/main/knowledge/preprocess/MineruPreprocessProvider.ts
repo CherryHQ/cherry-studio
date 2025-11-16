@@ -431,5 +431,4 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
     throw new Error(`Processing timeout for batch: ${batchId}`)
   }
-
 }
