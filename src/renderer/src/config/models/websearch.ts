@@ -2,7 +2,12 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
-import { isGeminiProvider, isNewApiProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '@renderer/utils/provider'
+import {
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider
+} from '@renderer/utils/provider'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'

@@ -37,7 +37,6 @@ vi.mock('@renderer/services/AssistantService', () => ({
   })
 }))
 
-
 const createProvider = (overrides: Partial<Provider> = {}): Provider => ({
   id: 'custom',
   type: 'openai',
@@ -70,34 +69,32 @@ describe('provider utils', () => {
   it('evaluates message array content support', () => {
     expect(isSupportArrayContentProvider(createProvider())).toBe(true)
 
-    expect(
-      isSupportArrayContentProvider(createProvider({ apiOptions: { isNotSupportArrayContent: true } }))
-    ).toBe(false)
+    expect(isSupportArrayContentProvider(createProvider({ apiOptions: { isNotSupportArrayContent: true } }))).toBe(
+      false
+    )
 
     expect(isSupportArrayContentProvider(createSystemProvider({ id: SystemProviderIds.deepseek }))).toBe(false)
   })
 
   it('evaluates developer role support', () => {
-    expect(
-      isSupportDeveloperRoleProvider(createProvider({ apiOptions: { isSupportDeveloperRole: true } }))
-    ).toBe(true)
+    expect(isSupportDeveloperRoleProvider(createProvider({ apiOptions: { isSupportDeveloperRole: true } }))).toBe(true)
     expect(isSupportDeveloperRoleProvider(createSystemProvider())).toBe(true)
     expect(isSupportDeveloperRoleProvider(createSystemProvider({ id: SystemProviderIds.poe }))).toBe(false)
   })
 
   it('checks stream options support', () => {
     expect(isSupportStreamOptionsProvider(createProvider())).toBe(true)
-    expect(
-      isSupportStreamOptionsProvider(createProvider({ apiOptions: { isNotSupportStreamOptions: true } }))
-    ).toBe(false)
+    expect(isSupportStreamOptionsProvider(createProvider({ apiOptions: { isNotSupportStreamOptions: true } }))).toBe(
+      false
+    )
     expect(isSupportStreamOptionsProvider(createSystemProvider({ id: SystemProviderIds.mistral }))).toBe(false)
   })
 
   it('checks enable thinking support', () => {
     expect(isSupportEnableThinkingProvider(createProvider())).toBe(true)
-    expect(
-      isSupportEnableThinkingProvider(createProvider({ apiOptions: { isNotSupportEnableThinking: true } }))
-    ).toBe(false)
+    expect(isSupportEnableThinkingProvider(createProvider({ apiOptions: { isNotSupportEnableThinking: true } }))).toBe(
+      false
+    )
     expect(isSupportEnableThinkingProvider(createSystemProvider({ id: SystemProviderIds.nvidia }))).toBe(false)
   })
 
@@ -118,12 +115,10 @@ describe('provider utils', () => {
   })
 
   it('identifies Gemini web search providers', () => {
-    expect(isGeminiWebSearchProvider(createSystemProvider({ id: SystemProviderIds.gemini, type: 'gemini' }))).toBe(
+    expect(isGeminiWebSearchProvider(createSystemProvider({ id: SystemProviderIds.gemini, type: 'gemini' }))).toBe(true)
+    expect(isGeminiWebSearchProvider(createSystemProvider({ id: SystemProviderIds.vertexai, type: 'vertexai' }))).toBe(
       true
     )
-    expect(
-      isGeminiWebSearchProvider(createSystemProvider({ id: SystemProviderIds.vertexai, type: 'vertexai' }))
-    ).toBe(true)
     expect(isGeminiWebSearchProvider(createSystemProvider())).toBe(false)
   })
 
@@ -171,8 +166,6 @@ describe('provider utils', () => {
     expect(isSupportAPIVersionProvider(createSystemProvider())).toBe(true)
     expect(isSupportAPIVersionProvider(createSystemProvider({ id: SystemProviderIds.github }))).toBe(false)
     expect(isSupportAPIVersionProvider(createProvider())).toBe(true)
-    expect(
-      isSupportAPIVersionProvider(createProvider({ apiOptions: { isNotSupportAPIVersion: false } }))
-    ).toBe(false)
+    expect(isSupportAPIVersionProvider(createProvider({ apiOptions: { isNotSupportAPIVersion: false } }))).toBe(false)
   })
 })

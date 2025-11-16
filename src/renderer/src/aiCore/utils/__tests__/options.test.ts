@@ -153,13 +153,13 @@ describe('options utils', () => {
   describe('buildProviderOptions', () => {
     describe('OpenAI provider', () => {
       const openaiProvider: Provider = {
-    id: SystemProviderIds.openai,
-    name: 'OpenAI',
-    type: 'openai',
-    apiKey: 'test-key',
-    apiHost: 'https://api.openai.com/v1',
-    isSystem: true
-  } as Provider
+        id: SystemProviderIds.openai,
+        name: 'OpenAI',
+        type: 'openai',
+        apiKey: 'test-key',
+        apiHost: 'https://api.openai.com/v1',
+        isSystem: true
+      } as Provider
 
       it('should build basic OpenAI options', () => {
         const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {

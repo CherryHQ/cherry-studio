@@ -36,10 +36,8 @@ vi.mock('@renderer/store/settings', () => ({
 
 vi.mock('@renderer/store/llm', () => ({
   initialState: {},
-  default: (state = { llm: {}}) => state
+  default: (state = { llm: {} }) => state
 }))
-
-
 
 vi.mock('@renderer/config/constant', () => ({
   DEFAULT_MAX_TOKENS: 4096,

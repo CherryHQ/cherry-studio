@@ -1,9 +1,11 @@
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
-import type { AzureOpenAIProvider, ProviderType} from '@renderer/types';
-import { isSystemProvider, type Provider, type SystemProviderId,SystemProviderIds } from '@renderer/types'
+import type { AzureOpenAIProvider, ProviderType } from '@renderer/types'
+import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
 
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
-  return providers.filter((p) => p.type === 'anthropic' || !!p.anthropicApiHost || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id))
+  return providers.filter(
+    (p) => p.type === 'anthropic' || !!p.anthropicApiHost || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id)
+  )
 }
 
 const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
