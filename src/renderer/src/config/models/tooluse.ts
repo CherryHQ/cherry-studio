@@ -66,10 +66,6 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return isUserSelectedModelType(model, 'function_calling')!
   }
 
-  if (model.provider === 'qiniu') {
-    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(modelId)
-  }
-
   if (model.provider === 'doubao' || modelId.includes('doubao')) {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
   }

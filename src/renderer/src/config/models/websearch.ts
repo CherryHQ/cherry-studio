@@ -6,7 +6,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 import { isGeminiProvider, isNewApiProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '../providers'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'
-import { isPureGenerateImageModel, isTextToImageModel } from './vision'
+import { isGenerateImageModel, isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
@@ -50,7 +50,8 @@ export function isWebSearchModel(model: Model): boolean {
     isEmbeddingModel(model) ||
     isRerankModel(model) ||
     isTextToImageModel(model) ||
-    isPureGenerateImageModel(model)
+    isPureGenerateImageModel(model) ||
+    isGenerateImageModel(model)
   ) {
     return false
   }
@@ -70,7 +71,7 @@ export function isWebSearchModel(model: Model): boolean {
   // bedrock和vertex不支持
   if (
     isAnthropicModel(model) &&
-    (provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
+    !(provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
   ) {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }

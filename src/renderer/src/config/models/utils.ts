@@ -3,11 +3,8 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embeddi
 import type { Model } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils'
 
-import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from '../prompts'
-import { getWebSearchTools } from '../tools'
 import { isOpenAIReasoningModel } from './reasoning'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
-import { isOpenAIWebSearchChatCompletionOnlyModel } from './websearch'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
@@ -71,14 +68,6 @@ export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
   )
 }
 
-export function isGrokModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('grok')
-}
-
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   if (!model) {
     return false
@@ -103,53 +92,6 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
   }
 
   return false
-}
-
-export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
-  if (!isEnableWebSearch) {
-    return {}
-  }
-
-  const webSearchTools = getWebSearchTools(model)
-
-  if (model.provider === 'grok') {
-    return {
-      search_parameters: {
-        mode: 'auto',
-        return_citations: true,
-        sources: [{ type: 'web' }, { type: 'x' }, { type: 'news' }]
-      }
-    }
-  }
-
-  if (model.provider === 'hunyuan') {
-    return { enable_enhancement: true, citation: true, search_info: true }
-  }
-
-  if (model.provider === 'dashscope') {
-    return {
-      enable_search: true,
-      search_options: {
-        forced_search: true
-      }
-    }
-  }
-
-  if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
-    return {
-      web_search_options: {}
-    }
-  }
-
-  if (model.provider === 'openrouter') {
-    return {
-      plugins: [{ id: 'web', search_prompts: WEB_SEARCH_PROMPT_FOR_OPENROUTER }]
-    }
-  }
-
-  return {
-    tools: webSearchTools
-  }
 }
 
 export function isGemmaModel(model?: Model): boolean {

@@ -10,7 +10,6 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  getOpenAIWebSearchParams,
   getThinkModelType,
   isClaudeReasoningModel,
   isDeepSeekHybridInferenceModel,
@@ -743,7 +742,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             : {}),
           ...this.getProviderSpecificParameters(assistant, model),
           ...reasoningEffort,
-          ...getOpenAIWebSearchParams(model, enableWebSearch),
+          // ...getOpenAIWebSearchParams(model, enableWebSearch),
           // OpenRouter usage tracking
           ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
           ...extra_body,

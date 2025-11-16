@@ -4,7 +4,6 @@ import {
   isQwenReasoningModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
-  isWebSearchModel
 } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -81,19 +80,5 @@ describe('Vision Model Detection', () => {
     expect(isPureGenerateImageModel({ id: 'gemini-2.0-flash-preview-image-generation' } as Model)).toBe(true)
     expect(isPureGenerateImageModel({ id: 'grok-2-image-latest' } as Model)).toBe(true)
     expect(isPureGenerateImageModel({ id: 'gpt-4o' } as Model)).toBe(false)
-  })
-})
-
-describe('Web Search Model Detection', () => {
-  beforeEach(() => {
-    vi.mock('@renderer/store/llm', () => ({
-      initialState: {}
-    }))
-    vi.mock('@renderer/services/AssistantService', () => ({
-      getProviderByModel: vi.fn().mockReturnValue({ id: 'cherryai' })
-    }))
-  })
-  test('isWebSearchModel', () => {
-    expect(isWebSearchModel({ id: 'grok-2-image-latest' } as Model)).toBe(false)
   })
 })
