@@ -113,6 +113,51 @@ describe('modelParameters', () => {
 
       expect(getTemperature(assistant, model)).toBeUndefined()
     })
+
+    it('clamps temperature to max 1.0 for Zhipu models', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 2.0 })
+      const model = createModel({ id: 'glm-4-plus', name: 'GLM-4 Plus', provider: 'zhipu', group: 'zhipu' })
+
+      expect(getTemperature(assistant, model)).toBe(1.0)
+    })
+
+    it('clamps temperature to max 1.0 for Anthropic models', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 1.5 })
+      const model = createModel({
+        id: 'claude-sonnet-3.5',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'anthropic',
+        group: 'claude'
+      })
+
+      expect(getTemperature(assistant, model)).toBe(1.0)
+    })
+
+    it('clamps temperature to max 1.0 for Moonshot models', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 2.0 })
+      const model = createModel({
+        id: 'moonshot-v1-8k',
+        name: 'Moonshot v1 8k',
+        provider: 'moonshot',
+        group: 'moonshot'
+      })
+
+      expect(getTemperature(assistant, model)).toBe(1.0)
+    })
+
+    it('does not clamp temperature for OpenAI models', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 2.0 })
+      const model = createModel({ id: 'gpt-4o', provider: 'openai', group: 'openai' })
+
+      expect(getTemperature(assistant, model)).toBe(2.0)
+    })
+
+    it('does not clamp temperature when it is already within limits', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 0.8 })
+      const model = createModel({ id: 'glm-4-plus', name: 'GLM-4 Plus', provider: 'zhipu', group: 'zhipu' })
+
+      expect(getTemperature(assistant, model)).toBe(0.8)
+    })
   })
 
   describe('getTopP', () => {

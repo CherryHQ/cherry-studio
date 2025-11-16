@@ -7,6 +7,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
+  isMaxTemperatureOneModel,
   isNotSupportTemperatureAndTopP,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel
@@ -18,6 +19,11 @@ import { defaultTimeout } from '@shared/config/constant'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
 
 /**
+ * Claude 4.5 推理模型:
+ * - 只启用 temperature → 使用 temperature
+ * - 只启用 top_p → 使用 top_p
+ * - 同时启用 → temperature 生效,top_p 被忽略
+ * - 都不启用 → 都不使用
  * 获取温度参数
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
@@ -31,7 +37,11 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
   const assistantSettings = getAssistantSettings(assistant)
-  return assistantSettings?.enableTemperature ? assistantSettings?.temperature : undefined
+  let temperature = assistantSettings?.temperature
+  if (temperature && isMaxTemperatureOneModel(model)) {
+    temperature = Math.min(1, temperature)
+  }
+  return assistantSettings?.enableTemperature ? temperature : undefined
 }
 
 /**

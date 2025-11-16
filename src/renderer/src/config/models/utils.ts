@@ -1,6 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model } from '@renderer/types'
+import { type Model, SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils'
 
 import { isOpenAIReasoningModel } from './reasoning'
@@ -103,12 +103,14 @@ export function isGemmaModel(model?: Model): boolean {
   return modelId.includes('gemma-') || model.group === 'Gemma'
 }
 
-export function isZhipuModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
+export function isZhipuModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('glm') || model.provider === SystemProviderIds.zhipu
+}
 
-  return model.provider === 'zhipu'
+export function isMoonshotModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
 }
 
 /**
@@ -217,4 +219,11 @@ export const agentModelFilter = (model: Model): boolean => {
 export const isGPT5ProModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5-pro')
+}
+
+export const isMaxTemperatureOneModel = (model: Model): boolean => {
+  if (isZhipuModel(model) || isAnthropicModel(model) || isMoonshotModel(model)) {
+    return true
+  }
+  return false
 }

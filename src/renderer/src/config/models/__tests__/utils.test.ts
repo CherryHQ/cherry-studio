@@ -15,6 +15,7 @@ import {
   isGPT5SeriesModel,
   isGPT5SeriesReasoningModel,
   isGPT51SeriesModel,
+  isMaxTemperatureOneModel,
   isNotSupportedTextDelta,
   isNotSupportSystemMessageModel,
   isNotSupportTemperatureAndTopP,
@@ -246,5 +247,28 @@ describe('model utils', () => {
     rerankMock.mockReturnValue(false)
     textToImageMock.mockReturnValueOnce(true)
     expect(agentModelFilter(createModel({ id: 'gpt-image-1' }))).toBe(false)
+  })
+
+  it('identifies models with maximum temperature of 1.0', () => {
+    // Zhipu models should have max temperature of 1.0
+    expect(isMaxTemperatureOneModel(createModel({ id: 'glm-4' }))).toBe(true)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'GLM-4-Plus' }))).toBe(true)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'glm-3-turbo' }))).toBe(true)
+
+    // Anthropic models should have max temperature of 1.0
+    expect(isMaxTemperatureOneModel(createModel({ id: 'claude-3.5-sonnet' }))).toBe(true)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'Claude-3-opus' }))).toBe(true)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'claude-2.1' }))).toBe(true)
+
+    // Moonshot models should have max temperature of 1.0
+    expect(isMaxTemperatureOneModel(createModel({ id: 'moonshot-1.0' }))).toBe(true)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(true)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'Moonshot-Pro' }))).toBe(true)
+
+    // Other models should return false
+    expect(isMaxTemperatureOneModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'gpt-4-turbo' }))).toBe(false)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'qwen-max' }))).toBe(false)
+    expect(isMaxTemperatureOneModel(createModel({ id: 'gemini-pro' }))).toBe(false)
   })
 })
