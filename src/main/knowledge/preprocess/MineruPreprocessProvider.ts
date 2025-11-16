@@ -303,7 +303,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       // https://mineru.net/apiManage/docs
       const response = await net.fetch(uploadUrl, {
         method: 'PUT',
-        body: fileBuffer
+        body: new Uint8Array(fileBuffer)
       })
 
       if (!response.ok) {

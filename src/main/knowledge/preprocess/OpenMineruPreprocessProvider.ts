@@ -164,7 +164,7 @@ export default class OpenMineruPreprocessProvider extends BasePreprocessProvider
             ...(this.provider.apiKey ? { Authorization: `Bearer ${this.provider.apiKey}` } : {}),
             ...formData.getHeaders()
           },
-          body: formData.getBuffer()
+          body: new Uint8Array(formData.getBuffer())
         })
 
         if (!response.ok) {
