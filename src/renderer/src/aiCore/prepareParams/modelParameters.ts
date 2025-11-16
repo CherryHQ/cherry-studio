@@ -61,18 +61,13 @@ export function getTimeout(model: Model): number {
   return defaultTimeout
 }
 
-
 export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
   // NOTE: ai-sdk会把maxToken和budgetToken加起来
   let { maxTokens = DEFAULT_MAX_TOKENS } = getAssistantSettings(assistant)
 
   const provider = getProviderByModel(model)
-    if (
-      isSupportedThinkingTokenClaudeModel(model) &&
-      ['anthropic', 'aws-bedrock'].includes(provider.type)
-    ) {
-      maxTokens -= getAnthropicThinkingBudget(assistant, model)
-    }
-    return maxTokens
-
+  if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
+    maxTokens -= getAnthropicThinkingBudget(assistant, model)
+  }
+  return maxTokens
 }

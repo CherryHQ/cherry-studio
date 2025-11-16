@@ -108,7 +108,6 @@ export async function buildStreamTextParams(
     enableGenerateImage
   })
 
-
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
     if (isBaseProvider(aiSdkProviderId)) {

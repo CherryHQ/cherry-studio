@@ -52,9 +52,7 @@ const createTopic = (assistantId: string): Topic => ({
   type: TopicType.Chat
 })
 
-const createAssistant = (
-  settings: Assistant['settings'] = {}
-): Assistant => {
+const createAssistant = (settings: Assistant['settings'] = {}): Assistant => {
   const assistantId = 'assistant-1'
   return {
     id: assistantId,
@@ -92,7 +90,12 @@ describe('modelParameters', () => {
 
     it('returns undefined for Claude 4.5 reasoning models when only TopP is enabled', () => {
       const assistant = createAssistant({ enableTopP: true, enableTemperature: false })
-      const model = createModel({ id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', provider: 'anthropic', group: 'claude' })
+      const model = createModel({
+        id: 'claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
+        provider: 'anthropic',
+        group: 'claude'
+      })
 
       expect(getTemperature(assistant, model)).toBeUndefined()
     })
@@ -129,7 +132,12 @@ describe('modelParameters', () => {
 
     it('returns undefined for Claude 4.5 reasoning models when temperature is enabled', () => {
       const assistant = createAssistant({ enableTemperature: true })
-      const model = createModel({ id: 'claude-opus-4.5', name: 'Claude Opus 4.5', provider: 'anthropic', group: 'claude' })
+      const model = createModel({
+        id: 'claude-opus-4.5',
+        name: 'Claude Opus 4.5',
+        provider: 'anthropic',
+        group: 'claude'
+      })
 
       expect(getTopP(assistant, model)).toBeUndefined()
     })
