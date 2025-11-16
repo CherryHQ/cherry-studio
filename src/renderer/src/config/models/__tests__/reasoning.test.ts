@@ -392,6 +392,62 @@ describe('Qwen & Gemini thinking coverage', () => {
   })
 })
 
+describe('GPT-5.1 Series Models', () => {
+  describe('getThinkModelType', () => {
+    it('should return gpt5_1 for GPT-5.1 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-preview' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-mini' }))).toBe('gpt5_1')
+    })
+
+    it('should return gpt5_1_codex for GPT-5.1 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex' }))).toBe('gpt5_1_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe('gpt5_1_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex-preview' }))).toBe('gpt5_1_codex')
+    })
+
+    it('should not misclassify GPT-5.1 chat models as reasoning', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
+    })
+  })
+
+  describe('isSupportedReasoningEffortOpenAIModel', () => {
+    it('should support GPT-5.1 reasoning models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(true)
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe(true)
+    })
+
+    it('should not support GPT-5.1 chat models', () => {
+      expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
+    })
+  })
+
+  describe('isOpenAIReasoningModel', () => {
+    it('should recognize GPT-5.1 series as reasoning models', () => {
+      expect(isOpenAIReasoningModel(createModel({ id: 'gpt-5.1' }))).toBe(true)
+      expect(isOpenAIReasoningModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+      expect(isOpenAIReasoningModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(true)
+      expect(isOpenAIReasoningModel(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe(true)
+    })
+  })
+
+  describe('isReasoningModel', () => {
+    it('should classify GPT-5.1 models as reasoning models', () => {
+      expect(isReasoningModel(createModel({ id: 'gpt-5.1' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gpt-5.1-preview' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gpt-5.1-mini' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gpt-5.1-codex' }))).toBe(true)
+      expect(isReasoningModel(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe(true)
+    })
+
+    it('should not classify GPT-5.1 chat models as reasoning models', () => {
+      expect(isReasoningModel(createModel({ id: 'gpt-5.1-chat' }))).toBe(false)
+    })
+  })
+})
+
 describe('Reasoning effort helpers', () => {
   it('evaluates OpenAI-specific reasoning toggles', () => {
     expect(isSupportedReasoningEffortOpenAIModel(createModel({ id: 'o3-mini' }))).toBe(true)
@@ -477,6 +533,241 @@ describe('Thinking model classification', () => {
         })
       )
     ).toBe('grok4_fast')
+  })
+})
+
+describe('getThinkModelType - Comprehensive Coverage', () => {
+  describe('OpenAI Deep Research models', () => {
+    it('should return openai_deep_research for deep research models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-4o-deep-research' }))).toBe('openai_deep_research')
+      expect(getThinkModelType(createModel({ id: 'gpt-4o-deep-research-preview' }))).toBe('openai_deep_research')
+    })
+  })
+
+  describe('GPT-5.1 series models', () => {
+    it('should return gpt5_1_codex for GPT-5.1 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex' }))).toBe('gpt5_1_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex-mini' }))).toBe('gpt5_1_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-codex-preview' }))).toBe('gpt5_1_codex')
+    })
+
+    it('should return gpt5_1 for non-codex GPT-5.1 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-preview' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-mini' }))).toBe('gpt5_1')
+    })
+  })
+
+  describe('GPT-5 series models', () => {
+    it('should return gpt5_codex for GPT-5 codex models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5-codex' }))).toBe('gpt5_codex')
+      expect(getThinkModelType(createModel({ id: 'gpt-5-codex-mini' }))).toBe('gpt5_codex')
+    })
+
+    it('should return gpt5 for non-codex GPT-5 models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5' }))).toBe('gpt5')
+      expect(getThinkModelType(createModel({ id: 'gpt-5-preview' }))).toBe('gpt5')
+    })
+  })
+
+  describe('OpenAI O-series models', () => {
+    it('should return o for supported reasoning effort OpenAI models', () => {
+      expect(getThinkModelType(createModel({ id: 'o3' }))).toBe('o')
+      expect(getThinkModelType(createModel({ id: 'o3-mini' }))).toBe('o')
+      expect(getThinkModelType(createModel({ id: 'o4' }))).toBe('o')
+      expect(getThinkModelType(createModel({ id: 'gpt-oss-reasoning' }))).toBe('o')
+    })
+  })
+
+  describe('Grok models', () => {
+    it('should return grok4_fast for Grok 4 Fast models', () => {
+      expect(getThinkModelType(createModel({ id: 'grok-4-fast' }))).toBe('grok4_fast')
+      expect(getThinkModelType(createModel({ id: 'grok-4-fast-preview' }))).toBe('grok4_fast')
+    })
+
+    it('should return grok for other supported Grok models', () => {
+      expect(getThinkModelType(createModel({ id: 'grok-3-mini' }))).toBe('grok')
+    })
+  })
+
+  describe('Gemini models', () => {
+    it('should return gemini for Flash models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest' }))).toBe('gemini')
+      expect(getThinkModelType(createModel({ id: 'gemini-flash-latest' }))).toBe('gemini')
+      expect(getThinkModelType(createModel({ id: 'gemini-flash-lite-latest' }))).toBe('gemini')
+    })
+
+    it('should return gemini_pro for Pro models', () => {
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-pro-latest' }))).toBe('gemini_pro')
+      expect(getThinkModelType(createModel({ id: 'gemini-pro-latest' }))).toBe('gemini_pro')
+    })
+  })
+
+  describe('Qwen models', () => {
+    it('should return qwen for supported Qwen models with thinking control', () => {
+      expect(getThinkModelType(createModel({ id: 'qwen-plus' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen-turbo' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen-flash' }))).toBe('qwen')
+      expect(getThinkModelType(createModel({ id: 'qwen3-8b' }))).toBe('qwen')
+    })
+
+    it('should return default for always-thinking Qwen models (not controllable)', () => {
+      // qwen3-thinking and qwen3-vl-thinking always think and don't support thinking token control
+      expect(getThinkModelType(createModel({ id: 'qwen3-thinking' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'qwen3-vl-235b-thinking' }))).toBe('default')
+    })
+  })
+
+  describe('Doubao models', () => {
+    it('should return doubao for auto-thinking Doubao models', () => {
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1.6' }))).toBe('doubao')
+      expect(getThinkModelType(createModel({ id: 'doubao-1-5-thinking-pro-m' }))).toBe('doubao')
+    })
+
+    it('should return doubao_after_251015 for seed models after 251015', () => {
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-6-251015' }))).toBe('doubao_after_251015')
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-6-lite-251015' }))).toBe('doubao_after_251015')
+    })
+
+    it('should return doubao_no_auto for other Doubao thinking models', () => {
+      expect(getThinkModelType(createModel({ id: 'doubao-1.5-thinking-vision-pro' }))).toBe('doubao_no_auto')
+    })
+  })
+
+  describe('Hunyuan models', () => {
+    it('should return hunyuan for supported Hunyuan models', () => {
+      expect(getThinkModelType(createModel({ id: 'hunyuan-a13b' }))).toBe('hunyuan')
+    })
+  })
+
+  describe('Perplexity models', () => {
+    it('should return perplexity for supported Perplexity models', () => {
+      expect(getThinkModelType(createModel({ id: 'sonar-pro', provider: 'perplexity' }))).toBe('default')
+    })
+
+    it('should return openai_deep_research for sonar-deep-research (matches deep-research regex)', () => {
+      // Note: sonar-deep-research is caught by isOpenAIDeepResearchModel first
+      expect(getThinkModelType(createModel({ id: 'sonar-deep-research' }))).toBe('openai_deep_research')
+    })
+  })
+
+  describe('Zhipu models', () => {
+    it('should return zhipu for supported Zhipu models', () => {
+      expect(getThinkModelType(createModel({ id: 'glm-4.5' }))).toBe('zhipu')
+      expect(getThinkModelType(createModel({ id: 'glm-4.6' }))).toBe('zhipu')
+    })
+  })
+
+  describe('DeepSeek models', () => {
+    it('should return deepseek_hybrid for DeepSeek V3.1 models', () => {
+      expect(getThinkModelType(createModel({ id: 'deepseek-v3.1' }))).toBe('deepseek_hybrid')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v3.1-alpha' }))).toBe('deepseek_hybrid')
+      expect(getThinkModelType(createModel({ id: 'deepseek-chat-v3.1' }))).toBe('deepseek_hybrid')
+    })
+  })
+
+  describe('Default case', () => {
+    it('should return default for unsupported models', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-4o' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'claude-3-opus' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'unknown-model' }))).toBe('default')
+    })
+  })
+
+  describe('Name-based fallback', () => {
+    it('should fall back to name when id does not match', () => {
+      expect(
+        getThinkModelType(
+          createModel({
+            id: 'custom-id',
+            name: 'grok-4-fast'
+          })
+        )
+      ).toBe('grok4_fast')
+
+      expect(
+        getThinkModelType(
+          createModel({
+            id: 'custom-id',
+            name: 'gpt-5.1-codex'
+          })
+        )
+      ).toBe('gpt5_1_codex')
+
+      expect(
+        getThinkModelType(
+          createModel({
+            id: 'custom-id',
+            name: 'gemini-2.5-flash-latest'
+          })
+        )
+      ).toBe('gemini')
+    })
+
+    it('should use id result when id matches', () => {
+      expect(
+        getThinkModelType(
+          createModel({
+            id: 'gpt-5.1',
+            name: 'Different Name'
+          })
+        )
+      ).toBe('gpt5_1')
+    })
+  })
+
+  describe('Edge cases and priority', () => {
+    it('should prioritize openai_deep_research over other matches', () => {
+      // deep-research regex is checked first
+      expect(getThinkModelType(createModel({ id: 'gpt-4o-deep-research', provider: 'openai' }))).toBe(
+        'openai_deep_research'
+      )
+    })
+
+    it('should handle case insensitivity correctly', () => {
+      expect(getThinkModelType(createModel({ id: 'GPT-5.1' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'Gemini-2.5-Flash-Latest' }))).toBe('gemini')
+      expect(getThinkModelType(createModel({ id: 'DeepSeek-V3.1' }))).toBe('deepseek_hybrid')
+    })
+
+    it('should handle special characters and separators', () => {
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1.6' }))).toBe('doubao')
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-6' }))).toBe('doubao')
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v3.1' }))).toBe('deepseek_hybrid')
+      expect(getThinkModelType(createModel({ id: 'deepseek-v3-1' }))).toBe('deepseek_hybrid')
+    })
+
+    it('should return default for empty or null-like inputs', () => {
+      expect(getThinkModelType(createModel({ id: '' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'unknown' }))).toBe('default')
+    })
+
+    it('should handle models with version suffixes', () => {
+      expect(getThinkModelType(createModel({ id: 'gpt-5-preview-2024' }))).toBe('gpt5')
+      expect(getThinkModelType(createModel({ id: 'o3-mini-2024' }))).toBe('o')
+      expect(getThinkModelType(createModel({ id: 'gemini-2.5-flash-latest-001' }))).toBe('gemini')
+    })
+
+    it('should prioritize GPT-5.1 over GPT-5 detection', () => {
+      // GPT-5.1 should be detected before GPT-5
+      expect(getThinkModelType(createModel({ id: 'gpt-5.1-anything' }))).toBe('gpt5_1')
+      expect(getThinkModelType(createModel({ id: 'gpt-5-anything' }))).toBe('gpt5')
+    })
+
+    it('should handle Doubao priority correctly', () => {
+      // auto > after_251015 > no_auto
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1.6' }))).toBe('doubao')
+      expect(getThinkModelType(createModel({ id: 'doubao-seed-1-6-251015' }))).toBe('doubao_after_251015')
+      expect(getThinkModelType(createModel({ id: 'doubao-1.5-thinking-vision-pro' }))).toBe('doubao_no_auto')
+    })
+
+    it('should handle Qwen thinking detection correctly', () => {
+      // qwen3-thinking models don't support thinking control (not in isSupportedThinkingTokenQwenModel)
+      expect(getThinkModelType(createModel({ id: 'qwen3-thinking' }))).toBe('default')
+      // but qwen-plus supports thinking control
+      expect(getThinkModelType(createModel({ id: 'qwen-plus' }))).toBe('qwen')
+    })
   })
 })
 

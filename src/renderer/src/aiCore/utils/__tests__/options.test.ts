@@ -65,13 +65,38 @@ vi.mock('../provider/factory', () => ({
 vi.mock('@renderer/config/models', () => ({
   isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
   isQwenMTModel: vi.fn(() => false),
-  isSupportFlexServiceTierModel: vi.fn(() => true)
+  isSupportFlexServiceTierModel: vi.fn(() => true),
+  isOpenAILLMModel: vi.fn(() => true),
+  SYSTEM_MODELS: {
+    defaultModel: [
+      { id: 'default-1', name: 'Default 1' },
+      { id: 'default-2', name: 'Default 2' },
+      { id: 'default-3', name: 'Default 3' }
+    ]
+  }
 }))
 
-vi.mock('@renderer/config/providers', () => ({
+vi.mock('@renderer/utils/provider', () => ({
   isSupportServiceTierProvider: vi.fn((provider) => {
     return [SystemProviderIds.openai, SystemProviderIds.groq].includes(provider.id)
-  })
+  }),
+  SYSTEM_PROVIDERS: []
+}))
+
+vi.mock('@renderer/services/AssistantService', () => ({
+  getDefaultAssistant: vi.fn(() => ({
+    id: 'default',
+    name: 'Default Assistant',
+    settings: {}
+  })),
+  getAssistantSettings: vi.fn(() => ({
+    reasoning_effort: 'medium',
+    maxTokens: 4096
+  })),
+  getProviderByModel: vi.fn((model: Model) => ({
+    id: model.provider,
+    name: 'Mock Provider'
+  }))
 }))
 
 vi.mock('../reasoning', () => ({
@@ -100,6 +125,14 @@ vi.mock('../websearch', () => ({
   getWebSearchParams: vi.fn(() => ({ enable_search: true }))
 }))
 
+const ensureWindowApi = () => {
+  const globalWindow = window as any
+  globalWindow.api = globalWindow.api || {}
+  globalWindow.api.getAppInfo = globalWindow.api.getAppInfo || vi.fn(async () => ({ notesPath: '' }))
+}
+
+ensureWindowApi()
+
 describe('options utils', () => {
   const mockAssistant: Assistant = {
     id: 'test-assistant',
@@ -120,12 +153,13 @@ describe('options utils', () => {
   describe('buildProviderOptions', () => {
     describe('OpenAI provider', () => {
       const openaiProvider: Provider = {
-        id: SystemProviderIds.openai,
-        name: 'OpenAI',
-        type: 'openai',
-        apiKey: 'test-key',
-        apiHost: 'https://api.openai.com/v1'
-      } as Provider
+    id: SystemProviderIds.openai,
+    name: 'OpenAI',
+    type: 'openai',
+    apiKey: 'test-key',
+    apiHost: 'https://api.openai.com/v1',
+    isSystem: true
+  } as Provider
 
       it('should build basic OpenAI options', () => {
         const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
@@ -172,7 +206,8 @@ describe('options utils', () => {
         name: 'Anthropic',
         type: 'anthropic',
         apiKey: 'test-key',
-        apiHost: 'https://api.anthropic.com'
+        apiHost: 'https://api.anthropic.com',
+        isSystem: true
       } as Provider
 
       const anthropicModel: Model = {
@@ -214,6 +249,7 @@ describe('options utils', () => {
         type: 'gemini',
         apiKey: 'test-key',
         apiHost: 'https://generativelanguage.googleapis.com',
+        isSystem: true,
         models: [{ id: 'gemini-2.0-flash-exp' }] as Model[]
       } as Provider
 
@@ -266,6 +302,7 @@ describe('options utils', () => {
         type: 'new-api',
         apiKey: 'test-key',
         apiHost: 'https://api.x.ai/v1',
+        isSystem: true,
         models: [] as Model[]
       } as Provider
 
@@ -304,7 +341,8 @@ describe('options utils', () => {
         name: 'DeepSeek',
         type: 'openai',
         apiKey: 'test-key',
-        apiHost: 'https://api.deepseek.com'
+        apiHost: 'https://api.deepseek.com',
+        isSystem: true
       } as Provider
 
       const deepseekModel: Model = {
@@ -331,7 +369,8 @@ describe('options utils', () => {
         name: 'OpenRouter',
         type: 'openai',
         apiKey: 'test-key',
-        apiHost: 'https://openrouter.ai/api/v1'
+        apiHost: 'https://openrouter.ai/api/v1',
+        isSystem: true
       } as Provider
 
       const openrouterModel: Model = {
@@ -402,6 +441,7 @@ describe('options utils', () => {
         type: 'gemini',
         apiKey: 'test-key',
         apiHost: 'https://generativelanguage.googleapis.com',
+        isSystem: true,
         models: [] as Model[]
       } as Provider
 

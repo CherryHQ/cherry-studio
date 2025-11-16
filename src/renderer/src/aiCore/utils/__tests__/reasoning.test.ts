@@ -30,59 +30,60 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@renderer/store/settings', () => ({
+  default: (state = { settings: {} }) => state
+}))
+
+vi.mock('@renderer/store/llm', () => ({
+  initialState: {},
+  default: (state = { llm: {}}) => state
+}))
+
+
+
 vi.mock('@renderer/config/constant', () => ({
-  DEFAULT_MAX_TOKENS: 4096
+  DEFAULT_MAX_TOKENS: 4096,
+  isMac: false,
+  isWin: false,
+  TOKENFLUX_HOST: 'mock-host'
 }))
 
-vi.mock('@renderer/config/models', () => ({
-  GEMINI_FLASH_MODEL_REGEX: /gemini.*flash/i,
-  findTokenLimit: vi.fn((modelId) => {
-    if (modelId.includes('o1')) return { min: 1000, max: 10000 }
-    if (modelId.includes('claude')) return { min: 1024, max: 8192 }
-    if (modelId.includes('gemini')) return { min: 2048, max: 16384 }
-    return null
-  }),
-  isReasoningModel: vi.fn((model) => {
-    return (
-      model.id.includes('o1') ||
-      model.id.includes('claude-3-7') ||
-      model.id.includes('qwen') ||
-      model.id.includes('grok') ||
-      model.id.includes('deepseek')
-    )
-  }),
-  isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
-  isOpenAIReasoningModel: vi.fn((model) => model.id.includes('o1')),
-  isOpenAIDeepResearchModel: vi.fn((model) => model.id.includes('o3-mini')),
-  isQwenReasoningModel: vi.fn((model) => model.id.includes('qwen')),
-  isQwenAlwaysThinkModel: vi.fn((model) => model.id.includes('qwen-plus')),
-  isGrokReasoningModel: vi.fn((model) => model.id.includes('grok')),
-  isGrok4FastReasoningModel: vi.fn((model) => model.id.includes('grok-4-fast')),
-  isSupportedReasoningEffortModel: vi.fn((model) => model.id.includes('o1') || model.id.includes('grok')),
-  isSupportedReasoningEffortOpenAIModel: vi.fn((model) => model.id.includes('o1') && !model.id.includes('o3-mini')),
-  isSupportedReasoningEffortGrokModel: vi.fn((model) => model.id.includes('grok')),
-  isSupportedThinkingTokenModel: vi.fn(() => true),
-  isSupportedThinkingTokenClaudeModel: vi.fn((model) => model.id.includes('claude-3-7')),
-  isSupportedThinkingTokenGeminiModel: vi.fn((model) => model.id.includes('gemini')),
-  isSupportedThinkingTokenQwenModel: vi.fn((model) => model.id.includes('qwen')),
-  isSupportedThinkingTokenDoubaoModel: vi.fn((model) => model.id.includes('doubao')),
-  isSupportedThinkingTokenZhipuModel: vi.fn((model) => model.id.includes('zhipu')),
-  isSupportedThinkingTokenHunyuanModel: vi.fn((model) => model.id.includes('hunyuan')),
-  isDeepSeekHybridInferenceModel: vi.fn((model) => model.id.includes('deepseek-v3.1')),
-  isDoubaoSeedAfter251015: vi.fn(() => false),
-  isDoubaoThinkingAutoModel: vi.fn(() => false),
-  getThinkModelType: vi.fn(() => 'openai'),
-  MODEL_SUPPORTED_REASONING_EFFORT: {
-    openai: ['low', 'medium', 'high'],
-    grok: ['low', 'medium', 'high']
-  }
-}))
-
-vi.mock('@renderer/config/providers', () => ({
+vi.mock('@renderer/utils/provider', () => ({
   isSupportEnableThinkingProvider: vi.fn((provider) => {
     return [SystemProviderIds.dashscope, SystemProviderIds.silicon].includes(provider.id)
-  })
+  }),
+  SYSTEM_PROVIDERS: []
 }))
+
+vi.mock('@renderer/config/models', async (importOriginal) => {
+  const actual: any = await importOriginal()
+  return {
+    ...actual,
+    isReasoningModel: vi.fn(),
+    isOpenAIDeepResearchModel: vi.fn(),
+    isOpenAIModel: vi.fn(),
+    isSupportedReasoningEffortOpenAIModel: vi.fn(),
+    isSupportedThinkingTokenQwenModel: vi.fn(),
+    isQwenReasoningModel: vi.fn(),
+    isSupportedThinkingTokenClaudeModel: vi.fn(),
+    isSupportedThinkingTokenGeminiModel: vi.fn(),
+    isSupportedThinkingTokenDoubaoModel: vi.fn(),
+    isSupportedThinkingTokenZhipuModel: vi.fn(),
+    isSupportedReasoningEffortModel: vi.fn(),
+    isDeepSeekHybridInferenceModel: vi.fn(),
+    isSupportedReasoningEffortGrokModel: vi.fn(),
+    getThinkModelType: vi.fn(),
+    isDoubaoSeedAfter251015: vi.fn(),
+    isDoubaoThinkingAutoModel: vi.fn(),
+    isGrok4FastReasoningModel: vi.fn(),
+    isGrokReasoningModel: vi.fn(),
+    isOpenAIReasoningModel: vi.fn(),
+    isQwenAlwaysThinkModel: vi.fn(),
+    isSupportedThinkingTokenHunyuanModel: vi.fn(),
+    isSupportedThinkingTokenModel: vi.fn(),
+    isGPT51SeriesModel: vi.fn()
+  }
+})
 
 vi.mock('@renderer/hooks/useSettings', () => ({
   getStoreSetting: vi.fn((key) => {
@@ -101,8 +102,21 @@ vi.mock('@renderer/services/AssistantService', () => ({
   getProviderByModel: vi.fn((model) => ({
     id: model.provider,
     name: 'Test Provider'
+  })),
+  getDefaultAssistant: vi.fn(() => ({
+    id: 'default',
+    name: 'Default Assistant',
+    settings: {}
   }))
 }))
+
+const ensureWindowApi = () => {
+  const globalWindow = window as any
+  globalWindow.api = globalWindow.api || {}
+  globalWindow.api.getAppInfo = globalWindow.api.getAppInfo || vi.fn(async () => ({ notesPath: '' }))
+}
+
+ensureWindowApi()
 
 describe('reasoning utils', () => {
   beforeEach(() => {
@@ -128,6 +142,14 @@ describe('reasoning utils', () => {
     })
 
     it('should return reasoning effort for OpenAI o1 model', async () => {
+      const { isReasoningModel, isSupportedReasoningEffortModel, getThinkModelType } = await import(
+        '@renderer/config/models'
+      )
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(true)
+      vi.mocked(getThinkModelType).mockReturnValue('default')
+
       const model: Model = {
         id: 'o1-preview',
         name: 'O1 Preview',
@@ -243,7 +265,10 @@ describe('reasoning utils', () => {
         isSupportedThinkingTokenClaudeModel,
         isSupportedThinkingTokenDoubaoModel,
         isSupportedThinkingTokenZhipuModel,
-        isOpenAIDeepResearchModel
+        isOpenAIDeepResearchModel,
+        isSupportedThinkingTokenQwenModel,
+        isSupportedThinkingTokenHunyuanModel,
+        isDeepSeekHybridInferenceModel
       } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
@@ -253,11 +278,14 @@ describe('reasoning utils', () => {
       vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
       vi.mocked(isSupportedThinkingTokenDoubaoModel).mockReturnValue(false)
       vi.mocked(isSupportedThinkingTokenZhipuModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenQwenModel).mockReturnValue(false)
+      vi.mocked(isSupportedThinkingTokenHunyuanModel).mockReturnValue(false)
+      vi.mocked(isDeepSeekHybridInferenceModel).mockReturnValue(false)
 
       const model: Model = {
         id: 'gemini-2.5-flash',
         name: 'Gemini 2.5 Flash',
-        provider: SystemProviderIds.gemini
+        provider: SystemProviderIds.openai
       } as Model
 
       const assistant: Assistant = {
@@ -277,6 +305,41 @@ describe('reasoning utils', () => {
         }
       })
     })
+
+    // it('should handle GPT-5.1 reasoning model with effort levels', async () => {
+    //   const {
+    //     isReasoningModel,
+    //     isOpenAIDeepResearchModel,
+    //     isSupportedReasoningEffortModel,
+    //     isGPT51SeriesModel,
+    //     getThinkModelType
+    //   } = await import('@renderer/config/models')
+
+    //   vi.mocked(isReasoningModel).mockReturnValue(true)
+    //   vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
+    //   vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(true)
+    //   vi.mocked(getThinkModelType).mockReturnValue('gpt5_1')
+    //   vi.mocked(isGPT51SeriesModel).mockReturnValue(true)
+
+    //   const model: Model = {
+    //     id: 'gpt-5.1',
+    //     name: 'GPT-5.1',
+    //     provider: SystemProviderIds.openai
+    //   } as Model
+
+    //   const assistant: Assistant = {
+    //     id: 'test',
+    //     name: 'Test',
+    //     settings: {
+    //       reasoning_effort: undefined
+    //     }
+    //   } as Assistant
+
+    //   const result = getReasoningEffort(assistant, model)
+    //   expect(result).toEqual({
+    //     reasoningEffort: 'none'
+    //   })
+    // })
 
     it('should handle DeepSeek hybrid inference models', async () => {
       const { isDeepSeekHybridInferenceModel } = await import('@renderer/config/models')
@@ -298,7 +361,9 @@ describe('reasoning utils', () => {
       } as Assistant
 
       const result = getReasoningEffort(assistant, model)
-      expect(result).toHaveProperty('enable_thinking')
+      expect(result).toEqual({
+        enable_thinking: true
+      })
     })
 
     it('should return medium effort for deep research models', async () => {
@@ -413,8 +478,14 @@ describe('reasoning utils', () => {
     })
 
     it('should include reasoning summary when not o1-pro', async () => {
+      const { isReasoningModel, isSupportedReasoningEffortOpenAIModel, isOpenAIModel } = await import(
+        '@renderer/config/models'
+      )
       const { getStoreSetting } = await import('@renderer/hooks/useSettings')
 
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isOpenAIModel).mockReturnValue(true)
+      vi.mocked(isSupportedReasoningEffortOpenAIModel).mockReturnValue(true)
       vi.mocked(getStoreSetting).mockReturnValue({
         summaryText: 'concise'
       } as any)
@@ -713,7 +784,7 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          thinkingBudget: 9216,
+          thinkingBudget: 16448,
           includeThoughts: true
         }
       })

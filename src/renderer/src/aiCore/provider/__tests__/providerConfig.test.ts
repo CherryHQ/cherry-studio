@@ -34,7 +34,7 @@ vi.mock('@renderer/utils/api', () => ({
   }))
 }))
 
-vi.mock('@renderer/config/providers', async (importOriginal) => {
+vi.mock('@renderer/utils/provider', async (importOriginal) => {
   const actual = (await importOriginal()) as any
   return {
     ...actual,
