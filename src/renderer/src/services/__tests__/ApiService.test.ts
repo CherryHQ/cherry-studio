@@ -108,10 +108,6 @@ vi.mock('@renderer/config/systemModels', () => ({
   GENERATE_IMAGE_MODELS: []
 }))
 
-vi.mock('@renderer/config/tools', () => ({
-  getWebSearchTools: vi.fn(() => [])
-}))
-
 // Mock store modules
 vi.mock('@renderer/store/assistants', () => ({
   default: (state = { assistants: [] }) => state
