@@ -1,6 +1,12 @@
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
+import {
+  getModelSupportedVerbosity,
+  isOpenAIModel,
+  isQwenMTModel,
+  isSupportFlexServiceTierModel,
+  isSupportVerbosityModel
+} from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import type { Assistant, Model, Provider } from '@renderer/types'
@@ -191,6 +197,23 @@ function buildOpenAIProviderOptions(
       ...reasoningParams
     }
   }
+
+  if (isSupportVerbosityModel(model)) {
+    const state = window.store?.getState()
+    const userVerbosity = state?.settings?.openAI?.verbosity
+
+    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
+      const supportedVerbosity = getModelSupportedVerbosity(model)
+      // Use user's verbosity if supported, otherwise use the first supported option
+      const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+
+      providerOptions = {
+        ...providerOptions,
+        textVerbosity: verbosity
+      }
+    }
+  }
+
   return providerOptions
 }
 

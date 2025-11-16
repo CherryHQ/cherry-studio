@@ -520,7 +520,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  verbosity: this.getVerbosity()
+                  verbosity: this.getVerbosity(model)
                 }
               }
             : {}),
