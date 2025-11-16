@@ -8,9 +8,16 @@ import type {
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isGPT5ProModel, isGPT5SeriesModel, isGPT51SeriesModel } from './utils'
+import {
+  isGPT5ProModel,
+  isGPT5SeriesModel,
+  isGPT51SeriesModel,
+  isOpenAIDeepResearchModel,
+  isOpenAIReasoningModel,
+  isSupportedReasoningEffortOpenAIModel
+} from './openai'
+import { GEMINI_FLASH_MODEL_REGEX } from './utils'
 import { isTextToImageModel } from './vision'
-import { GEMINI_FLASH_MODEL_REGEX, isOpenAIDeepResearchModel } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -527,22 +534,6 @@ export function isReasoningModel(model?: Model): boolean {
   }
 
   return REASONING_REGEX.test(modelId) || false
-}
-
-export function isOpenAIReasoningModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
-}
-
-export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return (
-    (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
-    modelId.includes('o3') ||
-    modelId.includes('o4') ||
-    modelId.includes('gpt-oss') ||
-    ((isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat'))
-  )
 }
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {

@@ -53,6 +53,17 @@ vi.mock('@renderer/hooks/useVertexAI', () => ({
   createVertexProvider: vi.fn()
 }))
 
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn(),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'

@@ -62,7 +62,8 @@ vi.mock('../provider/factory', () => ({
   })
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/config/models', async (importOriginal) => ({
+  ...(await importOriginal()),
   isOpenAIModel: vi.fn((model) => model.id.includes('gpt') || model.id.includes('o1')),
   isQwenMTModel: vi.fn(() => false),
   isSupportFlexServiceTierModel: vi.fn(() => true),
@@ -79,8 +80,11 @@ vi.mock('@renderer/config/models', () => ({
 vi.mock('@renderer/utils/provider', () => ({
   isSupportServiceTierProvider: vi.fn((provider) => {
     return [SystemProviderIds.openai, SystemProviderIds.groq].includes(provider.id)
-  }),
-  SYSTEM_PROVIDERS: []
+  })
+}))
+
+vi.mock('@renderer/store/settings', () => ({
+  default: (state = { settings: {} }) => state
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({

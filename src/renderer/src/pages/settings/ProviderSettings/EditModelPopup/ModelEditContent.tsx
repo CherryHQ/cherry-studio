@@ -17,10 +17,10 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/utils/provider'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import type { ModalProps } from 'antd'
 import { Button, Divider, Flex, Form, Input, InputNumber, message, Modal, Select, Switch, Tooltip } from 'antd'
 import { cloneDeep } from 'lodash'

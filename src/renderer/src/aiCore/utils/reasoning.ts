@@ -129,7 +129,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
 
     // Specially for GPT-5.1. Suppose this is a OpenAI Compatible provider
-    if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+    if (isGPT51SeriesModel(model)) {
       return {
         reasoningEffort: 'none'
       }

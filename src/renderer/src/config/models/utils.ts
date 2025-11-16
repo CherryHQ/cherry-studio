@@ -3,38 +3,11 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embeddi
 import { type Model, SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils'
 
-import { isOpenAIReasoningModel } from './reasoning'
+import { isOpenAIChatCompletionOnlyModel, isOpenAIOpenWeightModel, isOpenAIReasoningModel } from './openai'
+import { isQwenMTModel } from './qwen'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
-
-export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
-
-export function isOpenAILLMModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-
-  if (modelId.includes('gpt-4o-image')) {
-    return false
-  }
-  if (isOpenAIReasoningModel(model)) {
-    return true
-  }
-  if (modelId.includes('gpt')) {
-    return true
-  }
-  return false
-}
-
-export function isOpenAIModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-
-  return modelId.includes('gpt') || isOpenAIReasoningModel(model)
-}
+export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
 export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
@@ -47,25 +20,6 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
 }
 export function isSupportedFlexServiceTier(model: Model): boolean {
   return isSupportFlexServiceTierModel(model)
-}
-
-export function isSupportVerbosityModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat')
-}
-
-export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-  return (
-    modelId.includes('gpt-4o-search-preview') ||
-    modelId.includes('gpt-4o-mini-search-preview') ||
-    modelId.includes('o1-mini') ||
-    modelId.includes('o1-preview')
-  )
 }
 
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
@@ -156,32 +110,12 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return modelId.startsWith('claude')
 }
 
-export const isQwenMTModel = (model: Model): boolean => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('qwen-mt')
-}
-
 export const isNotSupportedTextDelta = (model: Model): boolean => {
   return isQwenMTModel(model)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {
   return isQwenMTModel(model) || isGemmaModel(model)
-}
-
-export const isGPT5SeriesModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1')
-}
-
-export const isGPT5SeriesReasoningModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return isGPT5SeriesModel(model) && !modelId.includes('chat')
-}
-
-export const isGPT51SeriesModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5.1')
 }
 
 // GPT-5 verbosity configuration
@@ -204,21 +138,11 @@ export const isGeminiModel = (model: Model) => {
   return modelId.includes('gemini')
 }
 
-export const isOpenAIOpenWeightModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-oss')
-}
-
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
 export const agentModelFilter = (model: Model): boolean => {
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
-}
-
-export const isGPT5ProModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5-pro')
 }
 
 export const isMaxTemperatureOneModel = (model: Model): boolean => {

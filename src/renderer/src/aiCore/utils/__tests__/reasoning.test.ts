@@ -49,8 +49,7 @@ vi.mock('@renderer/config/constant', () => ({
 vi.mock('@renderer/utils/provider', () => ({
   isSupportEnableThinkingProvider: vi.fn((provider) => {
     return [SystemProviderIds.dashscope, SystemProviderIds.silicon].includes(provider.id)
-  }),
-  SYSTEM_PROVIDERS: []
+  })
 }))
 
 vi.mock('@renderer/config/models', async (importOriginal) => {
@@ -118,7 +117,7 @@ ensureWindowApi()
 
 describe('reasoning utils', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   describe('getReasoningEffort', () => {
@@ -189,8 +188,11 @@ describe('reasoning utils', () => {
     })
 
     it('should handle Qwen models with enable_thinking', async () => {
-      const { isSupportedThinkingTokenQwenModel, isQwenReasoningModel } = await import('@renderer/config/models')
+      const { isReasoningModel, isSupportedThinkingTokenQwenModel, isQwenReasoningModel } = await import(
+        '@renderer/config/models'
+      )
 
+      vi.mocked(isReasoningModel).mockReturnValue(true)
       vi.mocked(isSupportedThinkingTokenQwenModel).mockReturnValue(true)
       vi.mocked(isQwenReasoningModel).mockReturnValue(true)
 
@@ -340,8 +342,9 @@ describe('reasoning utils', () => {
     })
 
     it('should handle DeepSeek hybrid inference models', async () => {
-      const { isDeepSeekHybridInferenceModel } = await import('@renderer/config/models')
+      const { isReasoningModel, isDeepSeekHybridInferenceModel } = await import('@renderer/config/models')
 
+      vi.mocked(isReasoningModel).mockReturnValue(true)
       vi.mocked(isDeepSeekHybridInferenceModel).mockReturnValue(true)
 
       const model: Model = {
@@ -365,8 +368,9 @@ describe('reasoning utils', () => {
     })
 
     it('should return medium effort for deep research models', async () => {
-      const { isOpenAIDeepResearchModel } = await import('@renderer/config/models')
+      const { isReasoningModel, isOpenAIDeepResearchModel } = await import('@renderer/config/models')
 
+      vi.mocked(isReasoningModel).mockReturnValue(true)
       vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(true)
 
       const model: Model = {

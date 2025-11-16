@@ -196,7 +196,8 @@ export function validateProviderParams(providerId: string, actualParams: any, ex
 /**
  * Creates a comprehensive test suite for a provider
  */
-export function createProviderTestSuite(providerId: string) {
+// oxlint-disable-next-line no-unused-vars
+export function createProviderTestSuite(_providerId: string) {
   return {
     testBasicCompletion: async (executor: any, model: string) => {
       const result = await executor.generateText({

@@ -2,6 +2,7 @@ import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isEmbeddingModel, isRerankModel } from '../embedding'
+import { isOpenAIReasoningModel, isSupportedReasoningEffortOpenAIModel } from '../openai'
 import {
   findTokenLimit,
   getThinkModelType,
@@ -14,14 +15,12 @@ import {
   isHunyuanReasoningModel,
   isLingReasoningModel,
   isMiniMaxReasoningModel,
-  isOpenAIReasoningModel,
   isPerplexityReasoningModel,
   isQwenAlwaysThinkModel,
   isReasoningModel,
   isStepReasoningModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
-  isSupportedReasoningEffortOpenAIModel,
   isSupportedReasoningEffortPerplexityModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,

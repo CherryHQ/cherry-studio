@@ -2,7 +2,19 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embeddi
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isOpenAIReasoningModel } from '../reasoning'
+import {
+  isGPT5ProModel,
+  isGPT5SeriesModel,
+  isGPT5SeriesReasoningModel,
+  isGPT51SeriesModel,
+  isOpenAIChatCompletionOnlyModel,
+  isOpenAILLMModel,
+  isOpenAIModel,
+  isOpenAIOpenWeightModel,
+  isOpenAIReasoningModel,
+  isSupportVerbosityModel
+} from '../openai'
+import { isQwenMTModel } from '../qwen'
 import {
   agentModelFilter,
   getModelSupportedVerbosity,
@@ -11,23 +23,13 @@ import {
   isGeminiModel,
   isGemmaModel,
   isGenerateImageModels,
-  isGPT5ProModel,
-  isGPT5SeriesModel,
-  isGPT5SeriesReasoningModel,
-  isGPT51SeriesModel,
   isMaxTemperatureOneModel,
   isNotSupportedTextDelta,
   isNotSupportSystemMessageModel,
   isNotSupportTemperatureAndTopP,
-  isOpenAIChatCompletionOnlyModel,
-  isOpenAILLMModel,
-  isOpenAIModel,
-  isOpenAIOpenWeightModel,
-  isQwenMTModel,
   isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportFlexServiceTierModel,
-  isSupportVerbosityModel,
   isVisionModels,
   isZhipuModel
 } from '../utils'
@@ -83,9 +85,13 @@ vi.mock('../vision', () => ({
   isVisionModel: vi.fn()
 }))
 
-vi.mock('../reasoning', () => ({
-  isOpenAIReasoningModel: vi.fn()
-}))
+vi.mock(import('../openai'), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    isOpenAIReasoningModel: vi.fn()
+  }
+})
 
 vi.mock('../websearch', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn()
