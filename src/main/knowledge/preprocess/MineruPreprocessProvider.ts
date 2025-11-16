@@ -21,6 +21,7 @@ type ApiResponse<T> = {
 type BatchUploadResponse = {
   batch_id: string
   file_urls: string[]
+  headers?: Record<string, string>[]
 }
 
 type ExtractProgress = {
@@ -235,10 +236,10 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
   private async uploadFile(file: FileMetadata): Promise<string> {
     try {
       // 步骤1: 获取上传URL
-      const { batchId, fileUrls } = await this.getBatchUploadUrls(file)
+      const { batchId, fileUrls, uploadHeaders } = await this.getBatchUploadUrls(file)
       // 步骤2: 上传文件到获取的URL
       const filePath = fileStorage.getFilePathById(file)
-      await this.putFileToUrl(filePath, fileUrls[0])
+      await this.putFileToUrl(filePath, fileUrls[0], file.origin_name, uploadHeaders?.[0])
       logger.info(`File uploaded successfully: ${filePath}`, { batchId, fileUrls })
 
       return batchId
@@ -248,7 +249,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     }
   }
 
-  private async getBatchUploadUrls(file: FileMetadata): Promise<{ batchId: string; fileUrls: string[] }> {
+  private async getBatchUploadUrls(
+    file: FileMetadata
+  ): Promise<{ batchId: string; fileUrls: string[]; uploadHeaders?: Record<string, string>[] }> {
     const endpoint = `${this.provider.apiHost}/api/v4/file-urls/batch`
 
     const payload = {
@@ -279,10 +282,11 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
       if (response.ok) {
         const data: ApiResponse<BatchUploadResponse> = await response.json()
         if (data.code === 0 && data.data) {
-          const { batch_id, file_urls } = data.data
+          const { batch_id, file_urls, headers: uploadHeaders } = data.data
           return {
             batchId: batch_id,
-            fileUrls: file_urls
+            fileUrls: file_urls,
+            uploadHeaders
           }
         } else {
           throw new Error(`API returned error: ${data.msg || JSON.stringify(data)}`)
@@ -296,13 +300,23 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     }
   }
 
-  private async putFileToUrl(filePath: string, uploadUrl: string): Promise<void> {
+  private async putFileToUrl(
+    filePath: string,
+    uploadUrl: string,
+    fileName?: string,
+    headers?: Record<string, string>
+  ): Promise<void> {
     try {
       const fileBuffer = await fs.promises.readFile(filePath)
+      const fileSize = fileBuffer.byteLength
+      const displayName = fileName ?? path.basename(filePath)
+
+      logger.info(`Uploading file to MinerU OSS: ${displayName} (${fileSize} bytes)`)
 
       // https://mineru.net/apiManage/docs
       const response = await net.fetch(uploadUrl, {
         method: 'PUT',
+        headers,
         body: new Uint8Array(fileBuffer)
       })
 
@@ -417,4 +431,5 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
     throw new Error(`Processing timeout for batch: ${batchId}`)
   }
+
 }
