@@ -684,8 +684,8 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          include_thoughts: false,
-          thinking_budget: 0
+          includeThoughts: false,
+          thinkingBudget: 0
         }
       })
     })
@@ -713,8 +713,8 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          thinking_budget: expect.any(Number),
-          include_thoughts: true
+          thinkingBudget: 9216,
+          includeThoughts: true
         }
       })
     })
@@ -742,7 +742,7 @@ describe('reasoning utils', () => {
       const result = getGeminiReasoningParams(assistant, model)
       expect(result).toEqual({
         thinkingConfig: {
-          include_thoughts: true
+          includeThoughts: true
         }
       })
     })
