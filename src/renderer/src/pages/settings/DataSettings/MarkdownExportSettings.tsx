@@ -98,7 +98,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.force_dollar_math.title')}</SettingRowTitle>
-        <Switch isSelected={forceDollarMathInMarkdown} onValueChange={handleToggleForceDollarMath} />
+        <Switch checked={forceDollarMathInMarkdown} onCheckedChange={handleToggleForceDollarMath} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
@@ -106,7 +106,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
-        <Switch isSelected={useTopicNamingForMessageTitle} onValueChange={handleToggleTopicNaming} />
+        <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
@@ -114,7 +114,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
-        <Switch isSelected={showModelNameInExport} onValueChange={handleToggleShowModelName} />
+        <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
@@ -122,7 +122,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
-        <Switch isSelected={showModelProviderInMarkdown} onValueChange={handleToggleShowModelProvider} />
+        <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
@@ -130,7 +130,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.exclude_citations.title')}</SettingRowTitle>
-        <Switch isSelected={excludeCitationsInExport} onValueChange={handleToggleExcludeCitations} />
+        <Switch checked={excludeCitationsInExport} onCheckedChange={handleToggleExcludeCitations} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
@@ -138,7 +138,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
-        <Switch isSelected={standardizeCitationsInExport} onValueChange={handleToggleStandardizeCitations} />
+        <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.standardize_citations.help')}</SettingHelpText>

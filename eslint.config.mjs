@@ -142,19 +142,31 @@ export default defineConfig([
     files: ['**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/renderer/src/windows/dataRefactorTest/**/*.{ts,tsx}'],
     rules: {
-      // 'no-restricted-imports': [
-      //   'error',
-      //   {
-      //     paths: [
-      //       {
-      //         name: 'antd',
-      //         importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
-      //         message:
-      //           '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
-      //       }
-      //     ]
-      //   }
-      // ]
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            // {
+            //   name: 'antd',
+            //   importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
+            //   message:
+            //     '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            // },
+            {
+              name: 'antd',
+              importNames: ['Switch'],
+              message:
+                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            },
+            {
+              name: '@heroui/react',
+              importNames: ['Switch'],
+              message:
+                '❌ Do not import the component from heroui directly. It\'s deprecated.'
+            }
+          ]
+        }
+      ]
     }
   },
 ])

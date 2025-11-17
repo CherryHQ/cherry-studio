@@ -392,7 +392,7 @@ const ShortcutSettings: FC = () => {
       align: 'right',
       width: '50px',
       render: (record: Shortcut) => (
-        <Switch size="sm" isSelected={record.enabled} onValueChange={() => dispatch(toggleShortcut(record.key))} />
+        <Switch checked={record.enabled} onCheckedChange={() => dispatch(toggleShortcut(record.key))} />
       )
     }
   ]
