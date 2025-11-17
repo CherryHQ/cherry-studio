@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
-import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
+import type { FormProps } from 'antd'
+import { Button, Flex, Form, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,7 +39,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     const name = values.name?.trim() || url
 
     if (!url) {
-      window.message.error(t('settings.tool.websearch.url_required'))
+      window.toast.error(t('settings.tool.websearch.url_required'))
       return
     }
 
@@ -46,7 +47,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     try {
       new URL(url)
     } catch (e) {
-      window.message.error(t('settings.tool.websearch.url_invalid'))
+      window.toast.error(t('settings.tool.websearch.url_invalid'))
       return
     }
 

@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import { ActionTool } from '@renderer/components/ActionTools'
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import CodeEditor from '@renderer/components/CodeEditor'
 import {
   CodeToolbar,
   useCopyTool,
@@ -14,13 +15,13 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { getLangLogo } from '@renderer/config/lang'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
-import { extractHtmlTitle } from '@renderer/utils/formats'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +29,7 @@ import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
-import { ViewMode } from './types'
+import type { ViewMode } from './types'
 
 const logger = loggerService.withContext('CodeBlockView')
 
@@ -129,15 +130,15 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const handleCopySource = useCallback(() => {
     navigator.clipboard.writeText(children)
-    window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
+    window.toast.success(t('code_block.copy.success'))
   }, [children, t])
 
   const handleDownloadSource = useCallback(() => {
     let fileName = ''
 
     // 尝试提取 HTML 标题
-    if (language === 'html' && children.includes('</html>')) {
-      fileName = extractHtmlTitle(children) || ''
+    if (language === 'html') {
+      fileName = getFileNameFromHtmlTitle(extractHtmlTitle(children)) || ''
     }
 
     // 默认使用日期格式命名
@@ -338,7 +339,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
    * 一是 CodeViewer 在气泡样式下的用户消息中无法撑开气泡，
    * 二是 代码块内容过少时 toolbar 会和 title 重叠。
    */
-  min-width: 45ch;
+  min-width: 35ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};

@@ -3,7 +3,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { getBuiltInMcpServerDescriptionLabel, getMcpTypeLabel } from '@renderer/i18n/label'
 import { builtinMCPServers } from '@renderer/store/mcp'
 import { Button, Popover, Tag } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -15,7 +15,7 @@ const BuiltinMCPServerList: FC = () => {
 
   return (
     <>
-      <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
+      <SettingTitle style={{ gap: 3, marginBottom: 10 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
       <ServersGrid>
         {builtinMCPServers.map((server) => {
           const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
@@ -37,7 +37,7 @@ const BuiltinMCPServerList: FC = () => {
                       }
 
                       addMCPServer(server)
-                      window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-builtin-server' })
+                      window.toast.success(t('settings.mcp.addSuccess'))
                     }}
                     disabled={isInstalled}
                   />

@@ -7,10 +7,10 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { setOpenedKeepAliveMinapps } from '@renderer/store/runtime'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
@@ -91,14 +91,14 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 const customApps = JSON.parse(content)
                 const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
                 await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
-                window.message.success(t('settings.miniapps.custom.remove_success'))
+                window.toast.success(t('settings.miniapps.custom.remove_success'))
                 const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
                 updateDefaultMinApps(reloadedApps)
                 updateMinapps(minapps.filter((item) => item.id !== app.id))
                 updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
                 updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
               } catch (error) {
-                window.message.error(t('settings.miniapps.custom.remove_error'))
+                window.toast.error(t('settings.miniapps.custom.remove_error'))
                 logger.error('Failed to remove custom mini app:', error as Error)
               }
             }
@@ -135,6 +135,7 @@ const Container = styled.div`
   align-items: center;
   cursor: pointer;
   overflow: hidden;
+  min-height: 85px;
 `
 
 const IconContainer = styled.div`

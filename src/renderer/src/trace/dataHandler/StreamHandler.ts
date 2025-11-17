@@ -1,8 +1,8 @@
-import { TokenUsage } from '@mcp-trace/trace-core'
-import { Span } from '@opentelemetry/api'
+import type { OpenAI } from '@cherrystudio/openai'
+import type { Stream } from '@cherrystudio/openai/streaming'
+import type { TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
-import { OpenAI } from 'openai'
-import { Stream } from 'openai/streaming'
 
 export class StreamHandler {
   private topicId: string
@@ -41,7 +41,7 @@ export class StreamHandler {
             this.usage.total_tokens += completionChunk.usage.total_tokens || 0
           }
           context = chunk.choices
-            .map((choice) => {
+            ?.map((choice) => {
               if (!choice.delta) {
                 return ''
               } else if ('reasoning_content' in choice.delta) {

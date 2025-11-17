@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
-import { Attributes, convertSpanToSpanEntity, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
+import type { Attributes, SpanEntity, TokenUsage, TraceCache } from '@mcp-trace/trace-core'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core'
 import { SpanStatusCode } from '@opentelemetry/api'
-import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
@@ -17,7 +19,7 @@ class SpanCacheService implements TraceCache {
   pri
 
   constructor() {
-    this.fileDir = path.join(os.homedir(), '.cherrystudio', 'trace')
+    this.fileDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'trace')
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {

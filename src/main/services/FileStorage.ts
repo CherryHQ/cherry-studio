@@ -10,19 +10,14 @@ import {
   scanDir
 } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
-import { FileMetadata, NotesTreeNode } from '@types'
+import type { FileMetadata, NotesTreeNode } from '@types'
 import chardet from 'chardet'
-import chokidar, { FSWatcher } from 'chokidar'
+import type { FSWatcher } from 'chokidar'
+import chokidar from 'chokidar'
 import * as crypto from 'crypto'
-import {
-  dialog,
-  net,
-  OpenDialogOptions,
-  OpenDialogReturnValue,
-  SaveDialogOptions,
-  SaveDialogReturnValue,
-  shell
-} from 'electron'
+import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { app } from 'electron'
+import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
@@ -35,6 +30,73 @@ import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
+
+// Get ripgrep binary path
+const getRipgrepBinaryPath = (): string | null => {
+  try {
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+    const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
+    let ripgrepBinaryPath = path.join(
+      __dirname,
+      '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
+      `${arch}-${platform}`,
+      process.platform === 'win32' ? 'rg.exe' : 'rg'
+    )
+
+    if (app.isPackaged) {
+      ripgrepBinaryPath = ripgrepBinaryPath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
+    }
+
+    if (fs.existsSync(ripgrepBinaryPath)) {
+      return ripgrepBinaryPath
+    }
+    return null
+  } catch (error) {
+    logger.error('Failed to locate ripgrep binary:', error as Error)
+    return null
+  }
+}
+
+/**
+ * Execute ripgrep with captured output
+ */
+function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
+  return new Promise((resolve, reject) => {
+    const ripgrepBinaryPath = getRipgrepBinaryPath()
+
+    if (!ripgrepBinaryPath) {
+      reject(new Error('Ripgrep binary not available'))
+      return
+    }
+
+    const { spawn } = require('child_process')
+    const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    let output = ''
+    let errorOutput = ''
+
+    child.stdout.on('data', (data: Buffer) => {
+      output += data.toString()
+    })
+
+    child.stderr.on('data', (data: Buffer) => {
+      errorOutput += data.toString()
+    })
+
+    child.on('close', (code: number) => {
+      resolve({
+        exitCode: code || 0,
+        output: output || errorOutput
+      })
+    })
+
+    child.on('error', (error: Error) => {
+      reject(error)
+    })
+  })
+}
 
 interface FileWatcherConfig {
   watchExtensions?: string[]
@@ -58,6 +120,26 @@ const DEFAULT_WATCHER_CONFIG: Required<FileWatcherConfig> = {
   retryDelayMs: 5000,
   stabilityThreshold: 500,
   eventChannel: 'file-change'
+}
+
+interface DirectoryListOptions {
+  recursive?: boolean
+  maxDepth?: number
+  includeHidden?: boolean
+  includeFiles?: boolean
+  includeDirectories?: boolean
+  maxEntries?: number
+  searchPattern?: string
+}
+
+const DEFAULT_DIRECTORY_LIST_OPTIONS: Required<DirectoryListOptions> = {
+  recursive: true,
+  maxDepth: 3,
+  includeHidden: false,
+  includeFiles: true,
+  includeDirectories: true,
+  maxEntries: 10,
+  searchPattern: '.'
 }
 
 class FileStorage {
@@ -725,7 +807,10 @@ class FileStorage {
   }
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    shell.openPath(path).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
+    const resolved = await shell.openPath(path)
+    if (resolved !== '') {
+      throw new Error(resolved)
+    }
   }
 
   /**
@@ -749,6 +834,284 @@ class FileStorage {
       logger.error('Failed to get directory structure:', error as Error)
       throw error
     }
+  }
+
+  public listDirectory = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    options?: DirectoryListOptions
+  ): Promise<string[]> => {
+    const mergedOptions: Required<DirectoryListOptions> = {
+      ...DEFAULT_DIRECTORY_LIST_OPTIONS,
+      ...options
+    }
+
+    const resolvedPath = path.resolve(dirPath)
+
+    const stat = await fs.promises.stat(resolvedPath).catch((error) => {
+      logger.error(`[IPC - Error] Failed to access directory: ${resolvedPath}`, error as Error)
+      throw error
+    })
+
+    if (!stat.isDirectory()) {
+      throw new Error(`Path is not a directory: ${resolvedPath}`)
+    }
+
+    // Use ripgrep for file listing with relevance-based sorting
+    if (!getRipgrepBinaryPath()) {
+      throw new Error('Ripgrep binary not available')
+    }
+
+    return await this.listDirectoryWithRipgrep(resolvedPath, mergedOptions)
+  }
+
+  /**
+   * Search directories by name pattern
+   */
+  private async searchDirectories(
+    resolvedPath: string,
+    options: Required<DirectoryListOptions>,
+    currentDepth: number = 0
+  ): Promise<string[]> {
+    if (!options.includeDirectories) return []
+    if (!options.recursive && currentDepth > 0) return []
+    if (options.maxDepth > 0 && currentDepth >= options.maxDepth) return []
+
+    const directories: string[] = []
+    const excludedDirs = new Set([
+      'node_modules',
+      '.git',
+      '.idea',
+      '.vscode',
+      'dist',
+      'build',
+      '.next',
+      '.nuxt',
+      'coverage',
+      '.cache'
+    ])
+
+    try {
+      const entries = await fs.promises.readdir(resolvedPath, { withFileTypes: true })
+      const searchPatternLower = options.searchPattern.toLowerCase()
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+
+        // Skip hidden directories unless explicitly included
+        if (!options.includeHidden && entry.name.startsWith('.')) continue
+
+        // Skip excluded directories
+        if (excludedDirs.has(entry.name)) continue
+
+        const fullPath = path.join(resolvedPath, entry.name).replace(/\\/g, '/')
+
+        // Check if directory name matches search pattern
+        if (options.searchPattern === '.' || entry.name.toLowerCase().includes(searchPatternLower)) {
+          directories.push(fullPath)
+        }
+
+        // Recursively search subdirectories
+        if (options.recursive && currentDepth < options.maxDepth) {
+          const subDirs = await this.searchDirectories(fullPath, options, currentDepth + 1)
+          directories.push(...subDirs)
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to search directories in: ${resolvedPath}`, error as Error)
+    }
+
+    return directories
+  }
+
+  /**
+   * Search files by filename pattern
+   */
+  private async searchByFilename(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
+    const files: string[] = []
+    const directories: string[] = []
+
+    // Search for files using ripgrep
+    if (options.includeFiles) {
+      const args: string[] = ['--files']
+
+      // Handle hidden files
+      if (!options.includeHidden) {
+        args.push('--glob', '!.*')
+      }
+
+      // Use --iglob to let ripgrep filter filenames (case-insensitive)
+      if (options.searchPattern && options.searchPattern !== '.') {
+        args.push('--iglob', `*${options.searchPattern}*`)
+      }
+
+      // Exclude common hidden directories and large directories
+      args.push('-g', '!**/node_modules/**')
+      args.push('-g', '!**/.git/**')
+      args.push('-g', '!**/.idea/**')
+      args.push('-g', '!**/.vscode/**')
+      args.push('-g', '!**/.DS_Store')
+      args.push('-g', '!**/dist/**')
+      args.push('-g', '!**/build/**')
+      args.push('-g', '!**/.next/**')
+      args.push('-g', '!**/.nuxt/**')
+      args.push('-g', '!**/coverage/**')
+      args.push('-g', '!**/.cache/**')
+
+      // Handle max depth
+      if (!options.recursive) {
+        args.push('--max-depth', '1')
+      } else if (options.maxDepth > 0) {
+        args.push('--max-depth', options.maxDepth.toString())
+      }
+
+      // Add the directory path
+      args.push(resolvedPath)
+
+      const { exitCode, output } = await executeRipgrep(args)
+
+      // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
+      if (exitCode >= 2) {
+        throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+      }
+
+      // Parse ripgrep output (no need to filter by filename - ripgrep already did it)
+      files.push(
+        ...output
+          .split('\n')
+          .filter((line) => line.trim())
+          .map((line) => line.replace(/\\/g, '/'))
+      )
+    }
+
+    // Search for directories
+    if (options.includeDirectories) {
+      directories.push(...(await this.searchDirectories(resolvedPath, options)))
+    }
+
+    // Combine and sort: directories first (alphabetically), then files (alphabetically)
+    const sortedDirectories = directories.sort((a, b) => {
+      const aName = path.basename(a)
+      const bName = path.basename(b)
+      return aName.localeCompare(bName)
+    })
+
+    const sortedFiles = files.sort((a, b) => {
+      const aName = path.basename(a)
+      const bName = path.basename(b)
+      return aName.localeCompare(bName)
+    })
+
+    return [...sortedDirectories, ...sortedFiles].slice(0, options.maxEntries)
+  }
+
+  /**
+   * Search files by content pattern
+   */
+  private async searchByContent(resolvedPath: string, options: Required<DirectoryListOptions>): Promise<string[]> {
+    const args: string[] = ['-l']
+
+    // Handle hidden files
+    if (!options.includeHidden) {
+      args.push('--glob', '!.*')
+    }
+
+    // Exclude common hidden directories and large directories
+    args.push('-g', '!**/node_modules/**')
+    args.push('-g', '!**/.git/**')
+    args.push('-g', '!**/.idea/**')
+    args.push('-g', '!**/.vscode/**')
+    args.push('-g', '!**/.DS_Store')
+    args.push('-g', '!**/dist/**')
+    args.push('-g', '!**/build/**')
+    args.push('-g', '!**/.next/**')
+    args.push('-g', '!**/.nuxt/**')
+    args.push('-g', '!**/coverage/**')
+    args.push('-g', '!**/.cache/**')
+
+    // Handle max depth
+    if (!options.recursive) {
+      args.push('--max-depth', '1')
+    } else if (options.maxDepth > 0) {
+      args.push('--max-depth', options.maxDepth.toString())
+    }
+
+    // Handle max count
+    if (options.maxEntries > 0) {
+      args.push('--max-count', options.maxEntries.toString())
+    }
+
+    // Add search pattern (search in content)
+    args.push(options.searchPattern)
+
+    // Add the directory path
+    args.push(resolvedPath)
+
+    const { exitCode, output } = await executeRipgrep(args)
+
+    // Exit code 0 means files found, 1 means no files found (still success), 2+ means error
+    if (exitCode >= 2) {
+      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
+    }
+
+    // Parse ripgrep output (already sorted by relevance)
+    const results = output
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => line.replace(/\\/g, '/'))
+      .slice(0, options.maxEntries)
+
+    return results
+  }
+
+  private async listDirectoryWithRipgrep(
+    resolvedPath: string,
+    options: Required<DirectoryListOptions>
+  ): Promise<string[]> {
+    const maxEntries = options.maxEntries
+
+    // Step 1: Search by filename first
+    logger.debug('Searching by filename pattern', { pattern: options.searchPattern, path: resolvedPath })
+    const filenameResults = await this.searchByFilename(resolvedPath, options)
+
+    logger.debug('Found matches by filename', { count: filenameResults.length })
+
+    // If we have enough filename matches, return them
+    if (filenameResults.length >= maxEntries) {
+      return filenameResults.slice(0, maxEntries)
+    }
+
+    // Step 2: If filename matches are less than maxEntries, search by content to fill up
+    logger.debug('Filename matches insufficient, searching by content to fill up', {
+      filenameCount: filenameResults.length,
+      needed: maxEntries - filenameResults.length
+    })
+
+    // Adjust maxEntries for content search to get enough results
+    const contentOptions = {
+      ...options,
+      maxEntries: maxEntries - filenameResults.length + 20 // Request extra to account for duplicates
+    }
+
+    const contentResults = await this.searchByContent(resolvedPath, contentOptions)
+
+    logger.debug('Found matches by content', { count: contentResults.length })
+
+    // Combine results: filename matches first, then content matches (deduplicated)
+    const combined = [...filenameResults]
+    const filenameSet = new Set(filenameResults)
+
+    for (const filePath of contentResults) {
+      if (!filenameSet.has(filePath)) {
+        combined.push(filePath)
+        if (combined.length >= maxEntries) {
+          break
+        }
+      }
+    }
+
+    logger.debug('Combined results', { total: combined.length, filenameCount: filenameResults.length })
+    return combined.slice(0, maxEntries)
   }
 
   public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
@@ -1227,6 +1590,19 @@ class FileStorage {
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
       return false
+    }
+  }
+
+  public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
+    if (!fs.existsSync(path)) {
+      const msg = `File or folder does not exist: ${path}`
+      logger.error(msg)
+      throw new Error(msg)
+    }
+    try {
+      shell.showItemInFolder(path)
+    } catch (error) {
+      logger.error('Failed to show item in folder:', error as Error)
     }
   }
 }

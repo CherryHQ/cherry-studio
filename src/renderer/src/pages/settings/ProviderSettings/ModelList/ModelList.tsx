@@ -2,15 +2,16 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { PROVIDER_URLS } from '@renderer/config/providers'
+import { isNewApiProvider, PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
 import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/AddModelPopup'
+import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
@@ -50,7 +51,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const providerConfig = PROVIDER_URLS[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
-  const editable = provider.id !== 'cherryin'
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
@@ -87,12 +87,17 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   }, [provider.id])
 
   const onAddModel = useCallback(() => {
-    if (provider.id === 'new-api') {
+    if (isNewApiProvider(provider)) {
       NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     } else {
       AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
     }
   }, [provider, t])
+
+  const onDownloadModel = useCallback(
+    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
+    [provider, t]
+  )
 
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
 
@@ -113,17 +118,15 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               tooltip={t('models.search.tooltip')}
             />
           </HStack>
-          {editable && (
-            <HStack>
-              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-                <Button
-                  type="text"
-                  onClick={runHealthCheck}
-                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-                />
-              </Tooltip>
-            </HStack>
-          )}
+          <HStack>
+            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+              <Button
+                type="text"
+                onClick={runHealthCheck}
+                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+              />
+            </Tooltip>
+          </HStack>
         </HStack>
       </SettingSubtitle>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
@@ -139,7 +142,6 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 onEditModel={(model) => EditModelPopup.show({ provider, model })}
                 onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
-                disabled={!editable}
               />
             ))}
           </Flex>
@@ -167,16 +169,20 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           <div style={{ height: 5 }} />
         )}
       </Flex>
-      {editable && (
-        <Flex gap={10} style={{ marginTop: 12 }}>
-          <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
-            {t('button.manage')}
-          </Button>
+      <Flex gap={10} style={{ marginTop: 12 }}>
+        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+          {t('button.manage')}
+        </Button>
+        {provider.id !== 'ovms' ? (
           <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
             {t('button.add')}
           </Button>
-        </Flex>
-      )}
+        ) : (
+          <Button type="default" onClick={onDownloadModel} icon={<Plus size={16} />}>
+            {t('button.download')}
+          </Button>
+        )}
+      </Flex>
     </>
   )
 }

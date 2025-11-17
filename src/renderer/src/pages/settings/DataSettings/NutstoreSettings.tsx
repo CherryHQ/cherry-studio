@@ -28,7 +28,8 @@ import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import { Button, Input, Switch, Tooltip, Typography } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
@@ -106,11 +107,9 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.message[isConnectedToNutstore ? 'success' : 'error']({
-      key: 'api-check',
-      style: { marginTop: '3vh' },
-      duration: 2,
-      content: isConnectedToNutstore
+    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+      timeout: 2000,
+      title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')
         : t('settings.data.nutstore.checkConnection.fail')
     })

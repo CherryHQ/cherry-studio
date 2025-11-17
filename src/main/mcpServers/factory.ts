@@ -1,8 +1,10 @@
 import { loggerService } from '@logger'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import { BuiltinMCPServerName, BuiltinMCPServerNames } from '@types'
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import type { BuiltinMCPServerName } from '@types'
+import { BuiltinMCPServerNames } from '@types'
 
 import BraveSearchServer from './brave-search'
+import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
@@ -41,6 +43,10 @@ export function createInMemoryMCPServer(
     }
     case BuiltinMCPServerNames.python: {
       return new PythonServer().server
+    }
+    case BuiltinMCPServerNames.didiMCP: {
+      const apiKey = envs.DIDI_API_KEY
+      return new DiDiMcpServer(apiKey).server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

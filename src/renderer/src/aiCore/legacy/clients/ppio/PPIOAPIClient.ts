@@ -1,7 +1,7 @@
+import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
-import { Model, Provider } from '@renderer/types'
-import OpenAI from 'openai'
+import type { Model, Provider } from '@renderer/types'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
@@ -11,7 +11,7 @@ export class PPIOAPIClient extends OpenAIAPIClient {
     super(provider)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   override getClientCompatibilityType(_model?: Model): string[] {
     return ['OpenAIAPIClient']
   }

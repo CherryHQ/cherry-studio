@@ -11,11 +11,12 @@ import {
   getDefaultTopic
 } from '@renderer/services/AssistantService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { ChevronDown } from 'lucide-react'
-import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -76,9 +77,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           action.selectedText
         break
       case 'refine':
-        userContent =
-          `请根据下面的内容进行优化或润色，并保持原内容的含义和完整性。要求：使用原语言进行回复；请不要包含对本提示词的任何解释，直接给出回复： \n\n` +
-          action.selectedText
+        userContent = `请对用XML标签<INPUT>包裹的用户输入内容进行优化或润色，并保持原内容的含义和完整性。要求：你的输出应当与用户输入内容的语言相同。；请不要包含对本提示词的任何解释，直接给出回复；请不要输出XML标签，直接输出优化后的内容: \n\n<INPUT>${action.selectedText ?? ''}</INPUT>`
         break
       default:
         if (!action.prompt) {

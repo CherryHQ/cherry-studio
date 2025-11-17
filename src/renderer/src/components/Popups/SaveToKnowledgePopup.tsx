@@ -2,18 +2,16 @@ import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge, useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { Topic } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type { NotesTreeNode } from '@renderer/types/note'
+import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
 import {
   analyzeMessageContent,
   analyzeTopicContent,
   CONTENT_TYPES,
-  ContentType,
-  MessageContentStats,
   processMessageContent,
-  processTopicContent,
-  TopicContentStats
+  processTopicContent
 } from '@renderer/utils/knowledge'
 import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
 import { Check, CircleHelp } from 'lucide-react'
@@ -253,10 +251,39 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     let savedCount = 0
 
     try {
+      // Validate knowledge base configuration before proceeding
+      if (!selectedBaseId) {
+        throw new Error('No knowledge base selected')
+      }
+
+      const selectedBase = bases.find((base) => base.id === selectedBaseId)
+      if (!selectedBase) {
+        throw new Error('Selected knowledge base not found')
+      }
+
+      if (!selectedBase.version) {
+        throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
+      }
+
       if (isNoteMode) {
         const note = source.data as NotesTreeNode
-        const content = await window.api.file.read(note.id + '.md')
-        logger.debug('Note content:', content)
+        if (!note.externalPath) {
+          throw new Error('Note external path is required for export')
+        }
+
+        let content = ''
+        try {
+          content = await window.api.file.readExternal(note.externalPath)
+        } catch (error) {
+          logger.error('Failed to read note file:', error as Error)
+          throw new Error('Failed to read note content. Please ensure the file exists and is accessible.')
+        }
+
+        if (!content || content.trim() === '') {
+          throw new Error('Note content is empty. Cannot export empty notes to knowledge base.')
+        }
+
+        logger.debug('Note content loaded', { contentLength: content.length })
         await addNote(content)
         savedCount = 1
       } else {
@@ -281,9 +308,23 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       resolve({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
-      window.message.error(
-        t(isTopicMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed')
+
+      // Provide more specific error messages
+      let errorMessage = t(
+        isTopicMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed'
       )
+
+      if (error instanceof Error) {
+        if (error.message.includes('not properly configured')) {
+          errorMessage = error.message
+        } else if (error.message.includes('empty')) {
+          errorMessage = error.message
+        } else if (error.message.includes('read note content')) {
+          errorMessage = error.message
+        }
+      }
+
+      window.toast.error(errorMessage)
       setLoading(false)
     }
   }

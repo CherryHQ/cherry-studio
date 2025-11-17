@@ -1,12 +1,14 @@
 import { HStack } from '@renderer/components/Layout'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { Divider, Input, InputRef } from 'antd'
+import type { InputRef } from 'antd'
+import { Divider, Input } from 'antd'
 import { last } from 'lodash'
 import { ChevronLeft, CornerDownLeft, Search } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -55,7 +57,7 @@ const HistoryPage: FC = () => {
   // topic 不包含 messages，用到的时候才会获取
   const onTopicClick = (topic: Topic | null | undefined) => {
     if (!topic) {
-      window.message.error(t('history.error.topic_not_found'))
+      window.toast.error(t('history.error.topic_not_found'))
       return
     }
     setStack((prev) => [...prev, 'topic'])

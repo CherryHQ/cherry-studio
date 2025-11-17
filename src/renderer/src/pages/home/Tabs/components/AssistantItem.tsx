@@ -8,10 +8,13 @@ import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, AssistantsSortType } from '@renderer/types'
-import { getLeadingEmoji, uuid } from '@renderer/utils'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import type { Assistant, AssistantsSortType } from '@renderer/types'
+import { cn, getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import { Dropdown, MenuProps } from 'antd'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
 import { omit } from 'lodash'
 import {
   AlignJustify,
@@ -26,9 +29,9 @@ import {
   Tag,
   Tags
 } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC, PropsWithChildren } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
 import AssistantTagsPopup from './AssistantTagsPopup'
@@ -40,10 +43,12 @@ interface AssistantItemProps {
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
-  addAgent: (agent: any) => void
+  addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
+  sortByPinyinAsc?: () => void
+  sortByPinyinDesc?: () => void
 }
 
 const AssistantItem: FC<AssistantItemProps> = ({
@@ -52,9 +57,11 @@ const AssistantItem: FC<AssistantItemProps> = ({
   sortBy,
   onSwitch,
   onDelete,
-  addAgent,
+  addPreset,
   copyAssistant,
-  handleSortByChange
+  handleSortByChange,
+  sortByPinyinAsc: externalSortByPinyinAsc,
+  sortByPinyinDesc: externalSortByPinyinDesc
 }) => {
   const { t } = useTranslation()
   const { allTags } = useTags()
@@ -64,6 +71,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (isActive) {
@@ -75,13 +83,18 @@ const AssistantItem: FC<AssistantItemProps> = ({
     setIsPending(hasPending)
   }, [isActive, assistant.topics])
 
-  const sortByPinyinAsc = useCallback(() => {
+  // Local sort functions
+  const localSortByPinyinAsc = useCallback(() => {
     updateAssistants(sortAssistantsByPinyin(assistants, true))
   }, [assistants, updateAssistants])
 
-  const sortByPinyinDesc = useCallback(() => {
+  const localSortByPinyinDesc = useCallback(() => {
     updateAssistants(sortAssistantsByPinyin(assistants, false))
   }, [assistants, updateAssistants])
+
+  // Use external sort functions if provided, otherwise use local ones
+  const sortByPinyinAsc = externalSortByPinyinAsc || localSortByPinyinAsc
+  const sortByPinyinDesc = externalSortByPinyinDesc || localSortByPinyinDesc
 
   const menuItems = useMemo(
     () =>
@@ -91,7 +104,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
         allTags,
         assistants,
         updateAssistants,
-        addAgent,
+        addPreset,
         copyAssistant,
         onSwitch,
         onDelete,
@@ -108,7 +121,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
       allTags,
       assistants,
       updateAssistants,
-      addAgent,
+      addPreset,
       copyAssistant,
       onSwitch,
       onDelete,
@@ -128,7 +141,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
       }
     }
     onSwitch(assistant)
-  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
+    dispatch(setActiveTopicOrSessionAction('topic'))
+  }, [clickAssistantToShowTopic, onSwitch, assistant, dispatch, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(
@@ -141,7 +155,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
       menu={{ items: menuItems }}
       trigger={['contextMenu']}
       popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
+      <Container onClick={handleSwitch} isActive={isActive}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           {assistantIconType === 'model' ? (
             <ModelAvatar
@@ -249,7 +263,7 @@ function getMenuItems({
   allTags,
   assistants,
   updateAssistants,
-  addAgent,
+  addPreset,
   copyAssistant,
   onSwitch,
   onDelete,
@@ -297,14 +311,11 @@ function getMenuItems({
       key: 'save-to-agent',
       icon: <Save size={14} />,
       onClick: async () => {
-        const agent = omit(assistant, ['model', 'emoji'])
-        agent.id = uuid()
-        agent.type = 'agent'
-        addAgent(agent)
-        window.message.success({
-          content: t('assistants.save.success'),
-          key: 'save-to-agent'
-        })
+        const preset = omit(assistant, ['model', 'emoji'])
+        preset.id = uuid()
+        preset.type = 'agent'
+        addPreset(preset)
+        window.toast.success(t('assistants.save.success'))
       }
     },
     {
@@ -379,63 +390,76 @@ function getMenuItems({
   ]
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 0 8px;
-  height: 37px;
-  position: relative;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  width: calc(var(--assistants-width) - 20px);
-  &:hover {
-    background-color: var(--color-list-item-hover);
-  }
-  &.active {
-    background-color: var(--color-list-item);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  }
-`
+const Container = ({
+  children,
+  isActive,
+  className,
+  ...props
+}: PropsWithChildren<{ isActive?: boolean } & React.HTMLAttributes<HTMLDivElement>>) => (
+  <div
+    {...props}
+    className={cn(
+      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent px-2',
+      !isActive && 'hover:bg-[var(--color-list-item-hover)]',
+      isActive && 'bg-[var(--color-list-item)] shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
+      className
+    )}>
+    {children}
+  </div>
+)
 
-const AssistantNameRow = styled.div`
-  color: var(--color-text);
-  font-size: 13px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-`
+const AssistantNameRow = ({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
+  <div
+    {...props}
+    className={cn('flex min-w-0 flex-1 flex-row items-center gap-2 text-[13px] text-[var(--color-text)]', className)}>
+    {children}
+  </div>
+)
 
-const AssistantName = styled.div`
-  font-size: 13px;
-`
+const AssistantName = ({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
+  <div
+    {...props}
+    className={cn('min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]', className)}>
+    {children}
+  </div>
+)
 
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 22px;
-  height: 22px;
-  min-height: 22px;
-  border-radius: 11px;
-  position: absolute;
-  background-color: var(--color-background);
-  right: 9px;
-  top: 6px;
-  padding: 0 5px;
-  border: 0.5px solid var(--color-border);
-`
+const MenuButton = ({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
+  <div
+    {...props}
+    className={cn(
+      'absolute top-[6px] right-[9px] flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
+      className
+    )}>
+    {children}
+  </div>
+)
 
-const TopicCount = styled.div`
-  color: var(--color-text);
-  font-size: 10px;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-`
+const TopicCount = ({
+  children,
+  className,
+  ...props
+}: PropsWithChildren<{} & React.HTMLAttributes<HTMLDivElement>>) => (
+  <div
+    {...props}
+    className={cn(
+      'flex flex-row items-center justify-center rounded-[10px] text-[10px] text-[var(--color-text)]',
+      className
+    )}>
+    {children}
+  </div>
+)
 
 export default memo(AssistantItem)

@@ -3,7 +3,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { download as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
-import { RefObject, useCallback, useEffect, useRef } from 'react'
+import type { RefObject } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePreviewToolHandlers')
@@ -210,10 +211,10 @@ export const useImageTools = (
 
       const blob = await svgToPngBlob(imgElement)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     } catch (error) {
       logger.error('Copy failed:', error as Error)
-      window.message.error(t('message.copy.failed'))
+      window.toast.error(t('message.copy.failed'))
     }
   }, [getCleanImgElement, t])
 
@@ -243,7 +244,7 @@ export const useImageTools = (
         }
       } catch (error) {
         logger.error('Download failed:', error as Error)
-        window.message.error(t('message.download.failed'))
+        window.toast.error(t('message.download.failed'))
       }
     },
     [getCleanImgElement, prefix, t]
@@ -262,7 +263,7 @@ export const useImageTools = (
       await ImagePreviewService.show(imgElement, { format: 'svg' })
     } catch (error) {
       logger.error('Dialog preview failed:', error as Error)
-      window.message.error(t('message.dialog.failed'))
+      window.toast.error(t('message.dialog.failed'))
     }
   }, [getCleanImgElement, t])
 

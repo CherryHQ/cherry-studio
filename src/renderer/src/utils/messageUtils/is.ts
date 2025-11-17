@@ -1,6 +1,9 @@
+import type { Message } from '@renderer/types/newMessage'
 import {
+  AssistantMessageStatus,
   type CitationMessageBlock,
   type CodeMessageBlock,
+  type CompactMessageBlock,
   type ErrorMessageBlock,
   type FileMessageBlock,
   type ImageMessageBlock,
@@ -146,4 +149,22 @@ export function isCitationBlock(block: MessageBlock): block is CitationMessageBl
  */
 export function isPlaceholderBlock(block: MessageBlock): block is PlaceholderMessageBlock {
   return block.type === MessageBlockType.UNKNOWN
+}
+
+/**
+ * Checks if a message block is a Compact block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a CompactMessageBlock, false otherwise.
+ */
+export function isCompactBlock(block: MessageBlock): block is CompactMessageBlock {
+  return block.type === MessageBlockType.COMPACT
+}
+
+export function isMessageProcessing(message: Message): boolean {
+  return (
+    message.status === AssistantMessageStatus.PROCESSING ||
+    message.status === AssistantMessageStatus.PENDING ||
+    message.status === AssistantMessageStatus.SEARCHING
+  )
 }

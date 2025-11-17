@@ -1,4 +1,5 @@
-import { FileMetadata, FileTypes } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { audioExts, documentExts, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
 import mime from 'mime-types'
 
@@ -128,4 +129,11 @@ export const mime2type = (mimeStr: string): FileTypes => {
     }
   }
   return FileTypes.OTHER
+}
+
+export function parseFileTypes(str: string): FileTypes | null {
+  if (Object.values(FileTypes).includes(str as FileTypes)) {
+    return str as FileTypes
+  }
+  return null
 }

@@ -11,7 +11,8 @@ import {
   ReloadOutlined
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import WindowControls from '@renderer/components/WindowControls'
+import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -22,11 +23,11 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
-import { WebviewTag } from 'electron'
+import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -169,8 +170,6 @@ const MinappPopupContainer: React.FC = () => {
 
   const { isLeftNavbar } = useNavbarPosition()
 
-  const isInDevelopment = process.env.NODE_ENV === 'development'
-
   const { setTimeoutTimer } = useTimer()
 
   useBridge()
@@ -282,13 +281,6 @@ const MinappPopupContainer: React.FC = () => {
 
   /** the callback function to set the webviews ref */
   const handleWebviewSetRef = (appid: string, element: WebviewTag | null) => {
-    webviewRefs.current.set(appid, element)
-
-    if (!webviewRefs.current.has(appid)) {
-      webviewRefs.current.set(appid, null)
-      return
-    }
-
     if (element) {
       webviewRefs.current.set(appid, element)
     } else {
@@ -400,10 +392,10 @@ const MinappPopupContainer: React.FC = () => {
       navigator.clipboard
         .writeText(url)
         .then(() => {
-          window.message.success('URL ' + t('message.copy.success'))
+          window.toast.success('URL ' + t('message.copy.success'))
         })
         .catch(() => {
-          window.message.error('URL ' + t('message.copy.failed'))
+          window.toast.error('URL ' + t('message.copy.failed'))
         })
     }
 
@@ -434,7 +426,10 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''} isTopNavbar={isTopNavbar}>
+        <ButtonsGroup
+          className={isWin || isLinux ? 'windows' : ''}
+          style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
+          isTopNavbar={isTopNavbar}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
@@ -480,7 +475,7 @@ const MinappPopupContainer: React.FC = () => {
               <LinkOutlined />
             </TitleButton>
           </Tooltip>
-          {isInDevelopment && (
+          {isDev && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
               <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />
@@ -500,6 +495,11 @@ const MinappPopupContainer: React.FC = () => {
             </TitleButton>
           </Tooltip>
         </ButtonsGroup>
+        {(isWin || isLinux) && (
+          <div style={{ position: 'absolute', right: 0, top: 0, height: '100%' }}>
+            <WindowControls />
+          </div>
+        )}
       </TitleContainer>
     )
   }
@@ -537,14 +537,19 @@ const MinappPopupContainer: React.FC = () => {
         wrapper: {
           position: 'fixed',
           marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
-          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
+          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0
+        },
+        content: {
           backgroundColor: window.root.style.background
+        },
+        body: {
+          borderTopLeftRadius: '10px'
         }
       }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (
-        <EmptyView>
+        <EmptyView style={{ backgroundColor: 'var(--color-background-soft)' }}>
           <Avatar
             src={currentAppInfo?.logo}
             size={80}
@@ -602,7 +607,6 @@ const ButtonsGroup = styled.div<{ isTopNavbar: boolean }>`
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWin ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;

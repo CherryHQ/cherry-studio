@@ -3,7 +3,8 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
+import type { PropsWithChildren } from 'react'
+import React, { createContext, use, useEffect, useState } from 'react'
 
 interface ThemeContextType {
   theme: ThemeMode
@@ -23,9 +24,15 @@ interface ThemeProviderProps extends PropsWithChildren {
   defaultTheme?: ThemeMode
 }
 
+const tailwindThemeChange = (theme: ThemeMode) => {
+  const root = window.document.documentElement
+  root.classList.remove('light', 'dark')
+  root.classList.add(theme)
+}
+
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
-  const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
+  const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
   const [actualTheme, setActualTheme] = useState<ThemeMode>(
     window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
   )
@@ -45,7 +52,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     // Set initial theme and OS attributes on body
     document.body.setAttribute('os', isMac ? 'mac' : isWin ? 'windows' : 'linux')
     document.body.setAttribute('theme-mode', actualTheme)
+    if (actualTheme === ThemeMode.dark) {
+      document.body.classList.remove('light')
+      document.body.classList.add('dark')
+    } else {
+      document.body.classList.remove('dark')
+      document.body.classList.add('light')
+    }
     document.body.setAttribute('navbar-position', navbarPosition)
+    document.documentElement.lang = language
 
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
@@ -60,7 +75,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.setAttribute('theme-mode', actualTheme)
       setActualTheme(actualTheme)
     })
-  }, [actualTheme, initUserTheme, navbarPosition, setSettedTheme, settedTheme])
+  }, [actualTheme, initUserTheme, language, navbarPosition, setSettedTheme, settedTheme])
+
+  useEffect(() => {
+    tailwindThemeChange(actualTheme)
+  }, [actualTheme])
 
   useEffect(() => {
     window.api.setTheme(settedTheme)

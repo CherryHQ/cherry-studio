@@ -33,12 +33,59 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     aliases: ['vertexai-anthropic']
   },
   {
+    id: 'github-copilot-openai-compatible',
+    name: 'GitHub Copilot OpenAI Compatible',
+    import: () => import('@opeoginni/github-copilot-openai-compatible'),
+    creatorFunctionName: 'createGitHubCopilotOpenAICompatible',
+    supportsImageGeneration: false,
+    aliases: ['copilot', 'github-copilot']
+  },
+  {
     id: 'bedrock',
     name: 'Amazon Bedrock',
     import: () => import('@ai-sdk/amazon-bedrock'),
     creatorFunctionName: 'createAmazonBedrock',
     supportsImageGeneration: true,
     aliases: ['aws-bedrock']
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    import: () => import('@ai-sdk/perplexity'),
+    creatorFunctionName: 'createPerplexity',
+    supportsImageGeneration: false,
+    aliases: ['perplexity']
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral',
+    import: () => import('@ai-sdk/mistral'),
+    creatorFunctionName: 'createMistral',
+    supportsImageGeneration: false,
+    aliases: ['mistral']
+  },
+  {
+    id: 'huggingface',
+    name: 'HuggingFace',
+    import: () => import('@ai-sdk/huggingface'),
+    creatorFunctionName: 'createHuggingFace',
+    supportsImageGeneration: true,
+    aliases: ['hf', 'hugging-face']
+  },
+  {
+    id: 'ai-gateway',
+    name: 'AI Gateway',
+    import: () => import('@ai-sdk/gateway'),
+    creatorFunctionName: 'createGateway',
+    supportsImageGeneration: true,
+    aliases: ['gateway']
+  },
+  {
+    id: 'cerebras',
+    name: 'Cerebras',
+    import: () => import('@ai-sdk/cerebras'),
+    creatorFunctionName: 'createCerebras',
+    supportsImageGeneration: false
   }
 ] as const
 

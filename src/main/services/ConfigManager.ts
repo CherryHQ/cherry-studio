@@ -1,7 +1,10 @@
-import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
-import { LanguageVarious, Shortcut, ThemeMode } from '@types'
+import type { UpgradeChannel } from '@shared/config/constant'
+import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import type { LanguageVarious, Shortcut } from '@types'
+import { ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
+import { v4 as uuidv4 } from 'uuid'
 
 import { locales } from '../utils/locales'
 
@@ -27,7 +30,8 @@ export enum ConfigKeys {
   SelectionAssistantFilterList = 'selectionAssistantFilterList',
   DisableHardwareAcceleration = 'disableHardwareAcceleration',
   Proxy = 'proxy',
-  EnableDeveloperMode = 'enableDeveloperMode'
+  EnableDeveloperMode = 'enableDeveloperMode',
+  ClientId = 'clientId'
 }
 
 export class ConfigManager {
@@ -239,6 +243,17 @@ export class ConfigManager {
 
   setEnableDeveloperMode(value: boolean) {
     this.set(ConfigKeys.EnableDeveloperMode, value)
+  }
+
+  getClientId(): string {
+    let clientId = this.get<string>(ConfigKeys.ClientId)
+
+    if (!clientId) {
+      clientId = uuidv4()
+      this.set(ConfigKeys.ClientId, clientId)
+    }
+
+    return clientId
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {

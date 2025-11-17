@@ -9,6 +9,7 @@ electronLanguages:
   - zh_CN # for macOS
   - zh_TW # for macOS
   - en # for macOS
+  - de
 directories:
   buildResources: build
 
@@ -17,52 +18,60 @@ protocols:
     schemes:
       - cherrystudio
 files:
-  - '**/*'
-  - '!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
-  - '!electron.vite.config.{js,ts,mjs,cjs}}'
-  - '!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}'
-  - '!**/{.editorconfig,.jekyll-metadata}'
-  - '!src'
-  - '!scripts'
-  - '!local'
-  - '!docs'
-  - '!packages'
-  - '!.swc'
-  - '!.bin'
-  - '!._*'
-  - '!*.log'
-  - '!stats.html'
-  - '!*.md'
-  - '!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}'
-  - '!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}'
-  - '!**/{test,tests,__tests__,powered-test,coverage}/**'
-  - '!**/{example,examples}/**'
-  - '!**/*.{spec,test}.{js,jsx,ts,tsx}'
-  - '!**/*.min.*.map'
-  - '!**/*.d.ts'
-  - '!**/dist/es6/**'
-  - '!**/dist/demo/**'
-  - '!**/amd/**'
-  - '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}'
-  - '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}'
-  - '!node_modules/rollup-plugin-visualizer'
-  - '!node_modules/js-tiktoken'
-  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
-  - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
-  - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
-  - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
-  - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
-  - '!node_modules/selection-hook/src' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}' # we don't need source files
-  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
+  - "**/*"
+  - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
+  - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+  - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
+  - "!**/{.editorconfig,.jekyll-metadata}"
+  - "!src"
+  - "!scripts"
+  - "!local"
+  - "!docs"
+  - "!packages"
+  - "!.swc"
+  - "!.bin"
+  - "!._*"
+  - "!*.log"
+  - "!stats.html"
+  - "!*.md"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}"
+  - "!**/{test,tests,__tests__,powered-test,coverage}/**"
+  - "!**/{example,examples}/**"
+  - "!**/*.{spec,test}.{js,jsx,ts,tsx}"
+  - "!**/*.min.*.map"
+  - "!**/*.d.ts"
+  - "!**/dist/es6/**"
+  - "!**/dist/demo/**"
+  - "!**/amd/**"
+  - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
+  - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
+  - "!node_modules/rollup-plugin-visualizer"
+  - "!node_modules/js-tiktoken"
+  - "!node_modules/@tavily/core/node_modules/js-tiktoken"
+  - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
+  - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
+  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
+  - "!node_modules/selection-hook/src" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
 asarUnpack:
   - resources/**
-  - '**/*.{metal,exp,lib}'
-  - 'node_modules/@img/sharp-libvips-*/**'
+  - "**/*.{metal,exp,lib}"
+  - "node_modules/@img/sharp-libvips-*/**"
+
+# copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
+extraResources:
+  - from: "./node_modules/claude-code-plugins/plugins/"
+    to: "claude-code-plugins"
+
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -88,7 +97,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: '20.1.0' # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -110,6 +118,10 @@ linux:
       StartupWMClass: CherryStudio
   mimeTypes:
     - x-scheme-handler/cherrystudio
+rpm:
+  # Workaround for electron build issue on rpm package:
+  # https://github.com/electron/forge/issues/3594
+  fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
@@ -121,12 +133,59 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    🔧 性能优化：
-    - 优化AI服务连接方式，提升响应速度和稳定性
-    - 改进模型列表获取功能，减少不必要的网络请求
-    - 增强各AI服务商的兼容性和连接可靠性
+    <!--LANG:en-->
+    What's New in v1.7.0-rc.1
 
-    🐛 问题修复：
-    - 修复部分AI服务商连接失败的问题
-    - 修复模型配置加载时的潜在错误
-    - 提升应用整体稳定性和容错能力
+    🎉 MAJOR NEW FEATURE: AI Agents
+    - Create and manage custom AI agents with specialized tools and permissions
+    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
+    - Real-time tool approval system - review and approve agent actions dynamically
+    - MCP (Model Context Protocol) integration for connecting external tools
+    - Slash commands support for quick agent interactions
+    - OpenAI-compatible REST API for agent access
+
+    ✨ New Features:
+    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
+    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
+    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
+    - MCP Management: Redesigned interface with dual-column layout for easier management
+    - Languages: Added German language support
+
+    ⚡ Improvements:
+    - Upgraded to Electron 38.7.0
+    - Enhanced system shutdown handling and automatic update checks
+    - Improved proxy bypass rules
+
+    🐛 Important Bug Fixes:
+    - Fixed streaming response issues across multiple AI providers
+    - Fixed session list scrolling problems
+    - Fixed knowledge base deletion errors
+
+    <!--LANG:zh-CN-->
+    v1.7.0-rc.1 新特性
+
+    🎉 重大更新：AI Agent 智能体系统
+    - 创建和管理专属 AI Agent，配置专用工具和权限
+    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
+    - 实时工具审批系统 - 动态审查和批准 Agent 操作
+    - MCP（模型上下文协议）集成，连接外部工具
+    - 支持斜杠命令快速交互
+    - 兼容 OpenAI 的 REST API 访问
+
+    ✨ 新功能:
+    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
+    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
+    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
+    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
+    - 语言：新增德语支持
+
+    ⚡ 改进:
+    - 升级到 Electron 38.7.0
+    - 增强的系统关机处理和自动更新检查
+    - 改进的代理绕过规则
+
+    🐛 重要修复:
+    - 修复多个 AI 提供商的流式响应问题
+    - 修复会话列表滚动问题
+    - 修复知识库删除错误
+    <!--LANG:END-->

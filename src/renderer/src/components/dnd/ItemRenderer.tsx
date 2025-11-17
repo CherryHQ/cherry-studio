@@ -1,23 +1,29 @@
-import { DraggableSyntheticListeners } from '@dnd-kit/core'
-import { Transform } from '@dnd-kit/utilities'
+import type { DraggableSyntheticListeners } from '@dnd-kit/core'
+import type { Transform } from '@dnd-kit/utilities'
+import { CSS } from '@dnd-kit/utilities'
 import { classNames } from '@renderer/utils'
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
 
+import type { RenderItemType } from './types'
+
 interface ItemRendererProps<T> {
   ref?: React.Ref<HTMLDivElement>
+  index?: number
   item: T
-  renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
+  renderItem: RenderItemType<T>
   dragging?: boolean
   dragOverlay?: boolean
   ghost?: boolean
   transform?: Transform | null
   transition?: string | null
   listeners?: DraggableSyntheticListeners
+  itemStyle?: React.CSSProperties
 }
 
 export function ItemRenderer<T>({
   ref,
+  index,
   item,
   renderItem,
   dragging,
@@ -26,6 +32,7 @@ export function ItemRenderer<T>({
   transform,
   transition,
   listeners,
+  itemStyle,
   ...props
 }: ItemRendererProps<T>) {
   useEffect(() => {
@@ -40,16 +47,17 @@ export function ItemRenderer<T>({
     }
   }, [dragOverlay])
 
-  const wrapperStyle = {
+  const style = {
     transition,
-    '--translate-x': transform ? `${Math.round(transform.x)}px` : undefined,
-    '--translate-y': transform ? `${Math.round(transform.y)}px` : undefined,
-    '--scale-x': transform?.scaleX ? `${transform.scaleX}` : undefined,
-    '--scale-y': transform?.scaleY ? `${transform.scaleY}` : undefined
+    transform: CSS.Transform.toString(transform ?? null)
   } as React.CSSProperties
 
   return (
-    <ItemWrapper ref={ref} className={classNames({ dragOverlay: dragOverlay })} style={{ ...wrapperStyle }}>
+    <ItemWrapper
+      ref={ref}
+      data-index={index}
+      className={classNames({ dragOverlay: dragOverlay })}
+      style={{ ...style, ...itemStyle }}>
       <DraggableItem
         className={classNames({ dragging: dragging, dragOverlay: dragOverlay, ghost: ghost })}
         {...listeners}
@@ -62,8 +70,6 @@ export function ItemRenderer<T>({
 
 const ItemWrapper = styled.div`
   box-sizing: border-box;
-  transform: translate3d(var(--translate-x, 0), var(--translate-y, 0), 0) scaleX(var(--scale-x, 1))
-    scaleY(var(--scale-y, 1));
   transform-origin: 0 0;
   touch-action: manipulation;
 

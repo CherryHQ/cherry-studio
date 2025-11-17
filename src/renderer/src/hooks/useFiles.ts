@@ -1,4 +1,4 @@
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -68,12 +68,11 @@ export const useFiles = (props?: Props) => {
         }
 
         if (supportedFiles.length !== _files.length) {
-          window.message.info({
-            key: 'file_not_supported',
-            content: t('chat.input.file_not_supported_count', {
+          window.toast.info(
+            t('chat.input.file_not_supported_count', {
               count: _files.length - supportedFiles.length
             })
-          })
+          )
         }
         return supportedFiles
       } else {

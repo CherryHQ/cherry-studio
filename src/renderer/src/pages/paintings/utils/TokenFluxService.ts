@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { CacheService } from '@renderer/services/CacheService'
-import { FileMetadata, TokenFluxPainting } from '@renderer/types'
+import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
 
@@ -219,10 +219,7 @@ export class TokenFluxService {
         try {
           if (!url?.trim()) {
             logger.error('Image URL is empty')
-            window.message.warning({
-              content: 'Image URL is empty',
-              key: 'empty-url-warning'
-            })
+            window.toast.warning('Image URL is empty')
             return null
           }
           return await window.api.file.download(url)

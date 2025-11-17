@@ -1,12 +1,14 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setJoplinExportReasoning, setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
 import { Button, Space, Switch, Tooltip } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -16,7 +18,7 @@ const JoplinSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { openMinapp } = useMinappPopup()
+  const { openSmartMinapp } = useMinappPopup()
 
   const joplinToken = useSelector((state: RootState) => state.settings.joplinToken)
   const joplinUrl = useSelector((state: RootState) => state.settings.joplinUrl)
@@ -42,11 +44,11 @@ const JoplinSettings: FC = () => {
   const handleJoplinConnectionCheck = async () => {
     try {
       if (!joplinToken) {
-        window.message.error(t('settings.data.joplin.check.empty_token'))
+        window.toast.error(t('settings.data.joplin.check.empty_token'))
         return
       }
       if (!joplinUrl) {
-        window.message.error(t('settings.data.joplin.check.empty_url'))
+        window.toast.error(t('settings.data.joplin.check.empty_url'))
         return
       }
 
@@ -55,21 +57,22 @@ const JoplinSettings: FC = () => {
       const data = await response.json()
 
       if (!response.ok || data?.error) {
-        window.message.error(t('settings.data.joplin.check.fail'))
+        window.toast.error(t('settings.data.joplin.check.fail'))
         return
       }
 
-      window.message.success(t('settings.data.joplin.check.success'))
+      window.toast.success(t('settings.data.joplin.check.success'))
     } catch (e) {
-      window.message.error(t('settings.data.joplin.check.fail'))
+      window.toast.error(t('settings.data.joplin.check.fail'))
     }
   }
 
   const handleJoplinHelpClick = () => {
-    openMinapp({
+    openSmartMinapp({
       id: 'joplin-help',
       name: 'Joplin Help',
-      url: 'https://joplinapp.org/help/apps/clipper'
+      url: 'https://joplinapp.org/help/apps/clipper',
+      logo: AppLogo
     })
   }
 

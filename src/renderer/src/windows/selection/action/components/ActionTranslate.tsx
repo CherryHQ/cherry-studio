@@ -9,14 +9,15 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import type { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
 import { Tooltip } from 'antd'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -138,8 +139,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       }
     }
 
-    assistantRef.current = getDefaultTranslateAssistant(translateLang, action.selectedText)
-    processMessages(assistantRef.current, topicRef.current, action.selectedText, setAskId, onStream, onFinish, onError)
+    const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
+    assistantRef.current = assistant
+    processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom])
 
   useEffect(() => {

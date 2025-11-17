@@ -1,0 +1,393 @@
+.markdown {
+  color: var(--color-text);
+  line-height: 1.6;
+  user-select: text;
+  word-break: break-word;
+}
+
+.markdown h1:first-child,
+.markdown h2:first-child,
+.markdown h3:first-child,
+.markdown h4:first-child,
+.markdown h5:first-child,
+.markdown h6:first-child {
+  margin-top: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 1.5em 0 1em 0;
+  line-height: 1.3;
+  font-weight: bold;
+}
+
+.markdown h1 {
+  margin-top: 0;
+  font-size: 2em;
+  border-bottom: 0.5px solid var(--color-border);
+  padding-bottom: 0.3em;
+}
+
+.markdown h2 {
+  font-size: 1.5em;
+  border-bottom: 0.5px solid var(--color-border);
+  padding-bottom: 0.3em;
+}
+
+.markdown h3 {
+  font-size: 1.2em;
+}
+
+.markdown h4 {
+  font-size: 1em;
+}
+
+.markdown h5 {
+  font-size: 0.9em;
+}
+
+.markdown h6 {
+  font-size: 0.8em;
+}
+
+.markdown p {
+  margin: 1.3em 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.markdown p:last-child {
+  margin-bottom: 5px;
+}
+
+.markdown p:first-child {
+  margin-top: 0;
+}
+
+.markdown p:has(+ ul) {
+  margin-bottom: 0;
+}
+
+.markdown ul {
+  list-style: initial;
+}
+
+.markdown ol {
+  list-style: decimal;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.5em;
+  margin: 1em 0;
+}
+
+.markdown li {
+  margin-bottom: 0.5em;
+}
+
+.markdown li pre {
+  margin: 1.5em 0 !important;
+}
+
+.markdown li::marker {
+  color: var(--color-text-3);
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin: 0.5em 0;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 0.5px solid var(--color-border);
+  margin: 20px 0;
+}
+
+.markdown span {
+  white-space: pre-wrap;
+}
+
+.markdown .katex span {
+  white-space: pre;
+}
+
+.markdown p code,
+.markdown li code {
+  background: var(--color-background-mute);
+  padding: 3px 5px;
+  margin: 0 2px;
+  border-radius: 5px;
+  word-break: keep-all;
+  white-space: pre;
+  text-wrap: wrap;
+}
+
+.markdown code {
+  font-family: var(--code-font-family);
+}
+
+.markdown pre {
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: var(--code-font-family);
+  background-color: var(--color-background-mute);
+}
+
+.markdown pre:has(.special-preview) {
+  background-color: transparent;
+}
+
+.markdown pre:not(pre pre) > code:not(pre pre > code) {
+  padding: 15px;
+  display: block;
+}
+
+.markdown pre pre {
+  margin: 0 !important;
+}
+
+.markdown pre pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdown pre + pre {
+  margin-top: 10px;
+}
+
+.markdown .markdown-alert,
+.markdown blockquote {
+  margin: 1.5em 0;
+  padding: 1em 1.5em;
+  background-color: var(--color-background-soft);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 0 8px 8px 0;
+  font-style: italic;
+  position: relative;
+}
+
+.markdown table {
+  --table-border-radius: 8px;
+  margin: 2em 0;
+  font-size: 0.9em;
+  width: 100%;
+  border-radius: var(--table-border-radius);
+  overflow: hidden;
+  border-collapse: separate;
+  border: 0.5px solid var(--color-border);
+  border-spacing: 0;
+}
+
+.markdown th,
+.markdown td {
+  border-right: 0.5px solid var(--color-border);
+  border-bottom: 0.5px solid var(--color-border);
+  padding: 0.5em;
+}
+
+.markdown th:last-child,
+.markdown td:last-child {
+  border-right: none;
+}
+
+.markdown tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown th {
+  background-color: var(--color-background-mute);
+  font-weight: 600;
+  text-align: left;
+}
+
+.markdown tr:hover {
+  background-color: var(--color-background-soft);
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+  margin: 1em 0;
+}
+
+.markdown a,
+.markdown .link {
+  color: var(--color-link);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.markdown a:hover,
+.markdown .link:hover {
+  text-decoration: underline;
+}
+
+.markdown strong {
+  font-weight: bold;
+}
+
+.markdown em {
+  font-style: italic;
+}
+
+.markdown del {
+  text-decoration: line-through;
+}
+
+.markdown sup,
+.markdown sub {
+  font-size: 75%;
+  line-height: 0;
+  position: relative;
+  vertical-align: baseline;
+}
+
+.markdown sup {
+  top: -0.5em;
+  border-radius: 50%;
+  background-color: var(--color-reference);
+  color: var(--color-reference-text);
+  padding: 2px 5px;
+  zoom: 0.8;
+}
+
+.markdown sup > span.link {
+  color: var(--color-reference-text);
+}
+
+.markdown sub {
+  bottom: -0.25em;
+}
+
+.markdown .footnote-ref {
+  font-size: 0.8em;
+  vertical-align: super;
+  line-height: 0;
+  margin: 0 2px;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.markdown .footnote-ref:hover {
+  text-decoration: underline;
+}
+
+.footnotes {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-top: 1em;
+
+  background-color: var(--color-reference-background);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.footnotes h4 {
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.footnotes a {
+  color: var(--color-link);
+}
+
+.footnotes ol {
+  padding-left: 1em;
+  margin: 0;
+}
+
+.footnotes ol li:last-child {
+  margin-bottom: 0;
+}
+
+.footnotes li {
+  font-size: 0.9em;
+  margin-bottom: 0.5em;
+  color: var(--color-text-light);
+}
+
+.footnotes li p {
+  display: inline;
+  margin: 0;
+}
+
+.footnotes .footnote-backref {
+  font-size: 0.8em;
+  vertical-align: super;
+  line-height: 0;
+  margin-left: 5px;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.footnotes .footnote-backref:hover {
+  text-decoration: underline;
+}
+
+emoji-picker {
+  --border-size: 0;
+}
+
+.block-wrapper + .block-wrapper {
+  margin-top: 1em;
+}
+
+.katex,
+mjx-container {
+  display: inline-block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overflow-wrap: break-word;
+  vertical-align: middle;
+  max-width: 100%;
+  padding: 1px 2px;
+  margin-top: -2px;
+}
+
+/* Shiki 相关样式 */
+.shiki {
+  font-family: var(--code-font-family);
+  /* 保持行高为初始值，在 shiki 代码块中处理 */
+  line-height: initial;
+}
+
+/* CodeMirror 相关样式 */
+.cm-editor {
+  border-radius: inherit;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-editor .cm-scroller {
+  font-family: var(--code-font-family);
+  border-radius: inherit;
+}
+
+.cm-editor .cm-scroller .cm-gutters {
+  line-height: 1.6;
+  border-right: none;
+}
+
+.cm-editor .cm-scroller .cm-content {
+  line-height: 1.6;
+  padding-left: 0.25em;
+}
+
+.cm-editor .cm-scroller .cm-lineWrapping * {
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.cm-editor .cm-announced {
+  position: absolute;
+  display: none;
+}

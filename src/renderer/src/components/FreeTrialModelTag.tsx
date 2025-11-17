@@ -1,12 +1,12 @@
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { ArrowUpRight } from 'lucide-react'
-import { FC, MouseEvent } from 'react'
+import type { FC, MouseEvent } from 'react'
 import styled from 'styled-components'
 
 import IndicatorLight from './IndicatorLight'
-import SelectModelPopup from './Popups/SelectModelPopup'
+import { SelectModelPopup } from './Popups/SelectModelPopup'
 import CustomTag from './Tags/CustomTag'
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
-  if (model.provider !== 'cherryin') {
+  if (model.provider !== 'cherryai') {
     return null
   }
 

@@ -2,7 +2,7 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { Modal, Space } from 'antd'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,9 +40,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         updateProvider({ ...provider, extra_headers: headers })
       }
 
-      window.message.success({ content: t('message.save.success.title') })
+      window.toast.success(t('message.save.success.title'))
     } catch (error) {
-      window.message.error({ content: t('settings.provider.copilot.invalid_json') })
+      window.toast.error(t('settings.provider.copilot.invalid_json'))
     }
   }, [headerText, provider, t, updateDefaultHeaders, updateProvider])
 

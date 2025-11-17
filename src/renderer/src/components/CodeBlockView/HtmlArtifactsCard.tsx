@@ -1,11 +1,12 @@
 import { CodeOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { ThemeMode } from '@renderer/types'
+import type { ThemeMode } from '@renderer/types'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Button } from 'antd'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
 import styled, { keyframes } from 'styled-components'
@@ -50,7 +51,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
   const handleDownload = async () => {
     const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
     await window.api.file.save(fileName, htmlContent)
-    window.message.success({ content: t('message.download.success'), key: 'download' })
+    window.toast.success(t('message.download.success'))
   }
 
   return (

@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { isValidUrl } from '@renderer/utils/fetch'
 import { message } from 'antd'
-import React, { ReactElement } from 'react'
+import type { ReactElement } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('KnowledgeSearchItem hooks')
@@ -37,7 +38,7 @@ export const useCopyText = () => {
       message.success(t('message.copied'))
     } catch (error) {
       logger.error('Failed to copy text:', error as Error)
-      window.message.error(t('message.error.copy') || 'Failed to copy text')
+      window.toast.error(t('message.error.copy') || 'Failed to copy text')
     }
   }
 

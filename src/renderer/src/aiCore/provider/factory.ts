@@ -1,7 +1,7 @@
 import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import { initializeNewProviders } from './providerInitialization'
@@ -28,7 +28,8 @@ const STATIC_PROVIDER_MAPPING: Record<string, ProviderId> = {
   gemini: 'google', // Google Gemini -> google
   'azure-openai': 'azure', // Azure OpenAI -> azure
   'openai-response': 'openai', // OpenAI Responses -> openai
-  grok: 'xai' // Grok -> xai
+  grok: 'xai', // Grok -> xai
+  copilot: 'github-copilot-openai-compatible'
 }
 
 /**
@@ -69,6 +70,9 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
       return resolvedFromType
     }
   }
+  if (provider.apiHost.includes('api.openai.com')) {
+    return 'openai-chat'
+  }
   // 3. 最后的fallback（通常会成为openai-compatible）
   return provider.id as ProviderId
 }
@@ -80,6 +84,8 @@ export async function createAiSdkProvider(config) {
       config.providerId = `${config.providerId}-chat`
     } else if (config.providerId === 'azure' && config.options?.mode === 'responses') {
       config.providerId = `${config.providerId}-responses`
+    } else if (config.providerId === 'cherryin' && config.options?.mode === 'chat') {
+      config.providerId = 'cherryin-chat'
     }
     localProvider = await createProviderCore(config.providerId, config.options)
 

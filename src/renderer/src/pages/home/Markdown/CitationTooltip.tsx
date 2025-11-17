@@ -2,10 +2,10 @@ import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
-import { z } from 'zod'
+import * as z from 'zod'
 
 export const CitationSchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
   title: z.string().optional(),
   content: z.string().optional()
 })

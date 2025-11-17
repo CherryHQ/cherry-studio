@@ -2,7 +2,8 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { CircleX, Copy, Pause } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -132,7 +133,7 @@ const WindowFooter: FC<FooterProps> = ({
     navigator.clipboard
       .writeText(content)
       .then(() => {
-        window.message.success(t('message.copy.success'))
+        window.toast.success(t('message.copy.success'))
         setIsCopyHovered(true)
         setTimeoutTimer(
           'handleCopy',
@@ -143,7 +144,7 @@ const WindowFooter: FC<FooterProps> = ({
         )
       })
       .catch(() => {
-        window.message.error(t('message.copy.failed'))
+        window.toast.error(t('message.copy.failed'))
       })
   }
 
@@ -169,7 +170,7 @@ const WindowFooter: FC<FooterProps> = ({
                 <Pause size={14} className="btn-icon loading-icon" style={{ position: 'absolute', left: 1, top: 1 }} />
                 <LoadingOutlined
                   style={{ fontSize: 16, position: 'absolute', left: 0, top: 0 }}
-                  className="btn-icon  loading-icon"
+                  className="btn-icon loading-icon"
                   spin
                 />
               </LoadingIconWrapper>

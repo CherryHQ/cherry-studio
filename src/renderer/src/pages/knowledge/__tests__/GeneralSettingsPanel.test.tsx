@@ -1,4 +1,4 @@
-import { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
+import type { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -137,24 +137,6 @@ vi.mock('antd', () => ({
       {children}
     </select>
   ),
-  Segmented: ({ value, onChange, options, style }: any) => (
-    <div data-testid="retriever-segmented" style={style}>
-      {options?.map((option: any) => (
-        <button
-          key={option.value}
-          type="button"
-          data-testid={`segmented-option-${option.value}`}
-          onClick={() => onChange?.(option.value)}
-          data-active={value === option.value}
-          style={{
-            backgroundColor: value === option.value ? '#1677ff' : '#fff',
-            color: value === option.value ? '#fff' : '#000'
-          }}>
-          {option.label}
-        </button>
-      ))}
-    </div>
-  ),
   Slider: ({ value, onChange, min, max, step, marks, style }: any) => {
     // Determine test ID based on slider characteristics
     const isWeightSlider = min === 0 && max === 1 && step === 0.1
@@ -193,14 +175,10 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     id: 'test-base-id',
     name: 'Test Knowledge Base',
     model: defaultModel,
-    retriever: {
-      mode: 'hybrid'
-    },
     items: [],
     created_at: Date.now(),
     updated_at: Date.now(),
     version: 1,
-    framework: 'langchain',
     ...overrides
   }
 }
@@ -317,42 +295,6 @@ describe('GeneralSettingsPanel', () => {
       fireEvent.change(documentCountSlider, { target: { value: '10' } })
 
       expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function))
-    })
-
-    it('should handle hybrid weight change', async () => {
-      renderComponent()
-
-      const weightSlider = screen.getByTestId('weight-slider')
-      fireEvent.change(weightSlider, { target: { value: '0.7' } })
-
-      expect(mockSetNewBase).toHaveBeenCalledWith({
-        ...mockBase,
-        retriever: {
-          ...mockBase.retriever,
-          mode: 'hybrid',
-          weight: 0.7
-        }
-      })
-    })
-
-    it('should handle retriever selection change', async () => {
-      renderComponent()
-
-      // Test clicking on hybrid retriever option
-      const hybridOption = screen.getByTestId('segmented-option-hybrid')
-      await user.click(hybridOption)
-
-      expect(mockSetNewBase).toHaveBeenCalledWith({
-        ...mockBase,
-        retriever: { mode: 'hybrid' }
-      })
-    })
-
-    it('should not render retriever segmented when framework is embedjs', () => {
-      const baseWithEmbedjs = createKnowledgeBase({ framework: 'embedjs' })
-      renderComponent({ newBase: baseWithEmbedjs })
-
-      expect(screen.queryByTestId('retriever-segmented')).not.toBeInTheDocument()
     })
 
     it('should disable dimension input when no model is selected', () => {

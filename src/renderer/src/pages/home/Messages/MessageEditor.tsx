@@ -1,31 +1,36 @@
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { FileMetadata, FileTypes } from '@renderer/types'
-import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Space, Tooltip } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
-import { ToolbarButton } from '../Inputbar/Inputbar'
+import AttachmentButton from '../Inputbar/tools/components/AttachmentButton'
 
 interface Props {
   message: Message
@@ -48,11 +53,18 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
-  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const isUserMessage = message.role === 'user'
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
   const { setTimeoutTimer } = useTimer()
+
+  const noopQuickPanel = useMemo<ToolQuickPanelApi>(
+    () => ({
+      registerRootMenu: () => () => {},
+      registerTrigger: () => () => {}
+    }),
+    []
+  )
 
   const couldAddImageFile = useMemo(() => {
     const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
@@ -183,10 +195,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
       // 如果有文件，但都不支持
       if (files.length > 0 && supportedFiles === 0) {
-        window.message.info({
-          key: 'file_not_supported',
-          content: t('chat.input.file_not_supported')
-        })
+        window.toast.info(t('chat.input.file_not_supported'))
       }
     }
   }
@@ -225,6 +234,12 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
     if (message.role !== 'user') {
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onCancel()
       return
     }
 
@@ -338,32 +353,31 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         <ActionBarLeft>
           {isUserMessage && (
             <AttachmentButton
-              ref={attachmentButtonRef}
+              quickPanel={noopQuickPanel}
               files={files}
               setFiles={setFiles}
               couldAddImageFile={couldAddImageFile}
               extensions={extensions}
-              ToolbarButton={ToolbarButton}
             />
           )}
         </ActionBarLeft>
         <ActionBarMiddle />
         <ActionBarRight>
           <Tooltip title={t('common.cancel')}>
-            <ToolbarButton type="text" onClick={onCancel}>
+            <ActionIconButton onClick={onCancel}>
               <X size={16} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
           <Tooltip title={t('common.save')}>
-            <ToolbarButton type="text" onClick={handleSave}>
+            <ActionIconButton onClick={handleSave}>
               <Save size={16} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
-              <ToolbarButton type="text" onClick={handleResend}>
+              <ActionIconButton onClick={handleResend}>
                 <Send size={16} />
-              </ToolbarButton>
+              </ActionIconButton>
             </Tooltip>
           )}
         </ActionBarRight>

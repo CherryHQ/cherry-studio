@@ -1,17 +1,26 @@
-import { loggerService } from '@logger'
-import {
-  isSerializedAiSdkAPICallError,
-  SerializedAiSdkAPICallError,
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { AgentServerError } from '@renderer/types'
+import { AgentServerErrorSchema } from '@renderer/types'
+import type {
+  AiSdkErrorUnion,
   SerializedAiSdkError,
+  SerializedAiSdkInvalidToolInputError,
+  SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { AISDKError, APICallError } from 'ai'
+import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
+import type { NoSuchToolError } from 'ai'
+import { InvalidToolInputError } from 'ai'
+import type { AxiosError } from 'axios'
+import { isAxiosError } from 'axios'
 import { t } from 'i18next'
-import z from 'zod'
+import type * as z from 'zod'
+import { ZodError } from 'zod'
 
+import { parseJSON } from './json'
 import { safeSerialize } from './serialize'
 
-const logger = loggerService.withContext('Utils:error')
+// const logger = loggerService.withContext('Utils:error')
 
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
@@ -40,25 +49,40 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
   return result
 }
 
-export function formatErrorMessage(error: any): string {
-  try {
-    const detailedError = getErrorDetails(error)
-    delete detailedError?.headers
-    delete detailedError?.stack
-    delete detailedError?.request_id
-
-    const formattedJson = JSON.stringify(detailedError, null, 2)
-      .split('\n')
-      .map((line) => `  ${line}`)
-      .join('\n')
-    return `Error Details:\n${formattedJson}`
-  } catch (e) {
-    try {
-      return `Error: ${String(error)}`
-    } catch {
-      return 'Error: Unable to format error message'
-    }
+export function formatErrorMessage(error: unknown): string {
+  if (error instanceof ZodError) {
+    return formatZodError(error)
   }
+  if (isAxiosError(error)) {
+    return formatAxiosError(error)
+  }
+  const parseResult = AgentServerErrorSchema.safeParse(error)
+  if (parseResult.success) {
+    return formatAgentServerError(parseResult.data)
+  }
+  const detailedError = getErrorDetails(error)
+  delete detailedError?.headers
+  delete detailedError?.stack
+  delete detailedError?.request_id
+
+  const formattedJson = JSON.stringify(detailedError, null, 2)
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
+  return `Error Details:\n${formattedJson}`
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  } else {
+    return t('error.unknown')
+  }
+}
+
+export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
+  const msg = getErrorMessage(error)
+  return `${prefix}: ${msg}`
 }
 
 export const isAbortError = (error: any): boolean => {
@@ -88,40 +112,99 @@ export const isAbortError = (error: any): boolean => {
   return false
 }
 
-export const formatMcpError = (error: any) => {
-  if (error.message.includes('32000')) {
-    return t('settings.mcp.errors.32000')
-  }
+// TODO: format
+export const formatMcpError = (error: McpError) => {
   return error.message
 }
 
-export const serializeError = (error: AISDKError): SerializedError => {
-  const baseError = {
-    name: error.name,
-    message: error.message,
+const getBaseError = (error: Error) => {
+  return {
+    name: error.name ?? null,
+    message: error.message ?? null,
     stack: error.stack ?? null,
     cause: error.cause ? String(error.cause) : null
+  } as const
+}
+
+const serializeInvalidToolInputError = (error: InvalidToolInputError): SerializedAiSdkInvalidToolInputError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    toolName: error.toolName,
+    toolInput: error.toolInput
+  } satisfies SerializedAiSdkInvalidToolInputError
+}
+
+const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuchToolError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    toolName: error.toolName ?? null,
+    availableTools: error.availableTools ?? null
+  } satisfies SerializedAiSdkNoSuchToolError
+}
+
+export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
+  // 统一所有可能的错误字段
+  const serializedError: SerializedError = {
+    name: error.name ?? null,
+    message: error.message ?? null,
+    stack: error.stack ?? null,
+    cause: safeSerialize(error.cause)
   }
-  if (APICallError.isInstance(error)) {
-    let content = error.message === '' ? error.responseBody || 'Unknown error' : error.message
-    try {
-      const obj = JSON.parse(content)
-      content = obj.error.message
-    } catch (e: any) {
-      logger.warn('Error parsing error response body:', e)
+
+  if ('url' in error) serializedError.url = error.url
+  if ('requestBodyValues' in error) serializedError.requestBodyValues = safeSerialize(error.requestBodyValues)
+  if ('statusCode' in error) serializedError.statusCode = error.statusCode ?? null
+  if ('responseBody' in error && error.responseBody) {
+    const body = parseJSON(error.responseBody)
+    if (body) {
+      // try to parse internal msg
+      const message = body.message || body.msg
+      if (message) {
+        if (serializedError.message === null) {
+          serializedError.message = message
+        } else {
+          serializedError.message += ' ' + message
+        }
+      }
+      serializedError.responseBody = JSON.stringify(body, null, 2)
+    } else {
+      serializedError.responseBody = error.responseBody
     }
-    return {
-      ...baseError,
-      url: error.url,
-      requestBodyValues: safeSerialize(error.requestBodyValues),
-      statusCode: error.statusCode ?? null,
-      responseBody: content,
-      isRetryable: error.isRetryable,
-      data: safeSerialize(error.data),
-      responseHeaders: error.responseHeaders ?? null
-    } satisfies SerializedAiSdkAPICallError
   }
-  return baseError
+  if ('isRetryable' in error) serializedError.isRetryable = error.isRetryable
+  if ('data' in error) serializedError.data = safeSerialize(error.data)
+  if ('responseHeaders' in error) serializedError.responseHeaders = error.responseHeaders ?? null
+  if ('statusText' in error) serializedError.statusText = error.statusText ?? null
+  if ('parameter' in error) serializedError.parameter = error.parameter
+  if ('value' in error) serializedError.value = safeSerialize(error.value)
+  if ('content' in error) serializedError.content = safeSerialize(error.content)
+  if ('role' in error) serializedError.role = error.role
+  if ('prompt' in error) serializedError.prompt = safeSerialize(error.prompt)
+  if ('toolName' in error) serializedError.toolName = error.toolName
+  if ('toolInput' in error) serializedError.toolInput = error.toolInput
+  if ('text' in error) serializedError.text = error.text ?? null
+  if ('originalMessage' in error) serializedError.originalMessage = safeSerialize(error.originalMessage)
+  if ('response' in error) serializedError.response = error.response ?? null
+  if ('usage' in error) serializedError.usage = safeSerialize(error.usage)
+  if ('finishReason' in error) serializedError.finishReason = error.finishReason ?? null
+  if ('modelId' in error) serializedError.modelId = error.modelId
+  if ('modelType' in error) serializedError.modelType = error.modelType
+  if ('providerId' in error) serializedError.providerId = error.providerId
+  if ('availableProviders' in error) serializedError.availableProviders = error.availableProviders
+  if ('availableTools' in error) serializedError.availableTools = error.availableTools ?? null
+  if ('reason' in error) serializedError.reason = error.reason
+  if ('lastError' in error) serializedError.lastError = safeSerialize(error.lastError)
+  if ('errors' in error) serializedError.errors = error.errors.map((err: unknown) => safeSerialize(err))
+  if ('originalError' in error)
+    serializedError.originalError = InvalidToolInputError.isInstance(error.originalError)
+      ? serializeInvalidToolInputError(error.originalError)
+      : serializeNoSuchToolError(error.originalError)
+  if ('functionality' in error) serializedError.functionality = error.functionality
+  if ('provider' in error) serializedError.provider = error.provider
+
+  return serializedError
 }
 /**
  * 格式化 Zod 验证错误信息为可读的字符串
@@ -232,4 +315,15 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   }
 
   return text.trim()
+}
+export const formatAgentServerError = (error: AgentServerError) =>
+  `${t('common.error')}: ${error.error.code} ${error.error.message}`
+export const formatAxiosError = (error: AxiosError) => {
+  if (!error.response) {
+    return `${t('common.error')}: ${t('error.no_response')}`
+  }
+
+  const { status, statusText } = error.response
+
+  return `${t('common.error')}: ${status} ${statusText}`
 }

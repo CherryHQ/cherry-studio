@@ -1,151 +1,241 @@
-import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
-import { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
-import { isSupportUrlContextProvider } from '@renderer/config/providers'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import '@renderer/pages/home/Inputbar/tools'
+
+import type { DropResult } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import { ActionIconButton } from '@renderer/components/Buttons'
+import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
+import { useQuickPanel } from '@renderer/components/QuickPanel'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useInputbarTools } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
+import type {
+  InputbarScope,
+  ToolActionKey,
+  ToolActionMap,
+  ToolDefinition,
+  ToolOrderConfig,
+  ToolQuickPanelApi,
+  ToolRenderContext,
+  ToolStateKey,
+  ToolStateMap
+} from '@renderer/pages/home/Inputbar/types'
+import { getToolsForScope } from '@renderer/pages/home/Inputbar/types'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
-import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
+import { selectToolOrderForScope, setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
+import type { InputBarToolType } from '@renderer/types/chat'
 import { classNames } from '@renderer/utils'
-import { Divider, Dropdown, Tooltip } from 'antd'
-import { ItemType } from 'antd/es/menu/interface'
-import {
-  AtSign,
-  Check,
-  CircleChevronRight,
-  FileSearch,
-  Globe,
-  Hammer,
-  Languages,
-  Link,
-  Maximize,
-  MessageSquareDiff,
-  Minimize,
-  PaintbrushVertical,
-  Paperclip,
-  Zap
-} from 'lucide-react'
-import { Dispatch, ReactNode, SetStateAction, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Divider, Dropdown } from 'antd'
+import type { ItemType } from 'antd/es/menu/interface'
+import { Check, CircleChevronRight } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
-import GenerateImageButton from './GenerateImageButton'
-import { ToolbarButton } from './Inputbar'
-import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
-import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
-import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
-import NewContextButton from './NewContextButton'
-import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
-import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
-import UrlContextButton, { UrlContextButtonRef } from './UrlContextbutton'
-import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
-
-export interface InputbarToolsRef {
-  getQuickPanelMenu: (params: {
-    t: (key: string, options?: any) => string
-    files: FileType[]
-    couldAddImageFile: boolean
-    text: string
-    openSelectFileMenu: () => void
-    translate: () => void
-  }) => QuickPanelListItem[]
-  openMentionModelsPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
-  openAttachmentQuickPanel: () => void
+export interface InputbarToolsNewProps {
+  scope: InputbarScope
+  assistantId: string
+  // Session data for Agent Session scope (optional)
+  session?: {
+    agentId?: string
+    sessionId?: string
+    slashCommands?: Array<{ command: string; description?: string }>
+    tools?: Array<{ id: string; name: string; type: string; description?: string }>
+  }
 }
 
-export interface InputbarToolsProps {
-  assistant: Assistant
-  model: Model
-  files: FileType[]
-  setFiles: (files: FileType[]) => void
-  extensions: string[]
-  showThinkingButton: boolean
-  showKnowledgeIcon: boolean
-  showMcpTools: boolean
-  selectedKnowledgeBases: KnowledgeBase[]
-  handleKnowledgeBaseSelect: (bases?: KnowledgeBase[]) => void
-  setText: Dispatch<SetStateAction<string>>
-  resizeTextArea: () => void
-  mentionModels: Model[]
-  onMentionModel: (model: Model) => void
-  onClearMentionModels: () => void
-  couldMentionNotVisionModel: boolean
-  couldAddImageFile: boolean
-  onEnableGenerateImage: () => void
-  isExpanded: boolean
-  onToggleExpanded: () => void
-
-  addNewTopic: () => void
-  clearTopic: () => void
-  onNewContext: () => void
-
-  newTopicShortcut: string
-  cleanTopicShortcut: string
+interface ToolConfig {
+  key: InputBarToolType
+  label: string
+  tool: ToolDefinition
+  visible: boolean
 }
 
-interface ToolButtonConfig {
-  key: string
-  component: ReactNode
-  condition?: boolean
-  visible?: boolean
-  label?: string
-  icon?: ReactNode
-}
-
-const DraggablePortal = ({ children, isDragging }) => {
+const DraggablePortal = ({ children, isDragging }: { children: React.ReactNode; isDragging: boolean }) => {
   return isDragging ? createPortal(children, document.body) : children
 }
 
-const InputbarTools = ({
-  ref,
-  assistant,
-  model,
-  files,
-  setFiles,
-  showThinkingButton,
-  showKnowledgeIcon,
-  showMcpTools,
-  selectedKnowledgeBases,
-  handleKnowledgeBaseSelect,
-  setText,
-  resizeTextArea,
-  mentionModels,
-  onMentionModel,
-  onClearMentionModels,
-  couldMentionNotVisionModel,
-  couldAddImageFile,
-  onEnableGenerateImage,
-  isExpanded: isExpended,
-  onToggleExpanded: onToggleExpended,
-  addNewTopic,
-  clearTopic,
-  onNewContext,
-  newTopicShortcut,
-  cleanTopicShortcut,
-  extensions
-}: InputbarToolsProps & { ref?: React.RefObject<InputbarToolsRef | null> }) => {
+const InputbarTools = ({ scope, assistantId, session }: InputbarToolsNewProps) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { assistant, model } = useAssistant(assistantId)
+  const toolsContext = useInputbarTools()
+  const quickPanelContext = useQuickPanel()
+  const quickPanelApiCacheRef = useRef(new Map<string, ToolQuickPanelApi>())
 
-  const quickPhrasesButtonRef = useRef<QuickPhrasesButtonRef>(null)
-  const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
-  const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
-  const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
-  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
-  const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
-  const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
-  const urlContextButtonRef = useRef<UrlContextButtonRef | null>(null)
+  const getQuickPanelApiForTool = useCallback(
+    (toolKey: string): ToolQuickPanelApi => {
+      const cache = quickPanelApiCacheRef.current
 
-  const toolOrder = useAppSelector((state) => state.inputTools.toolOrder)
+      if (!cache.has(toolKey)) {
+        cache.set(toolKey, {
+          registerRootMenu: (entries: QuickPanelListItem[]) =>
+            toolsContext.toolsRegistry.registerRootMenu(toolKey, entries),
+          registerTrigger: (symbol: QuickPanelReservedSymbol, handler: (payload?: unknown) => void) =>
+            toolsContext.toolsRegistry.registerTrigger(toolKey, symbol, handler)
+        })
+      }
+
+      return cache.get(toolKey)!
+    },
+    [toolsContext.toolsRegistry]
+  )
+
+  const reduxToolOrder = useAppSelector((state) => selectToolOrderForScope(state, scope))
   const isCollapse = useAppSelector((state) => state.inputTools.isCollapsed)
+  const [targetTool, setTargetTool] = useState<ToolConfig | null>(null)
 
-  const [targetTool, setTargetTool] = useState<ToolButtonConfig | null>(null)
+  // Get tools for current scope
+  const availableTools = useMemo(() => {
+    return getToolsForScope(scope, { assistant, model, session })
+  }, [scope, assistant, model, session])
+
+  // Get tool order for current scope
+  const toolOrder = useMemo(() => {
+    return reduxToolOrder
+  }, [reduxToolOrder])
+
+  // Build render context for tools
+  const buildRenderContext = useCallback(
+    <S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
+      tool: ToolDefinition<S, A>
+    ): ToolRenderContext<S, A> => {
+      const deps = tool.dependencies
+      // 为工具提供完整的 QuickPanel API（注册 + 控制面板）
+      const quickPanel = getQuickPanelApiForTool(tool.key)
+
+      const state = (deps?.state || ([] as unknown as S)).reduce(
+        (acc, key) => {
+          acc[key] = toolsContext[key]
+          return acc
+        },
+        {} as Pick<ToolStateMap, S[number]>
+      )
+
+      const actions = (deps?.actions || ([] as unknown as A)).reduce(
+        (acc, key) => {
+          const actionValue = toolsContext[key]
+          if (actionValue) {
+            acc[key] = actionValue
+          }
+          return acc
+        },
+        {} as Pick<ToolActionMap, A[number]>
+      )
+
+      return {
+        scope,
+        assistant,
+        model,
+        session,
+        state,
+        actions,
+        quickPanel,
+        quickPanelController: quickPanelContext,
+        t
+      } as ToolRenderContext<S, A>
+    },
+    [assistant, model, quickPanelContext, scope, session, t, toolsContext, getQuickPanelApiForTool]
+  )
+
+  // Build tool metadata (without rendering)
+  // Tools with render: null are pure menu contributors and won't appear in UI
+  const toolMetadata = useMemo(() => {
+    return availableTools.map((tool) => ({
+      key: tool.key as InputBarToolType,
+      label: typeof tool.label === 'function' ? tool.label(t) : tool.label,
+      tool
+    }))
+  }, [availableTools, t])
+
+  // Declarative tools registration (for tools with quickPanel config)
+  // This handles pure menu contributors and trigger handlers
+  useEffect(() => {
+    const disposeCallbacks: Array<() => void> = []
+
+    for (const tool of availableTools) {
+      if (!tool.quickPanel) continue
+
+      const context = buildRenderContext(tool)
+
+      // Register root menu items (declarative)
+      if (tool.quickPanel.rootMenu) {
+        const menuItems = tool.quickPanel.rootMenu.createMenuItems(context)
+        const dispose = toolsContext.toolsRegistry.registerRootMenu(tool.key, menuItems)
+        disposeCallbacks.push(dispose)
+      }
+
+      // Register triggers (declarative)
+      if (tool.quickPanel.triggers) {
+        for (const triggerConfig of tool.quickPanel.triggers) {
+          const handler = triggerConfig.createHandler(context)
+          const dispose = toolsContext.toolsRegistry.registerTrigger(tool.key, triggerConfig.symbol, handler)
+          disposeCallbacks.push(dispose)
+        }
+      }
+    }
+
+    return () => {
+      disposeCallbacks.forEach((dispose) => dispose())
+    }
+  }, [availableTools, buildRenderContext, toolsContext.toolsRegistry])
+
+  // Filter visible tools (only those with render functions, not pure menu contributors)
+  const visibleTools = useMemo(() => {
+    // 1. Get explicitly visible tools from toolOrder
+    const explicitlyVisible = toolOrder.visible
+      .map((key) => {
+        const meta = toolMetadata.find((item) => item.key === key)
+        if (!meta || meta.tool.render === null) return null
+        return {
+          key: meta.key,
+          label: meta.label,
+          tool: meta.tool,
+          visible: true
+        }
+      })
+      .filter(Boolean) as ToolConfig[]
+
+    // 2. Find new tools not in toolOrder (auto-show new tools)
+    const knownToolKeys = new Set([...toolOrder.visible, ...toolOrder.hidden])
+    const newTools = toolMetadata
+      .filter((meta) => !knownToolKeys.has(meta.key) && meta.tool.render !== null)
+      .map((meta) => ({
+        key: meta.key,
+        label: meta.label,
+        tool: meta.tool,
+        visible: true
+      }))
+
+    // 3. Merge: explicit order + new tools at end
+    return [...explicitlyVisible, ...newTools]
+  }, [toolMetadata, toolOrder.visible, toolOrder.hidden])
+
+  const hiddenTools = useMemo(() => {
+    return toolOrder.hidden
+      .map((key) => {
+        const meta = toolMetadata.find((item) => item.key === key)
+        if (!meta || meta.tool.render === null) return null // Filter out pure menu contributors
+        return {
+          key: meta.key,
+          label: meta.label,
+          tool: meta.tool,
+          visible: false
+        }
+      })
+      .filter(Boolean) as ToolConfig[]
+  }, [toolMetadata, toolOrder.hidden])
+
+  const showDivider = useMemo(() => {
+    return hiddenTools.length > 0 && visibleTools.length > 0
+  }, [hiddenTools, visibleTools])
+
+  const showCollapseButton = useMemo(() => {
+    return hiddenTools.length > 0
+  }, [hiddenTools])
 
   const toggleToolVisibility = useCallback(
-    (toolKey: string, isVisible: boolean | undefined) => {
-      const newToolOrder = {
+    (toolKey: InputBarToolType, isVisible: boolean | undefined) => {
+      const newToolOrder: ToolOrderConfig = {
         visible: [...toolOrder.visible],
         hidden: [...toolOrder.hidden]
       }
@@ -158,124 +248,20 @@ const InputbarTools = ({
         newToolOrder.visible.push(toolKey)
       }
 
-      dispatch(setToolOrder(newToolOrder))
+      dispatch(setToolOrder({ scope, toolOrder: newToolOrder }))
       setTargetTool(null)
     },
-    [dispatch, toolOrder.hidden, toolOrder.visible]
+    [dispatch, scope, toolOrder]
   )
-
-  const getQuickPanelMenuImpl = (params: {
-    t: (key: string, options?: any) => string
-    files: FileType[]
-    couldAddImageFile: boolean
-    text: string
-    openSelectFileMenu: () => void
-    translate: () => void
-  }): QuickPanelListItem[] => {
-    const { t, files, couldAddImageFile, text, openSelectFileMenu, translate } = params
-
-    return [
-      {
-        label: t('settings.quickPhrase.title'),
-        description: '',
-        icon: <Zap />,
-        isMenu: true,
-        action: () => {
-          quickPhrasesButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('agents.edit.model.select.title'),
-        description: '',
-        icon: <AtSign />,
-        isMenu: true,
-        action: () => {
-          mentionModelsButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('chat.input.knowledge_base'),
-        description: '',
-        icon: <FileSearch />,
-        isMenu: true,
-        disabled: files.length > 0,
-        action: () => {
-          knowledgeBaseButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('settings.mcp.title'),
-        description: t('settings.mcp.not_support'),
-        icon: <Hammer />,
-        isMenu: true,
-        action: () => {
-          mcpToolsButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: `MCP ${t('settings.mcp.tabs.prompts')}`,
-        description: '',
-        icon: <Hammer />,
-        isMenu: true,
-        action: () => {
-          mcpToolsButtonRef.current?.openPromptList()
-        }
-      },
-      {
-        label: `MCP ${t('settings.mcp.tabs.resources')}`,
-        description: '',
-        icon: <Hammer />,
-        isMenu: true,
-        action: () => {
-          mcpToolsButtonRef.current?.openResourcesList()
-        }
-      },
-      {
-        label: t('chat.input.web_search.label'),
-        description: '',
-        icon: <Globe />,
-        isMenu: true,
-        action: () => {
-          webSearchButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('chat.input.url_context'),
-        description: '',
-        icon: <Link />,
-        isMenu: true,
-        action: () => {
-          urlContextButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document'),
-        description: '',
-        icon: <Paperclip />,
-        isMenu: true,
-        action: openSelectFileMenu
-      },
-      {
-        label: t('translate.title'),
-        description: t('translate.menu.description'),
-        icon: <Languages />,
-        action: () => {
-          if (!text) return
-          translate()
-        }
-      }
-    ]
-  }
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result
-
     if (!destination) return
 
     const sourceId = source.droppableId
     const destinationId = destination.droppableId
 
-    const newToolOrder = {
+    const newToolOrder: ToolOrderConfig = {
       visible: [...toolOrder.visible],
       hidden: [...toolOrder.hidden]
     }
@@ -293,225 +279,8 @@ const InputbarTools = ({
       newToolOrder[destArray].splice(destination.index, 0, removed)
     }
 
-    dispatch(setToolOrder(newToolOrder))
+    dispatch(setToolOrder({ scope, toolOrder: newToolOrder }))
   }
-
-  useImperativeHandle(ref, () => ({
-    getQuickPanelMenu: getQuickPanelMenuImpl,
-    openMentionModelsPanel: (triggerInfo) => mentionModelsButtonRef.current?.openQuickPanel(triggerInfo),
-    openAttachmentQuickPanel: () => attachmentButtonRef.current?.openQuickPanel()
-  }))
-
-  const toolButtons = useMemo<ToolButtonConfig[]>(() => {
-    return [
-      {
-        key: 'new_topic',
-        label: t('chat.input.new_topic', { Command: '' }),
-        component: (
-          <Tooltip
-            placement="top"
-            title={t('chat.input.new_topic', { Command: newTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
-            <ToolbarButton type="text" onClick={addNewTopic}>
-              <MessageSquareDiff size={19} />
-            </ToolbarButton>
-          </Tooltip>
-        )
-      },
-      {
-        key: 'attachment',
-        label: t('chat.input.upload.label'),
-        component: (
-          <AttachmentButton
-            ref={attachmentButtonRef}
-            couldAddImageFile={couldAddImageFile}
-            extensions={extensions}
-            files={files}
-            setFiles={setFiles}
-            ToolbarButton={ToolbarButton}
-          />
-        )
-      },
-      {
-        key: 'thinking',
-        label: t('chat.input.thinking.label'),
-        component: (
-          <ThinkingButton ref={thinkingButtonRef} model={model} assistant={assistant} ToolbarButton={ToolbarButton} />
-        ),
-        condition: showThinkingButton
-      },
-      {
-        key: 'web_search',
-        label: t('chat.input.web_search.label'),
-        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
-        condition: !isMandatoryWebSearchModel(model)
-      },
-      {
-        key: 'url_context',
-        label: t('chat.input.url_context'),
-        component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
-        condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
-      },
-      {
-        key: 'knowledge_base',
-        label: t('chat.input.knowledge_base'),
-        component: (
-          <KnowledgeBaseButton
-            ref={knowledgeBaseButtonRef}
-            selectedBases={selectedKnowledgeBases}
-            onSelect={handleKnowledgeBaseSelect}
-            ToolbarButton={ToolbarButton}
-            disabled={files.length > 0}
-          />
-        ),
-        condition: showKnowledgeIcon
-      },
-      {
-        key: 'mcp_tools',
-        label: t('settings.mcp.title'),
-        component: (
-          <MCPToolsButton
-            assistant={assistant}
-            ref={mcpToolsButtonRef}
-            ToolbarButton={ToolbarButton}
-            setInputValue={setText}
-            resizeTextArea={resizeTextArea}
-          />
-        ),
-        condition: showMcpTools
-      },
-      {
-        key: 'generate_image',
-        label: t('chat.input.generate_image'),
-        component: (
-          <GenerateImageButton
-            model={model}
-            assistant={assistant}
-            onEnableGenerateImage={onEnableGenerateImage}
-            ToolbarButton={ToolbarButton}
-          />
-        ),
-        condition: isGenerateImageModel(model)
-      },
-      {
-        key: 'mention_models',
-        label: t('agents.edit.model.select.title'),
-        component: (
-          <MentionModelsButton
-            ref={mentionModelsButtonRef}
-            mentionedModels={mentionModels}
-            onMentionModel={onMentionModel}
-            onClearMentionModels={onClearMentionModels}
-            ToolbarButton={ToolbarButton}
-            couldMentionNotVisionModel={couldMentionNotVisionModel}
-            files={files}
-            setText={setText}
-          />
-        )
-      },
-      {
-        key: 'quick_phrases',
-        label: t('settings.quickPhrase.title'),
-        component: (
-          <QuickPhrasesButton
-            ref={quickPhrasesButtonRef}
-            setInputValue={setText}
-            resizeTextArea={resizeTextArea}
-            ToolbarButton={ToolbarButton}
-            assistantObj={assistant}
-          />
-        )
-      },
-      {
-        key: 'clear_topic',
-        label: t('chat.input.clear.label', { Command: '' }),
-        component: (
-          <Tooltip
-            placement="top"
-            title={t('chat.input.clear.label', { Command: cleanTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
-            <ToolbarButton type="text" onClick={clearTopic}>
-              <PaintbrushVertical size={18} />
-            </ToolbarButton>
-          </Tooltip>
-        )
-      },
-      {
-        key: 'toggle_expand',
-        label: isExpended ? t('chat.input.collapse') : t('chat.input.expand'),
-        component: (
-          <Tooltip
-            placement="top"
-            title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
-            mouseLeaveDelay={0}
-            arrow>
-            <ToolbarButton type="text" onClick={onToggleExpended}>
-              {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
-            </ToolbarButton>
-          </Tooltip>
-        )
-      },
-      {
-        key: 'new_context',
-        label: t('chat.input.new.context', { Command: '' }),
-        component: <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
-      }
-    ]
-  }, [
-    addNewTopic,
-    assistant,
-    cleanTopicShortcut,
-    clearTopic,
-    couldAddImageFile,
-    couldMentionNotVisionModel,
-    extensions,
-    files,
-    handleKnowledgeBaseSelect,
-    isExpended,
-    mentionModels,
-    model,
-    newTopicShortcut,
-    onClearMentionModels,
-    onEnableGenerateImage,
-    onMentionModel,
-    onNewContext,
-    onToggleExpended,
-    resizeTextArea,
-    selectedKnowledgeBases,
-    setFiles,
-    setText,
-    showKnowledgeIcon,
-    showMcpTools,
-    showThinkingButton,
-    t
-  ])
-
-  const visibleTools = useMemo(() => {
-    return toolOrder.visible.map((v) => ({
-      ...toolButtons.find((tool) => tool.key === v),
-      visible: true
-    })) as ToolButtonConfig[]
-  }, [toolButtons, toolOrder])
-
-  const hiddenTools = useMemo(() => {
-    return toolOrder.hidden.map((v) => ({
-      ...toolButtons.find((tool) => tool.key === v),
-      visible: false
-    })) as ToolButtonConfig[]
-  }, [toolButtons, toolOrder])
-
-  const showDivider = useMemo(() => {
-    return (
-      hiddenTools.filter((tool) => tool.condition ?? true).length > 0 &&
-      visibleTools.filter((tool) => tool.condition ?? true).length !== 0
-    )
-  }, [hiddenTools, visibleTools])
-
-  const showCollapseButton = useMemo(() => {
-    return hiddenTools.filter((tool) => tool.condition ?? true).length > 0
-  }, [hiddenTools])
 
   const getMenuItems = useMemo(() => {
     const baseItems: ItemType[] = [...visibleTools, ...hiddenTools].map((tool) => ({
@@ -522,87 +291,88 @@ const InputbarTools = ({
           {tool.visible ? <Check size={16} /> : undefined}
         </div>
       ),
-      onClick: () => {
-        toggleToolVisibility(tool.key, tool.visible)
-      }
+      onClick: () => toggleToolVisibility(tool.key, tool.visible)
     }))
 
     if (targetTool) {
-      baseItems.push({
-        type: 'divider'
-      })
+      baseItems.push({ type: 'divider' })
       baseItems.push({
         label: `${targetTool.visible ? t('chat.input.tools.collapse_in') : t('chat.input.tools.collapse_out')} "${targetTool.label}"`,
         key: 'selected_' + targetTool.key,
         icon: <div style={{ width: 20, height: 20 }}></div>,
-        onClick: () => {
-          toggleToolVisibility(targetTool.key, targetTool.visible)
-        }
+        onClick: () => toggleToolVisibility(targetTool.key, targetTool.visible)
       })
     }
 
     return baseItems
   }, [hiddenTools, t, targetTool, toggleToolVisibility, visibleTools])
 
+  const managerElements = useMemo(() => {
+    return availableTools
+      .map((tool) => {
+        if (!tool.quickPanelManager) return null
+        const Manager = tool.quickPanelManager
+        const context = buildRenderContext(tool)
+        return <Manager key={`${tool.key}-quick-panel-manager`} context={context} />
+      })
+      .filter((element): element is React.ReactElement => element !== null)
+  }, [availableTools, buildRenderContext])
+
   return (
-    <Dropdown menu={{ items: getMenuItems }} trigger={['contextMenu']}>
-      <ToolsContainer
-        onContextMenu={(e) => {
-          const target = e.target as HTMLElement
-          const isToolButton = target.closest('[data-key]')
-          if (!isToolButton) {
-            setTargetTool(null)
-          }
-        }}>
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
-            {(provided) => (
-              <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
-                {visibleTools.map(
-                  (tool, index) =>
-                    (tool.condition ?? true) && (
-                      <Draggable key={tool.key} draggableId={tool.key} index={index}>
+    <>
+      <Dropdown menu={{ items: getMenuItems }} trigger={['contextMenu']}>
+        <ToolsContainer
+          onContextMenu={(e) => {
+            const target = e.target as HTMLElement
+            const isToolButton = target.closest('[data-key]')
+            if (!isToolButton) {
+              setTargetTool(null)
+            }
+          }}>
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
+              {(provided) => (
+                <VisibleTools ref={provided.innerRef} {...provided.droppableProps}>
+                  {visibleTools.map((toolConfig, index) => {
+                    const context = buildRenderContext(toolConfig.tool)
+                    return (
+                      <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
                         {(provided, snapshot) => (
                           <DraggablePortal isDragging={snapshot.isDragging}>
                             <ToolWrapper
-                              data-key={tool.key}
-                              onContextMenu={() => setTargetTool(tool)}
+                              data-key={toolConfig.key}
+                              onContextMenu={() => setTargetTool(toolConfig)}
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              style={{
-                                ...provided.draggableProps.style
-                              }}>
-                              {tool.component}
+                              style={provided.draggableProps.style}>
+                              {toolConfig.tool.render?.(context)}
                             </ToolWrapper>
                           </DraggablePortal>
                         )}
                       </Draggable>
                     )
-                )}
+                  })}
+                  {provided.placeholder}
+                </VisibleTools>
+              )}
+            </Droppable>
 
-                {provided.placeholder}
-              </VisibleTools>
-            )}
-          </Droppable>
+            {showDivider && <Divider type="vertical" style={{ margin: '0 4px' }} />}
 
-          {showDivider && <Divider type="vertical" style={{ margin: '0 4px' }} />}
-
-          <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
-            {(provided) => (
-              <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
-                {hiddenTools.map(
-                  (tool, index) =>
-                    (tool.condition ?? true) && (
-                      <Draggable key={tool.key} draggableId={tool.key} index={index}>
+            <Droppable droppableId="inputbar-tools-hidden" direction="horizontal">
+              {(provided) => (
+                <HiddenTools ref={provided.innerRef} {...provided.droppableProps}>
+                  {hiddenTools.map((toolConfig, index) => {
+                    const context = buildRenderContext(toolConfig.tool)
+                    return (
+                      <Draggable key={toolConfig.key} draggableId={toolConfig.key} index={index}>
                         {(provided, snapshot) => (
                           <DraggablePortal isDragging={snapshot.isDragging}>
                             <ToolWrapper
-                              data-key={tool.key}
-                              className={classNames({
-                                'is-collapsed': isCollapse
-                              })}
-                              onContextMenu={() => setTargetTool(tool)}
+                              data-key={toolConfig.key}
+                              className={classNames({ 'is-collapsed': isCollapse })}
+                              onContextMenu={() => setTargetTool(toolConfig)}
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
@@ -610,38 +380,34 @@ const InputbarTools = ({
                                 ...provided.draggableProps.style,
                                 transitionDelay: `${index * 0.02}s`
                               }}>
-                              {tool.component}
+                              {toolConfig.tool.render?.(context)}
                             </ToolWrapper>
                           </DraggablePortal>
                         )}
                       </Draggable>
                     )
-                )}
-                {provided.placeholder}
-              </HiddenTools>
-            )}
-          </Droppable>
-        </DragDropContext>
+                  })}
+                  {provided.placeholder}
+                </HiddenTools>
+              )}
+            </Droppable>
+          </DragDropContext>
 
-        {showCollapseButton && (
-          <Tooltip
-            placement="top"
-            title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
-            arrow>
-            <ToolbarButton type="text" onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
-              <CircleChevronRight
-                size={18}
-                style={{
-                  transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
-                }}
-              />
-            </ToolbarButton>
-          </Tooltip>
-        )}
-      </ToolsContainer>
-    </Dropdown>
+          {showCollapseButton && (
+            <ActionIconButton
+              onClick={() => dispatch(setIsCollapsed(!isCollapse))}
+              title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}>
+              <CircleChevronRight size={18} style={{ transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)' }} />
+            </ActionIconButton>
+          )}
+        </ToolsContainer>
+      </Dropdown>
+      {managerElements}
+    </>
   )
 }
+
+InputbarTools.displayName = 'InputbarTools'
 
 const ToolsContainer = styled.div`
   min-width: 0;

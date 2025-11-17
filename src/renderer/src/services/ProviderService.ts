@@ -1,5 +1,5 @@
-import store from '@renderer/store'
-import { Model, Provider } from '@renderer/types'
+import { getStoreProviders } from '@renderer/hooks/useStore'
+import type { Model, Provider } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 
 export function getProviderName(model?: Model) {
@@ -12,11 +12,20 @@ export function getProviderName(model?: Model) {
   return getFancyProviderName(provider)
 }
 
+export function getProviderNameById(pid: string) {
+  const provider = getStoreProviders().find((p) => p.id === pid)
+  if (provider) {
+    return getFancyProviderName(provider)
+  } else {
+    return 'Unknown Provider'
+  }
+}
+
 export function getProviderByModel(model?: Model) {
   const id = model?.provider
-  const provider = store.getState().llm.providers.find((p) => p.id === id)
+  const provider = getStoreProviders().find((p) => p.id === id)
 
-  if (provider?.id === 'cherryin') {
+  if (provider?.id === 'cherryai') {
     const map = {
       'glm-4.5-flash': 'zhipu',
       'Qwen/Qwen3-8B': 'silicon'
@@ -33,7 +42,7 @@ export function getProviderByModel(model?: Model) {
 }
 
 export function isProviderSupportAuth(provider: Provider) {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux']
+  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
   return supportProviders.includes(provider.id)
 }
 
@@ -43,5 +52,5 @@ export function isProviderSupportCharge(provider: Provider) {
 }
 
 export function getProviderById(id: string) {
-  return store.getState().llm.providers.find((p) => p.id === id)
+  return getStoreProviders().find((p) => p.id === id)
 }

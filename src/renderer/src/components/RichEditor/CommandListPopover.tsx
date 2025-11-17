@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/CommandListPopover.scss'
+import '@renderer/assets/styles/CommandListPopover.css'
 
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -87,6 +87,9 @@ const CommandListPopover = ({
           return true
 
         case 'Enter':
+          if (event.shiftKey) {
+            return false
+          }
           event.preventDefault()
           if (items[internalSelectedIndex]) {
             selectItem(internalSelectedIndex)

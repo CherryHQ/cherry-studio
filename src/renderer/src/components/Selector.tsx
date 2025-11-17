@@ -1,6 +1,8 @@
-import { Dropdown, DropdownProps } from 'antd'
+import type { DropdownProps } from 'antd'
+import { Dropdown } from 'antd'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
@@ -16,6 +18,7 @@ interface BaseSelectorProps<V = string | number> {
   options: SelectorOption<V>[]
   placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
+  style?: React.CSSProperties
   /** 字体大小 */
   size?: number
   /** 是否禁用 */
@@ -34,7 +37,7 @@ interface MultipleSelectorProps<V> extends BaseSelectorProps<V> {
   onChange: (value: V[]) => void
 }
 
-type SelectorProps<V> = SingleSelectorProps<V> | MultipleSelectorProps<V>
+export type SelectorProps<V> = SingleSelectorProps<V> | MultipleSelectorProps<V>
 
 const Selector = <V extends string | number>({
   options,
@@ -43,6 +46,7 @@ const Selector = <V extends string | number>({
   placement = 'bottomRight',
   size = 13,
   placeholder,
+  style,
   disabled = false,
   multiple = false
 }: SelectorProps<V>) => {
@@ -135,7 +139,7 @@ const Selector = <V extends string | number>({
       placement={placement}
       open={open && !disabled}
       onOpenChange={handleOpenChange}>
-      <Label $size={size} $open={open} $disabled={disabled} $isPlaceholder={label === placeholder}>
+      <Label style={style} $size={size} $open={open} $disabled={disabled} $isPlaceholder={label === placeholder}>
         {label}
         <LabelIcon size={size + 3} />
       </Label>

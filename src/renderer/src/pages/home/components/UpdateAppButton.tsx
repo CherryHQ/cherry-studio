@@ -1,8 +1,9 @@
 import { SyncOutlined } from '@ant-design/icons'
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -19,11 +20,15 @@ const UpdateAppButton: FC = () => {
     return null
   }
 
+  const handleOpenUpdateDialog = () => {
+    UpdateDialogPopup.show({ releaseInfo: update.info || null })
+  }
+
   return (
     <Container>
       <UpdateButton
         className="nodrag"
-        onClick={() => window.api.showUpdateDialog()}
+        onClick={handleOpenUpdateDialog}
         icon={<SyncOutlined />}
         color="orange"
         variant="outlined"

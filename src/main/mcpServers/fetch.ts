@@ -5,11 +5,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
-import { z } from 'zod'
+import * as z from 'zod'
 
 export const RequestPayloadSchema = z.object({
-  url: z.string().url(),
-  headers: z.record(z.string()).optional()
+  url: z.url(),
+  headers: z.record(z.string(), z.string()).optional()
 })
 
 export type RequestPayload = z.infer<typeof RequestPayloadSchema>

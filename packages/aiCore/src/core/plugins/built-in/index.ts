@@ -4,7 +4,12 @@
  */
 export const BUILT_IN_PLUGIN_PREFIX = 'built-in:'
 
+export { googleToolsPlugin } from './googleToolsPlugin'
 export { createLoggingPlugin } from './logging'
 export { createPromptToolUsePlugin } from './toolUsePlugin/promptToolUsePlugin'
-export type { PromptToolUseConfig, ToolUseRequestContext, ToolUseResult } from './toolUsePlugin/type'
-export { webSearchPlugin } from './webSearchPlugin'
+export type {
+  PromptToolUseConfig,
+  ToolUseRequestContext,
+  ToolUseResult
+} from './toolUsePlugin/type'
+export { webSearchPlugin, type WebSearchPluginConfig } from './webSearchPlugin'

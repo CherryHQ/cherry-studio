@@ -3,12 +3,13 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback } from 'react'
-import { FallbackProps } from 'react-error-boundary'
+import type { FC } from 'react'
+import { useCallback } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -183,6 +184,7 @@ const CardContainer = styled.div<{ $isActive: boolean }>`
   margin-bottom: 5px;
   height: 125px;
   opacity: ${(props) => (props.$isActive ? 1 : 0.6)};
+  width: 100%;
 
   &:hover {
     opacity: 1;

@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
-import {
+import type Anthropic from '@anthropic-ai/sdk'
+import type {
   Base64ImageSource,
   ImageBlockParam,
   MessageParam,
@@ -8,7 +8,7 @@ import {
   ToolUseBlock,
   WebSearchTool20250305
 } from '@anthropic-ai/sdk/resources'
-import {
+import type {
   ContentBlock,
   ContentBlockParam,
   MessageCreateParamsBase,
@@ -23,27 +23,24 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import {
+import type {
   Assistant,
-  EFFORT_RATIO,
-  FileTypes,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
   Provider,
-  ToolCallResponse,
-  WebSearchSource
+  ToolCallResponse
 } from '@renderer/types'
-import {
-  ChunkType,
+import { EFFORT_RATIO, FileTypes, WebSearchSource } from '@renderer/types'
+import type {
   ErrorChunk,
   LLMWebSearchCompleteChunk,
   LLMWebSearchInProgressChunk,
@@ -53,8 +50,9 @@ import {
   ThinkingDeltaChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { type Message } from '@renderer/types/newMessage'
-import {
+import type {
   AnthropicSdkMessageParam,
   AnthropicSdkParams,
   AnthropicSdkRawChunk,
@@ -68,11 +66,12 @@ import {
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
 import { t } from 'i18next'
 
-import { GenericChunk } from '../../middleware/schemas'
+import type { GenericChunk } from '../../middleware/schemas'
 import { BaseApiClient } from '../BaseApiClient'
-import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
+import type { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
 
 const logger = loggerService.withContext('AnthropicAPIClient')
 
@@ -85,7 +84,9 @@ export class AnthropicAPIClient extends BaseApiClient<
   ToolUseBlock,
   ToolUnion
 > {
+  oauthToken: string | undefined = undefined
   sdkInstance: Anthropic | AnthropicVertex | undefined = undefined
+
   constructor(provider: Provider) {
     super(provider)
   }
@@ -94,15 +95,10 @@ export class AnthropicAPIClient extends BaseApiClient<
     if (this.sdkInstance) {
       return this.sdkInstance
     }
-    this.sdkInstance = new Anthropic({
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL(),
-      dangerouslyAllowBrowser: true,
-      defaultHeaders: {
-        'anthropic-beta': 'output-128k-2025-02-19',
-        ...this.provider.extra_headers
-      }
-    })
+    if (this.provider.authType === 'oauth') {
+      this.oauthToken = await window.api.anthropic_oauth.getAccessToken()
+    }
+    this.sdkInstance = getSdkClient(this.provider, this.oauthToken)
     return this.sdkInstance
   }
 
@@ -110,15 +106,18 @@ export class AnthropicAPIClient extends BaseApiClient<
     payload: AnthropicSdkParams,
     options?: Anthropic.RequestOptions
   ): Promise<AnthropicSdkRawOutput> {
+    if (this.provider.authType === 'oauth') {
+      payload.system = buildClaudeCodeSystemMessage(payload.system)
+    }
     const sdk = (await this.getSdkInstance()) as Anthropic
     if (payload.stream) {
       return sdk.messages.stream(payload, options)
     }
-    return await sdk.messages.create(payload, options)
+    return sdk.messages.create(payload, options)
   }
 
   // @ts-ignore sdk未提供
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
     return []
   }
@@ -194,7 +193,6 @@ export class AnthropicAPIClient extends BaseApiClient<
   /**
    * Get the message parameter
    * @param message - The message
-   * @param model - The model
    * @returns The message parameter
    */
   public async convertMessageToSdkParam(message: Message): Promise<AnthropicSdkMessageParam> {

@@ -5,13 +5,13 @@ import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import { Slider, Switch, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Info } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
-  const { searchWithTime, maxResults } = useWebSearchSettings()
+  const { searchWithTime, maxResults, compressionConfig } = useWebSearchSettings()
 
   const dispatch = useAppDispatch()
 
@@ -28,7 +28,7 @@ const BasicSettings: FC = () => {
         <SettingRow style={{ height: 40 }}>
           <SettingRowTitle style={{ minWidth: 120 }}>
             {t('settings.tool.websearch.search_max_result.label')}
-            {maxResults > 20 && (
+            {maxResults > 20 && compressionConfig?.method === 'none' && (
               <Tooltip title={t('settings.tool.websearch.search_max_result.tooltip')} placement="top">
                 <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
               </Tooltip>

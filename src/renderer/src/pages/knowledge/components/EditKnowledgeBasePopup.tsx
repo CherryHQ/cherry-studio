@@ -4,7 +4,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase, MigrationModeEnum } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Flex } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
@@ -48,12 +48,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
   const handleEmbeddingModelChangeMigration = useCallback(async () => {
     const migratedBase = { ...newBase, id: nanoid() }
     try {
-      await migrateBase(migratedBase, MigrationModeEnum.EmbeddingModelChange)
+      await migrateBase(migratedBase)
       setOpen(false)
       resolve(migratedBase)
     } catch (error) {
       logger.error('KnowledgeBase migration failed:', error as Error)
-      window.message.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
+      window.toast.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
     }
   }, [newBase, migrateBase, resolve, t])
 
@@ -94,7 +94,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
         resolve(newBase)
       } catch (error) {
         logger.error('KnowledgeBase edit failed:', error as Error)
-        window.message.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
+        window.toast.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
       }
     }
   }

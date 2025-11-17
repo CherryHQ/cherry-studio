@@ -1,4 +1,4 @@
-import * as z from 'zod/v4'
+import * as z from 'zod'
 
 export type ToolType = 'builtin' | 'provider' | 'mcp'
 
@@ -19,22 +19,24 @@ export interface BaseTool {
 //   providerExecuted?: boolean // 标识是Provider端执行还是客户端执行
 // }
 
-export const MCPToolOutputSchema = z.object({
-  type: z.literal('object'),
-  properties: z.record(z.string(), z.unknown()),
-  required: z.array(z.string())
-})
+export const MCPToolOutputSchema = z
+  .object({
+    type: z.literal('object'),
+    properties: z.object({}).loose().optional(),
+    required: z.array(z.string()).optional()
+  })
+  .loose()
 
-export interface MCPToolInputSchema {
-  type: string
-  title: string
-  description?: string
-  required?: string[]
-  properties: Record<string, object>
-}
+export const MCPToolInputSchema = z
+  .object({
+    type: z.literal('object'),
+    properties: z.object({}).loose().optional(),
+    required: z.array(z.string()).optional()
+  })
+  .loose()
 
 export interface BuiltinTool extends BaseTool {
-  inputSchema: MCPToolInputSchema
+  inputSchema: z.infer<typeof MCPToolInputSchema>
   type: 'builtin'
 }
 
@@ -44,7 +46,7 @@ export interface MCPTool extends BaseTool {
   serverName: string
   name: string
   description?: string
-  inputSchema: MCPToolInputSchema
+  inputSchema: z.infer<typeof MCPToolInputSchema>
   outputSchema?: z.infer<typeof MCPToolOutputSchema>
   isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
   type: 'mcp'

@@ -1,6 +1,6 @@
-import { LoadingIcon } from '@renderer/components/Icons'
 import { MessageBlockStatus, MessageBlockType, type PlaceholderMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
+import { BeatLoader } from 'react-spinners'
 import styled from 'styled-components'
 
 interface PlaceholderBlockProps {
@@ -10,7 +10,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ block }) => {
   if (block.status === MessageBlockStatus.PROCESSING && block.type === MessageBlockType.UNKNOWN) {
     return (
       <MessageContentLoading>
-        <LoadingIcon />
+        <BeatLoader color="var(--color-text-1)" size={8} speedMultiplier={0.8} />
       </MessageContentLoading>
     )
   }

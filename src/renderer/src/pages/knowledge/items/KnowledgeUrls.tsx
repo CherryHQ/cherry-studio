@@ -5,11 +5,12 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, Dropdown, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
-import { FC, useCallback, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -76,7 +77,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           if (!urlItems.find((item) => item.content === url.trim())) {
             addUrl(url.trim())
           } else {
-            window.message.success(t('knowledge.url_added'))
+            window.toast.success(t('knowledge.url_added'))
           }
         } catch (e) {
           // Skip invalid URLs silently
@@ -154,7 +155,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           label: t('common.copy'),
                           onClick: () => {
                             navigator.clipboard.writeText(item.content as string)
-                            window.message.success(t('message.copied'))
+                            window.toast.success(t('message.copied'))
                           }
                         }
                       ]

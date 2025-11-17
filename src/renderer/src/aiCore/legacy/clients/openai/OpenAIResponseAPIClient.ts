@@ -1,6 +1,8 @@
+import OpenAI, { AzureOpenAI } from '@cherrystudio/openai'
+import type { ResponseInput } from '@cherrystudio/openai/resources/responses/responses'
 import { loggerService } from '@logger'
-import { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
-import { CompletionsContext } from '@renderer/aiCore/legacy/middleware/types'
+import type { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
+import type { CompletionsContext } from '@renderer/aiCore/legacy/middleware/types'
 import {
   isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
@@ -12,21 +14,20 @@ import {
 } from '@renderer/config/models'
 import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import {
+import type {
   FileMetadata,
-  FileTypes,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
   OpenAIServiceTier,
   Provider,
-  ToolCallResponse,
-  WebSearchSource
+  ToolCallResponse
 } from '@renderer/types'
+import { FileTypes, WebSearchSource } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import type { Message } from '@renderer/types/newMessage'
+import type {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
   OpenAIResponseSdkRawChunk,
@@ -45,10 +46,8 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { MB } from '@shared/config/constant'
 import { t } from 'i18next'
 import { isEmpty } from 'lodash'
-import OpenAI, { AzureOpenAI } from 'openai'
-import { ResponseInput } from 'openai/resources/responses/responses'
 
-import { RequestTransformer, ResponseChunkTransformer } from '../types'
+import type { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
@@ -91,7 +90,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
       if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
         this.provider = { ...this.provider, apiHost: this.formatApiHost() }
-        if (this.provider.apiVersion === 'preview') {
+        if (this.provider.apiVersion === 'preview' || this.provider.apiVersion === 'v1') {
           return this
         } else {
           return this.client
@@ -298,7 +297,31 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   private convertResponseToMessageContent(response: OpenAI.Responses.Response): ResponseInput {
     const content: OpenAI.Responses.ResponseInput = []
-    content.push(...response.output)
+    response.output.forEach((item) => {
+      if (item.type !== 'apply_patch_call' && item.type !== 'apply_patch_call_output') {
+        content.push(item)
+      } else if (item.type === 'apply_patch_call') {
+        if (item.operation !== undefined) {
+          const applyPatchToolCall: OpenAI.Responses.ResponseInputItem.ApplyPatchCall = {
+            ...item,
+            operation: item.operation
+          }
+          content.push(applyPatchToolCall)
+        } else {
+          logger.warn('Undefined tool call operation for ApplyPatchToolCall.')
+        }
+      } else if (item.type === 'apply_patch_call_output') {
+        if (item.output !== undefined) {
+          const applyPatchToolCallOutput: OpenAI.Responses.ResponseInputItem.ApplyPatchCallOutput = {
+            ...item,
+            output: item.output === null ? undefined : item.output
+          }
+          content.push(applyPatchToolCallOutput)
+        } else {
+          logger.warn('Undefined tool call operation for ApplyPatchToolCall.')
+        }
+      }
+    })
     return content
   }
 
@@ -342,9 +365,28 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       }
     }
     switch (message.type) {
-      case 'function_call_output':
-        sum += estimateTextTokens(message.output)
+      case 'function_call_output': {
+        let str = ''
+        if (typeof message.output === 'string') {
+          str = message.output
+        } else {
+          for (const part of message.output) {
+            switch (part.type) {
+              case 'input_text':
+                str += part.text
+                break
+              case 'input_image':
+                str += part.image_url || ''
+                break
+              case 'input_file':
+                str += part.file_data || ''
+                break
+            }
+          }
+        }
+        sum += estimateTextTokens(str)
         break
+      }
       case 'function_call':
         sum += estimateTextTokens(message.arguments)
         break
@@ -478,7 +520,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  verbosity: this.getVerbosity()
+                  verbosity: this.getVerbosity(model)
                 }
               }
             : {}),

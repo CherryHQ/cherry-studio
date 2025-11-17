@@ -6,7 +6,7 @@ import { VertexAPIClient } from '@renderer/aiCore/legacy/clients/gemini/VertexAP
 import { NewAPIClient } from '@renderer/aiCore/legacy/clients/newapi/NewAPIClient'
 import { OpenAIAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIResponseAPIClient'
-import { EndpointType, Model, Provider } from '@renderer/types'
+import type { EndpointType, Model, Provider } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/config/models', () => ({
@@ -35,12 +35,8 @@ vi.mock('@renderer/config/models', () => ({
   findTokenLimit: vi.fn().mockReturnValue(4096),
   isFunctionCallingModel: vi.fn().mockReturnValue(false),
   DEFAULT_MAX_TOKENS: 4096,
-  glm45FlashModel: {
-    id: 'glm-4.5-flash',
-    name: 'GLM-4.5-Flash',
-    provider: 'cherryin',
-    group: 'GLM-4.5'
-  }
+  qwen38bModel: {},
+  glm45FlashModel: {}
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({

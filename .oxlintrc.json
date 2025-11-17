@@ -1,0 +1,157 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {},
+  "env": {
+    "es2022": true
+  },
+  "globals": {},
+  "ignorePatterns": [
+    "node_modules/**",
+    "build/**",
+    "dist/**",
+    "out/**",
+    "local/**",
+    ".yarn/**",
+    ".gitignore",
+    "scripts/cloudflare-worker.js",
+    "src/main/integration/nutstore/sso/lib/**",
+    "src/main/integration/cherryai/index.js",
+    "src/main/integration/nutstore/sso/lib/**",
+    "src/renderer/src/ui/**",
+    "packages/**/dist",
+    "eslint.config.mjs"
+  ],
+  "overrides": [
+    {
+      "env": {
+        "node": true
+      },
+      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts"]
+    },
+    {
+      "env": {
+        "browser": true
+      },
+      "files": [
+        "src/renderer/**/*.{ts,tsx}",
+        "packages/aiCore/**",
+        "packages/extension-table-plus/**"
+      ]
+    },
+    {
+      "env": {
+        "node": true,
+        "vitest": true
+      },
+      "files": ["**/__tests__/*.test.{ts,tsx}", "tests/**"]
+    },
+    {
+      "env": {
+        "browser": true,
+        "node": true
+      },
+      "files": ["src/preload/**"]
+    },
+    {
+      "files": ["packages/ai-sdk-provider/**"],
+      "globals": {
+        "fetch": "readonly"
+      }
+    }
+  ],
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
+  "rules": {
+    "no-array-constructor": "off",
+    "no-caller": "warn",
+    "no-eval": "warn",
+    "no-fallthrough": "warn",
+    "no-unassigned-vars": "warn",
+    "no-unused-expressions": "off",
+    "no-unused-vars": ["warn", { "caughtErrors": "none" }],
+    "no-useless-rename": "warn",
+    "oxc/bad-array-method-on-arguments": "warn",
+    "oxc/bad-char-at-comparison": "warn",
+    "oxc/bad-comparison-sequence": "warn",
+    "oxc/bad-min-max-func": "warn",
+    "oxc/bad-object-literal-comparison": "warn",
+    "oxc/bad-replace-all-arg": "warn",
+    "oxc/const-comparisons": "warn",
+    "oxc/double-comparisons": "warn",
+    "oxc/erasing-op": "warn",
+    "oxc/missing-throw": "warn",
+    "oxc/number-arg-out-of-range": "warn",
+    "oxc/only-used-in-recursion": "off",
+    "oxc/uninvoked-array-callback": "warn",
+    "typescript/await-thenable": "warn",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-array-constructor": "error",
+    "typescript/no-array-delete": "warn",
+    "typescript/no-base-to-string": "warn",
+    "typescript/no-duplicate-enum-values": "error",
+    "typescript/no-duplicate-type-constituents": "warn",
+    "typescript/no-empty-object-type": "off",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-extra-non-null-assertion": "error",
+    "typescript/no-floating-promises": "warn",
+    "typescript/no-for-in-array": "warn",
+    "typescript/no-implied-eval": "warn",
+    "typescript/no-meaningless-void-operator": "warn",
+    "typescript/no-misused-new": "error",
+    "typescript/no-misused-spread": "warn",
+    "typescript/no-namespace": "error",
+    "typescript/no-non-null-asserted-optional-chain": "off",
+    "typescript/no-redundant-type-constituents": "warn",
+    "typescript/no-require-imports": "off",
+    "typescript/no-this-alias": "error",
+    "typescript/no-unnecessary-parameter-property-assignment": "warn",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-declaration-merging": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-unsafe-unary-minus": "warn",
+    "typescript/no-useless-empty-export": "warn",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-as-const": "error",
+    "typescript/prefer-namespace-keyword": "error",
+    "typescript/require-array-sort-compare": "warn",
+    "typescript/restrict-template-expressions": "warn",
+    "typescript/triple-slash-reference": "error",
+    "typescript/unbound-method": "warn",
+    "unicorn/no-await-in-promise-methods": "warn",
+    "unicorn/no-empty-file": "off",
+    "unicorn/no-invalid-fetch-options": "warn",
+    "unicorn/no-invalid-remove-event-listener": "warn",
+    "unicorn/no-new-array": "off",
+    "unicorn/no-single-promise-in-promise-methods": "warn",
+    "unicorn/no-thenable": "off",
+    "unicorn/no-unnecessary-await": "warn",
+    "unicorn/no-useless-fallback-in-spread": "warn",
+    "unicorn/no-useless-length-check": "warn",
+    "unicorn/no-useless-spread": "off",
+    "unicorn/prefer-set-size": "warn",
+    "unicorn/prefer-string-starts-ends-with": "warn"
+  },
+  "settings": {
+    "jsdoc": {
+      "augmentsExtendsReplacesDocs": false,
+      "exemptDestructuredRootsFromChecks": false,
+      "ignoreInternal": false,
+      "ignorePrivate": false,
+      "ignoreReplacesDocs": true,
+      "implementsReplacesDocs": false,
+      "overrideReplacesDocs": true,
+      "tagNamePreference": {}
+    },
+    "jsx-a11y": {
+      "attributes": {},
+      "components": {},
+      "polymorphicPropName": null
+    },
+    "next": {
+      "rootDir": []
+    },
+    "react": {
+      "formComponents": [],
+      "linkComponents": []
+    }
+  }
+}

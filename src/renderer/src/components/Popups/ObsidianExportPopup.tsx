@@ -1,4 +1,5 @@
-import { ObsidianProcessingMethod, PopupContainer } from '@renderer/components/ObsidianExportDialog'
+import type { ObsidianProcessingMethod } from '@renderer/components/ObsidianExportDialog'
+import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
 import { TopView } from '@renderer/components/TopView'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -9,6 +10,7 @@ interface ObsidianExportOptions {
   topic?: Topic
   message?: Message
   messages?: Message[]
+  rawContent?: string
 }
 
 export default class ObsidianExportPopup {
@@ -24,6 +26,7 @@ export default class ObsidianExportPopup {
           topic={options.topic}
           message={options.message}
           messages={options.messages}
+          rawContent={options.rawContent}
           obsidianTags={''}
           open={true}
           resolve={(v) => {

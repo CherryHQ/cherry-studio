@@ -10,7 +10,8 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
-import { Dropdown, Image as AntImage, ImageProps as AntImageProps, Space } from 'antd'
+import type { ImageProps as AntImageProps } from 'antd'
+import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
 import { DownloadIcon, ImageIcon } from 'lucide-react'
 import mime from 'mime'
@@ -62,10 +63,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         ])
       }
 
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     } catch (error) {
       logger.error('Failed to copy image:', error as Error)
-      window.message.error(t('message.copy.failed'))
+      window.toast.error(t('message.copy.failed'))
     }
   }
 
@@ -77,7 +78,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         icon: <CopyIcon size={size} />,
         onClick: () => {
           navigator.clipboard.writeText(src)
-          window.message.success(t('message.copy.success'))
+          window.toast.success(t('message.copy.success'))
         }
       },
       {

@@ -1,7 +1,8 @@
 import { isRerankModel } from '@renderer/config/models'
 import { checkModelsHealth } from '@renderer/services/HealthCheckService'
-import { Model, Provider } from '@renderer/types'
-import { HealthStatus, ModelWithStatus } from '@renderer/types/healthCheck'
+import type { Model, Provider } from '@renderer/types'
+import type { ModelWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
 import { summarizeHealthResults } from '@renderer/utils/healthCheck'
 import { isEmpty } from 'lodash'
@@ -19,11 +20,9 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
+      window.toast.error({
+        timeout: 5000,
+        title: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -80,11 +79,9 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
       }
     )
 
-    window.message.info({
-      key: 'health-check-summary',
-      style: { marginTop: '3vh' },
-      duration: 5,
-      content: summarizeHealthResults(checkResults, provider.name)
+    window.toast.info({
+      timeout: 5000,
+      title: summarizeHealthResults(checkResults, provider.name)
     })
 
     setIsChecking(false)

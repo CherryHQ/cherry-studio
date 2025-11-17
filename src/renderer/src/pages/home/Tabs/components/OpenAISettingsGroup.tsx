@@ -1,5 +1,6 @@
 import Selector from '@renderer/components/Selector'
 import {
+  getModelSupportedVerbosity,
   isSupportedReasoningEffortOpenAIModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
@@ -8,21 +9,16 @@ import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
-import {
-  GroqServiceTiers,
-  Model,
-  OpenAIServiceTier,
-  OpenAIServiceTiers,
-  OpenAISummaryText,
-  ServiceTier,
-  SystemProviderIds
-} from '@renderer/types'
-import { OpenAIVerbosity } from '@types'
+import type { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier } from '@renderer/types'
+import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
+import type { OpenAIVerbosity } from '@types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -85,20 +81,24 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     }
   ]
 
-  const verbosityOptions = [
-    {
-      value: 'low',
-      label: t('settings.openai.verbosity.low')
-    },
-    {
-      value: 'medium',
-      label: t('settings.openai.verbosity.medium')
-    },
-    {
-      value: 'high',
-      label: t('settings.openai.verbosity.high')
-    }
-  ]
+  const verbosityOptions = useMemo(() => {
+    const allOptions = [
+      {
+        value: 'low',
+        label: t('settings.openai.verbosity.low')
+      },
+      {
+        value: 'medium',
+        label: t('settings.openai.verbosity.medium')
+      },
+      {
+        value: 'high',
+        label: t('settings.openai.verbosity.high')
+      }
+    ]
+    const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+    return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value as any))
+  }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
     let baseOptions: { value: ServiceTier; label: string }[]
@@ -159,6 +159,15 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       }
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
+
+  useEffect(() => {
+    if (verbosity && !verbosityOptions.some((option) => option.value === verbosity)) {
+      const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+      // Default to the highest supported verbosity level
+      const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
+      setVerbosity(defaultVerbosity)
+    }
+  }, [model, verbosity, verbosityOptions, setVerbosity])
 
   if (!isOpenAIReasoning && !isSupportServiceTier && !isSupportVerbosity) {
     return null

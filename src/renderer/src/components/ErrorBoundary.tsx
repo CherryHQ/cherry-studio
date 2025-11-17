@@ -1,10 +1,11 @@
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button, Space } from 'antd'
-import { ComponentType, ReactNode } from 'react'
-import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
+import { Button } from 'antd'
+import { Alert, Space } from 'antd'
+import type { ComponentType, ReactNode } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
@@ -23,10 +24,10 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         type="error"
         action={
           <Space>
-            <Button size="small" danger onClick={debug}>
+            <Button size="small" onClick={debug}>
               {t('error.boundary.default.devtools')}
             </Button>
-            <Button size="small" danger onClick={reload}>
+            <Button size="small" onClick={reload}>
               {t('error.boundary.default.reload')}
             </Button>
           </Space>

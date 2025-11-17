@@ -2,7 +2,7 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { nanoid } from 'nanoid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,11 +14,7 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
   items: [],
   created_at: Date.now(),
   updated_at: Date.now(),
-  version: 1,
-  framework: 'langchain',
-  retriever: {
-    mode: 'hybrid'
-  }
+  version: 1
 })
 
 /**
@@ -61,7 +57,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       label: t('settings.tool.preprocess.provider'),
       title: t('settings.tool.preprocess.provider'),
       options: preprocessProviders
-        .filter((p) => p.apiKey !== '' || p.id === 'mineru')
+        .filter((p) => p.apiKey !== '' || ['mineru', 'open-mineru'].includes(p.id))
         .map((p) => ({ value: p.id, label: p.name }))
     }
     return [preprocessOptions]
@@ -126,7 +122,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
         setNewBase((prev) => ({ ...prev, chunkOverlap: value || undefined }))
       } else {
-        window.message.error(t('message.error.chunk_overlap_too_large'))
+        window.toast.error(t('message.error.chunk_overlap_too_large'))
       }
     },
     [newBase.chunkSize, t]

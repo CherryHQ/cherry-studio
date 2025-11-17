@@ -1,5 +1,6 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { Shortcut } from '@renderer/types'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { Shortcut } from '@renderer/types'
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
 
 export interface ShortcutsState {
@@ -54,6 +55,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'rename_topic',
+      shortcut: ['CommandOrControl', 'T'],
+      editable: true,
+      enabled: false,
+      system: false
+    },
+    {
       key: 'toggle_show_assistants',
       shortcut: ['CommandOrControl', '['],
       editable: true,
@@ -71,6 +79,13 @@ const initialState: ShortcutsState = {
     {
       key: 'copy_last_message',
       shortcut: ['CommandOrControl', 'Shift', 'C'],
+      editable: true,
+      enabled: false,
+      system: false
+    },
+    {
+      key: 'edit_last_user_message',
+      shortcut: ['CommandOrControl', 'Shift', 'E'],
       editable: true,
       enabled: false,
       system: false

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -11,11 +12,13 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateMessageUsage } from '@renderer/services/TokenService'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { classNames } from '@renderer/utils'
+import { classNames, cn } from '@renderer/utils'
+import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { Divider } from 'antd'
-import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useRef } from 'react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import React, { memo, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -70,7 +73,7 @@ const MessageItem: FC<Props> = ({
   const { messageFont, fontSize, messageStyle, showMessageOutline } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
-  const { editingMessageId, stopEditing } = useMessageEditing()
+  const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
   const isEditing = editingMessageId === message.id
 
@@ -115,7 +118,8 @@ const MessageItem: FC<Props> = ({
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
-  const showMenubar = !hideMenuBar && !isEditing
+  const isProcessing = isMessageProcessing(message)
+  const showMenubar = !hideMenuBar && !isEditing && !isProcessing
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
@@ -147,6 +151,19 @@ const MessageItem: FC<Props> = ({
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, messageHighlightHandler)]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
+
+  // Listen for external edit requests and activate editor for this message if it matches
+  useEffect(() => {
+    const handleEditRequest = (targetId: string) => {
+      if (targetId === message.id) {
+        startEditing(message.id)
+      }
+    }
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, handleEditRequest)
+    return () => {
+      unsubscribe()
+    }
+  }, [message.id, startEditing])
 
   if (message.type === 'clear') {
     return (
@@ -210,20 +227,28 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </MessageContentContainer>
             {showMenubar && (
-              <MessageFooter className="MessageFooter" $isLastMessage={isLastMessage} $messageStyle={messageStyle}>
-                <MessageMenubar
-                  message={message}
-                  assistant={assistant}
-                  model={model}
-                  index={index}
-                  topic={topic}
-                  isLastMessage={isLastMessage}
-                  isAssistantMessage={isAssistantMessage}
-                  isGrouped={isGrouped}
-                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                  setModel={setModel}
-                  onUpdateUseful={onUpdateUseful}
-                />
+              <MessageFooter className="MessageFooter">
+                <HorizontalScrollContainer
+                  classNames={{
+                    content: cn(
+                      'flex-1 items-center justify-between',
+                      isLastMessage && messageStyle === 'plain' ? 'flex-row-reverse' : 'flex-row'
+                    )
+                  }}>
+                  <MessageMenubar
+                    message={message}
+                    assistant={assistant}
+                    model={model}
+                    index={index}
+                    topic={topic}
+                    isLastMessage={isLastMessage}
+                    isAssistantMessage={isAssistantMessage}
+                    isGrouped={isGrouped}
+                    messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                    setModel={setModel}
+                    onUpdateUseful={onUpdateUseful}
+                  />
+                </HorizontalScrollContainer>
               </MessageFooter>
             )}
           </>
@@ -267,10 +292,8 @@ const MessageContentContainer = styled(Scrollbar)`
   overflow-y: auto;
 `
 
-const MessageFooter = styled.div<{ $isLastMessage: boolean; $messageStyle: 'plain' | 'bubble' }>`
+const MessageFooter = styled.div`
   display: flex;
-  flex-direction: ${({ $isLastMessage, $messageStyle }) =>
-    $isLastMessage && $messageStyle === 'plain' ? 'row-reverse' : 'row'};
   align-items: center;
   justify-content: space-between;
   gap: 10px;

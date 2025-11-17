@@ -8,9 +8,10 @@ import {
   setCurrentDirectory,
   setEnvironmentVariables,
   setSelectedCliTool,
-  setSelectedModel
+  setSelectedModel,
+  setSelectedTerminal
 } from '@renderer/store/codeTools'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 import { useCallback } from 'react'
 
@@ -31,6 +32,14 @@ export const useCodeTools = () => {
   const setModel = useCallback(
     (model: Model | null) => {
       dispatch(setSelectedModel(model))
+    },
+    [dispatch]
+  )
+
+  // 设置选择的终端
+  const setTerminal = useCallback(
+    (terminal: string) => {
+      dispatch(setSelectedTerminal(terminal))
     },
     [dispatch]
   )
@@ -99,12 +108,17 @@ export const useCodeTools = () => {
   const environmentVariables = codeToolsState?.environmentVariables?.[codeToolsState.selectedCliTool] || ''
 
   // 检查是否可以启动（所有必需字段都已填写）
-  const canLaunch = Boolean(codeToolsState.selectedCliTool && selectedModel && codeToolsState.currentDirectory)
+  const canLaunch = Boolean(
+    codeToolsState.selectedCliTool &&
+      codeToolsState.currentDirectory &&
+      (codeToolsState.selectedCliTool === codeTools.githubCopilotCli || selectedModel)
+  )
 
   return {
     // 状态
     selectedCliTool: codeToolsState.selectedCliTool,
     selectedModel: selectedModel,
+    selectedTerminal: codeToolsState.selectedTerminal,
     environmentVariables: environmentVariables,
     directories: codeToolsState.directories,
     currentDirectory: codeToolsState.currentDirectory,
@@ -113,6 +127,7 @@ export const useCodeTools = () => {
     // 操作函数
     setCliTool,
     setModel,
+    setTerminal,
     setEnvVars,
     addDir,
     removeDir,

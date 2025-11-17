@@ -1,0 +1,90 @@
+@keyframes animation-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 var(--pulse-size) rgba(var(--pulse-color), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--pulse-color), 0);
+  }
+}
+
+/* 电磁波扩散效果 */
+.animation-pulse {
+  --pulse-color: 59, 130, 246;
+  --pulse-size: 8px;
+  animation: animation-pulse 1.5s infinite;
+}
+
+/* Modal动画 */
+@keyframes animation-move-down-in {
+  0% {
+    transform: translate3d(0, 100%, 0);
+    transform-origin: 0 0;
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+    transform-origin: 0 0;
+    opacity: 1;
+  }
+}
+@keyframes animation-move-down-out {
+  0% {
+    transform: translate3d(0, 0, 0);
+    transform-origin: 0 0;
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 100%, 0);
+    transform-origin: 0 0;
+    opacity: 0;
+  }
+}
+.animation-move-down-enter,
+.animation-move-down-appear {
+  animation-name: animation-move-down-in;
+  animation-fill-mode: both;
+  animation-duration: 0.25s;
+}
+.animation-move-down-leave {
+  animation-name: animation-move-down-out;
+  animation-fill-mode: both;
+  animation-duration: 0.25s;
+}
+
+/* 旋转动画 */
+@keyframes animation-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animation-rotate {
+  transform-origin: center;
+  animation: animation-rotate 0.75s linear infinite;
+}
+
+/* 定位高亮动画 */
+@keyframes animation-locate-highlight {
+  0% {
+    background-color: transparent;
+  }
+  10% {
+    background-color: var(--color-primary-mute);
+  }
+  70% {
+    background-color: var(--color-primary-mute);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animation-locate-highlight {
+  animation: animation-locate-highlight 2.5s ease-in-out;
+}

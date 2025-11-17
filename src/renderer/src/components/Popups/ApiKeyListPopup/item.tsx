@@ -1,15 +1,17 @@
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
-import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
+import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
+import type { InputRef } from 'antd'
+import { Button, Flex, Input, List, Popconfirm, Tooltip, Typography } from 'antd'
 import { Check, Minus, X } from 'lucide-react'
-import { FC, memo, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { ApiKeyValidity } from './types'
+import type { ApiKeyValidity } from './types'
 
 export interface ApiKeyItemProps {
   keyStatus: ApiKeyWithStatus
@@ -61,10 +63,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const handleSave = () => {
     const result = onUpdate(editValue)
     if (!result.isValid) {
-      window.message.warning({
-        key: 'api-key-error',
-        content: result.error
-      })
+      window.toast.warning(result.error)
       return
     }
 

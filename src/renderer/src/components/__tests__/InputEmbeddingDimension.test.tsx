@@ -23,6 +23,16 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
 // Mock antd components to prevent flaky snapshot tests
 vi.mock('antd', () => {
   const MockSpaceCompact: React.FC<React.PropsWithChildren<{ style?: React.CSSProperties }>> = ({
@@ -98,9 +108,9 @@ vi.mock('@renderer/components/Icons', () => ({
   )
 }))
 
-// Mock window.message
+// Mock window.toast
 Object.assign(window, {
-  message: {
+  toast: {
     error: vi.fn(),
     success: vi.fn()
   }
@@ -195,7 +205,7 @@ describe('InputEmbeddingDimension', () => {
       // We can skip this check to be explicit.
       await userEvent.click(refreshButton, { pointerEventsCheck: 0 })
 
-      expect(window.message.error).not.toHaveBeenCalled()
+      expect(window.toast.error).not.toHaveBeenCalled()
     })
 
     it('should show error when API call fails', async () => {
@@ -208,7 +218,7 @@ describe('InputEmbeddingDimension', () => {
       await user.click(refreshButton)
 
       await waitFor(() => {
-        expect(window.message.error).toHaveBeenCalledWith('获取嵌入维度失败\nAPI Error')
+        expect(window.toast.error).toHaveBeenCalledWith('获取嵌入维度失败\nAPI Error')
       })
     })
 

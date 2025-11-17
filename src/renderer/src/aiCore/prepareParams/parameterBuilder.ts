@@ -3,26 +3,48 @@
  * 构建AI SDK的流式和非流式参数
  */
 
+import { anthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
+import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
+import { vertex } from '@ai-sdk/google-vertex/edge'
+import { combineHeaders } from '@ai-sdk/provider-utils'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
+  isAnthropicModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { isAwsBedrockProvider } from '@renderer/config/providers'
+import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
-import type { Assistant, MCPTool, Provider } from '@renderer/types'
+import store from '@renderer/store'
+import type { CherryWebSearchConfig } from '@renderer/store/websearch'
+import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import type { ModelMessage } from 'ai'
+import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
+import { replacePromptVariables } from '@renderer/utils/prompt'
+import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
+import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
+import { getAnthropicThinkingBudget } from '../utils/reasoning'
+import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { addAnthropicHeaders } from './header'
+import { supportsTopP } from './modelCapabilities'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
+
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
 
 /**
  * 构建 AI SDK 流式参数
@@ -35,6 +57,7 @@ export async function buildStreamTextParams(
   options: {
     mcpTools?: MCPTool[]
     webSearchProviderId?: string
+    webSearchConfig?: CherryWebSearchConfig
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
@@ -50,12 +73,14 @@ export async function buildStreamTextParams(
     enableGenerateImage: boolean
     enableUrlContext: boolean
   }
+  webSearchPluginConfig?: WebSearchPluginConfig
 }> {
   const { mcpTools } = options
 
   const model = assistant.model || getDefaultModel()
+  const aiSdkProviderId = getAiSdkProviderId(provider)
 
-  const { maxTokens } = getAssistantSettings(assistant)
+  let { maxTokens } = getAssistantSettings(assistant)
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
@@ -65,50 +90,132 @@ export async function buildStreamTextParams(
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  // 判断是否使用内置搜索
+  // 条件：没有外部搜索提供商 && (用户开启了内置搜索 || 模型强制使用内置搜索)
+  const hasExternalSearch = !!options.webSearchProviderId
   const enableWebSearch =
-    (assistant.enableWebSearch && isWebSearchModel(model)) ||
-    isOpenRouterBuiltInWebSearchModel(model) ||
-    model.id.includes('sonar') ||
-    false
+    !hasExternalSearch &&
+    ((assistant.enableWebSearch && isWebSearchModel(model)) ||
+      isOpenRouterBuiltInWebSearchModel(model) ||
+      model.id.includes('sonar'))
 
   const enableUrlContext = assistant.enableUrlContext || false
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  const tools = setupToolsConfig(mcpTools)
-
-  // if (webSearchProviderId) {
-  //   tools['builtin_web_search'] = webSearchTool(webSearchProviderId)
-  // }
+  let tools = setupToolsConfig(mcpTools)
 
   // 构建真正的 providerOptions
+  const webSearchConfig: CherryWebSearchConfig = {
+    maxResults: store.getState().websearch.maxResults,
+    excludeDomains: store.getState().websearch.excludeDomains,
+    searchWithTime: store.getState().websearch.searchWithTime
+  }
+
   const providerOptions = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
     enableWebSearch,
     enableGenerateImage
   })
 
+  // NOTE: ai-sdk会把maxToken和budgetToken加起来
+  if (
+    enableReasoning &&
+    maxTokens !== undefined &&
+    isSupportedThinkingTokenClaudeModel(model) &&
+    (provider.type === 'anthropic' || provider.type === 'aws-bedrock')
+  ) {
+    maxTokens -= getAnthropicThinkingBudget(assistant, model)
+  }
+
+  let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
+  if (enableWebSearch) {
+    if (isBaseProvider(aiSdkProviderId)) {
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+    }
+    if (!tools) {
+      tools = {}
+    }
+    if (aiSdkProviderId === 'google-vertex') {
+      tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'google-vertex-anthropic') {
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      tools.web_search = vertexAnthropic.tools.webSearch_20250305({
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+      }) as ProviderDefinedTool
+    }
+  }
+
+  if (enableUrlContext) {
+    if (!tools) {
+      tools = {}
+    }
+    const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+
+    switch (aiSdkProviderId) {
+      case 'google-vertex':
+        tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'google':
+        tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
+        break
+      case 'anthropic':
+      case 'google-vertex-anthropic':
+        tools.web_fetch = (
+          aiSdkProviderId === 'anthropic'
+            ? anthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+            : vertexAnthropic.tools.webFetch_20250910({
+                maxUses: webSearchConfig.maxResults,
+                blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+              })
+        ) as ProviderDefinedTool
+        break
+    }
+  }
+
+  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+
+  // https://docs.claude.com/en/docs/build-with-claude/extended-thinking#interleaved-thinking
+  if (!isVertexProvider(provider) && !isAwsBedrockProvider(provider) && isAnthropicModel(model)) {
+    const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
+    headers = combineHeaders(headers, newBetaHeaders)
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: maxTokens,
     temperature: getTemperature(assistant, model),
-    topP: getTopP(assistant, model),
     abortSignal: options.requestOptions?.signal,
-    headers: options.requestOptions?.headers,
+    headers,
     providerOptions,
-    tools,
-    stopWhen: stepCountIs(10),
+    stopWhen: stepCountIs(20),
     maxRetries: 0
   }
-  if (assistant.prompt) {
-    params.system = assistant.prompt
+
+  if (supportsTopP(model)) {
+    params.topP = getTopP(assistant, model)
   }
+
+  if (tools) {
+    params.tools = tools
+  }
+
+  if (assistant.prompt) {
+    params.system = await replacePromptVariables(assistant.prompt, model.name)
+  }
+
   logger.debug('params', params)
+
   return {
     params,
     modelId: model.id,
-    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext }
+    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
+    webSearchPluginConfig
   }
 }
 

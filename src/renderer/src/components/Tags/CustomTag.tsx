@@ -1,6 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { CSSProperties, FC, memo, MouseEventHandler, useMemo } from 'react'
+import type { CSSProperties, FC, MouseEventHandler } from 'react'
+import { memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 export interface CustomTagProps {
@@ -13,6 +14,7 @@ export interface CustomTagProps {
   closable?: boolean
   onClose?: () => void
   onClick?: MouseEventHandler<HTMLDivElement>
+  onContextMenu?: MouseEventHandler<HTMLDivElement>
   disabled?: boolean
   inactive?: boolean
 }
@@ -27,6 +29,7 @@ const CustomTag: FC<CustomTagProps> = ({
   closable = false,
   onClose,
   onClick,
+  onContextMenu,
   disabled,
   inactive
 }) => {
@@ -39,11 +42,12 @@ const CustomTag: FC<CustomTagProps> = ({
         $closable={closable}
         $clickable={!disabled && !!onClick}
         onClick={disabled ? undefined : onClick}
+        onContextMenu={disabled ? undefined : onContextMenu}
         style={{
           ...(disabled && { cursor: 'not-allowed' }),
           ...style
         }}>
-        {icon && icon} {children}
+        {icon} {children}
         {closable && (
           <CloseIcon
             $size={size}
@@ -56,7 +60,7 @@ const CustomTag: FC<CustomTagProps> = ({
         )}
       </Tag>
     ),
-    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style]
+    [actualColor, children, closable, disabled, icon, onClick, onClose, onContextMenu, size, style]
   )
 
   return tooltip ? (

@@ -3,9 +3,11 @@ import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappCon
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { message, Modal } from 'antd'
-import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
+import type { PropsWithChildren } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Box } from '../Layout'
+import { getToastUtilities, initMessageApi } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
@@ -33,16 +35,17 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [messageApi, messageContextHolder] = message.useMessage()
   const [modal, modalContextHolder] = Modal.useModal()
+  const [messageApi, messageContextHolder] = message.useMessage()
   const { shortcuts } = useShortcuts()
   const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
 
   useAppInit()
 
   useEffect(() => {
-    window.message = messageApi
     window.modal = modal
+    initMessageApi(messageApi)
+    window.toast = getToastUtilities()
   }, [messageApi, modal])
 
   onPop = () => {

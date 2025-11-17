@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import {
+  getModelSupportedVerbosity,
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
   isOpenAIModel,
@@ -9,29 +10,31 @@ import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
-import {
+import type {
   Assistant,
-  FileTypes,
   GenerateImageParams,
-  GroqServiceTiers,
-  isGroqServiceTier,
-  isOpenAIServiceTier,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   MemoryItem,
   Model,
-  OpenAIServiceTiers,
   OpenAIVerbosity,
   Provider,
-  SystemProviderIds,
   ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
 import {
+  FileTypes,
+  GroqServiceTiers,
+  isGroqServiceTier,
+  isOpenAIServiceTier,
+  OpenAIServiceTiers,
+  SystemProviderIds
+} from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -46,10 +49,11 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
+import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
-import { CompletionsContext } from '../middleware/types'
-import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
+import type { CompletionsContext } from '../middleware/types'
+import type { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
 
 const logger = loggerService.withContext('BaseApiClient')
 
@@ -69,13 +73,19 @@ export abstract class BaseApiClient<
 {
   public provider: Provider
   protected host: string
-  protected apiKey: string
   protected sdkInstance?: TSdkInstance
 
   constructor(provider: Provider) {
     this.provider = provider
     this.host = this.getBaseURL()
-    this.apiKey = this.getApiKey()
+  }
+
+  /**
+   * Get the current API key with rotation support
+   * This getter ensures API keys rotate on each access when multiple keys are configured
+   */
+  protected get apiKey(): string {
+    return this.getApiKey()
   }
 
   /**
@@ -83,7 +93,7 @@ export abstract class BaseApiClient<
    * 用于判断客户端是否支持特定功能，避免instanceof检查的类型收窄问题
    * 对于装饰器模式的客户端（如AihubmixAPIClient），应该返回其内部实际使用的客户端类型
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   public getClientCompatibilityType(_model?: Model): string[] {
     // 默认返回类的名称
     return [this.constructor.name]
@@ -179,8 +189,7 @@ export abstract class BaseApiClient<
 
   public defaultHeaders() {
     return {
-      'HTTP-Referer': 'https://cherry-ai.com',
-      'X-Title': 'Cherry Studio',
+      ...defaultAppHeaders(),
       'X-Api-Key': this.apiKey
     }
   }
@@ -234,12 +243,18 @@ export abstract class BaseApiClient<
     return serviceTierSetting
   }
 
-  protected getVerbosity(): OpenAIVerbosity {
+  protected getVerbosity(model?: Model): OpenAIVerbosity {
     try {
       const state = window.store?.getState()
       const verbosity = state?.settings?.openAI?.verbosity
 
       if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
+        // If model is provided, check if the verbosity is supported by the model
+        if (model) {
+          const supportedVerbosity = getModelSupportedVerbosity(model)
+          // Use user's verbosity if supported, otherwise use the first supported option
+          return supportedVerbosity.includes(verbosity) ? verbosity : supportedVerbosity[0]
+        }
         return verbosity
       }
     } catch (error) {

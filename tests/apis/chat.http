@@ -1,0 +1,96 @@
+@host=http://localhost:23333
+@token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
+@agent_id=agent_1758092281575_tn9dxio9k
+
+
+### List All Models
+GET {{host}}/v1/models
+Authorization: Bearer {{token}}
+
+
+### List Models With Filters
+GET {{host}}/v1/models?providerType=anthropic&limit=5
+Authorization: Bearer {{token}}
+
+
+### OpenAI Chat Completion
+POST {{host}}/v1/chat/completions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "tokenflux:openai/gpt-5-nano",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain the theory of relativity in simple terms."
+    }
+  ]
+}
+
+### OpenAI Chat Completion with streaming
+POST {{host}}/v1/chat/completions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "tokenflux:openai/gpt-5-nano",
+  "stream": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain the theory of relativity in simple terms."
+    }
+  ]
+}
+
+### Anthropic Chat Message
+POST {{host}}/v1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "anthropic:claude-sonnet-4-20250514",
+  "stream": false,
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain the theory of relativity in simple terms."
+    }
+  ]
+}
+
+### Anthropic Chat Message with streaming
+POST {{host}}/v1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "anthropic:claude-sonnet-4-20250514",
+  "stream": true,
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain the theory of relativity in simple terms."
+    }
+  ]
+}
+
+### Anthropic Chat Message with streaming
+POST {{host}}/anthropic/v1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "claude-sonnet-4-20250514",
+  "stream": true,
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain the theory of relativity in simple terms."
+    }
+  ]
+}

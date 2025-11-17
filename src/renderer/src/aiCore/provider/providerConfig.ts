@@ -7,22 +7,30 @@ import {
 } from '@cherrystudio/ai-core/provider'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isPerplexityProvider
+} from '@renderer/config/providers'
+import {
   getAwsBedrockAccessKeyId,
+  getAwsBedrockApiKey,
+  getAwsBedrockAuthType,
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
-import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { loggerService } from '@renderer/services/LoggerService'
 import store from '@renderer/store'
-import type { Model, Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
-import { cloneDeep, isEmpty } from 'lodash'
+import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
+import { cloneDeep } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
-
-const logger = loggerService.withContext('ProviderConfigProcessor')
 
 /**
  * 获取轮询的API key
@@ -54,32 +62,50 @@ function getRotatedApiKey(provider: Provider): string {
  * 处理特殊provider的转换逻辑
  */
 function handleSpecialProviders(model: Model, provider: Provider): Provider {
-  // if (provider.type === 'vertexai' && !isVertexProvider(provider)) {
-  //   if (!isVertexAIConfigured()) {
-  //     throw new Error('VertexAI is not configured. Please configure project, location and service account credentials.')
-  //   }
-  //   return createVertexProvider(provider)
-  // }
-
-  if (provider.id === 'aihubmix') {
-    return aihubmixProviderCreator(model, provider)
-  }
-  if (provider.id === 'newapi') {
+  if (isNewApiProvider(provider)) {
     return newApiResolverCreator(model, provider)
   }
-  if (provider.id === 'vertexai') {
-    return vertexAnthropicProviderCreator(model, provider)
+
+  if (isSystemProvider(provider)) {
+    if (provider.id === 'aihubmix') {
+      return aihubmixProviderCreator(model, provider)
+    }
+    if (provider.id === 'vertexai') {
+      return vertexAnthropicProviderCreator(model, provider)
+    }
   }
   return provider
 }
 
 /**
- * 格式化provider的API Host
+ * 主要用来对齐AISdk的BaseURL格式
+ * @param provider
+ * @returns
  */
 function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
-  if (formatted.type === 'gemini') {
-    formatted.apiHost = formatApiHost(formatted.apiHost, 'v1beta')
+  if (formatted.anthropicApiHost) {
+    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
+  }
+
+  if (isAnthropicProvider(provider)) {
+    const baseHost = formatted.anthropicApiHost || formatted.apiHost
+    formatted.apiHost = formatApiHost(baseHost)
+    if (!formatted.anthropicApiHost) {
+      formatted.anthropicApiHost = formatted.apiHost
+    }
+  } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isGeminiProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
+  } else if (isAzureOpenAIProvider(formatted)) {
+    formatted.apiHost = formatAzureOpenAIApiHost(formatted.apiHost)
+  } else if (isVertexProvider(formatted)) {
+    formatted.apiHost = formatVertexApiHost(formatted)
+  } else if (isCherryAIProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isPerplexityProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)
   }
@@ -113,18 +139,39 @@ export function providerToAiSdkConfig(
   options: ProviderSettingsMap[keyof ProviderSettingsMap]
 } {
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
-  logger.debug('providerToAiSdkConfig', { aiSdkProviderId })
 
   // 构建基础配置
+  const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
   const baseConfig = {
-    baseURL: actualProvider.apiHost,
+    baseURL: baseURL,
     apiKey: getRotatedApiKey(actualProvider)
   }
+
+  const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
+  if (isCopilotProvider) {
+    const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
+    const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
+      headers: {
+        ...COPILOT_DEFAULT_HEADERS,
+        ...storedHeaders,
+        ...actualProvider.extra_headers
+      },
+      name: actualProvider.id,
+      includeUsage: true
+    })
+
+    return {
+      providerId: 'github-copilot-openai-compatible',
+      options
+    }
+  }
+
   // 处理OpenAI模式
   const extraOptions: any = {}
+  extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai') {
+  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
     extraOptions.mode = 'chat'
   }
 
@@ -141,32 +188,29 @@ export function providerToAiSdkConfig(
       }
     }
   }
-
-  // copilot
-  if (actualProvider.id === 'copilot') {
-    extraOptions.headers = {
-      ...extraOptions.headers,
-      'editor-version': 'vscode/1.97.2',
-      'copilot-vision-request': 'true'
-    }
-  }
   // azure
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
   if (aiSdkProviderId === 'azure' || actualProvider.type === 'azure-openai') {
-    extraOptions.apiVersion = actualProvider.apiVersion
-    baseConfig.baseURL += '/openai'
-    if (actualProvider.apiVersion === 'preview') {
+    // extraOptions.apiVersion = actualProvider.apiVersion === 'preview' ? 'v1' : actualProvider.apiVersion 默认使用v1，不使用azure endpoint
+    if (actualProvider.apiVersion === 'preview' || actualProvider.apiVersion === 'v1') {
       extraOptions.mode = 'responses'
     } else {
       extraOptions.mode = 'chat'
-      extraOptions.useDeploymentBasedUrls = true
     }
   }
 
   // bedrock
   if (aiSdkProviderId === 'bedrock') {
+    const authType = getAwsBedrockAuthType()
     extraOptions.region = getAwsBedrockRegion()
-    extraOptions.accessKeyId = getAwsBedrockAccessKeyId()
-    extraOptions.secretAccessKey = getAwsBedrockSecretAccessKey()
+
+    if (authType === 'apiKey') {
+      extraOptions.apiKey = getAwsBedrockApiKey()
+    } else {
+      extraOptions.accessKeyId = getAwsBedrockAccessKeyId()
+      extraOptions.secretAccessKey = getAwsBedrockSecretAccessKey()
+    }
   }
   // google-vertex
   if (aiSdkProviderId === 'google-vertex' || aiSdkProviderId === 'google-vertex-anthropic') {
@@ -180,22 +224,9 @@ export function providerToAiSdkConfig(
       ...googleCredentials,
       privateKey: formatPrivateKey(googleCredentials.privateKey)
     }
-    // extraOptions.headers = window.api.vertexAI.getAuthHeaders({
-    //   projectId: project,
-    //   serviceAccount: {
-    //     privateKey: googleCredentials.privateKey,
-    //     clientEmail: googleCredentials.clientEmail
-    //   }
-    // })
-    if (baseConfig.baseURL.endsWith('/v1/')) {
-      baseConfig.baseURL = baseConfig.baseURL.slice(0, -4)
-    } else if (baseConfig.baseURL.endsWith('/v1')) {
-      baseConfig.baseURL = baseConfig.baseURL.slice(0, -3)
-    }
-    baseConfig.baseURL = isEmpty(baseConfig.baseURL) ? '' : baseConfig.baseURL
+    baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
   }
 
-  // 如果AI SDK支持该provider，使用原生配置
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
@@ -211,7 +242,8 @@ export function providerToAiSdkConfig(
     options: {
       ...options,
       name: actualProvider.id,
-      ...extraOptions
+      ...extraOptions,
+      includeUsage: true
     }
   }
 }
@@ -240,27 +272,56 @@ export async function prepareSpecialProviderConfig(
   provider: Provider,
   config: ReturnType<typeof providerToAiSdkConfig>
 ) {
-  if (provider.id === 'copilot') {
-    const defaultHeaders = store.getState().copilot.defaultHeaders
-    const { token } = await window.api.copilot.getToken(defaultHeaders)
-    config.options.apiKey = token
-  }
-  if (provider.id === 'cherryin') {
-    config.options.fetch = async (url, options) => {
-      // 在这里对最终参数进行签名
-      const signature = await window.api.cherryin.generateSignature({
-        method: 'POST',
-        path: '/chat/completions',
-        query: '',
-        body: JSON.parse(options.body)
-      })
-      return fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          ...signature
+  switch (provider.id) {
+    case 'copilot': {
+      const defaultHeaders = store.getState().copilot.defaultHeaders ?? {}
+      const headers = {
+        ...COPILOT_DEFAULT_HEADERS,
+        ...defaultHeaders
+      }
+      const { token } = await window.api.copilot.getToken(headers)
+      config.options.apiKey = token
+      config.options.headers = {
+        ...headers,
+        ...config.options.headers
+      }
+      break
+    }
+    case 'cherryai': {
+      config.options.fetch = async (url, options) => {
+        // 在这里对最终参数进行签名
+        const signature = await window.api.cherryai.generateSignature({
+          method: 'POST',
+          path: '/chat/completions',
+          query: '',
+          body: JSON.parse(options.body)
+        })
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            ...signature
+          }
+        })
+      }
+      break
+    }
+    case 'anthropic': {
+      if (provider.authType === 'oauth') {
+        const oauthToken = await window.api.anthropic_oauth.getAccessToken()
+        config.options = {
+          ...config.options,
+          headers: {
+            ...(config.options.headers ? config.options.headers : {}),
+            'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01',
+            'anthropic-beta': 'oauth-2025-04-20',
+            Authorization: `Bearer ${oauthToken}`
+          },
+          baseURL: 'https://api.anthropic.com/v1',
+          apiKey: ''
         }
-      })
+      }
     }
   }
   return config

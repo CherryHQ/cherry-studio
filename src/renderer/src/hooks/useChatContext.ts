@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { setActiveTopic, setSelectedMessageIds, toggleMultiSelectMode } from '@renderer/store/runtime'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector, useStore } from 'react-redux'
@@ -97,7 +97,7 @@ export const useChatContext = (activeTopic: Topic) => {
   const handleMultiSelectAction = useCallback(
     async (actionType: string, messageIds: string[]) => {
       if (messageIds.length === 0) {
-        window.message.warning(t('chat.multiple.select.empty'))
+        window.toast.warning(t('chat.multiple.select.empty'))
         return
       }
 
@@ -115,11 +115,11 @@ export const useChatContext = (activeTopic: Topic) => {
             onOk: async () => {
               try {
                 await Promise.all(messageIds.map((messageId) => deleteMessage(messageId)))
-                window.message.success(t('message.delete.success'))
+                window.toast.success(t('message.delete.success'))
                 handleToggleMultiSelectMode(false)
               } catch (error) {
                 logger.error('Failed to delete messages:', error as Error)
-                window.message.error(t('message.delete.failed'))
+                window.toast.error(t('message.delete.failed'))
               }
             }
           })
@@ -142,7 +142,7 @@ export const useChatContext = (activeTopic: Topic) => {
               .join('\n\n---\n\n')
             const fileName = `chat_export_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.md`
             await window.api.file.save(fileName, contentToSave)
-            window.message.success({ content: t('message.save.success.title'), key: 'save-messages' })
+            window.toast.success(t('message.save.success.title'))
             handleToggleMultiSelectMode(false)
           } else {
             // 这个分支不会进入 因为 messageIds.length === 0 已提前返回，需要简化掉
@@ -165,7 +165,7 @@ export const useChatContext = (activeTopic: Topic) => {
               })
               .join('\n\n---\n\n')
             navigator.clipboard.writeText(contentToCopy)
-            window.message.success({ content: t('message.copied'), key: 'copy-messages' })
+            window.toast.success(t('message.copied'))
             handleToggleMultiSelectMode(false)
           } else {
             // 和上面一样

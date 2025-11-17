@@ -1,12 +1,14 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -16,7 +18,7 @@ const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { openMinapp } = useMinappPopup()
+  const { openSmartMinapp } = useMinappPopup()
 
   const yuqueToken = useSelector((state: RootState) => state.settings.yuqueToken)
   const yuqueUrl = useSelector((state: RootState) => state.settings.yuqueUrl)
@@ -31,11 +33,11 @@ const YuqueSettings: FC = () => {
 
   const handleYuqueConnectionCheck = async () => {
     if (!yuqueToken) {
-      window.message.error(t('settings.data.yuque.check.empty_token'))
+      window.toast.error(t('settings.data.yuque.check.empty_token'))
       return
     }
     if (!yuqueUrl) {
-      window.message.error(t('settings.data.yuque.check.empty_repo_url'))
+      window.toast.error(t('settings.data.yuque.check.empty_repo_url'))
       return
     }
 
@@ -46,7 +48,7 @@ const YuqueSettings: FC = () => {
     })
 
     if (!response.ok) {
-      window.message.error(t('settings.data.yuque.check.fail'))
+      window.toast.error(t('settings.data.yuque.check.fail'))
       return
     }
     const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
@@ -56,19 +58,20 @@ const YuqueSettings: FC = () => {
       }
     })
     if (!repoIDResponse.ok) {
-      window.message.error(t('settings.data.yuque.check.fail'))
+      window.toast.error(t('settings.data.yuque.check.fail'))
       return
     }
     const data = await repoIDResponse.json()
     dispatch(setYuqueRepoId(data.data.id))
-    window.message.success(t('settings.data.yuque.check.success'))
+    window.toast.success(t('settings.data.yuque.check.success'))
   }
 
   const handleYuqueHelpClick = () => {
-    openMinapp({
+    openSmartMinapp({
       id: 'yuque-help',
       name: 'Yuque Help',
-      url: 'https://www.yuque.com/settings/tokens'
+      url: 'https://www.yuque.com/settings/tokens',
+      logo: AppLogo
     })
   }
 

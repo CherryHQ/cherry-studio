@@ -2,14 +2,14 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import { ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { LanguageModel } from 'ai'
 import {
-  experimental_generateImage as generateImage,
-  generateObject,
-  generateText,
-  LanguageModel,
-  streamObject,
-  streamText
+  experimental_generateImage as _generateImage,
+  generateObject as _generateObject,
+  generateText as _generateText,
+  streamObject as _streamObject,
+  streamText as _streamText
 } from 'ai'
 
 import { globalModelResolver } from '../models'
@@ -18,7 +18,14 @@ import { type AiPlugin, type AiRequestContext, definePlugin } from '../plugins'
 import { type ProviderId } from '../providers'
 import { ImageGenerationError, ImageModelResolutionError } from './errors'
 import { PluginEngine } from './pluginEngine'
-import { type RuntimeConfig } from './types'
+import type {
+  generateImageParams,
+  generateObjectParams,
+  generateTextParams,
+  RuntimeConfig,
+  streamObjectParams,
+  streamTextParams
+} from './types'
 
 export class RuntimeExecutor<T extends ProviderId = ProviderId> {
   public pluginEngine: PluginEngine<T>
@@ -75,12 +82,12 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
    * 流式文本生成
    */
   async streamText(
-    params: Parameters<typeof streamText>[0],
+    params: streamTextParams,
     options?: {
       middlewares?: LanguageModelV2Middleware[]
     }
-  ): Promise<ReturnType<typeof streamText>> {
-    const { model, ...restParams } = params
+  ): Promise<ReturnType<typeof _streamText>> {
+    const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
@@ -94,19 +101,16 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
 
     return this.pluginEngine.executeStreamWithPlugins(
       'streamText',
-      model,
-      restParams,
-      async (resolvedModel, transformedParams, streamTransforms) => {
+      params,
+      (resolvedModel, transformedParams, streamTransforms) => {
         const experimental_transform =
           params?.experimental_transform ?? (streamTransforms.length > 0 ? streamTransforms : undefined)
 
-        const finalParams = {
-          model: resolvedModel,
+        return _streamText({
           ...transformedParams,
+          model: resolvedModel,
           experimental_transform
-        } as Parameters<typeof streamText>[0]
-
-        return await streamText(finalParams)
+        })
       }
     )
   }
@@ -117,12 +121,12 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
    * 生成文本
    */
   async generateText(
-    params: Parameters<typeof generateText>[0],
+    params: generateTextParams,
     options?: {
       middlewares?: LanguageModelV2Middleware[]
     }
-  ): Promise<ReturnType<typeof generateText>> {
-    const { model, ...restParams } = params
+  ): Promise<ReturnType<typeof _generateText>> {
+    const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
@@ -134,12 +138,10 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }
 
-    return this.pluginEngine.executeWithPlugins(
+    return this.pluginEngine.executeWithPlugins<Parameters<typeof _generateText>[0], ReturnType<typeof _generateText>>(
       'generateText',
-      model,
-      restParams,
-      async (resolvedModel, transformedParams) =>
-        generateText({ model: resolvedModel, ...transformedParams } as Parameters<typeof generateText>[0])
+      params,
+      (resolvedModel, transformedParams) => _generateText({ ...transformedParams, model: resolvedModel })
     )
   }
 
@@ -147,12 +149,12 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
    * 生成结构化对象
    */
   async generateObject(
-    params: Parameters<typeof generateObject>[0],
+    params: generateObjectParams,
     options?: {
       middlewares?: LanguageModelV2Middleware[]
     }
-  ): Promise<ReturnType<typeof generateObject>> {
-    const { model, ...restParams } = params
+  ): Promise<ReturnType<typeof _generateObject>> {
+    const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
@@ -164,25 +166,23 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }
 
-    return this.pluginEngine.executeWithPlugins(
+    return this.pluginEngine.executeWithPlugins<generateObjectParams, ReturnType<typeof _generateObject>>(
       'generateObject',
-      model,
-      restParams,
-      async (resolvedModel, transformedParams) =>
-        generateObject({ model: resolvedModel, ...transformedParams } as Parameters<typeof generateObject>[0])
+      params,
+      async (resolvedModel, transformedParams) => _generateObject({ ...transformedParams, model: resolvedModel })
     )
   }
 
   /**
    * 流式生成结构化对象
    */
-  async streamObject(
-    params: Parameters<typeof streamObject>[0],
+  streamObject(
+    params: streamObjectParams,
     options?: {
       middlewares?: LanguageModelV2Middleware[]
     }
-  ): Promise<ReturnType<typeof streamObject>> {
-    const { model, ...restParams } = params
+  ): Promise<ReturnType<typeof _streamObject>> {
+    const { model } = params
 
     // 根据 model 类型决定插件配置
     if (typeof model === 'string') {
@@ -194,23 +194,17 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
       this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
     }
 
-    return this.pluginEngine.executeWithPlugins(
-      'streamObject',
-      model,
-      restParams,
-      async (resolvedModel, transformedParams) =>
-        streamObject({ model: resolvedModel, ...transformedParams } as Parameters<typeof streamObject>[0])
+    return this.pluginEngine.executeStreamWithPlugins('streamObject', params, (resolvedModel, transformedParams) =>
+      _streamObject({ ...transformedParams, model: resolvedModel })
     )
   }
 
   /**
    * 生成图像
    */
-  async generateImage(
-    params: Omit<Parameters<typeof generateImage>[0], 'model'> & { model: string | ImageModelV2 }
-  ): Promise<ReturnType<typeof generateImage>> {
+  generateImage(params: generateImageParams): Promise<ReturnType<typeof _generateImage>> {
     try {
-      const { model, ...restParams } = params
+      const { model } = params
 
       // 根据 model 类型决定插件配置
       if (typeof model === 'string') {
@@ -219,13 +213,8 @@ export class RuntimeExecutor<T extends ProviderId = ProviderId> {
         this.pluginEngine.usePlugins([this.createConfigureContextPlugin()])
       }
 
-      return await this.pluginEngine.executeImageWithPlugins(
-        'generateImage',
-        model,
-        restParams,
-        async (resolvedModel, transformedParams) => {
-          return await generateImage({ model: resolvedModel, ...transformedParams })
-        }
+      return this.pluginEngine.executeImageWithPlugins('generateImage', params, (resolvedModel, transformedParams) =>
+        _generateImage({ ...transformedParams, model: resolvedModel })
       )
     } catch (error) {
       if (error instanceof Error) {

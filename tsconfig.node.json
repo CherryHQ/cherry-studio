@@ -9,22 +9,24 @@
     "packages/shared/**/*",
     "scripts",
     "packages/mcp-trace/**/*",
-    "src/renderer/src/services/traceApi.ts"  ],
+    "src/renderer/src/services/traceApi.ts"
+  ],
   "compilerOptions": {
     "composite": true,
     "incremental": true,
+    "moduleResolution": "bundler",
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": [
       "electron-vite/node",
       "vitest/globals"
     ],
-    "baseUrl": ".",
     "paths": {
-      "@logger": ["src/main/services/LoggerService"],
-      "@main/*": ["src/main/*"],
-      "@types": ["src/renderer/src/types/index.ts"],
-      "@shared/*": ["packages/shared/*"],
-      "@mcp-trace/*": ["packages/mcp-trace/*"]
+      "@logger": ["./src/main/services/LoggerService"],
+      "@main/*": ["./src/main/*"],
+      "@types": ["./src/renderer/src/types/index.ts"],
+      "@shared/*": ["./packages/shared/*"],
+      "@mcp-trace/*": ["./packages/mcp-trace/*"],
+      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

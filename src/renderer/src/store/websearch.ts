@@ -1,4 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { WEB_SEARCH_PROVIDERS } from '@renderer/config/webSearchProviders'
 import type { Model, WebSearchProvider } from '@renderer/types'
 export interface SubscribeSource {
@@ -40,6 +41,8 @@ export interface WebSearchState {
   // 具体供应商的配置
   providerConfig: Record<string, any>
 }
+
+export type CherryWebSearchConfig = Pick<WebSearchState, 'searchWithTime' | 'maxResults' | 'excludeDomains'>
 
 export const initialState: WebSearchState = {
   defaultProvider: 'local-bing',

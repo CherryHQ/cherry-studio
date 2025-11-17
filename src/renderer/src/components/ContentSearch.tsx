@@ -1,5 +1,6 @@
-import { ToolbarButton } from '@renderer/pages/home/Inputbar/Inputbar'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import { scrollElementIntoView } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
@@ -181,17 +182,14 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             // 3. 将当前项滚动到视图中
             // 获取第一个文本节点的父元素来进行滚动
             const parentElement = currentMatchRange.startContainer.parentElement
-            if (shouldScroll) {
-              parentElement?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
-              })
+            if (shouldScroll && parentElement) {
+              // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来"跳到第一条"
+              scrollElementIntoView(parentElement, target)
             }
           }
         }
       },
-      [allRanges, currentIndex]
+      [allRanges, currentIndex, target]
     )
 
     const search = useCallback(
@@ -364,23 +362,23 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               <ToolBar>
                 {showUserToggle && (
                   <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-                    <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
+                    <ActionIconButton onClick={userOutlinedButtonOnClick}>
                       <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                    </ToolbarButton>
+                    </ActionIconButton>
                   </Tooltip>
                 )}
                 <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
+                  <ActionIconButton onClick={caseSensitiveButtonOnClick}>
                     <CaseSensitive
                       size={18}
                       style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
                     />
-                  </ToolbarButton>
+                  </ActionIconButton>
                 </Tooltip>
                 <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
+                  <ActionIconButton onClick={wholeWordButtonOnClick}>
                     <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                  </ToolbarButton>
+                  </ActionIconButton>
                 </Tooltip>
               </ToolBar>
             </InputWrapper>
@@ -397,15 +395,15 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               )}
             </SearchResults>
             <ToolBar>
-              <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
+              <ActionIconButton onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
                 <ChevronUp size={18} />
-              </ToolbarButton>
-              <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
+              </ActionIconButton>
+              <ActionIconButton onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
                 <ChevronDown size={18} />
-              </ToolbarButton>
-              <ToolbarButton type="text" onClick={closeButtonOnClick}>
+              </ActionIconButton>
+              <ActionIconButton onClick={closeButtonOnClick}>
                 <X size={18} />
-              </ToolbarButton>
+              </ActionIconButton>
             </ToolBar>
           </SearchBarContainer>
         </NarrowLayout>

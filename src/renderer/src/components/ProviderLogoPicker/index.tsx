@@ -1,8 +1,10 @@
 import { SearchOutlined } from '@ant-design/icons'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { Input, Tooltip } from 'antd'
-import { FC, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -48,10 +50,10 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         />
       </SearchContainer>
       <LogoGrid>
-        {filteredProviders.map(({ id, logo, name }) => (
+        {filteredProviders.map(({ id, name, logo }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
-              <img src={logo} alt={name} draggable={false} />
+              <ProviderAvatarPrimitive providerId={id} size={52} providerName={name} logoSrc={logo} />
             </LogoItem>
           </Tooltip>
         ))}
@@ -86,11 +88,12 @@ const LogoGrid = styled.div`
 const LogoItem = styled.div`
   width: 52px;
   height: 52px;
+  border-radius: 100%;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border-radius: 8px;
   transition: all 0.2s ease;
   background: var(--color-background-soft);
   border: 0.5px solid var(--color-border);
@@ -102,8 +105,8 @@ const LogoItem = styled.div`
   }
 
   img {
-    width: 32px;
-    height: 32px;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     user-select: none;
     -webkit-user-drag: none;

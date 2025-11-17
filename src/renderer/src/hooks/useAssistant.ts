@@ -25,7 +25,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
+import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,7 +59,7 @@ export function useAssistants() {
           dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
         } catch (e) {
           logger.error('Failed to insert assistant', e as Error)
-          window.message.error(t('message.error.copy'))
+          window.toast.error(t('message.error.copy'))
         }
       }
       return _assistant
@@ -123,9 +123,9 @@ export function useAssistant(id: string) {
           }
 
           updateAssistantSettings({
-            reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
-            reasoning_effort_cache: fallbackOption === 'off' ? undefined : fallbackOption,
-            qwenThinkMode: fallbackOption === 'off' ? undefined : true
+            reasoning_effort: fallbackOption === 'none' ? undefined : fallbackOption,
+            reasoning_effort_cache: fallbackOption === 'none' ? undefined : fallbackOption,
+            qwenThinkMode: fallbackOption === 'none' ? undefined : true
           })
         } else {
           // 对于支持的选项, 不再更新 cache.
@@ -172,7 +172,10 @@ export function useAssistant(id: string) {
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]
     ),
-    updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
+    updateAssistant: useCallback(
+      (update: Partial<Omit<Assistant, 'id'>>) => dispatch(updateAssistant({ id, ...update })),
+      [dispatch, id]
+    ),
     updateAssistantSettings
   }
 }

@@ -1,372 +1,208 @@
 import { loggerService } from '@logger'
-import db from '@renderer/databases'
-import {
-  findNodeInTree,
-  findParentNode,
-  getNotesTree,
-  insertNodeIntoTree,
-  isParentNode,
-  moveNodeInTree,
-  removeNodeFromTree,
-  renameNodeFromTree
-} from '@renderer/services/NotesTreeService'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
-import { v4 as uuidv4 } from 'uuid'
-
-const MARKDOWN_EXT = '.md'
-const NOTES_TREE_ID = 'notes-tree-structure'
 
 const logger = loggerService.withContext('NotesService')
 
-/**
- * 初始化/同步笔记树结构
- */
-export async function initWorkSpace(folderPath: string, sortType: NotesSortType): Promise<void> {
-  const tree = await window.api.file.getDirectoryStructure(folderPath)
-  await sortAllLevels(sortType, tree)
+const MARKDOWN_EXT = '.md'
+
+export interface UploadResult {
+  uploadedNodes: NotesTreeNode[]
+  totalFiles: number
+  skippedFiles: number
+  fileCount: number
+  folderCount: number
 }
 
-/**
- * 创建新文件夹
- */
-export async function createFolder(name: string, folderPath: string): Promise<NotesTreeNode> {
-  const { safeName, exists } = await window.api.file.checkFileName(folderPath, name, false)
-  if (exists) {
-    logger.warn(`Folder already exists: ${safeName}`)
-  }
-
-  const tree = await getNotesTree()
-  const folderId = uuidv4()
-
-  const targetPath = await window.api.file.mkdir(`${folderPath}/${safeName}`)
-
-  // 查找父节点ID
-  const parentNode = tree.find((node) => node.externalPath === folderPath) || findNodeByExternalPath(tree, folderPath)
-
-  const folder: NotesTreeNode = {
-    id: folderId,
-    name: safeName,
-    treePath: parentNode ? `${parentNode.treePath}/${safeName}` : `/${safeName}`,
-    externalPath: targetPath,
-    type: 'folder',
-    children: [],
-    expanded: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-
-  insertNodeIntoTree(tree, folder, parentNode?.id)
-
-  return folder
+export async function loadTree(rootPath: string): Promise<NotesTreeNode[]> {
+  return window.api.file.getDirectoryStructure(normalizePath(rootPath))
 }
 
-/**
- * 创建新笔记文件
- */
-export async function createNote(name: string, content: string = '', folderPath: string): Promise<NotesTreeNode> {
-  const { safeName, exists } = await window.api.file.checkFileName(folderPath, name, true)
-  if (exists) {
-    logger.warn(`Note already exists: ${safeName}`)
-  }
+export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): NotesTreeNode[] {
+  const cloned = nodes.map((node) => ({
+    ...node,
+    children: node.children ? sortTree(node.children, sortType) : undefined
+  }))
 
-  const tree = await getNotesTree()
-  const noteId = uuidv4()
-  const notePath = `${folderPath}/${safeName}${MARKDOWN_EXT}`
+  const sorter = getSorter(sortType)
 
+  cloned.sort((a, b) => {
+    if (a.type === b.type) {
+      return sorter(a, b)
+    }
+    return a.type === 'folder' ? -1 : 1
+  })
+
+  return cloned
+}
+
+export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
+  const basePath = normalizePath(parentPath)
+  const { safeName } = await window.api.file.checkFileName(basePath, name, false)
+  const fullPath = `${basePath}/${safeName}`
+  await window.api.file.mkdir(fullPath)
+  return { path: fullPath, name: safeName }
+}
+
+export async function addNote(
+  name: string,
+  content: string = '',
+  parentPath: string
+): Promise<{ path: string; name: string }> {
+  const basePath = normalizePath(parentPath)
+  const { safeName } = await window.api.file.checkFileName(basePath, name, true)
+  const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)
-
-  // 查找父节点ID
-  const parentNode = tree.find((node) => node.externalPath === folderPath) || findNodeByExternalPath(tree, folderPath)
-
-  const note: NotesTreeNode = {
-    id: noteId,
-    name: safeName,
-    treePath: parentNode ? `${parentNode.treePath}/${safeName}` : `/${safeName}`,
-    externalPath: notePath,
-    type: 'file',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-
-  insertNodeIntoTree(tree, note, parentNode?.id)
-
-  return note
+  return { path: notePath, name: safeName }
 }
 
-/**
- * 上传笔记
- */
-export async function uploadNote(file: File, folderPath: string): Promise<NotesTreeNode> {
-  const tree = await getNotesTree()
-  const fileName = file.name.toLowerCase()
-  if (!fileName.endsWith(MARKDOWN_EXT)) {
-    throw new Error('Only markdown files are allowed')
-  }
-
-  const noteId = uuidv4()
-  const nameWithoutExt = fileName.replace(MARKDOWN_EXT, '')
-
-  const { safeName, exists } = await window.api.file.checkFileName(folderPath, nameWithoutExt, true)
-  if (exists) {
-    logger.warn(`Note already exists: ${safeName}`)
-  }
-
-  const notePath = `${folderPath}/${safeName}${MARKDOWN_EXT}`
-
-  const note: NotesTreeNode = {
-    id: noteId,
-    name: safeName,
-    treePath: `/${safeName}`,
-    externalPath: notePath,
-    type: 'file',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
-
-  const content = await file.text()
-  await window.api.file.write(notePath, content)
-  insertNodeIntoTree(tree, note)
-
-  return note
-}
-
-/**
- * 删除笔记或文件夹
- */
-export async function deleteNode(nodeId: string): Promise<void> {
-  const tree = await getNotesTree()
-  const node = findNodeInTree(tree, nodeId)
-  if (!node) {
-    throw new Error('Node not found')
-  }
+export async function delNode(node: NotesTreeNode): Promise<void> {
   if (node.type === 'folder') {
     await window.api.file.deleteExternalDir(node.externalPath)
-  } else if (node.type === 'file') {
+  } else {
     await window.api.file.deleteExternalFile(node.externalPath)
   }
-
-  removeNodeFromTree(tree, nodeId)
 }
 
-/**
- * 重命名笔记或文件夹
- */
-export async function renameNode(nodeId: string, newName: string): Promise<NotesTreeNode> {
-  const tree = await getNotesTree()
-  const node = findNodeInTree(tree, nodeId)
-  if (!node) {
-    throw new Error('Node not found')
-  }
-
-  const dirPath = getFileDirectory(node.externalPath)
-  const { safeName, exists } = await window.api.file.checkFileName(dirPath, newName, node.type === 'file')
+export async function renameNode(node: NotesTreeNode, newName: string): Promise<{ path: string; name: string }> {
+  const isFile = node.type === 'file'
+  const parentDir = normalizePath(getFileDirectory(node.externalPath))
+  const { safeName, exists } = await window.api.file.checkFileName(parentDir, newName, isFile)
 
   if (exists) {
-    logger.warn(`Target name already exists: ${safeName}`)
     throw new Error(`Target name already exists: ${safeName}`)
   }
 
-  if (node.type === 'file') {
+  if (isFile) {
     await window.api.file.rename(node.externalPath, safeName)
-  } else if (node.type === 'folder') {
-    await window.api.file.renameDir(node.externalPath, safeName)
+    return { path: `${parentDir}/${safeName}${MARKDOWN_EXT}`, name: safeName }
   }
-  return renameNodeFromTree(tree, nodeId, safeName)
+
+  await window.api.file.renameDir(node.externalPath, safeName)
+  return { path: `${parentDir}/${safeName}`, name: safeName }
 }
 
-/**
- * 移动节点
- */
-export async function moveNode(
-  sourceNodeId: string,
-  targetNodeId: string,
-  position: 'before' | 'after' | 'inside'
-): Promise<boolean> {
-  try {
-    const tree = await getNotesTree()
+export async function uploadNotes(files: File[], targetPath: string): Promise<UploadResult> {
+  const basePath = normalizePath(targetPath)
+  const markdownFiles = filterMarkdown(files)
+  const skippedFiles = files.length - markdownFiles.length
 
-    // 找到源节点和目标节点
-    const sourceNode = findNodeInTree(tree, sourceNodeId)
-    const targetNode = findNodeInTree(tree, targetNodeId)
-
-    if (!sourceNode || !targetNode) {
-      logger.error(`Move nodes failed: node not found (source: ${sourceNodeId}, target: ${targetNodeId})`)
-      return false
+  if (markdownFiles.length === 0) {
+    return {
+      uploadedNodes: [],
+      totalFiles: files.length,
+      skippedFiles,
+      fileCount: 0,
+      folderCount: 0
     }
+  }
 
-    // 不允许文件夹被放入文件中
-    if (position === 'inside' && targetNode.type === 'file' && sourceNode.type === 'folder') {
-      logger.error('Move nodes failed: cannot move a folder inside a file')
-      return false
+  const folders = collectFolders(markdownFiles, basePath)
+  await createFolders(folders)
+
+  let fileCount = 0
+
+  for (const file of markdownFiles) {
+    const { dir, name } = resolveFileTarget(file, basePath)
+    const { safeName } = await window.api.file.checkFileName(dir, name, true)
+    const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
+
+    try {
+      const content = await file.text()
+      await window.api.file.write(finalPath, content)
+      fileCount += 1
+    } catch (error) {
+      logger.error('Failed to write uploaded file:', error as Error)
     }
+  }
 
-    // 不允许将节点移动到自身内部
-    if (position === 'inside' && isParentNode(tree, sourceNodeId, targetNodeId)) {
-      logger.error('Move nodes failed: cannot move a node inside itself or its descendants')
-      return false
-    }
-
-    let targetPath: string = ''
-
-    if (position === 'inside') {
-      // 目标是文件夹内部
-      if (targetNode.type === 'folder') {
-        targetPath = targetNode.externalPath
-      } else {
-        logger.error('Cannot move node inside a file node')
-        return false
-      }
-    } else {
-      const targetParent = findParentNode(tree, targetNodeId)
-      if (targetParent) {
-        targetPath = targetParent.externalPath
-      } else {
-        targetPath = getFileDirectory(targetNode.externalPath!)
-      }
-    }
-
-    // 构建新的文件路径
-    const sourceName = sourceNode.externalPath!.split('/').pop()!
-    const sourceNameWithoutExt = sourceName.replace(sourceNode.type === 'file' ? MARKDOWN_EXT : '', '')
-
-    const { safeName } = await window.api.file.checkFileName(
-      targetPath,
-      sourceNameWithoutExt,
-      sourceNode.type === 'file'
-    )
-
-    const baseName = safeName + (sourceNode.type === 'file' ? MARKDOWN_EXT : '')
-    const newPath = `${targetPath}/${baseName}`
-
-    if (sourceNode.externalPath !== newPath) {
-      try {
-        if (sourceNode.type === 'folder') {
-          await window.api.file.moveDir(sourceNode.externalPath, newPath)
-        } else {
-          await window.api.file.move(sourceNode.externalPath, newPath)
-        }
-        sourceNode.externalPath = newPath
-        logger.debug(`Moved external ${sourceNode.type} to: ${newPath}`)
-      } catch (error) {
-        logger.error(`Failed to move external ${sourceNode.type}:`, error as Error)
-        return false
-      }
-    }
-
-    return await moveNodeInTree(tree, sourceNodeId, targetNodeId, position)
-  } catch (error) {
-    logger.error('Move nodes failed:', error as Error)
-    return false
+  return {
+    uploadedNodes: [],
+    totalFiles: files.length,
+    skippedFiles,
+    fileCount,
+    folderCount: folders.size
   }
 }
 
-/**
- * 对节点数组进行排序
- */
-function sortNodesArray(nodes: NotesTreeNode[], sortType: NotesSortType): void {
-  // 首先分离文件夹和文件
-  const folders: NotesTreeNode[] = nodes.filter((node) => node.type === 'folder')
-  const files: NotesTreeNode[] = nodes.filter((node) => node.type === 'file')
-
-  // 根据排序类型对文件夹和文件分别进行排序
-  const sortFunction = getSortFunction(sortType)
-  folders.sort(sortFunction)
-  files.sort(sortFunction)
-
-  // 清空原数组并重新填入排序后的节点
-  nodes.length = 0
-  nodes.push(...folders, ...files)
-}
-
-/**
- * 根据排序类型获取相应的排序函数
- */
-function getSortFunction(sortType: NotesSortType): (a: NotesTreeNode, b: NotesTreeNode) => number {
+function getSorter(sortType: NotesSortType): (a: NotesTreeNode, b: NotesTreeNode) => number {
   switch (sortType) {
     case 'sort_a2z':
-      return (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'accent' })
-
+      return (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'accent' })
     case 'sort_z2a':
-      return (a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'accent' })
-
+      return (a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'accent' })
     case 'sort_updated_desc':
-      return (a, b) => {
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
-        return timeB - timeA
-      }
-
+      return (a, b) => getTime(b.updatedAt) - getTime(a.updatedAt)
     case 'sort_updated_asc':
-      return (a, b) => {
-        const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
-        const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
-        return timeA - timeB
-      }
-
+      return (a, b) => getTime(a.updatedAt) - getTime(b.updatedAt)
     case 'sort_created_desc':
-      return (a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-        return timeB - timeA
-      }
-
+      return (a, b) => getTime(b.createdAt) - getTime(a.createdAt)
     case 'sort_created_asc':
-      return (a, b) => {
-        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
-        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
-        return timeA - timeB
-      }
-
+      return (a, b) => getTime(a.createdAt) - getTime(b.createdAt)
     default:
-      return (a, b) => a.name.localeCompare(b.name)
+      return (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'accent' })
   }
 }
 
-/**
- * 递归排序笔记树中的所有层级
- */
-export async function sortAllLevels(sortType: NotesSortType, tree?: NotesTreeNode[]): Promise<void> {
-  try {
-    if (!tree) {
-      tree = await getNotesTree()
+function getTime(value?: string): number {
+  return value ? new Date(value).getTime() : 0
+}
+
+function normalizePath(value: string): string {
+  return value.replace(/\\/g, '/')
+}
+
+function filterMarkdown(files: File[]): File[] {
+  return files.filter((file) => file.name.toLowerCase().endsWith(MARKDOWN_EXT))
+}
+
+function collectFolders(files: File[], basePath: string): Set<string> {
+  const folders = new Set<string>()
+
+  files.forEach((file) => {
+    const relativePath = file.webkitRelativePath || ''
+    if (!relativePath.includes('/')) {
+      return
     }
-    sortNodesArray(tree, sortType)
-    recursiveSortNodes(tree, sortType)
-    await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
-    logger.info(`Sorted all levels of notes successfully: ${sortType}`)
-  } catch (error) {
-    logger.error('Failed to sort all levels of notes:', error as Error)
-    throw error
+
+    const parts = relativePath.split('/')
+    parts.pop()
+
+    let current = basePath
+    for (const part of parts) {
+      current = `${current}/${part}`
+      folders.add(current)
+    }
+  })
+
+  return folders
+}
+
+async function createFolders(folders: Set<string>): Promise<void> {
+  const ordered = Array.from(folders).sort((a, b) => a.length - b.length)
+
+  for (const folder of ordered) {
+    try {
+      await window.api.file.mkdir(folder)
+    } catch (error) {
+      logger.debug('Skip existing folder while uploading notes', {
+        folder,
+        error: (error as Error).message
+      })
+    }
   }
 }
 
-/**
- * 递归对节点中的子节点进行排序
- */
-function recursiveSortNodes(nodes: NotesTreeNode[], sortType: NotesSortType): void {
-  for (const node of nodes) {
-    if (node.type === 'folder' && node.children && node.children.length > 0) {
-      sortNodesArray(node.children, sortType)
-      recursiveSortNodes(node.children, sortType)
-    }
+function resolveFileTarget(file: File, basePath: string): { dir: string; name: string } {
+  if (!file.webkitRelativePath || !file.webkitRelativePath.includes('/')) {
+    const nameWithoutExt = file.name.endsWith(MARKDOWN_EXT) ? file.name.slice(0, -MARKDOWN_EXT.length) : file.name
+    return { dir: basePath, name: nameWithoutExt }
   }
-}
 
-/**
- * 根据外部路径查找节点（递归查找）
- */
-function findNodeByExternalPath(nodes: NotesTreeNode[], externalPath: string): NotesTreeNode | null {
-  for (const node of nodes) {
-    if (node.externalPath === externalPath) {
-      return node
-    }
-    if (node.children && node.children.length > 0) {
-      const found = findNodeByExternalPath(node.children, externalPath)
-      if (found) {
-        return found
-      }
-    }
-  }
-  return null
+  const parts = file.webkitRelativePath.split('/')
+  const fileName = parts.pop() || file.name
+  const dirPath = `${basePath}/${parts.join('/')}`
+  const nameWithoutExt = fileName.endsWith(MARKDOWN_EXT) ? fileName.slice(0, -MARKDOWN_EXT.length) : fileName
+
+  return { dir: dirPath, name: nameWithoutExt }
 }

@@ -2,8 +2,9 @@ import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
-import { CustomTranslateLanguage } from '@renderer/types'
-import { Button, Popconfirm, Space, Table, TableProps } from 'antd'
+import type { CustomTranslateLanguage } from '@renderer/types'
+import type { TableProps } from 'antd'
+import { Button, Popconfirm, Space, Table } from 'antd'
 import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -24,9 +25,9 @@ const CustomLanguageSettings = () => {
       try {
         await deleteCustomLanguage(id)
         setDisplayedItems((prev) => prev.filter((item) => item.id !== id))
-        window.message.success(t('settings.translate.custom.success.delete'))
+        window.toast.success(t('settings.translate.custom.success.delete'))
       } catch (e) {
-        window.message.error(t('settings.translate.custom.error.delete'))
+        window.toast.error(t('settings.translate.custom.error.delete'))
       }
     },
     [t]

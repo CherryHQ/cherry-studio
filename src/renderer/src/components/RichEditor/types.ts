@@ -48,6 +48,10 @@ export interface RichEditorProps {
   isFullWidth?: boolean
   /** Font family setting */
   fontFamily?: 'default' | 'serif'
+  /** Font size in pixels */
+  fontSize?: number
+  /** Whether to enable spell check */
+  enableSpellCheck?: boolean
 }
 
 export interface ToolbarItem {
@@ -107,6 +111,8 @@ export interface RichEditorRef {
   getScrollTop: () => number
   /** Set scrollTop of the editor scroll container */
   setScrollTop: (value: number) => void
+  /** Scroll to specific line number in markdown */
+  scrollToLine: (lineNumber: number, options?: { highlight?: boolean; lineContent?: string }) => void
   // Dynamic command management
   /** Register a new command/toolbar item */
   registerCommand: (cmd: Command) => void
@@ -235,7 +241,7 @@ export interface ToolbarProps {
 
 // Command System Types for Slash Commands
 import type { Editor } from '@tiptap/core'
-import { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
 export enum CommandCategory {
   TEXT = 'text',

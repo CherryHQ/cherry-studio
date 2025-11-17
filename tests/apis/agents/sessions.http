@@ -1,0 +1,72 @@
+
+@host=http://localhost:23333
+@token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
+@agent_id=agent_1758092281575_tn9dxio9k
+@session_id=session_1758278828236_mqj91e7c0
+
+### List Sessions
+GET {{host}}/v1/agents/{{agent_id}}/sessions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+
+### Create Session
+POST {{host}}/v1/agents/{{agent_id}}/sessions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Story Writing Session 2",
+  "instructions": "You are a creative writing assistant. Help me brainstorm and write engaging stories.",
+  "model": "anthropic:claude-sonnet-4",
+  "accessible_paths": [
+    "/tmp/Documents/stories"
+  ]
+}
+
+### Get Session Details
+GET {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### Delete Session
+DELETE {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+### Full Update Session
+PUT {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Story Writing Session 2",
+  "instructions": "You are a creative writing assistant. Help me brainstorm and write engaging stories.",
+  "model": "anthropic:claude-sonnet-4",
+  "accessible_paths": [
+    "/tmp/Documents/stories"
+  ]
+}
+
+
+### Partial Update Session
+PATCH {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "anthropic:claude-sonnet-4-20250514",
+  "accessible_paths": [
+    "/tmp/Documents/stories2"
+  ]
+}
+
+
+### Create Session Message
+POST {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "content": "Write a short story about a robot learning to love."
+}

@@ -1,8 +1,9 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
-import {
+import type {
   ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
@@ -13,14 +14,14 @@ import {
   PaintingProvider,
   S3Config,
   SidebarIcon,
-  ThemeMode,
   TranslateLanguageCode
 } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import { OpenAIVerbosity } from '@types'
+import type { OpenAIVerbosity } from '@types'
 
-import { RemoteSyncState } from './backup'
+import type { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -33,6 +34,8 @@ export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type UserTheme = {
   colorPrimary: string
+  userFontFamily: string
+  userCodeFontFamily: string
 }
 
 export interface SettingsState {
@@ -97,6 +100,7 @@ export interface SettingsState {
   codeCollapsible: boolean
   codeWrappable: boolean
   codeImageTools: boolean
+  codeFancyBlock: boolean
   mathEngine: MathEngine
   mathEnableSingleDollar: boolean
   messageStyle: 'plain' | 'bubble'
@@ -155,6 +159,7 @@ export interface SettingsState {
   joplinUrl: string | null
   joplinExportReasoning: boolean
   defaultObsidianVault: string | null
+  /** This state is actaully default assistant preset */
   defaultAgent: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
@@ -241,7 +246,9 @@ export const initialState: SettingsState = {
   tray: true,
   theme: ThemeMode.system,
   userTheme: {
-    colorPrimary: '#00b96b'
+    colorPrimary: '#00b96b',
+    userFontFamily: '',
+    userCodeFontFamily: ''
   },
   windowStyle: isMac ? 'transparent' : 'opaque',
   fontSize: 14,
@@ -282,6 +289,7 @@ export const initialState: SettingsState = {
   codeCollapsible: false,
   codeWrappable: false,
   codeImageTools: false,
+  codeFancyBlock: true,
   mathEngine: 'KaTeX',
   mathEnableSingleDollar: true,
   messageStyle: 'plain',
@@ -382,7 +390,7 @@ export const initialState: SettingsState = {
   localBackupSyncInterval: 0,
   localBackupMaxBackups: 0,
   localBackupSkipBackupFile: false,
-  defaultPaintingProvider: 'zhipu',
+  defaultPaintingProvider: 'cherryin',
   s3: {
     endpoint: '',
     region: '',
@@ -610,6 +618,9 @@ const settingsSlice = createSlice({
     },
     setCodeImageTools: (state, action: PayloadAction<boolean>) => {
       state.codeImageTools = action.payload
+    },
+    setCodeFancyBlock: (state, action: PayloadAction<boolean>) => {
+      state.codeFancyBlock = action.payload
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
@@ -900,6 +911,7 @@ export const {
   setCodeCollapsible,
   setCodeWrappable,
   setCodeImageTools,
+  setCodeFancyBlock,
   setMathEngine,
   setMathEnableSingleDollar,
   setFoldDisplayMode,

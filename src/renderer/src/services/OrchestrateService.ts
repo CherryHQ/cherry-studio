@@ -1,5 +1,6 @@
-import { Assistant, Message } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { Assistant, Message } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { replacePromptVariables } from '@renderer/utils/prompt'
 
 import { fetchChatCompletion } from './ApiService'

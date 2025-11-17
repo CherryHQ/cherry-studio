@@ -25,7 +25,7 @@ export default defineConfig({
       // 渲染进程单元测试配置
       {
         extends: true,
-        plugins: rendererConfig.plugins,
+        plugins: rendererConfig.plugins.filter((plugin: any) => plugin.name !== 'tailwindcss'),
         resolve: {
           alias: rendererConfig.resolve.alias
         },

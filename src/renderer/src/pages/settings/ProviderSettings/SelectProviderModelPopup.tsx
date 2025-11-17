@@ -4,7 +4,7 @@ import { isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { Modal } from 'antd'
 import { first } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
@@ -35,7 +35,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
 
   const onOk = () => {
     if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
+      window.toast.error(i18n.t('message.error.enter.model'))
       return
     }
     setOpen(false)

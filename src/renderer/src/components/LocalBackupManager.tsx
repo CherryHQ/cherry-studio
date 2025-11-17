@@ -1,7 +1,7 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { restoreFromLocal } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Button, message, Modal, Table, Tooltip } from 'antd'
+import { Button, message, Modal, Space, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +45,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         total: files.length
       }))
     } catch (error: any) {
-      window.message.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
+      window.toast.error(`${t('settings.data.local.backup.manager.fetch.error')}: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -90,13 +90,13 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
           for (const key of selectedRowKeys) {
             await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
           }
-          window.message.success(
+          window.toast.success(
             t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length })
           )
           setSelectedRowKeys([])
           await fetchBackupFiles()
         } catch (error: any) {
-          window.message.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+          window.toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
         } finally {
           setDeleting(false)
         }
@@ -123,7 +123,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
           message.success(t('settings.data.local.backup.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
-          window.message.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+          window.toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
         } finally {
           setDeleting(false)
         }
@@ -150,7 +150,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
           message.success(t('settings.data.local.backup.manager.restore.success'))
           onClose() // Close the modal
         } catch (error: any) {
-          window.message.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
+          window.toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
         } finally {
           setRestoring(false)
         }
@@ -214,6 +214,26 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     }
   }
 
+  const footerContent = (
+    <Space align="center">
+      <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
+        {t('settings.data.local.backup.manager.refresh')}
+      </Button>
+      <Button
+        key="delete"
+        danger
+        icon={<DeleteOutlined />}
+        onClick={handleDeleteSelected}
+        disabled={selectedRowKeys.length === 0 || deleting}
+        loading={deleting}>
+        {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
+      </Button>
+      <Button key="close" onClick={onClose}>
+        {t('common.close')}
+      </Button>
+    </Space>
+  )
+
   return (
     <Modal
       title={t('settings.data.local.backup.manager.title')}
@@ -222,23 +242,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       width={800}
       centered
       transitionName="animation-move-down"
-      footer={[
-        <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
-          {t('settings.data.local.backup.manager.refresh')}
-        </Button>,
-        <Button
-          key="delete"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={handleDeleteSelected}
-          disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
-          {t('settings.data.local.backup.manager.delete.selected')} ({selectedRowKeys.length})
-        </Button>,
-        <Button key="close" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      ]}>
+      footer={footerContent}>
       <Table
         rowKey="fileName"
         columns={columns}

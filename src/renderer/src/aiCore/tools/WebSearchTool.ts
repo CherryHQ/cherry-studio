@@ -1,9 +1,9 @@
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
-import { z } from 'zod'
+import * as z from 'zod'
 
 /**
  * 使用预提取关键词的网络搜索工具
@@ -21,18 +21,17 @@ export const webSearchToolWithPreExtractedKeywords = (
 
   return tool({
     name: 'builtin_web_search',
-    description: `Search the web and return citable sources using pre-analyzed search intent.
+    description: `Web search tool for finding current information, news, and real-time data from the internet.
 
-Pre-extracted search keywords: "${extractedKeywords.question.join(', ')}"${
-      extractedKeywords.links
+This tool has been configured with search parameters based on the conversation context:
+- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
+      extractedKeywords.links?.length
         ? `
-Relevant links: ${extractedKeywords.links.join(', ')}`
+- Relevant URLs: ${extractedKeywords.links.join(', ')}`
         : ''
     }
 
-This tool searches for relevant information and formats results for easy citation. The returned sources should be cited using [1], [2], etc. format in your response.
-
-Call this tool to execute the search. You can optionally provide additional context to refine the search.`,
+You can use this tool as-is to search with the prepared queries, or provide additionalContext to refine or replace the search terms.`,
 
     inputSchema: z.object({
       additionalContext: z
@@ -58,40 +57,27 @@ Call this tool to execute the search. You can optionally provide additional cont
       }
       // 检查是否需要搜索
       if (finalQueries[0] === 'not_needed') {
-        return {
-          summary: 'No search needed based on the query analysis.',
-          searchResults,
-          sources: '',
-          instructions: ''
-        }
+        return searchResults
       }
 
-      try {
-        // 构建 ExtractResults 结构用于 processWebsearch
-        const extractResults: ExtractResults = {
-          websearch: {
-            question: finalQueries,
-            links: extractedKeywords.links
-          }
-        }
-        searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
-      } catch (error) {
-        return {
-          summary: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          sources: [],
-          instructions: ''
+      // 构建 ExtractResults 结构用于 processWebsearch
+      const extractResults: ExtractResults = {
+        websearch: {
+          question: finalQueries,
+          links: extractedKeywords.links
         }
       }
-      if (searchResults.results.length === 0) {
-        return {
-          summary: 'No search results found for the given query.',
-          sources: [],
-          instructions: ''
-        }
+      searchResults = await WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+
+      return searchResults
+    },
+    toModelOutput: (results) => {
+      let summary = 'No search needed based on the query analysis.'
+      if (results.query && results.results.length > 0) {
+        summary = `Found ${results.results.length} relevant sources. Use [number] format to cite specific information.`
       }
 
-      const results = searchResults.results
-      const citationData = results.map((result, index) => ({
+      const citationData = results.results.map((result, index) => ({
         number: index + 1,
         title: result.title,
         content: result.content,
@@ -99,18 +85,27 @@ Call this tool to execute the search. You can optionally provide additional cont
       }))
 
       // 🔑 返回引用友好的格式，复用 REFERENCE_PROMPT 逻辑
-      // const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
-
-      // 构建完整的引用指导文本
+      const referenceContent = `\`\`\`json\n${JSON.stringify(citationData, null, 2)}\n\`\`\``
       const fullInstructions = REFERENCE_PROMPT.replace(
         '{question}',
         "Based on the search results, please answer the user's question with proper citations."
-      ).replace('{references}', 'searchResults:')
-
+      ).replace('{references}', referenceContent)
       return {
-        summary: `Found ${citationData.length} relevant sources. Use [number] format to cite specific information.`,
-        searchResults,
-        instructions: fullInstructions
+        type: 'content',
+        value: [
+          {
+            type: 'text',
+            text: 'This tool searches for relevant information and formats results for easy citation. The returned sources should be cited using [1], [2], etc. format in your response.'
+          },
+          {
+            type: 'text',
+            text: summary
+          },
+          {
+            type: 'text',
+            text: fullInstructions
+          }
+        ]
       }
     }
   })

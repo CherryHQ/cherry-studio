@@ -1,10 +1,11 @@
-import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
+import type { RAGApplication } from '@cherrystudio/embedjs'
+import { JsonLoader, LocalPathLoader, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
-import { LoaderReturn } from '@shared/config/types'
-import { FileMetadata, KnowledgeBaseParams } from '@types'
+import type { LoaderReturn } from '@shared/config/types'
+import type { FileMetadata, KnowledgeBaseParams } from '@types'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'
@@ -139,9 +140,9 @@ export async function addFileLoader(
 
       if (jsonParsed) {
         loaderReturn = await ragApplication.addLoader(new JsonLoader({ object: jsonObject }), forceReload)
-        break
       }
     // fallthrough - JSON 解析失败时作为文本处理
+    // oxlint-disable-next-line no-fallthrough 利用switch特性，刻意不break
     default:
       // 文本类型处理（默认）
       // 如果是其他文本类型且尚未读取文件，则读取文件

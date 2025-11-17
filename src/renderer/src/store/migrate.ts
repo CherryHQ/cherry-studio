@@ -20,24 +20,24 @@ import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import {
+import { defaultPreprocessProviders } from '@renderer/store/preprocess'
+import type {
   Assistant,
   BuiltinOcrProvider,
-  isSystemProvider,
   Model,
   Provider,
   ProviderApiOptions,
-  SystemProviderIds,
   TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
+import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
-import { RootState } from '.'
-import { DEFAULT_TOOL_ORDER } from './inputTools'
+import type { RootState } from '.'
+import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { initialState as notesInitialState } from './note'
@@ -51,14 +51,24 @@ const logger = loggerService.withContext('Migrate')
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
   if (state.minapps) {
-    state.minapps.enabled = state.minapps.enabled.map((app) => ({ ...app, logo: undefined }))
-    state.minapps.disabled = state.minapps.disabled.map((app) => ({ ...app, logo: undefined }))
-    state.minapps.pinned = state.minapps.pinned.map((app) => ({ ...app, logo: undefined }))
+    state.minapps.enabled = state.minapps.enabled.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
+    state.minapps.disabled = state.minapps.disabled.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
+    state.minapps.pinned = state.minapps.pinned.map((app) => ({
+      ...app,
+      logo: undefined
+    }))
   }
 }
 
 function removeMiniAppFromState(state: RootState, id: string) {
   if (state.minapps) {
+    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
     state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
     state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
   }
@@ -85,6 +95,15 @@ function addProvider(state: RootState, id: string) {
   }
 }
 
+// Fix missing provider
+function fixMissingProvider(state: RootState) {
+  SYSTEM_PROVIDERS.forEach((p) => {
+    if (!state.llm.providers.find((provider) => provider.id === p.id)) {
+      state.llm.providers.push(p)
+    }
+  })
+}
+
 // add ocr provider
 function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
   if (!state.ocr.providers.find((p) => p.id === provider.id)) {
@@ -96,7 +115,10 @@ function updateProvider(state: RootState, id: string, provider: Partial<Provider
   if (state.llm.providers) {
     const index = state.llm.providers.findIndex((p) => p.id === id)
     if (index !== -1) {
-      state.llm.providers[index] = { ...state.llm.providers[index], ...provider }
+      state.llm.providers[index] = {
+        ...state.llm.providers[index],
+        ...provider
+      }
     }
   }
 }
@@ -175,6 +197,18 @@ function addShortcuts(state: RootState, ids: string[], afterId: string) {
     } else {
       // 如果找不到指定的快捷键，则添加到最后
       state.shortcuts.shortcuts.push(...newShortcuts)
+    }
+  }
+}
+
+// add preprocess provider
+function addPreprocessProviders(state: RootState, id: string) {
+  if (state.preprocess && state.preprocess.providers) {
+    if (!state.preprocess.providers.find((p) => p.id === id)) {
+      const provider = defaultPreprocessProviders.find((p) => p.id === id)
+      if (provider) {
+        state.preprocess.providers.push({ ...provider })
+      }
     }
   }
 }
@@ -544,7 +578,10 @@ const migrateConfig = {
           ...state.llm,
           providers: state.llm.providers.map((provider) => {
             if (provider.id === 'azure-openai') {
-              provider.models = provider.models.map((model) => ({ ...model, provider: 'azure-openai' }))
+              provider.models = provider.models.map((model) => ({
+                ...model,
+                provider: 'azure-openai'
+              }))
             }
             return provider
           })
@@ -566,6 +603,7 @@ const migrateConfig = {
     try {
       state.assistants.defaultAssistant.type = 'assistant'
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         agent.type = 'agent'
         // @ts-ignore eslint-disable-next-line
@@ -599,7 +637,10 @@ const migrateConfig = {
           runAsyncFunction(async () => {
             const _topic = await db.topics.get(topic.id)
             if (_topic) {
-              const messages = (_topic?.messages || []).map((message) => ({ ...message, assistantId: assistant.id }))
+              const messages = (_topic?.messages || []).map((message) => ({
+                ...message,
+                assistantId: assistant.id
+              }))
               db.topics.put({ ..._topic, messages }, topic.id)
             }
           })
@@ -1067,6 +1108,7 @@ const migrateConfig = {
         }
       })
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         const leadingEmoji = getLeadingEmoji(agent.name)
         if (leadingEmoji) {
@@ -1394,7 +1436,7 @@ const migrateConfig = {
       if (state.websearch?.providers) {
         state.websearch.providers = state.websearch.providers.map((provider) => {
           if (provider.id === 'exa' || provider.id === 'tavily') {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            // oxlint-disable-next-line @typescript-eslint/no-unused-vars
             const { basicAuthUsername, basicAuthPassword, ...rest } = provider
             return rest
           }
@@ -1584,6 +1626,7 @@ const migrateConfig = {
   },
   '108': (state: RootState) => {
     try {
+      // @ts-ignore
       state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
       state.inputTools.isCollapsed = false
       return state
@@ -1715,7 +1758,10 @@ const migrateConfig = {
             cutoffLimit: state.websearch.contentLimit
           }
         } else {
-          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+          state.websearch.compressionConfig = {
+            method: 'none',
+            cutoffUnit: 'char'
+          }
         }
 
         // @ts-ignore eslint-disable-next-line
@@ -1860,14 +1906,20 @@ const migrateConfig = {
     try {
       const { toolOrder } = state.inputTools
       const urlContextKey = 'url_context'
+      // @ts-ignore
       if (!toolOrder.visible.includes(urlContextKey)) {
+        // @ts-ignore
         const webSearchIndex = toolOrder.visible.indexOf('web_search')
+        // @ts-ignore
         const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
         if (webSearchIndex !== -1) {
+          // @ts-ignore
           toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
         } else if (knowledgeBaseIndex !== -1) {
+          // @ts-ignore
           toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
         } else {
+          // @ts-ignore
           toolOrder.visible.push(urlContextKey)
         }
       }
@@ -2282,7 +2334,8 @@ const migrateConfig = {
         // @ts-ignore upscale
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
-        openai_image_edit: state?.paintings?.openai_image_edit || []
+        openai_image_edit: state?.paintings?.openai_image_edit || [],
+        ovms_paintings: []
       }
 
       return state
@@ -2356,11 +2409,14 @@ const migrateConfig = {
       if (state.settings && state.note) {
         const showWorkspaceValue = (state.settings as any)?.showWorkspace
         if (showWorkspaceValue !== undefined) {
+          // @ts-ignore eslint-disable-next-line
           state.note.settings.showWorkspace = showWorkspaceValue
           // Remove from settings
           delete (state.settings as any).showWorkspace
+          // @ts-ignore eslint-disable-next-line
         } else if (state.note.settings.showWorkspace === undefined) {
           // Set default value if not exists
+          // @ts-ignore eslint-disable-next-line
           state.note.settings.showWorkspace = true
         }
       }
@@ -2373,8 +2429,8 @@ const migrateConfig = {
   '147': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2395,13 +2451,391 @@ const migrateConfig = {
   '149': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
     } catch (error) {
       logger.error('migrate 149 error', error as Error)
+      return state
+    }
+  },
+  '150': (state: RootState) => {
+    try {
+      addShortcuts(state, ['rename_topic'], 'new_topic')
+      addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
+      return state
+    } catch (error) {
+      logger.error('migrate 150 error', error as Error)
+      return state
+    }
+  },
+  '151': (state: RootState) => {
+    try {
+      if (state.settings) {
+        state.settings.codeFancyBlock = true
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 151 error', error as Error)
+      return state
+    }
+  },
+  '152': (state: RootState) => {
+    try {
+      state.translate.settings = {
+        autoCopy: false
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 152 error', error as Error)
+      return state
+    }
+  },
+  '153': (state: RootState) => {
+    try {
+      if (state.note.settings) {
+        state.note.settings.fontSize = notesInitialState.settings.fontSize
+        state.note.settings.showTableOfContents = notesInitialState.settings.showTableOfContents
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 153 error', error as Error)
+      return state
+    }
+  },
+  '154': (state: RootState) => {
+    try {
+      if (state.settings.userTheme) {
+        state.settings.userTheme.userFontFamily = settingsInitialState.userTheme.userFontFamily
+        state.settings.userTheme.userCodeFontFamily = settingsInitialState.userTheme.userCodeFontFamily
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 154 error', error as Error)
+      return state
+    }
+  },
+  '155': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if ((base as any).framework) {
+          delete (base as any).framework
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 155 error', error as Error)
+      return state
+    }
+  },
+  '156': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.anthropic) {
+          if (provider.apiHost.endsWith('/')) {
+            provider.apiHost = provider.apiHost.slice(0, -1)
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 156 error', error as Error)
+      return state
+    }
+  },
+  '157': (state: RootState) => {
+    try {
+      addProvider(state, 'aionly')
+      state.llm.providers = moveProvider(state.llm.providers, 'aionly', 10)
+
+      const cherryinProvider = state.llm.providers.find((provider) => provider.id === 'cherryin')
+
+      if (cherryinProvider) {
+        updateProvider(state, 'cherryin', {
+          apiHost: 'https://open.cherryin.ai',
+          models: []
+        })
+      }
+
+      if (state.llm.defaultModel?.provider === 'cherryin') {
+        state.llm.defaultModel.provider = 'cherryai'
+      }
+
+      if (state.llm.quickModel?.provider === 'cherryin') {
+        state.llm.quickModel.provider = 'cherryai'
+      }
+
+      if (state.llm.translateModel?.provider === 'cherryin') {
+        state.llm.translateModel.provider = 'cherryai'
+      }
+
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.model?.provider === 'cherryin') {
+          assistant.model.provider = 'cherryai'
+        }
+        if (assistant.defaultModel?.provider === 'cherryin') {
+          assistant.defaultModel.provider = 'cherryai'
+        }
+      })
+
+      // @ts-ignore
+      state.agents.agents.forEach((agent) => {
+        // @ts-ignore model is not defined in Agent
+        if (agent.model?.provider === 'cherryin') {
+          // @ts-ignore model is not defined in Agent
+          agent.model.provider = 'cherryai'
+        }
+        if (agent.defaultModel?.provider === 'cherryin') {
+          agent.defaultModel.provider = 'cherryai'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 157 error', error as Error)
+      return state
+    }
+  },
+  '158': (state: RootState) => {
+    try {
+      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'cherryin')
+      addProvider(state, 'longcat')
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '159': (state: RootState) => {
+    try {
+      addProvider(state, 'ovms')
+      fixMissingProvider(state)
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '161': (state: RootState) => {
+    try {
+      removeMiniAppFromState(state, 'nm-search')
+      removeMiniAppFromState(state, 'hika')
+      removeMiniAppFromState(state, 'hugging-chat')
+      addProvider(state, 'cherryin')
+      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
+      return state
+    }
+  },
+  '167': (state: RootState) => {
+    try {
+      addProvider(state, 'huggingface')
+      return state
+    } catch (error) {
+      logger.error('migrate 167 error', error as Error)
+      return state
+    }
+  },
+  '168': (state: RootState) => {
+    try {
+      addPreprocessProviders(state, 'open-mineru')
+      return state
+    } catch (error) {
+      logger.error('migrate 168 error', error as Error)
+      return state
+    }
+  },
+  '169': (state: RootState) => {
+    try {
+      if (state?.mcp?.servers) {
+        state.mcp.servers = state.mcp.servers.map((server) => {
+          const inferredSource = isBuiltinMCPServer(server) ? 'builtin' : 'unknown'
+          return {
+            ...server,
+            installSource: inferredSource
+          }
+        })
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 169 error', error as Error)
+      return state
+    }
+  },
+  '170': (state: RootState) => {
+    try {
+      addProvider(state, 'sophnet')
+      state.llm.providers = moveProvider(state.llm.providers, 'sophnet', 17)
+      state.settings.defaultPaintingProvider = 'cherryin'
+      return state
+    } catch (error) {
+      logger.error('migrate 170 error', error as Error)
+      return state
+    }
+  },
+  '171': (state: RootState) => {
+    try {
+      // Ensure aws-bedrock provider exists
+      addProvider(state, 'aws-bedrock')
+
+      // Ensure awsBedrock settings exist and have all required fields
+      if (!state.llm.settings.awsBedrock) {
+        state.llm.settings.awsBedrock = llmInitialState.settings.awsBedrock
+      } else {
+        // For users who have awsBedrock but missing new fields (authType and apiKey)
+        if (!state.llm.settings.awsBedrock.authType) {
+          state.llm.settings.awsBedrock.authType = 'iam'
+        }
+        if (state.llm.settings.awsBedrock.apiKey === undefined) {
+          state.llm.settings.awsBedrock.apiKey = ''
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 171 error', error as Error)
+      return state
+    }
+  },
+  '172': (state: RootState) => {
+    try {
+      // Add ling and huggingchat mini apps
+      addMiniApp(state, 'ling')
+      addMiniApp(state, 'huggingchat')
+
+      // Add ovocr provider and clear ovms paintings
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      if (isEmpty(state.paintings.ovms_paintings)) {
+        state.paintings.ovms_paintings = []
+      }
+
+      // Migrate agents to assistants presets
+      // @ts-ignore
+      if (state?.agents?.agents) {
+        // @ts-ignore
+        state.assistants.presets = [...state.agents.agents]
+        // @ts-ignore
+        delete state.agents.agents
+      }
+
+      // Initialize assistants presets
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+
+      // Migrate assistants presets
+      state.assistants.presets.forEach((preset) => {
+        if (!preset.settings) {
+          preset.settings = DEFAULT_ASSISTANT_SETTINGS
+        } else if (!preset.settings.toolUseMode) {
+          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+        }
+      })
+
+      // Migrate sidebar icons
+      if (state.settings.sidebarIcons) {
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+      }
+
+      // Migrate llm providers
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
+          provider.type = 'new-api'
+        }
+
+        switch (provider.id) {
+          case 'deepseek':
+            provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
+            break
+          case 'moonshot':
+            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
+            break
+          case 'zhipu':
+            provider.anthropicApiHost = 'https://open.bigmodel.cn/api/anthropic'
+            break
+          case 'dashscope':
+            provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
+            break
+          case 'modelscope':
+            provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
+            break
+          case 'aihubmix':
+            provider.anthropicApiHost = 'https://aihubmix.com'
+            break
+          case 'new-api':
+            provider.anthropicApiHost = provider.apiHost
+            break
+          case 'grok':
+            provider.anthropicApiHost = 'https://api.x.ai'
+            break
+          case 'cherryin':
+            provider.anthropicApiHost = 'https://open.cherryin.net'
+            break
+          case 'longcat':
+            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+            break
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 172 error', error as Error)
+      return state
+    }
+  },
+  '173': (state: RootState) => {
+    try {
+      // Migrate toolOrder from global state to scope-based state
+      if (state.inputTools && !state.inputTools.sessionToolOrder) {
+        state.inputTools.sessionToolOrder = DEFAULT_TOOL_ORDER_BY_SCOPE.session
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 173 error', error as Error)
+      return state
+    }
+  },
+  '174': (state: RootState) => {
+    try {
+      addProvider(state, SystemProviderIds.longcat)
+
+      addProvider(state, SystemProviderIds['ai-gateway'])
+      addProvider(state, 'cerebras')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.minimax) {
+          provider.anthropicApiHost = 'https://api.minimaxi.com/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 174 error', error as Error)
+      return state
+    }
+  },
+  '175': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        // @ts-expect-error removed type 'off'
+        if (assistant.settings?.reasoning_effort === 'off') {
+          assistant.settings.reasoning_effort = 'none'
+        }
+        // @ts-expect-error removed type 'off'
+        if (assistant.settings?.reasoning_effort_cache === 'off') {
+          assistant.settings.reasoning_effort_cache = 'none'
+        }
+      })
+      logger.info('migrate 175 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 175 error', error as Error)
       return state
     }
   }

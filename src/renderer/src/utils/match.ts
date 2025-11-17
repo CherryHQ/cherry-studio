@@ -1,5 +1,6 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { isSystemProvider, Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
 
 /**
  * 判断一个字符串是否包含由另一个字符串表示的 keywords
@@ -74,7 +75,7 @@ function getProviderSearchString(provider: Provider) {
  * @param provider 可选的 Provider 对象，用于生成完整模型名称
  * @returns 过滤后的模型数组
  */
-export function filterModelsByKeywords(keywords: string, models: Model[], provider?: Provider): Model[] {
+export function filterModelsByKeywords<T extends Model>(keywords: string, models: T[], provider?: Provider): T[] {
   const keywordsArray = keywords.toLowerCase().split(/\s+/).filter(Boolean)
   return models.filter((model) => matchKeywordsInModel(keywordsArray, model, provider))
 }

@@ -9,7 +9,7 @@ export function modelGenerating() {
   const generating = store.getState().runtime.generating
 
   if (generating) {
-    window.message.warning({ content: i18n.t('message.switch.disabled'), key: 'model-generating' })
+    window.toast.warning(i18n.t('message.switch.disabled'))
     return Promise.reject()
   }
 

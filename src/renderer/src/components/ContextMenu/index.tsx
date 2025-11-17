@@ -6,6 +6,7 @@ interface ContextMenuProps {
   children: React.ReactNode
 }
 
+// FIXME: Why does this component name look like a generic component but is not customizable at all?
 const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
   const [selectedText, setSelectedText] = useState<string | undefined>(undefined)
@@ -22,10 +23,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children }) => {
             navigator.clipboard
               .writeText(selectedText)
               .then(() => {
-                window.message.success({ content: t('message.copied'), key: 'copy-message' })
+                window.toast.success(t('message.copied'))
               })
               .catch(() => {
-                window.message.error({ content: t('message.copy.failed'), key: 'copy-message-failed' })
+                window.toast.error(t('message.copy.failed'))
               })
           }
         }

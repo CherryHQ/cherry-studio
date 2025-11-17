@@ -1,25 +1,27 @@
 import { useSortable } from '@dnd-kit/sortable'
-import React from 'react'
 
 import { ItemRenderer } from './ItemRenderer'
+import type { RenderItemType } from './types'
 
 interface SortableItemProps<T> {
   item: T
-  getId: (item: T) => string | number
-  renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
+  id: string | number
+  index: number
+  renderItem: RenderItemType<T>
   useDragOverlay?: boolean
   showGhost?: boolean
+  itemStyle?: React.CSSProperties
 }
 
 export function SortableItem<T>({
   item,
-  getId,
+  id,
+  index,
   renderItem,
   useDragOverlay = true,
-  showGhost = true
+  showGhost = true,
+  itemStyle
 }: SortableItemProps<T>) {
-  const id = getId(item)
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id
   })
@@ -28,6 +30,7 @@ export function SortableItem<T>({
     <ItemRenderer
       ref={setNodeRef}
       item={item}
+      index={index}
       renderItem={renderItem}
       dragging={isDragging}
       dragOverlay={!useDragOverlay && isDragging}
@@ -35,6 +38,7 @@ export function SortableItem<T>({
       transform={transform}
       transition={transition}
       listeners={listeners}
+      itemStyle={itemStyle}
       {...attributes}
     />
   )

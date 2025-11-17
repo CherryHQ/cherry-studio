@@ -1,6 +1,6 @@
 import { Tooltip } from 'antd'
 import { Copy } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,10 +32,10 @@ const CopyButton: FC<CopyButtonProps> = ({
     navigator.clipboard
       .writeText(textToCopy)
       .then(() => {
-        window.message?.success(t('message.copy.success'))
+        window.toast?.success(t('message.copy.success'))
       })
       .catch(() => {
-        window.message?.error(t('message.copy.failed'))
+        window.toast?.error(t('message.copy.failed'))
       })
   }
 

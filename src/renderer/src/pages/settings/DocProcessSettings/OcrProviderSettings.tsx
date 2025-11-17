@@ -3,11 +3,13 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
-import { isBuiltinOcrProvider, isOcrSystemProvider, OcrProvider } from '@renderer/types'
+import type { OcrProvider } from '@renderer/types'
+import { isBuiltinOcrProvider, isOcrSystemProvider } from '@renderer/types'
 import { Divider, Flex } from 'antd'
 import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
+import { OcrOVSettings } from './OcrOVSettings'
 import { OcrPpocrSettings } from './OcrPpocrSettings'
 import { OcrSystemSettings } from './OcrSystemSettings'
 import { OcrTesseractSettings } from './OcrTesseractSettings'
@@ -35,6 +37,8 @@ const OcrProviderSettings = ({ provider }: Props) => {
           return <OcrSystemSettings />
         case 'paddleocr':
           return <OcrPpocrSettings />
+        case 'ovocr':
+          return <OcrOVSettings />
         default:
           return null
       }

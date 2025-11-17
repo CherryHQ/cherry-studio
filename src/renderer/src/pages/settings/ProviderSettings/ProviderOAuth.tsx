@@ -1,5 +1,6 @@
 import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
@@ -12,7 +13,7 @@ import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,7 +26,8 @@ const PROVIDER_LOGO_MAP = {
   silicon: SiliconFlowProviderLogo,
   aihubmix: AiHubMixProviderLogo,
   ppio: PPIOProviderLogo,
-  tokenflux: TokenFluxProviderLogo
+  tokenflux: TokenFluxProviderLogo,
+  aionly: AiOnlyProviderLogo
 }
 
 const ProviderOAuth: FC<Props> = ({ providerId }) => {

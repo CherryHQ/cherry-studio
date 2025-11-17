@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { TurndownPlugin } from '@truto/turndown-plugin-gfm'
+import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
+import type { TurndownPlugin } from '@truto/turndown-plugin-gfm'
 import he from 'he'
 import htmlTags, { type HtmlTags } from 'html-tags'
 import * as htmlparser2 from 'htmlparser2'
@@ -85,12 +86,57 @@ const md = new MarkdownIt({
   typographer: false // Enable smartypants and other sweet transforms
 })
 
+// Helper function to inject line number data attribute
+function injectLineNumber(token: any, openTag: string): string {
+  if (token.map && token.map.length >= 2) {
+    const startLine = token.map[0] + 1 // Convert to 1-based line number
+    // Insert data attribute before the first closing >
+    // Handle both self-closing tags (e.g., <hr />) and opening tags (e.g., <p>)
+    const result = openTag.replace(/(\s*\/?>)/, ` ${MARKDOWN_SOURCE_LINE_ATTR}="${startLine}"$1`)
+    logger.debug('injectLineNumber', { openTag, result, startLine, hasMap: !!token.map })
+    return result
+  }
+  return openTag
+}
+
+// Store the original renderer
+const defaultRender = md.renderer.render.bind(md.renderer)
+
+// Override the main render method to inject line numbers
+md.renderer.render = function (tokens, options, env) {
+  return defaultRender(tokens, options, env)
+}
+
+// Override default rendering rules to add line numbers
+const defaultBlockRules = [
+  'paragraph_open',
+  'heading_open',
+  'blockquote_open',
+  'bullet_list_open',
+  'ordered_list_open',
+  'list_item_open',
+  'table_open',
+  'hr'
+]
+
+defaultBlockRules.forEach((ruleName) => {
+  const original = md.renderer.rules[ruleName]
+  md.renderer.rules[ruleName] = function (tokens, idx, options, env, self) {
+    const token = tokens[idx]
+    let result = original ? original(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options)
+    result = injectLineNumber(token, result)
+    return result
+  }
+})
+
 // Override the code_block and code_inline renderers to properly escape HTML entities
 md.renderer.rules.code_block = function (tokens, idx) {
   const token = tokens[idx]
   const langName = token.info ? ` class="language-${token.info.trim()}"` : ''
   const escapedContent = he.encode(token.content, { useNamedReferences: false })
-  return `<pre><code${langName}>${escapedContent}</code></pre>`
+  let html = `<pre><code${langName}>${escapedContent}</code></pre>`
+  html = injectLineNumber(token, html)
+  return html
 }
 
 md.renderer.rules.code_inline = function (tokens, idx) {
@@ -103,7 +149,9 @@ md.renderer.rules.fence = function (tokens, idx) {
   const token = tokens[idx]
   const langName = token.info ? ` class="language-${token.info.trim()}"` : ''
   const escapedContent = he.encode(token.content, { useNamedReferences: false })
-  return `<pre><code${langName}>${escapedContent}</code></pre>`
+  let html = `<pre><code${langName}>${escapedContent}</code></pre>`
+  html = injectLineNumber(token, html)
+  return html
 }
 
 // Custom task list plugin for markdown-it
@@ -229,6 +277,90 @@ interface InlineStateLike {
   push: (type: string, tag: string, nesting: number) => TokenLike & { content?: string }
 }
 
+function yamlFrontMatterPlugin(md: MarkdownIt) {
+  // Parser: recognize YAML front matter
+  md.block.ruler.before(
+    'table',
+    'yaml_front_matter',
+    (stateLike: unknown, startLine: number, endLine: number, silent: boolean): boolean => {
+      const state = stateLike as BlockStateLike
+
+      // Only check at the very beginning of the document
+      if (startLine !== 0) {
+        return false
+      }
+
+      const startPos = state.bMarks[startLine] + state.tShift[startLine]
+      const maxPos = state.eMarks[startLine]
+
+      // Must begin with --- at document start
+      if (startPos + 3 > maxPos) return false
+      if (
+        state.src.charCodeAt(startPos) !== 0x2d /* - */ ||
+        state.src.charCodeAt(startPos + 1) !== 0x2d /* - */ ||
+        state.src.charCodeAt(startPos + 2) !== 0x2d /* - */
+      ) {
+        return false
+      }
+
+      // If requested only to validate existence
+      if (silent) return true
+
+      // Search for closing ---
+      let nextLine = startLine + 1
+      let found = false
+
+      for (nextLine = startLine + 1; nextLine < endLine; nextLine++) {
+        const lineStart = state.bMarks[nextLine] + state.tShift[nextLine]
+        const lineEnd = state.eMarks[nextLine]
+        const line = state.src.slice(lineStart, lineEnd).trim()
+
+        if (line === '---') {
+          found = true
+          break
+        }
+      }
+
+      if (!found) {
+        return false
+      }
+
+      // Extract YAML content between the --- delimiters, preserving original indentation
+      const yamlLines: string[] = []
+      for (let lineIdx = startLine + 1; lineIdx < nextLine; lineIdx++) {
+        // Use the original line markers without shift to preserve indentation
+        const lineStart = state.bMarks[lineIdx]
+        const lineEnd = state.eMarks[lineIdx]
+        yamlLines.push(state.src.slice(lineStart, lineEnd))
+      }
+
+      // Also capture the closing --- line with its indentation
+      const closingLineStart = state.bMarks[nextLine]
+      const closingLineEnd = state.eMarks[nextLine]
+      const closingLine = state.src.slice(closingLineStart, closingLineEnd)
+
+      const yamlContent = yamlLines.join('\n') + '\n' + closingLine
+
+      const token = state.push('yaml_front_matter', 'div', 0)
+      token.block = true
+      token.map = [startLine, nextLine + 1]
+      token.content = yamlContent
+
+      state.line = nextLine + 1
+      return true
+    }
+  )
+
+  // Renderer: output YAML front matter as special HTML element
+  md.renderer.rules.yaml_front_matter = (tokens: Array<{ content?: string }>, idx: number): string => {
+    const token = tokens[idx]
+    const content = token?.content ?? ''
+    let html = `<div data-type="yaml-front-matter" data-content="${he.encode(content)}">${content}</div>`
+    html = injectLineNumber(token, html)
+    return html
+  }
+}
+
 function tipTapKatexPlugin(md: MarkdownIt) {
   // 1) Parser: recognize $$ ... $$ as a block math token
   md.block.ruler.before(
@@ -327,9 +459,12 @@ function tipTapKatexPlugin(md: MarkdownIt) {
 
   // 2) Renderer: output TipTap-friendly container
   md.renderer.rules.math_block = (tokens: Array<{ content?: string }>, idx: number): string => {
-    const content = tokens[idx]?.content ?? ''
+    const token = tokens[idx]
+    const content = token?.content ?? ''
     const latexEscaped = he.encode(content, { useNamedReferences: true })
-    return `<div data-latex="${latexEscaped}" data-type="block-math"></div>`
+    let html = `<div data-latex="${latexEscaped}" data-type="block-math"></div>`
+    html = injectLineNumber(token, html)
+    return html
   }
 
   // 3) Inline parser: recognize $...$ on a single line as inline math
@@ -370,6 +505,8 @@ function tipTapKatexPlugin(md: MarkdownIt) {
     return `<span data-latex="${latexEscaped}" data-type="inline-math"></span>`
   }
 }
+
+md.use(yamlFrontMatterPlugin)
 
 md.use(taskListPlugin, {
   label: true
@@ -435,6 +572,28 @@ turndownService.addRule('underline', {
 turndownService.addRule('br', {
   filter: 'br',
   replacement: () => '<br>'
+})
+
+// Custom rule to preserve YAML front matter
+turndownService.addRule('yamlFrontMatter', {
+  filter: (node: Element) => {
+    return node.nodeName === 'DIV' && node.getAttribute?.('data-type') === 'yaml-front-matter'
+  },
+  replacement: (_content: string, node: Node) => {
+    const element = node as Element
+    const yamlContent = element.getAttribute?.('data-content') || ''
+    const decodedContent = he.decode(yamlContent, {
+      isAttributeValue: false,
+      strict: false
+    })
+    // The decodedContent already includes the complete YAML with closing ---
+    // We just need to add the opening --- if it's not there
+    if (decodedContent.startsWith('---')) {
+      return decodedContent
+    } else {
+      return `---\n${decodedContent}`
+    }
+  }
 })
 
 // Helper function to safely get text content and clean it with LaTeX support
@@ -645,7 +804,35 @@ export const htmlToMarkdown = (html: string | null | undefined): string => {
   try {
     const encodedHtml = escapeCustomTags(html)
     const turndownResult = turndownService.turndown(encodedHtml)
-    const finalResult = he.decode(turndownResult)
+    let finalResult = he.decode(turndownResult)
+
+    // Post-process to unescape square brackets that are not part of Markdown link syntax
+    // This preserves wiki-style double brackets [[foo]] and single brackets [foo]
+    // but keeps proper Markdown links [text](url) intact
+
+    // Use a more sophisticated approach: check for the link pattern first,
+    // then unescape standalone brackets
+
+    // First, protect actual Markdown links by temporarily replacing them
+    const linkPlaceholders: string[] = []
+    let linkCounter = 0
+
+    // Find and replace all Markdown links with placeholders
+    finalResult = finalResult.replace(/\\\[([^\]]*)\\\]\([^)]*\)/g, (match) => {
+      const placeholder = `__MDLINK_${linkCounter++}__`
+      linkPlaceholders[linkCounter - 1] = match
+      return placeholder
+    })
+
+    // Now unescape all remaining square brackets
+    finalResult = finalResult.replace(/\\\[/g, '[').replace(/\\\]/g, ']')
+
+    // Restore the Markdown links
+    for (let i = 0; i < linkPlaceholders.length; i++) {
+      const placeholder = `__MDLINK_${i}__`
+      finalResult = finalResult.replace(placeholder, linkPlaceholders[i])
+    }
+
     return finalResult
   } catch (error) {
     logger.error('Error converting HTML to Markdown:', error as Error)

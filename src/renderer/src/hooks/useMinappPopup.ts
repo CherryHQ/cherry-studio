@@ -1,6 +1,7 @@
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
+import NavigationService from '@renderer/services/NavigationService'
 import TabsService from '@renderer/services/TabsService'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -9,10 +10,12 @@ import {
   setOpenedKeepAliveMinapps,
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
+
+import { useNavbarPosition } from './useSettings'
 
 let minAppsCache: LRUCache<string, MinAppType>
 
@@ -34,10 +37,11 @@ export const useMinappPopup = () => {
   const dispatch = useAppDispatch()
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
   const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
+  const { isTopNavbar } = useNavbarPosition()
 
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MinAppType>({
-      max: maxKeepAliveMinapps,
+      max: maxKeepAliveMinapps ?? 10,
       disposeAfter: (_value, key) => {
         // Clean up WebView state when app is disposed from cache
         clearWebviewState(key)
@@ -165,6 +169,33 @@ export const useMinappPopup = () => {
     dispatch(setMinappShow(false))
   }, [dispatch, minappShow, openedOneOffMinapp])
 
+  /** Smart open minapp that adapts to navbar position */
+  const openSmartMinapp = useCallback(
+    (config: MinAppType, keepAlive: boolean = false) => {
+      if (isTopNavbar) {
+        // For top navbar mode, need to add to cache first for temporary apps
+        const cacheApp = minAppsCache.get(config.id)
+        if (!cacheApp) {
+          // Add temporary app to cache so MinAppPage can find it
+          minAppsCache.set(config.id, config)
+        }
+
+        // Set current minapp and show state
+        dispatch(setCurrentMinappId(config.id))
+        dispatch(setMinappShow(true))
+
+        // Then navigate to the app tab using NavigationService
+        if (NavigationService.navigate) {
+          NavigationService.navigate(`/apps/${config.id}`)
+        }
+      } else {
+        // For side navbar, use the traditional popup system
+        openMinapp(config, keepAlive)
+      }
+    },
+    [isTopNavbar, openMinapp, dispatch]
+  )
+
   return {
     openMinapp,
     openMinappKeepAlive,
@@ -172,6 +203,7 @@ export const useMinappPopup = () => {
     closeMinapp,
     hideMinappPopup,
     closeAllMinapps,
+    openSmartMinapp,
     // Expose cache instance for TabsService integration
     minAppsCache
   }

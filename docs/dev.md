@@ -2,7 +2,9 @@
 
 ## IDE Setup
 
-[Cursor](https://www.cursor.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- Editor: [Cursor](https://www.cursor.com/), etc. Any VS Code compatible editor.
+- Linter: [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
+- Formatter: [Biome](https://marketplace.visualstudio.com/items?itemName=biomejs.biome)
 
 ## Project Setup
 
@@ -16,13 +18,13 @@ yarn
 
 ### Setup Node.js
 
-Download and install [Node.js v20.x.x](https://nodejs.org/en/download)
+Download and install [Node.js v22.x.x](https://nodejs.org/en/download)
 
 ### Setup Yarn
 
 ```bash
 corepack enable
-corepack prepare yarn@4.6.0 --activate
+corepack prepare yarn@4.9.1 --activate
 ```
 
 ### Install Dependencies

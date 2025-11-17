@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import * as OcrService from '@renderer/services/ocr/OcrService'
-import { ImageFileMetadata, isImageFileMetadata, SupportedOcrFile } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import type { ImageFileMetadata, SupportedOcrFile } from '@renderer/types'
+import { isImageFileMetadata } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,23 +35,23 @@ export const useOcr = () => {
    * @throws 当文件类型不支持或OCR失败时抛出错误
    */
   const ocr = async (file: SupportedOcrFile) => {
-    const key = uuid()
-    window.message.loading({ content: t('ocr.processing'), key, duration: 0 })
-    // await to keep show loading message
-    try {
-      if (isImageFileMetadata(file)) {
-        return await ocrImage(file)
-      } else {
-        // @ts-expect-error all types should be covered
-        throw new Error(t('ocr.file.not_supported', { type: file.type }))
+    const _ocr = async () => {
+      try {
+        if (isImageFileMetadata(file)) {
+          return ocrImage(file)
+        } else {
+          // @ts-expect-error all types should be covered
+          throw new Error(t('ocr.file.not_supported', { type: file.type }))
+        }
+      } catch (e) {
+        logger.error('Failed to ocr.', e as Error)
+        window.toast.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
+        throw e
       }
-    } catch (e) {
-      logger.error('Failed to ocr.', e as Error)
-      window.message.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
-      throw e
-    } finally {
-      window.message.destroy(key)
     }
+    const promise = _ocr()
+    window.toast.loading({ title: t('ocr.processing'), promise })
+    return promise
   }
 
   return {

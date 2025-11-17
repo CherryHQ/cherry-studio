@@ -1,9 +1,11 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   setNotionApiKey,
   setNotionDatabaseID,
@@ -12,7 +14,7 @@ import {
 } from '@renderer/store/settings'
 import { Button, Space, Switch, Tooltip } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -21,7 +23,7 @@ const NotionSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { openMinapp } = useMinappPopup()
+  const { openSmartMinapp } = useMinappPopup()
 
   const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
@@ -42,11 +44,11 @@ const NotionSettings: FC = () => {
 
   const handleNotionConnectionCheck = () => {
     if (notionApiKey === null) {
-      window.message.error(t('settings.data.notion.check.empty_api_key'))
+      window.toast.error(t('settings.data.notion.check.empty_api_key'))
       return
     }
     if (notionDatabaseID === null) {
-      window.message.error(t('settings.data.notion.check.empty_database_id'))
+      window.toast.error(t('settings.data.notion.check.empty_database_id'))
       return
     }
     const notion = new Client({ auth: notionApiKey })
@@ -56,21 +58,22 @@ const NotionSettings: FC = () => {
       })
       .then((result) => {
         if (result) {
-          window.message.success(t('settings.data.notion.check.success'))
+          window.toast.success(t('settings.data.notion.check.success'))
         } else {
-          window.message.error(t('settings.data.notion.check.fail'))
+          window.toast.error(t('settings.data.notion.check.fail'))
         }
       })
       .catch(() => {
-        window.message.error(t('settings.data.notion.check.error'))
+        window.toast.error(t('settings.data.notion.check.error'))
       })
   }
 
   const handleNotionTitleClick = () => {
-    openMinapp({
+    openSmartMinapp({
       id: 'notion-help',
       name: 'Notion Help',
-      url: 'https://docs.cherry-ai.com/advanced-basic/notion'
+      url: 'https://docs.cherry-ai.com/advanced-basic/notion',
+      logo: AppLogo
     })
   }
 

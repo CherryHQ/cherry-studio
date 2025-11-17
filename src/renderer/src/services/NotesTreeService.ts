@@ -1,212 +1,47 @@
-import { loggerService } from '@logger'
-import db from '@renderer/databases'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode } from '@renderer/types/note'
 
-const MARKDOWN_EXT = '.md'
-const NOTES_TREE_ID = 'notes-tree-structure'
-
-const logger = loggerService.withContext('NotesTreeService')
-
-/**
- * 获取树结构
- */
-export const getNotesTree = async (): Promise<NotesTreeNode[]> => {
-  const record = await db.notes_tree.get(NOTES_TREE_ID)
-  return record?.tree || []
+export function normalizePathValue(path: string): string {
+  return path.replace(/\\/g, '/')
 }
 
-/**
- * 在树中插入节点
- */
-export async function insertNodeIntoTree(
-  tree: NotesTreeNode[],
-  node: NotesTreeNode,
-  parentId?: string
-): Promise<NotesTreeNode[]> {
-  try {
-    if (!parentId) {
-      tree.push(node)
-    } else {
-      const parent = findNodeInTree(tree, parentId)
-      if (parent && parent.type === 'folder') {
-        if (!parent.children) {
-          parent.children = []
-        }
-        parent.children.push(node)
-      }
-    }
-
-    await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
-    return tree
-  } catch (error) {
-    logger.error('Failed to insert node into tree:', error as Error)
-    throw error
-  }
+export function addUniquePath(list: string[], path: string): string[] {
+  const normalized = normalizePathValue(path)
+  return list.includes(normalized) ? list : [...list, normalized]
 }
 
-/**
- * 从树中删除节点
- */
-export async function removeNodeFromTree(tree: NotesTreeNode[], nodeId: string): Promise<boolean> {
-  const removed = removeNodeFromTreeInMemory(tree, nodeId)
-  if (removed) {
-    await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
-  }
-  return removed
-}
-
-/**
- * 从树中删除节点（仅在内存中操作，不保存数据库）
- */
-function removeNodeFromTreeInMemory(tree: NotesTreeNode[], nodeId: string): boolean {
-  for (let i = 0; i < tree.length; i++) {
-    if (tree[i].id === nodeId) {
-      tree.splice(i, 1)
-      return true
-    }
-    if (tree[i].children) {
-      const removed = removeNodeFromTreeInMemory(tree[i].children!, nodeId)
-      if (removed) {
-        return true
-      }
-    }
-  }
-  return false
-}
-
-export async function moveNodeInTree(
-  tree: NotesTreeNode[],
-  sourceNodeId: string,
-  targetNodeId: string,
-  position: 'before' | 'after' | 'inside'
-): Promise<boolean> {
-  try {
-    const sourceNode = findNodeInTree(tree, sourceNodeId)
-    const targetNode = findNodeInTree(tree, targetNodeId)
-
-    if (!sourceNode || !targetNode) {
-      logger.error(`Move nodes in tree failed: node not found (source: ${sourceNodeId}, target: ${targetNodeId})`)
+export function removePathEntries(list: string[], path: string, deep: boolean): string[] {
+  const normalized = normalizePathValue(path)
+  const prefix = `${normalized}/`
+  return list.filter((item) => {
+    if (item === normalized) {
       return false
     }
+    return !(deep && item.startsWith(prefix))
+  })
+}
 
-    // 先保存源节点的副本，以防操作失败需要恢复（暂未实现恢复逻辑）
-    // const sourceNodeCopy = { ...sourceNode }
-
-    // 从原位置移除节点（不保存数据库，只在内存中操作）
-    const removed = removeNodeFromTreeInMemory(tree, sourceNodeId)
-    if (!removed) {
-      logger.error('Move nodes in tree failed: could not remove source node')
-      return false
+export function replacePathEntries(list: string[], oldPath: string, newPath: string, deep: boolean): string[] {
+  const oldNormalized = normalizePathValue(oldPath)
+  const newNormalized = normalizePathValue(newPath)
+  const prefix = `${oldNormalized}/`
+  return list.map((item) => {
+    if (item === oldNormalized) {
+      return newNormalized
     }
-
-    try {
-      // 根据位置进行放置
-      if (position === 'inside' && targetNode.type === 'folder') {
-        if (!targetNode.children) {
-          targetNode.children = []
-        }
-        targetNode.children.push(sourceNode)
-        targetNode.expanded = true
-
-        sourceNode.treePath = `${targetNode.treePath}/${sourceNode.name}`
-      } else {
-        const targetParent = findParentNode(tree, targetNodeId)
-        const targetList = targetParent ? targetParent.children! : tree
-        const targetIndex = targetList.findIndex((node) => node.id === targetNodeId)
-
-        if (targetIndex === -1) {
-          logger.error('Move nodes in tree failed: target position not found')
-          return false
-        }
-
-        // 根据position确定插入位置
-        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
-        targetList.splice(insertIndex, 0, sourceNode)
-
-        // 更新节点路径
-        if (targetParent) {
-          sourceNode.treePath = `${targetParent.treePath}/${sourceNode.name}`
-        } else {
-          sourceNode.treePath = `/${sourceNode.name}`
-        }
-      }
-
-      // 更新修改时间
-      sourceNode.updatedAt = new Date().toISOString()
-
-      // 只有在所有操作成功后才保存到数据库
-      await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
-
-      return true
-    } catch (error) {
-      logger.error('Move nodes in tree failed during placement, attempting to restore:', error as Error)
-      // 如果放置失败，尝试恢复原始节点到原位置
-      // 这里需要重新实现恢复逻辑，暂时返回false
-      return false
+    if (deep && item.startsWith(prefix)) {
+      return `${newNormalized}${item.slice(oldNormalized.length)}`
     }
-  } catch (error) {
-    logger.error('Move nodes in tree failed:', error as Error)
-    return false
-  }
+    return item
+  })
 }
 
-/**
- * 重命名节点
- */
-export async function renameNodeFromTree(
-  tree: NotesTreeNode[],
-  nodeId: string,
-  newName: string
-): Promise<NotesTreeNode> {
-  const node = findNodeInTree(tree, nodeId)
-
-  if (!node) {
-    throw new Error('Node not found')
-  }
-
-  node.name = newName
-
-  const dirPath = node.treePath.substring(0, node.treePath.lastIndexOf('/') + 1)
-  node.treePath = dirPath + newName
-
-  const externalDirPath = node.externalPath.substring(0, node.externalPath.lastIndexOf('/') + 1)
-  node.externalPath = node.type === 'file' ? externalDirPath + newName + MARKDOWN_EXT : externalDirPath + newName
-
-  node.updatedAt = new Date().toISOString()
-  await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
-  return node
-}
-
-/**
- * 修改节点键值
- */
-export async function updateNodeInTree(
-  tree: NotesTreeNode[],
-  nodeId: string,
-  updates: Partial<NotesTreeNode>
-): Promise<NotesTreeNode> {
-  const node = findNodeInTree(tree, nodeId)
-  if (!node) {
-    throw new Error('Node not found')
-  }
-
-  Object.assign(node, updates)
-  node.updatedAt = new Date().toISOString()
-  await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
-
-  return node
-}
-
-/**
- * 在树中查找节点
- */
-export function findNodeInTree(tree: NotesTreeNode[], nodeId: string): NotesTreeNode | null {
+export function findNode(tree: NotesTreeNode[], nodeId: string): NotesTreeNode | null {
   for (const node of tree) {
     if (node.id === nodeId) {
       return node
     }
     if (node.children) {
-      const found = findNodeInTree(node.children, nodeId)
+      const found = findNode(node.children, nodeId)
       if (found) {
         return found
       }
@@ -215,16 +50,13 @@ export function findNodeInTree(tree: NotesTreeNode[], nodeId: string): NotesTree
   return null
 }
 
-/**
- * 根据路径查找节点
- */
-export function findNodeByPath(tree: NotesTreeNode[], path: string): NotesTreeNode | null {
+export function findNodeByPath(tree: NotesTreeNode[], targetPath: string): NotesTreeNode | null {
   for (const node of tree) {
-    if (node.treePath === path) {
+    if (node.treePath === targetPath || node.externalPath === targetPath) {
       return node
     }
     if (node.children) {
-      const found = findNodeByPath(node.children, path)
+      const found = findNodeByPath(node.children, targetPath)
       if (found) {
         return found
       }
@@ -233,53 +65,113 @@ export function findNodeByPath(tree: NotesTreeNode[], path: string): NotesTreeNo
   return null
 }
 
-// ---
-// 辅助函数
-// ---
+export function updateTreeNode(
+  nodes: NotesTreeNode[],
+  nodeId: string,
+  updater: (node: NotesTreeNode) => NotesTreeNode
+): NotesTreeNode[] {
+  let changed = false
 
-/**
- * 查找节点的父节点
- */
-export function findParentNode(tree: NotesTreeNode[], targetNodeId: string): NotesTreeNode | null {
+  const nextNodes = nodes.map((node) => {
+    if (node.id === nodeId) {
+      changed = true
+      const updated = updater(node)
+      if (updated.type === 'folder' && !updated.children) {
+        return { ...updated, children: [] }
+      }
+      return updated
+    }
+
+    if (node.children && node.children.length > 0) {
+      const updatedChildren = updateTreeNode(node.children, nodeId, updater)
+      if (updatedChildren !== node.children) {
+        changed = true
+        return { ...node, children: updatedChildren }
+      }
+    }
+
+    return node
+  })
+
+  return changed ? nextNodes : nodes
+}
+
+export function findParent(tree: NotesTreeNode[], nodeId: string): NotesTreeNode | null {
   for (const node of tree) {
-    if (node.children) {
-      const isDirectChild = node.children.some((child) => child.id === targetNodeId)
-      if (isDirectChild) {
-        return node
-      }
-
-      const parent = findParentNode(node.children, targetNodeId)
-      if (parent) {
-        return parent
-      }
+    if (!node.children) {
+      continue
+    }
+    if (node.children.some((child) => child.id === nodeId)) {
+      return node
+    }
+    const found = findParent(node.children, nodeId)
+    if (found) {
+      return found
     }
   }
   return null
 }
 
-/**
- * 判断节点是否为另一个节点的父节点
- */
-export function isParentNode(tree: NotesTreeNode[], parentId: string, childId: string): boolean {
-  const childNode = findNodeInTree(tree, childId)
-  if (!childNode) {
-    return false
+export function reorderTreeNodes(
+  nodes: NotesTreeNode[],
+  sourceId: string,
+  targetId: string,
+  position: 'before' | 'after'
+): NotesTreeNode[] {
+  const [updatedNodes, moved] = reorderSiblings(nodes, sourceId, targetId, position)
+  if (moved) {
+    return updatedNodes
   }
 
-  const parentNode = findNodeInTree(tree, parentId)
-  if (!parentNode || parentNode.type !== 'folder' || !parentNode.children) {
-    return false
-  }
-
-  if (parentNode.children.some((child) => child.id === childId)) {
-    return true
-  }
-
-  for (const child of parentNode.children) {
-    if (isParentNode(tree, child.id, childId)) {
-      return true
+  let changed = false
+  const nextNodes = nodes.map((node) => {
+    if (!node.children || node.children.length === 0) {
+      return node
     }
+
+    const reorderedChildren = reorderTreeNodes(node.children, sourceId, targetId, position)
+    if (reorderedChildren !== node.children) {
+      changed = true
+      return { ...node, children: reorderedChildren }
+    }
+
+    return node
+  })
+
+  return changed ? nextNodes : nodes
+}
+
+function reorderSiblings(
+  nodes: NotesTreeNode[],
+  sourceId: string,
+  targetId: string,
+  position: 'before' | 'after'
+): [NotesTreeNode[], boolean] {
+  const sourceIndex = nodes.findIndex((node) => node.id === sourceId)
+  const targetIndex = nodes.findIndex((node) => node.id === targetId)
+
+  if (sourceIndex === -1 || targetIndex === -1) {
+    return [nodes, false]
   }
 
-  return false
+  const updated = [...nodes]
+  const [sourceNode] = updated.splice(sourceIndex, 1)
+
+  let insertIndex = targetIndex
+  if (sourceIndex < targetIndex) {
+    insertIndex -= 1
+  }
+  if (position === 'after') {
+    insertIndex += 1
+  }
+
+  if (insertIndex < 0) {
+    insertIndex = 0
+  }
+  if (insertIndex > updated.length) {
+    insertIndex = updated.length
+  }
+
+  updated.splice(insertIndex, 0, sourceNode)
+  return [updated, true]
 }

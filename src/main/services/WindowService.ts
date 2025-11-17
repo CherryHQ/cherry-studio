@@ -66,11 +66,19 @@ export class WindowService {
       transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      titleBarStyle: 'hidden',
-      titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+      // For Windows and Linux, we use frameless window with custom controls
+      // For Mac, we keep the native title bar style
+      ...(isMac
+        ? {
+            titleBarStyle: 'hidden',
+            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+            trafficLightPosition: { x: 8, y: 13 }
+          }
+        : {
+            frame: false // Frameless window for Windows and Linux
+          }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -248,7 +256,7 @@ export class WindowService {
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:5173')) {
+      if (url.includes('localhost:517')) {
         return
       }
 
@@ -267,7 +275,8 @@ export class WindowService {
         'https://aihubmix.com/topup',
         'https://aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge'
+        'https://dash.302.ai/charge',
+        'https://www.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -366,13 +375,16 @@ export class WindowService {
 
       mainWindow.hide()
 
-      // TODO: don't hide dock icon when close to tray
-      // will cause the cmd+h behavior not working
-      // after the electron fix the bug, we can restore this code
-      // //for mac users, should hide dock icon if close to tray
-      // if (isMac && isTrayOnClose) {
-      //   app.dock?.hide()
-      // }
+      //for mac users, should hide dock icon if close to tray
+      if (isMac && isTrayOnClose) {
+        app.dock?.hide()
+
+        mainWindow.once('show', () => {
+          //restore the window can hide by cmd+h when the window is shown again
+          // https://github.com/electron/electron/pull/47970
+          app.dock?.show()
+        })
+      }
     })
 
     mainWindow.on('closed', () => {

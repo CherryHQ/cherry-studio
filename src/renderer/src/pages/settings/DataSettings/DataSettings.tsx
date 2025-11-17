@@ -3,6 +3,7 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   LoadingOutlined,
+  WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -10,6 +11,7 @@ import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
+import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -17,12 +19,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
-import { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -35,7 +38,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -126,11 +128,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'agentssubscribe_url',
-      title: t('agents.settings.title'),
-      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -163,9 +160,9 @@ const DataSettings: FC = () => {
           await window.api.clearCache()
           await window.api.trace.cleanLocalData()
           await window.api.getCacheSize().then(setCacheSize)
-          window.message.success(t('settings.data.clear_cache.success'))
+          window.toast.success(t('settings.data.clear_cache.success'))
         } catch (error) {
-          window.message.error(t('settings.data.clear_cache.error'))
+          window.toast.error(t('settings.data.clear_cache.error'))
         }
       }
     })
@@ -178,7 +175,7 @@ const DataSettings: FC = () => {
       content: t('settings.data.app_knowledge.remove_all_confirm'),
       onOk: async () => {
         await removeAllFiles()
-        window.message.success(t('settings.data.app_knowledge.remove_all_success'))
+        window.toast.success(t('settings.data.app_knowledge.remove_all_success'))
       },
       okText: t('common.delete'),
       okButtonProps: {
@@ -205,28 +202,28 @@ const DataSettings: FC = () => {
     // if is root path, show error
     const pathParts = newAppDataPath.split(/[/\\]/).filter((part: string) => part !== '')
     if (pathParts.length <= 1) {
-      window.message.error(t('settings.data.app_data.select_error_root_path'))
+      window.toast.error(t('settings.data.app_data.select_error_root_path'))
       return
     }
 
     // check new app data path is not in old app data path
     const isInOldPath = await window.api.isPathInside(newAppDataPath, appInfo.appDataPath)
     if (isInOldPath) {
-      window.message.error(t('settings.data.app_data.select_error_same_path'))
+      window.toast.error(t('settings.data.app_data.select_error_same_path'))
       return
     }
 
     // check new app data path is not in app install path
     const isInInstallPath = await window.api.isPathInside(newAppDataPath, appInfo.installPath)
     if (isInInstallPath) {
-      window.message.error(t('settings.data.app_data.select_error_in_app_path'))
+      window.toast.error(t('settings.data.app_data.select_error_in_app_path'))
       return
     }
 
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(newAppDataPath)
     if (!hasWritePermission) {
-      window.message.error(t('settings.data.app_data.select_error_write_permission'))
+      window.toast.error(t('settings.data.app_data.select_error_write_permission'))
       return
     }
 
@@ -245,9 +242,9 @@ const DataSettings: FC = () => {
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       onOk: () => {
-        window.message.info({
-          content: t('settings.data.app_data.restart_notice'),
-          duration: 2
+        window.toast.info({
+          title: t('settings.data.app_data.restart_notice'),
+          timeout: 2000
         })
         setTimeoutTimer(
           'doubleConfirmModalBeforeCopyData',
@@ -291,10 +288,9 @@ const DataSettings: FC = () => {
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
-            onChange={(checked) => {
-              shouldCopyData = checked
-            }}
+            onChange={(checked) => (shouldCopyData = checked)}
             style={{ marginRight: '8px' }}
+            title={t('settings.data.app_data.copy_data_option')}
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
@@ -335,9 +331,9 @@ const DataSettings: FC = () => {
               return
             }
 
-            window.message.info({
-              content: t('settings.data.app_data.restart_notice'),
-              duration: 3
+            window.toast.info({
+              title: t('settings.data.app_data.restart_notice'),
+              timeout: 3000
             })
             setTimeoutTimer(
               'showMigrationConfirmModal_1',
@@ -352,7 +348,7 @@ const DataSettings: FC = () => {
           }
           // 如果不复制数据，直接设置新的应用数据路径
           await window.api.setAppDataPath(newPath)
-          window.message.success(t('settings.data.app_data.path_changed_without_copy'))
+          window.toast.success(t('settings.data.app_data.path_changed_without_copy'))
 
           // 更新应用数据路径
           setAppInfo(await window.api.getAppInfo())
@@ -361,7 +357,7 @@ const DataSettings: FC = () => {
           setTimeoutTimer(
             'showMigrationConfirmModal_2',
             () => {
-              window.message.success(t('settings.data.app_data.select_success'))
+              window.toast.success(t('settings.data.app_data.select_success'))
               window.api.setStopQuitApp(false, '')
               window.api.relaunchApp()
             },
@@ -369,9 +365,9 @@ const DataSettings: FC = () => {
           )
         } catch (error) {
           window.api.setStopQuitApp(false, '')
-          window.message.error({
-            content: t('settings.data.app_data.path_change_failed') + ': ' + error,
-            duration: 5
+          window.toast.error({
+            title: t('settings.data.app_data.path_change_failed') + ': ' + error,
+            timeout: 5000
           })
         }
       }
@@ -390,7 +386,6 @@ const DataSettings: FC = () => {
         <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
       )
       const className = 'migration-modal'
-      const messageKey = 'data-migration'
 
       // 显示进度模态框
       const showProgressModal = (title: React.ReactNode, className: string, PathsContent: React.FC) => {
@@ -463,8 +458,7 @@ const DataSettings: FC = () => {
         newPath: string,
         progressInterval: NodeJS.Timeout | null,
         updateProgress: (progress: number, status?: 'active' | 'success') => void,
-        loadingModal: { destroy: () => void },
-        messageKey: string
+        loadingModal: { destroy: () => void }
       ): Promise<void> => {
         // flush app data
         await window.api.flushAppData()
@@ -494,10 +488,9 @@ const DataSettings: FC = () => {
               'startMigration_2',
               () => {
                 loadingModal.destroy()
-                window.message.error({
-                  content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-                  key: messageKey,
-                  duration: 5
+                window.toast.error({
+                  title: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+                  timeout: 5000
                 })
                 resolve()
               },
@@ -517,10 +510,9 @@ const DataSettings: FC = () => {
         // 关闭加载模态框
         loadingModal.destroy()
 
-        window.message.success({
-          content: t('settings.data.app_data.copy_success'),
-          key: messageKey,
-          duration: 2
+        window.toast.success({
+          title: t('settings.data.app_data.copy_success'),
+          timeout: 2000
         })
       }
 
@@ -541,7 +533,7 @@ const DataSettings: FC = () => {
       const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
       try {
         window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
-        await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal, messageKey)
+        await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
 
         // 更新应用数据路径
         setAppInfo(await window.api.getAppInfo())
@@ -550,7 +542,7 @@ const DataSettings: FC = () => {
         setTimeoutTimer(
           'handleDataMigration',
           () => {
-            window.message.success(t('settings.data.app_data.select_success'))
+            window.toast.success(t('settings.data.app_data.select_success'))
             window.api.setStopQuitApp(false, '')
             window.api.relaunchApp({
               args: ['--user-data-dir=' + newDataPath]
@@ -560,10 +552,9 @@ const DataSettings: FC = () => {
         )
       } catch (error) {
         window.api.setStopQuitApp(false, '')
-        window.message.error({
-          content: t('settings.data.app_data.copy_failed') + ': ' + error,
-          key: messageKey,
-          duration: 5
+        window.toast.error({
+          title: t('settings.data.app_data.copy_failed') + ': ' + error,
+          timeout: 5000
         })
       } finally {
         if (progressInterval) {
@@ -574,7 +565,9 @@ const DataSettings: FC = () => {
     }
 
     handleDataMigration()
-  }, [setTimeoutTimer, t])
+    // dont add others to deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
@@ -623,6 +616,15 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
+                <HStack gap="5px" justifyContent="space-between">
+                  <Button onClick={ExportToPhoneLanPopup.show} icon={<WifiOutlined size={14} />}>
+                    {t('settings.data.export_to_phone.lan.title')}
+                  </Button>
+                </HStack>
               </SettingRow>
             </SettingGroup>
             <SettingGroup theme={theme}>
@@ -696,7 +698,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>

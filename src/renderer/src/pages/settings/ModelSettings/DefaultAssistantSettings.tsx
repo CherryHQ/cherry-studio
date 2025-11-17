@@ -6,11 +6,12 @@ import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
+import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
 import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Dispatch, FC, SetStateAction, useState } from 'react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -24,7 +25,7 @@ const AssistantSettings: FC = () => {
   const [enableMaxTokens, setEnableMaxTokens] = useState(defaultAssistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(defaultAssistant?.settings?.maxTokens ?? 0)
   const [topP, setTopP] = useState(defaultAssistant.settings?.topP ?? 1)
-  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? true)
+  const [enableTopP, setEnableTopP] = useState(defaultAssistant.settings?.enableTopP ?? false)
   const [emoji, setEmoji] = useState(defaultAssistant.emoji || getLeadingEmoji(defaultAssistant.name) || '')
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
@@ -71,7 +72,7 @@ const AssistantSettings: FC = () => {
     setEnableMaxTokens(false)
     setMaxTokens(0)
     setTopP(1)
-    setEnableTopP(true)
+    setEnableTopP(false)
     updateDefaultAssistant({
       ...defaultAssistant,
       settings: {
@@ -83,7 +84,7 @@ const AssistantSettings: FC = () => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         topP: 1,
-        enableTopP: true
+        enableTopP: false
       }
     })
   }

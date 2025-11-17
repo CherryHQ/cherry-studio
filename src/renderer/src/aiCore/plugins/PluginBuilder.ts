@@ -1,11 +1,10 @@
-import { AiPlugin } from '@cherrystudio/ai-core'
+import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 
-import { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
-import reasoningTimePlugin from './reasoningTimePlugin'
+import type { AiSdkMiddlewareConfig } from '../middleware/AiSdkMiddlewareBuilder'
 import { searchOrchestrationPlugin } from './searchOrchestrationPlugin'
 import { createTelemetryPlugin } from './telemetryPlugin'
 
@@ -30,27 +29,27 @@ export function buildPlugins(
   }
 
   // 1. 模型内置搜索
-  if (middlewareConfig.enableWebSearch) {
-    // 内置了默认搜索参数，如果改的话可以传config进去
-    plugins.push(webSearchPlugin())
+  if (middlewareConfig.enableWebSearch && middlewareConfig.webSearchPluginConfig) {
+    plugins.push(webSearchPlugin(middlewareConfig.webSearchPluginConfig))
   }
   // 2. 支持工具调用时添加搜索插件
-  if (middlewareConfig.isSupportedToolUse) {
+  if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {
     plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant, middlewareConfig.topicId || ''))
   }
 
   // 3. 推理模型时添加推理插件
-  if (middlewareConfig.enableReasoning) {
-    plugins.push(reasoningTimePlugin)
-  }
+  // if (middlewareConfig.enableReasoning) {
+  //   plugins.push(reasoningTimePlugin)
+  // }
 
   // 4. 启用Prompt工具调用时添加工具插件
-  if (middlewareConfig.isPromptToolUse && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
+  if (middlewareConfig.isPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
         createSystemMessage: (systemPrompt, params, context) => {
-          if (context.modelId.includes('o1-mini') || context.modelId.includes('o1-preview')) {
+          const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
+          if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
             if (context.isRecursiveCall) {
               return null
             }
@@ -69,10 +68,11 @@ export function buildPlugins(
     )
   }
 
-  // if (!middlewareConfig.enableTool && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
-  //   plugins.push(createNativeToolUsePlugin())
+  // if (middlewareConfig.enableUrlContext && middlewareConfig.) {
+  //   plugins.push(googleToolsPlugin({ urlContext: true }))
   // }
-  logger.info(
+
+  logger.debug(
     'Final plugin list:',
     plugins.map((p) => p.name)
   )
