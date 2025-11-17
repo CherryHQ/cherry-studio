@@ -4,13 +4,13 @@ import * as React from 'react'
 import { useId } from 'react'
 
 // Enhanced Switch component with loading state support
-interface CustomSwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
+interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
   /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
   loading?: boolean
   size?: 'sm' | 'md' | 'lg'
 }
 
-function CustomizedSwitch({ loading = false, disabled = false, size = 'md', className, ...props }: CustomSwitchProps) {
+function Switch({ loading = false, disabled = false, size = 'md', className, ...props }: SwitchProps) {
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
@@ -63,7 +63,7 @@ function CustomizedSwitch({ loading = false, disabled = false, size = 'md', clas
   )
 }
 
-interface DescriptionSwitchProps extends CustomSwitchProps {
+interface DescriptionSwitchProps extends SwitchProps {
   /** Text label displayed next to the switch. */
   label: string
   /** Optional helper text shown below the label. */
@@ -111,13 +111,13 @@ const DescriptionSwitch = ({
         )}
       </label>
       <div className="flex justify-center items-center">
-        <CustomizedSwitch id={id} size={size} {...props} />
+        <Switch id={id} size={size} {...props} />
       </div>
     </div>
   )
 }
 
-CustomizedSwitch.displayName = 'Switch'
+Switch.displayName = 'Switch'
 
-export { DescriptionSwitch, CustomizedSwitch as Switch }
-export type { CustomSwitchProps as SwitchProps }
+export { DescriptionSwitch, Switch }
+export type { SwitchProps }
