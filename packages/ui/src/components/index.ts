@@ -23,23 +23,9 @@ export { default as ThinkingEffect } from './composites/ThinkingEffect'
 
 // Icon Components
 
-// Brand Logo Icons (彩色品牌 Logo 图标 - 84个)
-// 推荐使用 '@cherrystudio/ui/icons' 路径导入
+// Brand Logo Icons (Colorful brand logo icons - 81 items)
+// Recommended to import using '@cherrystudio/ui/icons' path
 export * from './icons'
-
-// /* Selector Components */
-// export { default as Selector } from './primitives/select'
-// export { default as SearchableSelector } from './primitives/Selector/SearchableSelector'
-// export type {
-//   MultipleSearchableSelectorProps,
-//   MultipleSelectorProps,
-//   SearchableSelectorItem,
-//   SearchableSelectorProps,
-//   SelectorItem,
-//   SelectorProps,
-//   SingleSearchableSelectorProps,
-//   SingleSelectorProps
-// } from './primitives/Selector/types'
 
 /* Additional Composite Components */
 // CodeEditor
