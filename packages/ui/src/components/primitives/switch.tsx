@@ -1,7 +1,35 @@
 import { cn } from '@cherrystudio/ui/utils'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
+import { cva } from 'class-variance-authority'
 import * as React from 'react'
 import { useId } from 'react'
+
+const switchRootVariants = cva(
+  [
+    'cs-switch cs-switch-root',
+    'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
+    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
+    'disabled:cursor-not-allowed disabled:opacity-40',
+    'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+  ],
+  {
+    variants: {
+      size: {
+        sm: ['w-9 h-5'],
+        md: ['w-11 h-5.5'],
+        lg: ['w-11 h-6']
+      },
+      loading: {
+        false: null,
+        true: ['bg-primary-hover!']
+      }
+    },
+    defaultVariants: {
+      size: 'md',
+      loading: false
+    }
+  }
+)
 
 // Enhanced Switch component with loading state support
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
@@ -10,25 +38,11 @@ interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.R
   size?: 'sm' | 'md' | 'lg'
 }
 
-function Switch({ loading = false, disabled = false, size = 'md', className, ...props }: SwitchProps) {
+function Switch({ loading = false, size = 'md', className, ...props }: SwitchProps) {
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
-      className={cn(
-        'cs-switch cs-switch-root',
-        'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-        'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-primary',
-        'disabled:cursor-not-allowed disabled:opacity-40',
-        'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
-        {
-          'w-9 h-5': size === 'sm',
-          'w-11 h-5.5': size === 'md',
-          'w-11 h-6': size === 'lg'
-        },
-        loading && 'bg-primary-hover!',
-        className
-      )}
-      disabled={disabled}
+      className={cn(switchRootVariants({ size, loading }), className)}
       {...props}>
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
