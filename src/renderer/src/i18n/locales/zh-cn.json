@@ -1939,6 +1939,9 @@
       },
       "remove_custom": {
         "title": "删除自定义应用"
+      },
+      "edit_custom": {
+        "title": "编辑自定义应用"
       }
     },
     "title": "小程序"
@@ -4068,6 +4071,7 @@
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
         "save": "保存",
+        "edit": "编辑",
         "save_error": "自定义小程序保存失败",
         "save_success": "自定义小程序保存成功",
         "title": "自定义",
