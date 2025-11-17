@@ -209,26 +209,21 @@ const SelectionActionApp: FC = () => {
           <Tooltip
             content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
-            <WinButton
-              variant="light"
-              startContent={<Pin size={14} className={isPinned ? 'pinned' : ''} />}
-              onPress={togglePin}
-              className={isPinned ? 'pinned' : ''}
-              isIconOnly
-            />
+            <WinButton variant="ghost" onClick={togglePin} className={isPinned ? 'pinned' : ''}>
+              <Pin size={14} className={isPinned ? 'pinned' : ''} />
+            </WinButton>
           </Tooltip>
           <Tooltip
             content={t('selection.action.window.opacity')}
             placement="bottom"
             isOpen={showOpacitySlider ? false : undefined}>
             <WinButton
-              variant="light"
-              startContent={<Droplet size={14} />}
-              onPress={() => setShowOpacitySlider(!showOpacitySlider)}
+              variant="ghost"
+              onClick={() => setShowOpacitySlider(!showOpacitySlider)}
               className={showOpacitySlider ? 'active' : ''}
-              style={{ paddingBottom: '2px' }}
-              isIconOnly
-            />
+              style={{ paddingBottom: '2px' }}>
+              <Droplet size={14} />
+            </WinButton>
           </Tooltip>
           {showOpacitySlider && (
             <OpacitySlider>
@@ -245,14 +240,12 @@ const SelectionActionApp: FC = () => {
           )}
           {!isMac && (
             <>
-              <WinButton variant="light" startContent={<Minus size={16} />} onPress={handleMinimize} isIconOnly />
-              <WinButton
-                variant="light"
-                startContent={<X size={16} />}
-                onPress={handleClose}
-                className="close"
-                isIconOnly
-              />
+              <WinButton variant="ghost" onClick={handleMinimize}>
+                <Minus size={16} />
+              </WinButton>
+              <WinButton variant="ghost" onClick={handleClose} className="close">
+                <X size={16} />
+              </WinButton>
             </>
           )}
         </TitleBarButtons>

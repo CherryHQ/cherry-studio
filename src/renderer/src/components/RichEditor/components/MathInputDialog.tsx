@@ -149,10 +149,10 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
         style={{ marginBottom: 12, fontFamily: 'monospace' }}
       />
       <Flex className="justify-end gap-2">
-        <Button size="sm" onPress={onCancel}>
+        <Button size="sm" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Button color="primary" size="sm" onPress={handleSubmit}>
+        <Button color="primary" size="sm" onClick={handleSubmit}>
           {t('common.confirm')}
         </Button>
       </Flex>

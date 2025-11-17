@@ -109,20 +109,16 @@ const NotesSettings: FC = () => {
               placeholder={t('notes.settings.data.work_directory_placeholder')}
               readOnly
             />
-            <Button
-              variant="solid"
-              startContent={<FolderOpen size={16} />}
-              onPress={handleSelectWorkDirectory}
-              isLoading={isSelecting}
-              className="ml-2">
+            <Button variant="default" onClick={handleSelectWorkDirectory} disabled={isSelecting} className="ml-2">
+              <FolderOpen size={16} />
               {t('notes.settings.data.select')}
             </Button>
           </PathInputContainer>
           <ActionButtons>
-            <Button color="primary" onPress={handleApplyPath} isDisabled={!isPathChanged}>
+            <Button onClick={handleApplyPath} disabled={!isPathChanged}>
               {t('notes.settings.data.apply')}
             </Button>
-            <Button onPress={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
+            <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
           </ActionButtons>
         </WorkDirectorySection>
         <SettingRow>

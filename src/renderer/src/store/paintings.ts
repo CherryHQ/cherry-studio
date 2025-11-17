@@ -20,7 +20,9 @@ const initialState: PaintingsState = {
   aihubmix_image_upscale: [],
   // OpenAI
   openai_image_generate: [],
-  openai_image_edit: []
+  openai_image_edit: [],
+  // OVMS
+  ovms_paintings: []
 }
 
 const paintingsSlice = createSlice({

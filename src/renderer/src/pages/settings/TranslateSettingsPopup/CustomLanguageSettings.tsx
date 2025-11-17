@@ -86,14 +86,16 @@ const CustomLanguageSettings = () => {
         render: (_, record) => {
           return (
             <Space>
-              <Button startContent={<EditOutlined />} onPress={() => onClickEdit(record)}>
+              <Button onClick={() => onClickEdit(record)}>
+                <EditOutlined />
                 {t('common.edit')}
               </Button>
               <Popconfirm
                 title={t('settings.translate.custom.delete.title')}
                 description={t('settings.translate.custom.delete.description')}
                 onConfirm={() => onDelete(record.id)}>
-                <Button startContent={<DeleteOutlined />} color="danger">
+                <Button variant="destructive">
+                  <DeleteOutlined />
                   {t('common.delete')}
                 </Button>
               </Popconfirm>
@@ -122,11 +124,8 @@ const CustomLanguageSettings = () => {
       <CustomLanguageSettingsContainer>
         <RowFlex className="justify-between py-1">
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
-          <Button
-            color="primary"
-            startContent={<PlusOutlined size={16} />}
-            onPress={onClickAdd}
-            style={{ marginBottom: 5, marginTop: -5 }}>
+          <Button onClick={onClickAdd} style={{ marginBottom: 5, marginTop: -5 }}>
+            <PlusOutlined size={16} />
             {t('common.add')}
           </Button>
         </RowFlex>

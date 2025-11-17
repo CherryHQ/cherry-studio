@@ -5,9 +5,8 @@
  * TypeScript will error if any endpoint is missing.
  */
 
+import { TestService } from '@data/services/TestService'
 import type { ApiImplementation } from '@shared/data/api/apiSchemas'
-
-import { TestService } from '../services/TestService'
 
 // Service instances
 const testService = TestService.getInstance()

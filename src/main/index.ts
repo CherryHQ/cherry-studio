@@ -19,9 +19,10 @@ import process from 'node:process'
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
 import { apiServerService } from './services/ApiServerService'
-import { configManager } from './services/ConfigManager'
+import { appMenuService } from './services/AppMenuService'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
+import powerMonitorService from './services/PowerMonitorService'
 import {
   CHERRY_STUDIO_PROTOCOL,
   handleProtocolUrl,
@@ -31,6 +32,7 @@ import {
 import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
+import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
 import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefactorMigrateService'
 import { dataApiService } from '@data/DataApiService'
@@ -42,12 +44,12 @@ const logger = loggerService.withContext('MainEntry')
 /**
  * Disable hardware acceleration if setting is enabled
  */
-//FIXME should not use configManager, use usePreference instead
+//FIXME should not use preferenceService before initialization
 //TODO 我们需要调整配置管理的加载位置，以保证其在 preferenceService 初始化之前被调用
-const disableHardwareAcceleration = configManager.getDisableHardwareAcceleration()
-if (disableHardwareAcceleration) {
-  app.disableHardwareAcceleration()
-}
+// const disableHardwareAcceleration = preferenceService.get('app.disable_hardware_acceleration')
+// if (disableHardwareAcceleration) {
+//   app.disableHardwareAcceleration()
+// }
 
 /**
  * Disable chromium's window animations
@@ -188,6 +190,10 @@ if (!app.requestSingleInstanceLock()) {
 
     /************FOR TESTING ONLY END****************/
 
+    // Record current version for tracking
+    // A preparation for v2 data refactoring
+    versionService.recordCurrentVersion()
+
     initWebviewHotkeys()
     // Set app user model id for windows
     electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
@@ -202,7 +208,11 @@ if (!app.requestSingleInstanceLock()) {
     const mainWindow = windowService.createMainWindow()
 
     new TrayService()
+
+    // Setup macOS application menu
+    appMenuService?.setupApplicationMenu()
     nodeTraceService.init()
+    powerMonitorService.init()
 
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
@@ -238,11 +248,26 @@ if (!app.requestSingleInstanceLock()) {
       logger.error('Failed to initialize Agent service:', error)
     }
 
-    // Start API server if enabled
+    // Start API server if enabled or if agents exist
     try {
       const config = await apiServerService.getCurrentConfig()
       logger.info('API server config:', config)
-      if (config.enabled) {
+
+      // Check if there are any agents
+      let shouldStart = config.enabled
+      if (!shouldStart) {
+        try {
+          const { total } = await agentService.listAgents({ limit: 1 })
+          if (total > 0) {
+            shouldStart = true
+            logger.info(`Detected ${total} agent(s), auto-starting API server`)
+          }
+        } catch (error: any) {
+          logger.warn('Failed to check agent count:', error)
+        }
+      }
+
+      if (shouldStart) {
         await apiServerService.start()
       }
     } catch (error: any) {

@@ -277,15 +277,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
         </ProviderContent>
 
         <ButtonContainer>
-          <Button variant="solid" onPress={onCancel}>
+          <Button variant="default" onClick={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button
-            variant="solid"
-            color="primary"
-            onPress={handleSync}
-            isLoading={isSyncing}
-            isDisabled={isSyncDisabled()}>
+          <Button variant="default" onClick={handleSync} disabled={isSyncing || isSyncDisabled()}>
             {t('settings.mcp.sync.button', 'Sync')}
           </Button>
         </ButtonContainer>

@@ -32,12 +32,12 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
           <Button
-            variant="light"
+            variant="ghost"
             style={{ color: 'var(--color-text-3)', fontSize: 12 }}
-            onPress={handleOpenAccessibility}>
+            onClick={handleOpenAccessibility}>
             {t('selection.settings.enable.mac_process_trust_hint.button.open_accessibility_settings')}
           </Button>
-          <Button color="primary" onPress={handleConfirm}>
+          <Button color="primary" onClick={handleConfirm}>
             {t('selection.settings.enable.mac_process_trust_hint.button.go_to_settings')}
           </Button>
         </div>

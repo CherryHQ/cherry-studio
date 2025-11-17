@@ -400,26 +400,24 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                 <ActionButtonsGroup>
                   {isWaitingConfirmation && (
                     <Button
-                      color="danger"
-                      variant="solid"
+                      variant="destructive"
                       size="sm"
-                      onPress={() => {
+                      onClick={() => {
                         handleCancelTool()
-                      }}
-                      startContent={<CircleX size={15} className="lucide-custom" />}>
+                      }}>
+                      <CircleX size={15} className="lucide-custom" />
                       {t('common.cancel')}
                     </Button>
                   )}
                   {isExecuting && toolResponse?.id ? (
                     <Button
                       size="sm"
-                      color="danger"
-                      variant="solid"
+                      variant="destructive"
                       className="abort-button"
-                      onPress={() => {
+                      onClick={() => {
                         handleAbortTool()
-                      }}
-                      startContent={<PauseCircle size={14} className="lucide-custom" />}>
+                      }}>
+                      <PauseCircle size={14} className="lucide-custom" />
                       {t('chat.input.pause')}
                     </Button>
                   ) : (

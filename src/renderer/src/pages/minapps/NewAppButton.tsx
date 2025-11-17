@@ -147,12 +147,15 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
                 fileList={fileList}
                 onChange={handleFileChange}
                 beforeUpload={() => false}>
-                <Button startContent={<UploadOutlined />}>{t('settings.miniapps.custom.logo_upload_button')}</Button>
+                <Button>
+                  <UploadOutlined />
+                  {t('settings.miniapps.custom.logo_upload_button')}
+                </Button>
               </Upload>
             </Form.Item>
           )}
           <Form.Item>
-            <Button variant="solid" color="primary" type="submit">
+            <Button variant="default" color="primary" type="submit">
               {t('settings.miniapps.custom.save')}
             </Button>
           </Form.Item>

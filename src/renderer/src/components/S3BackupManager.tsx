@@ -232,14 +232,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       width: 160,
       render: (_: any, record: BackupFile) => (
         <>
-          <Button variant="light" onPress={() => handleRestore(record.fileName)} isDisabled={restoring || deleting}>
+          <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
             {t('settings.data.s3.manager.restore')}
           </Button>
-          <Button
-            variant="light"
-            color="danger"
-            onPress={() => handleDeleteSingle(record.fileName)}
-            isDisabled={deleting || restoring}>
+          <Button variant="ghost" onClick={() => handleDeleteSingle(record.fileName)} disabled={deleting || restoring}>
             {t('settings.data.s3.manager.delete.label')}
           </Button>
         </>
@@ -263,19 +259,19 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       centered
       transitionName="animation-move-down"
       footer={[
-        <Button key="refresh" startContent={<ReloadOutlined />} onPress={fetchBackupFiles} isDisabled={loading}>
+        <Button key="refresh" onClick={fetchBackupFiles} disabled={loading}>
+          <ReloadOutlined />
           {t('settings.data.s3.manager.refresh')}
         </Button>,
         <Button
           key="delete"
-          color="danger"
-          startContent={<DeleteOutlined />}
-          onPress={handleDeleteSelected}
-          isDisabled={selectedRowKeys.length === 0 || deleting}
-          isLoading={deleting}>
+          variant="destructive"
+          onClick={handleDeleteSelected}
+          disabled={selectedRowKeys.length === 0 || deleting}>
+          <DeleteOutlined />
           {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
         </Button>,
-        <Button key="close" onPress={onClose}>
+        <Button key="close" onClick={onClose}>
           {t('settings.data.s3.manager.close')}
         </Button>
       ]}>

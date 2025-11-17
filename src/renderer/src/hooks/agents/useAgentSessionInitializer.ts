@@ -17,7 +17,7 @@ export const useAgentSessionInitializer = () => {
   const dispatch = useAppDispatch()
   const client = useAgentClient()
   const { chat } = useRuntime()
-  const { activeAgentId, activeSessionId } = chat
+  const { activeAgentId, activeSessionIdMap } = chat
 
   /**
    * Initialize session for the given agent by loading its sessions
@@ -25,11 +25,11 @@ export const useAgentSessionInitializer = () => {
    */
   const initializeAgentSession = useCallback(
     async (agentId: string) => {
-      if (!agentId || agentId === 'fake') return
+      if (!agentId) return
 
       try {
         // Check if this agent already has an active session
-        const currentSessionId = activeSessionId[agentId]
+        const currentSessionId = activeSessionIdMap[agentId]
         if (currentSessionId) {
           // Session already exists, just switch to session view
           dispatch(setActiveTopicOrSessionAction('session'))
@@ -58,21 +58,21 @@ export const useAgentSessionInitializer = () => {
         dispatch(setActiveTopicOrSessionAction('session'))
       }
     },
-    [client, dispatch, activeSessionId]
+    [client, dispatch, activeSessionIdMap]
   )
 
   /**
    * Auto-initialize when activeAgentId changes
    */
   useEffect(() => {
-    if (activeAgentId && activeAgentId !== 'fake') {
+    if (activeAgentId) {
       // Check if we need to initialize this agent's session
-      const hasActiveSession = activeSessionId[activeAgentId]
+      const hasActiveSession = activeSessionIdMap[activeAgentId]
       if (!hasActiveSession) {
         initializeAgentSession(activeAgentId)
       }
     }
-  }, [activeAgentId, activeSessionId, initializeAgentSession])
+  }, [activeAgentId, activeSessionIdMap, initializeAgentSession])
 
   return {
     initializeAgentSession

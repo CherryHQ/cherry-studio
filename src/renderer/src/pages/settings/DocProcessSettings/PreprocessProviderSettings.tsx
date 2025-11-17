@@ -77,7 +77,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             src={getPreprocessProviderLogo(preprocessProvider.id)}
             className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
           />
-
           <ProviderName> {preprocessProvider.name}</ProviderName>
           {officialWebsite && preprocessProviderConfig?.websites && (
             <Link target="_blank" href={preprocessProviderConfig.websites.official}>
@@ -99,7 +98,9 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             }}>
             {t('settings.provider.api_key.label')}
             <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-              <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
+              <Button variant="ghost" size="sm" onClick={openApiKeyList}>
+                <List size={14} />
+              </Button>
             </Tooltip>
           </SettingSubtitle>
           <Flex className="gap-2">

@@ -130,7 +130,7 @@ const GoogleLoginTip = ({
       banner
       onClose={handleClose}
       action={
-        <Button color="primary" size="sm" onPress={openGoogleMinApp}>
+        <Button color="primary" size="sm" onClick={openGoogleMinApp}>
           {t('common.open')} Google
         </Button>
       }

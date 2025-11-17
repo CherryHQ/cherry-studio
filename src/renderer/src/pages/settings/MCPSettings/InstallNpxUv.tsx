@@ -85,14 +85,12 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     const installed = isUvInstalled && isBunInstalled
     return (
       <Button
-        variant="solid"
-        radius="full"
-        startContent={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
-        className="nodrag"
-        color={installed ? 'success' : 'danger'}
-        onPress={() => navigate('/settings/mcp/mcp-install')}
-        isIconOnly
-      />
+        className="nodrag rounded-full"
+        variant={installed ? 'default' : 'destructive'}
+        onClick={() => navigate('/settings/mcp/mcp-install')}
+        size="icon">
+        {installed ? <CheckCircleOutlined /> : <WarningOutlined />}
+      </Button>
     )
   }
 
@@ -119,13 +117,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {isUvInstalled ? 'UV Installed' : `UV ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
               {!isUvInstalled && (
-                <Button
-                  variant="solid"
-                  color="primary"
-                  onPress={installUV}
-                  isLoading={isInstallingUv}
-                  isDisabled={isInstallingUv}
-                  size="sm">
+                <Button onClick={installUV} disabled={isInstallingUv} size="sm">
                   {isInstallingUv ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -151,13 +143,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {isBunInstalled ? 'Bun Installed' : `Bun ${t('settings.mcp.missingDependencies')}`}
               </SettingSubtitle>
               {!isBunInstalled && (
-                <Button
-                  variant="solid"
-                  color="primary"
-                  onPress={installBun}
-                  isLoading={isInstallingBun}
-                  isDisabled={isInstallingBun}
-                  size="sm">
+                <Button onClick={installBun} disabled={isInstallingBun} size="sm">
                   {isInstallingBun ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -173,7 +159,8 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         }
       />
       <Center>
-        <Button variant="light" onPress={onHelp} startContent={<QuestionCircleOutlined />}>
+        <Button variant="ghost" onClick={onHelp}>
+          <QuestionCircleOutlined />
           {t('settings.mcp.installHelp')}
         </Button>
       </Center>

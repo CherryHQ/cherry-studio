@@ -35,7 +35,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
   return (
     <ListItem ref={ref}>
       <RowFlex className="flex-1 items-center gap-2.5">
-        <Avatar src={getModelLogo(model.id)} className="h-6 w-6">
+        <Avatar src={getModelLogo(model)} className="h-6 w-6">
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
         <ModelIdWithTags
@@ -52,22 +52,14 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
         <RowFlex className="items-center">
           <Tooltip content={t('models.edit')} closeDelay={0}>
-            <Button
-              variant="light"
-              onPress={() => onEdit(model)}
-              isDisabled={disabled}
-              startContent={<Bolt size={14} />}
-              isIconOnly
-            />
+            <Button variant="ghost" onClick={() => onEdit(model)} disabled={disabled} size="icon">
+              <Bolt size={14} />
+            </Button>
           </Tooltip>
           <Tooltip content={t('settings.models.manage.remove_model')} closeDelay={0}>
-            <Button
-              variant="light"
-              onPress={() => onRemove(model)}
-              isDisabled={disabled}
-              startContent={<Minus size={14} />}
-              isIconOnly
-            />
+            <Button variant="ghost" onClick={() => onRemove(model)} disabled={disabled} size="icon">
+              <Minus size={14} />
+            </Button>
           </Tooltip>
         </RowFlex>
       </RowFlex>

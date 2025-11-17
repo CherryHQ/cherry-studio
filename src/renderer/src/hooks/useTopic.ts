@@ -11,12 +11,12 @@ import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { find, isEmpty } from 'lodash'
-import { useEffect, useState } from 'react'
+import { type Dispatch, type SetStateAction, useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
 
 let _activeTopic: Topic
-let _setActiveTopic: (topic: Topic) => void
+let _setActiveTopic: Dispatch<SetStateAction<Topic>>
 
 // const logger = loggerService.withContext('useTopic')
 

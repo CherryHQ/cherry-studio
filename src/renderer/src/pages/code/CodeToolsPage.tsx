@@ -337,13 +337,8 @@ const CodeToolsPage: FC = () => {
                       alignItems: 'center'
                     }}>
                     <span>{t('code.bun_required_message')}</span>
-                    <Button
-                      color="primary"
-                      size="sm"
-                      startContent={<Download size={14} />}
-                      onPress={handleInstallBun}
-                      isLoading={isInstallingBun}
-                      isDisabled={isInstallingBun}>
+                    <Button size="sm" onClick={handleInstallBun} disabled={isInstallingBun}>
+                      <Download size={14} />
                       {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
                     </Button>
                   </div>
@@ -519,11 +514,9 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.powershell &&
                     selectedTerminal !== terminalApps.windowsTerminal && (
                       <Tooltip content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
-                        <Button
-                          startContent={<FolderOpen size={16} />}
-                          isIconOnly
-                          onPress={() => handleSetCustomPath(selectedTerminal)}
-                        />
+                        <Button size="icon" onClick={() => handleSetCustomPath(selectedTerminal)}>
+                          <FolderOpen size={16} />
+                        </Button>
                       </Tooltip>
                     )}
                 </Space.Compact>
@@ -555,13 +548,11 @@ const CodeToolsPage: FC = () => {
           </SettingsPanel>
 
           <Button
-            color="primary"
-            startContent={<Terminal size={16} />}
             size="lg"
-            onPress={handleLaunch}
-            isLoading={isLaunching}
-            isDisabled={!canLaunch || !isBunInstalled}
-            fullWidth={true}>
+            onClick={handleLaunch}
+            disabled={!canLaunch || !isBunInstalled || isLaunching}
+            className="w-full">
+            <Terminal size={16} />
             {isLaunching ? t('code.launching') : t('code.launch.label')}
           </Button>
         </MainContent>

@@ -3,16 +3,16 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   LoadingOutlined,
+  WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
+import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -21,8 +21,8 @@ import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Progress, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
+import { Progress, Switch, Typography } from 'antd'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +37,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -125,11 +124,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'agentssubscribe_url',
-      title: t('assistants.presets.settings.title'),
-      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -289,11 +283,10 @@ const DataSettings: FC = () => {
       <div>
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
-            defaultSelected={shouldCopyData}
-            onValueChange={(checked) => {
-              shouldCopyData = checked
-            }}
-            className="mr-2"
+            defaultChecked={shouldCopyData}
+            onChange={(checked) => (shouldCopyData = checked)}
+            style={{ marginRight: '8px' }}
+            title={t('settings.data.app_data.copy_data_option')}
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
@@ -603,10 +596,12 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
                 <RowFlex className="justify-between gap-[5px]">
-                  <Button onPress={BackupPopup.show} startContent={<SaveIcon size={14} />}>
+                  <Button onClick={BackupPopup.show}>
+                    <SaveIcon size={14} />
                     {t('settings.general.backup.button')}
                   </Button>
-                  <Button onPress={RestorePopup.show} startContent={<FolderOpen size={14} />}>
+                  <Button onClick={RestorePopup.show}>
+                    <FolderOpen size={14} />
                     {t('settings.general.restore.button')}
                   </Button>
                 </RowFlex>
@@ -614,10 +609,20 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-                <Switch isSelected={skipBackupFile} onValueChange={onSkipBackupFilesChange} />
+                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.data.export_to_phone.title')}</SettingRowTitle>
+                <RowFlex className="justify-between gap-[5px]">
+                  <Button variant="ghost" size="sm" onClick={ExportToPhoneLanPopup.show}>
+                    <WifiOutlined />
+                    {t('settings.data.export_to_phone.lan.title')}
+                  </Button>
+                </RowFlex>
               </SettingRow>
             </SettingGroup>
             <SettingGroup theme={theme}>
@@ -633,7 +638,9 @@ const DataSettings: FC = () => {
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
                   <RowFlex className="ml-2 gap-[5px]">
-                    <Button onPress={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                    <Button variant="ghost" size="sm" onClick={handleSelectAppDataPath}>
+                      {t('settings.data.app_data.select')}
+                    </Button>
                   </RowFlex>
                 </PathRow>
               </SettingRow>
@@ -646,7 +653,7 @@ const DataSettings: FC = () => {
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
                   <RowFlex className="ml-2 gap-[5px]">
-                    <Button onPress={() => handleOpenPath(appInfo?.logsPath)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
                     </Button>
                   </RowFlex>
@@ -656,7 +663,9 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
                 <RowFlex className="items-center gap-[5px]">
-                  <Button onPress={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
+                  <Button variant="ghost" size="sm" onClick={handleRemoveAllFiles}>
+                    {t('settings.data.app_knowledge.button.delete')}
+                  </Button>
                 </RowFlex>
               </SettingRow>
               <SettingDivider />
@@ -666,14 +675,16 @@ const DataSettings: FC = () => {
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
                 <RowFlex className="gap-[5px]">
-                  <Button onPress={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
+                  <Button variant="ghost" size="sm" onClick={handleClearCache}>
+                    {t('settings.data.clear_cache.button')}
+                  </Button>
                 </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
                 <RowFlex className="gap-[5px]">
-                  <Button onPress={reset} color="danger">
+                  <Button variant="destructive" size="sm" onClick={reset}>
                     {t('settings.general.reset.title')}
                   </Button>
                 </RowFlex>
@@ -691,7 +702,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>

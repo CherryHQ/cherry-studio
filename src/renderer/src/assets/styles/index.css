@@ -1,7 +1,6 @@
-@import './color.css';
+/* @import './color.css'; */
 @import './font.css';
 @import './markdown.css';
-@import './ant.css';
 @import './scrollbar.css';
 @import './container.css';
 @import './animation.css';
@@ -42,11 +41,11 @@ body,
   margin: 0;
 }
 
-/* #root {
+#root {
   display: flex;
   flex-direction: row;
   flex: 1;
-} */
+}
 
 body {
   display: flex;

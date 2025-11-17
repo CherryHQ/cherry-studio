@@ -112,19 +112,13 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           <Descriptions.Item label={t('settings.models.api_key')}>
             <Flex className="justify-between">
               {showFullKey ? newApiKey : maskApiKey(newApiKey)}
-              <Button
-                variant="light"
-                size="sm"
-                startContent={
-                  showFullKey ? (
-                    <Eye size={16} color="var(--color-text-3)" />
-                  ) : (
-                    <EyeOff size={16} color="var(--color-text-3)" />
-                  )
-                }
-                onPress={() => setShowFullKey((prev) => !prev)}
-                isIconOnly
-              />
+              <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>
+                {showFullKey ? (
+                  <Eye size={16} color="var(--color-text-3)" />
+                ) : (
+                  <EyeOff size={16} color="var(--color-text-3)" />
+                )}
+              </Button>
             </Flex>
           </Descriptions.Item>
         </Descriptions>

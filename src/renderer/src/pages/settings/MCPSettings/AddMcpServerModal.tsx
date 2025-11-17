@@ -145,6 +145,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         // Process DXT file
         try {
+          const installTimestamp = Date.now()
           const result = await window.api.mcp.uploadDxt(dxtFile)
 
           if (!result.success) {
@@ -195,7 +196,11 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             logoUrl: manifest.icon ? `${extractDir}/${manifest.icon}` : undefined,
             provider: manifest.author?.name,
             providerUrl: manifest.homepage || manifest.repository?.url,
-            tags: manifest.keywords
+            tags: manifest.keywords,
+            installSource: 'manual',
+            isTrusted: true,
+            installedAt: installTimestamp,
+            trustedAt: installTimestamp
           }
 
           onSuccess(newServer)
@@ -260,12 +265,17 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         }
 
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
+        const installTimestamp = Date.now()
         const newServer: MCPServer = {
           id: nanoid(),
           ...serverToAdd,
           name: serverToAdd.name || t('settings.mcp.newServer'),
           baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
-          isActive: false // 初始狀態為非啟用
+          isActive: false, // 初始狀態為非啟用
+          installSource: 'manual',
+          isTrusted: true,
+          installedAt: installTimestamp,
+          trustedAt: installTimestamp
         }
 
         onSuccess(newServer)
@@ -359,7 +369,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               }}
               onRemove={() => setDxtFile(null)}
               fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}>
-              <Button startContent={<UploadOutlined />}>{t('settings.mcp.addServer.importFrom.selectDxtFile')}</Button>
+              <Button>
+                <UploadOutlined />
+                {t('settings.mcp.addServer.importFrom.selectDxtFile')}
+              </Button>
             </Upload>
           </Form.Item>
         )}

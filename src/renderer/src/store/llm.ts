@@ -3,7 +3,7 @@ import { createSlice } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
-import type { Model, Provider } from '@renderer/types'
+import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -25,8 +25,10 @@ type LlmSettings = {
     location: string
   }
   awsBedrock: {
+    authType: AwsBedrockAuthType
     accessKeyId: string
     secretAccessKey: string
+    apiKey: string
     region: string
   }
 }
@@ -68,8 +70,10 @@ export const initialState: LlmState = {
       location: ''
     },
     awsBedrock: {
+      authType: 'iam',
       accessKeyId: '',
       secretAccessKey: '',
+      apiKey: '',
       region: ''
     }
   }
@@ -197,11 +201,17 @@ const llmSlice = createSlice({
     setVertexAIServiceAccountClientEmail: (state, action: PayloadAction<string>) => {
       state.settings.vertexai.serviceAccount.clientEmail = action.payload
     },
+    setAwsBedrockAuthType: (state, action: PayloadAction<AwsBedrockAuthType>) => {
+      state.settings.awsBedrock.authType = action.payload
+    },
     setAwsBedrockAccessKeyId: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.accessKeyId = action.payload
     },
     setAwsBedrockSecretAccessKey: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.secretAccessKey = action.payload
+    },
+    setAwsBedrockApiKey: (state, action: PayloadAction<string>) => {
+      state.settings.awsBedrock.apiKey = action.payload
     },
     setAwsBedrockRegion: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.region = action.payload
@@ -242,8 +252,10 @@ export const {
   setVertexAILocation,
   setVertexAIServiceAccountPrivateKey,
   setVertexAIServiceAccountClientEmail,
+  setAwsBedrockAuthType,
   setAwsBedrockAccessKeyId,
   setAwsBedrockSecretAccessKey,
+  setAwsBedrockApiKey,
   setAwsBedrockRegion,
   updateModel
 } = llmSlice.actions

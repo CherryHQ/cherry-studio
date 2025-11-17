@@ -93,11 +93,11 @@ const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, reso
       width={900}
       footer={[
         showDeclineButton && (
-          <Button key="decline" onPress={handleDecline}>
+          <Button key="decline" onClick={handleDecline}>
             {i18n.language.startsWith('zh') ? '拒绝' : 'Decline'}
           </Button>
         ),
-        <Button key="accept" variant="solid" color="primary" onPress={handleAccept}>
+        <Button key="accept" variant="default" color="primary" onClick={handleAccept}>
           {i18n.language.startsWith('zh') ? '同意并继续' : 'Accept and Continue'}
         </Button>
       ].filter(Boolean)}>

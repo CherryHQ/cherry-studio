@@ -121,7 +121,7 @@ const NotionSettings: FC = () => {
               placeholder={t('settings.data.notion.api_key_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onPress={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
+            <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
           </Space.Compact>
         </RowFlex>
       </SettingRow>

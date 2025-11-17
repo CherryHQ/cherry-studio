@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view'
 import { loggerService } from '@logger'
 import type { Extension } from '@uiw/react-codemirror'
 import { keymap } from '@uiw/react-codemirror'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { getNormalizedExtension } from './utils'
 
@@ -203,4 +203,81 @@ export function useHeightListener({ onHeightChange }: UseHeightListenerProps) {
       }
     })
   }, [onHeightChange])
+}
+
+interface UseScrollToLineOptions {
+  highlight?: boolean
+}
+
+export function useScrollToLine(editorViewRef: React.MutableRefObject<EditorView | null>) {
+  const findLineElement = useCallback((view: EditorView, position: number): HTMLElement | null => {
+    const domAtPos = view.domAtPos(position)
+    let node: Node | null = domAtPos.node
+
+    if (node.nodeType === Node.TEXT_NODE) {
+      node = node.parentElement
+    }
+
+    while (node) {
+      if (node instanceof HTMLElement && node.classList.contains('cm-line')) {
+        return node
+      }
+      node = node.parentElement
+    }
+
+    return null
+  }, [])
+
+  const highlightLine = useCallback((view: EditorView, element: HTMLElement) => {
+    const previousHighlight = view.dom.querySelector('.animation-locate-highlight') as HTMLElement | null
+    if (previousHighlight) {
+      previousHighlight.classList.remove('animation-locate-highlight')
+    }
+
+    element.classList.add('animation-locate-highlight')
+
+    const handleAnimationEnd = () => {
+      element.classList.remove('animation-locate-highlight')
+      element.removeEventListener('animationend', handleAnimationEnd)
+    }
+
+    element.addEventListener('animationend', handleAnimationEnd)
+  }, [])
+
+  return useCallback(
+    (lineNumber: number, options?: UseScrollToLineOptions) => {
+      const view = editorViewRef.current
+      if (!view) return
+
+      const targetLine = view.state.doc.line(Math.min(lineNumber, view.state.doc.lines))
+
+      const lineElement = findLineElement(view, targetLine.from)
+      if (lineElement) {
+        lineElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+
+        if (options?.highlight) {
+          requestAnimationFrame(() => highlightLine(view, lineElement))
+        }
+        return
+      }
+
+      view.dispatch({
+        effects: EditorView.scrollIntoView(targetLine.from, {
+          y: 'start'
+        })
+      })
+
+      if (!options?.highlight) {
+        return
+      }
+
+      setTimeout(() => {
+        const fallbackElement = findLineElement(view, targetLine.from)
+        if (fallbackElement) {
+          highlightLine(view, fallbackElement)
+        }
+      }, 200)
+    },
+    [editorViewRef, findLineElement, highlightLine]
+  )
 }

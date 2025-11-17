@@ -65,19 +65,19 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
             <MessageWrapper key={message.id} className={classNames([messageStyle, message.role])}>
               <MessageItem message={message} topic={topic} hideMenuBar={true} />
               <Button
-                variant="light"
-                size="md"
+                variant="ghost"
                 className="absolute top-[5px] right-0 text-[var(--color-text-3)]"
-                onPress={() => locateToMessage(navigate, message)}
-                startContent={<Forward size={16} />}
-              />
+                onClick={() => locateToMessage(navigate, message)}>
+                <Forward size={16} />
+              </Button>
               <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
             </MessageWrapper>
           ))}
           {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           {!isEmpty && (
             <RowFlex className="justify-center">
-              <Button onPress={() => onContinueChat(topic)} startContent={<MessageOutlined />}>
+              <Button onClick={() => onContinueChat(topic)}>
+                <MessageOutlined />
                 {t('history.continue_chat')}
               </Button>
             </RowFlex>

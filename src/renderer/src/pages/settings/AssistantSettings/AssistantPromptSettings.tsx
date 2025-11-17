@@ -157,10 +157,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
         <Button
-          variant="solid"
-          color="primary"
-          startContent={showPreview ? <Edit size={14} /> : <Save size={14} />}
-          onPress={() => {
+          variant="default"
+          onClick={() => {
             const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
             if (showPreview) {
               setShowPreview(false)
@@ -173,6 +171,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
               })
             }
           }}>
+          {showPreview ? <Edit size={14} /> : <Save size={14} />}
           {showPreview ? t('common.edit') : t('common.save')}
         </Button>
       </SpaceBetweenRowFlex>

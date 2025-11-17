@@ -53,13 +53,12 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
         </OAuthButton>
       ) : (
         <RowFlex className="gap-2.5">
-          <Button
-            radius="full"
-            startContent={<CircleDollarSign size={16} />}
-            onPress={() => providerCharge(provider.id)}>
+          <Button className="rounded-full" onClick={() => providerCharge(provider.id)}>
+            <CircleDollarSign size={16} />
             {t('settings.provider.charge')}
           </Button>
-          <Button radius="full" startContent={<ReceiptText size={16} />} onPress={() => providerBills(provider.id)}>
+          <Button className="rounded-full" onClick={() => providerBills(provider.id)}>
+            <ReceiptText size={16} />
             {t('settings.provider.bills')}
           </Button>
         </RowFlex>

@@ -1,4 +1,6 @@
-import { useAppDispatch } from '@renderer/store'
+import { createSelector } from '@reduxjs/toolkit'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setUnifiedListOrder } from '@renderer/store/assistants'
 import type { AgentEntity, Assistant } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
@@ -20,6 +22,13 @@ export const useUnifiedGrouping = (options: UseUnifiedGroupingOptions) => {
   const { unifiedItems, assistants, agents, apiServerEnabled, agentsLoading, agentsError, updateAssistants } = options
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+
+  // Selector to get tagsOrder from Redux store
+  const selectTagsOrder = useMemo(
+    () => createSelector([(state: RootState) => state.assistants], (assistants) => assistants.tagsOrder ?? []),
+    []
+  )
+  const savedTagsOrder = useAppSelector(selectTagsOrder)
 
   // Group unified items by tags
   const groupedUnifiedItems = useMemo(() => {
@@ -45,16 +54,30 @@ export const useUnifiedGrouping = (options: UseUnifiedGroupingOptions) => {
       }
     })
 
-    // Sort groups: untagged first, then tagged groups
+    // Sort groups: untagged first, then by savedTagsOrder
     const untaggedKey = t('assistants.tags.untagged')
     const sortedGroups = Array.from(groups.entries()).sort(([tagA], [tagB]) => {
       if (tagA === untaggedKey) return -1
       if (tagB === untaggedKey) return 1
+
+      if (savedTagsOrder.length > 0) {
+        const indexA = savedTagsOrder.indexOf(tagA)
+        const indexB = savedTagsOrder.indexOf(tagB)
+
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB
+        }
+
+        if (indexA !== -1) return -1
+
+        if (indexB !== -1) return 1
+      }
+
       return 0
     })
 
     return sortedGroups.map(([tag, items]) => ({ tag, items }))
-  }, [unifiedItems, t])
+  }, [unifiedItems, t, savedTagsOrder])
 
   const handleUnifiedGroupReorder = useCallback(
     (tag: string, newGroupList: UnifiedItem[]) => {

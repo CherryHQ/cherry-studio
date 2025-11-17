@@ -16,7 +16,7 @@ export interface ChatState {
   activeAgentId: string | null
   /** UI state. Map agent id to active session id.
    *  null represents no active session  */
-  activeSessionId: Record<string, string | null>
+  activeSessionIdMap: Record<string, string | null>
   /** meanwhile active Assistants or Agents */
   activeTopicOrSession: 'topic' | 'session'
   /** topic ids that are currently being renamed */
@@ -60,9 +60,6 @@ export interface RuntimeState {
   // export: ExportState
   chat: ChatState
   // websearch: WebSearchState
-  iknow: Record<string, boolean>
-  /** To indicate something is pending. */
-  pendingMap: Record<string, boolean | undefined>
 }
 
 export interface ExportState {
@@ -97,16 +94,14 @@ const initialState: RuntimeState = {
     activeTopic: null,
     activeAgentId: null,
     activeTopicOrSession: 'topic',
-    activeSessionId: {},
+    activeSessionIdMap: {},
     renamingTopics: [],
     newlyRenamedTopics: [],
     sessionWaiting: {}
-  },
+  }
   // websearch: {
   //   activeSearches: {}
   // },
-  iknow: {},
-  pendingMap: {}
 }
 
 const runtimeSlice = createSlice({
@@ -171,7 +166,7 @@ const runtimeSlice = createSlice({
     },
     setActiveSessionIdAction: (state, action: PayloadAction<{ agentId: string; sessionId: string | null }>) => {
       const { agentId, sessionId } = action.payload
-      state.chat.activeSessionId[agentId] = sessionId
+      state.chat.activeSessionIdMap[agentId] = sessionId
     },
     setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
       state.chat.activeTopicOrSession = action.payload
@@ -194,9 +189,6 @@ const runtimeSlice = createSlice({
     //   state.websearch.activeSearches[requestId] = status
     // },
     // setPlaceholder: (state, action: PayloadAction<Partial<RuntimeState>>) => {},
-    addIknowAction: (state, action: PayloadAction<string>) => {
-      state.iknow[action.payload] = true
-    },
     setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
       const { id, value } = action.payload
       state.chat.sessionWaiting[id] = value
@@ -226,8 +218,6 @@ export const {
   // setResourcesPath,
   // setUpdateState,
   // setExportState,
-  addIknowAction,
-  setPendingAction,
   // // Chat related actions
   // toggleMultiSelectMode,
   // setSelectedMessageIds,

@@ -1,7 +1,7 @@
 import { SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
-import CodeEditor from '@renderer/components/CodeEditor'
+import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
@@ -19,11 +19,12 @@ interface NotesEditorProps {
   currentContent: string
   tokenCount: number
   editorRef: RefObject<RichEditorRef | null>
+  codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
+  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
@@ -57,6 +58,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
+                ref={codeEditorRef}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}

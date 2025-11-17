@@ -67,14 +67,9 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           style={{ minWidth: 90 }}
         />
         <Tooltip content="Copy">
-          <Button
-            size="sm"
-            variant="light"
-            startContent={<CopyOutlined />}
-            isIconOnly
-            className="code-block-copy-btn"
-            onPress={handleCopy}
-          />
+          <Button size="icon-sm" variant="ghost" className="code-block-copy-btn" onClick={handleCopy}>
+            <CopyOutlined />
+          </Button>
         </Tooltip>
       </div>
       <pre className={`language-${language}`}>

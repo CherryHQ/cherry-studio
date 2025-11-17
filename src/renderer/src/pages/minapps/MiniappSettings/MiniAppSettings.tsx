@@ -79,8 +79,8 @@ const MiniAppSettings: FC = () => {
     <Container>
       <SettingTitle style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
         <ButtonWrapper>
-          <Button onPress={handleSwapMinApps}>{t('common.swap')}</Button>
-          <Button onPress={handleResetMinApps}>{t('common.reset')}</Button>
+          <Button onClick={handleSwapMinApps}>{t('common.swap')}</Button>
+          <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
         </ButtonWrapper>
       </SettingTitle>
       <BorderedContainer>

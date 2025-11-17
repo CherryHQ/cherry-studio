@@ -189,13 +189,9 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
 
           {hasUserModified && (
             <Tooltip content={t('common.reset')}>
-              <Button
-                size="sm"
-                startContent={<RotateCcw size={14} />}
-                onPress={handleResetTypes}
-                variant="light"
-                isIconOnly
-              />
+              <Button size="icon-sm" onClick={handleResetTypes} variant="ghost">
+                <RotateCcw size={14} />
+              </Button>
             </Tooltip>
           )}
         </TypeTitle>
@@ -323,14 +319,14 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
           <Flex className="relative items-center justify-between">
             <Button
-              color="default"
-              variant="solid"
-              endContent={showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              onPress={() => setShowMoreSettings(!showMoreSettings)}
+              variant="default"
+              onClick={() => setShowMoreSettings(!showMoreSettings)}
               style={{ color: 'var(--color-text-3)' }}>
               {t('settings.moresetting.label')}
+              {showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </Button>
-            <Button color="primary" type="submit" startContent={<SaveIcon size={16} />}>
+            <Button type="submit">
+              <SaveIcon size={16} />
               {t('common.save')}
             </Button>
           </Flex>

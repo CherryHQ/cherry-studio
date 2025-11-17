@@ -1,6 +1,7 @@
 {
   "agent": {
     "add": {
+      "description": "調用各種工具處理複雜任務",
       "error": {
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
@@ -22,12 +23,18 @@
     },
     "get": {
       "error": {
-        "failed": "無法取得代理程式。"
+        "failed": "無法取得代理程式。",
+        "null_id": "代理程式 ID 為空。"
       }
     },
     "list": {
       "error": {
         "failed": "無法列出代理程式。"
+      }
+    },
+    "server": {
+      "error": {
+        "not_running": "API 伺服器已啟用，但運行不正常。"
       }
     },
     "session": {
@@ -68,7 +75,8 @@
       },
       "get": {
         "error": {
-          "failed": "無法取得工作階段"
+          "failed": "無法取得工作階段",
+          "null_id": "工作階段 ID 為空"
         }
       },
       "label_one": "會議",
@@ -100,6 +108,50 @@
         "title": "進階設定"
       },
       "essential": "必要設定",
+      "plugins": {
+        "available": {
+          "title": "可用外掛"
+        },
+        "confirm": {
+          "uninstall": "確定要解除安裝此外掛嗎？"
+        },
+        "empty": {
+          "available": "未找到符合的外掛。請嘗試調整搜尋或類別篩選。"
+        },
+        "error": {
+          "install": "安裝外掛失敗",
+          "load": "載入外掛失敗",
+          "uninstall": "解除安裝外掛失敗"
+        },
+        "filter": {
+          "all": "所有類別"
+        },
+        "install": "安裝",
+        "installed": {
+          "empty": "尚未安裝任何外掛。瀏覽可用外掛以開始使用。",
+          "title": "已安裝外掛"
+        },
+        "installing": "安裝中...",
+        "results": "找到 {{count}} 個外掛",
+        "search": {
+          "placeholder": "搜尋外掛..."
+        },
+        "success": {
+          "install": "外掛安裝成功",
+          "uninstall": "外掛解除安裝成功"
+        },
+        "tab": "外掛",
+        "type": {
+          "agent": "代理",
+          "agents": "代理",
+          "all": "全部",
+          "command": "指令",
+          "commands": "指令",
+          "skills": "技能"
+        },
+        "uninstall": "解除安裝",
+        "uninstalling": "解除安裝中..."
+      },
       "prompt": "提示設定",
       "tooling": {
         "mcp": {
@@ -184,6 +236,39 @@
         "toggle": "{{defaultValue}}"
       }
     },
+    "toolPermission": {
+      "aria": {
+        "allowRequest": "允許工具請求",
+        "denyRequest": "拒絕工具請求",
+        "hideDetails": "隱藏工具詳情",
+        "runWithOptions": "帶選項執行",
+        "showDetails": "顯示工具詳情"
+      },
+      "button": {
+        "cancel": "取消",
+        "run": "執行"
+      },
+      "confirmation": "確定要執行此 Claude 工具嗎？",
+      "defaultDenyMessage": "使用者拒絕了該工具的權限。",
+      "defaultDescription": "在您的環境中執行程式碼或系統操作。執行前請確保指令安全。",
+      "error": {
+        "sendFailed": "傳送您的決定失敗，請重試。"
+      },
+      "expired": "已過期",
+      "inputPreview": "工具輸入預覽",
+      "pending": "等待中 ({{seconds}}秒)",
+      "permissionExpired": "權限請求已過期。等待新指令...",
+      "requiresElevatedPermissions": "此工具需要提升的權限。",
+      "suggestion": {
+        "permissionUpdateMultiple": "如果您選擇總是允許此工具，核准可能會更新多個工作階段權限。",
+        "permissionUpdateSingle": "如果您選擇總是允許此工具，核准可能會更新您的工作階段權限。"
+      },
+      "toast": {
+        "denied": "工具請求已被拒絕。",
+        "timeout": "工具請求在收到核准前逾時。"
+      },
+      "waiting": "等待工具權限決定..."
+    },
     "type": {
       "label": "代理類型",
       "unknown": "未知類型"
@@ -237,6 +322,7 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新生成",
+      "notEnabled": "API 伺服器未啟用。",
       "operationFailed": "API 伺服器操作失敗：",
       "restartError": "重新啟動 API 伺服器失敗：",
       "restartFailed": "API 伺服器重新啟動失敗：",
@@ -252,6 +338,41 @@
       "stopped": "已停止"
     },
     "title": "API 伺服器"
+  },
+  "appMenu": {
+    "about": "關於",
+    "close": "關閉視窗",
+    "copy": "複製",
+    "cut": "剪下",
+    "delete": "刪除",
+    "documentation": "文件",
+    "edit": "編輯",
+    "feedback": "回饋",
+    "file": "檔案",
+    "forceReload": "強制重新載入",
+    "front": "全部置於頂層",
+    "help": "幫助",
+    "hide": "隱藏",
+    "hideOthers": "隱藏其他",
+    "minimize": "最小化",
+    "paste": "貼上",
+    "quit": "結束",
+    "redo": "重做",
+    "releases": "版本發布",
+    "reload": "重新載入",
+    "resetZoom": "實際大小",
+    "selectAll": "全選",
+    "services": "服務",
+    "toggleDevTools": "切換開發者工具",
+    "toggleFullscreen": "切換全螢幕",
+    "undo": "復原",
+    "unhide": "全部顯示",
+    "view": "檢視",
+    "website": "網站",
+    "window": "視窗",
+    "zoom": "縮放",
+    "zoomIn": "放大",
+    "zoomOut": "縮小"
   },
   "assistants": {
     "abbr": "助手",
@@ -462,7 +583,11 @@
   "chat": {
     "add": {
       "assistant": {
+        "description": "日常對話和快速問答",
         "title": "新增助手"
+      },
+      "option": {
+        "title": "選擇新增類型"
       },
       "topic": {
         "title": "新增話題"
@@ -506,6 +631,15 @@
       "view_full_content": "查看完整內容"
     },
     "input": {
+      "activity_directory": {
+        "description": "從活動目錄中選擇檔案",
+        "loading": "載入檔案中...",
+        "no_file_found": {
+          "description": "可存取的目錄中沒有檔案",
+          "label": "找不到檔案"
+        },
+        "title": "活動目錄"
+      },
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
@@ -529,12 +663,18 @@
       "new": {
         "context": "清除上下文 {{Command}}"
       },
+      "new_session": "新工作階段 {{Command}}",
       "new_topic": "新話題 {{Command}}",
+      "paste_text_file_confirm": "貼到輸入框？",
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "send": "傳送",
       "settings": "設定",
+      "slash_commands": {
+        "description": "代理會話斜線命令",
+        "title": "斜線指令"
+      },
       "thinking": {
         "budget_exceeds_max": "思考預算超過最大 Token 數",
         "label": "思考",
@@ -752,7 +892,7 @@
         "label": "上下文",
         "tip": "在上下文中保留的前幾則訊息"
       },
-      "max": "最大",
+      "max": "不限",
       "max_tokens": {
         "confirm": "設置最大 Token 數",
         "confirm_content": "設置單次交互所用的最大 Token 數，會影響返回結果的長度。要根據模型上下文限制來設定，否則會發生錯誤",
@@ -943,6 +1083,7 @@
     }
   },
   "common": {
+    "about": "關於",
     "add": "新增",
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
@@ -960,10 +1101,12 @@
     "clear": "清除",
     "close": "關閉",
     "collapse": "折疊",
+    "completed": "已完成",
     "confirm": "確認",
     "copied": "已複製",
     "copy": "複製",
     "copy_failed": "複製失敗",
+    "current": "当前",
     "cut": "剪下",
     "default": "預設",
     "delete": "刪除",
@@ -1525,7 +1668,7 @@
     },
     "assistant": {
       "added": {
-        "content": "智慧代理人新增成功"
+        "content": "助手新增成功"
       }
     },
     "attachments": {
@@ -1650,6 +1793,9 @@
     },
     "message": {
       "code_style": "程式碼風格",
+      "compact": {
+        "title": "對話已壓縮"
+      },
       "delete": {
         "content": "確定要刪除此訊息嗎？",
         "title": "刪除訊息"
@@ -1803,6 +1949,7 @@
     "title": "小工具"
   },
   "minapps": {
+    "ant-ling": "Ant Ling",
     "baichuan": "百小應",
     "baidu-ai-search": "百度AI搜索",
     "chatglm": "智譜清言",
@@ -1959,6 +2106,14 @@
     "rename": "重命名",
     "rename_changed": "由於安全策略，文件名已從 {{original}} 更改為 {{final}}",
     "save": "儲存到筆記",
+    "search": {
+      "both": "名稱+內容",
+      "content": "內容",
+      "found_results": "找到 {{count}} 個結果 (名稱: {{nameCount}}, 內容: {{contentCount}})",
+      "more_matches": "個匹配",
+      "searching": "搜索中...",
+      "show_less": "收起"
+    },
     "settings": {
       "data": {
         "apply": "應用",
@@ -2042,8 +2197,9 @@
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能刪除內建提供者",
-        "existing": "提供商已存在",
-        "not_found": "OCR 提供商不存在",
+        "existing": "提供者已存在",
+        "get_providers": "取得可用提供者失敗",
+        "not_found": "OCR 提供者不存在",
         "update_failed": "更新配置失敗"
       },
       "unknown": "OCR過程發生錯誤"
@@ -2079,7 +2235,7 @@
     "description": "<div><p>1. 下載 OV 模型。</p><p>2. 在 'Manager' 中新增模型。</p><p>僅支援 Windows！</p><p>OVMS 安裝路徑: '%USERPROFILE%\\.cherrystudio\\ovms' 。</p><p>請參考 <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS 指南</a></p></dev>",
     "download": {
       "button": "下載",
-      "error": "選擇失敗",
+      "error": "下載失敗",
       "model_id": {
         "label": "模型 ID",
         "model_id_pattern": "模型 ID 必須以 OpenVINO/ 開頭",
@@ -2104,8 +2260,10 @@
       "install_code_101": "僅支援 Intel(R) Core(TM) Ultra CPU",
       "install_code_102": "僅支援 Windows",
       "install_code_103": "下載 OVMS runtime 失敗",
-      "install_code_104": "解壓 OVMS runtime 失敗",
-      "install_code_105": "清理 OVMS runtime 失敗",
+      "install_code_104": "安裝 OVMS runtime 失敗",
+      "install_code_105": "創建 ovdnd.exe 失敗",
+      "install_code_106": "創建 run.bat 失敗",
+      "install_code_110": "清理舊 OVMS runtime 失敗",
       "run": "執行 OVMS 失敗:",
       "stop": "停止 OVMS 失敗:"
     },
@@ -2285,6 +2443,32 @@
       "seed_tip": "控制放大結果的隨機性"
     }
   },
+  "plugins": {
+    "actions": "操作",
+    "agents": "代理",
+    "all_categories": "所有類別",
+    "all_types": "全部",
+    "category": "類別",
+    "commands": "指令",
+    "confirm_uninstall": "確定要解除安裝 {{name}} 嗎？",
+    "install": "安裝",
+    "install_plugins_from_browser": "瀏覽可用外掛以開始使用",
+    "installing": "安裝中...",
+    "name": "名稱",
+    "no_description": "無描述",
+    "no_installed_plugins": "尚未安裝任何外掛",
+    "no_results": "未找到外掛",
+    "search_placeholder": "搜尋外掛...",
+    "showing_results": "顯示 {{count}} 個外掛",
+    "showing_results_one": "顯示 {{count}} 個外掛",
+    "showing_results_other": "顯示 {{count}} 個外掛",
+    "showing_results_plural": "顯示 {{count}} 個外掛",
+    "skills": "技能",
+    "try_different_search": "請嘗試調整搜尋或類別篩選",
+    "type": "類型",
+    "uninstall": "解除安裝",
+    "uninstalling": "解除安裝中..."
+  },
   "preview": {
     "copy": {
       "image": "複製為圖片"
@@ -2308,6 +2492,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI 閘道器",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2318,6 +2503,7 @@
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
@@ -2331,12 +2517,14 @@
     "gpustack": "GPUStack",
     "grok": "Grok",
     "groq": "Groq",
+    "huggingface": "Hugging Face",
     "hunyuan": "騰訊混元",
     "hyperbolic": "Hyperbolic",
     "infini": "無問芯穹",
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "longcat": "龍貓",
     "minimax": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope 魔搭",
@@ -2356,6 +2544,7 @@
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
     "silicon": "SiliconFlow",
+    "sophnet": "SophNet",
     "stepfun": "StepFun",
     "tencent-cloud-ti": "騰訊雲 TI",
     "together": "Together",
@@ -2802,15 +2991,14 @@
       },
       "description": "一款為創作者而生的強大 AI 助手",
       "downloading": "正在下載...",
+      "enterprise": {
+        "title": "企業版"
+      },
       "feedback": {
         "button": "回饋",
         "title": "回饋"
       },
       "label": "關於與回饋",
-      "license": {
-        "button": "檢視",
-        "title": "授權"
-      },
       "releases": {
         "button": "檢視",
         "title": "更新日誌"
@@ -2917,6 +3105,46 @@
         "siyuan": "匯出到思源筆記",
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "選擇備份檔案"
+        },
+        "content": "匯出部分數據，包括聊天記錄、設定。請注意，備份過程可能需要一些時間，感謝您的耐心等候。",
+        "lan": {
+          "auto_close_tip": "將於 {{seconds}} 秒後自動關閉...",
+          "confirm_close_message": "檔案傳輸正在進行中。關閉將會中斷傳輸。您確定要強制關閉嗎？",
+          "confirm_close_title": "確認關閉",
+          "connected": "已連線",
+          "connection_failed": "連線失敗",
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請打開 Cherry Studio App 掃描此 QR 碼。",
+          "error": {
+            "init_failed": "初始化失敗",
+            "no_file": "未選擇檔案",
+            "no_ip": "無法取得 IP 位址",
+            "send_failed": "無法傳送檔案"
+          },
+          "force_close": "強制關閉",
+          "generating_qr": "正在生成 QR 碼...",
+          "noZipSelected": "未選取壓縮檔案",
+          "scan_qr": "請使用手機掃描QR碼",
+          "selectZip": "選擇壓縮檔案",
+          "sendZip": "開始恢復資料",
+          "status": {
+            "completed": "轉帳完成",
+            "connected": "已連線",
+            "connecting": "連線中...",
+            "disconnected": "已斷線",
+            "error": "連線錯誤",
+            "initializing": "正在初始化連線...",
+            "preparing": "正在準備傳輸...",
+            "sending": "傳輸中 {{progress}}%",
+            "waiting_qr_scan": "請掃描QR碼以連接"
+          },
+          "title": "區域網路傳輸",
+          "transfer_progress": "傳輸進度"
+        },
+        "title": "匯出手機"
       },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
@@ -3576,6 +3804,7 @@
       "builtinServers": "內置伺服器",
       "builtinServersDescriptions": {
         "brave_search": "一個集成了Brave 搜索 API 的 MCP 伺服器實現，提供網頁與本地搜尋雙重功能。需要配置 BRAVE_API_KEY 環境變數",
+        "didi_mcp": "一個集成了滴滴 MCP 伺服器實現，提供網約車服務包括地圖搜尋、價格預估、訂單管理和司機追蹤。僅支援中國大陸地區。需要配置 DIDI_API_KEY 環境變數",
         "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
         "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
         "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
@@ -3599,6 +3828,7 @@
         "description": "不啟用 MCP 服務功能",
         "label": "不使用 MCP 伺服器"
       },
+      "discover": "發現",
       "duplicateName": "已存在相同名稱的伺服器",
       "editJson": "編輯 JSON",
       "editMcpJson": "編輯 MCP 配置",
@@ -3608,6 +3838,10 @@
       "errors": {
         "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整",
         "toolNotFound": "未找到工具 {{name}}"
+      },
+      "fetch": {
+        "button": "獲取伺服器",
+        "success": "伺服器獲取成功"
       },
       "findMore": "更多 MCP",
       "headers": "請求標頭",
@@ -3624,6 +3858,7 @@
       "logoUrl": "標誌網址",
       "longRunning": "長時間運行模式",
       "longRunningTooltip": "啟用後，伺服器支援長時間任務，接收到進度通知時會重置超時計時器，並延長最大超時時間至10分鐘",
+      "marketplaces": "市場",
       "missingDependencies": "缺失，請安裝它以繼續",
       "more": {
         "awesome": "精選的 MCP 伺服器清單",
@@ -3655,6 +3890,12 @@
         "usage": "用法",
         "version": "版本"
       },
+      "oauth": {
+        "callback": {
+          "message": "您可以關閉此頁面並返回 Cherry Studio",
+          "title": "認證成功"
+        }
+      },
       "prompts": {
         "arguments": "參數",
         "availablePrompts": "可用提示",
@@ -3663,9 +3904,16 @@
         "noPromptsAvailable": "無可用提示",
         "requiredField": "必填欄位"
       },
+      "protocolInstallWarning": {
+        "command": "啟動命令",
+        "message": "此 MCP 透過協議從外部來源安裝，執行來源不明的工具可能會對您的電腦造成危害。",
+        "run": "執行",
+        "title": "執行外部 MCP？"
+      },
       "provider": "提供者",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
+      "providers": "提供商",
       "registry": "套件管理源",
       "registryDefault": "預設",
       "registryTooltip": "選擇用於安裝套件的源，以解決預設源的網路問題",
@@ -3688,6 +3936,7 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
+      "servers": "MCP 伺服器",
       "sse": "伺服器傳送事件 (sse)",
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
@@ -4028,7 +4277,6 @@
       },
       "anthropic_api_host": "Anthropic API 主機地址",
       "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
-      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
       "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
       "api": {
         "key": {
@@ -4073,20 +4321,27 @@
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
-          "tip": "/ 結尾忽略 v1 版本，# 結尾強制使用輸入位址"
+          "tip": "# 結尾強制使用輸入位址"
         }
       },
       "api_host": "API 主機地址",
+      "api_host_no_valid": "API 位址不合法",
       "api_host_preview": "預覽：{{url}}",
       "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
         "label": "API 金鑰",
-        "tip": "多個金鑰使用逗號或空格分隔"
+        "tip": "多個金鑰使用逗號分隔"
       },
       "api_version": "API 版本",
       "aws-bedrock": {
         "access_key_id": "AWS 存取密鑰 ID",
         "access_key_id_help": "您的 AWS 存取密鑰 ID，用於存取 AWS Bedrock 服務",
+        "api_key": "Bedrock API 金鑰",
+        "api_key_help": "您的 AWS Bedrock API 金鑰，用於身份驗證",
+        "auth_type": "認證方式",
+        "auth_type_api_key": "Bedrock API 金鑰",
+        "auth_type_help": "選擇使用 IAM 憑證或 Bedrock API 金鑰進行身份驗證",
+        "auth_type_iam": "IAM 憑證",
         "description": "AWS Bedrock 是亞馬遜提供的全托管基础模型服務，支持多種先進的大語言模型",
         "region": "AWS 區域",
         "region_help": "您的 AWS 服務區域，例如 us-east-1",
@@ -4096,7 +4351,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
+          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
       "basic_auth": {
@@ -4215,7 +4470,8 @@
         "none": "不使用代理伺服器",
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
-      }
+      },
+      "tip": "支援模糊匹配（*.test.com，192.168.0.0/16）"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",
@@ -4230,6 +4486,7 @@
       "confirm": "確認",
       "forward": "前進",
       "multiple": "多選",
+      "noResult": "[to be translated]:No results found",
       "page": "翻頁",
       "select": "選擇",
       "title": "快捷選單"

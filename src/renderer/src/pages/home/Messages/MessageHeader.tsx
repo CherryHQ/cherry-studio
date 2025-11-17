@@ -3,7 +3,7 @@ import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogoById } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
@@ -35,7 +35,7 @@ interface Props {
 
 const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   if (isLocalAi) return AppLogo
-  return modelId ? getModelLogo(modelId) : undefined
+  return modelId ? getModelLogoById(modelId) : undefined
 }
 
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {

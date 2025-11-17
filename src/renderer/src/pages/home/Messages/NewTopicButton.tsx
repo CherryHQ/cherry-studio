@@ -19,13 +19,10 @@ const NewTopicButton: FC = () => {
     <div className="-mt-2.5 mb-2.5 flex min-h-auto items-center justify-center p-0">
       <Button
         size="sm"
-        variant="light"
-        color="primary"
-        radius="full"
-        startContent={<FormOutlined />}
-        onPress={addNewTopic}
+        variant="ghost"
+        onClick={addNewTopic}
         className={cn(
-          'h-[34px]! px-3 text-xs opacity-80 transition-all duration-300',
+          'h-[34px]! rounded-full px-3 text-xs opacity-80 transition-all duration-300',
           'hover:border-[var(--color-border-mute)] hover:text-[var(--color-text-1)]! hover:opacity-90',
           theme === ThemeMode.dark
             ? 'bg-[var(--color-background-soft)] hover:bg-[var(--color-background-mute)]!'
@@ -35,6 +32,7 @@ const NewTopicButton: FC = () => {
           backgroundColor: theme === ThemeMode.dark ? '' : undefined,
           color: 'var(--color-text-2)'
         }}>
+        <FormOutlined />
         {t('chat.topics.new')}
       </Button>
     </div>

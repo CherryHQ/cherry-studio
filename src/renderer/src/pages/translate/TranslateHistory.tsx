@@ -102,14 +102,14 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       <Flex className="items-center">
         {t('translate.history.title')}
         <Button
-          startContent={showStared ? <StarFilled /> : <StarOutlined />}
-          isIconOnly
+          size="icon"
           className="text-yellow-300"
-          variant="light"
-          onPress={() => {
+          variant="ghost"
+          onClick={() => {
             setShowStared(!showStared)
-          }}
-        />
+          }}>
+          {showStared ? <StarFilled /> : <StarOutlined />}
+        </Button>
       </Flex>
     )
   }
@@ -130,7 +130,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             title={t('translate.history.clear')}
             description={t('translate.history.clear_description')}
             onConfirm={clearHistory}>
-            <Button variant="light" size="sm" color="danger" startContent={<DeleteOutlined />}>
+            <Button variant="ghost" size="sm">
+              <DeleteOutlined />
               {t('translate.history.clear')}
             </Button>
           </Popconfirm>
@@ -185,14 +186,14 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                           {/* tool bar */}
                           <Flex className="mt-2 items-center justify-end">
                             <Button
-                              startContent={item.star ? <StarFilled /> : <StarOutlined />}
-                              isIconOnly
+                              size="icon"
                               className="text-yellow-300"
-                              variant="light"
-                              onPress={() => {
+                              variant="ghost"
+                              onClick={() => {
                                 handleStar(item.id)
-                              }}
-                            />
+                              }}>
+                              {item.star ? <StarFilled /> : <StarOutlined />}
+                            </Button>
                             <Popconfirm
                               title={t('translate.history.delete')}
                               onConfirm={() => {
@@ -201,7 +202,9 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                               onPopupClick={(e) => {
                                 e.stopPropagation()
                               }}>
-                              <Button startContent={<DeleteOutlined />} isIconOnly color="danger" variant="light" />
+                              <Button size="icon" variant="ghost">
+                                <DeleteOutlined />
+                              </Button>
                             </Popconfirm>
                           </Flex>
                         </Flex>

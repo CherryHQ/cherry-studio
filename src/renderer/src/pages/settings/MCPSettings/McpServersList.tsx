@@ -1,15 +1,15 @@
 import { Sortable, useDndReorder } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import type { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { matchKeywordsInString } from '@renderer/utils/match'
-import { Dropdown, Empty } from 'antd'
+import { Button, Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -19,17 +19,15 @@ import styled from 'styled-components'
 
 import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
-import BuiltinMCPServerList from './BuiltinMCPServerList'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import InstallNpxUv from './InstallNpxUv'
-import McpMarketList from './McpMarketList'
 import McpServerCard from './McpServerCard'
-import SyncServersPopup from './SyncServersPopup'
 
 const logger = loggerService.withContext('McpServersList')
 
 const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
+  const { ensureServerTrusted } = useMCPServerTrust()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
@@ -142,10 +140,6 @@ const McpServersList: FC = () => {
     [t]
   )
 
-  const onSyncServers = useCallback(() => {
-    SyncServersPopup.show(mcpServers)
-  }, [mcpServers])
-
   const handleAddServerSuccess = useCallback(
     async (server: MCPServer) => {
       addMCPServer(server)
@@ -158,30 +152,37 @@ const McpServersList: FC = () => {
   )
 
   const handleToggleActive = async (server: MCPServer, active: boolean) => {
-    setLoadingServerIds((prev) => new Set(prev).add(server.id))
-    const oldActiveState = server.isActive
-    logger.silly('toggle activate', { serverId: server.id, active })
+    let serverForUpdate = server
+    if (active) {
+      const trustedServer = await ensureServerTrusted(server)
+      if (!trustedServer) {
+        return
+      }
+      serverForUpdate = trustedServer
+    }
+
+    setLoadingServerIds((prev) => new Set(prev).add(serverForUpdate.id))
+    const oldActiveState = serverForUpdate.isActive
+    logger.silly('toggle activate', { serverId: serverForUpdate.id, active })
     try {
       if (active) {
-        // Fetch version when server is activated
-        await fetchServerVersion({ ...server, isActive: active })
+        await fetchServerVersion({ ...serverForUpdate, isActive: active })
       } else {
-        await window.api.mcp.stopServer(server)
-        // Clear version when server is deactivated
-        setServerVersions((prev) => ({ ...prev, [server.id]: null }))
+        await window.api.mcp.stopServer(serverForUpdate)
+        setServerVersions((prev) => ({ ...prev, [serverForUpdate.id]: null }))
       }
-      updateMCPServer({ ...server, isActive: active })
+      updateMCPServer({ ...serverForUpdate, isActive: active })
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error),
         centered: true
       })
-      updateMCPServer({ ...server, isActive: oldActiveState })
+      updateMCPServer({ ...serverForUpdate, isActive: oldActiveState })
     } finally {
       setLoadingServerIds((prev) => {
         const next = new Set(prev)
-        next.delete(server.id)
+        next.delete(serverForUpdate.id)
         return next
       })
     }
@@ -230,25 +231,14 @@ const McpServersList: FC = () => {
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
-          <Button
-            startContent={<EditIcon size={14} />}
-            variant="solid"
-            radius="full"
-            onPress={() => EditMcpJsonPopup.show()}>
+          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
             {t('common.edit')}
           </Button>
-          <Dropdown
-            menu={{
-              items: menuItems
-            }}
-            trigger={['click']}>
-            <Button startContent={<Plus size={16} />} variant="solid" radius="full">
+          <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
+            <Button icon={<Plus size={16} />} type="default" shape="round">
               {t('common.add')}
             </Button>
           </Dropdown>
-          <Button startContent={<RefreshIcon size={14} />} variant="solid" onPress={onSyncServers} radius="full">
-            {t('settings.mcp.sync.button')}
-          </Button>
         </ButtonGroup>
       </ListHeader>
       <Sortable
@@ -282,9 +272,6 @@ const McpServersList: FC = () => {
           style={{ marginTop: 20 }}
         />
       )}
-
-      <McpMarketList />
-      <BuiltinMCPServerList />
 
       <AddMcpServerModal
         visible={isAddModalVisible}

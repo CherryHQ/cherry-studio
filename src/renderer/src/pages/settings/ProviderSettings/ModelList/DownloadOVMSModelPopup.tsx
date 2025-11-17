@@ -315,13 +315,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         )}
         <Form.Item className="mb-2 text-center">
           <RowFlex className="relative items-center justify-end">
-            <Button
-              color="primary"
-              variant="solid"
-              type={loading ? 'button' : 'submit'}
-              size="md"
-              isLoading={false}
-              onPress={loading ? onCancel : undefined}>
+            <Button variant="default" type={loading ? 'button' : 'submit'} onClick={loading ? onCancel : undefined}>
               {loading ? t('common.cancel') : t('ovms.download.button')}
             </Button>
           </RowFlex>

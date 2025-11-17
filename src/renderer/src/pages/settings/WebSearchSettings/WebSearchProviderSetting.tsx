@@ -178,7 +178,9 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-              <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
+              <Button variant="ghost" size="icon-sm" onClick={openApiKeyList}>
+                <List size={14} />
+              </Button>
             </Tooltip>
           </SettingSubtitle>
           <Flex className="gap-2">
@@ -191,11 +193,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               type="password"
               autoFocus={apiKey === ''}
             />
-            <Button
-              variant={apiValid ? 'ghost' : 'solid'}
-              color={apiValid ? 'primary' : 'default'}
-              onPress={checkSearch}
-              isDisabled={apiChecking}>
+            <Button variant={apiValid ? 'ghost' : 'default'} onClick={checkSearch} disabled={apiChecking}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (

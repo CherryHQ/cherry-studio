@@ -68,12 +68,8 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          variant="solid"
-          color="primary"
-          startContent={<PlusIcon size={16} />}
-          onPress={handleAddDirectory}
-          isDisabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddDirectory} disabled={disabled}>
+          <PlusIcon size={16} />
           {t('knowledge.add_directory')}
         </ResponsiveButton>
       </ItemHeader>
@@ -102,7 +98,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                 actions: (
                   <FlexAlignCenter>
                     {item.uniqueId && (
-                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                      <Button variant="ghost" onClick={() => refreshItem(item)}>
                         <RefreshIcon />
                       </Button>
                     )}
@@ -115,8 +111,8 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                         type="directory"
                       />
                     </StatusIconWrapper>
-                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
-                      <DeleteIcon size={14} className="lucide-custom" />
+                    <Button variant="ghost" onClick={() => removeItem(item)}>
+                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                     </Button>
                   </FlexAlignCenter>
                 )

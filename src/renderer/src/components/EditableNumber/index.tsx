@@ -20,6 +20,7 @@ export interface EditableNumberProps {
   suffix?: string
   prefix?: string
   align?: 'start' | 'center' | 'end'
+  formatter?: (value: number | null) => string | number
 }
 
 const EditableNumber: FC<EditableNumberProps> = ({
@@ -36,7 +37,8 @@ const EditableNumber: FC<EditableNumberProps> = ({
   style,
   className,
   size = 'middle',
-  align = 'end'
+  align = 'end',
+  formatter
 }) => {
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState(value)
@@ -90,7 +92,7 @@ const EditableNumber: FC<EditableNumberProps> = ({
         changeOnBlur={changeOnBlur}
       />
       <DisplayText style={style} className={className} $align={align} $isEditing={isEditing}>
-        {value ?? placeholder}
+        {formatter ? formatter(value ?? null) : (value ?? placeholder)}
       </DisplayText>
     </Container>
   )

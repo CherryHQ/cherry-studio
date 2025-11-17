@@ -1,5 +1,5 @@
 import { Button, Flex, Tooltip } from '@cherrystudio/ui'
-import { CustomCollapse } from '@cherrystudio/ui'
+import CustomCollapse from '@renderer/components/CustomCollapse'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import type { Model } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
@@ -36,13 +36,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const { t } = useTranslation()
   const listRef = useRef<DynamicVirtualListRef>(null)
 
-  const handleCollapseChange = useCallback((keys: 'all' | Set<React.Key>) => {
-    if (keys === 'all') {
-      return
-    }
-    const stringKeys = Array.from(keys)
-
-    const isNowExpanded = Array.isArray(stringKeys) ? stringKeys.length > 0 : !!stringKeys
+  const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
+    const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
     if (isNowExpanded) {
       // 延迟到 DOM 可见后测量
       requestAnimationFrame(() => listRef.current?.measure())
@@ -52,34 +47,31 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   return (
     <CustomCollapseWrapper>
       <CustomCollapse
-        accordionProps={{
-          variant: 'shadow',
-          defaultExpandedKeys: defaultOpen ? ['1'] : [],
-          onSelectionChange: handleCollapseChange
-        }}
-        accordionItemProps={{
-          disableIndicatorAnimation: true,
-          indicator: (
-            <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0}>
-              <Button
-                as="span"
-                variant="light"
-                className="toolbar-item"
-                startContent={<Minus size={14} />}
-                onPress={onRemoveGroup}
-                isDisabled={disabled}
-                isIconOnly
-              />
-            </Tooltip>
-          ),
-          classNames: {
-            trigger: 'p-[3px_calc(6px_+_var(--scrollbar-width))_3px_16px]'
-          },
-          title: (
-            <Flex className="items-center gap-[10px]">
-              <span style={{ fontWeight: 'bold' }}>{groupName}</span>
-            </Flex>
-          )
+        defaultActiveKey={defaultOpen ? ['1'] : []}
+        onChange={handleCollapseChange}
+        label={
+          <Flex className="items-center gap-[10px]">
+            <span style={{ fontWeight: 'bold' }}>{groupName}</span>
+          </Flex>
+        }
+        extra={
+          <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0}>
+            <Button
+              variant="ghost"
+              className="toolbar-item"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemoveGroup()
+              }}
+              disabled={disabled}>
+              <Minus size={14} />
+            </Button>
+          </Tooltip>
+        }
+        styles={{
+          header: {
+            padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
+          }
         }}>
         <DynamicVirtualList
           ref={listRef}

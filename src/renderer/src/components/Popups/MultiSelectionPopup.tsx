@@ -37,37 +37,34 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
         <ActionButtons>
           <Tooltip content={t('common.save')}>
             <Button
-              radius="full"
-              variant="light"
-              startContent={<Save size={16} />}
-              isDisabled={isActionDisabled}
-              onPress={() => handleAction('save')}
-              isIconOnly
-            />
+              className="rounded-full"
+              variant="ghost"
+              disabled={isActionDisabled}
+              onClick={() => handleAction('save')}
+              size="icon">
+              <Save size={16} />
+            </Button>
           </Tooltip>
           <Tooltip content={t('common.copy')}>
             <Button
-              radius="full"
-              variant="light"
-              startContent={<CopyIcon size={16} />}
-              isDisabled={isActionDisabled}
-              onPress={() => handleAction('copy')}
-              isIconOnly
-            />
+              className="rounded-full"
+              variant="ghost"
+              disabled={isActionDisabled}
+              onClick={() => handleAction('copy')}
+              size="icon">
+              <CopyIcon size={16} />
+            </Button>
           </Tooltip>
           <Tooltip content={t('common.delete')}>
-            <Button
-              radius="full"
-              color="danger"
-              variant="light"
-              startContent={<DeleteIcon size={16} className="lucide-custom" />}
-              onPress={() => handleAction('delete')}
-              isIconOnly
-            />
+            <Button className="rounded-full" variant="ghost" onClick={() => handleAction('delete')} size="icon">
+              <DeleteIcon size={16} className="lucide-custom" />
+            </Button>
           </Tooltip>
         </ActionButtons>
         <Tooltip content={t('chat.navigation.close')}>
-          <Button radius="full" variant="light" startContent={<X size={16} />} onPress={handleClose} isIconOnly />
+          <Button className="rounded-full" variant="ghost" onClick={handleClose} size="icon">
+            <X size={16} />
+          </Button>
         </Tooltip>
       </ActionBar>
     </Container>

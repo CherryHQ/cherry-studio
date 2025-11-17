@@ -81,7 +81,9 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           />
         </Box>
         <Space>
-          <Button variant="light" isIconOnly startContent={<Settings2 size={15} />} onPress={handleNavigateToMemory} />
+          <Button variant="ghost" size="icon" onClick={handleNavigateToMemory}>
+            <Settings2 size={15} />
+          </Button>
           <Tooltip
             content={
               !globalMemoryEnabled
@@ -107,7 +109,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           showIcon
           style={{ marginBottom: 16 }}
           action={
-            <Button size="sm" onPress={handleNavigateToMemory}>
+            <Button size="sm" onClick={handleNavigateToMemory}>
               {t('memory.go_to_memory_page')}
             </Button>
           }

@@ -160,7 +160,7 @@ const QuickAssistantSettings: FC = () => {
               <RowFlex className="items-center gap-0">
                 <StyledButton
                   color={quickAssistantId ? 'primary' : 'default'}
-                  onPress={() => {
+                  onClick={() => {
                     dispatch(setQuickAssistantId(defaultAssistant.id))
                   }}
                   selected={!!quickAssistantId}>
@@ -168,7 +168,7 @@ const QuickAssistantSettings: FC = () => {
                 </StyledButton>
                 <StyledButton
                   color={!quickAssistantId ? 'primary' : 'default'}
-                  onPress={() => dispatch(setQuickAssistantId(''))}
+                  onClick={() => dispatch(setQuickAssistantId(''))}
                   selected={!quickAssistantId}>
                   {t('settings.models.use_model')}
                 </StyledButton>

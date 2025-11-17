@@ -20,6 +20,7 @@ import type {
   UnsupportedFunctionalityError
 } from 'ai'
 
+import type { ProviderSpecificError } from './provider-specific-error'
 import type { Serializable } from './serialize'
 
 export interface SerializedError {
@@ -80,7 +81,7 @@ export interface SerializedAiSdkInvalidArgumentError extends SerializedAiSdkErro
 export const isSerializedAiSdkInvalidArgumentError = (
   error: SerializedError
 ): error is SerializedAiSdkInvalidArgumentError => {
-  return isSerializedAiSdkError(error) && 'parameter' in error && 'value' in error
+  return isSerializedAiSdkError(error) && 'message' in error && error.name === 'AI_InvalidArgumentError'
 }
 
 export interface SerializedAiSdkInvalidDataContentError extends SerializedAiSdkError {
@@ -198,8 +199,18 @@ export interface SerializedAiSdkNoSuchToolError extends SerializedAiSdkError {
   readonly availableTools: string[] | null
 }
 
+export interface SerializedAiSdkProviderSpecificError extends SerializedAiSdkError {
+  readonly provider: string
+}
+
 export const isSerializedAiSdkNoSuchToolError = (error: SerializedError): error is SerializedAiSdkNoSuchToolError => {
   return isSerializedAiSdkError(error) && 'toolName' in error && 'availableTools' in error
+}
+
+export const isSerializedAiSdkProviderSpecificError = (
+  error: SerializedError
+): error is SerializedAiSdkProviderSpecificError => {
+  return isSerializedAiSdkError(error) && 'provider' in error
 }
 
 export interface SerializedAiSdkRetryError extends SerializedAiSdkError {
@@ -277,6 +288,7 @@ export type AiSdkErrorUnion =
   | NoSuchModelError
   | NoSuchProviderError
   | NoSuchToolError
+  | ProviderSpecificError
   | RetryError
   | ToolCallRepairError
   | TypeValidationError
@@ -297,6 +309,7 @@ export type SerializedAiSdkErrorUnion =
   | SerializedAiSdkNoSuchModelError
   | SerializedAiSdkNoSuchProviderError
   | SerializedAiSdkNoSuchToolError
+  | SerializedAiSdkProviderSpecificError
   | SerializedAiSdkRetryError
   | SerializedAiSdkToolCallRepairError
   | SerializedAiSdkTypeValidationError
@@ -317,6 +330,7 @@ export const isSerializedAiSdkErrorUnion = (error: SerializedError): error is Se
     isSerializedAiSdkNoSuchModelError(error) ||
     isSerializedAiSdkNoSuchProviderError(error) ||
     isSerializedAiSdkNoSuchToolError(error) ||
+    isSerializedAiSdkProviderSpecificError(error) ||
     isSerializedAiSdkRetryError(error) ||
     isSerializedAiSdkToolCallRepairError(error) ||
     isSerializedAiSdkTypeValidationError(error) ||

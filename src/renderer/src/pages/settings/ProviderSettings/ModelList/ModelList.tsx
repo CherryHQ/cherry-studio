@@ -120,12 +120,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </RowFlex>
           <RowFlex>
             <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0}>
-              <Button
-                variant="light"
-                onPress={runHealthCheck}
-                startContent={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-                isIconOnly
-              />
+              <Button variant="ghost" onClick={runHealthCheck}>
+                <StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />
+              </Button>
             </Tooltip>
           </RowFlex>
         </RowFlex>
@@ -171,23 +168,18 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         )}
       </Flex>
       <Flex className="mt-3 gap-2.5">
-        <Button
-          color="primary"
-          onPress={onManageModel}
-          startContent={<ListCheck fill="currentColor" size={16} />}
-          isDisabled={isHealthChecking}>
+        <Button onClick={onManageModel} disabled={isHealthChecking}>
+          <ListCheck fill="currentColor" size={16} />
           {t('button.manage')}
         </Button>
         {provider.id !== 'ovms' ? (
-          <Button variant="solid" onPress={onAddModel} startContent={<Plus size={16} />} isDisabled={isHealthChecking}>
+          <Button variant="default" onClick={onAddModel} disabled={isHealthChecking}>
+            <Plus size={16} />
             {t('button.add')}
           </Button>
         ) : (
-          <Button
-            variant="solid"
-            onPress={onDownloadModel}
-            startContent={<Plus size={16} />}
-            isDisabled={isHealthChecking}>
+          <Button onClick={onDownloadModel} disabled={isHealthChecking}>
+            <Plus size={16} />
             {t('button.download')}
           </Button>
         )}

@@ -162,12 +162,9 @@ const NpxSearch: FC = () => {
                       v{record.version}
                     </Tag>
                     <Button
-                      variant="light"
-                      startContent={
-                        isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />
-                      }
-                      size="sm"
-                      onPress={() => {
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
                         if (isInstalled) {
                           return
                         }
@@ -187,8 +184,9 @@ const NpxSearch: FC = () => {
                         addMCPServer(newServer)
                         window.toast.success(t('settings.mcp.addSuccess'))
                       }}
-                      isIconOnly
-                    />
+                      disabled={isInstalled}>
+                      {isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />}
+                    </Button>
                   </Flex>
                 }>
                 <Space direction="vertical" size="small">

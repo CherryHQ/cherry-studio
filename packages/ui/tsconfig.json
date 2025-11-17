@@ -13,9 +13,7 @@
     "noFallthroughCasesInSwitch": true,
     "outDir": "./dist",
     "paths": {
-      "@/*": ["src/*"],
-      "@/types": ["src/types"],
-      "@/utils": ["src/utils"]
+      "@cherrystudio/ui/*": ["./src/*"]
     },
     "resolveJsonModule": true,
     "rootDir": ".",

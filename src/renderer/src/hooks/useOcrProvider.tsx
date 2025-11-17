@@ -1,5 +1,6 @@
 import { Avatar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import IntelLogo from '@renderer/assets/images/providers/intel.png'
 import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
 import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
@@ -77,6 +78,8 @@ export const useOcrProviders = () => {
           return <MonitorIcon size={size} />
         case 'paddleocr':
           return <Avatar src={PaddleocrLogo} style={{ width: size, height: size }} />
+        case 'ovocr':
+          return <Avatar src={IntelLogo} style={{ width: size, height: size }} />
       }
     }
     return <FileQuestionMarkIcon size={size} />

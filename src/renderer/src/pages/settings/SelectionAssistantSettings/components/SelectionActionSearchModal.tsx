@@ -219,7 +219,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                   <Input
                     placeholder={EXAMPLE_URL}
                     suffix={
-                      <Button variant="light" size="sm" onPress={handleTest} style={{ padding: 0, height: 'auto' }}>
+                      <Button variant="ghost" size="sm" onClick={handleTest} style={{ padding: 0, height: 'auto' }}>
                         {t('selection.settings.search_modal.custom.test')}
                       </Button>
                     }

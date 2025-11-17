@@ -69,7 +69,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
             {topicNamingPrompt && (
-              <Button startContent={<ResetIcon size={14} />} onPress={handleReset} variant="light" isIconOnly />
+              <Button onClick={handleReset} variant="ghost" size="icon">
+                <ResetIcon size={14} />
+              </Button>
             )}
           </Flex>
           <Input.TextArea

@@ -18,6 +18,7 @@ interface BaseSelectorProps<V = string | number> {
   options: SelectorOption<V>[]
   placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
+  style?: React.CSSProperties
   /** 字体大小 */
   size?: number
   /** 是否禁用 */
@@ -45,6 +46,7 @@ const Selector = <V extends string | number>({
   placement = 'bottomRight',
   size = 13,
   placeholder,
+  style,
   disabled = false,
   multiple = false
 }: SelectorProps<V>) => {
@@ -137,7 +139,7 @@ const Selector = <V extends string | number>({
       placement={placement}
       open={open && !disabled}
       onOpenChange={handleOpenChange}>
-      <Label $size={size} $open={open} $disabled={disabled} $isPlaceholder={label === placeholder}>
+      <Label style={style} $size={size} $open={open} $disabled={disabled} $isPlaceholder={label === placeholder}>
         {label}
         <LabelIcon size={size + 3} />
       </Label>

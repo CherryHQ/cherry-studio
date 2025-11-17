@@ -22,9 +22,11 @@ import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?
 import GoogleAppLogo from '@renderer/assets/images/apps/google.svg?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
+import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
+import LingAppLogo from '@renderer/assets/images/apps/ling.png?url'
 import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
@@ -460,6 +462,26 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     logo: LongCatAppLogo,
     url: 'https://longcat.chat/',
     bodered: true
+  },
+  {
+    id: 'ling',
+    name: i18n.t('minapps.ant-ling'),
+    url: 'https://ling.tbox.cn/chat',
+    logo: LingAppLogo,
+    bodered: true,
+    style: {
+      padding: 6
+    }
+  },
+  {
+    id: 'huggingchat',
+    name: 'HuggingChat',
+    url: 'https://huggingface.co/chat/',
+    logo: HuggingChatLogo,
+    bodered: true,
+    style: {
+      padding: 6
+    }
   }
 ]
 

@@ -1,0 +1,187 @@
+name: GitHub Issue Tracker with Feishu Notification
+
+on:
+  issues:
+    types: [opened]
+  schedule:
+    # Run every day at 8:30 Beijing Time (00:30 UTC)
+    - cron: "30 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  process-new-issue:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Beijing Time
+        id: check_time
+        run: |
+          # Get current time in Beijing timezone (UTC+8)
+          BEIJING_HOUR=$(TZ='Asia/Shanghai' date +%H)
+          BEIJING_MINUTE=$(TZ='Asia/Shanghai' date +%M)
+
+          echo "Beijing Time: ${BEIJING_HOUR}:${BEIJING_MINUTE}"
+
+          # Check if time is between 00:00 and 08:30
+          if [ $BEIJING_HOUR -lt 8 ] || ([ $BEIJING_HOUR -eq 8 ] && [ $BEIJING_MINUTE -le 30 ]); then
+            echo "should_delay=true" >> $GITHUB_OUTPUT
+            echo "⏰ Issue created during quiet hours (00:00-08:30 Beijing Time)"
+            echo "Will schedule notification for 08:30"
+          else
+            echo "should_delay=false" >> $GITHUB_OUTPUT
+            echo "✅ Issue created during active hours, will notify immediately"
+          fi
+
+      - name: Add pending label if in quiet hours
+        if: steps.check_time.outputs.should_delay == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['pending-feishu-notification']
+            });
+
+      - name: Setup Node.js
+        if: steps.check_time.outputs.should_delay == 'false'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Process issue with Claude
+        if: steps.check_time.outputs.should_delay == 'false'
+        uses: anthropics/claude-code-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: "*"
+          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(node scripts/feishu-notify.js)"
+          prompt: |
+            你是一个GitHub Issue自动化处理助手。请完成以下任务：
+
+            ## 当前Issue信息
+            - Issue编号：#${{ github.event.issue.number }}
+            - 标题：${{ github.event.issue.title }}
+            - 作者：${{ github.event.issue.user.login }}
+            - URL：${{ github.event.issue.html_url }}
+            - 内容：${{ github.event.issue.body }}
+            - 标签：${{ join(github.event.issue.labels.*.name, ', ') }}
+
+            ## 任务步骤
+
+            1. **分析并总结issue**
+               用中文（简体）提供简洁的总结（2-3句话），包括：
+               - 问题的主要内容
+               - 核心诉求
+               - 重要的技术细节
+
+            2. **发送飞书通知**
+               使用以下命令发送飞书通知（注意：ISSUE_SUMMARY需要用引号包裹）：
+               ```bash
+               ISSUE_URL="${{ github.event.issue.html_url }}" \
+               ISSUE_NUMBER="${{ github.event.issue.number }}" \
+               ISSUE_TITLE="${{ github.event.issue.title }}" \
+               ISSUE_AUTHOR="${{ github.event.issue.user.login }}" \
+               ISSUE_LABELS="${{ join(github.event.issue.labels.*.name, ',') }}" \
+               ISSUE_SUMMARY="<你生成的中文总结>" \
+               node scripts/feishu-notify.js
+               ```
+
+            ## 注意事项
+            - 总结必须使用简体中文
+            - ISSUE_SUMMARY 在传递给 node 命令时需要正确转义特殊字符
+            - 如果issue内容为空，也要提供一个简短的说明
+
+            请开始执行任务！
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+
+  process-pending-issues:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Process pending issues with Claude
+        uses: anthropics/claude-code-action@main
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
+          allowed_non_write_users: "*"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: "--allowed-tools Bash(gh issue:*),Bash(gh api:*),Bash(node scripts/feishu-notify.js)"
+          prompt: |
+            你是一个GitHub Issue自动化处理助手。请完成以下任务：
+
+            ## 任务说明
+            处理所有待发送飞书通知的GitHub Issues（标记为 `pending-feishu-notification` 的issues）
+
+            ## 步骤
+
+            1. **获取待处理的issues**
+               使用以下命令获取所有带 `pending-feishu-notification` 标签的issues：
+               ```bash
+               gh api repos/${{ github.repository }}/issues?labels=pending-feishu-notification&state=open
+               ```
+
+            2. **总结每个issue**
+               对于每个找到的issue，用中文提供简洁的总结（2-3句话），包括：
+               - 问题的主要内容
+               - 核心诉求
+               - 重要的技术细节
+
+            3. **发送飞书通知**
+               对于每个issue，使用以下命令发送飞书通知：
+               ```bash
+               ISSUE_URL="<issue的html_url>" \
+               ISSUE_NUMBER="<issue编号>" \
+               ISSUE_TITLE="<issue标题>" \
+               ISSUE_AUTHOR="<issue作者>" \
+               ISSUE_LABELS="<逗号分隔的标签列表，排除pending-feishu-notification>" \
+               ISSUE_SUMMARY="<你生成的中文总结>" \
+               node scripts/feishu-notify.js
+               ```
+
+            4. **移除标签**
+               成功发送后，使用以下命令移除 `pending-feishu-notification` 标签：
+               ```bash
+               gh api -X DELETE repos/${{ github.repository }}/issues/<issue编号>/labels/pending-feishu-notification
+               ```
+
+            ## 环境变量
+            - Repository: ${{ github.repository }}
+            - Feishu webhook URL和密钥已在环境变量中配置好
+
+            ## 注意事项
+            - 如果没有待处理的issues，输出提示信息后直接结束
+            - 处理多个issues时，每个issue之间等待2-3秒，避免API限流
+            - 如果某个issue处理失败，继续处理下一个，不要中断整个流程
+            - 所有总结必须使用中文（简体中文）
+
+            请开始执行任务！
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}

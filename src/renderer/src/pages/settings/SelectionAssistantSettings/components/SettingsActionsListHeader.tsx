@@ -23,7 +23,7 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
       <SettingTitle>{t('selection.settings.actions.title')}</SettingTitle>
       <Spacer />
       <Tooltip content={t('selection.settings.actions.reset.tooltip')}>
-        <ResetButton variant="light" onPress={onReset}>
+        <ResetButton variant="ghost" onClick={onReset}>
           {t('selection.settings.actions.reset.button')}
         </ResetButton>
       </Tooltip>
@@ -33,12 +33,8 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
             ? t('selection.settings.actions.add_tooltip.disabled', { max: maxCustomItems })
             : t('selection.settings.actions.add_tooltip.enabled')
         }>
-        <Button
-          color="primary"
-          startContent={<Plus size={16} />}
-          onPress={onAdd}
-          isDisabled={isCustomItemLimitReached}
-          style={{ paddingInline: '8px' }}>
+        <Button onClick={onAdd} disabled={isCustomItemLimitReached} style={{ paddingInline: '8px' }}>
+          <Plus size={16} />
           {t('selection.settings.actions.custom')}
         </Button>
       </Tooltip>

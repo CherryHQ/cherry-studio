@@ -17,7 +17,7 @@ export { IpcAdapter } from './core/adapters/IpcAdapter'
 export { apiHandlers } from './handlers'
 
 // Services (still used by handlers)
-export { TestService } from './services/TestService'
+export { TestService } from '@data/services/TestService'
 
 // Re-export types for convenience
 export type { CreateTestItemDto, TestItem, UpdateTestItemDto } from '@shared/data/api'

@@ -4,8 +4,8 @@ exports[`ImageToolButton > should match snapshot 1`] = `
 <DocumentFragment>
   <button
     aria-label="Test tooltip"
+    class="rounded-full"
     data-testid="button"
-    radius="full"
     type="button"
   >
     <span

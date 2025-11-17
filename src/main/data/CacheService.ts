@@ -1,3 +1,22 @@
+/**
+ * @fileoverview CacheService - Infrastructure component for multi-tier caching
+ *
+ * NAMING NOTE:
+ * This component is named "CacheService" for management consistency, but it is
+ * actually an infrastructure component (cache manager) rather than a business service.
+ *
+ * True Nature: Cache Manager / Infrastructure Utility
+ * - Provides low-level caching primitives (memory/shared/persist tiers)
+ * - Manages TTL, expiration, and cross-window synchronization via IPC
+ * - Contains zero business logic - purely technical functionality
+ * - Acts as a utility for other services (PreferenceService, business services)
+ *
+ * The "Service" suffix is kept for consistency with existing codebase conventions,
+ * but developers should understand this is infrastructure, not business logic.
+ *
+ * @see {@link CacheService} For implementation details
+ */
+
 import { loggerService } from '@logger'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { IpcChannel } from '@shared/IpcChannel'

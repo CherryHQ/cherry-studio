@@ -170,7 +170,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           }>
           <Switch
             isSelected={isToolAutoApproved(tool, server)}
-            isDisabled={!isToolEnabled(tool)}
+            disabled={!isToolEnabled(tool)}
             onValueChange={(checked) => handleAutoApproveToggle(tool, checked)}
             size="sm"
           />

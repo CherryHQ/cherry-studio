@@ -10,7 +10,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
+import { getProviderLogo, isNewApiProvider, PROVIDER_URLS } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -19,8 +19,7 @@ import {
   getPaintingsBackgroundOptionsLabel,
   getPaintingsImageSizeOptionsLabel,
   getPaintingsModerationOptionsLabel,
-  getPaintingsQualityOptionsLabel,
-  getProviderLabel
+  getPaintingsQualityOptionsLabel
 } from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
@@ -41,6 +40,7 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import ProviderSelect from './components/ProviderSelect'
 import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
@@ -56,8 +56,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [openai_image_generate, openai_image_edit])
 
-  const filteredPaintings = useMemo(() => newApiPaintings[mode] || [], [newApiPaintings, mode])
-  const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
+  // moved below after newApiProvider is defined
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
@@ -68,26 +67,21 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
+  const location = useLocation()
+  const routeName = location.pathname.split('/').pop() || 'new-api'
+  const newApiProviders = providers.filter((p) => isNewApiProvider(p))
+
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
-  const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-  const newApiProvider = providers.find((p) => p.id === 'new-api')!
+  const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
+
+  const filteredPaintings = useMemo(
+    () => (newApiPaintings[mode] || []).filter((p) => p.providerId === newApiProvider.id),
+    [newApiPaintings, mode, newApiProvider.id]
+  )
+  const [painting, setPainting] = useState<PaintingAction>({ ...DEFAULT_PAINTING, providerId: newApiProvider.id })
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'openai_image_generate' },
@@ -101,11 +95,14 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return editImageFiles
   }, [editImageFiles])
 
-  const updatePaintingState = (updates: Partial<PaintingAction>) => {
-    const updatedPainting = { ...painting, ...updates }
-    setPainting(updatedPainting)
-    updatePainting(mode, updatedPainting)
-  }
+  const updatePaintingState = useCallback(
+    (updates: Partial<PaintingAction>) => {
+      const updatedPainting = { ...painting, providerId: newApiProvider.id, ...updates }
+      setPainting(updatedPainting)
+      updatePainting(mode, updatedPainting)
+    },
+    [painting, newApiProvider.id, mode, updatePainting]
+  )
 
   // ---------------- Model Related Configurations ----------------
   // const modelOptions = MODELS.map((m) => ({ label: m.name, value: m.name }))
@@ -138,9 +135,10 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return {
       ...DEFAULT_PAINTING,
       model: painting.model || modelOptions[0]?.value || '',
-      id: uuid()
+      id: uuid(),
+      providerId: newApiProvider.id
     }
-  }, [modelOptions, painting.model])
+  }, [modelOptions, painting.model, newApiProvider.id])
 
   const selectedModelConfig = useMemo(
     () => MODELS.find((m) => m.name === painting.model) || MODELS[0],
@@ -444,11 +442,10 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   // 处理模式切换
   const handleModeChange = (value: string) => {
     setMode(value as keyof PaintingsState)
-    if (newApiPaintings[value as keyof PaintingsState] && newApiPaintings[value as keyof PaintingsState].length > 0) {
-      setPainting(newApiPaintings[value as keyof PaintingsState][0])
-    } else {
-      setPainting(DEFAULT_PAINTING)
-    }
+    const list = (newApiPaintings[value as keyof PaintingsState] || []).filter(
+      (p) => p.providerId === newApiProvider.id
+    )
+    setPainting(list[0] || { ...DEFAULT_PAINTING, providerId: newApiProvider.id })
   }
 
   // 渲染配置项的函数
@@ -473,8 +470,16 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const newPainting = getNewPainting()
       addPainting(mode, newPainting)
       setPainting(newPainting)
+    } else {
+      // 如果当前 painting 存在于 filteredPaintings 中，则优先显示当前 painting
+      const found = filteredPaintings.find((p) => p.id === painting.id)
+      if (found) {
+        setPainting(found)
+      } else {
+        setPainting(filteredPaintings[0])
+      }
     }
-  }, [filteredPaintings, mode, addPainting, painting, getNewPainting])
+  }, [filteredPaintings, mode, addPainting, getNewPainting, painting.id])
 
   useEffect(() => {
     const timer = spaceClickTimer.current
@@ -485,13 +490,21 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [])
 
+  // if painting.model is not set, set it to the first model in modelOptions
+  useEffect(() => {
+    if (!painting.model && modelOptions.length > 0) {
+      updatePaintingState({ model: modelOptions[0].value })
+    }
+  }, [modelOptions, painting.model, updatePaintingState])
+
   return (
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
+            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -501,9 +514,11 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <LeftContainer>
           <ProviderTitleContainer>
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-            <SettingHelpLink target="_blank" href={'https://docs.newapi.pro/apps/cherry-studio/'}>
+            <SettingHelpLink
+              target="_blank"
+              href={PROVIDER_URLS[newApiProvider.id]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'}>
               {t('paintings.learn_more')}
-              <Avatar
+              <ProviderLogo
                 radius="md"
                 src={getProviderLogo(newApiProvider.id)}
                 className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
@@ -512,23 +527,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <Select
-            value={providerOptions.find((p) => p.value === 'new-api')?.value}
-            onChange={handleProviderChange}
-            style={{ width: '100%' }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <Avatar
-                    radius="md"
-                    src={getProviderLogo(provider.value || '')}
-                    className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                  />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={newApiProvider} options={Options} onChange={handleProviderChange} />
 
           {/* 当没有可用的 Image Generation 模型时，提示用户先去新增 */}
           {modelOptions.length === 0 && (
@@ -537,7 +536,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               description={t('paintings.no_image_generation_model', {
                 endpoint_type: t('endpoint_type.image-generation')
               })}>
-              <Button variant="solid" color="primary" onPress={handleShowAddModelPopup}>
+              <Button variant="default" onClick={handleShowAddModelPopup}>
                 {t('paintings.go_to_settings')}
               </Button>
             </Empty>
@@ -792,20 +791,16 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-// 添加新的样式组件
+const ProviderLogo = styled(Avatar)`
+  border: 0.5px solid var(--color-border);
+`
+
 const ModeSegmentedContainer = styled.div`
   display: flex;
   justify-content: center;
   padding-top: 24px;
 `
 
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
-// 添加新的样式组件
 const ProviderTitleContainer = styled.div`
   display: flex;
   justify-content: space-between;

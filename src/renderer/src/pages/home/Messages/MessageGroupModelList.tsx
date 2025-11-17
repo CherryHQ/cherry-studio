@@ -92,7 +92,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               return (
                 <Tooltip key={message.id} content={modelTip} delay={500} closeDelay={0}>
                   <Avatar
-                    src={getModelLogo(message.model?.id || '')}
+                    src={getModelLogo(message.model)}
                     name={first(message.model?.name)}
                     size="xs"
                     isBordered={isSelected}

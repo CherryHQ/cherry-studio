@@ -11,7 +11,6 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
@@ -29,6 +28,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
 import { checkProviderEnabled } from './utils'
 import TokenFluxService from './utils/TokenFluxService'
@@ -53,21 +53,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
   )
-
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -367,7 +352,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
+            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -388,23 +374,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <Select
-            value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
-            onChange={handleProviderChange}
-            style={{ width: '100%' }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <Avatar
-                    radius="md"
-                    src={getProviderLogo(provider.value || '')}
-                    className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                  />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
           <SectionTitle
@@ -759,11 +729,4 @@ const ProviderTitleContainer = styled.div`
   align-items: center;
   margin-bottom: 5px;
 `
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`
-
 export default TokenFluxPage

@@ -3,6 +3,7 @@ import { isLinux } from '@main/constant'
 import type { OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 import { BuiltinOcrProviderIds } from '@types'
 
+import { ovOcrService } from './builtin/OvOcrService'
 import { ppocrService } from './builtin/PpocrService'
 import { systemOcrService } from './builtin/SystemOcrService'
 import { tesseractService } from './builtin/TesseractService'
@@ -23,6 +24,10 @@ export class OcrService {
     this.registry.delete(providerId)
   }
 
+  public listProviderIds(): string[] {
+    return Array.from(this.registry.keys())
+  }
+
   public async ocr(file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> {
     const handler = this.registry.get(provider.id)
     if (!handler) {
@@ -40,3 +45,5 @@ ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(t
 !isLinux && ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
 
 ocrService.register(BuiltinOcrProviderIds.paddleocr, ppocrService.ocr.bind(ppocrService))
+
+ovOcrService.isAvailable() && ocrService.register(BuiltinOcrProviderIds.ovocr, ovOcrService.ocr.bind(ovOcrService))

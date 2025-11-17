@@ -1,4 +1,5 @@
 /src/renderer/src/store/ @0xfullex
+/src/renderer/src/databases/ @0xfullex
 /src/main/services/ConfigManager.ts @0xfullex
 /packages/shared/IpcChannel.ts @0xfullex
 /src/main/ipc.ts @0xfullex
@@ -9,3 +10,5 @@
 /src/renderer/src/data/ @0xfullex
 
 /packages/ui/ @MyPrototypeWhat
+
+/app-upgrade-config.json @kangfenmao

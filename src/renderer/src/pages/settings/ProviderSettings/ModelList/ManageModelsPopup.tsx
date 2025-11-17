@@ -131,10 +131,11 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     (model: Model) => {
       if (!isEmpty(model.name)) {
         if (isNewApiProvider(provider)) {
-          if (model.supported_endpoint_types && model.supported_endpoint_types.length > 0) {
+          const endpointTypes = model.supported_endpoint_types
+          if (endpointTypes && endpointTypes.length > 0) {
             addModel({
               ...model,
-              endpoint_type: model.supported_endpoint_types[0],
+              endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
               supported_text_delta: !isNotSupportedTextDelta(model)
             })
           } else {
@@ -251,24 +252,18 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           }>
           <Button
             variant="ghost"
-            startContent={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
-            isIconOnly
-            size="lg"
-            onPress={() => {
+            size="icon-lg"
+            onClick={() => {
               isAllFilteredInProvider ? onRemoveAll() : onAddAll()
             }}
-            isDisabled={loadingModels || list.length === 0}
-          />
+            disabled={loadingModels || list.length === 0}>
+            {isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
+          </Button>
         </Tooltip>
         <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0}>
-          <Button
-            variant="ghost"
-            startContent={<RefreshCcw size={16} />}
-            isIconOnly
-            size="lg"
-            onPress={() => loadModels(provider)}
-            isDisabled={loadingModels}
-          />
+          <Button variant="ghost" size="icon-lg" onClick={() => loadModels(provider)} disabled={loadingModels}>
+            <RefreshCcw size={16} />
+          </Button>
         </Tooltip>
       </RowFlex>
     )

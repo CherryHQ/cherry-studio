@@ -87,8 +87,8 @@ const SelectionAssistantSettings: FC = () => {
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
           <Button
-            variant="light"
-            onPress={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
+            variant="ghost"
+            onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
             style={{ fontSize: 12 }}>
             {'FAQ & ' + t('settings.about.feedback.button')}
           </Button>
@@ -103,7 +103,7 @@ const SelectionAssistantSettings: FC = () => {
           <Switch
             isSelected={isSupportedOS && selectionEnabled}
             onValueChange={handleEnableCheckboxChange}
-            isDisabled={!isSupportedOS}
+            disabled={!isSupportedOS}
           />
         </SettingRow>
 
@@ -249,7 +249,8 @@ const SelectionAssistantSettings: FC = () => {
                     <SettingRowTitle>{t('selection.settings.advanced.filter_list.title')}</SettingRowTitle>
                     <SettingDescription>{t('selection.settings.advanced.filter_list.description')}</SettingDescription>
                   </SettingLabel>
-                  <Button startContent={<Edit2 size={14} />} onPress={() => setIsFilterListModalOpen(true)}>
+                  <Button onClick={() => setIsFilterListModalOpen(true)}>
+                    <Edit2 size={14} />
                     {t('common.edit')}
                   </Button>
                 </SettingRow>

@@ -138,21 +138,14 @@ const MessageGroupMenuBar: FC<Props> = ({
       </RowFlex>
       {hasFailedMessages && (
         <Tooltip content={t('message.group.retry_failed')} delay={600}>
-          <Button
-            variant="light"
-            size="sm"
-            startContent={<ReloadOutlined />}
-            onPress={handleRetryAll}
-            className="mr-1"
-          />
+          <Button variant="ghost" size="sm" onClick={handleRetryAll} className="mr-1">
+            <ReloadOutlined />
+          </Button>
         </Tooltip>
       )}
-      <Button
-        variant="light"
-        size="sm"
-        startContent={<DeleteOutlined style={{ color: 'var(--color-error)' }} />}
-        onPress={handleDeleteGroup}
-      />
+      <Button variant="ghost" size="sm" onClick={handleDeleteGroup}>
+        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+      </Button>
     </GroupMenuBar>
   )
 }

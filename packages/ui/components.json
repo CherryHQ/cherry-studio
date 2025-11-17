@@ -1,11 +1,11 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
   "aliases": {
-    "components": "@/components",
-    "hooks": "@/hooks",
-    "lib": "@/lib",
-    "ui": "@/components/ui",
-    "utils": "@/utils"
+    "components": "@cherrystudio/ui/components",
+    "hooks": "@cherrystudio/ui/hooks",
+    "lib": "@cherrystudio/ui/lib",
+    "ui": "@cherrystudio/ui/components/primitives",
+    "utils": "@cherrystudio/ui/utils"
   },
   "iconLibrary": "lucide",
   "rsc": false,
@@ -13,7 +13,7 @@
   "tailwind": {
     "baseColor": "zinc",
     "config": "",
-    "css": "src/styles/globals.css",
+    "css": "src/styles/theme.css",
     "cssVariables": true,
     "prefix": ""
   },

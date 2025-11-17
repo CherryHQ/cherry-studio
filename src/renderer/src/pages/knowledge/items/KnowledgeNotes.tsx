@@ -81,12 +81,8 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          variant="solid"
-          color="primary"
-          startContent={<PlusIcon size={16} />}
-          onPress={handleAddNote}
-          isDisabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddNote} disabled={disabled}>
+          <PlusIcon size={16} />
           {t('knowledge.add_note')}
         </ResponsiveButton>
       </ItemHeader>
@@ -112,7 +108,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 extra: getDisplayTime(note),
                 actions: (
                   <FlexAlignCenter>
-                    <Button variant="light" isIconOnly onPress={() => handleEditNote(note)}>
+                    <Button variant="ghost" onClick={() => handleEditNote(note)}>
                       <EditIcon size={14} />
                     </Button>
                     <StatusIconWrapper>
@@ -123,8 +119,8 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="note"
                       />
                     </StatusIconWrapper>
-                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(note)}>
-                      <DeleteIcon size={14} className="lucide-custom" />
+                    <Button variant="ghost" onClick={() => removeItem(note)}>
+                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                     </Button>
                   </FlexAlignCenter>
                 )

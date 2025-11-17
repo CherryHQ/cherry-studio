@@ -275,15 +275,10 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       const fileBuffer = await fs.promises.readFile(filePath)
 
+      // https://mineru.net/apiManage/docs
       const response = await net.fetch(uploadUrl, {
         method: 'PUT',
-        body: fileBuffer,
-        headers: {
-          'Content-Type': 'application/pdf'
-        }
-        // headers: {
-        //   'Content-Length': fileBuffer.length.toString()
-        // }
+        body: fileBuffer as unknown as BodyInit
       })
 
       if (!response.ok) {

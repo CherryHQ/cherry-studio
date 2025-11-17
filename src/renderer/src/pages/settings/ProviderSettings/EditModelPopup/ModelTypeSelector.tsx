@@ -173,7 +173,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
           ]}
         />
         {hasUserModified && (
-          <Button size="sm" onPress={handleResetTypes}>
+          <Button size="sm" onClick={handleResetTypes}>
             {t('common.reset')}
           </Button>
         )}

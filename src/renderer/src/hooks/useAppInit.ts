@@ -13,12 +13,18 @@ import { useAppDispatch } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
+import {
+  type ToolPermissionRequestPayload,
+  type ToolPermissionResultPayload,
+  toolPermissionsActions
+} from '@renderer/store/toolPermissions'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
@@ -27,6 +33,7 @@ import { useNavbarPosition } from './useNavbar'
 const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
+  const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
@@ -73,17 +80,34 @@ export function useAppInit() {
 
   useEffect(() => {
     savedAvatar?.value && cacheService.set('avatar', savedAvatar.value)
-  }, [savedAvatar, dispatch])
+  }, [savedAvatar])
 
   useEffect(() => {
+    const checkForUpdates = async () => {
+      const { isPackaged } = await window.api.getAppInfo()
+
+      if (!isPackaged || !autoCheckUpdate) {
+        return
+      }
+
+      const { updateInfo } = await window.api.checkForUpdate()
+      updateAppUpdateState({ info: updateInfo })
+    }
+
+    // Initial check with delay
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
-        const { updateInfo } = await window.api.checkForUpdate()
-        updateAppUpdateState({ info: updateInfo })
+        await checkForUpdates()
       }
     })
+
+    // Set up 4-hour interval check
+    const FOUR_HOURS = 4 * 60 * 60 * 1000
+    const intervalId = setInterval(checkForUpdates, FOUR_HOURS)
+
+    return () => clearInterval(intervalId)
   }, [autoCheckUpdate, updateAppUpdateState])
 
   useEffect(() => {
@@ -128,7 +152,7 @@ export function useAppInit() {
       cacheService.set('filesPath', info.filesPath)
       cacheService.set('resourcesPath', info.resourcesPath)
     })
-  }, [dispatch])
+  }, [])
 
   useEffect(() => {
     KnowledgeQueue.checkAllBases()
@@ -147,6 +171,63 @@ export function useAppInit() {
       document.head.appendChild(customCssElement)
     }
   }, [customCss])
+
+  useEffect(() => {
+    if (!window.electron?.ipcRenderer) return
+
+    const requestListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
+      logger.debug('Renderer received tool permission request', {
+        requestId: payload.requestId,
+        toolName: payload.toolName,
+        expiresAt: payload.expiresAt,
+        suggestionCount: payload.suggestions.length
+      })
+      dispatch(toolPermissionsActions.requestReceived(payload))
+    }
+
+    const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
+      logger.debug('Renderer received tool permission result', {
+        requestId: payload.requestId,
+        behavior: payload.behavior,
+        reason: payload.reason
+      })
+      dispatch(toolPermissionsActions.requestResolved(payload))
+
+      if (payload.behavior === 'deny') {
+        const message =
+          payload.reason === 'timeout'
+            ? (payload.message ?? t('agent.toolPermission.toast.timeout'))
+            : (payload.message ?? t('agent.toolPermission.toast.denied'))
+
+        if (payload.reason === 'no-window') {
+          logger.debug('Displaying deny toast for tool permission', {
+            requestId: payload.requestId,
+            behavior: payload.behavior,
+            reason: payload.reason
+          })
+          window.toast?.error?.(message)
+        } else if (payload.reason === 'timeout') {
+          logger.debug('Displaying timeout toast for tool permission', {
+            requestId: payload.requestId
+          })
+          window.toast?.warning?.(message)
+        } else {
+          logger.debug('Displaying info toast for tool permission deny', {
+            requestId: payload.requestId,
+            reason: payload.reason
+          })
+          window.toast?.info?.(message)
+        }
+      }
+    }
+
+    const removeListeners = [
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Request, requestListener),
+      window.electron.ipcRenderer.on(IpcChannel.AgentToolPermission_Result, resultListener)
+    ]
+
+    return () => removeListeners.forEach((removeListener) => removeListener())
+  }, [dispatch, t])
 
   useEffect(() => {
     // TODO: init data collection

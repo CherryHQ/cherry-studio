@@ -1,9 +1,8 @@
 import { GithubOutlined } from '@ant-design/icons'
-import { Avatar, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, RadioGroup, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { Radio, RadioGroup, useDisclosure } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import UpdateDialog from '@renderer/components/UpdateDialog'
+import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
@@ -13,12 +12,10 @@ import i18n from '@renderer/i18n'
 // import { handleSaveData } from '@renderer/store'
 // import { setUpdateState as setAppUpdateState } from '@renderer/store/runtime'
 import { runAsyncFunction } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Progress, Row, Tag } from 'antd'
-import type { UpdateInfo } from 'builder-util-runtime'
+import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import { Avatar, Progress, Radio, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
-import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
+import { Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -36,8 +33,6 @@ const AboutSettings: FC = () => {
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
-  const [updateDialogInfo, setUpdateDialogInfo] = useState<UpdateInfo | null>(null)
-  const { isOpen, onOpen, onClose } = useDisclosure()
   const { t } = useTranslation()
   const { theme } = useTheme()
   // const dispatch = useAppDispatch()
@@ -54,8 +49,7 @@ const AboutSettings: FC = () => {
 
       if (appUpdateState.downloaded) {
         // Open update dialog directly in renderer
-        setUpdateDialogInfo(appUpdateState.info || null)
-        onOpen()
+        UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
         return
       }
 
@@ -90,14 +84,8 @@ const AboutSettings: FC = () => {
     await window.api.devTools.toggle()
   }
 
-  const showLicense = async () => {
-    const { appPath } = await window.api.getAppInfo()
-    openSmartMinapp({
-      id: 'cherrystudio-license',
-      name: t('settings.about.license.title'),
-      url: `file://${appPath}/resources/cherry-studio/license.html`,
-      logo: AppLogo
-    })
+  const showEnterprise = async () => {
+    onOpenWebsite('https://cherry-ai.com/enterprise')
   }
 
   const showReleases = async () => {
@@ -226,10 +214,7 @@ const AboutSettings: FC = () => {
             </VersionWrapper>
           </Row>
           {!isPortable && (
-            <CheckUpdateButton
-              onPress={onCheckUpdate}
-              isLoading={appUpdateState.checking}
-              isDisabled={appUpdateState.downloading || appUpdateState.checking}>
+            <CheckUpdateButton onClick={onCheckUpdate} disabled={appUpdateState.downloading || appUpdateState.checking}>
               {appUpdateState.downloading
                 ? t('settings.about.downloading')
                 : appUpdateState.available
@@ -258,7 +243,6 @@ const AboutSettings: FC = () => {
                 <SettingRow>
                   <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
                   <RadioGroup
-                    size="sm"
                     orientation="horizontal"
                     value={getTestChannel()}
                     onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
@@ -297,7 +281,7 @@ const AboutSettings: FC = () => {
             <BadgeQuestionMark size={18} />
             {t('docs.title')}
           </SettingRowTitle>
-          <Button onPress={onOpenDocs}>{t('settings.about.website.button')}</Button>
+          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -305,7 +289,7 @@ const AboutSettings: FC = () => {
             <Rss size={18} />
             {t('settings.about.releases.title')}
           </SettingRowTitle>
-          <Button onPress={showReleases}>{t('settings.about.releases.button')}</Button>
+          <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -313,25 +297,25 @@ const AboutSettings: FC = () => {
             <Globe size={18} />
             {t('settings.about.website.title')}
           </SettingRowTitle>
-          <Button onPress={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
+          <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <GithubOutlined size={18} />
+            <Github size={18} />
             {t('settings.about.feedback.title')}
           </SettingRowTitle>
-          <Button onPress={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
+          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
             {t('settings.about.feedback.button')}
           </Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>
-            <FileCheck size={18} />
-            {t('settings.about.license.title')}
+            <Building2 size={18} />
+            {t('settings.about.enterprise.title')}
           </SettingRowTitle>
-          <Button onPress={showLicense}>{t('settings.about.license.button')}</Button>
+          <Button onClick={showEnterprise}>{t('settings.about.website.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -339,7 +323,7 @@ const AboutSettings: FC = () => {
             <Mail size={18} />
             {t('settings.about.contact.title')}
           </SettingRowTitle>
-          <Button onPress={mailto}>{t('settings.about.contact.button')}</Button>
+          <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -347,12 +331,9 @@ const AboutSettings: FC = () => {
             <Bug size={18} />
             {t('settings.about.debug.title')}
           </SettingRowTitle>
-          <Button onPress={debug}>{t('settings.about.debug.open')}</Button>
+          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
-
-      {/* Update Dialog */}
-      <UpdateDialog isOpen={isOpen} onClose={onClose} releaseInfo={updateDialogInfo} />
     </SettingContainer>
   )
 }

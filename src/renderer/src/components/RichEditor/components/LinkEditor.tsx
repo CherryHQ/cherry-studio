@@ -147,16 +147,16 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
       <Flex className="items-center justify-between">
         <div>
           {showRemove && (
-            <Button size="sm" color="danger" variant="light" onPress={onRemove} className="px-2">
+            <Button size="sm" color="danger" variant="ghost" onClick={onRemove} className="px-2">
               {t('richEditor.link.remove')}
             </Button>
           )}
         </div>
         <Flex className="gap-1.5">
-          <Button size="sm" onPress={onCancel}>
+          <Button size="sm" onClick={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button color="primary" size="sm" onPress={handleSave} isDisabled={!href.trim() || !text.trim()}>
+          <Button color="primary" size="sm" onClick={handleSave} disabled={!href.trim() || !text.trim()}>
             {t('common.save')}
           </Button>
         </Flex>

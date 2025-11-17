@@ -211,10 +211,9 @@ const NutstoreSettings: FC = () => {
         {isLogin ? (
           <RowFlex className="items-center justify-between gap-[5px]">
             <Button
-              variant={nsConnected ? 'ghost' : 'solid'}
-              color={nsConnected ? 'primary' : 'default'}
-              onPress={handleCheckConnection}
-              isLoading={checkConnectionLoading}>
+              variant={nsConnected ? 'ghost' : 'default'}
+              onClick={handleCheckConnection}
+              disabled={checkConnectionLoading}>
               {checkConnectionLoading ? (
                 <LoadingOutlined spin />
               ) : nsConnected ? (
@@ -223,12 +222,12 @@ const NutstoreSettings: FC = () => {
                 t('settings.data.nutstore.checkConnection.name')
               )}
             </Button>
-            <Button variant="solid" color="danger" onPress={handleLayout}>
+            <Button variant="destructive" onClick={handleLayout}>
               {t('settings.data.nutstore.logout.button')}
             </Button>
           </RowFlex>
         ) : (
-          <Button onPress={handleClickNutstoreSSO}>{t('settings.data.nutstore.login.button')}</Button>
+          <Button onClick={handleClickNutstoreSSO}>{t('settings.data.nutstore.login.button')}</Button>
         )}
       </SettingRow>
       <SettingDivider />
@@ -251,17 +250,19 @@ const NutstoreSettings: FC = () => {
                   setNutstorePath(e.target.value)
                 }}
               />
-              <Button variant="solid" onPress={handleClickPathChange} startContent={<FolderOutlined />} isIconOnly />
+              <Button variant="default" onClick={handleClickPathChange} size="icon">
+                <FolderOutlined />
+              </Button>
             </RowFlex>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
             <RowFlex className="justify-between gap-[5px]">
-              <Button onPress={showBackupModal} isLoading={backuping}>
+              <Button onClick={showBackupModal} disabled={backuping}>
                 {t('settings.data.nutstore.backup.button')}
               </Button>
-              <Button onPress={showBackupManager} isDisabled={!nutstoreToken}>
+              <Button onClick={showBackupManager} disabled={!nutstoreToken}>
                 {t('settings.data.nutstore.restore.button')}
               </Button>
             </RowFlex>

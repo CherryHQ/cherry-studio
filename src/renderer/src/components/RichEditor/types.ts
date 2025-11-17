@@ -111,6 +111,8 @@ export interface RichEditorRef {
   getScrollTop: () => number
   /** Set scrollTop of the editor scroll container */
   setScrollTop: (value: number) => void
+  /** Scroll to specific line number in markdown */
+  scrollToLine: (lineNumber: number, options?: { highlight?: boolean; lineContent?: string }) => void
   // Dynamic command management
   /** Register a new command/toolbar item */
   registerCommand: (cmd: Command) => void

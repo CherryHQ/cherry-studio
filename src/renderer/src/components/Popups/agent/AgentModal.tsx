@@ -1,45 +1,32 @@
-import type { SelectedItemProps } from '@heroui/react'
-import {
-  Button,
-  cn,
-  Form,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Select,
-  SelectItem,
-  Textarea,
-  useDisclosure
-} from '@heroui/react'
 import { loggerService } from '@logger'
-import type { Selection } from '@react-types/shared'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { getModelLogo } from '@renderer/config/models'
-import { permissionModeCards } from '@renderer/constants/permissionModes'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { TopView } from '@renderer/components/TopView'
+import { permissionModeCards } from '@renderer/config/agent'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAgentBaseModelButton'
 import type {
   AddAgentForm,
   AgentEntity,
   AgentType,
+  ApiModel,
   BaseAgentForm,
   PermissionMode,
   Tool,
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
+import { Avatar, Button, Input, Modal, Select } from 'antd'
 import { AlertTriangleIcon } from 'lucide-react'
-import type { ChangeEvent, FormEvent, ReactNode } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
-import { ErrorBoundary } from '../../ErrorBoundary'
-import type { BaseOption, ModelOption } from './shared'
-import { Option, renderOption } from './shared'
+import type { BaseOption } from './shared'
+
+const { TextArea } = Input
 
 const logger = loggerService.withContext('AddAgentPopup')
 
@@ -49,8 +36,6 @@ interface AgentTypeOption extends BaseOption {
   name: AgentEntity['name']
 }
 
-type Option = AgentTypeOption | ModelOption
-
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 
 const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
@@ -58,77 +43,44 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   name: existing?.name ?? 'Claude Code',
   description: existing?.description,
   instructions: existing?.instructions,
-  model: existing?.model ?? 'claude-4-sonnet',
+  model: existing?.model ?? '',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
   allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
   mcps: existing?.mcps ? [...existing.mcps] : [],
   configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
 })
 
-interface BaseProps {
+interface ShowParams {
   agent?: AgentWithTools
+  afterSubmit?: (a: AgentEntity) => void
 }
 
-interface TriggerProps extends BaseProps {
-  trigger: { content: ReactNode; className?: string }
-  isOpen?: never
-  onClose?: never
+interface Props extends ShowParams {
+  resolve: (data: any) => void
 }
 
-interface StateProps extends BaseProps {
-  trigger?: never
-  isOpen: boolean
-  onClose: () => void
-}
-
-type Props = TriggerProps | StateProps
-
-/**
- * Modal component for creating or editing an agent.
- *
- * Either trigger or isOpen and onClose is given.
- * @param agent - Optional agent entity for editing mode.
- * @param trigger - Optional trigger element that opens the modal. It MUST propagate the click event to trigger the modal.
- * @param isOpen - Optional controlled modal open state. From useDisclosure.
- * @param onClose - Optional callback when modal closes. From useDisclosure.
- * @returns Modal component for agent creation/editing
- */
-export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, onClose: _onClose }) => {
-  const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
+const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(true)
   const loadingRef = useRef(false)
-  // const { setTimeoutTimer } = useTimer()
   const { addAgent } = useAgents()
   const { updateAgent } = useUpdateAgent()
-  // hard-coded. We only support anthropic for now.
-  const { models } = useApiModels({ providerType: 'anthropic' })
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
 
   useEffect(() => {
-    if (isOpen) {
+    if (open) {
       setForm(buildAgentForm(agent))
     }
-  }, [agent, isOpen])
+  }, [agent, open])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
 
-  const onPermissionModeChange = useCallback((keys: Selection) => {
-    if (keys === 'all') {
-      return
-    }
-
-    const [first] = Array.from(keys)
-    if (!first) {
-      return
-    }
-
+  const onPermissionModeChange = useCallback((value: PermissionMode) => {
     setForm((prev) => {
       const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
-      const nextMode = first as PermissionMode
-
-      if (parsedConfiguration.permission_mode === nextMode) {
+      if (parsedConfiguration.permission_mode === value) {
         if (!prev.configuration) {
           return {
             ...prev,
@@ -142,7 +94,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
         ...prev,
         configuration: {
           ...parsedConfiguration,
-          permission_mode: nextMode
+          permission_mode: value
         }
       }
     })
@@ -163,55 +115,57 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
     []
   )
 
-  const agentOptions: AgentTypeOption[] = useMemo(
+  const agentOptions = useMemo(
     () =>
-      agentConfig.map(
-        (option) =>
-          ({
-            ...option,
-            rendered: <Option option={option} />
-          }) as const satisfies SelectedItemProps
-      ),
+      agentConfig.map((option) => ({
+        value: option.key,
+        label: (
+          <OptionWrapper>
+            <Avatar src={option.avatar} size={24} />
+            <span>{option.label}</span>
+          </OptionWrapper>
+        )
+      })),
     [agentConfig]
   )
 
   const onAgentTypeChange = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) => {
+    (value: AgentType) => {
       const prevConfig = agentConfig.find((config) => config.key === form.type)
       let newName: string | undefined = form.name
       if (prevConfig && prevConfig.name === form.name) {
-        const newConfig = agentConfig.find((config) => config.key === e.target.value)
+        const newConfig = agentConfig.find((config) => config.key === value)
         if (newConfig) {
           newName = newConfig.name
         }
       }
       setForm((prev) => ({
         ...prev,
-        type: e.target.value as AgentType,
+        type: value,
         name: newName
       }))
     },
     [agentConfig, form.name, form.type]
   )
 
-  const onNameChange = useCallback((name: string) => {
+  const onNameChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
       ...prev,
-      name
+      name: e.target.value
     }))
   }, [])
 
-  const onDescChange = useCallback((description: string) => {
+  const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     setForm((prev) => ({
       ...prev,
-      description
+      description: e.target.value
     }))
   }, [])
 
-  const onInstChange = useCallback((instructions: string) => {
+  const onInstChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     setForm((prev) => ({
       ...prev,
-      instructions
+      instructions: e.target.value
     }))
   }, [])
 
@@ -244,24 +198,35 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
     }))
   }, [])
 
-  const modelOptions = useMemo(() => {
-    // mocked data. not final version
-    return (models ?? []).map((model) => ({
-      type: 'model',
-      key: model.id,
-      label: model.name,
-      avatar: getModelLogo(model.id),
-      providerId: model.provider,
-      providerName: model.provider_name
-    })) satisfies ModelOption[]
-  }, [models])
+  // Create a temporary agentBase object for SelectAgentBaseModelButton
+  const tempAgentBase: AgentEntity = useMemo(
+    () => ({
+      id: agent?.id ?? 'temp-creating',
+      type: form.type,
+      name: form.name,
+      model: form.model,
+      accessible_paths: form.accessible_paths.length > 0 ? form.accessible_paths : ['/'],
+      allowed_tools: form.allowed_tools ?? [],
+      description: form.description,
+      instructions: form.instructions,
+      configuration: form.configuration,
+      created_at: agent?.created_at ?? new Date().toISOString(),
+      updated_at: agent?.updated_at ?? new Date().toISOString()
+    }),
+    [form, agent?.id, agent?.created_at, agent?.updated_at]
+  )
 
-  const onModelChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      model: e.target.value
-    }))
+  const handleModelSelect = useCallback(async (model: ApiModel) => {
+    setForm((prev) => ({ ...prev, model: model.id }))
   }, [])
+
+  const onCancel = () => {
+    setOpen(false)
+  }
+
+  const onClose = () => {
+    resolve({})
+  }
 
   const onSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
@@ -307,8 +272,13 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
-        updateAgent(updatePayload)
-        logger.debug('Updated agent', updatePayload)
+        const result = await updateAgent(updatePayload)
+        if (result) {
+          logger.debug('Updated agent', result)
+          afterSubmit?.(result)
+        } else {
+          logger.error('Update failed.')
+        }
       } else {
         const newAgent = {
           type: form.type,
@@ -321,183 +291,339 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         const result = await addAgent(newAgent)
+
         if (!result.success) {
           loadingRef.current = false
           throw result.error
         }
+        afterSubmit?.(result.data)
       }
-
       loadingRef.current = false
-
-      // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-      onClose()
+      setOpen(false)
     },
     [
       form.type,
       form.model,
+      form.accessible_paths,
       form.name,
       form.description,
       form.instructions,
-      form.accessible_paths,
       form.allowed_tools,
       form.configuration,
       agent,
-      onClose,
       t,
       updateAgent,
+      afterSubmit,
       addAgent
     ]
   )
 
+  AgentModalPopup.hide = onCancel
+
   return (
     <ErrorBoundary>
-      {/* NOTE: Hero UI Modal Pattern: Combine the Button and Modal components into a single
-      encapsulated component. This is because the Modal component needs to bind the onOpen
-      event handler to the Button for proper focus management.
-
-      Or just use external isOpen/onOpen/onClose to control modal state.
-      */}
-
-      {trigger && (
-        <div
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpen()
-          }}
-          className={cn('w-full', trigger.className)}>
-          {trigger.content}
-        </div>
-      )}
       <Modal
-        isOpen={isOpen}
-        onClose={onClose}
-        classNames={{
-          base: 'max-h-[90vh]',
-          wrapper: 'overflow-hidden'
-        }}>
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader>{isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}</ModalHeader>
-              <Form onSubmit={onSubmit} className="min-h-0 w-full shrink overflow-auto">
-                <ModalBody className="min-h-0 w-full flex-1 shrink overflow-auto">
-                  <div className="flex gap-2">
-                    <Select
-                      isRequired
-                      isDisabled={isEditing(agent)}
-                      selectionMode="single"
-                      selectedKeys={[form.type]}
-                      disallowEmptySelection
-                      onChange={onAgentTypeChange}
-                      items={agentOptions}
-                      label={t('agent.type.label')}
-                      placeholder={t('agent.add.type.placeholder')}
-                      renderValue={renderOption}>
-                      {(option) => (
-                        <SelectItem key={option.key} textValue={option.label}>
-                          <Option option={option} />
-                        </SelectItem>
-                      )}
-                    </Select>
-                    <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
-                  </div>
-                  <Select
-                    isRequired
-                    selectionMode="single"
-                    selectedKeys={form.model ? [form.model] : []}
-                    disallowEmptySelection
-                    onChange={onModelChange}
-                    items={modelOptions}
-                    label={t('common.model')}
-                    placeholder={t('common.placeholders.select.model')}
-                    renderValue={renderOption}>
-                    {(option) => (
-                      <SelectItem key={option.key} textValue={option.label}>
-                        <Option option={option} />
-                      </SelectItem>
-                    )}
-                  </Select>
-                  <Select
-                    isRequired
-                    selectionMode="single"
-                    selectedKeys={[selectedPermissionMode]}
-                    onSelectionChange={onPermissionModeChange}
-                    label={t('agent.settings.tooling.permissionMode.title', 'Permission mode')}
-                    placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                    description={t(
-                      'agent.settings.tooling.permissionMode.helper',
-                      'Choose how the agent handles tool approvals.'
-                    )}
-                    items={permissionModeCards}>
-                    {(item) => (
-                      <SelectItem key={item.mode} textValue={t(item.titleKey, item.titleFallback)}>
-                        <div className="flex flex-col gap-1">
-                          <span className="font-medium text-sm">{t(item.titleKey, item.titleFallback)}</span>
-                          <span className="text-foreground-500 text-xs">
-                            {t(item.descriptionKey, item.descriptionFallback)}
-                          </span>
-                          <span className="text-foreground-400 text-xs">
-                            {t(item.behaviorKey, item.behaviorFallback)}
-                          </span>
-                          {item.caution ? (
-                            <span className="flex items-center gap-1 text-danger-500 text-xs">
-                              <AlertTriangleIcon size={12} className="text-danger" />
-                              {t(
-                                'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                                'Use with caution — all tools will run without asking for approval.'
-                              )}
-                            </span>
-                          ) : null}
+        title={isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}
+        open={open}
+        onCancel={onCancel}
+        afterClose={onClose}
+        transitionName="animation-move-down"
+        centered
+        width={500}
+        footer={null}>
+        <StyledForm onSubmit={onSubmit}>
+          <FormContent>
+            <FormRow>
+              <FormItem style={{ flex: 1 }}>
+                <Label>{t('agent.type.label')}</Label>
+                <Select
+                  value={form.type}
+                  onChange={onAgentTypeChange}
+                  options={agentOptions}
+                  disabled={isEditing(agent)}
+                  style={{ width: '100%' }}
+                />
+              </FormItem>
+              <FormItem style={{ flex: 1 }}>
+                <Label>
+                  {t('common.name')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Input value={form.name} onChange={onNameChange} required />
+              </FormItem>
+            </FormRow>
+
+            <FormItem>
+              <Label>
+                {t('common.model')} <RequiredMark>*</RequiredMark>
+              </Label>
+              <SelectAgentBaseModelButton
+                agentBase={tempAgentBase}
+                onSelect={handleModelSelect}
+                fontSize={14}
+                avatarSize={24}
+                iconSize={16}
+                buttonStyle={{
+                  padding: '8px 12px',
+                  width: '100%',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 6,
+                  height: 'auto'
+                }}
+                containerClassName="flex items-center justify-between w-full"
+              />
+            </FormItem>
+
+            <FormItem>
+              <Label>
+                {t('agent.settings.tooling.permissionMode.title', 'Permission mode')} <RequiredMark>*</RequiredMark>
+              </Label>
+              <Select
+                value={selectedPermissionMode}
+                onChange={onPermissionModeChange}
+                style={{ width: '100%' }}
+                placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                dropdownStyle={{ minWidth: '500px' }}
+                optionLabelProp="label">
+                {permissionModeCards.map((item) => (
+                  <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
+                    <PermissionOptionWrapper>
+                      <div className="title">{t(item.titleKey, item.titleFallback)}</div>
+                      <div className="description">{t(item.descriptionKey, item.descriptionFallback)}</div>
+                      <div className="behavior">{t(item.behaviorKey, item.behaviorFallback)}</div>
+                      {item.caution && (
+                        <div className="caution">
+                          <AlertTriangleIcon size={12} />
+                          {t(
+                            'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+                            'Use with caution — all tools will run without asking for approval.'
+                          )}
                         </div>
-                      </SelectItem>
-                    )}
-                  </Select>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-foreground text-sm">
-                        {t('agent.session.accessible_paths.label')}
-                      </span>
-                      <Button size="sm" variant="flat" onPress={addAccessiblePath}>
-                        {t('agent.session.accessible_paths.add')}
+                      )}
+                    </PermissionOptionWrapper>
+                  </Select.Option>
+                ))}
+              </Select>
+              <HelpText>
+                {t('agent.settings.tooling.permissionMode.helper', 'Choose how the agent handles tool approvals.')}
+              </HelpText>
+            </FormItem>
+
+            <FormItem>
+              <LabelWithButton>
+                <Label>
+                  {t('agent.session.accessible_paths.label')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <Button size="small" onClick={addAccessiblePath}>
+                  {t('agent.session.accessible_paths.add')}
+                </Button>
+              </LabelWithButton>
+              {form.accessible_paths.length > 0 ? (
+                <PathList>
+                  {form.accessible_paths.map((path) => (
+                    <PathItem key={path}>
+                      <PathText title={path}>{path}</PathText>
+                      <Button size="small" danger onClick={() => removeAccessiblePath(path)}>
+                        {t('common.delete')}
                       </Button>
-                    </div>
-                    {form.accessible_paths.length > 0 ? (
-                      <div className="space-y-2">
-                        {form.accessible_paths.map((path) => (
-                          <div
-                            key={path}
-                            className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-3 py-2">
-                            <span className="truncate text-sm" title={path}>
-                              {path}
-                            </span>
-                            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
-                              {t('common.delete')}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-foreground-400 text-sm">{t('agent.session.accessible_paths.empty')}</p>
-                    )}
-                  </div>
-                  <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
-                  <Textarea
-                    label={t('common.description')}
-                    value={form.description ?? ''}
-                    onValueChange={onDescChange}
-                  />
-                </ModalBody>
-                <ModalFooter className="w-full">
-                  <Button onPress={onClose}>{t('common.close')}</Button>
-                  <Button color="primary" type="submit" isLoading={loadingRef.current}>
-                    {isEditing(agent) ? t('common.confirm') : t('common.add')}
-                  </Button>
-                </ModalFooter>
-              </Form>
-            </>
-          )}
-        </ModalContent>
+                    </PathItem>
+                  ))}
+                </PathList>
+              ) : (
+                <EmptyText>{t('agent.session.accessible_paths.empty')}</EmptyText>
+              )}
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('common.prompt')}</Label>
+              <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
+            </FormItem>
+
+            <FormItem>
+              <Label>{t('common.description')}</Label>
+              <TextArea rows={2} value={form.description ?? ''} onChange={onDescChange} />
+            </FormItem>
+          </FormContent>
+
+          <FormFooter>
+            <Button onClick={onCancel}>{t('common.close')}</Button>
+            <Button type="primary" htmlType="submit" loading={loadingRef.current}>
+              {isEditing(agent) ? t('common.confirm') : t('common.add')}
+            </Button>
+          </FormFooter>
+        </StyledForm>
       </Modal>
     </ErrorBoundary>
   )
 }
+
+const TopViewKey = 'AgentModalPopup'
+
+export default class AgentModalPopup {
+  static topviewId = 0
+  static hide() {
+    TopView.hide(TopViewKey)
+  }
+  static show(props: ShowParams) {
+    return new Promise<any>((resolve) => {
+      TopView.show(
+        <PopupContainer
+          {...props}
+          resolve={(v) => {
+            resolve(v)
+            TopView.hide(TopViewKey)
+          }}
+        />,
+        TopViewKey
+      )
+    })
+  }
+}
+
+// Keep the old export for backward compatibility during migration
+export const AgentModal = AgentModalPopup
+
+const StyledForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`
+
+const FormContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 8px;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--color-border);
+    border-radius: 3px;
+  }
+`
+
+const FormRow = styled.div`
+  display: flex;
+  gap: 12px;
+`
+
+const FormItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const Label = styled.label`
+  font-size: 14px;
+  color: var(--color-text-1);
+  font-weight: 500;
+`
+
+const RequiredMark = styled.span`
+  color: #ff4d4f;
+  margin-left: 4px;
+`
+
+const HelpText = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+`
+
+const LabelWithButton = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`
+
+const PathList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const PathItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-bg-1);
+`
+
+const PathText = styled.span`
+  flex: 1;
+  font-size: 13px;
+  color: var(--color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const EmptyText = styled.p`
+  font-size: 13px;
+  color: var(--color-text-3);
+  margin: 0;
+`
+
+const FormFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border);
+`
+
+const OptionWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const PermissionOptionWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+
+  .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-1);
+    margin-bottom: 2px;
+  }
+
+  .description {
+    font-size: 12px;
+    color: var(--color-text-2);
+    line-height: 1.4;
+  }
+
+  .behavior {
+    font-size: 12px;
+    color: var(--color-text-3);
+    line-height: 1.4;
+  }
+
+  .caution {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: #ff4d4f;
+    margin-top: 4px;
+    padding: 6px 8px;
+    background-color: rgba(255, 77, 79, 0.1);
+    border-radius: 4px;
+
+    svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+  }
+`

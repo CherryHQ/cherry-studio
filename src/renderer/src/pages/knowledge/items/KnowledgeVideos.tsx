@@ -86,12 +86,8 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          variant="solid"
-          color="primary"
-          startContent={<Plus size={16} />}
-          onPress={handleAddVideo}
-          isDisabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddVideo} disabled={disabled}>
+          <Plus size={16} />
           {t('knowledge.add_video')}
         </ResponsiveButton>
       </ItemHeader>
@@ -137,12 +133,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button
-                              variant="light"
-                              startContent={<RefreshIcon />}
-                              isIconOnly
-                              onPress={() => refreshItem(item)}
-                            />
+                            <Button variant="ghost" onClick={() => refreshItem(item)}>
+                              <RefreshIcon />
+                            </Button>
                           )}
 
                           <StatusIconWrapper>
@@ -153,13 +146,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button
-                            variant="light"
-                            color="danger"
-                            startContent={<DeleteOutlined />}
-                            isIconOnly
-                            onPress={() => removeItem(item)}
-                          />
+                          <Button variant="ghost" onClick={() => removeItem(item)}>
+                            <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                          </Button>
                         </FlexAlignCenter>
                       )
                     }}

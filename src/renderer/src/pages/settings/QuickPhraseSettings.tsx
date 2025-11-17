@@ -79,7 +79,9 @@ const QuickPhraseSettings: FC = () => {
       <SettingGroup style={{ marginBottom: 0 }} theme={theme}>
         <SettingTitle>
           {t('settings.quickPhrase.title')}
-          <Button variant="light" startContent={<PlusIcon size={18} />} onPress={handleAdd} isIconOnly />
+          <Button variant="ghost" onClick={handleAdd} size="icon">
+            <PlusIcon size={18} />
+          </Button>
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -99,13 +101,9 @@ const QuickPhraseSettings: FC = () => {
                     extra: phrase.content,
                     actions: (
                       <Flex className="gap-1 opacity-60">
-                        <Button
-                          key="edit"
-                          variant="light"
-                          startContent={<EditIcon size={14} />}
-                          onPress={() => handleEdit(phrase)}
-                          isIconOnly
-                        />
+                        <Button key="edit" variant="ghost" onClick={() => handleEdit(phrase)} size="icon">
+                          <EditIcon size={14} />
+                        </Button>
                         <Popconfirm
                           title={t('settings.quickPhrase.delete')}
                           description={t('settings.quickPhrase.deleteConfirm')}
@@ -113,13 +111,9 @@ const QuickPhraseSettings: FC = () => {
                           cancelText={t('common.cancel')}
                           onConfirm={() => handleDelete(phrase.id)}
                           icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          <Button
-                            key="delete"
-                            variant="light"
-                            color="danger"
-                            startContent={<DeleteIcon size={14} className="lucide-custom" />}
-                            isIconOnly
-                          />
+                          <Button key="delete" variant="ghost" onClick={() => {}} size="icon">
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
                         </Popconfirm>
                       </Flex>
                     )

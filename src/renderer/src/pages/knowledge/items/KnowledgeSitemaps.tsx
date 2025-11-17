@@ -87,12 +87,8 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          variant="solid"
-          color="primary"
-          startContent={<PlusIcon size={16} />}
-          onPress={handleAddSitemap}
-          isDisabled={disabled}>
+        <ResponsiveButton variant="default" onClick={handleAddSitemap} disabled={disabled}>
+          <PlusIcon size={16} />
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>
       </ItemHeader>
@@ -125,7 +121,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 actions: (
                   <FlexAlignCenter>
                     {item.uniqueId && (
-                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                      <Button variant="ghost" onClick={() => refreshItem(item)}>
                         <RefreshIcon />
                       </Button>
                     )}
@@ -137,8 +133,8 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         type="sitemap"
                       />
                     </StatusIconWrapper>
-                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
-                      <DeleteIcon size={14} className="lucide-custom" />
+                    <Button variant="ghost" onClick={() => removeItem(item)}>
+                      <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                     </Button>
                   </FlexAlignCenter>
                 )

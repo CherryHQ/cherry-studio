@@ -358,7 +358,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
    * 一是 CodeViewer 在气泡样式下的用户消息中无法撑开气泡，
    * 二是 代码块内容过少时 toolbar 会和 title 重叠。
    */
-  min-width: 45ch;
+  min-width: 35ch;
 
   .code-toolbar {
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};

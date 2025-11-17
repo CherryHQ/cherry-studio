@@ -195,7 +195,7 @@ const TranslateSettings: FC<{
             </Space>
           )}
         </div>
-        <Button onPress={onMoreSetting}>{t('settings.moresetting.label')}</Button>
+        <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
       </ColFlex>
     </Modal>
   )

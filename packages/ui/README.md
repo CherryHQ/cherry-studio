@@ -2,54 +2,120 @@
 
 Cherry Studio UI 组件库 - 为 Cherry Studio 设计的 React 组件集合
 
-## 特性
+## ✨ 特性
 
-- 🎨 基于 Tailwind CSS 的现代化设计
-- 📦 支持 ESM 和 CJS 格式
-- 🔷 完整的 TypeScript 支持
-- 🚀 可以作为 npm 包发布
-- 🔧 开箱即用的常用 hooks 和工具函数
+- 🎨 **设计系统**: 完整的 CherryStudio 设计令牌（17种颜色 × 11个色阶 + 语义化主题）
+- 🌓 **Dark Mode**: 开箱即用的深色模式支持
+- 🚀 **Tailwind v4**: 基于最新 Tailwind CSS v4 构建
+- 📦 **灵活导入**: 2种样式导入方式，满足不同使用场景
+- 🔷 **TypeScript**: 完整的类型定义和智能提示
+- 🎯 **零冲突**: CSS 变量隔离，不覆盖用户主题
 
-## 安装
+---
+
+## 🚀 快速开始
+
+### 安装
 
 ```bash
-# 安装组件库
 npm install @cherrystudio/ui
-
-# 安装必需的 peer dependencies
-npm install @heroui/react framer-motion react react-dom tailwindcss
+# peer dependencies
+npm install framer-motion react react-dom tailwindcss
 ```
 
-## 配置
+### 两种使用方式
 
-### 1. Tailwind CSS v4 配置
+#### 方式 1：完整覆盖 ✨
 
-本组件库使用 Tailwind CSS v4，配置方式已改变。在你的主 CSS 文件（如 `src/styles/tailwind.css`）中：
+使用完整的 CherryStudio 设计系统，所有 Tailwind 类名映射到设计系统。
 
 ```css
+/* app.css */
+@import '@cherrystudio/ui/styles/theme.css';
+```
+
+**特点**：
+
+- ✅ 直接使用标准 Tailwind 类名（`bg-primary`、`bg-red-500`、`p-md`、`rounded-lg`）
+- ✅ 所有颜色使用设计师定义的值
+- ✅ 扩展的 Spacing 系统（`p-5xs` ~ `p-8xl`，共 16 个语义化尺寸）
+- ✅ 扩展的 Radius 系统（`rounded-4xs` ~ `rounded-3xl`，共 11 个圆角）
+- ⚠️ 会完全覆盖 Tailwind 默认主题
+
+**示例**：
+
+```tsx
+<Button className="bg-primary text-red-500 p-md rounded-lg">
+  {/* bg-primary → 品牌色（lime-500） */}
+  {/* text-red-500 → 设计师定义的红色 */}
+  {/* p-md → 2.5rem（spacing-md） */}
+  {/* rounded-lg → 2.5rem（radius-lg） */}
+</Button>
+
+{/* 扩展的工具类 */}
+<div className="p-5xs">最小间距 (0.5rem)</div>
+<div className="p-xs">超小间距 (1rem)</div>
+<div className="p-sm">小间距 (1.5rem)</div>
+<div className="p-md">中等间距 (2.5rem)</div>
+<div className="p-lg">大间距 (3.5rem)</div>
+<div className="p-xl">超大间距 (5rem)</div>
+<div className="p-8xl">最大间距 (15rem)</div>
+
+<div className="rounded-4xs">最小圆角 (0.25rem)</div>
+<div className="rounded-xs">小圆角 (1rem)</div>
+<div className="rounded-md">中等圆角 (2rem)</div>
+<div className="rounded-xl">大圆角 (3rem)</div>
+<div className="rounded-round">完全圆角 (999px)</div>
+```
+
+#### 方式 2：选择性覆盖 🎯
+
+只导入设计令牌（CSS 变量），手动选择要覆盖的部分。
+
+```css
+/* app.css */
 @import 'tailwindcss';
+@import '@cherrystudio/ui/styles/tokens.css';
 
-/* 必须扫描组件库文件以提取类名 */
-@source '../node_modules/@cherrystudio/ui/dist/**/*.{js,mjs}';
-
-/* 你的应用源文件 */
-@source './src/**/*.{js,ts,jsx,tsx}';
-
-/*
- * 如果你的应用直接使用 HeroUI 组件，需要添加：
- * @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
- * @plugin '@heroui/react/plugin';
- */
-
-/* 自定义主题配置（可选） */
+/* 只使用部分设计系统 */
 @theme {
-  /* 你的主题扩展 */
+  --color-primary: var(--cs-primary);     /* 使用 CS 的主色 */
+  --color-red-500: oklch(...);            /* 使用自己的红色 */
+  --spacing-md: var(--cs-size-md);        /* 使用 CS 的间距 */
+  --radius-lg: 1rem;                      /* 使用自己的圆角 */
 }
 ```
 
-注意：Tailwind CSS v4 不再使用 `tailwind.config.js` 文件，所有配置都在 CSS 中完成。
+**特点**：
 
-### 2. Provider 配置
+- ✅ 不覆盖任何 Tailwind 默认主题
+- ✅ 通过 CSS 变量访问所有设计令牌（`var(--cs-primary)`、`var(--cs-red-500)`）
+- ✅ 精细控制哪些使用 CS、哪些保持原样
+- ✅ 适合有自己设计系统但想借用部分 CS 设计令牌的场景
+
+**示例**：
+
+```tsx
+{/* 通过 CSS 变量使用 CS 设计令牌 */}
+<button style={{ backgroundColor: 'var(--cs-primary)' }}>
+  使用 CherryStudio 品牌色
+</button>
+
+{/* 保持原有的 Tailwind 类名不受影响 */}
+<div className="bg-red-500">
+  使用 Tailwind 默认的红色
+</div>
+
+{/* 可用的 CSS 变量 */}
+<div style={{
+  color: 'var(--cs-primary)',           // 品牌色
+  backgroundColor: 'var(--cs-red-500)', // 红色-500
+  padding: 'var(--cs-size-md)',         // 间距
+  borderRadius: 'var(--cs-radius-lg)'   // 圆角
+}} />
+```
+
+### Provider 配置
 
 在你的 App 根组件中添加 HeroUI Provider：
 
@@ -93,9 +159,6 @@ function App() {
 ```tsx
 // 只导入组件
 import { Button } from '@cherrystudio/ui/components'
-
-// 只导入 hooks
-import { useDebounce, useLocalStorage } from '@cherrystudio/ui/hooks'
 
 // 只导入工具函数
 import { cn, formatFileSize } from '@cherrystudio/ui/utils'

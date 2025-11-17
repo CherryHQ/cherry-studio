@@ -87,7 +87,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
     <Container>
       <SettingTitle>
         {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
-        <Button variant="light" isIconOnly startContent={<PlusIcon size={18} />} onPress={handleAdd} />
+        <Button variant="ghost" size="icon" onClick={handleAdd}>
+          <PlusIcon size={18} />
+        </Button>
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
@@ -107,13 +109,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                   extra: prompt.content,
                   actions: (
                     <Flex className="gap-1 opacity-60">
-                      <Button
-                        key="edit"
-                        variant="light"
-                        isIconOnly
-                        startContent={<EditIcon size={14} />}
-                        onPress={() => handleEdit(prompt)}
-                      />
+                      <Button key="edit" variant="ghost" size="icon" onClick={() => handleEdit(prompt)}>
+                        <EditIcon size={14} />
+                      </Button>
                       <Popconfirm
                         title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
                         description={t(
@@ -124,13 +122,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                         cancelText={t('common.cancel')}
                         onConfirm={() => handleDelete(prompt.id)}
                         icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                        <Button
-                          key="delete"
-                          variant="light"
-                          color="danger"
-                          isIconOnly
-                          startContent={<DeleteIcon size={14} className="lucide-custom" />}
-                        />
+                        <Button key="delete" variant="ghost" size="icon">
+                          <DeleteIcon size={14} className="lucide-custom text-destructive" />
+                        </Button>
                       </Popconfirm>
                     </Flex>
                   )

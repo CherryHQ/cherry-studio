@@ -3,7 +3,7 @@ import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogoById } from '@renderer/config/models'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { getProviderNameById } from '@renderer/services/ProviderService'
@@ -115,7 +115,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size={24}>
+          <Avatar src={getModelLogoById(model.id || '')} size={24}>
             {first(model.name) || 'M'}
           </Avatar>
         ),

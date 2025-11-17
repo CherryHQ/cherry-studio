@@ -24,13 +24,9 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
 
   const button = useMemo(() => {
     return (
-      <Button
-        startContent={<ModelAvatar model={model} size={22} />}
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={onClick}
-      />
+      <Button variant="ghost" className="rounded-full" size="icon" onClick={onClick}>
+        <ModelAvatar model={model} size={22} />
+      </Button>
     )
   }, [model, onClick])
 

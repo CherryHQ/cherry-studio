@@ -70,12 +70,9 @@ const ModelSettings: FC = () => {
             onChange={(value) => setDefaultModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button
-            startContent={<Settings2 size={16} />}
-            className="ml-2"
-            onPress={DefaultAssistantSettings.show}
-            isIconOnly
-          />
+          <Button className="ml-2" onClick={DefaultAssistantSettings.show} size="icon">
+            <Settings2 size={16} />
+          </Button>
         </RowFlex>
         <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
       </SettingGroup>
@@ -97,12 +94,9 @@ const ModelSettings: FC = () => {
             onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button
-            startContent={<Settings2 size={16} />}
-            className="ml-2"
-            onPress={TopicNamingModalPopup.show}
-            isIconOnly
-          />
+          <Button className="ml-2" onClick={TopicNamingModalPopup.show} size="icon">
+            <Settings2 size={16} />
+          </Button>
         </RowFlex>
         <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
       </SettingGroup>
@@ -123,15 +117,14 @@ const ModelSettings: FC = () => {
             onChange={(value) => setTranslateModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
-          <Button
-            startContent={<Settings2 size={16} />}
-            isIconOnly
-            className="ml-2"
-            onPress={() => TranslateSettingsPopup.show()}
-          />
+          <Button className="ml-2" onClick={() => TranslateSettingsPopup.show()} size="icon">
+            <Settings2 size={16} />
+          </Button>
           {translateModelPrompt !== TRANSLATE_PROMPT && (
             <Tooltip content={t('common.reset')}>
-              <Button startContent={<RedoOutlined />} className="ml-2" onPress={onResetTranslatePrompt} isIconOnly />
+              <Button className="ml-2" onClick={onResetTranslatePrompt} size="icon">
+                <RedoOutlined />
+              </Button>
             </Tooltip>
           )}
         </RowFlex>

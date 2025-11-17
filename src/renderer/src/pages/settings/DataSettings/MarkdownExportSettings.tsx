@@ -86,7 +86,8 @@ const MarkdownExportSettings: FC = () => {
               ) : null
             }
           />
-          <Button onPress={handleSelectFolder} startContent={<FolderOpenOutlined />}>
+          <Button onClick={handleSelectFolder}>
+            <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}
           </Button>
         </RowFlex>

@@ -45,7 +45,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     <>
       <HeaderContainer>
         {fileMap.imageFiles && fileMap.imageFiles.length > 0 && (
-          <Button size="sm" onPress={onClearImages}>
+          <Button size="sm" onClick={onClearImages}>
             清除全部
           </Button>
         )}

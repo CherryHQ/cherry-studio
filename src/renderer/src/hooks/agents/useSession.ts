@@ -1,21 +1,24 @@
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import type { UpdateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
 import { useAgentClient } from './useAgentClient'
+import { useUpdateSession } from './useUpdateSession'
 
-export const useSession = (agentId: string, sessionId: string) => {
+export const useSession = (agentId: string | null, sessionId: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const key = client.getSessionPaths(agentId).withId(sessionId)
+  const key = agentId && sessionId ? client.getSessionPaths(agentId).withId(sessionId) : null
   const dispatch = useAppDispatch()
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : null), [sessionId])
+  const { updateSession } = useUpdateSession(agentId)
 
   const fetcher = async () => {
+    if (!agentId) throw new Error(t('agent.get.error.null_id'))
+    if (!sessionId) throw new Error(t('agent.session.get.error.null_id'))
     const data = await client.getSession(agentId, sessionId)
     return data
   }
@@ -24,25 +27,12 @@ export const useSession = (agentId: string, sessionId: string) => {
   // Use loadTopicMessagesThunk to load messages (with caching mechanism)
   // This ensures messages are preserved when switching between sessions/tabs
   useEffect(() => {
-    if (sessionId) {
+    if (sessionTopicId) {
       // loadTopicMessagesThunk will check if messages already exist in Redux
       // and skip loading if they do (unless forceReload is true)
       dispatch(loadTopicMessagesThunk(sessionTopicId))
     }
   }, [dispatch, sessionId, sessionTopicId])
-
-  const updateSession = useCallback(
-    async (form: UpdateSessionForm) => {
-      if (!agentId) return
-      try {
-        const result = await client.updateSession(agentId, form)
-        mutate(result)
-      } catch (error) {
-        window.toast.error(t('agent.session.update.error.failed'))
-      }
-    },
-    [agentId, client, mutate, t]
-  )
 
   return {
     session: data,

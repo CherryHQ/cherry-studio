@@ -142,13 +142,8 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          size="sm"
-          variant="solid"
-          color="primary"
-          startContent={<PlusIcon size={16} />}
-          onPress={handleAddFile}
-          isDisabled={disabled}>
+        <ResponsiveButton size="sm" variant="default" onClick={handleAddFile} disabled={disabled}>
+          <PlusIcon size={16} />
           {t('knowledge.add_file')}
         </ResponsiveButton>
       </ItemHeader>
@@ -202,7 +197,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                            <Button variant="ghost" onClick={() => refreshItem(item)}>
                               <RefreshIcon />
                             </Button>
                           )}
@@ -226,8 +221,8 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
-                            <DeleteIcon size={14} className="lucide-custom" />
+                          <Button variant="ghost" onClick={() => removeItem(item)}>
+                            <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                           </Button>
                         </FlexAlignCenter>
                       )

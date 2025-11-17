@@ -160,7 +160,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
                   }}
                   trigger={['click']}
                   placement="bottomRight">
-                  <MenuButton color="default" variant="light" radius="full" isIconOnly={true}>
+                  <MenuButton variant="ghost" className="rounded-full" size="icon">
                     <Ellipsis size={14} color="var(--color-text-3)" />
                   </MenuButton>
                 </Dropdown>

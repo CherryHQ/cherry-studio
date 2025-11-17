@@ -83,10 +83,10 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
 
   const footer = useMemo(() => {
     return [
-      <Button key="modal-cancel" onPress={onCancel}>
+      <Button key="modal-cancel" onClick={onCancel}>
         {t('common.cancel')}
       </Button>,
-      <Button key="modal-save" color="primary" onPress={form.submit}>
+      <Button key="modal-save" onClick={form.submit}>
         {editingCustomLanguage ? t('common.save') : t('common.add')}
       </Button>
     ]
@@ -120,7 +120,9 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
             }
             arrow
             trigger="click">
-            <Button style={{ aspectRatio: '1/1' }} startContent={<Emoji emoji={emoji} />} isIconOnly />
+            <Button style={{ aspectRatio: '1/1' }} size="icon">
+              <Emoji emoji={emoji} />
+            </Button>
           </Popover>
         </Form.Item>
         <Form.Item

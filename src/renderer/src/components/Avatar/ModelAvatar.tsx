@@ -15,7 +15,7 @@ interface Props {
 const ModelAvatar: FC<Props> = ({ model, size, className, ...props }) => {
   return (
     <Avatar
-      src={getModelLogo(model?.id || '')}
+      src={getModelLogo(model)}
       radius="lg"
       className={cn('flex items-center justify-center', `${className || ''}`)}
       style={{ width: size, height: size }}

@@ -78,32 +78,21 @@ const McpServerCard: FC<McpServerCardProps> = ({
           onClick={onClickDetails}
           action={
             <Space.Compact>
+              <Button variant="destructive" size="sm" onClick={onClickDetails}>
+                <Tooltip content={t('error.boundary.details')}>
+                  <CircleXIcon size={16} />
+                </Tooltip>
+              </Button>
               <Button
-                color="danger"
-                variant="light"
-                startContent={
-                  <Tooltip content={t('error.boundary.details')}>
-                    <CircleXIcon size={16} />
-                  </Tooltip>
-                }
+                variant="destructive"
                 size="sm"
-                onPress={onClickDetails}
-                isIconOnly
-              />
-              <Button
-                color="danger"
-                variant="light"
-                startContent={
-                  <Tooltip content={t('common.delete')}>
-                    <DeleteIcon size={16} />
-                  </Tooltip>
-                }
-                size="sm"
-                onPress={() => {
+                onClick={() => {
                   onDelete()
-                }}
-                isIconOnly
-              />
+                }}>
+                <Tooltip content={t('common.delete')}>
+                  <DeleteIcon size={16} />
+                </Tooltip>
+              </Button>
             </Space.Compact>
           }
         />
@@ -120,44 +109,26 @@ const McpServerCard: FC<McpServerCardProps> = ({
             {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
             <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
             {server.providerUrl && (
-              <Button
-                variant="light"
-                size="sm"
-                radius="full"
-                startContent={<SquareArrowOutUpRight size={14} />}
-                onPress={handleOpenUrl}
-                data-no-dnd
-                isIconOnly
-              />
+              <Button variant="ghost" size="sm" className="rounded-full" onClick={handleOpenUrl} data-no-dnd>
+                <SquareArrowOutUpRight size={14} />
+              </Button>
             )}
           </ServerNameWrapper>
           <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
             <Switch
               isSelected={server.isActive}
               key={server.id}
-              isLoading={isLoading}
+              disabled={isLoading}
               onValueChange={onToggle}
               size="sm"
               data-no-dnd
             />
-            <Button
-              size="sm"
-              variant="light"
-              radius="full"
-              startContent={<DeleteIcon size={14} className="lucide-custom" />}
-              color="danger"
-              onPress={onDelete}
-              isIconOnly
-            />
-            <Button
-              size="sm"
-              variant="light"
-              radius="full"
-              startContent={<Settings2 size={14} />}
-              onPress={onEdit}
-              data-no-dnd
-              isIconOnly
-            />
+            <Button size="sm" variant="destructive" className="rounded-full" onClick={onDelete}>
+              <DeleteIcon size={14} className="lucide-custom" />
+            </Button>
+            <Button size="sm" variant="ghost" className="rounded-full" onClick={onEdit} data-no-dnd>
+              <Settings2 size={14} />
+            </Button>
           </ToolbarWrapper>
         </ServerHeader>
         <ServerDescription>{server.description}</ServerDescription>

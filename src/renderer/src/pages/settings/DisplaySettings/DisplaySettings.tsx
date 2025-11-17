@@ -260,29 +260,16 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
-            <Button
-              onPress={() => handleZoomFactor(-0.1)}
-              startContent={<Minus size="14" />}
-              color="default"
-              variant="light"
-              isIconOnly
-            />
+            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
+              <Minus size="14" />
+            </Button>
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button
-              onPress={() => handleZoomFactor(0.1)}
-              startContent={<Plus size="14" />}
-              color="default"
-              variant="light"
-              isIconOnly
-            />
-            <Button
-              onPress={() => handleZoomFactor(0, true)}
-              className="ml-2"
-              startContent={<ResetIcon size="14" />}
-              color="default"
-              variant="light"
-              isIconOnly
-            />
+            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
+              <Plus size="14" />
+            </Button>
+            <Button onClick={() => handleZoomFactor(0, true)} className="ml-2" variant="ghost" size="icon">
+              <ResetIcon size="14" />
+            </Button>
           </ZoomButtonGroup>
         </SettingRow>
       </SettingGroup>
@@ -313,14 +300,9 @@ const DisplaySettings: FC = () => {
               showSearch
               getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
             />
-            <Button
-              onPress={() => handleUserFontChange('')}
-              className="ml-2"
-              startContent={<ResetIcon size="14" />}
-              color="default"
-              variant="light"
-              isIconOnly
-            />
+            <Button onClick={() => handleUserFontChange('')} className="ml-2" variant="ghost" size="icon">
+              <ResetIcon size="14" />
+            </Button>
           </SelectRow>
         </SettingRow>
         <SettingDivider />
@@ -346,14 +328,9 @@ const DisplaySettings: FC = () => {
               showSearch
               getPopupContainer={(triggerNode) => triggerNode.parentElement || document.body}
             />
-            <Button
-              onPress={() => handleUserCodeFontChange('')}
-              className="ml-2"
-              startContent={<ResetIcon size="14" />}
-              color="default"
-              variant="light"
-              isIconOnly
-            />
+            <Button onClick={() => handleUserCodeFontChange('')} className="ml-2" variant="ghost" size="icon">
+              <ResetIcon size="14" />
+            </Button>
           </SelectRow>
         </SettingRow>
       </SettingGroup>
@@ -414,7 +391,7 @@ const DisplaySettings: FC = () => {
             style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>{t('settings.display.sidebar.title')}</span>
             <ResetButtonWrapper>
-              <Button onPress={handleReset}>{t('common.reset')}</Button>
+              <Button onClick={handleReset}>{t('common.reset')}</Button>
             </ResetButtonWrapper>
           </SettingTitle>
           <SettingDivider />

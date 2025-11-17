@@ -2,6 +2,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { ConfigProvider, theme } from 'antd'
+import deDE from 'antd/locale/de_DE'
 import elGR from 'antd/locale/el_GR'
 import enUS from 'antd/locale/en_US'
 import esES from 'antd/locale/es_ES'
@@ -125,6 +126,8 @@ function getAntdLocale(language: LanguageVarious) {
       return zhTW
     case 'en-US':
       return enUS
+    case 'de-DE':
+      return deDE
     case 'ru-RU':
       return ruRU
     case 'ja-JP':

@@ -1,152 +1,150 @@
-# UI 组件库迁移状态
+# Cherry Studio UI Migration Plan
 
-## 使用示例
+## Overview
+
+This document outlines the detailed plan for migrating Cherry Studio from antd + styled-components to shadcn/ui + Tailwind CSS. We will adopt a progressive migration strategy to ensure system stability and development efficiency, while gradually implementing UI refactoring in collaboration with UI designers.
+
+## Migration Strategy
+
+### Target Tech Stack
+
+- **UI Component Library**: shadcn/ui (replacing antd and previously migrated HeroUI)
+- **Styling Solution**: Tailwind CSS v4 (replacing styled-components)
+- **Design System**: Custom CSS variable system (`--cs-*` namespace)
+- **Theme System**: CSS variables + Tailwind CSS theme
+
+### Migration Principles
+
+1. **Backward Compatibility**: Old components continue working until new components are fully available
+2. **Progressive Migration**: Migrate components one by one to avoid large-scale rewrites
+3. **Feature Parity**: Ensure new components have all the functionality of old components
+4. **Design Consistency**: Follow new design system specifications (see [README.md](./README.md))
+5. **Performance Priority**: Optimize bundle size and rendering performance
+6. **Designer Collaboration**: Work with UI designers for gradual component encapsulation and UI optimization
+
+## Usage Example
 
 ```typescript
-// 从 @cherrystudio/ui 导入组件
-import { Spinner, DividerWithText, InfoTooltip, CustomTag } from '@cherrystudio/ui'
+// Import components from @cherrystudio/ui
+import { Spinner, DividerWithText, InfoTooltip } from '@cherrystudio/ui'
 
-// 在组件中使用
+// Use in components
 function MyComponent() {
   return (
     <div>
       <Spinner size={24} />
-      <DividerWithText text="分隔文本" />
-      <InfoTooltip content="提示信息" />
-      <CustomTag color="var(--color-primary)">标签</CustomTag>
+      <DividerWithText text="Divider Text" />
+      <InfoTooltip content="Tooltip message" />
     </div>
   )
 }
 ```
 
-## 目录结构说明
+## Directory Structure
 
 ```text
 @packages/ui/
 ├── src/
-│   ├── components/         # 组件主目录
-│   │   ├── base/           # 基础组件（按钮、输入框、标签等）
-│   │   ├── display/        # 显示组件（卡片、列表、表格等）
-│   │   ├── layout/         # 布局组件（容器、网格、间距等）
-│   │   ├── icons/          # 图标组件
-│   │   ├── interactive/    # 交互组件（弹窗、提示、下拉等）
-│   │   └── composite/      # 复合组件（多个基础组件组合而成）
-│   ├── hooks/              # 自定义 React Hooks
-│   └── types/              # TypeScript 类型定义
+│   ├── components/         # Main components directory
+│   │   ├── primitives/     # Basic/primitive components (Avatar, ErrorBoundary, Selector, etc.)
+│   │   │   └── shadcn-io/  # shadcn/ui components (dropzone, etc.)
+│   │   ├── icons/          # Icon components (Icon, FileIcons, etc.)
+│   │   └── composites/     # Composite components (CodeEditor, ListItem, etc.)
+│   ├── hooks/              # Custom React Hooks
+│   ├── styles/             # Global styles and CSS variables
+│   ├── types/              # TypeScript type definitions
+│   ├── utils/              # Utility functions
+│   └── index.ts            # Main export file
 ```
 
-### 组件分类指南
+### Component Classification Guide
 
-提交 PR 时，请根据组件功能将其放入正确的目录：
+When submitting PRs, please place components in the correct directory based on their function:
 
-- **base**: 最基础的 UI 元素，如按钮、输入框、开关、标签等
-- **display**: 用于展示内容的组件，如卡片、列表、表格、标签页等
-- **layout**: 用于页面布局的组件，如容器、网格系统、分隔符等
-- **icons**: 所有图标相关的组件
-- **interactive**: 需要用户交互的组件，如模态框、抽屉、提示框、下拉菜单等
-- **composite**: 复合组件，由多个基础组件组合而成
+- **primitives**: Basic and primitive UI elements, shadcn/ui components
+  - `Avatar`: Avatar components
+  - `ErrorBoundary`: Error boundary components
+  - `Selector`: Selection components
+  - `shadcn-io/`: Direct shadcn/ui components or adaptations
+- **icons**: All icon-related components
+  - `Icon`: Icon factory and basic icons
+  - `FileIcons`: File-specific icons
+  - Loading/spinner icons (SvgSpinners180Ring, ToolsCallingIcon, etc.)
+- **composites**: Complex components made from multiple primitives
+  - `CodeEditor`: Code editing components
+  - `ListItem`: List item components
+  - `ThinkingEffect`: Animation components
+  - Form and interaction components (DraggableList, EditableNumber, etc.)
 
-## 迁移概览
+## Component Extraction Criteria
 
-- **总组件数**: 236
-- **已迁移**: 34
-- **已重构**: 18
-- **待迁移**: 184
+### Extraction Standards
 
-## 组件状态表
+1. **Usage Frequency**: Component is used in ≥ 3 places in the codebase
+2. **Future Reusability**: Expected to be used in multiple scenarios in the future
+3. **Business Complexity**: Component contains complex interaction logic or state management
+4. **Maintenance Cost**: Centralized management can reduce maintenance overhead
+5. **Design Consistency**: Components that require unified visual and interaction experience
+6. **Test Coverage**: As common components, they facilitate unit test writing and maintenance
 
-| Category        | Component Name            | Migration Status | Refactoring Status | Description                                                                                                                                                   |
-| --------------- | ------------------------- | ---------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **base**        |                           |                  |                    | 基础组件                                                                                                                                                      |
-|                 | CopyButton                | ✅                | ✅                  | 复制按钮                                                                                                                                                      |
-|                 | CustomTag                 | ✅                | ✅                  | 自定义标签                                                                                                                                                    |
-|                 | DividerWithText           | ✅                | ✅                  | 带文本的分隔线                                                                                                                                                |
-|                 | EmojiIcon                 | ✅                | ✅                  | 表情图标                                                                                                                                                      |
-|                 | ErrorBoundary             | ✅                | ✅                  | 错误边界 (通过 props 解耦)                                                                                                                                    |
-|                 | StatusTag                 | ✅                | ✅                  | 统一状态标签（合并了 ErrorTag、SuccessTag、WarnTag、InfoTag）                                                                                                 |
-|                 | IndicatorLight            | ✅                | ✅                  | 指示灯                                                                                                                                                        |
-|                 | Spinner                   | ✅                | ✅                  | 加载动画                                                                                                                                                      |
-|                 | TextBadge                 | ✅                | ✅                  | 文本徽标                                                                                                                                                      |
-|                 | CustomCollapse            | ✅                | ✅                  | 自定义折叠面板                                                                                                                                                |
-| **display**     |                           |                  |                    | 显示组件                                                                                                                                                      |
-|                 | Ellipsis                  | ✅                | ✅                  | 文本省略                                                                                                                                                      |
-|                 | ExpandableText            | ✅                | ✅                  | 可展开文本                                                                                                                                                    |
-|                 | ThinkingEffect            | ✅                | ✅                  | 思考效果动画                                                                                                                                                  |
-|                 | EmojiAvatar               | ✅                | ✅                  | 表情头像                                                                                                                                                      |
-|                 | ListItem                  | ✅                | ✅                  | 列表项                                                                                                                                                        |
-|                 | MaxContextCount           | ✅                | ✅                  | 最大上下文数显示                                                                                                                                              |
-|                 | ProviderAvatar            | ✅                | ✅                  | 提供者头像                                                                                                                                                    |
-|                 | CodeViewer                | ❌                | ❌                  | 代码查看器 (外部依赖)                                                                                                                                         |
-|                 | OGCard                    | ❌                | ❌                  | OG 卡片                                                                                                                                                       |
-|                 | MarkdownShadowDOMRenderer | ❌                | ❌                  | Markdown 渲染器                                                                                                                                               |
-|                 | Preview/*                 | ❌                | ❌                  | 预览组件                                                                                                                                                      |
-| **layout**      |                           |                  |                    | 布局组件                                                                                                                                                      |
-|                 | HorizontalScrollContainer | ✅                | ❌                  | 水平滚动容器                                                                                                                                                  |
-|                 | Scrollbar                 | ✅                | ❌                  | 滚动条                                                                                                                                                        |
-|                 | Layout/*                  | ✅                | ✅                  | 布局组件                                                                                                                                                      |
-|                 | Tab/*                     | ❌                | ❌                  | 标签页 (Redux 依赖)                                                                                                                                           |
-|                 | TopView                   | ❌                | ❌                  | 顶部视图 (window.api 依赖)                                                                                                                                    |
-| **icons**       |                           |                  |                    | 图标组件                                                                                                                                                      |
-|                 | Icon                      | ✅                | ✅                  | 图标工厂函数和预定义图标（合并了 CopyIcon、DeleteIcon、EditIcon、RefreshIcon、ResetIcon、ToolIcon、VisionIcon、WebSearchIcon、WrapIcon、UnWrapIcon、OcrIcon） |
-|                 | FileIcons                 | ✅                | ❌                  | 文件图标 (FileSvgIcon、FilePngIcon)                                                                                                                           |
-|                 | ReasoningIcon             | ✅                | ❌                  | 推理图标                                                                                                                                                      |
-|                 | SvgSpinners180Ring        | ✅                | ❌                  | 旋转加载图标                                                                                                                                                  |
-|                 | ToolsCallingIcon          | ✅                | ❌                  | 工具调用图标                                                                                                                                                  |
-| **interactive** |                           |                  |                    | 交互组件                                                                                                                                                      |
-|                 | InfoTooltip               | ✅                | ❌                  | 信息提示                                                                                                                                                      |
-|                 | HelpTooltip               | ✅                | ❌                  | 帮助提示                                                                                                                                                      |
-|                 | WarnTooltip               | ✅                | ❌                  | 警告提示                                                                                                                                                      |
-|                 | EditableNumber            | ✅                | ❌                  | 可编辑数字                                                                                                                                                    |
-|                 | InfoPopover               | ✅                | ❌                  | 信息弹出框                                                                                                                                                    |
-|                 | CollapsibleSearchBar      | ✅                | ❌                  | 可折叠搜索栏                                                                                                                                                  |
-|                 | ImageToolButton           | ✅                | ❌                  | 图片工具按钮                                                                                                                                                  |
-|                 | DraggableList             | ✅                | ❌                  | 可拖拽列表                                                                                                                                                    |
-|                 | CodeEditor                | ✅                | ❌                  | 代码编辑器                                                                                                                                                    |
-|                 | EmojiPicker               | ❌                | ❌                  | 表情选择器 (useTheme 依赖)                                                                                                                                    |
-|                 | Selector                  | ✅                | ❌                  | 选择器 (i18n 依赖)                                                                                                                                            |
-|                 | ModelSelector             | ❌                | ❌                  | 模型选择器 (Redux 依赖)                                                                                                                                       |
-|                 | LanguageSelect            | ❌                | ❌                  | 语言选择                                                                                                                                                      |
-|                 | TranslateButton           | ❌                | ❌                  | 翻译按钮 (window.api 依赖)                                                                                                                                    |
-| **composite**   |                           |                  |                    | 复合组件                                                                                                                                                      |
-|                 | -                         | -                | -                  | 暂无复合组件                                                                                                                                                  |
-| **未分类**      |                           |                  |                    | 需要分类的组件                                                                                                                                                |
-|                 | Popups/* (16+ 文件)       | ❌                | ❌                  | 弹窗组件 (业务耦合)                                                                                                                                           |
-|                 | RichEditor/* (30+ 文件)   | ❌                | ❌                  | 富文本编辑器                                                                                                                                                  |
-|                 | MarkdownEditor/*          | ❌                | ❌                  | Markdown 编辑器                                                                                                                                               |
-|                 | MinApp/*                  | ❌                | ❌                  | 迷你应用 (Redux 依赖)                                                                                                                                         |
-|                 | Avatar/*                  | ❌                | ❌                  | 头像组件                                                                                                                                                      |
-|                 | ActionTools/*             | ❌                | ❌                  | 操作工具                                                                                                                                                      |
-|                 | CodeBlockView/*           | ❌                | ❌                  | 代码块视图 (window.api 依赖)                                                                                                                                  |
-|                 | ContextMenu               | ❌                | ❌                  | 右键菜单 (Electron API)                                                                                                                                       |
-|                 | WindowControls            | ❌                | ❌                  | 窗口控制 (Electron API)                                                                                                                                       |
-|                 | ErrorBoundary             | ❌                | ❌                  | 错误边界 (window.api 依赖)                                                                                                                                    |
+### Extraction Principles
 
-## 迁移步骤
+- **Single Responsibility**: Each component should only handle one clear function
+- **Highly Configurable**: Provide flexible configuration options through props
+- **Backward Compatible**: New versions maintain API backward compatibility
+- **Complete Documentation**: Provide clear API documentation and usage examples
+- **Type Safety**: Use TypeScript to ensure type safety
 
-### 第一阶段：复制迁移（当前阶段）
+### Cases Not Recommended for Extraction
 
-- 将组件原样复制到 @packages/ui
-- 保留原有依赖（antd、styled-components 等）
-- 在文件顶部添加原路径注释
+- Simple display components used only on a single page
+- Overly customized business logic components
+- Components tightly coupled to specific data sources
 
-### 第二阶段：重构优化
+## Migration Steps
 
-- 移除 antd 依赖，替换为 HeroUI
-- 移除 styled-components，替换为 Tailwind CSS
-- 优化组件 API 和类型定义
+| Phase | Status | Main Tasks | Description |
+| --- | --- | --- | --- |
+| **Phase 1** | ✅ **Completed** | **Design System Integration** | • Converted design tokens from todocss.css to tokens.css with `--cs-*` namespace<br>• Created theme.css mapping all design tokens to standard Tailwind classes<br>• Extended Tailwind with semantic spacing (5xs~8xl) and radius (4xs~3xl) systems<br>• Established two usage modes: full override and selective override<br>• Cleaned up main package's conflicting Shadcn theme definitions |
+| **Phase 2** | ⏳ **To Start** | **Component Migration and Optimization** | • Filter components for migration based on extraction criteria<br>• Remove antd dependencies, replace with shadcn/ui<br>• Remove HeroUI dependencies, replace with shadcn/ui<br>• Remove styled-components, replace with Tailwind CSS + design system variables<br>• Optimize component APIs and type definitions |
+| **Phase 3** | ⏳ **To Start** | **UI Refactoring and Optimization** | • Gradually implement UI refactoring with UI designers<br>• Ensure visual consistency and user experience<br>• Performance optimization and code quality improvement |
 
-## 注意事项
+## Notes
 
-1. **不迁移**包含以下依赖的组件（解耦后可迁移）：
-   - window.api 调用
-   - Redux（useSelector、useDispatch 等）
-   - 其他外部数据源
+1. **Do NOT migrate** components with these dependencies (can be migrated after decoupling):
+   - window.api calls
+   - Redux (useSelector, useDispatch, etc.)
+   - Other external data sources
 
-2. **可迁移**但需要后续解耦的组件：
-   - 使用 i18n 的组件（将 i18n 改为 props 传入）
-   - 使用 antd 的组件（后续替换为 HeroUI）
+2. **Can migrate** but need decoupling later:
+   - Components using i18n (change i18n to props)
+   - Components using antd (replace with shadcn/ui later)
+   - Components using HeroUI (replace with shadcn/ui later)
 
-3. **提交规范**：
-   - 每次 PR 专注于一个类别的组件
-   - 确保所有迁移的组件都有导出
-   - 更新此文档的迁移状态
+3. **Submission Guidelines**:
+   - Each PR should focus on one category of components
+   - Ensure all migrated components are exported
+   - Follow component extraction criteria, only migrate qualified components
+
+## Design System Integration
+
+### CSS Variable System
+
+- All design tokens use `--cs-*` namespace (e.g., `--cs-primary`, `--cs-red-500`)
+- Complete color palette: 17 colors × 11 shades each
+- Semantic spacing system: `5xs` through `8xl` (16 levels)
+- Semantic radius system: `4xs` through `3xl` plus `round` (11 levels)
+- Full light/dark mode support
+- See [README.md](./README.md) for usage documentation
+
+### Migration Priority Adjustment
+
+1. **High Priority**: Basic components (buttons, inputs, tags, etc.)
+2. **Medium Priority**: Display components (cards, lists, tables, etc.)
+3. **Low Priority**: Composite components and business-coupled components
+
+### UI Designer Collaboration
+
+- All component designs need confirmation from UI designers
+- Gradually implement UI refactoring to maintain visual consistency
+- New components must comply with design system specifications

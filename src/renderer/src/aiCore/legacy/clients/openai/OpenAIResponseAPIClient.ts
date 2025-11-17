@@ -94,7 +94,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
       if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
         this.provider = { ...this.provider, apiHost: this.formatApiHost() }
-        if (this.provider.apiVersion === 'preview') {
+        if (this.provider.apiVersion === 'preview' || this.provider.apiVersion === 'v1') {
           return this
         } else {
           return this.client
@@ -365,16 +365,28 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       }
     }
     switch (message.type) {
-      case 'function_call_output':
+      case 'function_call_output': {
+        let str = ''
         if (typeof message.output === 'string') {
-          sum += estimateTextTokens(message.output)
+          str = message.output
         } else {
-          sum += message.output
-            .filter((item) => item.type === 'input_text')
-            .map((item) => estimateTextTokens(item.text))
-            .reduce((prev, cur) => prev + cur, 0)
+          for (const part of message.output) {
+            switch (part.type) {
+              case 'input_text':
+                str += part.text
+                break
+              case 'input_image':
+                str += part.image_url || ''
+                break
+              case 'input_file':
+                str += part.file_data || ''
+                break
+            }
+          }
         }
+        sum += estimateTextTokens(str)
         break
+      }
       case 'function_call':
         sum += estimateTextTokens(message.arguments)
         break

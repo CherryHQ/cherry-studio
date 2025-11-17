@@ -92,7 +92,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
             padding: '0 0 8px 0'
           }
         }}>
-        <OpenButton variant="light">
+        <OpenButton variant="ghost">
           <PreviewIcons>
             {previewItems.map((c, i) => (
               <PreviewIcon key={i} style={{ zIndex: previewItems.length - i }}>

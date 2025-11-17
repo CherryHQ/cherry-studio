@@ -1,3 +1,7 @@
+/**
+ * @deprecated this file will be removed after v2 refactor
+ */
+
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'

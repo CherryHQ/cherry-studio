@@ -1,13 +1,14 @@
-import { Alert, Spinner } from '@heroui/react'
+import { Center } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { Alert, Spin } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
+import EssentialSettings from './EssentialSettings'
 import PromptSettings from './PromptSettings'
-import SessionEssentialSettings from './SessionEssentialSettings'
 import { LeftMenu, SessionLabel, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
 
@@ -30,7 +31,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
 
   const { session, isLoading, error } = useSession(agentId, sessionId)
 
-  const updateSession = useUpdateSession(agentId)
+  const { updateSession } = useUpdateSession(agentId)
 
   const onOk = () => {
     setOpen(false)
@@ -68,15 +69,21 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
   const ModalContent = () => {
     if (isLoading) {
       // TODO: use skeleton for better ux
-      return <Spinner />
-    }
-    if (error) {
       return (
-        <div>
-          <Alert color="danger" title={t('agent.get.error.failed')} />
-        </div>
+        <Center>
+          <Spin />
+        </Center>
       )
     }
+
+    if (error) {
+      return (
+        <Center>
+          <Alert type="error" message={t('agent.get.error.failed')} />
+        </Center>
+      )
+    }
+
     return (
       <div className="flex w-full flex-1">
         <LeftMenu>
@@ -89,7 +96,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
           />
         </LeftMenu>
         <Settings>
-          {menu === 'essential' && <SessionEssentialSettings session={session} update={updateSession} />}
+          {menu === 'essential' && <EssentialSettings agentBase={session} update={updateSession} />}
           {menu === 'prompt' && <PromptSettings agentBase={session} update={updateSession} />}
           {menu === 'tooling' && <ToolingSettings agentBase={session} update={updateSession} />}
           {menu === 'advanced' && <AdvancedSettings agentBase={session} update={updateSession} />}
@@ -106,7 +113,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
       afterClose={afterClose}
       maskClosable={false}
       footer={null}
-      title={<SessionLabel session={session} className="font-extrabold text-lg" />}
+      title={<SessionLabel session={session} />}
       transitionName="animation-move-down"
       styles={{
         content: {

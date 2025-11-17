@@ -11,7 +11,8 @@ import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Popover } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import { useChatMaxWidth } from '../Chat'
@@ -44,9 +45,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
-
-  // Refs
-  const prevMessageLengthRef = useRef(messageLength)
 
   // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
@@ -85,24 +83,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     },
     [editMessage, selectedMessageId, setTimeoutTimer]
   )
-
-  useEffect(() => {
-    if (messageLength > prevMessageLengthRef.current) {
-      setSelectedIndex(messageLength - 1)
-      const lastMessage = messages[messageLength - 1]
-      if (lastMessage) {
-        setSelectedMessage(lastMessage)
-      }
-    } else {
-      const newIndex = messages.findIndex((msg) => msg.id === selectedMessageId)
-      if (newIndex !== -1) {
-        setSelectedIndex(newIndex)
-      }
-    }
-    prevMessageLengthRef.current = messageLength
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageLength])
-
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
     // 只在组件挂载和消息数组变化时添加监听器
@@ -225,7 +205,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         message,
         topic,
         index: message.index
-      }
+      } satisfies ComponentProps<typeof MessageItem>
 
       const messageContent = (
         <MessageWrapper
@@ -279,7 +259,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       isGrouped,
       topic,
       multiModelMessageStyle,
-      messages.length,
+      messages,
       selectedMessageId,
       onUpdateUseful,
       groupContextMessageId,
@@ -339,29 +319,18 @@ const GroupContainer = styled.div`
 const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
+  overflow-y: visible;
   gap: 16px;
 
   &.horizontal {
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
-    overflow-y: hidden;
     overflow-x: auto;
-    &::-webkit-scrollbar {
-      height: 6px;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: var(--color-scrollbar-thumb);
-      border-radius: var(--scrollbar-thumb-radius);
-    }
-    &::-webkit-scrollbar-thumb:hover {
-      background: var(--color-scrollbar-thumb-hover);
-    }
   }
   &.fold,
   &.vertical {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 8px;
-    overflow: hidden;
   }
   &.grid {
     grid-template-columns: repeat(
@@ -369,15 +338,11 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
       minmax(0, 1fr)
     );
     grid-template-rows: auto;
-    overflow-y: auto;
-    overflow-x: hidden;
   }
 
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
-    overflow-y: auto;
-    overflow-x: hidden;
     .grid {
       height: auto;
     }
@@ -403,7 +368,7 @@ interface MessageWrapperProps {
 const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     padding: 1px;
-    /* overflow-y: auto; */
+    overflow-y: auto;
     .message {
       height: 100%;
       border: 0.5px solid var(--color-border);
@@ -425,7 +390,7 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
   &.grid {
     display: block;
     height: 300px;
-    overflow: hidden;
+    overflow-y: hidden;
     border: 0.5px solid var(--color-border);
     border-radius: 10px;
     cursor: pointer;

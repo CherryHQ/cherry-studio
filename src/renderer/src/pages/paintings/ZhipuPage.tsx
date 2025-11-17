@@ -10,7 +10,6 @@ import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { InputNumber, Radio, Select } from 'antd'
@@ -25,6 +24,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -50,21 +50,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
-
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
 
   const zhipuProvider = providers.find((p) => p.id === 'zhipu')!
 
@@ -345,12 +330,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight>
-            <Button
-              size="sm"
-              className="nodrag"
-              variant="light"
-              startContent={<PlusOutlined />}
-              onPress={handleAddPainting}>
+            <Button size="sm" className="nodrag" variant="ghost" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -375,16 +356,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[0].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <ProviderLogo radius="md" src={getProviderLogo(provider.value || '')} className="h-4 w-4" />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select
@@ -566,12 +538,6 @@ const ProviderTitleContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
-`
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 const ProviderLogo = styled(Avatar)`

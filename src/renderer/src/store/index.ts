@@ -33,6 +33,7 @@ import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import tabs from './tabs'
+import toolPermissions from './toolPermissions'
 import translate from './translate'
 import video from './video'
 import websearch from './websearch'
@@ -64,6 +65,7 @@ const rootReducer = combineReducers({
   translate,
   ocr,
   note,
+  toolPermissions,
   video
 })
 
@@ -71,8 +73,8 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 163,
-    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
+    version: 174,
+    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
     migrate
   },
   rootReducer

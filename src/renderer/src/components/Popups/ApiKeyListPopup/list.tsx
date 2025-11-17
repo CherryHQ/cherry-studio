@@ -143,25 +143,21 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
                 cancelText={t('common.cancel')}
                 okButtonProps={{ color: 'danger' }}>
                 <Tooltip content={t('settings.provider.remove_invalid_keys')} closeDelay={0}>
-                  <Button
-                    variant="light"
-                    startContent={<DeleteIcon size={16} className="lucide-custom" />}
-                    isDisabled={isChecking || !!pendingNewKey}
-                    color="danger"
-                    isIconOnly
-                  />
+                  <Button variant="ghost" disabled={isChecking || !!pendingNewKey} size="icon">
+                    <DeleteIcon size={16} className="lucide-custom" />
+                  </Button>
                 </Tooltip>
               </Popconfirm>
 
               {/* 批量检查 */}
               <Tooltip content={t('settings.provider.check_all_keys')} closeDelay={0}>
                 <Button
-                  variant="light"
-                  startContent={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}
-                  onPress={checkAllKeysConnectivity}
-                  isDisabled={isChecking || !!pendingNewKey}
-                  isIconOnly
-                />
+                  variant="ghost"
+                  onClick={checkAllKeysConnectivity}
+                  disabled={isChecking || !!pendingNewKey}
+                  size="icon">
+                  <StreamlineGoodHealthAndWellBeing size={'1.2em'} />
+                </Button>
               </Tooltip>
             </Space>
           )}
@@ -169,11 +165,10 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
           {/* 添加新 key */}
           <Button
             key="add"
-            color="primary"
-            onPress={handleAddNew}
-            startContent={<Plus size={16} />}
+            onClick={handleAddNew}
             autoFocus={shouldAutoFocus()}
-            isDisabled={isChecking || !!pendingNewKey}>
+            disabled={isChecking || !!pendingNewKey}>
+            <Plus size={16} />
             {t('common.add')}
           </Button>
         </Space>

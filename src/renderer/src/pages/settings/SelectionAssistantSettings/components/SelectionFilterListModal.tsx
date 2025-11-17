@@ -50,10 +50,10 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
       keyboard={true}
       destroyOnHidden
       footer={[
-        <Button key="modal-cancel" onPress={onClose}>
+        <Button key="modal-cancel" onClick={onClose}>
           {t('common.cancel')}
         </Button>,
-        <Button key="modal-save" color="primary" onPress={handleSave}>
+        <Button key="modal-save" color="primary" onClick={handleSave}>
           {t('common.save')}
         </Button>
       ]}>

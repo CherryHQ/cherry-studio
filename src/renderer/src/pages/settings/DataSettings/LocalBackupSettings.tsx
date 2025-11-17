@@ -193,14 +193,12 @@ const LocalBackupSettings: React.FC = () => {
             placeholder={t('settings.data.local.directory.placeholder')}
             style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
-          <Button startContent={<FolderOpenOutlined />} onPress={handleBrowseDirectory}>
+          <Button onClick={handleBrowseDirectory}>
+            <FolderOpenOutlined />
             {t('common.browse')}
           </Button>
-          <Button
-            startContent={<DeleteOutlined />}
-            onPress={handleClearDirectory}
-            isDisabled={!localBackupDir}
-            color="danger">
+          <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
+            <DeleteOutlined />
             {t('common.clear')}
           </Button>
         </RowFlex>
@@ -209,14 +207,12 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-[5px]">
-          <Button
-            onPress={showBackupModal}
-            startContent={<SaveOutlined />}
-            isLoading={backuping}
-            isDisabled={!localBackupDir}>
+          <Button onClick={showBackupModal} disabled={!localBackupDir || backuping}>
+            <SaveOutlined />
             {t('settings.data.local.backup.button')}
           </Button>
-          <Button onPress={showBackupManager} startContent={<FolderOpenOutlined />} isDisabled={!localBackupDir}>
+          <Button onClick={showBackupManager} disabled={!localBackupDir}>
+            <FolderOpenOutlined />
             {t('settings.data.local.restore.button')}
           </Button>
         </RowFlex>

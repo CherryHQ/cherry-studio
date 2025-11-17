@@ -35,10 +35,10 @@ export function LocalBackupModal({
       onCancel={handleCancel}
       classNames={{ footer: 'flex justify-end gap-1' }}
       footer={[
-        <Button key="back" onPress={handleCancel}>
+        <Button key="back" onClick={handleCancel}>
           {t('common.cancel')}
         </Button>,
-        <Button key="submit" color="primary" isLoading={backuping} onPress={handleBackup}>
+        <Button key="submit" disabled={backuping} onClick={handleBackup}>
           {t('common.confirm')}
         </Button>
       ]}>

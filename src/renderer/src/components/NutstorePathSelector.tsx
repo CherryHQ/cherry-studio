@@ -36,10 +36,10 @@ function NewFolder(props: NewFolderProps) {
     <NewFolderContainer>
       <FolderIcon className={props.className}></FolderIcon>
       <Input type="text" style={{ flex: 1 }} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-      <Button color="primary" size="sm" onPress={() => onConfirm(name)}>
+      <Button color="primary" size="sm" onClick={() => onConfirm(name)}>
         {t('settings.data.nutstore.new_folder.button.confirm')}
       </Button>
-      <Button size="sm" onPress={() => onCancel()}>
+      <Button size="sm" onClick={() => onCancel()}>
         {t('settings.data.nutstore.new_folder.button.cancel')}
       </Button>
     </NewFolderContainer>
@@ -235,14 +235,14 @@ export function NustorePathSelectorFooter(props: FooterProps) {
   return (
     <FooterContainer className="justify-between">
       <RowFlex className="items-center gap-2">
-        <Button onPress={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
-        <Button size="sm" variant="light" onPress={props.mkdir}>
+        <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
+        <Button size="sm" variant="ghost" onClick={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
       </RowFlex>
       <RowFlex className="items-center gap-2">
-        <Button onPress={props.cancel}>{t('settings.data.nutstore.new_folder.button.cancel')}</Button>
-        <Button color="primary" onPress={props.confirm}>
+        <Button onClick={props.cancel}>{t('settings.data.nutstore.new_folder.button.cancel')}</Button>
+        <Button color="primary" onClick={props.confirm}>
           {t('backup.confirm.button')}
         </Button>
       </RowFlex>

@@ -376,9 +376,9 @@ const ProviderList: FC = () => {
           <Button
             size="sm"
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            startContent={<PlusIcon size={16} />}
-            onPress={onAddProvider}
-            isDisabled={dragging}>
+            onClick={onAddProvider}
+            disabled={dragging}>
+            <PlusIcon size={16} />
             {t('button.add')}
           </Button>
         </AddButtonWrapper>

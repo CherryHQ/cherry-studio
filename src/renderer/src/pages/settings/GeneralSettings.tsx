@@ -116,6 +116,7 @@ const GeneralSettings: FC = () => {
     { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
     { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
     { value: 'en-US', label: 'English', flag: '🇺🇸' },
+    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
     { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
     { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
@@ -138,7 +139,8 @@ const GeneralSettings: FC = () => {
     { value: 'pt', label: 'Português', flag: '🇵🇹' },
     { value: 'ru', label: 'Русский', flag: '🇷🇺' },
     { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
+    { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+    { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
   ]
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
@@ -222,7 +224,14 @@ const GeneralSettings: FC = () => {
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.bypass')}</SettingRowTitle>
+              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>{t('settings.proxy.bypass')}</span>
+                <InfoTooltip
+                  content={t('settings.proxy.tip')}
+                  placement="right"
+                  iconProps={{ className: 'cursor-pointer' }}
+                />
+              </SettingRowTitle>
               <Input
                 spellCheck={false}
                 placeholder={defaultByPassRules}

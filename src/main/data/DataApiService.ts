@@ -1,3 +1,28 @@
+/**
+ * @fileoverview DataApiService - API coordination and orchestration (Main Process)
+ *
+ * NAMING NOTE:
+ * This component is named "DataApiService" for management consistency, but it is
+ * actually a coordinator/orchestrator rather than a business service.
+ *
+ * True Nature: API Coordinator / Orchestrator
+ * - Initializes and coordinates the Data API framework
+ * - Wires together ApiServer (routing) and IpcAdapter (IPC communication)
+ * - Manages lifecycle (startup/shutdown) of API infrastructure
+ * - Contains zero business logic - purely infrastructure plumbing
+ *
+ * Architecture:
+ * DataApiService → coordinates → ApiServer + IpcAdapter
+ * ApiServer → routes requests → Handlers → Services → DB
+ * IpcAdapter → bridges → IPC ↔ ApiServer
+ *
+ * The "Service" suffix is kept for consistency with existing codebase conventions,
+ * but developers should understand this is a coordinator, not a business service.
+ *
+ * @see {@link ApiServer} For request routing logic
+ * @see {@link IpcAdapter} For IPC communication bridge
+ */
+
 import { loggerService } from '@logger'
 
 import { ApiServer, IpcAdapter } from './api'

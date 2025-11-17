@@ -1,5 +1,6 @@
-import { Button, Input } from '@heroui/react'
 import { loggerService } from '@logger'
+import type { InputRef } from 'antd'
+import { Button, Input } from 'antd'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -22,7 +23,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const [query, setQuery] = useState('')
   const [matchCount, setMatchCount] = useState(0)
   const [activeIndex, setActiveIndex] = useState(0)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<InputRef>(null)
   const focusFrameRef = useRef<number | null>(null)
   const lastAppIdRef = useRef<string>(appId)
   const attachedWebviewRef = useRef<WebviewTag | null>(null)
@@ -47,15 +48,58 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     setActiveIndex(0)
   }, [])
 
-  const stopSearch = useCallback(() => {
-    const target = webviewRef.current ?? attachedWebviewRef.current
-    if (!target) return
-    try {
-      target.stopFindInPage('clearSelection')
-    } catch (error) {
-      logger.error('stopFindInPage failed', { error })
+  const ensureWebviewReady = useCallback(
+    (candidate: WebviewTag | null) => {
+      if (!candidate) return null
+      try {
+        const webContentsId = candidate.getWebContentsId?.()
+        if (!webContentsId) {
+          logger.debug('WebviewSearch: missing webContentsId before action', { appId })
+          return null
+        }
+      } catch (error) {
+        logger.debug('WebviewSearch: getWebContentsId failed before action', { appId, error })
+        return null
+      }
+
+      return candidate
+    },
+    [appId]
+  )
+
+  const stopFindOnWebview = useCallback(
+    (webview: WebviewTag | null) => {
+      const usable = ensureWebviewReady(webview)
+      if (!usable) return false
+      try {
+        usable.stopFindInPage('clearSelection')
+        return true
+      } catch (error) {
+        logger.debug('stopFindInPage failed', { appId, error })
+        return false
+      }
+    },
+    [appId, ensureWebviewReady]
+  )
+
+  const getUsableWebview = useCallback(() => {
+    const candidates = [webviewRef.current, attachedWebviewRef.current]
+
+    for (const candidate of candidates) {
+      const usable = ensureWebviewReady(candidate)
+      if (usable) {
+        return usable
+      }
     }
-  }, [webviewRef])
+
+    return null
+  }, [ensureWebviewReady, webviewRef])
+
+  const stopSearch = useCallback(() => {
+    const target = getUsableWebview()
+    if (!target) return
+    stopFindOnWebview(target)
+  }, [getUsableWebview, stopFindOnWebview])
 
   const closeSearch = useCallback(() => {
     setIsVisible(false)
@@ -65,7 +109,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
 
   const performSearch = useCallback(
     (text: string, options?: Electron.FindInPageOptions) => {
-      const target = webviewRef.current ?? attachedWebviewRef.current
+      const target = getUsableWebview()
       if (!target) {
         logger.debug('Skip performSearch: webview not attached')
         return
@@ -82,7 +126,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         window.toast?.error(t('common.error'))
       }
     },
-    [resetSearchState, stopSearch, t, webviewRef]
+    [getUsableWebview, resetSearchState, stopSearch, t]
   )
 
   const handleFoundInPage = useCallback((event: Event & { result?: FoundInPageResult }) => {
@@ -130,22 +174,26 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       activeWebview.removeEventListener('found-in-page', handle)
       if (attachedWebviewRef.current === activeWebview) {
-        try {
-          activeWebview.stopFindInPage('clearSelection')
-        } catch (error) {
-          logger.error('stopFindInPage failed', { error })
-        }
+        stopFindOnWebview(activeWebview)
         attachedWebviewRef.current = null
       }
     }
-  }, [activeWebview, handleFoundInPage])
+  }, [activeWebview, handleFoundInPage, stopFindOnWebview])
 
   useEffect(() => {
     if (!activeWebview) return
+    if (!isWebviewReady) return
     const onFindShortcut = window.api?.webview?.onFindShortcut
     if (!onFindShortcut) return
 
-    const webContentsId = activeWebview.getWebContentsId?.()
+    let webContentsId: number | undefined
+    try {
+      webContentsId = activeWebview.getWebContentsId?.()
+    } catch (error) {
+      logger.debug('WebviewSearch: getWebContentsId failed', { appId, error })
+      return
+    }
+
     if (!webContentsId) {
       logger.warn('WebviewSearch: missing webContentsId', { appId })
       return
@@ -178,7 +226,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     return () => {
       unsubscribe?.()
     }
-  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, openSearch])
+  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, isWebviewReady, openSearch])
 
   useEffect(() => {
     if (!isVisible) return
@@ -268,19 +316,13 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         ref={inputRef}
         autoFocus
         value={query}
-        onValueChange={setQuery}
-        spellCheck={'false'}
+        onChange={(e) => setQuery(e.target.value)}
+        spellCheck={false}
         placeholder={t('common.search')}
-        size="sm"
-        radius="sm"
-        variant="flat"
-        classNames={{
-          base: 'w-[240px]',
-          inputWrapper:
-            'h-8 bg-transparent border border-transparent shadow-none hover:border-transparent hover:bg-transparent focus:border-transparent data-[hover=true]:border-transparent data-[focus=true]:border-transparent data-[focus-visible=true]:outline-none data-[focus-visible=true]:ring-0',
-          input: 'text-small focus:outline-none focus-visible:outline-none',
-          innerWrapper: 'gap-0'
-        }}
+        size="small"
+        variant="borderless"
+        className="w-[240px]"
+        style={{ height: '32px' }}
       />
       <span
         className="min-w-[44px] text-center text-default-500 text-small tabular-nums"
@@ -292,38 +334,32 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
       </span>
       <div className="h-4 w-px bg-default-200" />
       <Button
-        size="sm"
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={goToPrevious}
-        isDisabled={disableNavigation}
+        size="small"
+        type="text"
+        onClick={goToPrevious}
+        disabled={disableNavigation}
         aria-label="Previous match"
-        className="text-default-500 hover:text-default-900">
-        <ChevronUp size={16} />
-      </Button>
+        icon={<ChevronUp size={16} className="w-6" />}
+        className="text-default-500 hover:text-default-900"
+      />
       <Button
-        size="sm"
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={goToNext}
-        isDisabled={disableNavigation}
+        size="small"
+        type="text"
+        onClick={goToNext}
+        disabled={disableNavigation}
         aria-label="Next match"
-        className="text-default-500 hover:text-default-900">
-        <ChevronDown size={16} />
-      </Button>
+        icon={<ChevronDown size={16} className="w-6" />}
+        className="text-default-500 hover:text-default-900"
+      />
       <div className="h-4 w-px bg-default-200" />
       <Button
-        size="sm"
-        variant="light"
-        radius="full"
-        isIconOnly
-        onPress={closeSearch}
+        size="small"
+        type="text"
+        onClick={closeSearch}
         aria-label={t('common.close')}
-        className="text-default-500 hover:text-default-900">
-        <X size={16} />
-      </Button>
+        icon={<X size={16} className="w-6" />}
+        className="text-default-500 hover:text-default-900"
+      />
     </div>
   )
 }

@@ -50,7 +50,11 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
               if (!block.file) return null
               const binaryData: Uint8Array = await FileManager.readBinaryImage(block.file)
               const mimeType = `${block.file.type}/${block.file.ext.slice(1)}`
-              return await toFile(new Blob([binaryData]), block.file.origin_name || 'image.png', { type: mimeType })
+              return await toFile(
+                new Blob([binaryData as unknown as BlobPart]),
+                block.file.origin_name || 'image.png',
+                { type: mimeType }
+              )
             })
           )
           imageFiles = imageFiles.concat(userImages.filter(Boolean) as Blob[])
@@ -78,6 +82,12 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
           const options = { signal, timeout: defaultTimeout }
 
           if (imageFiles.length > 0) {
+            const model = assistant.model
+            const provider = context.apiClientInstance.provider
+            // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/dall-e?tabs=gpt-image-1#call-the-image-edit-api
+            if (model.id.toLowerCase().includes('gpt-image-1-mini') && provider.type === 'azure-openai') {
+              throw new Error('Azure OpenAI GPT-Image-1-Mini model does not support image editing.')
+            }
             response = await sdk.images.edit(
               {
                 model: assistant.model.id,

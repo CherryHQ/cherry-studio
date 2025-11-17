@@ -89,32 +89,24 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
                 </TerminalContent>
               </TerminalPreview>
               <ButtonContainer>
-                <Button startContent={<CodeOutlined />} onPress={() => setIsPopupOpen(true)} color="primary">
+                <Button onClick={() => setIsPopupOpen(true)}>
+                  <CodeOutlined />
                   {t('chat.artifacts.button.preview')}
                 </Button>
               </ButtonContainer>
             </>
           ) : (
             <ButtonContainer>
-              <Button
-                startContent={<CodeOutlined />}
-                onPress={() => setIsPopupOpen(true)}
-                variant="light"
-                isDisabled={!hasContent}>
+              <Button onClick={() => setIsPopupOpen(true)} variant="ghost" disabled={!hasContent}>
+                <CodeOutlined />
                 {t('chat.artifacts.button.preview')}
               </Button>
-              <Button
-                startContent={<LinkIcon size={14} />}
-                onPress={handleOpenExternal}
-                variant="light"
-                isDisabled={!hasContent}>
+              <Button onClick={handleOpenExternal} variant="ghost" disabled={!hasContent}>
+                <LinkIcon size={14} />
                 {t('chat.artifacts.button.openExternal')}
               </Button>
-              <Button
-                startContent={<DownloadIcon size={14} />}
-                onPress={handleDownload}
-                variant="light"
-                isDisabled={!hasContent}>
+              <Button onClick={handleDownload} variant="ghost" disabled={!hasContent}>
+                <DownloadIcon size={14} />
                 {t('code_block.download.label')}
               </Button>
             </ButtonContainer>

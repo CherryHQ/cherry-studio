@@ -30,7 +30,7 @@ describe('ImageToolButton', () => {
   const defaultProps = {
     tooltip: 'Test tooltip',
     icon: <span data-testid="test-icon">Icon</span>,
-    onPress: vi.fn()
+    onClick: vi.fn()
   }
 
   it('should match snapshot', () => {

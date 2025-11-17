@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import { scrollElementIntoView } from '@renderer/utils'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -181,17 +182,14 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             // 3. 将当前项滚动到视图中
             // 获取第一个文本节点的父元素来进行滚动
             const parentElement = currentMatchRange.startContainer.parentElement
-            if (shouldScroll) {
-              parentElement?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
-              })
+            if (shouldScroll && parentElement) {
+              // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来"跳到第一条"
+              scrollElementIntoView(parentElement, target)
             }
           }
         }
       },
-      [allRanges, currentIndex]
+      [allRanges, currentIndex, target]
     )
 
     const search = useCallback(
@@ -365,8 +363,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                 {showUserToggle && (
                   <Tooltip placement="bottom" content={t('button.includes_user_questions')} delay={800}>
                     <ActionIconButton
-                      onPress={userOutlinedButtonOnClick}
-                      isIconOnly
+                      onClick={userOutlinedButtonOnClick}
                       icon={
                         <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
                       }
@@ -375,7 +372,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                 )}
                 <Tooltip placement="bottom" content={t('button.case_sensitive')} delay={800}>
                   <ActionIconButton
-                    onPress={caseSensitiveButtonOnClick}
+                    onClick={caseSensitiveButtonOnClick}
                     icon={
                       <CaseSensitive
                         size={18}
@@ -386,7 +383,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                 </Tooltip>
                 <Tooltip placement="bottom" content={t('button.whole_word')} delay={800}>
                   <ActionIconButton
-                    onPress={wholeWordButtonOnClick}
+                    onClick={wholeWordButtonOnClick}
                     icon={
                       <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
                     }
@@ -408,16 +405,16 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             </SearchResults>
             <ToolBar>
               <ActionIconButton
-                onPress={prevButtonOnClick}
-                isDisabled={allRanges.length === 0}
+                onClick={prevButtonOnClick}
+                disabled={allRanges.length === 0}
                 icon={<ChevronUp size={18} />}
               />
               <ActionIconButton
-                onPress={nextButtonOnClick}
-                isDisabled={allRanges.length === 0}
+                onClick={nextButtonOnClick}
+                disabled={allRanges.length === 0}
                 icon={<ChevronDown size={18} />}
               />
-              <ActionIconButton onPress={closeButtonOnClick} icon={<X size={18} />} />
+              <ActionIconButton onClick={closeButtonOnClick} icon={<X size={18} />} />
             </ToolBar>
           </SearchBarContainer>
         </NarrowLayout>

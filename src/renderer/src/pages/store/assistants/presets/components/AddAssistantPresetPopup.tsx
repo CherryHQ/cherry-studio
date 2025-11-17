@@ -207,7 +207,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             }
             arrow
             trigger="click">
-            <Button startContent={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
+            <Button>
+              {emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}
+              {t('common.select')}
+            </Button>
           </Popover>
         </Form.Item>
         <Form.Item name="name" label={t('assistants.presets.add.name.label')} rules={[{ required: true }]}>
@@ -223,21 +226,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            startContent={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
-            isIconOnly
-            size="sm"
-            onPress={handleGenerateButtonClick}
+            size="icon-sm"
+            onClick={handleGenerateButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
-            isDisabled={loading}
-          />
+            disabled={loading}>
+            {loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+          </Button>
           {showUndoButton && (
-            <Button
-              startContent={<RollbackOutlined />}
-              isIconOnly
-              size="sm"
-              onPress={handleUndoButtonClick}
-              style={{ position: 'absolute', top: 8, right: 48 }}
-            />
+            <Button size="icon-sm" onClick={handleUndoButtonClick} style={{ position: 'absolute', top: 8, right: 48 }}>
+              <RollbackOutlined />
+            </Button>
           )}
         </div>
         {showKnowledgeIcon && (

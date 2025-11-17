@@ -168,16 +168,10 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
         }
       }}
       footer={[
-        <Button key="cancel" size="lg" onPress={onCancel}>
+        <Button key="cancel" size="lg" onClick={onCancel}>
           {t('common.cancel')}
         </Button>,
-        <Button
-          key="submit"
-          variant="solid"
-          color="primary"
-          size="lg"
-          isLoading={loading}
-          onPress={() => form.submit()}>
+        <Button key="submit" variant="default" size="lg" disabled={loading} onClick={() => form.submit()}>
           {t('common.save')}
         </Button>
       ]}>
@@ -598,12 +592,9 @@ const MemorySettings = () => {
           </RowFlex>
           <RowFlex className="items-center gap-2.5">
             <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
-            <Button
-              variant="light"
-              startContent={<Settings2 size={16} />}
-              onPress={() => setSettingsModalVisible(true)}
-              isIconOnly
-            />
+            <Button variant="ghost" onClick={() => setSettingsModalVisible(true)} size="icon">
+              <Settings2 size={16} />
+            </Button>
           </RowFlex>
         </RowFlex>
       </SettingGroup>
@@ -650,11 +641,8 @@ const MemorySettings = () => {
               allowClear
               style={{ width: 240 }}
             />
-            <Button
-              variant="solid"
-              color="primary"
-              startContent={<PlusIcon size={18} />}
-              onPress={() => setAddMemoryModalVisible(true)}>
+            <Button variant="default" onClick={() => setAddMemoryModalVisible(true)}>
+              <PlusIcon size={18} />
               {t('memory.add_memory')}
             </Button>
             <Dropdown
@@ -696,7 +684,10 @@ const MemorySettings = () => {
               }}
               trigger={['click']}
               placement="bottomRight">
-              <Button startContent={<MenuIcon size={16} />}>{t('common.more')}</Button>
+              <Button>
+                <MenuIcon size={16} />
+                {t('common.more')}
+              </Button>
             </Dropdown>
           </Space>
         </div>
@@ -714,12 +705,8 @@ const MemorySettings = () => {
                   <div style={{ color: 'var(--color-text-secondary)', marginBottom: 16 }}>
                     {t('memory.no_memories_description')}
                   </div>
-                  <Button
-                    variant="solid"
-                    color="primary"
-                    startContent={<PlusIcon size={18} />}
-                    onPress={() => setAddMemoryModalVisible(true)}
-                    size="lg">
+                  <Button variant="default" onClick={() => setAddMemoryModalVisible(true)} size="lg">
+                    <PlusIcon size={18} />
                     {t('memory.add_first_memory')}
                   </Button>
                 </div>
@@ -748,19 +735,13 @@ const MemorySettings = () => {
                             <span>{memory.createdAt ? dayjs(memory.createdAt).fromNow() : '-'}</span>
                           </div>
                           <Space size="small">
+                            <Button variant="ghost" size="sm" onClick={() => handleEditMemory(memory)}>
+                              <EditIcon size={14} />
+                            </Button>
                             <Button
-                              variant="light"
+                              variant="destructive"
                               size="sm"
-                              startContent={<EditIcon size={14} />}
-                              onPress={() => handleEditMemory(memory)}
-                              isIconOnly
-                            />
-                            <Button
-                              variant="light"
-                              size="sm"
-                              color="danger"
-                              startContent={<DeleteIcon size={14} className="lucide-custom" />}
-                              onPress={() => {
+                              onClick={() => {
                                 window.modal.confirm({
                                   centered: true,
                                   title: t('memory.delete_confirm'),
@@ -769,9 +750,9 @@ const MemorySettings = () => {
                                   okText: t('common.confirm'),
                                   cancelText: t('common.cancel')
                                 })
-                              }}
-                              isIconOnly
-                            />
+                              }}>
+                              <DeleteIcon size={14} className="lucide-custom" />
+                            </Button>
                           </Space>
                         </div>
                         <div className="memory-content">{memory.memory}</div>

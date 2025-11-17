@@ -153,7 +153,8 @@ export async function fetchChatCompletion({
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
     mcpTools,
-    uiMessages
+    uiMessages,
+    knowledgeRecognition: assistant.knowledgeRecognition
   }
 
   // --- Call AI Completions ---
@@ -168,7 +169,7 @@ export async function fetchChatCompletion({
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
-  const model = getQuickModel() || assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant?.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)

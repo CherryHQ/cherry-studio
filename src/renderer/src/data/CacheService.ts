@@ -1,3 +1,22 @@
+/**
+ * @fileoverview CacheService - Infrastructure component for multi-tier caching (Renderer)
+ *
+ * NAMING NOTE:
+ * This component is named "CacheService" for management consistency, but it is
+ * actually an infrastructure component (cache manager) rather than a business service.
+ *
+ * True Nature: Cache Manager / Infrastructure Utility
+ * - Provides 3-tier caching system (memory/shared/persist)
+ * - Manages synchronization with Main process and other windows
+ * - Contains zero business logic - purely technical functionality
+ * - Used by React components via hooks (useCache, useSharedCache, usePersistCache)
+ *
+ * The "Service" suffix is kept for consistency with existing codebase conventions,
+ * but developers should understand this is infrastructure, not business logic.
+ *
+ * @see {@link CacheService} For implementation details
+ */
+
 import { loggerService } from '@logger'
 import type {
   RendererPersistCacheKey,

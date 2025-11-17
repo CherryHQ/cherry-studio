@@ -76,7 +76,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               handleImageUpload(propertyName, file, onChange)
               return false
             }}>
-            <Button startContent={<UploadOutlined />} title="Upload image file" className="h-8 rounded-l-none" />
+            <Button title="Upload image file" className="h-8 rounded-l-none">
+              <UploadOutlined />
+            </Button>
           </Upload>
         </div>
 
@@ -117,12 +119,12 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
             </div>
             <Button
               size="sm"
-              color="danger"
-              startContent={<CloseOutlined />}
-              onPress={() => onChange(propertyName, '')}
+              variant="destructive"
+              onClick={() => onChange(propertyName, '')}
               title="Remove image"
-              className="min-w-0 shrink-0 px-2"
-            />
+              className="min-w-0 shrink-0 px-2">
+              <CloseOutlined />
+            </Button>
           </div>
         )}
       </div>
@@ -172,12 +174,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           min={schemaProperty.minimum}
           max={schemaProperty.maximum}
         />
-        <Button
-          size="sm"
-          startContent={<RedoOutlined />}
-          onPress={() => onChange(propertyName, generateRandomSeed())}
-          title="Generate random seed"
-        />
+        <Button size="sm" onClick={() => onChange(propertyName, generateRandomSeed())} title="Generate random seed">
+          <RedoOutlined />
+        </Button>
       </div>
     )
   }

@@ -1,8 +1,24 @@
-import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector, type SelectorItem, Switch } from '@cherrystudio/ui'
+import {
+  Button,
+  DescriptionSwitch,
+  HelpTooltip,
+  RowFlex,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch
+} from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  MAX_CONTEXT_COUNT
+} from '@renderer/config/constant'
 import { isOpenAIModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -27,6 +43,13 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import OpenAISettingsGroup from './components/OpenAISettingsGroup'
+
+// Type definition for select items
+type SelectorItem<T extends string = string> = {
+  value: T
+  label: string
+}
+
 interface Props {
   assistant: Assistant
 }
@@ -214,9 +237,6 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const assistantContextCount = assistant?.settings?.contextCount || 20
-  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
-
   const model = assistant.model || getDefaultModel()
 
   const isOpenAI = isOpenAIModel(model)
@@ -230,10 +250,9 @@ const SettingsTab: FC<Props> = (props) => {
           extra={
             <RowFlex className="items-center gap-0.5">
               <Button
-                variant="light"
-                size="sm"
-                isIconOnly
-                onPress={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}>
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}>
                 <Settings2 size={16} />
               </Button>
             </RowFlex>
@@ -270,21 +289,44 @@ const SettingsTab: FC<Props> = (props) => {
             ) : (
               <SettingDivider />
             )}
-            <Row align="middle">
+            <Row align="middle" gutter={10} justify="space-between">
               <SettingRowTitleSmall>
                 {t('chat.settings.context_count.label')}
                 <HelpTooltip title={t('chat.settings.context_count.tip')} />
               </SettingRowTitleSmall>
+              <Col span={8}>
+                <EditableNumber
+                  min={0}
+                  max={20}
+                  step={1}
+                  value={contextCount}
+                  changeOnBlur
+                  onChange={(value) => {
+                    if (value !== null && value >= 0 && value <= 20) {
+                      setContextCount(value)
+                      onContextCountChange(value)
+                    }
+                  }}
+                  formatter={(value) => (value === MAX_CONTEXT_COUNT ? t('chat.settings.max') : (value ?? ''))}
+                  style={{ width: '100%' }}
+                />
+              </Col>
             </Row>
             <Row align="middle" gutter={10}>
-              <Col span={23}>
+              <Col span={24}>
                 <Slider
                   min={0}
-                  max={maxContextCount}
+                  max={20}
                   onChange={setContextCount}
                   onChangeComplete={onContextCountChange}
-                  value={typeof contextCount === 'number' ? contextCount : 0}
+                  value={Math.min(contextCount, 20)}
+                  tooltip={{ open: false }}
                   step={1}
+                  marks={{
+                    0: '0',
+                    10: '10',
+                    20: '20'
+                  }}
                 />
               </Col>
             </Row>
@@ -394,39 +436,51 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            {/* <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('message.message.style.label')}
-              selectionMode="single"
-              selectedKeys={messageStyle}
-              onSelectionChange={(value) => setMessageStyle(value)}
-              items={messageStyleItems}
-            />
+            <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
+            <Select value={messageStyle} onValueChange={setMessageStyle}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {messageStyleItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            {/* <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('message.message.multi_model_style.label')}
-              selectionMode="single"
-              selectedKeys={multiModelMessageStyle}
-              onSelectionChange={(value) => setMultiModelMessageStyle(value)}
-              items={multiModelMessageStyleItems}
-            />
+            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
+            <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {multiModelMessageStyleItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            {/* <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('settings.messages.navigation.label')}
-              selectionMode="single"
-              selectedKeys={messageNavigation}
-              onSelectionChange={(value) => setMessageNavigation(value)}
-              items={messageNavigationItems}
-            />
+            <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
+            <Select value={messageNavigation} onValueChange={setMessageNavigation}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {messageNavigationItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -455,15 +509,19 @@ const SettingsTab: FC<Props> = (props) => {
       <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
-            {/* <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('settings.math.engine.label')}
-              selectionMode="single"
-              selectedKeys={mathEngine}
-              onSelectionChange={(value) => setMathEngine(value)}
-              items={mathEngineItems}
-            />
+            <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
+            <Select value={mathEngine} onValueChange={setMathEngine}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {mathEngineItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -484,15 +542,19 @@ const SettingsTab: FC<Props> = (props) => {
       <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
-            {/* <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('message.message.code_style')}
-              selectionMode="single"
-              selectedKeys={codeStyle}
-              onSelectionChange={(value) => onCodeStyleChange(value)}
-              items={codeStyleItems}
-            />
+            <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
+            <Select value={codeStyle} onValueChange={onCodeStyleChange}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {codeStyleItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -720,28 +782,35 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            {/* <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('settings.input.target_language.label')}
-              selectionMode="single"
-              selectedKeys={targetLanguage}
-              onSelectionChange={(value) => setTargetLanguage(value)}
-              placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
-              items={targetLanguageItems}
-            />
+            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
+            <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()} />
+              </SelectTrigger>
+              <SelectContent>
+                {targetLanguageItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            {/* <SettingRowTitleSmall>{}</SettingRowTitleSmall> */}
-            <Selector
-              size="sm"
-              label={t('settings.messages.input.send_shortcuts')}
-              selectionMode="single"
-              selectedKeys={sendMessageShortcut}
-              onSelectionChange={(value) => setSendMessageShortcut(value)}
-              items={sendMessageShortcutItems}
-            />
+            <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
+            <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
+              <SelectTrigger size="sm" className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sendMessageShortcutItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </SettingRow>
         </SettingGroup>
       </CollapsibleSettingGroup>

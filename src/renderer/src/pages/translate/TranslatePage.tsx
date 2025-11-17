@@ -138,15 +138,22 @@ const TranslatePage: FC = () => {
   // )
 
   // 控制复制行为
+  const copy = useCallback(
+    async (text: string) => {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+    },
+    [setCopied]
+  )
+
   const onCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(translatedContent)
-      setCopied(true)
+      await copy(translatedContent)
     } catch (error) {
       logger.error('Failed to copy text to clipboard:', error as Error)
       window.toast.error(t('common.copy_failed'))
     }
-  }, [setCopied, t, translatedContent])
+  }, [copy, t, translatedContent])
 
   /**
    * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
@@ -187,7 +194,7 @@ const TranslatePage: FC = () => {
           setTimeoutTimer(
             'auto-copy',
             async () => {
-              await onCopy()
+              await copy(translated)
             },
             100
           )
@@ -204,7 +211,7 @@ const TranslatePage: FC = () => {
         window.toast.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [autoCopy, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, copy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
@@ -691,12 +698,11 @@ const TranslatePage: FC = () => {
           <InnerOperationBar style={{ justifyContent: 'flex-start' }}>
             <Button
               className="nodrag"
-              color="default"
-              variant="light"
-              startContent={<FolderClock size={18} />}
-              isIconOnly
-              onPress={() => setHistoryDrawerVisible(!historyDrawerVisible)}
-            />
+              variant="ghost"
+              size="icon"
+              onClick={() => setHistoryDrawerVisible(!historyDrawerVisible)}>
+              <FolderClock size={18} />
+            </Button>
             <LanguageSelect
               showSearch
               style={{ width: 200 }}
@@ -718,13 +724,13 @@ const TranslatePage: FC = () => {
             />
             <Tooltip content={t('translate.exchange.label')} placement="bottom">
               <Button
-                variant="light"
-                startContent={<SwapOutlined />}
-                isIconOnly
+                variant="ghost"
+                size="icon"
                 style={{ margin: '0 -2px' }}
-                onPress={handleExchange}
-                isDisabled={!couldExchange}
-              />
+                onClick={handleExchange}
+                disabled={!couldExchange}>
+                <SwapOutlined />
+              </Button>
             </Tooltip>
             {getLanguageDisplay()}
             <TranslateButton
@@ -741,12 +747,9 @@ const TranslatePage: FC = () => {
               modelFilter={modelPredicate}
               tooltipProps={{ placement: 'bottom' }}
             />
-            <Button
-              variant="light"
-              startContent={<Settings2 size={18} />}
-              isIconOnly
-              onPress={() => setSettingsVisible(true)}
-            />
+            <Button variant="ghost" size="icon" onClick={() => setSettingsVisible(true)}>
+              <Settings2 size={18} />
+            </Button>
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
@@ -795,14 +798,13 @@ const TranslatePage: FC = () => {
 
           <OutputContainer>
             <CopyButton
-              variant="light"
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
               className="copy-button"
-              onPress={onCopy}
-              isDisabled={!translatedContent}
-              startContent={copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
-              isIconOnly
-            />
+              onClick={onCopy}
+              disabled={!translatedContent}>
+              {copied ? <Check size={16} color="var(--color-primary)" /> : <CopyIcon size={16} />}
+            </CopyButton>
             <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className={'selectable'}>
               {!translatedContent ? (
                 <div style={{ color: 'var(--color-text-3)', userSelect: 'none' }}>
@@ -996,12 +998,14 @@ const TranslateButton = ({
         </div>
       }>
       {!translating && (
-        <Button color="primary" onPress={onTranslate} isDisabled={!couldTranslate} startContent={<SendOutlined />}>
+        <Button onClick={onTranslate} disabled={!couldTranslate}>
+          <SendOutlined />
           {t('translate.button.translate')}
         </Button>
       )}
       {translating && (
-        <Button color="danger" onPress={onAbort} startContent={<CirclePause size={14} />}>
+        <Button variant="destructive" onClick={onAbort}>
+          <CirclePause size={14} />
           {t('common.stop')}
         </Button>
       )}

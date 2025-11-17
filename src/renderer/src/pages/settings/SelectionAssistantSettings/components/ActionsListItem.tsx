@@ -58,10 +58,10 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   if (!item.isBuiltIn) {
     return (
       <UserActionOpSection>
-        <Button variant="light" size="sm" onPress={() => onEdit(item)} isIconOnly>
+        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(item)}>
           <Pencil size={16} className="btn-icon-edit" />
         </Button>
-        <Button variant="light" size="sm" color="danger" onPress={() => onDelete(item.id)} isIconOnly>
+        <Button variant="ghost" size="icon-sm" onClick={() => onDelete(item.id)}>
           <Trash size={16} className="btn-icon-delete" />
         </Button>
       </UserActionOpSection>
@@ -71,7 +71,7 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
   if (item.isBuiltIn && item.id === 'search') {
     return (
       <UserActionOpSection>
-        <Button variant="light" size="sm" onPress={() => onEdit(item)} isIconOnly>
+        <Button variant="ghost" size="icon-sm" onClick={() => onEdit(item)}>
           <Settings2 size={16} className="btn-icon-edit" />
         </Button>
       </UserActionOpSection>

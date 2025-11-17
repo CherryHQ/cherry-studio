@@ -22,7 +22,7 @@ type AgentPromptSettingsProps =
     }
   | {
       agentBase: AgentSessionEntity | undefined | null
-      update: ReturnType<typeof useUpdateSession>
+      update: ReturnType<typeof useUpdateSession>['updateSession']
     }
 
 const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => {
@@ -90,10 +90,8 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
         <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            variant="solid"
-            color="primary"
-            startContent={showPreview ? <Edit size={14} /> : <Save size={14} />}
-            onPress={() => {
+            variant="default"
+            onClick={() => {
               const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
               if (showPreview) {
                 setShowPreview(false)
@@ -106,6 +104,7 @@ const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => 
                 })
               }
             }}>
+            {showPreview ? <Edit size={14} /> : <Save size={14} />}
             {showPreview ? t('common.edit') : t('common.save')}
           </Button>
         </SpaceBetweenRowFlex>

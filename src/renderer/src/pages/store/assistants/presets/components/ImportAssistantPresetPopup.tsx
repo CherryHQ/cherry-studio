@@ -101,8 +101,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       maskClosable={false}
       footer={
         <Flex className="justify-end gap-2">
-          <Button onPress={onCancel}>{t('common.cancel')}</Button>
-          <Button color="primary" onPress={() => form.submit()} isLoading={loading}>
+          <Button onClick={onCancel}>{t('common.cancel')}</Button>
+          <Button onClick={() => form.submit()} disabled={loading}>
             {t('assistants.presets.import.button')}
           </Button>
         </Flex>
@@ -127,7 +127,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
         {importType === 'file' && (
           <Form.Item>
-            <Button onPress={() => form.submit()}>{t('assistants.presets.import.select_file')}</Button>
+            <Button onClick={() => form.submit()}>{t('assistants.presets.import.select_file')}</Button>
           </Form.Item>
         )}
       </Form>

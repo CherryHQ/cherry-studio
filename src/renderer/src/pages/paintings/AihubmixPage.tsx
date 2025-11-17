@@ -14,7 +14,6 @@ import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
@@ -32,6 +31,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 import { checkProviderEnabled } from './utils'
 
@@ -73,20 +73,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const providerOptions = Options.map((option) => {
-    const provider = providers.find((p) => p.id === option)
-    if (provider) {
-      return {
-        label: getProviderLabel(provider.id),
-        value: provider.id
-      }
-    } else {
-      return {
-        label: 'Unknown Provider',
-        value: undefined
-      }
-    }
-  })
   const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
@@ -821,7 +807,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
+            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
+              <PlusOutlined />
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -841,21 +828,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </SettingHelpLink>
           </ProviderTitleContainer>
-
-          <Select value={providerOptions[1].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
-            {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
-                <SelectOptionContainer>
-                  <Avatar
-                    radius="md"
-                    src={getProviderLogo(provider.value || '')}
-                    className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
-                  />
-                  {provider.label}
-                </SelectOptionContainer>
-              </Select.Option>
-            ))}
-          </Select>
+          <ProviderSelect
+            provider={aihubmixProvider}
+            options={Options}
+            onChange={handleProviderChange}
+            className={'mb-4'}
+          />
 
           {/* 使用JSON配置渲染设置项 */}
           {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
@@ -1011,12 +989,6 @@ const ModeSegmentedContainer = styled.div`
   display: flex;
   justify-content: center;
   padding-top: 24px;
-`
-
-const SelectOptionContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
 // 添加新的样式组件

@@ -23,6 +23,16 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
 // Mock antd components to prevent flaky snapshot tests
 vi.mock('antd', () => {
   const MockSpaceCompact: React.FC<React.PropsWithChildren<{ style?: React.CSSProperties }>> = ({

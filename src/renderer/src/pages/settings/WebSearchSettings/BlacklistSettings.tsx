@@ -248,7 +248,7 @@ const BlacklistSettings: FC = () => {
           autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
-        <Button onPress={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
+        <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
         {errFormat && (
@@ -259,10 +259,9 @@ const BlacklistSettings: FC = () => {
         <SettingTitle>
           {t('settings.tool.websearch.subscribe')}
           <Button
-            color={subscribeValid ? 'primary' : 'default'}
-            variant={subscribeValid ? 'ghost' : 'solid'}
-            isDisabled={subscribeChecking}
-            onPress={handleAddSubscribe}>
+            variant={subscribeValid ? 'ghost' : 'default'}
+            disabled={subscribeChecking}
+            onClick={handleAddSubscribe}>
             {t('settings.tool.websearch.subscribe_add')}
           </Button>
         </SettingTitle>
@@ -277,11 +276,10 @@ const BlacklistSettings: FC = () => {
           />
           <SettingRow style={{ height: 50 }}>
             <Button
-              color={subscribeValid ? 'primary' : 'default'}
-              variant={subscribeValid ? 'ghost' : 'solid'}
-              isDisabled={subscribeChecking || selectedRowKeys.length === 0}
+              variant={subscribeValid ? 'ghost' : 'default'}
+              disabled={subscribeChecking || selectedRowKeys.length === 0}
               style={{ width: 100 }}
-              onPress={updateSubscribe}>
+              onClick={updateSubscribe}>
               {subscribeChecking ? (
                 <LoadingOutlined spin />
               ) : subscribeValid ? (
@@ -290,7 +288,7 @@ const BlacklistSettings: FC = () => {
                 t('settings.tool.websearch.subscribe_update')
               )}
             </Button>
-            <Button style={{ width: 100 }} isDisabled={selectedRowKeys.length === 0} onPress={handleDeleteSubscribe}>
+            <Button style={{ width: 100 }} disabled={selectedRowKeys.length === 0} onClick={handleDeleteSubscribe}>
               {t('settings.tool.websearch.subscribe_delete')}
             </Button>
           </SettingRow>

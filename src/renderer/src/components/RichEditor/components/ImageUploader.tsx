@@ -175,10 +175,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               prefix={<LinkOutlined style={{ color: '#999' }} />}
               style={{ flex: 1 }}
             />
-            <Button onPress={() => setUrlInput('')} className="border border-gray-300 bg-white text-gray-700">
+            <Button onClick={() => setUrlInput('')} className="border border-gray-300 bg-white text-gray-700">
               {t('common.clear')}
             </Button>
-            <Button color="primary" onPress={handleUrlSubmit} isDisabled={!urlInput.trim()}>
+            <Button color="primary" onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
               {t('richEditor.imageUploader.embedImage')}
             </Button>
           </Flex>

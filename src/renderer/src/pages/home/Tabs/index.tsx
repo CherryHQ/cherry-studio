@@ -1,22 +1,25 @@
 import { usePreference } from '@data/hooks/usePreference'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Tab } from '@renderer/types/chat'
-import { classNames, uuid } from '@renderer/utils'
+import { classNames, getErrorMessage, uuid } from '@renderer/utils'
+import { Alert, Skeleton } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AgentSettingsTab from './AgentSettingsTab'
 import Assistants from './AssistantsTab'
+import SessionSettingsTab from './SessionSettingsTab'
 import Settings from './SettingsTab'
 import Topics from './TopicsTab'
 
@@ -30,7 +33,7 @@ interface Props {
   style?: React.CSSProperties
 }
 
-let _tab: any = ''
+let _tab: Tab | null = null
 
 const HomeTabs: FC<Props> = ({
   activeAssistant,
@@ -49,8 +52,9 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
-  const { agent } = useAgent(activeAgentId)
-  const { updateAgent } = useUpdateAgent()
+  const { session, isLoading: isSessionLoading, error: sessionError } = useActiveSession()
+  const { updateSession } = useUpdateSession(activeAgentId)
+  const dispatch = useAppDispatch()
 
   const isSessionView = activeTopicOrSession === 'session'
   const isTopicView = activeTopicOrSession === 'topic'
@@ -70,13 +74,19 @@ const HomeTabs: FC<Props> = ({
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
-    assistant && setActiveAssistant(assistant)
+    if (assistant) {
+      setActiveAssistant(assistant)
+      dispatch(setActiveAgentId(null))
+      dispatch(setActiveTopicOrSessionAction('topic'))
+    }
   }
 
   const onCreateDefaultAssistant = () => {
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
     setActiveAssistant(assistant)
+    dispatch(setActiveAgentId(null))
+    dispatch(setActiveTopicOrSessionAction('topic'))
   }
 
   useEffect(() => {
@@ -104,7 +114,7 @@ const HomeTabs: FC<Props> = ({
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
       setTab('topic')
     }
-    if (position === 'left' && topicPosition === 'right' && tab === 'topic') {
+    if (position === 'left' && topicPosition === 'right' && (tab === 'topic' || tab === 'settings')) {
       setTab('assistants')
     }
   }, [position, tab, topicPosition, forceToSeeAllTab])
@@ -127,7 +137,7 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && isTopicView && (
+      {position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
@@ -156,7 +166,21 @@ const HomeTabs: FC<Props> = ({
           />
         )}
         {tab === 'settings' && isTopicView && <Settings assistant={activeAssistant} />}
-        {tab === 'settings' && isSessionView && <AgentSettingsTab agent={agent} update={updateAgent} />}
+        {tab === 'settings' && isSessionView && !sessionError && (
+          <Skeleton loading={isSessionLoading} active style={{ height: '100%', padding: '16px' }}>
+            <SessionSettingsTab session={session} update={updateSession} />
+          </Skeleton>
+        )}
+        {tab === 'settings' && isSessionView && sessionError && (
+          <div className="w-[var(--assistants-width)] p-2 px-3 pt-4">
+            <Alert
+              type="error"
+              message={t('agent.session.get.error.failed')}
+              description={getErrorMessage(sessionError)}
+              style={{ padding: '10px 15px' }}
+            />
+          </div>
+        )}
       </TabContent>
     </Container>
   )
@@ -177,10 +201,7 @@ const Container = styled.div`
     background-color: var(--color-background);
   }
   [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height) - 12px);
-    &.right {
-      height: calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px);
-    }
+    height: calc(100vh - var(--navbar-height));
   }
   overflow: hidden;
   .collapsed {

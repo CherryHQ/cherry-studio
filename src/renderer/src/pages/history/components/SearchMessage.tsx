@@ -46,14 +46,14 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
         <ContainerWrapper>
           <MessageItem message={message} topic={topic} hideMenuBar={true} />
           <Button
-            variant="light"
-            size="md"
+            variant="ghost"
             className="absolute top-4 right-4 text-[var(--color-text-3)]"
-            onPress={() => locateToMessage(navigate, message)}
-            startContent={<Forward size={16} />}
-          />
+            onClick={() => locateToMessage(navigate, message)}>
+            <Forward size={16} />
+          </Button>
           <RowFlex className="mt-[10px] justify-center">
-            <Button onPress={() => locateToMessage(navigate, message)} startContent={<Forward size={16} />}>
+            <Button onClick={() => locateToMessage(navigate, message)}>
+              <Forward size={16} />
               {t('history.locate.message')}
             </Button>
           </RowFlex>

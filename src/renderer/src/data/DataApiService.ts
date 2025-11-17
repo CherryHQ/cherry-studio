@@ -1,3 +1,35 @@
+/**
+ * @fileoverview DataApiService - API client for data requests (Renderer Process)
+ *
+ * NAMING NOTE:
+ * This component is named "DataApiService" for management consistency, but it is
+ * actually an API client rather than a business service.
+ *
+ * True Nature: API Client / Gateway
+ * - Provides HTTP-like interface for making data requests to Main process
+ * - Wraps IPC communication with type-safe, retry-enabled interface
+ * - Acts as a Gateway/Facade for all data operations from renderer
+ * - Contains zero business logic - purely communication infrastructure
+ *
+ * Key Features:
+ * - Type-safe requests with full TypeScript inference
+ * - Automatic retry with exponential backoff (network, timeout, 500/503 errors)
+ * - Request timeout management (3s default)
+ * - Batch request support for performance
+ * - Subscription management (real-time updates)
+ *
+ * Architecture:
+ * React Component → DataApiService (this file) → IPC → Main Process
+ * Main Process → Handlers → Services → DB → IPC Response
+ * DataApiService → Updates component state
+ *
+ * The "Service" suffix is kept for consistency with existing codebase conventions,
+ * but developers should understand this is an API client (similar to axios, fetch).
+ *
+ * @see {@link DataApiService} Main process coordinator
+ * @see {@link useDataApi} React hook for data requests
+ */
+
 import { loggerService } from '@logger'
 import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiSchemas'
 import type {

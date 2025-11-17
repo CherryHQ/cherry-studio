@@ -126,7 +126,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
           </TagsContainer>
         ),
         icon: (
-          <Avatar src={getModelLogo(model.id || '')} size="xs">
+          <Avatar src={getModelLogo(model)} size="xs">
             {first(model.name) || 'M'}
           </Avatar>
         ),

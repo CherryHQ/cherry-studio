@@ -1,5 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { cn } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -12,7 +11,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant } from '@renderer/types'
-import { getLeadingEmoji, uuid } from '@renderer/utils'
+import { cn, getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { MenuProps } from 'antd'
@@ -404,7 +403,8 @@ const Container = ({
   <div
     {...props}
     className={cn(
-      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent px-2 hover:bg-[var(--color-list-item-hover)]',
+      'relative flex h-[37px] w-[calc(var(--assistants-width)-20px)] cursor-pointer flex-row justify-between rounded-[var(--list-item-border-radius)] border-[0.5px] border-transparent px-2',
+      !isActive && 'hover:bg-[var(--color-list-item-hover)]',
       isActive && 'bg-[var(--color-list-item)] shadow-[0_1px_2px_0_rgba(0,0,0,0.05)]',
       className
     )}>

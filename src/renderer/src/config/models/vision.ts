@@ -15,6 +15,7 @@ const visionAllowedModels = [
   'gemini-(flash|pro|flash-lite)-latest',
   'gemini-exp',
   'claude-3',
+  'claude-haiku-4',
   'claude-sonnet-4',
   'claude-opus-4',
   'vision',
@@ -82,7 +83,7 @@ export const IMAGE_ENHANCEMENT_MODELS = [
   'grok-2-image(?:-[\\w-]+)?',
   'qwen-image-edit',
   'gpt-image-1',
-  'gemini-2.5-flash-image',
+  'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation'
 ]
 

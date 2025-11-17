@@ -94,13 +94,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                         <TagItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                           <Box className="mr-2">{tag}</Box>
                           <Button
-                            variant="light"
-                            color="danger"
-                            isIconOnly
-                            onPress={() => {
+                            variant="ghost"
+                            onClick={() => {
                               onDelete(tag)
                             }}>
-                            <DeleteIcon size={16} className="lucide-custom" />
+                            <DeleteIcon size={16} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
                           </Button>
                         </TagItem>
                       )}

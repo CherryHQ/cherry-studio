@@ -371,22 +371,17 @@ const ShortcutSettings: FC = () => {
       render: (record: Shortcut) => (
         <RowFlex className="items-center justify-end gap-2">
           <Tooltip content={t('settings.shortcuts.reset_to_default')}>
-            <Button
-              startContent={<UndoOutlined />}
-              size="sm"
-              isIconOnly
-              onPress={() => handleResetShortcut(record)}
-              isDisabled={!isShortcutModified(record)}
-            />
+            <Button size="icon-sm" onClick={() => handleResetShortcut(record)} disabled={!isShortcutModified(record)}>
+              <UndoOutlined />
+            </Button>
           </Tooltip>
           <Tooltip content={t('settings.shortcuts.clear_shortcut')}>
             <Button
-              startContent={<ClearOutlined />}
-              size="sm"
-              isIconOnly
-              onPress={() => handleClear(record)}
-              isDisabled={record.shortcut.length === 0 || !record.editable}
-            />
+              size="icon-sm"
+              onClick={() => handleClear(record)}
+              disabled={record.shortcut.length === 0 || !record.editable}>
+              <ClearOutlined />
+            </Button>
           </Tooltip>
         </RowFlex>
       )
@@ -416,7 +411,7 @@ const ShortcutSettings: FC = () => {
         />
         <SettingDivider style={{ marginBottom: 0 }} />
         <RowFlex className="justify-end p-4">
-          <Button onPress={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
+          <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
         </RowFlex>
       </SettingGroup>
     </SettingContainer>

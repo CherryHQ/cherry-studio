@@ -186,16 +186,15 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
         <RowFlex className="justify-between gap-[5px]">
           <Button
-            onPress={showBackupModal}
-            startContent={<SaveOutlined />}
-            isLoading={backuping}
-            isDisabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+            onClick={showBackupModal}
+            disabled={backuping || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+            <SaveOutlined />
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
-            onPress={showBackupManager}
-            startContent={<FolderOpenOutlined />}
-            isDisabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+            onClick={showBackupManager}
+            disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+            <FolderOpenOutlined />
             {t('settings.data.s3.backup.manager.button')}
           </Button>
         </RowFlex>

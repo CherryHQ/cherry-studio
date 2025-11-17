@@ -9,6 +9,7 @@ electronLanguages:
   - zh_CN # for macOS
   - zh_TW # for macOS
   - en # for macOS
+  - de
 directories:
   buildResources: build
 
@@ -20,6 +21,8 @@ files:
   - "**/*"
   - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
   - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!.*"
+  - "!components.json"
   - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
   - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
@@ -66,6 +69,10 @@ asarUnpack:
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
+  # copy from node_modules/claude-code-plugins/plugins to resources/data/claude-code-pluginso
+  - from: "./node_modules/claude-code-plugins/plugins/"
+    to: "claude-code-plugins"
+
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -91,7 +98,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -128,21 +134,59 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    What's New in v1.6.3
+    <!--LANG:en-->
+    What's New in v1.7.0-rc.1
 
-    Features:
-    - Notes: Add spell-check control, automatic table line wrapping, export functionality, and LLM-based renaming
-    - UI: Expand topic rename clickable area, add middle-click tab closing, remove redundant scrollbars, fix message menubar overflow
-    - Editor: Add read-only extension support, make TextFilePreview read-only but copyable
-    - Models: Update support for DeepSeek v3.2, Claude 4.5, GLM 4.6, Gemini regex, and vision models
-    - Code Tools: Add GitHub Copilot CLI integration
+    🎉 MAJOR NEW FEATURE: AI Agents
+    - Create and manage custom AI agents with specialized tools and permissions
+    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
+    - Real-time tool approval system - review and approve agent actions dynamically
+    - MCP (Model Context Protocol) integration for connecting external tools
+    - Slash commands support for quick agent interactions
+    - OpenAI-compatible REST API for agent access
 
-    Bug Fixes:
-    - Fix migration for missing providers
-    - Fix forked topic retaining old name after rename
-    - Restore first token latency reporting in metrics
-    - Fix UI scrollbar and overflow issues
+    ✨ New Features:
+    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
+    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
+    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
+    - MCP Management: Redesigned interface with dual-column layout for easier management
+    - Languages: Added German language support
 
-    Technical Updates:
-    - Upgrade to Electron 37.6.0
-    - Update dependencies across packages
+    ⚡ Improvements:
+    - Upgraded to Electron 38.7.0
+    - Enhanced system shutdown handling and automatic update checks
+    - Improved proxy bypass rules
+
+    🐛 Important Bug Fixes:
+    - Fixed streaming response issues across multiple AI providers
+    - Fixed session list scrolling problems
+    - Fixed knowledge base deletion errors
+
+    <!--LANG:zh-CN-->
+    v1.7.0-rc.1 新特性
+
+    🎉 重大更新：AI Agent 智能体系统
+    - 创建和管理专属 AI Agent，配置专用工具和权限
+    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
+    - 实时工具审批系统 - 动态审查和批准 Agent 操作
+    - MCP（模型上下文协议）集成，连接外部工具
+    - 支持斜杠命令快速交互
+    - 兼容 OpenAI 的 REST API 访问
+
+    ✨ 新功能:
+    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
+    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
+    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
+    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
+    - 语言：新增德语支持
+
+    ⚡ 改进:
+    - 升级到 Electron 38.7.0
+    - 增强的系统关机处理和自动更新检查
+    - 改进的代理绕过规则
+
+    🐛 重要修复:
+    - 修复多个 AI 提供商的流式响应问题
+    - 修复会话列表滚动问题
+    - 修复知识库删除错误
+    <!--LANG:END-->

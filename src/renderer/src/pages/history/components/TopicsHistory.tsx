@@ -41,7 +41,8 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
       <ListContainer {...props}>
         <ColFlex className="items-center">
           <Empty description={t('history.search.topics.empty')} />
-          <Button className="mt-5 w-[200px]" color="primary" onPress={onSearch} startContent={<SearchOutlined />}>
+          <Button className="mt-5 w-[200px]" onClick={onSearch}>
+            <SearchOutlined />
             {t('history.search.messages')}
           </Button>
         </ColFlex>
@@ -76,7 +77,8 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
         ))}
         {keywords && (
           <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-            <Button className="mt-5 w-[200px]" color="primary" onPress={onSearch} startContent={<SearchOutlined />}>
+            <Button className="mt-5 w-[200px]" onClick={onSearch}>
+              <SearchOutlined />
               {t('history.search.messages')}
             </Button>
           </div>

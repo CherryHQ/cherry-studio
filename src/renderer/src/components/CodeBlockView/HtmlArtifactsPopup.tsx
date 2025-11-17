@@ -85,23 +85,23 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
           <ViewButton
             size="sm"
-            color={viewMode === 'split' ? 'primary' : 'default'}
-            startContent={<SquareSplitHorizontal size={14} />}
-            onPress={() => setViewMode('split')}>
+            variant={viewMode === 'split' ? 'default' : 'secondary'}
+            onClick={() => setViewMode('split')}>
+            <SquareSplitHorizontal size={14} />
             {t('html_artifacts.split')}
           </ViewButton>
           <ViewButton
             size="sm"
-            color={viewMode === 'code' ? 'primary' : 'default'}
-            startContent={<Code size={14} />}
-            onPress={() => setViewMode('code')}>
+            variant={viewMode === 'code' ? 'default' : 'secondary'}
+            onClick={() => setViewMode('code')}>
+            <Code size={14} />
             {t('html_artifacts.code')}
           </ViewButton>
           <ViewButton
             size="sm"
-            color={viewMode === 'preview' ? 'primary' : 'default'}
-            startContent={<Eye size={14} />}
-            onPress={() => setViewMode('preview')}>
+            variant={viewMode === 'preview' ? 'default' : 'secondary'}
+            onClick={() => setViewMode('preview')}>
+            <Eye size={14} />
             {t('html_artifacts.preview')}
           </ViewButton>
         </ViewControls>
@@ -127,17 +127,17 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
             ]
           }}>
           <Tooltip content={t('html_artifacts.capture.label')} closeDelay={0}>
-            <Button variant="light" startContent={<Camera size={16} />} isIconOnly className="nodrag" />
+            <Button variant="ghost" size="icon" className="nodrag">
+              <Camera size={16} />
+            </Button>
           </Tooltip>
         </Dropdown>
-        <Button
-          onPress={() => setIsFullscreen(!isFullscreen)}
-          variant="light"
-          startContent={isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          isIconOnly
-          className="nodrag"
-        />
-        <Button onPress={onClose} variant="light" startContent={<X size={16} />} isIconOnly className="nodrag" />
+        <Button onClick={() => setIsFullscreen(!isFullscreen)} variant="ghost" size="icon" className="nodrag">
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </Button>
+        <Button onClick={onClose} variant="ghost" size="icon" className="nodrag">
+          <X size={16} />
+        </Button>
       </HeaderRight>
     </ModalHeader>
   )
@@ -165,7 +165,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         />
         <ToolbarWrapper>
           <Tooltip content={t('code_block.edit.save.label')} closeDelay={0}>
-            <ToolbarButton radius="full" size="lg" isIconOnly onPress={handleSave}>
+            <ToolbarButton className="rounded-full" size="icon-lg" onClick={handleSave}>
               {saved ? (
                 <Check size={16} color="var(--color-status-success)" />
               ) : (

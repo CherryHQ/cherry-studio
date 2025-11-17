@@ -127,9 +127,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         </Form.Item>
         <Form.Item className="mb-2 text-center">
           <Flex className="relative items-center justify-end">
-            <Button color="primary" type="submit" size="md">
-              {t('settings.models.add.add_model')}
-            </Button>
+            <Button type="submit">{t('settings.models.add.add_model')}</Button>
           </Flex>
         </Form.Item>
       </Form>

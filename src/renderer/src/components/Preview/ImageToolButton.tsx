@@ -4,13 +4,15 @@ import { memo } from 'react'
 interface ImageToolButtonProps {
   tooltip: string
   icon: React.ReactNode
-  onPress: () => void
+  onClick: () => void
 }
 
-const ImageToolButton = ({ tooltip, icon, onPress }: ImageToolButtonProps) => {
+const ImageToolButton = ({ tooltip, icon, onClick }: ImageToolButtonProps) => {
   return (
     <Tooltip content={tooltip} delay={500} closeDelay={0}>
-      <Button radius="full" startContent={icon} onPress={onPress} isIconOnly aria-label={tooltip} />
+      <Button className="rounded-full" onClick={onClick} size="icon" aria-label={tooltip}>
+        {icon}
+      </Button>
     </Tooltip>
   )
 }
