@@ -25,7 +25,7 @@ describe('stripLocalCommandTags', () => {
 
 describe('Claude → AiSDK transform', () => {
   it('handles tool call streaming lifecycle', () => {
-    const state = new ClaudeStreamState()
+    const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
     const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
 
     const messages: SDKMessage[] = [
@@ -182,14 +182,14 @@ describe('Claude → AiSDK transform', () => {
       (typeof parts)[number],
       { type: 'tool-result' }
     >
-    expect(toolResult.toolCallId).toBe('tool-1')
+    expect(toolResult.toolCallId).toBe('session-123:tool-1')
     expect(toolResult.toolName).toBe('Bash')
     expect(toolResult.input).toEqual({ command: 'ls' })
     expect(toolResult.output).toBe('ok')
   })
 
   it('handles streaming text completion', () => {
-    const state = new ClaudeStreamState()
+    const state = new ClaudeStreamState({ agentSessionId: baseStreamMetadata.session_id })
     const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
 
     const messages: SDKMessage[] = [
