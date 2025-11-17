@@ -27,6 +27,9 @@
         "null_id": "代理程式 ID 為空。"
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "無法列出代理程式。"

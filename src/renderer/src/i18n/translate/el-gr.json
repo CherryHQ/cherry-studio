@@ -27,6 +27,9 @@
         "null_id": "Το ID του πράκτορα είναι null."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
