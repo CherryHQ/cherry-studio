@@ -27,6 +27,9 @@
         "null_id": "Agent ID ist leer."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
@@ -4478,7 +4481,7 @@
       "confirm": "Bestätigen",
       "forward": "Vorwärts",
       "multiple": "Mehrfachauswahl",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "Keine Ergebnisse gefunden",
       "page": "Seite umblättern",
       "select": "Auswählen",
       "title": "Schnellmenü"

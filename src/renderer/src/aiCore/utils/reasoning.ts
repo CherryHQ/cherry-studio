@@ -1,3 +1,7 @@
+import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
+import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
+import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
+import type { XaiProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
@@ -7,6 +11,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIDeepResearchModel,
@@ -56,12 +61,19 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (!reasoningEffort) {
+  // Handle undefined and 'none' reasoningEffort.
+  // TODO: They should be separated.
+  if (!reasoningEffort || reasoningEffort === 'none') {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
       // Don't disable reasoning for Gemini models that support thinking tokens
       if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
         return {}
+      }
+      // 'none' is not an available value for effort for now.
+      // I think they should resolve this issue soon, so I'll just go ahead and use this value.
+      if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+        return { reasoning: { effort: 'none' } }
       }
       // Don't disable reasoning for models that require it
       if (
@@ -115,6 +127,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         }
       }
       return { thinking: { type: 'disabled' } }
+    }
+
+    // Specially for GPT-5.1. Suppose this is a OpenAI Compatible provider
+    if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+      return {
+        reasoningEffort: 'none'
+      }
     }
 
     return {}
@@ -371,7 +390,7 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
 
 export function getAnthropicThinkingBudget(assistant: Assistant, model: Model): number {
   const { maxTokens, reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
-  if (reasoningEffort === undefined) {
+  if (reasoningEffort === undefined || reasoningEffort === 'none') {
     return 0
   }
   const effortRatio = EFFORT_RATIO[reasoningEffort]
@@ -393,14 +412,17 @@ export function getAnthropicThinkingBudget(assistant: Assistant, model: Model): 
  * 获取 Anthropic 推理参数
  * 从 AnthropicAPIClient 中提取的逻辑
  */
-export function getAnthropicReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+export function getAnthropicReasoningParams(
+  assistant: Assistant,
+  model: Model
+): Pick<AnthropicProviderOptions, 'thinking'> {
   if (!isReasoningModel(model)) {
     return {}
   }
 
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  if (reasoningEffort === undefined) {
+  if (reasoningEffort === undefined || reasoningEffort === 'none') {
     return {
       thinking: {
         type: 'disabled'
@@ -429,7 +451,10 @@ export function getAnthropicReasoningParams(assistant: Assistant, model: Model):
  * 注意：Gemini/GCP 端点所使用的 thinkingBudget 等参数应该按照驼峰命名法传递
  * 而在 Google 官方提供的 OpenAI 兼容端点中则使用蛇形命名法 thinking_budget
  */
-export function getGeminiReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+export function getGeminiReasoningParams(
+  assistant: Assistant,
+  model: Model
+): Pick<GoogleGenerativeAIProviderOptions, 'thinkingConfig'> {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -438,7 +463,7 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
 
   // Gemini 推理参数
   if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (reasoningEffort === undefined) {
+    if (reasoningEffort === undefined || reasoningEffort === 'none') {
       return {
         thinkingConfig: {
           includeThoughts: false,
@@ -478,27 +503,35 @@ export function getGeminiReasoningParams(assistant: Assistant, model: Model): Re
  * @param model - The model being used
  * @returns XAI-specific reasoning parameters
  */
-export function getXAIReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+export function getXAIReasoningParams(assistant: Assistant, model: Model): Pick<XaiProviderOptions, 'reasoningEffort'> {
   if (!isSupportedReasoningEffortGrokModel(model)) {
     return {}
   }
 
   const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
 
-  if (!reasoningEffort) {
+  if (!reasoningEffort || reasoningEffort === 'none') {
     return {}
   }
 
-  // For XAI provider Grok models, use reasoningEffort parameter directly
-  return {
-    reasoningEffort
+  switch (reasoningEffort) {
+    case 'auto':
+    case 'minimal':
+    case 'medium':
+      return { reasoningEffort: 'low' }
+    case 'low':
+    case 'high':
+      return { reasoningEffort }
   }
 }
 
 /**
  * Get Bedrock reasoning parameters
  */
-export function getBedrockReasoningParams(assistant: Assistant, model: Model): Record<string, any> {
+export function getBedrockReasoningParams(
+  assistant: Assistant,
+  model: Model
+): Pick<BedrockProviderOptions, 'reasoningConfig'> {
   if (!isReasoningModel(model)) {
     return {}
   }
@@ -507,6 +540,14 @@ export function getBedrockReasoningParams(assistant: Assistant, model: Model): R
 
   if (reasoningEffort === undefined) {
     return {}
+  }
+
+  if (reasoningEffort === 'none') {
+    return {
+      reasoningConfig: {
+        type: 'disabled'
+      }
+    }
   }
 
   // Only apply thinking budget for Claude reasoning models

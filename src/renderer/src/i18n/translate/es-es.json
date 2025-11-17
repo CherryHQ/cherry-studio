@@ -27,6 +27,9 @@
         "null_id": "El ID del agente es nulo."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Error al listar agentes."
@@ -4478,7 +4481,7 @@
       "confirm": "Confirmar",
       "forward": "Adelante",
       "multiple": "Selección múltiple",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "No se encontraron resultados",
       "page": "Página",
       "select": "Seleccionar",
       "title": "Menú de acceso rápido"

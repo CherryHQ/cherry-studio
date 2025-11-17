@@ -1,6 +1,7 @@
 import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import {
+  getModelSupportedVerbosity,
   isSupportedReasoningEffortOpenAIModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
@@ -79,20 +80,24 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     }
   ]
 
-  const verbosityOptions = [
-    {
-      value: 'low',
-      label: t('settings.openai.verbosity.low')
-    },
-    {
-      value: 'medium',
-      label: t('settings.openai.verbosity.medium')
-    },
-    {
-      value: 'high',
-      label: t('settings.openai.verbosity.high')
-    }
-  ]
+  const verbosityOptions = useMemo(() => {
+    const allOptions = [
+      {
+        value: 'low',
+        label: t('settings.openai.verbosity.low')
+      },
+      {
+        value: 'medium',
+        label: t('settings.openai.verbosity.medium')
+      },
+      {
+        value: 'high',
+        label: t('settings.openai.verbosity.high')
+      }
+    ]
+    const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+    return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value as any))
+  }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
     let baseOptions: { value: ServiceTier; label: string }[]
@@ -153,6 +158,15 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       }
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
+
+  useEffect(() => {
+    if (verbosity && !verbosityOptions.some((option) => option.value === verbosity)) {
+      const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+      // Default to the highest supported verbosity level
+      const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
+      setVerbosity(defaultVerbosity)
+    }
+  }, [model, verbosity, verbosityOptions, setVerbosity])
 
   if (!isOpenAIReasoning && !isSupportServiceTier && !isSupportVerbosity) {
     return null
