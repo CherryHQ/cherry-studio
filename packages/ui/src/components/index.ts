@@ -22,24 +22,6 @@ export { default as Scrollbar } from './composites/Scrollbar'
 export { default as ThinkingEffect } from './composites/ThinkingEffect'
 
 // Icon Components
-export { FilePngIcon, FileSvgIcon } from './icons/FileIcons'
-// export type { LucideIcon, LucideProps } from './icons/Icon'
-// export {
-//   CopyIcon,
-//   createIcon,
-//   DeleteIcon,
-//   EditIcon,
-//   OcrIcon,
-//   RefreshIcon,
-//   ResetIcon,
-//   ToolIcon,
-//   UnWrapIcon,
-//   VisionIcon,
-//   WebSearchIcon,
-//   WrapIcon
-// } from './icons/Icon'
-export { default as SvgSpinners180Ring } from './icons/SvgSpinners180Ring'
-export { default as ToolsCallingIcon } from './icons/ToolsCallingIcon'
 
 // Brand Logo Icons (彩色品牌 Logo 图标 - 84个)
 // 推荐使用 '@cherrystudio/ui/icons' 路径导入
