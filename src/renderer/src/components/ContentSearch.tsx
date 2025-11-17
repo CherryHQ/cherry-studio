@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import { scrollElementIntoView } from '@renderer/utils'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -181,17 +182,14 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             // 3. 将当前项滚动到视图中
             // 获取第一个文本节点的父元素来进行滚动
             const parentElement = currentMatchRange.startContainer.parentElement
-            if (shouldScroll) {
-              parentElement?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
-              })
+            if (shouldScroll && parentElement) {
+              // 优先在指定的滚动容器内滚动，避免滚动整个页面导致索引错乱/看起来"跳到第一条"
+              scrollElementIntoView(parentElement, target)
             }
           }
         }
       },
-      [allRanges, currentIndex]
+      [allRanges, currentIndex, target]
     )
 
     const search = useCallback(

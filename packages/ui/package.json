@@ -16,7 +16,7 @@
     "type-check": "tsc --noEmit -p tsconfig.json --composite false",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "tokens:build": "node scripts/generate-theme-from-tokens.mjs"
+    "icons:generate": "tsx scripts/generate-icons.ts"
   },
   "keywords": [
     "ui",
@@ -67,6 +67,10 @@
     "@storybook/addon-docs": "^10.0.5",
     "@storybook/addon-themes": "^10.0.5",
     "@storybook/react-vite": "^10.0.5",
+    "@svgr/core": "^8.1.0",
+    "@svgr/plugin-jsx": "^8.1.0",
+    "@svgr/plugin-prettier": "^8.1.0",
+    "@svgr/plugin-svgo": "^8.1.0",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
     "@types/styled-components": "^5.1.34",
@@ -82,7 +86,7 @@
     "storybook": "^10.0.5",
     "styled-components": "^6.1.15",
     "tsdown": "^0.15.5",
-    "tsx": "^4.20.5",
+    "tsx": "^4.20.6",
     "typescript": "^5.6.2",
     "vitest": "^3.2.4"
   },
@@ -127,6 +131,13 @@
       "import": "./dist/utils/index.mjs",
       "require": "./dist/utils/index.js",
       "default": "./dist/utils/index.js"
+    },
+    "./icons": {
+      "types": "./dist/components/icons/index.d.ts",
+      "react-native": "./dist/components/icons/index.js",
+      "import": "./dist/components/icons/index.mjs",
+      "require": "./dist/components/icons/index.js",
+      "default": "./dist/components/icons/index.js"
     },
     "./styles": "./src/styles/index.css",
     "./styles/tokens.css": "./src/styles/tokens.css",

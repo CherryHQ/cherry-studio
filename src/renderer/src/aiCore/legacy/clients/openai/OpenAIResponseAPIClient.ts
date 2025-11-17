@@ -90,7 +90,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
       if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
         this.provider = { ...this.provider, apiHost: this.formatApiHost() }
-        if (this.provider.apiVersion === 'preview') {
+        if (this.provider.apiVersion === 'preview' || this.provider.apiVersion === 'v1') {
           return this
         } else {
           return this.client

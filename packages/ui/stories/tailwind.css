@@ -1,5 +1,7 @@
 /* Storybook 专用的 Tailwind CSS 配置 */
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
 @import '../src/styles/theme.css';
 
 /* 扫描组件文件 */
@@ -11,7 +13,6 @@
 /* Dark mode support */
 @custom-variant dark (&:is(.dark *));
 
-@import 'tw-animate-css';
 
 :root {
   --icon: #00000099;

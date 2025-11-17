@@ -22,38 +22,10 @@ export { default as Scrollbar } from './composites/Scrollbar'
 export { default as ThinkingEffect } from './composites/ThinkingEffect'
 
 // Icon Components
-export { FilePngIcon, FileSvgIcon } from './icons/FileIcons'
-export type { LucideIcon, LucideProps } from './icons/Icon'
-export {
-  CopyIcon,
-  createIcon,
-  DeleteIcon,
-  EditIcon,
-  OcrIcon,
-  RefreshIcon,
-  ResetIcon,
-  ToolIcon,
-  UnWrapIcon,
-  VisionIcon,
-  WebSearchIcon,
-  WrapIcon
-} from './icons/Icon'
-export { default as SvgSpinners180Ring } from './icons/SvgSpinners180Ring'
-export { default as ToolsCallingIcon } from './icons/ToolsCallingIcon'
 
-// /* Selector Components */
-// export { default as Selector } from './primitives/select'
-// export { default as SearchableSelector } from './primitives/Selector/SearchableSelector'
-// export type {
-//   MultipleSearchableSelectorProps,
-//   MultipleSelectorProps,
-//   SearchableSelectorItem,
-//   SearchableSelectorProps,
-//   SelectorItem,
-//   SelectorProps,
-//   SingleSearchableSelectorProps,
-//   SingleSelectorProps
-// } from './primitives/Selector/types'
+// Brand Logo Icons (Colorful brand logo icons - 81 items)
+// Recommended to import using '@cherrystudio/ui/icons' path
+export * from './icons'
 
 /* Additional Composite Components */
 // CodeEditor

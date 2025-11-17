@@ -190,9 +190,11 @@ export function providerToAiSdkConfig(
     }
   }
   // azure
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
   if (aiSdkProviderId === 'azure' || actualProvider.type === 'azure-openai') {
-    // extraOptions.apiVersion = actualProvider.apiVersion 默认使用v1，不使用azure endpoint
-    if (actualProvider.apiVersion === 'preview') {
+    // extraOptions.apiVersion = actualProvider.apiVersion === 'preview' ? 'v1' : actualProvider.apiVersion 默认使用v1，不使用azure endpoint
+    if (actualProvider.apiVersion === 'preview' || actualProvider.apiVersion === 'v1') {
       extraOptions.mode = 'responses'
     } else {
       extraOptions.mode = 'chat'

@@ -2484,6 +2484,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI-шлюз",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2495,7 @@
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
@@ -4341,7 +4343,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию preview"
+          "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию v1"
         }
       },
       "basic_auth": {

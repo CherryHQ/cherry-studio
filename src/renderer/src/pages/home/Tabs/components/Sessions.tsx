@@ -1,4 +1,3 @@
-import Scrollbar from '@renderer/components/Scrollbar'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
@@ -99,38 +98,36 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   }
 
   return (
-    <Container className="sessions-tab">
-      <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
-        {t('agent.session.add.title')}
-      </AddButton>
-      {/* h-9 */}
-      <DynamicVirtualList
-        list={sessions}
-        estimateSize={() => 9 * 4}
-        scrollerStyle={{
-          // FIXME: This component only supports CSSProperties
-          overflowX: 'hidden'
-        }}
-        autoHideScrollbar>
-        {(session) => (
-          <SessionItem
-            key={session.id}
-            session={session}
-            agentId={agentId}
-            onDelete={() => handleDeleteSession(session.id)}
-            onPress={() => setActiveSessionId(agentId, session.id)}
-          />
-        )}
-      </DynamicVirtualList>
-    </Container>
+    <StyledVirtualList
+      className="sessions-tab"
+      list={sessions}
+      estimateSize={() => 9 * 4}
+      // FIXME: This component only supports CSSProperties
+      scrollerStyle={{ overflowX: 'hidden' }}
+      autoHideScrollbar
+      header={
+        <AddButton onClick={createDefaultSession} disabled={creatingSession} className="-mt-[4px] mb-[6px]">
+          {t('agent.session.add.title')}
+        </AddButton>
+      }>
+      {(session) => (
+        <SessionItem
+          key={session.id}
+          session={session}
+          agentId={agentId}
+          onDelete={() => handleDeleteSession(session.id)}
+          onPress={() => setActiveSessionId(agentId, session.id)}
+        />
+      )}
+    </StyledVirtualList>
   )
 }
 
-const Container = styled(Scrollbar)`
+const StyledVirtualList = styled(DynamicVirtualList)`
   display: flex;
   flex-direction: column;
   padding: 12px 10px;
-  overflow-x: hidden;
-`
+  height: 100%;
+` as typeof DynamicVirtualList
 
 export default memo(Sessions)

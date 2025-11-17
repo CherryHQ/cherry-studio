@@ -31,6 +31,7 @@
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
       "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
+      "@cherrystudio/ui/icons": ["./packages/ui/src/components/icons/index.ts"],
       "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
       "@cherrystudio/ui/*": ["./packages/ui/src/*"]
 
