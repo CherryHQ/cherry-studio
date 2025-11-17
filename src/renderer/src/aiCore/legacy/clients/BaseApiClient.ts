@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import {
+  getModelSupportedVerbosity,
   isFunctionCallingModel,
   isNotSupportTemperatureAndTopP,
   isOpenAIModel,
@@ -242,12 +243,18 @@ export abstract class BaseApiClient<
     return serviceTierSetting
   }
 
-  protected getVerbosity(): OpenAIVerbosity {
+  protected getVerbosity(model?: Model): OpenAIVerbosity {
     try {
       const state = window.store?.getState()
       const verbosity = state?.settings?.openAI?.verbosity
 
       if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
+        // If model is provided, check if the verbosity is supported by the model
+        if (model) {
+          const supportedVerbosity = getModelSupportedVerbosity(model)
+          // Use user's verbosity if supported, otherwise use the first supported option
+          return supportedVerbosity.includes(verbosity) ? verbosity : supportedVerbosity[0]
+        }
         return verbosity
       }
     } catch (error) {

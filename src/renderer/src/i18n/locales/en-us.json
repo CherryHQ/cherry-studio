@@ -27,6 +27,9 @@
         "null_id": "Agent ID is null."
       }
     },
+    "input": {
+      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Failed to list agents."

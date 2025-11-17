@@ -27,6 +27,9 @@
         "null_id": "ID агента равен null."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Не удалось получить список агентов."
@@ -4478,7 +4481,7 @@
       "confirm": "Подтвердить",
       "forward": "Вперед",
       "multiple": "Множественный выбор",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "Результаты не найдены",
       "page": "Страница",
       "select": "Выбрать",
       "title": "Быстрое меню"

@@ -1,5 +1,12 @@
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
-import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
+import { loggerService } from '@logger'
+import {
+  getModelSupportedVerbosity,
+  isOpenAIModel,
+  isQwenMTModel,
+  isSupportFlexServiceTierModel,
+  isSupportVerbosityModel
+} from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import type { Assistant, Model, Provider } from '@renderer/types'
@@ -25,6 +32,8 @@ import {
   getXAIReasoningParams
 } from './reasoning'
 import { getWebSearchParams } from './websearch'
+
+const logger = loggerService.withContext('aiCore.utils.options')
 
 // copy from BaseApiClient.ts
 const getServiceTier = (model: Model, provider: Provider) => {
@@ -70,6 +79,7 @@ export function buildProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, any> {
+  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
@@ -187,6 +197,23 @@ function buildOpenAIProviderOptions(
       ...reasoningParams
     }
   }
+
+  if (isSupportVerbosityModel(model)) {
+    const state = window.store?.getState()
+    const userVerbosity = state?.settings?.openAI?.verbosity
+
+    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
+      const supportedVerbosity = getModelSupportedVerbosity(model)
+      // Use user's verbosity if supported, otherwise use the first supported option
+      const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+
+      providerOptions = {
+        ...providerOptions,
+        textVerbosity: verbosity
+      }
+    }
+  }
+
   return providerOptions
 }
 

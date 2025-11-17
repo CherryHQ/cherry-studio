@@ -27,6 +27,9 @@
         "null_id": "代理程式 ID 為空。"
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "無法列出代理程式。"
@@ -4478,7 +4481,7 @@
       "confirm": "確認",
       "forward": "前進",
       "multiple": "多選",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "未找到結果",
       "page": "翻頁",
       "select": "選擇",
       "title": "快捷選單"

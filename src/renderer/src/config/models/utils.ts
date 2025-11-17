@@ -54,7 +54,7 @@ export function isSupportedFlexServiceTier(model: Model): boolean {
 
 export function isSupportVerbosityModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
-  return isGPT5SeriesModel(model) && !modelId.includes('chat')
+  return (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat')
 }
 
 export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
@@ -227,12 +227,32 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
 
 export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5')
+  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1')
 }
 
 export const isGPT5SeriesReasoningModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5') && !modelId.includes('chat')
+  return isGPT5SeriesModel(model) && !modelId.includes('chat')
+}
+
+export const isGPT51SeriesModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5.1')
+}
+
+// GPT-5 verbosity configuration
+// gpt-5-pro only supports 'high', other GPT-5 models support all levels
+export const MODEL_SUPPORTED_VERBOSITY: Record<string, ('low' | 'medium' | 'high')[]> = {
+  'gpt-5-pro': ['high'],
+  default: ['low', 'medium', 'high']
+}
+
+export const getModelSupportedVerbosity = (model: Model): ('low' | 'medium' | 'high')[] => {
+  const modelId = getLowerBaseModelName(model.id)
+  if (modelId.includes('gpt-5-pro')) {
+    return MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
+  }
+  return MODEL_SUPPORTED_VERBOSITY.default
 }
 
 export const isGeminiModel = (model: Model) => {
@@ -250,4 +270,9 @@ export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as con
 
 export const agentModelFilter = (model: Model): boolean => {
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
+}
+
+export const isGPT5ProModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5-pro')
 }

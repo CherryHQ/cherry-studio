@@ -27,6 +27,9 @@
         "null_id": "Το ID του πράκτορα είναι null."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
@@ -4478,7 +4481,7 @@
       "confirm": "Επιβεβαίωση",
       "forward": "Μπρος",
       "multiple": "Πολλαπλή επιλογή",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "Δεν βρέθηκαν αποτελέσματα",
       "page": "Σελίδα",
       "select": "Επιλογή",
       "title": "Γρήγορη Πρόσβαση"

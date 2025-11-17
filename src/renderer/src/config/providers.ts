@@ -67,7 +67,7 @@ import type {
   SystemProvider,
   SystemProviderId
 } from '@renderer/types'
-import { isSystemProvider, OpenAIServiceTiers } from '@renderer/types'
+import { isSystemProvider, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
@@ -1519,7 +1519,10 @@ const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
 ] as const satisfies ProviderType[]
 
 export const isSupportUrlContextProvider = (provider: Provider) => {
-  return SUPPORT_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+  return (
+    SUPPORT_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type) ||
+    provider.id === SystemProviderIds.cherryin
+  )
 }
 
 const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]
@@ -1568,6 +1571,10 @@ export function isGeminiProvider(provider: Provider): boolean {
 
 export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'ai-gateway'
+}
+
+export function isAwsBedrockProvider(provider: Provider): boolean {
+  return provider.type === 'aws-bedrock'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
