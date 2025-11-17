@@ -31,6 +31,43 @@ const switchRootVariants = cva(
   }
 )
 
+const switchThumbVariants = cva(
+  [
+    'cs-switch cs-switch-thumb',
+    'pointer-events-none block rounded-full ring-0 transition-all data-[state=unchecked]:translate-x-0'
+  ],
+  {
+    variants: {
+      size: {
+        sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
+        md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
+        lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
+      },
+      loading: {
+        false: null,
+        true: ['bg-primary-hover!']
+      }
+    },
+    compoundVariants: [
+      {
+        size: 'sm',
+        loading: true,
+        className: 'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5'
+      },
+      {
+        size: 'md',
+        loading: true,
+        className: 'size-4 ml-1 data-[state=checked]:translate-x-5'
+      },
+      {
+        size: 'lg',
+        loading: true,
+        className: 'size-4.5 ml-1 data-[state=checked]:translate-x-4.5'
+      }
+    ]
+  }
+)
+
 // Enhanced Switch component with loading state support
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
   /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
@@ -44,22 +81,7 @@ function Switch({ loading = false, size = 'md', className, ...props }: SwitchPro
       data-slot="switch"
       className={cn(switchRootVariants({ size, loading }), className)}
       {...props}>
-      <SwitchPrimitive.Thumb
-        data-slot="switch-thumb"
-        className={cn(
-          'cs-switch cs-switch-thumb',
-          'pointer-events-none block rounded-full ring-0 transition-all data-[state=unchecked]:translate-x-0',
-          {
-            'size-4.5 ml-[1px] data-[state=checked]:translate-x-4': size === 'sm',
-            'size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]': size === 'md',
-            'size-5 ml-[3px] data-[state=checked]:translate-x-4.5': size === 'lg'
-          },
-          {
-            'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5': loading && size === 'sm',
-            'size-4 ml-1 data-[state=checked]:translate-x-5': loading && size === 'md',
-            'size-4.5 ml-1 data-[state=checked]:translate-x-4.5': loading && size === 'lg'
-          }
-        )}>
+      <SwitchPrimitive.Thumb data-slot="switch-thumb" className={cn(switchThumbVariants({ size, loading }))}>
         <svg
           width="inherit"
           height="inherit"
