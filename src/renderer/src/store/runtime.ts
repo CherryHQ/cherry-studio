@@ -192,6 +192,14 @@ const runtimeSlice = createSlice({
     setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
       const { id, value } = action.payload
       state.chat.sessionWaiting[id] = value
+    },
+    setPendingAction: (state, action: PayloadAction<{ id: string; value: boolean | undefined }>) => {
+      const { id, value } = action.payload
+      if (value) {
+        state.pendingMap[id] = value
+      } else {
+        delete state.pendingMap[id]
+      }
     }
   }
 })

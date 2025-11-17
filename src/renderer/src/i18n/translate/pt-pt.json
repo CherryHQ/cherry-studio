@@ -1113,6 +1113,7 @@
     "delete_confirm": "Tem certeza de que deseja excluir?",
     "delete_failed": "Falha ao excluir",
     "delete_success": "Excluído com sucesso",
+    "deleting": "[to be translated]:Deleting...",
     "description": "Descrição",
     "detail": "detalhes",
     "disabled": "Desativado",
@@ -1157,10 +1158,12 @@
     "prompt": "Prompt",
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
+    "redownload": "[to be translated]:Redownload",
     "refresh": "Atualizar",
     "regenerate": "Regenerar",
     "rename": "Renomear",
     "reset": "Redefinir",
+    "retry": "[to be translated]:Retry",
     "save": "Salvar",
     "saved": "Guardado",
     "search": "Pesquisar",
@@ -1168,6 +1171,7 @@
     "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
+    "send": "[to be translated]:Send",
     "settings": "Configurações",
     "sort": {
       "pinyin": {
@@ -1227,6 +1231,9 @@
     },
     "content": "conteúdo",
     "data": "dados",
+    "delete": {
+      "failed": "[to be translated]:Failed to delete."
+    },
     "detail": "Detalhes do erro",
     "details": "Detalhes",
     "errors": "erro",
@@ -1334,7 +1341,8 @@
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",
-    "type": "Tipo"
+    "type": "Tipo",
+    "video": "[to be translated]:Video"
   },
   "gpustack": {
     "keep_alive_time": {
@@ -4743,7 +4751,8 @@
     "paintings": "Pinturas",
     "settings": "Configurações",
     "store": "Biblioteca de assistentes",
-    "translate": "Traduzir"
+    "translate": "Traduzir",
+    "video": "[to be translated]:Video"
   },
   "trace": {
     "backList": "Voltar à lista",
@@ -4900,6 +4909,56 @@
     "noReleaseNotes": "Sem notas de versão",
     "saveDataError": "Falha ao salvar os dados, tente novamente",
     "title": "Atualização"
+  },
+  "video": {
+    "delete": {
+      "error": {
+        "not_found": {
+          "description": "[to be translated]:The video was not found remotely. It will only be deleted locally.",
+          "title": "[to be translated]:Video not found."
+        }
+      }
+    },
+    "error": {
+      "create": "[to be translated]:Failed to create video",
+      "download": "[to be translated]:Failed to download video.",
+      "invalid": "[to be translated]:Invalid video",
+      "load": {
+        "message": "[to be translated]:Failed to load the video",
+        "reason": "[to be translated]:The file may be corrupted or has been deleted externally."
+      }
+    },
+    "expired": "[to be translated]:Expired",
+    "input_reference": {
+      "add": {
+        "error": {
+          "format": "[to be translated]:Not a image",
+          "size": "[to be translated]:This image is too large. It should be under 5MB."
+        },
+        "tooltip": "[to be translated]:Add image reference"
+      }
+    },
+    "prompt": {
+      "placeholder": "[to be translated]:describes the video to generate"
+    },
+    "seconds": "[to be translated]:Seconds",
+    "size": "[to be translated]:Size",
+    "status": {
+      "completed": "[to be translated]:Generation Completed",
+      "downloading": "[to be translated]:Downloading",
+      "failed": "[to be translated]:Failed to generate video",
+      "in_progress": "[to be translated]:Generating",
+      "queued": "[to be translated]:Queued"
+    },
+    "thumbnail": {
+      "error": {
+        "get": "[to be translated]:Failed to get thumbnail"
+      },
+      "get": "[to be translated]:Get thumbnail",
+      "placeholder": "[to be translated]:No thumbnail"
+    },
+    "title": "[to be translated]:Video",
+    "undefined": "[to be translated]:No available video"
   },
   "warning": {
     "missing_provider": "O fornecedor não existe; foi revertido para o fornecedor predefinido {{provider}}. Isto pode causar problemas."

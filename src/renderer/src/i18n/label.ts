@@ -146,7 +146,8 @@ const titleKeyMap = {
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
-  translate: 'title.translate'
+  translate: 'title.translate',
+  video: 'title.video'
 } as const
 
 export const getTitleLabel = (key: string): string => {
@@ -184,7 +185,8 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title'
+  notes: 'notes.title',
+  video: 'video.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {

@@ -15,6 +15,8 @@ import {
 import { isSupportDeveloperRoleProvider } from '@renderer/config/providers'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import type {
+  CreateVideoParams,
+  DeleteVideoParams,
   FileMetadata,
   MCPCallToolResponse,
   MCPTool,
@@ -22,6 +24,8 @@ import type {
   Model,
   OpenAIServiceTier,
   Provider,
+  RetrieveVideoContentParams,
+  RetrieveVideoParams,
   ToolCallResponse
 } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types'
@@ -149,6 +153,26 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   ): Promise<OpenAIResponseSdkRawOutput> {
     const sdk = await this.getSdkInstance()
     return await sdk.responses.create(payload, options)
+  }
+
+  public async createVideo(params: CreateVideoParams): Promise<OpenAI.Videos.Video> {
+    const sdk = await this.getSdkInstance()
+    return sdk.videos.create(params.params, params.options)
+  }
+
+  public async retrieveVideo(params: RetrieveVideoParams): Promise<OpenAI.Videos.Video> {
+    const sdk = await this.getSdkInstance()
+    return sdk.videos.retrieve(params.videoId, params.options)
+  }
+
+  public async retrieveVideoContent(params: RetrieveVideoContentParams): Promise<Response> {
+    const sdk = await this.getSdkInstance()
+    return sdk.videos.downloadContent(params.videoId, params.query, params.options)
+  }
+
+  public async deleteVideo(params: DeleteVideoParams): Promise<OpenAI.Videos.VideoDeleteResponse> {
+    const sdk = await this.getSdkInstance()
+    return sdk.videos.delete(params.videoId, params.options)
   }
 
   private async handlePdfFile(file: FileMetadata): Promise<OpenAI.Responses.ResponseInputFile | undefined> {

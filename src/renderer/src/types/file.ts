@@ -127,6 +127,10 @@ export type ImageFileMetadata = FileMetadata & {
   type: FileTypes.IMAGE
 }
 
+export type VideoFileMetadata = FileMetadata & {
+  type: FileTypes.VIDEO
+}
+
 export type PdfFileMetadata = FileMetadata & {
   ext: '.pdf'
 }

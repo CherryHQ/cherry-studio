@@ -517,6 +517,34 @@ export default class ModernAiProvider {
     return images
   }
 
+  /**
+   * We manually implement this method before aisdk supports it well
+   */
+  public async createVideo(params: CreateVideoParams): Promise<CreateVideoResult> {
+    return this.legacyProvider.createVideo(params)
+  }
+
+  /**
+   * We manually implement this method before aisdk supports it well
+   */
+  public async retrieveVideo(params: RetrieveVideoParams): Promise<RetrieveVideoResult> {
+    return this.legacyProvider.retrieveVideo(params)
+  }
+
+  /**
+   * We manually implement this method before aisdk supports it well
+   */
+  public async retrieveVideoContent(params: RetrieveVideoContentParams): Promise<RetrieveVideoContentResult> {
+    return this.legacyProvider.retrieveVideoContent(params)
+  }
+
+  /**
+   * We manually implement this method before aisdk supports it well
+   */
+  public async deleteVideo(params: DeleteVideoParams): Promise<DeleteVideoResult> {
+    return this.legacyProvider.deleteVideo(params)
+  }
+
   public getBaseURL(): string {
     return this.legacyProvider.getBaseURL()
   }

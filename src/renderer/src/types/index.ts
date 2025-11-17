@@ -24,6 +24,7 @@ export * from './notification'
 export * from './ocr'
 export * from './plugin'
 export * from './provider'
+export * from './video'
 
 export type Assistant = {
   id: string
@@ -549,6 +550,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 //   | 'files'
 //   | 'code_tools'
 //   | 'notes'
+//   | 'video'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

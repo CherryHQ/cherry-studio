@@ -1113,6 +1113,7 @@
     "delete_confirm": "Are you sure you want to delete?",
     "delete_failed": "Failed to delete",
     "delete_success": "Deleted successfully",
+    "deleting": "Deleting...",
     "description": "Description",
     "detail": "Detail",
     "disabled": "Disabled",
@@ -1157,10 +1158,12 @@
     "prompt": "Prompt",
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
+    "redownload": "Redownload",
     "refresh": "Refresh",
     "regenerate": "Regenerate",
     "rename": "Rename",
     "reset": "Reset",
+    "retry": "Retry",
     "save": "Save",
     "saved": "Saved",
     "search": "Search",
@@ -1168,6 +1171,7 @@
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
+    "send": "Send",
     "settings": "Settings",
     "sort": {
       "pinyin": {
@@ -1227,6 +1231,9 @@
     },
     "content": "Content",
     "data": "Data",
+    "delete": {
+      "failed": "Failed to delete."
+    },
     "detail": "Error Details",
     "details": "Details",
     "errors": "Errors",
@@ -1334,7 +1341,8 @@
     "size": "Size",
     "text": "Text",
     "title": "Files",
-    "type": "Type"
+    "type": "Type",
+    "video": "Video"
   },
   "gpustack": {
     "keep_alive_time": {
@@ -4743,7 +4751,8 @@
     "paintings": "Paintings",
     "settings": "Settings",
     "store": "Assistant Library",
-    "translate": "Translate"
+    "translate": "Translate",
+    "video": "Video"
   },
   "trace": {
     "backList": "Back To List",
@@ -4900,6 +4909,56 @@
     "noReleaseNotes": "No release notes",
     "saveDataError": "Failed to save data, please try again.",
     "title": "Update"
+  },
+  "video": {
+    "delete": {
+      "error": {
+        "not_found": {
+          "description": "The video was not found remotely. It will only be deleted locally.",
+          "title": "Video not found."
+        }
+      }
+    },
+    "error": {
+      "create": "Failed to create video",
+      "download": "Failed to download video.",
+      "invalid": "Invalid video",
+      "load": {
+        "message": "Failed to load the video",
+        "reason": "The file may be corrupted or has been deleted externally."
+      }
+    },
+    "expired": "Expired",
+    "input_reference": {
+      "add": {
+        "error": {
+          "format": "Not a image",
+          "size": "This image is too large. It should be under 5MB."
+        },
+        "tooltip": "Add image reference"
+      }
+    },
+    "prompt": {
+      "placeholder": "describes the video to generate"
+    },
+    "seconds": "Seconds",
+    "size": "Size",
+    "status": {
+      "completed": "Generation Completed",
+      "downloading": "Downloading",
+      "failed": "Generation Failed",
+      "in_progress": "Generating",
+      "queued": "Queued"
+    },
+    "thumbnail": {
+      "error": {
+        "get": "Failed to get thumbnail"
+      },
+      "get": "Get thumbnail",
+      "placeholder": "No thumbnail"
+    },
+    "title": "Video",
+    "undefined": "No available video"
   },
   "warning": {
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."

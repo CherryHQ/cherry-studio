@@ -5,7 +5,19 @@ import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@render
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
-import type { GenerateImageParams, Model, Provider } from '@renderer/types'
+import type {
+  CreateVideoParams,
+  CreateVideoResult,
+  DeleteVideoParams,
+  DeleteVideoResult,
+  GenerateImageParams,
+  Model,
+  Provider,
+  RetrieveVideoContentParams,
+  RetrieveVideoContentResult,
+  RetrieveVideoParams,
+  RetrieveVideoResult
+} from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isSupportedToolUse } from '@renderer/utils/mcp-tools'
 
@@ -177,6 +189,54 @@ export default class AiProvider {
       return client.generateImage(params)
     }
     return this.apiClient.generateImage(params)
+  }
+
+  public async createVideo(params: CreateVideoParams): Promise<CreateVideoResult> {
+    if (this.apiClient instanceof OpenAIResponseAPIClient && params.type === 'openai') {
+      const video = await this.apiClient.createVideo(params)
+      return {
+        type: 'openai',
+        video
+      }
+    } else {
+      throw new Error('Video generation is not supported by this provider')
+    }
+  }
+
+  public async retrieveVideo(params: RetrieveVideoParams): Promise<RetrieveVideoResult> {
+    if (this.apiClient instanceof OpenAIResponseAPIClient && params.type === 'openai') {
+      const video = await this.apiClient.retrieveVideo(params)
+      return {
+        type: 'openai',
+        video
+      }
+    } else {
+      throw new Error('Video generation is not supported by this provider')
+    }
+  }
+
+  public async retrieveVideoContent(params: RetrieveVideoContentParams): Promise<RetrieveVideoContentResult> {
+    if (this.apiClient instanceof OpenAIResponseAPIClient && params.type === 'openai') {
+      const response = await this.apiClient.retrieveVideoContent(params)
+      return {
+        type: 'openai',
+        response
+      }
+    } else {
+      throw new Error('Video generation is not supported by this provider')
+    }
+  }
+
+  public async deleteVideo(params: DeleteVideoParams): Promise<DeleteVideoResult> {
+    if (this.apiClient instanceof OpenAIResponseAPIClient && params.type === 'openai') {
+      const result = await this.apiClient.deleteVideo(params)
+      return {
+        type: 'openai',
+        result
+      }
+    } else {
+      throw new Error('Video deletion is not supported by this provider')
+    }
   }
 
   public getBaseURL(): string {

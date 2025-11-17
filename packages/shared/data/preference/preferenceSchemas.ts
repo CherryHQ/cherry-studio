@@ -666,7 +666,8 @@ export const DefaultPreferences: PreferenceSchemas = {
       'knowledge',
       'files',
       'code_tools',
-      'notes'
+      'notes',
+      'video'
     ],
     'ui.theme_mode': PreferenceTypes.ThemeMode.system,
     'ui.theme_user.code_font_family': '',

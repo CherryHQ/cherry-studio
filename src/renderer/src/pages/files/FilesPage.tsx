@@ -22,7 +22,8 @@ import {
   File as FileIcon,
   FileImage,
   FileText,
-  FileType as FileTypeIcon
+  FileType as FileTypeIcon,
+  FileVideo
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -146,6 +147,7 @@ const FilesPage: FC = () => {
     { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FileIcon size={16} /> },
     { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImage size={16} /> },
     { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTypeIcon size={16} /> },
+    { key: FileTypes.VIDEO, label: t('files.video'), icon: <FileVideo size={16} /> },
     { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
   ]
 

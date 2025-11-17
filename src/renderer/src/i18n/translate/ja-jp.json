@@ -1113,6 +1113,7 @@
     "delete_confirm": "削除してもよろしいですか？",
     "delete_failed": "削除に失敗しました",
     "delete_success": "削除に成功しました",
+    "deleting": "[to be translated]:Deleting...",
     "description": "説明",
     "detail": "詳細",
     "disabled": "無効",
@@ -1157,10 +1158,12 @@
     "prompt": "プロンプト",
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
+    "redownload": "[to be translated]:Redownload",
     "refresh": "更新",
     "regenerate": "再生成",
     "rename": "名前を変更",
     "reset": "リセット",
+    "retry": "[to be translated]:Retry",
     "save": "保存",
     "saved": "保存されました",
     "search": "検索",
@@ -1168,6 +1171,7 @@
     "selected": "選択済み",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
+    "send": "[to be translated]:Send",
     "settings": "設定",
     "sort": {
       "pinyin": {
@@ -1227,6 +1231,9 @@
     },
     "content": "内容",
     "data": "データ",
+    "delete": {
+      "failed": "[to be translated]:Failed to delete."
+    },
     "detail": "エラーの詳細",
     "details": "詳細",
     "errors": "エラー",
@@ -1334,7 +1341,8 @@
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",
-    "type": "タイプ"
+    "type": "タイプ",
+    "video": "[to be translated]:Video"
   },
   "gpustack": {
     "keep_alive_time": {
@@ -4743,7 +4751,8 @@
     "paintings": "ペインティング",
     "settings": "設定",
     "store": "アシスタントライブラリ",
-    "translate": "翻訳"
+    "translate": "翻訳",
+    "video": "[to be translated]:Video"
   },
   "trace": {
     "backList": "リストに戻る",
@@ -4900,6 +4909,56 @@
     "noReleaseNotes": "暫無更新日誌",
     "saveDataError": "データの保存に失敗しました。もう一度お試しください。",
     "title": "更新"
+  },
+  "video": {
+    "delete": {
+      "error": {
+        "not_found": {
+          "description": "[to be translated]:The video was not found remotely. It will only be deleted locally.",
+          "title": "[to be translated]:Video not found."
+        }
+      }
+    },
+    "error": {
+      "create": "[to be translated]:Failed to create video",
+      "download": "[to be translated]:Failed to download video.",
+      "invalid": "[to be translated]:Invalid video",
+      "load": {
+        "message": "[to be translated]:Failed to load the video",
+        "reason": "[to be translated]:The file may be corrupted or has been deleted externally."
+      }
+    },
+    "expired": "[to be translated]:Expired",
+    "input_reference": {
+      "add": {
+        "error": {
+          "format": "[to be translated]:Not a image",
+          "size": "[to be translated]:This image is too large. It should be under 5MB."
+        },
+        "tooltip": "[to be translated]:Add image reference"
+      }
+    },
+    "prompt": {
+      "placeholder": "[to be translated]:describes the video to generate"
+    },
+    "seconds": "[to be translated]:Seconds",
+    "size": "[to be translated]:Size",
+    "status": {
+      "completed": "[to be translated]:Generation Completed",
+      "downloading": "[to be translated]:Downloading",
+      "failed": "[to be translated]:Failed to generate video",
+      "in_progress": "[to be translated]:Generating",
+      "queued": "[to be translated]:Queued"
+    },
+    "thumbnail": {
+      "error": {
+        "get": "[to be translated]:Failed to get thumbnail"
+      },
+      "get": "[to be translated]:Get thumbnail",
+      "placeholder": "[to be translated]:No thumbnail"
+    },
+    "title": "[to be translated]:Video",
+    "undefined": "[to be translated]:No available video"
   },
   "warning": {
     "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"

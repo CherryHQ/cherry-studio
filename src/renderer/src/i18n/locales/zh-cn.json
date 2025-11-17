@@ -1113,6 +1113,7 @@
     "delete_confirm": "确定要删除吗？",
     "delete_failed": "删除失败",
     "delete_success": "删除成功",
+    "deleting": "删除中...",
     "description": "描述",
     "detail": "详情",
     "disabled": "已禁用",
@@ -1157,10 +1158,12 @@
     "prompt": "提示词",
     "provider": "提供商",
     "reasoning_content": "已深度思考",
+    "redownload": "重新下载",
     "refresh": "刷新",
     "regenerate": "重新生成",
     "rename": "重命名",
     "reset": "重置",
+    "retry": "重试",
     "save": "保存",
     "saved": "已保存",
     "search": "搜索",
@@ -1168,6 +1171,7 @@
     "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
+    "send": "发送",
     "settings": "设置",
     "sort": {
       "pinyin": {
@@ -1227,6 +1231,9 @@
     },
     "content": "内容",
     "data": "数据",
+    "delete": {
+      "failed": "删除失败"
+    },
     "detail": "错误详情",
     "details": "详细信息",
     "errors": "错误",
@@ -1334,7 +1341,8 @@
     "size": "大小",
     "text": "文本",
     "title": "文件",
-    "type": "类型"
+    "type": "类型",
+    "video": "视频"
   },
   "gpustack": {
     "keep_alive_time": {
@@ -4743,7 +4751,8 @@
     "paintings": "绘画",
     "settings": "设置",
     "store": "助手库",
-    "translate": "翻译"
+    "translate": "翻译",
+    "video": "视频"
   },
   "trace": {
     "backList": "返回列表",
@@ -4900,6 +4909,56 @@
     "noReleaseNotes": "暂无更新日志",
     "saveDataError": "保存数据失败，请重试",
     "title": "更新提示"
+  },
+  "video": {
+    "delete": {
+      "error": {
+        "not_found": {
+          "description": "远程未找到该视频，仅会删除本地记录。",
+          "title": "视频未找到"
+        }
+      }
+    },
+    "error": {
+      "create": "创建视频失败",
+      "download": "视频下载失败",
+      "invalid": "无效的视频",
+      "load": {
+        "message": "加载视频失败",
+        "reason": "文件可能已损坏或已被外部删除。"
+      }
+    },
+    "expired": "已过期",
+    "input_reference": {
+      "add": {
+        "error": {
+          "format": "需要上传图片格式的文件",
+          "size": "图片过大，应小于 5MB"
+        },
+        "tooltip": "添加图像参考"
+      }
+    },
+    "prompt": {
+      "placeholder": "描述要生成的视频"
+    },
+    "seconds": "秒数",
+    "size": "尺寸",
+    "status": {
+      "completed": "生成完成",
+      "downloading": "下载中",
+      "failed": "生成失败",
+      "in_progress": "生成中",
+      "queued": "排队中"
+    },
+    "thumbnail": {
+      "error": {
+        "get": "获取缩略图失败"
+      },
+      "get": "获取缩略图",
+      "placeholder": "无缩略图"
+    },
+    "title": "视频",
+    "undefined": "无可用视频"
   },
   "warning": {
     "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"

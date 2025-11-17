@@ -10,8 +10,22 @@ import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import { isDedicatedImageGenerationModel, isEmbeddingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import type { FetchChatCompletionParams } from '@renderer/types'
-import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import type {
+  Assistant,
+  CreateVideoParams,
+  CreateVideoResult,
+  DeleteVideoParams,
+  DeleteVideoResult,
+  FetchChatCompletionParams,
+  MCPServer,
+  MCPTool,
+  Model,
+  Provider,
+  RetrieveVideoContentParams,
+  RetrieveVideoContentResult,
+  RetrieveVideoParams,
+  RetrieveVideoResult
+} from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
@@ -397,6 +411,26 @@ export async function fetchGenerate({
   } catch (error: any) {
     return ''
   }
+}
+
+export async function createVideo(params: CreateVideoParams): Promise<CreateVideoResult> {
+  const ai = new AiProviderNew(params.provider)
+  return ai.createVideo(params)
+}
+
+export async function retrieveVideo(params: RetrieveVideoParams): Promise<RetrieveVideoResult> {
+  const ai = new AiProviderNew(params.provider)
+  return ai.retrieveVideo(params)
+}
+
+export async function retrieveVideoContent(params: RetrieveVideoContentParams): Promise<RetrieveVideoContentResult> {
+  const ai = new AiProviderNew(params.provider)
+  return ai.retrieveVideoContent(params)
+}
+
+export async function deleteVideo(params: DeleteVideoParams): Promise<DeleteVideoResult> {
+  const ai = new AiProviderNew(params.provider)
+  return ai.deleteVideo(params)
 }
 
 export function hasApiKey(provider: Provider) {

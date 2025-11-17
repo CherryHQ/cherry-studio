@@ -1113,6 +1113,7 @@
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
     "delete_failed": "Αποτυχία διαγραφής",
     "delete_success": "Η διαγραφή ήταν επιτυχής",
+    "deleting": "[to be translated]:Deleting...",
     "description": "Περιγραφή",
     "detail": "Λεπτομέρειες",
     "disabled": "Απενεργοποιημένο",
@@ -1157,10 +1158,12 @@
     "prompt": "Ενδεικτικός ρήματος",
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
+    "redownload": "[to be translated]:Redownload",
     "refresh": "Ανανέωση",
     "regenerate": "Ξαναπαραγωγή",
     "rename": "Μετονομασία",
     "reset": "Επαναφορά",
+    "retry": "[to be translated]:Retry",
     "save": "Αποθήκευση",
     "saved": "Αποθηκεύτηκε",
     "search": "Αναζήτηση",
@@ -1168,6 +1171,7 @@
     "selected": "Επιλεγμένο",
     "selectedItems": "Επιλέχθηκαν {{count}} αντικείμενα",
     "selectedMessages": "Επιλέχθηκαν {{count}} μηνύματα",
+    "send": "[to be translated]:Send",
     "settings": "Ρυθμίσεις",
     "sort": {
       "pinyin": {
@@ -1227,6 +1231,9 @@
     },
     "content": "Περιεχόμενο",
     "data": "δεδομένα",
+    "delete": {
+      "failed": "[to be translated]:Failed to delete."
+    },
     "detail": "Λεπτομέρειες σφάλματος",
     "details": "Λεπτομέρειες",
     "errors": "Λάθος",
@@ -1334,7 +1341,8 @@
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
-    "type": "Τύπος"
+    "type": "Τύπος",
+    "video": "[to be translated]:Video"
   },
   "gpustack": {
     "keep_alive_time": {
@@ -4743,7 +4751,8 @@
     "paintings": "Ζωγραφική",
     "settings": "Ρυθμίσεις",
     "store": "Βιβλιοθήκη βοηθών",
-    "translate": "Μετάφραση"
+    "translate": "Μετάφραση",
+    "video": "[to be translated]:Video"
   },
   "trace": {
     "backList": "Επιστροφή στη λίστα",
@@ -4900,6 +4909,56 @@
     "noReleaseNotes": "Χωρίς σημειώσεις",
     "saveDataError": "Η αποθήκευση των δεδομένων απέτυχε, δοκιμάστε ξανά",
     "title": "Ενημέρωση"
+  },
+  "video": {
+    "delete": {
+      "error": {
+        "not_found": {
+          "description": "[to be translated]:The video was not found remotely. It will only be deleted locally.",
+          "title": "[to be translated]:Video not found."
+        }
+      }
+    },
+    "error": {
+      "create": "[to be translated]:Failed to create video",
+      "download": "[to be translated]:Failed to download video.",
+      "invalid": "[to be translated]:Invalid video",
+      "load": {
+        "message": "[to be translated]:Failed to load the video",
+        "reason": "[to be translated]:The file may be corrupted or has been deleted externally."
+      }
+    },
+    "expired": "[to be translated]:Expired",
+    "input_reference": {
+      "add": {
+        "error": {
+          "format": "[to be translated]:Not a image",
+          "size": "[to be translated]:This image is too large. It should be under 5MB."
+        },
+        "tooltip": "[to be translated]:Add image reference"
+      }
+    },
+    "prompt": {
+      "placeholder": "[to be translated]:describes the video to generate"
+    },
+    "seconds": "[to be translated]:Seconds",
+    "size": "[to be translated]:Size",
+    "status": {
+      "completed": "[to be translated]:Generation Completed",
+      "downloading": "[to be translated]:Downloading",
+      "failed": "[to be translated]:Failed to generate video",
+      "in_progress": "[to be translated]:Generating",
+      "queued": "[to be translated]:Queued"
+    },
+    "thumbnail": {
+      "error": {
+        "get": "[to be translated]:Failed to get thumbnail"
+      },
+      "get": "[to be translated]:Get thumbnail",
+      "placeholder": "[to be translated]:No thumbnail"
+    },
+    "title": "[to be translated]:Video",
+    "undefined": "[to be translated]:No available video"
   },
   "warning": {
     "missing_provider": "Ο προμηθευτής δεν υπάρχει, έγινε επαναφορά στον προεπιλεγμένο προμηθευτή {{provider}}. Αυτό μπορεί να προκαλέσει προβλήματα."

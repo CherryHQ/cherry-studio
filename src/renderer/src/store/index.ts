@@ -35,6 +35,7 @@ import shortcuts from './shortcuts'
 import tabs from './tabs'
 import toolPermissions from './toolPermissions'
 import translate from './translate'
+import video from './video'
 import websearch from './websearch'
 
 const logger = loggerService.withContext('Store')
@@ -64,7 +65,8 @@ const rootReducer = combineReducers({
   translate,
   ocr,
   note,
-  toolPermissions
+  toolPermissions,
+  video
 })
 
 const persistedReducer = persistReducer(

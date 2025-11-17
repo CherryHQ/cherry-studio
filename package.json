@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-alpha",
+  "version": "2.0.0-alpha.sora.1",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",

@@ -2824,6 +2824,20 @@ const migrateConfig = {
       logger.error('migrate 174 error', error as Error)
       return state
     }
+  },
+  '163': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        if (!state.settings.sidebarIcons.visible.includes('video')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'video']
+        }
+      }
+      state.video.videoMap = {}
+      return state
+    } catch (error) {
+      logger.error('migrate 161 error', error as Error)
+      return state
+    }
   }
 }
 

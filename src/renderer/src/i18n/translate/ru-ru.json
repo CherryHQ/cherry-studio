@@ -1113,6 +1113,7 @@
     "delete_confirm": "Вы уверены, что хотите удалить?",
     "delete_failed": "Не удалось удалить",
     "delete_success": "Удаление выполнено успешно",
+    "deleting": "[to be translated]:Deleting...",
     "description": "Описание",
     "detail": "Подробности",
     "disabled": "Отключено",
@@ -1157,10 +1158,12 @@
     "prompt": "Промпт",
     "provider": "Провайдер",
     "reasoning_content": "Глубокий анализ",
+    "redownload": "[to be translated]:Redownload",
     "refresh": "Обновить",
     "regenerate": "Пересоздать",
     "rename": "Переименовать",
     "reset": "Сбросить",
+    "retry": "[to be translated]:Retry",
     "save": "Сохранить",
     "saved": "Сохранено",
     "search": "Поиск",
@@ -1168,6 +1171,7 @@
     "selected": "Выбрано",
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
+    "send": "[to be translated]:Send",
     "settings": "Настройки",
     "sort": {
       "pinyin": {
@@ -1227,6 +1231,9 @@
     },
     "content": "Содержание",
     "data": "данные",
+    "delete": {
+      "failed": "[to be translated]:Failed to delete."
+    },
     "detail": "Детали ошибки",
     "details": "Подробности",
     "errors": "ошибка",
@@ -1334,7 +1341,8 @@
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
-    "type": "Тип"
+    "type": "Тип",
+    "video": "[to be translated]:Video"
   },
   "gpustack": {
     "keep_alive_time": {
@@ -4743,7 +4751,8 @@
     "paintings": "Рисунки",
     "settings": "Настройки",
     "store": "Библиотека помощников",
-    "translate": "Перевод"
+    "translate": "Перевод",
+    "video": "[to be translated]:Video"
   },
   "trace": {
     "backList": "Вернуться к списку",
@@ -4900,6 +4909,56 @@
     "noReleaseNotes": "Нет заметок об обновлении",
     "saveDataError": "Ошибка сохранения данных, повторите попытку",
     "title": "Обновление"
+  },
+  "video": {
+    "delete": {
+      "error": {
+        "not_found": {
+          "description": "[to be translated]:The video was not found remotely. It will only be deleted locally.",
+          "title": "[to be translated]:Video not found."
+        }
+      }
+    },
+    "error": {
+      "create": "[to be translated]:Failed to create video",
+      "download": "[to be translated]:Failed to download video.",
+      "invalid": "[to be translated]:Invalid video",
+      "load": {
+        "message": "[to be translated]:Failed to load the video",
+        "reason": "[to be translated]:The file may be corrupted or has been deleted externally."
+      }
+    },
+    "expired": "[to be translated]:Expired",
+    "input_reference": {
+      "add": {
+        "error": {
+          "format": "[to be translated]:Not a image",
+          "size": "[to be translated]:This image is too large. It should be under 5MB."
+        },
+        "tooltip": "[to be translated]:Add image reference"
+      }
+    },
+    "prompt": {
+      "placeholder": "[to be translated]:describes the video to generate"
+    },
+    "seconds": "[to be translated]:Seconds",
+    "size": "[to be translated]:Size",
+    "status": {
+      "completed": "[to be translated]:Generation Completed",
+      "downloading": "[to be translated]:Downloading",
+      "failed": "[to be translated]:Failed to generate video",
+      "in_progress": "[to be translated]:Generating",
+      "queued": "[to be translated]:Queued"
+    },
+    "thumbnail": {
+      "error": {
+        "get": "[to be translated]:Failed to get thumbnail"
+      },
+      "get": "[to be translated]:Get thumbnail",
+      "placeholder": "[to be translated]:No thumbnail"
+    },
+    "title": "[to be translated]:Video",
+    "undefined": "[to be translated]:No available video"
   },
   "warning": {
     "missing_provider": "Поставщик не существует, возвращение к поставщику по умолчанию {{provider}}. Это может привести к проблемам."
