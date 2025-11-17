@@ -7,10 +7,12 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
+import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
+  isAnthropicModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
@@ -19,6 +21,8 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { isAwsBedrockProvider } from '@renderer/config/providers'
+import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
@@ -34,6 +38,7 @@ import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { addAnthropicHeaders } from './header'
 import { supportsTopP } from './modelCapabilities'
 import { getTemperature, getTopP } from './modelParameters'
 
@@ -172,13 +177,21 @@ export async function buildStreamTextParams(
     }
   }
 
+  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+
+  // https://docs.claude.com/en/docs/build-with-claude/extended-thinking#interleaved-thinking
+  if (!isVertexProvider(provider) && !isAwsBedrockProvider(provider) && isAnthropicModel(model)) {
+    const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
+    headers = combineHeaders(headers, newBetaHeaders)
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: maxTokens,
     temperature: getTemperature(assistant, model),
     abortSignal: options.requestOptions?.signal,
-    headers: options.requestOptions?.headers,
+    headers,
     providerOptions,
     stopWhen: stepCountIs(20),
     maxRetries: 0
