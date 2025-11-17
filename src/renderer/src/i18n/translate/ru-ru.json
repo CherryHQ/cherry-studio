@@ -27,6 +27,9 @@
         "null_id": "ID агента равен null."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Не удалось получить список агентов."

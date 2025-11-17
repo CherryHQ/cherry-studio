@@ -27,6 +27,9 @@
         "null_id": "智能体 ID 为空。"
       }
     },
+    "input": {
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
+    },
     "list": {
       "error": {
         "failed": "获取智能体列表失败"

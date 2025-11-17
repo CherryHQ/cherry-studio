@@ -27,6 +27,9 @@
         "null_id": "El ID del agente es nulo."
       }
     },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Error al listar agentes."
