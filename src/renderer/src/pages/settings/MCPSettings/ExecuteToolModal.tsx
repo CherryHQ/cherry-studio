@@ -52,15 +52,15 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
         default?: any
       }
       if (prop.type === 'string') {
-        params[key] = prop.default || ''
+        params[key] = prop.default !== undefined ? prop.default : ''
       } else if (prop.type === 'number') {
-        params[key] = prop.default || 0
+        params[key] = prop.default !== undefined ? prop.default : 0
       } else if (prop.type === 'boolean') {
-        params[key] = prop.default || false
+        params[key] = prop.default !== undefined ? prop.default : false
       } else if (prop.type === 'array') {
-        params[key] = prop.default || []
+        params[key] = prop.default !== undefined ? prop.default : []
       } else if (prop.type === 'object') {
-        params[key] = prop.default || {}
+        params[key] = prop.default !== undefined ? prop.default : {}
       }
     })
 
@@ -68,13 +68,16 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
   }, [tool])
 
   // 当工具改变时，重置参数
+  // initialParams 是基于 tool 的 memoized 值，所以当 tool 改变时它会自动更新
+  // 因此不需要将 initialParams 包含在依赖数组中
   useEffect(() => {
     if (open && tool) {
       setParamsJson(initialParams)
       setResult(null)
       setViewMode('json')
     }
-  }, [open, tool, initialParams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tool])
 
   // 检测文本类型
   const detectContentType = (text: string): 'json' | 'markdown' | 'html' | 'text' => {
@@ -344,7 +347,7 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
                     icon={<Sparkles size={14} />}
                     onClick={() => setViewMode('formatted')}
                     size="small">
-                    {t('settings.mcp.tools.execute.view.formatted', '美化')}
+                    {t('settings.mcp.tools.execute.view.formatted', 'Formatted')}
                   </Button>
                 </Button.Group>
                 <Button icon={<Copy size={14} />} onClick={handleCopy} size="small">
