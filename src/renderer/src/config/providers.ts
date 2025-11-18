@@ -275,7 +275,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.qnaigc.com',
-    anthropicApiHost: 'https://api.qnaigc.com'
+    anthropicApiHost: 'https://api.qnaigc.com',
     models: SYSTEM_MODELS.qiniu,
     isSystem: true,
     enabled: false
