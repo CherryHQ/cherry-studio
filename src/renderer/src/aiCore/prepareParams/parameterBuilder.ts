@@ -21,8 +21,6 @@ import {
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { isAwsBedrockProvider } from '@renderer/config/providers'
-import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
@@ -179,8 +177,7 @@ export async function buildStreamTextParams(
 
   let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
 
-  // https://docs.claude.com/en/docs/build-with-claude/extended-thinking#interleaved-thinking
-  if (!isVertexProvider(provider) && !isAwsBedrockProvider(provider) && isAnthropicModel(model)) {
+  if (isAnthropicModel(model)) {
     const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
     headers = combineHeaders(headers, newBetaHeaders)
   }

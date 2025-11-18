@@ -382,6 +382,12 @@ export function isClaude45ReasoningModel(model: Model): boolean {
   return regex.test(modelId)
 }
 
+export function isClaude4SeriesModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  const regex = /claude-(sonnet|opus|haiku)-4(?:-[\w-]+)?$/i
+  return regex.test(modelId)
+}
+
 export function isClaudeReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
