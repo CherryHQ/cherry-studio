@@ -3985,7 +3985,36 @@
         },
         "loadError": "Get tools Error",
         "noToolsAvailable": "No tools available",
-        "run": "Run"
+        "run": "Run",
+        "execute": {
+          "label": "Execute",
+          "button": "Execute",
+          "tooltip": "Execute tool with custom parameters",
+          "title": "Execute Tool: {{name}}",
+          "params": "Parameters (JSON)",
+          "paramsPlaceholder": "Enter JSON parameters...",
+          "execute": "Execute",
+          "copied": "Copied to clipboard",
+          "copyFailed": "Failed to copy",
+          "copy": "Copy",
+          "result": {
+            "success": "Result",
+            "error": "Error Result",
+            "text": "Text"
+          },
+          "view": {
+            "json": "JSON",
+            "formatted": "Formatted"
+          },
+          "table": {
+            "name": "Name",
+            "value": "Value"
+          },
+          "error": {
+            "noToolOrServer": "Tool or server not found",
+            "invalidJson": "Invalid JSON format: {{error}}"
+          }
+        }
       },
       "type": "Type",
       "types": {

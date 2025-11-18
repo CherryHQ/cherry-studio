@@ -3985,7 +3985,36 @@
         },
         "loadError": "获取工具失败",
         "noToolsAvailable": "无可用工具",
-        "run": "运行"
+        "run": "运行",
+        "execute": {
+          "label": "执行",
+          "button": "执行",
+          "tooltip": "使用自定义参数执行工具",
+          "title": "执行工具: {{name}}",
+          "params": "参数 (JSON)",
+          "paramsPlaceholder": "输入 JSON 参数...",
+          "execute": "执行",
+          "copied": "已复制到剪贴板",
+          "copyFailed": "复制失败",
+          "copy": "复制",
+          "result": {
+            "success": "结果",
+            "error": "错误结果",
+            "text": "文本"
+          },
+          "view": {
+            "json": "JSON",
+            "formatted": "美化"
+          },
+          "table": {
+            "name": "名称",
+            "value": "值"
+          },
+          "error": {
+            "noToolOrServer": "未找到工具或服务器",
+            "invalidJson": "无效的 JSON 格式: {{error}}"
+          }
+        }
       },
       "type": "类型",
       "types": {

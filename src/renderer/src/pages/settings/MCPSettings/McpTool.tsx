@@ -1,9 +1,11 @@
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Button, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { Hammer, Info, Zap } from 'lucide-react'
+import { Hammer, Info, Play, Zap } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ExecuteToolModal from './ExecuteToolModal'
 
 interface MCPToolsSectionProps {
   tools: MCPTool[]
@@ -14,6 +16,8 @@ interface MCPToolsSectionProps {
 
 const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
   const { t } = useTranslation()
+  const [executeModalOpen, setExecuteModalOpen] = useState(false)
+  const [selectedTool, setSelectedTool] = useState<MCPTool | null>(null)
 
   // Check if a tool is enabled (not in the disabledTools array)
   const isToolEnabled = (tool: MCPTool) => {
@@ -28,6 +32,12 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
   // Handle auto-approve toggle
   const handleAutoApproveToggle = (tool: MCPTool, checked: boolean) => {
     onToggleAutoApprove(tool, checked)
+  }
+
+  // Handle execute tool
+  const handleExecuteTool = (tool: MCPTool) => {
+    setSelectedTool(tool)
+    setExecuteModalOpen(true)
   }
 
   // Render tool properties from the input schema
@@ -102,6 +112,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
   }
 
   const columns: ColumnsType<MCPTool> = [
+    // 工具列表列定义：可用工具、启用工具、自动批准、执行工具
     {
       title: <Typography.Text strong>{t('settings.mcp.tools.availableTools')}</Typography.Text>,
       dataIndex: 'name',
@@ -141,7 +152,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
         </Flex>
       ),
       key: 'enable',
-      width: 150, // Fixed width might be good for alignment
+      width: 130, // Fixed width might be good for alignment
       align: 'center',
       render: (_, tool) => (
         <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} size="small" />
@@ -155,7 +166,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
         </Flex>
       ),
       key: 'autoApprove',
-      width: 150, // Fixed width
+      width: 130, // Fixed width
       align: 'center',
       render: (_, tool) => (
         <Tooltip
@@ -175,21 +186,57 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           />
         </Tooltip>
       )
+    },
+    {
+      title: (
+        <Flex align="center" justify="center" gap={4}>
+          <Play size={14} color="green" />
+          <Typography.Text strong>{t('settings.mcp.tools.execute.label', 'Execute')}</Typography.Text>
+        </Flex>
+      ),
+      key: 'execute',
+      width: 130,
+      align: 'center',
+      render: (_, tool) => (
+        <Tooltip title={t('settings.mcp.tools.execute.tooltip', 'Execute tool with custom parameters')}>
+          <Button
+            type="primary"
+            size="small"
+            icon={<Play size={12} />}
+            onClick={() => handleExecuteTool(tool)}
+            disabled={!isToolEnabled(tool)}>
+            {t('settings.mcp.tools.execute.button', 'Execute')}
+          </Button>
+        </Tooltip>
+      )
     }
   ]
 
-  return tools.length > 0 ? (
-    <Table
-      rowKey="id"
-      columns={columns}
-      dataSource={tools}
-      pagination={false}
-      expandable={{
-        expandedRowRender: (tool) => renderToolProperties(tool)
-      }}
-    />
-  ) : (
-    <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+  return (
+    <>
+      {tools.length > 0 ? (
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={tools}
+          pagination={false}
+          expandable={{
+            expandedRowRender: (tool) => renderToolProperties(tool)
+          }}
+        />
+      ) : (
+        <Empty description={t('settings.mcp.tools.noToolsAvailable')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      )}
+      <ExecuteToolModal
+        open={executeModalOpen}
+        tool={selectedTool}
+        server={server}
+        onClose={() => {
+          setExecuteModalOpen(false)
+          setSelectedTool(null)
+        }}
+      />
+    </>
   )
 }
 
