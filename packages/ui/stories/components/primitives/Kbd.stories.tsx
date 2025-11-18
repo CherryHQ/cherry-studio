@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { Command, Copy, Save, Search } from 'lucide-react'
 
 import { Kbd, KbdGroup } from '../../../src/components/primitives/kbd'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../../src/components/primitives/tooltip'
+// import { Tooltip, TooltipContent, TooltipTrigger } from '../../../src/components/primitives/tooltip'
 
 const meta: Meta<typeof Kbd> = {
   title: 'Components/Primitives/Kbd',
@@ -216,54 +216,54 @@ export const WithIcons: Story = {
 }
 
 // 在 Tooltip 中使用
-export const InTooltip: Story = {
-  render: () => (
-    <div className="flex flex-wrap gap-4">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            保存
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <Kbd>Ctrl+S</Kbd>
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="rounded bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80">
-            复制
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <KbdGroup>
-            <Kbd>Ctrl</Kbd>
-            <Kbd>C</Kbd>
-          </KbdGroup>
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            className="rounded bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80">
-            粘贴
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <KbdGroup>
-            <Kbd>Ctrl</Kbd>
-            <Kbd>V</Kbd>
-          </KbdGroup>
-        </TooltipContent>
-      </Tooltip>
-    </div>
-  )
-}
+// export const InTooltip: Story = {
+//   render: () => (
+//     <div className="flex flex-wrap gap-4">
+//       <Tooltip>
+//         <TooltipTrigger asChild>
+//           <button
+//             type="button"
+//             className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+//             保存
+//           </button>
+//         </TooltipTrigger>
+//         <TooltipContent>
+//           <Kbd>Ctrl+S</Kbd>
+//         </TooltipContent>
+//       </Tooltip>
+//       <Tooltip>
+//         <TooltipTrigger asChild>
+//           <button
+//             type="button"
+//             className="rounded bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80">
+//             复制
+//           </button>
+//         </TooltipTrigger>
+//         <TooltipContent>
+//           <KbdGroup>
+//             <Kbd>Ctrl</Kbd>
+//             <Kbd>C</Kbd>
+//           </KbdGroup>
+//         </TooltipContent>
+//       </Tooltip>
+//       <Tooltip>
+//         <TooltipTrigger asChild>
+//           <button
+//             type="button"
+//             className="rounded bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80">
+//             粘贴
+//           </button>
+//         </TooltipTrigger>
+//         <TooltipContent>
+//           <KbdGroup>
+//             <Kbd>Ctrl</Kbd>
+//             <Kbd>V</Kbd>
+//           </KbdGroup>
+//         </TooltipContent>
+//       </Tooltip>
+//     </div>
+//   )
+// }
 
 // 快捷键列表
 export const ShortcutList: Story = {
