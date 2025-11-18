@@ -16,6 +16,64 @@ import remarkMath from 'remark-math'
 
 const logger = loggerService.withContext('ExecuteToolModal')
 
+// HTML 文档结构检测模式（在模块级别定义，避免重复创建）
+const HTML_DOCUMENT_PATTERNS = [/<!DOCTYPE\s+html/i, /<html[\s>]/i, /<head[\s>]/i, /<body[\s>]/i]
+
+// Markdown 检测模式（在模块级别定义，避免重复创建）
+const MARKDOWN_PATTERNS = [
+  /^#{1,6}\s+.+$/m, // 标题
+  /^\s*[-*+]\s+.+$/m, // 列表
+  /^\s*\d+\.\s+.+$/m, // 有序列表
+  /\[.+\]\(.+\)/, // 链接
+  /!\[.+\]\(.+\)/, // 图片
+  /```[\s\S]*?```/, // 代码块
+  /`[^`]+`/, // 行内代码
+  /\*\*.*?\*\*/, // 粗体
+  /\*.*?\*/, // 斜体
+  /^>\s+.+$/m // 引用
+]
+
+/**
+ * 检测文本内容类型
+ * @param text 要检测的文本
+ * @returns 内容类型：'json' | 'markdown' | 'html' | 'text'
+ */
+function detectContentType(text: string): 'json' | 'markdown' | 'html' | 'text' {
+  if (!text) return 'text'
+
+  // 检测 HTML 特征（优先检测，因为 HTML 可能包含其他格式）
+  // 检查是否包含完整的 HTML 文档结构或大量 HTML 标签
+  const hasHtmlDocument = HTML_DOCUMENT_PATTERNS.some((pattern) => pattern.test(text))
+
+  // 检查 HTML 标签数量
+  // 注意：每次调用时创建新的正则表达式实例，避免全局标志的状态污染
+  const htmlTags = text.match(/<[a-z][a-z0-9]*[\s>]/gi)
+  const htmlTagCount = htmlTags ? htmlTags.length : 0
+
+  // 如果包含 HTML 文档结构，或者有多个 HTML 标签，认为是 HTML
+  if (hasHtmlDocument || htmlTagCount >= 3) {
+    return 'html'
+  }
+
+  // 尝试解析为 JSON
+  try {
+    const parsed = JSON.parse(text)
+    if (typeof parsed === 'object' && parsed !== null) {
+      return 'json'
+    }
+  } catch {
+    // 不是 JSON
+  }
+
+  // 检测 Markdown 特征
+  const hasMarkdown = MARKDOWN_PATTERNS.some((pattern) => pattern.test(text))
+  if (hasMarkdown) {
+    return 'markdown'
+  }
+
+  return 'text'
+}
+
 interface ExecuteToolModalProps {
   open: boolean
   tool: MCPTool | null
@@ -78,58 +136,6 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tool])
-
-  // 检测文本类型
-  const detectContentType = (text: string): 'json' | 'markdown' | 'html' | 'text' => {
-    if (!text) return 'text'
-
-    // 检测 HTML 特征（优先检测，因为 HTML 可能包含其他格式）
-    // 检查是否包含完整的 HTML 文档结构或大量 HTML 标签
-    const htmlDocumentPatterns = [/<!DOCTYPE\s+html/i, /<html[\s>]/i, /<head[\s>]/i, /<body[\s>]/i]
-
-    const hasHtmlDocument = htmlDocumentPatterns.some((pattern) => pattern.test(text))
-
-    // 检查 HTML 标签数量
-    const htmlTagPattern = /<[a-z][a-z0-9]*[\s>]/gi
-    const htmlTags = text.match(htmlTagPattern)
-    const htmlTagCount = htmlTags ? htmlTags.length : 0
-
-    // 如果包含 HTML 文档结构，或者有多个 HTML 标签，认为是 HTML
-    if (hasHtmlDocument || htmlTagCount >= 3) {
-      return 'html'
-    }
-
-    // 尝试解析为 JSON
-    try {
-      const parsed = JSON.parse(text)
-      if (typeof parsed === 'object' && parsed !== null) {
-        return 'json'
-      }
-    } catch {
-      // 不是 JSON
-    }
-
-    // 检测 Markdown 特征
-    const markdownPatterns = [
-      /^#{1,6}\s+.+$/m, // 标题
-      /^\s*[-*+]\s+.+$/m, // 列表
-      /^\s*\d+\.\s+.+$/m, // 有序列表
-      /\[.+\]\(.+\)/, // 链接
-      /!\[.+\]\(.+\)/, // 图片
-      /```[\s\S]*?```/, // 代码块
-      /`[^`]+`/, // 行内代码
-      /\*\*.*?\*\*/, // 粗体
-      /\*.*?\*/, // 斜体
-      /^>\s+.+$/m // 引用
-    ]
-
-    const hasMarkdown = markdownPatterns.some((pattern) => pattern.test(text))
-    if (hasMarkdown) {
-      return 'markdown'
-    }
-
-    return 'text'
-  }
 
   // 获取主要文本内容
   const mainTextContent = useMemo(() => {
