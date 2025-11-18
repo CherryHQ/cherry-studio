@@ -3977,6 +3977,35 @@
         },
         "availableTools": "Outils disponibles",
         "enable": "Activer l'outil",
+        "execute": {
+          "button": "Exécuter",
+          "copied": "Copié dans le presse-papiers",
+          "copy": "Copier",
+          "copyFailed": "Échec de la copie",
+          "error": {
+            "invalidJson": "Format JSON invalide: {{error}}",
+            "noToolOrServer": "Outil ou serveur introuvable"
+          },
+          "execute": "Exécuter",
+          "label": "Exécuter",
+          "params": "Paramètres (JSON)",
+          "paramsPlaceholder": "Entrez les paramètres JSON...",
+          "result": {
+            "error": "Résultat d'erreur",
+            "success": "Résultat",
+            "text": "Texte"
+          },
+          "table": {
+            "name": "Nom",
+            "value": "Valeur"
+          },
+          "title": "Exécuter l'outil: {{name}}",
+          "tooltip": "Exécuter l'outil avec des paramètres personnalisés",
+          "view": {
+            "formatted": "Formaté",
+            "json": "JSON"
+          }
+        },
         "inputSchema": {
           "enum": {
             "allowedValues": "Valeurs autorisées"

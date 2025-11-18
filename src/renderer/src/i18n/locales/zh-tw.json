@@ -3977,6 +3977,35 @@
         },
         "availableTools": "可用工具",
         "enable": "啟用工具",
+        "execute": {
+          "button": "執行",
+          "copied": "已複製到剪貼板",
+          "copy": "複製",
+          "copyFailed": "複製失敗",
+          "error": {
+            "invalidJson": "無效的 JSON 格式: {{error}}",
+            "noToolOrServer": "未找到工具或伺服器"
+          },
+          "execute": "執行",
+          "label": "執行",
+          "params": "參數 (JSON)",
+          "paramsPlaceholder": "輸入 JSON 參數...",
+          "result": {
+            "error": "錯誤結果",
+            "success": "結果",
+            "text": "文字"
+          },
+          "table": {
+            "name": "名稱",
+            "value": "值"
+          },
+          "title": "執行工具: {{name}}",
+          "tooltip": "使用自訂參數執行工具",
+          "view": {
+            "formatted": "美化",
+            "json": "JSON"
+          }
+        },
         "inputSchema": {
           "enum": {
             "allowedValues": "允許的值"

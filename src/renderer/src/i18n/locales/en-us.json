@@ -3977,6 +3977,35 @@
         },
         "availableTools": "Available Tools",
         "enable": "Enable Tool",
+        "execute": {
+          "button": "Execute",
+          "copied": "Copied to clipboard",
+          "copy": "Copy",
+          "copyFailed": "Failed to copy",
+          "error": {
+            "invalidJson": "Invalid JSON format: {{error}}",
+            "noToolOrServer": "Tool or server not found"
+          },
+          "execute": "Execute",
+          "label": "Execute",
+          "params": "Parameters (JSON)",
+          "paramsPlaceholder": "Enter JSON parameters...",
+          "result": {
+            "error": "Error Result",
+            "success": "Result",
+            "text": "Text"
+          },
+          "table": {
+            "name": "Name",
+            "value": "Value"
+          },
+          "title": "Execute Tool: {{name}}",
+          "tooltip": "Execute tool with custom parameters",
+          "view": {
+            "formatted": "Formatted",
+            "json": "JSON"
+          }
+        },
         "inputSchema": {
           "enum": {
             "allowedValues": "Allowed Values"
@@ -3985,36 +4014,7 @@
         },
         "loadError": "Get tools Error",
         "noToolsAvailable": "No tools available",
-        "run": "Run",
-        "execute": {
-          "label": "Execute",
-          "button": "Execute",
-          "tooltip": "Execute tool with custom parameters",
-          "title": "Execute Tool: {{name}}",
-          "params": "Parameters (JSON)",
-          "paramsPlaceholder": "Enter JSON parameters...",
-          "execute": "Execute",
-          "copied": "Copied to clipboard",
-          "copyFailed": "Failed to copy",
-          "copy": "Copy",
-          "result": {
-            "success": "Result",
-            "error": "Error Result",
-            "text": "Text"
-          },
-          "view": {
-            "json": "JSON",
-            "formatted": "Formatted"
-          },
-          "table": {
-            "name": "Name",
-            "value": "Value"
-          },
-          "error": {
-            "noToolOrServer": "Tool or server not found",
-            "invalidJson": "Invalid JSON format: {{error}}"
-          }
-        }
+        "run": "Run"
       },
       "type": "Type",
       "types": {

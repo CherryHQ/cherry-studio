@@ -1,18 +1,18 @@
 import 'katex/dist/katex.min.css'
 
-import type { MCPServer, MCPTool } from '@renderer/types'
 import { loggerService } from '@logger'
-import { Button, Flex, Input, Modal, Space, Table, Typography, message } from 'antd'
+import type { MCPServer, MCPTool } from '@renderer/types'
+import { Button, Flex, Input, message, Modal, Space, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { Copy, Play, Sparkles, Code as CodeIcon } from 'lucide-react'
-import { useState, useMemo, useEffect } from 'react'
+import { Code as CodeIcon, Copy, Play, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 
 const logger = loggerService.withContext('ExecuteToolModal')
 
@@ -47,7 +47,10 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
 
     // 为每个属性生成默认值或示例
     Object.keys(properties).forEach((key) => {
-      const prop = properties[key]
+      const prop = properties[key] as {
+        type?: string
+        default?: any
+      }
       if (prop.type === 'string') {
         params[key] = prop.default || ''
       } else if (prop.type === 'number') {
@@ -79,12 +82,7 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
 
     // 检测 HTML 特征（优先检测，因为 HTML 可能包含其他格式）
     // 检查是否包含完整的 HTML 文档结构或大量 HTML 标签
-    const htmlDocumentPatterns = [
-      /<!DOCTYPE\s+html/i,
-      /<html[\s>]/i,
-      /<head[\s>]/i,
-      /<body[\s>]/i
-    ]
+    const htmlDocumentPatterns = [/<!DOCTYPE\s+html/i, /<html[\s>]/i, /<head[\s>]/i, /<body[\s>]/i]
 
     const hasHtmlDocument = htmlDocumentPatterns.some((pattern) => pattern.test(text))
 
@@ -313,9 +311,7 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 参数输入 */}
         <div>
-          <Typography.Title level={5}>
-            {t('settings.mcp.tools.execute.params', 'Parameters (JSON)')}
-          </Typography.Title>
+          <Typography.Title level={5}>{t('settings.mcp.tools.execute.params', 'Parameters (JSON)')}</Typography.Title>
           <Input.TextArea
             value={paramsJson}
             onChange={(e) => setParamsJson(e.target.value)}
@@ -435,4 +431,3 @@ const ExecuteToolModal: React.FC<ExecuteToolModalProps> = ({ open, tool, server,
 }
 
 export default ExecuteToolModal
-

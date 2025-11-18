@@ -3977,6 +3977,35 @@
         },
         "availableTools": "Verfügbare Tools",
         "enable": "Tool aktivieren",
+        "execute": {
+          "button": "Ausführen",
+          "copied": "In Zwischenablage kopiert",
+          "copy": "Kopieren",
+          "copyFailed": "Kopieren fehlgeschlagen",
+          "error": {
+            "invalidJson": "Ungültiges JSON-Format: {{error}}",
+            "noToolOrServer": "Tool oder Server nicht gefunden"
+          },
+          "execute": "Ausführen",
+          "label": "Ausführen",
+          "params": "Parameter (JSON)",
+          "paramsPlaceholder": "JSON-Parameter eingeben...",
+          "result": {
+            "error": "Fehlerergebnis",
+            "success": "Ergebnis",
+            "text": "Text"
+          },
+          "table": {
+            "name": "Name",
+            "value": "Wert"
+          },
+          "title": "Tool ausführen: {{name}}",
+          "tooltip": "Tool mit benutzerdefinierten Parametern ausführen",
+          "view": {
+            "formatted": "Formatiert",
+            "json": "JSON"
+          }
+        },
         "inputSchema": {
           "enum": {
             "allowedValues": "Erlaubte Werte"

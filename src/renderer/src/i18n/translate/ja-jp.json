@@ -3977,6 +3977,35 @@
         },
         "availableTools": "利用可能なツール",
         "enable": "ツールを有効にする",
+        "execute": {
+          "button": "実行",
+          "copied": "クリップボードにコピーしました",
+          "copy": "コピー",
+          "copyFailed": "コピーに失敗しました",
+          "error": {
+            "invalidJson": "無効なJSON形式: {{error}}",
+            "noToolOrServer": "ツールまたはサーバーが見つかりません"
+          },
+          "execute": "実行",
+          "label": "実行",
+          "params": "パラメータ (JSON)",
+          "paramsPlaceholder": "JSONパラメータを入力...",
+          "result": {
+            "error": "エラー結果",
+            "success": "結果",
+            "text": "テキスト"
+          },
+          "table": {
+            "name": "名前",
+            "value": "値"
+          },
+          "title": "ツールを実行: {{name}}",
+          "tooltip": "カスタムパラメータでツールを実行",
+          "view": {
+            "formatted": "フォーマット済み",
+            "json": "JSON"
+          }
+        },
         "inputSchema": {
           "enum": {
             "allowedValues": "許可された値"

@@ -5,6 +5,7 @@ import type { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Play, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import ExecuteToolModal from './ExecuteToolModal'
 
 interface MCPToolsSectionProps {
