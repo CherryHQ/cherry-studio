@@ -175,13 +175,13 @@ const prefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60
   }
 })
 
-const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60'], {
+const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foreground/60', 'p-0'], {
   variants: {
     size: {
       // TODO: semantic letter-spacing
-      sm: ['text-sm leading-4', 'px-3xs py-4xs'],
-      md: ['leading-4.5', 'px-3xs py-4xs'],
-      lg: ['leading-5 tracking-normal', 'px-2xs py-3xs']
+      sm: ['text-sm leading-4'],
+      md: ['leading-4.5'],
+      lg: ['leading-5 tracking-normal']
     },
     disabled: {
       false: null,
@@ -193,6 +193,23 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foregro
     disabled: false
   }
 })
+
+const selectTriggerVariants = cva(
+  [
+    'border-none box-content pl-3 aria-expanded:border-none aria-expanded:ring-0 bg-transparent',
+    '*:data-[slot=select-value]:text-foreground',
+    '[&_svg]:text-secondary-foreground!'
+  ],
+  {
+    variants: {
+      size: {
+        sm: ['h-5', 'pl-6 pr-3xs py-3', '*:data-[slot=select-value]:text-sm'],
+        md: ['h-5', 'pl-6 pr-3xs py-[13px]'],
+        lg: ['h-6', 'pl-7 pr-2xs py-3', '*:data-[slot=select-value]:text-lg']
+      }
+    }
+  }
+)
 
 const selectTriggerLabelVariants = cva([], {
   variants: {
@@ -303,7 +320,7 @@ function CompositeInput({
       return (
         <div className={selectPrefixVariants({ size, disabled })}>
           <Select>
-            <SelectTrigger className={cn('border-none py-2 pl-3 aria-expanded:border-none aria-expanded:ring-0')}>
+            <SelectTrigger className={selectTriggerVariants({ size })}>
               <SelectValue placeholder={selectProps.placeholder} className={selectTriggerLabelVariants({ size })} />
             </SelectTrigger>
             <SelectContent>
