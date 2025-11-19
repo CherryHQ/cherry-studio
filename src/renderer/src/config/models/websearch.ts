@@ -3,7 +3,13 @@ import type { Model } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
-import { isGeminiProvider, isNewApiProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '../providers'
+import {
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isVertexAiProvider
+} from '../providers'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'
 import { isPureGenerateImageModel, isTextToImageModel } from './vision'
@@ -16,7 +22,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$')
 
 export const GEMINI_SEARCH_REGEX = new RegExp(
-  'gemini-(?:2.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
+  'gemini-(?:2.*(?:-latest)?|3-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
   'i'
 )
 
@@ -107,7 +113,7 @@ export function isWebSearchModel(model: Model): boolean {
     }
   }
 
-  if (isGeminiProvider(provider) || provider.id === SystemProviderIds.vertexai) {
+  if (isGeminiProvider(provider) || isVertexAiProvider(provider)) {
     return GEMINI_SEARCH_REGEX.test(modelId)
   }
 

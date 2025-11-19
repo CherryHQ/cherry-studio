@@ -1,0 +1,152 @@
+diff --git a/dist/index.js b/dist/index.js
+index c2ef089c42e13a8ee4a833899a415564130e5d79..75efa7baafb0f019fb44dd50dec1641eee8879e7 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -471,7 +471,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+diff --git a/dist/index.mjs b/dist/index.mjs
+index d75c0cc13c41192408c1f3f2d29d76a7bffa6268..ada730b8cb97d9b7d4cb32883a1d1ff416404d9b 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -477,7 +477,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ 
+ // src/get-model-path.ts
+ function getModelPath(modelId) {
+-  return modelId.includes("/") ? modelId : `models/${modelId}`;
++  return modelId.includes("models/") ? modelId : `models/${modelId}`;
+ }
+ 
+ // src/google-generative-ai-options.ts
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 277cac8dc734bea2fb4f3e9a225986b402b24f48..bb704cd79e602eb8b0cee1889e42497d59ccdb7a 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -432,7 +432,15 @@ function prepareTools({
+   var _a;
+   tools = (tools == null ? void 0 : tools.length) ? tools : void 0;
+   const toolWarnings = [];
+-  const isGemini2 = modelId.includes("gemini-2");
++  // These changes could be safely removed when @ai-sdk/google v3 released.
++  const isLatest = (
++    [
++      'gemini-flash-latest',
++      'gemini-flash-lite-latest',
++      'gemini-pro-latest',
++    ]
++  ).some(id => id === modelId);
++  const isGemini2OrNewer = modelId.includes("gemini-2") || modelId.includes("gemini-3") || isLatest;
+   const supportsDynamicRetrieval = modelId.includes("gemini-1.5-flash") && !modelId.includes("-8b");
+   const supportsFileSearch = modelId.includes("gemini-2.5");
+   if (tools == null) {
+@@ -458,7 +466,7 @@ function prepareTools({
+     providerDefinedTools.forEach((tool) => {
+       switch (tool.id) {
+         case "google.google_search":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({ googleSearch: {} });
+           } else if (supportsDynamicRetrieval) {
+             googleTools2.push({
+@@ -474,7 +482,7 @@ function prepareTools({
+           }
+           break;
+         case "google.url_context":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({ urlContext: {} });
+           } else {
+             toolWarnings.push({
+@@ -485,7 +493,7 @@ function prepareTools({
+           }
+           break;
+         case "google.code_execution":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({ codeExecution: {} });
+           } else {
+             toolWarnings.push({
+@@ -507,7 +515,7 @@ function prepareTools({
+           }
+           break;
+         case "google.vertex_rag_store":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({
+               retrieval: {
+                 vertex_rag_store: {
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index 03b7cc591be9b58bcc2e775a96740d9f98862a10..347d2c12e1cee79f0f8bb258f3844fb0522a6485 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -424,7 +424,15 @@ function prepareTools({
+   var _a;
+   tools = (tools == null ? void 0 : tools.length) ? tools : void 0;
+   const toolWarnings = [];
+-  const isGemini2 = modelId.includes("gemini-2");
++  // These changes could be safely removed when @ai-sdk/google v3 released.
++  const isLatest = (
++    [
++      'gemini-flash-latest',
++      'gemini-flash-lite-latest',
++      'gemini-pro-latest',
++    ]
++  ).some(id => id === modelId);
++  const isGemini2OrNewer = modelId.includes("gemini-2") || modelId.includes("gemini-3") || isLatest;
+   const supportsDynamicRetrieval = modelId.includes("gemini-1.5-flash") && !modelId.includes("-8b");
+   const supportsFileSearch = modelId.includes("gemini-2.5");
+   if (tools == null) {
+@@ -450,7 +458,7 @@ function prepareTools({
+     providerDefinedTools.forEach((tool) => {
+       switch (tool.id) {
+         case "google.google_search":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({ googleSearch: {} });
+           } else if (supportsDynamicRetrieval) {
+             googleTools2.push({
+@@ -466,7 +474,7 @@ function prepareTools({
+           }
+           break;
+         case "google.url_context":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({ urlContext: {} });
+           } else {
+             toolWarnings.push({
+@@ -477,7 +485,7 @@ function prepareTools({
+           }
+           break;
+         case "google.code_execution":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({ codeExecution: {} });
+           } else {
+             toolWarnings.push({
+@@ -499,7 +507,7 @@ function prepareTools({
+           }
+           break;
+         case "google.vertex_rag_store":
+-          if (isGemini2) {
++          if (isGemini2OrNewer) {
+             googleTools2.push({
+               retrieval: {
+                 vertex_rag_store: {
+@@ -1434,9 +1442,7 @@ var googleTools = {
+   vertexRagStore
+ };
+ export {
+-  GoogleGenerativeAILanguageModel,
+   getGroundingMetadataSchema,
+-  getUrlContextMetadataSchema,
+-  googleTools
++  getUrlContextMetadataSchema, GoogleGenerativeAILanguageModel, googleTools
+ };
+ //# sourceMappingURL=index.mjs.map
+\ No newline at end of file

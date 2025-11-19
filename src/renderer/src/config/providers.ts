@@ -1571,6 +1571,10 @@ export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
 }
 
+export function isVertexAiProvider(provider: Provider): boolean {
+  return provider.type === 'vertexai'
+}
+
 export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'ai-gateway'
 }
