@@ -97,12 +97,12 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }))
   }, [])
 
-  const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      description: e.target.value
-    }))
-  }, [])
+  // const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+  //   setForm((prev) => ({
+  //     ...prev,
+  //     description: e.target.value
+  //   }))
+  // }, [])
 
   const onInstChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     setForm((prev) => ({
@@ -369,10 +369,10 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
             </FormItem>
 
-            <FormItem>
+            {/* <FormItem>
               <Label>{t('common.description')}</Label>
               <TextArea rows={1} value={form.description ?? ''} onChange={onDescChange} />
-            </FormItem>
+            </FormItem> */}
           </FormContent>
 
           <FormFooter>
