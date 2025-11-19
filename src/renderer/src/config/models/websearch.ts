@@ -3,7 +3,13 @@ import type { Model } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
-import { isGeminiProvider, isNewApiProvider, isOpenAICompatibleProvider, isOpenAIProvider } from '../providers'
+import {
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isVertexAiProvider
+} from '../providers'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'
 import { isPureGenerateImageModel, isTextToImageModel } from './vision'
@@ -107,7 +113,7 @@ export function isWebSearchModel(model: Model): boolean {
     }
   }
 
-  if (isGeminiProvider(provider) || provider.id === SystemProviderIds.vertexai) {
+  if (isGeminiProvider(provider) || isVertexAiProvider(provider)) {
     return GEMINI_SEARCH_REGEX.test(modelId)
   }
 
