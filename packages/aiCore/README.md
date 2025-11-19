@@ -71,7 +71,7 @@ Cherry Studio AI Core 是一个基于 Vercel AI SDK 的统一 AI Provider 接口
 ## 安装
 
 ```bash
-npm install @cherrystudio/ai-core ai
+npm install @cherrystudio/ai-core ai @ai-sdk/google @ai-sdk/openai
 ```
 
 ### React Native
