@@ -156,6 +156,12 @@
         "uninstalling": "Uninstalling..."
       },
       "prompt": "Prompt Settings",
+      "sub_agents": {
+        "placeholder": "Select sub agents",
+        "tab": "Sub Agents",
+        "title": "Sub Agents",
+        "tooltip": "Select other agents that can be delegated tasks by this agent"
+      },
       "tooling": {
         "mcp": {
           "description": "Connect MCP servers to unlock additional tools you can approve above.",
@@ -641,6 +647,7 @@
           "description": "No files available in accessible directories",
           "label": "No File Found"
         },
+        "sub_agent": "Sub-Agent",
         "title": "Activity Directory"
       },
       "auto_resize": "Auto resize height",

@@ -2,7 +2,13 @@
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
-import type { CanUseTool, McpHttpServerConfig, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  AgentDefinition,
+  CanUseTool,
+  McpHttpServerConfig,
+  Options,
+  SDKMessage
+} from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
@@ -10,7 +16,7 @@ import { validateModelId } from '@main/apiServer/utils'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
 
-import type { GetAgentSessionResponse } from '../..'
+import { agentService, type GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
 import { promptForToolApproval } from './tool-permissions'
@@ -151,6 +157,32 @@ class ClaudeCodeService implements AgentServiceInterface {
       }
 
       return promptForToolApproval(toolName, input, options)
+    }
+
+    const subAgents: Record<string, AgentDefinition> = {}
+    if (session.sub_agents && session.sub_agents.length > 0) {
+      for (const subAgentId of session.sub_agents) {
+        try {
+          const agentConfig = await agentService.getAgentConfigForSDK(subAgentId)
+          if (agentConfig) {
+            subAgents[subAgentId] = {
+              // TODO: support custom model for sub-agents
+              model: 'inherit',
+              description: agentConfig.description ?? '',
+              prompt: agentConfig.instructions ?? '',
+              tools: agentConfig.allowed_tools
+            }
+            logger.info('Loaded sub-agent', { subAgentId })
+          } else {
+            logger.warn('Sub-agent not found', { subAgentId })
+          }
+        } catch (error) {
+          logger.error('Failed to load sub-agent config', {
+            subAgentId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+        }
+      }
     }
 
     // Build SDK options from parameters

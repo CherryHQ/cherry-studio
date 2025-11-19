@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import { File, Folder } from 'lucide-react'
+import { Bot, File, Folder } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,15 +25,22 @@ export type ActivityDirectoryTriggerInfo = {
   symbol?: QuickPanelReservedSymbol
 }
 
+interface SubAgentInfo {
+  id: string
+  name: string
+  description?: string
+}
+
 interface Params {
   quickPanel: ToolQuickPanelApi
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
+  subAgents?: SubAgentInfo[]
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
 export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'manager' = 'button') => {
-  const { quickPanel, quickPanelController, accessiblePaths, setText } = params
+  const { quickPanel, quickPanelController, accessiblePaths, subAgents = [], setText } = params
   const { registerTrigger, registerRootMenu } = quickPanel
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { t } = useTranslation()
@@ -239,6 +246,68 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   )
 
   /**
+   * Insert sub-agent name at @ position
+   */
+  const insertSubAgentName = useCallback(
+    (agentName: string, triggerInfo?: ActivityDirectoryTriggerInfo) => {
+      setText((currentText) => {
+        const symbol = triggerInfo?.symbol ?? QuickPanelReservedSymbol.MentionModels
+        const triggerIndex =
+          triggerInfo?.position !== undefined
+            ? triggerInfo.position
+            : symbol === QuickPanelReservedSymbol.Root
+              ? currentText.lastIndexOf('/')
+              : currentText.lastIndexOf('@')
+
+        if (triggerIndex !== -1) {
+          let endPos = triggerIndex + 1
+          while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
+            endPos++
+          }
+          return currentText.slice(0, triggerIndex) + agentName + ' ' + currentText.slice(endPos)
+        }
+
+        // If no trigger found, append at end
+        return currentText + ' ' + agentName + ' '
+      })
+    },
+    [setText]
+  )
+
+  /**
+   * Handle sub-agent selection
+   */
+  const onSelectSubAgent = useCallback(
+    (agentName: string) => {
+      const trigger = triggerInfoRef.current
+      insertSubAgentName(agentName, trigger)
+      close()
+    },
+    [close, insertSubAgentName]
+  )
+
+  /**
+   * Create sub-agent list items for QuickPanel
+   */
+  const createSubAgentItems = useCallback(
+    (agents: SubAgentInfo[]): QuickPanelListItem[] => {
+      if (agents.length === 0) {
+        return []
+      }
+
+      return agents.map((agent) => ({
+        label: agent.name,
+        description: agent.description || t('chat.input.activity_directory.sub_agent'),
+        icon: <Bot size={16} />,
+        filterText: `${agent.name} ${agent.description || ''} ${agent.id}`,
+        action: () => onSelectSubAgent(agent.name),
+        isSelected: false
+      }))
+    },
+    [onSelectSubAgent, t]
+  )
+
+  /**
    * Create file list items for QuickPanel from a file list
    */
   const createFileItems = useCallback(
@@ -291,12 +360,18 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
   )
 
   /**
-   * Create file list items for QuickPanel (for current state)
+   * Create combined list items for QuickPanel (sub-agents + files)
    */
-  const fileItems = useMemo<QuickPanelListItem[]>(
-    () => createFileItems(fileList, isLoading),
-    [createFileItems, fileList, isLoading]
-  )
+  const combinedItems = useMemo<QuickPanelListItem[]>(() => {
+    const agentItems = createSubAgentItems(subAgents)
+    const files = createFileItems(fileList, isLoading)
+
+    // Combine: sub-agents first, then files
+    return [...agentItems, ...files]
+  }, [createSubAgentItems, subAgents, createFileItems, fileList, isLoading])
+
+  // Keep fileItems for backward compatibility
+  const fileItems = combinedItems
 
   /**
    * Handle search text change - load files and update list
@@ -311,11 +386,13 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
 
       const hasChanged = updateFileListState(newFiles)
       if (hasChanged) {
-        const newItems = createFileItems(newFiles, false)
-        updateList(newItems)
+        // Combine sub-agents and files
+        const agentItems = createSubAgentItems(subAgents)
+        const fileItems = createFileItems(newFiles, false)
+        updateList([...agentItems, ...fileItems])
       }
     },
-    [loadFiles, createFileItems, updateList, updateFileListState]
+    [loadFiles, createFileItems, createSubAgentItems, subAgents, updateList, updateFileListState]
   )
 
   /**
@@ -336,8 +413,10 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
       const files = await loadFiles()
       updateFileListState(files)
 
-      // Create items from the loaded files immediately
-      const items = createFileItems(files, false)
+      // Create items from sub-agents and loaded files immediately
+      const agentItems = createSubAgentItems(subAgents)
+      const fileItems = createFileItems(files, false)
+      const items = [...agentItems, ...fileItems]
 
       open({
         title: t('chat.input.activity_directory.description'),
@@ -377,7 +456,18 @@ export const useActivityDirectoryPanel = (params: Params, role: 'button' | 'mana
         onSearchChange: handleSearchChange
       })
     },
-    [loadFiles, open, removeTriggerSymbolAndText, setText, t, handleSearchChange, createFileItems, updateFileListState]
+    [
+      loadFiles,
+      open,
+      removeTriggerSymbolAndText,
+      setText,
+      t,
+      handleSearchChange,
+      createFileItems,
+      createSubAgentItems,
+      subAgents,
+      updateFileListState
+    ]
   )
 
   /**

@@ -13,10 +13,17 @@ interface Props {
   quickPanel: ToolQuickPanelApi
   quickPanelController: ToolQuickPanelController
   accessiblePaths: string[]
+  subAgents?: Array<{ id: string; name: string; description?: string }>
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
-const ActivityDirectoryButton: FC<Props> = ({ quickPanel, quickPanelController, accessiblePaths, setText }) => {
+const ActivityDirectoryButton: FC<Props> = ({
+  quickPanel,
+  quickPanelController,
+  accessiblePaths,
+  subAgents,
+  setText
+}) => {
   const { t } = useTranslation()
 
   const { handleOpenQuickPanel } = useActivityDirectoryPanel(
@@ -24,6 +31,7 @@ const ActivityDirectoryButton: FC<Props> = ({ quickPanel, quickPanelController, 
       quickPanel,
       quickPanelController,
       accessiblePaths,
+      subAgents,
       setText
     },
     'button'

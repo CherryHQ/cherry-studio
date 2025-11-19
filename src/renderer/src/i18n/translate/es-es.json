@@ -156,6 +156,12 @@
         "uninstalling": "Desinstalando..."
       },
       "prompt": "Configuración de indicaciones",
+      "sub_agents": {
+        "placeholder": "[to be translated]:Select sub agents",
+        "tab": "[to be translated]:Sub Agents",
+        "title": "[to be translated]:Sub Agents",
+        "tooltip": "[to be translated]:Select other agents that can be delegated tasks by this agent"
+      },
       "tooling": {
         "mcp": {
           "description": "Conecta servidores MCP para desbloquear herramientas adicionales que puedes aprobar arriba.",

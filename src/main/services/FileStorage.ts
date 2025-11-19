@@ -849,7 +849,7 @@ class FileStorage {
     const resolvedPath = path.resolve(dirPath)
 
     const stat = await fs.promises.stat(resolvedPath).catch((error) => {
-      logger.error(`[IPC - Error] Failed to access directory: ${resolvedPath}`, error as Error)
+      logger.error(`Failed to access directory: ${resolvedPath}`, error as Error)
       throw error
     })
 

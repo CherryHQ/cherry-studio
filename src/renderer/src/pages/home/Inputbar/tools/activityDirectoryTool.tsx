@@ -25,11 +25,12 @@ const activityDirectoryTool = defineTool({
     const { quickPanel, quickPanelController, actions, session } = context
     const { onTextChange } = actions
 
-    // Get accessible paths from session data
+    // Get accessible paths and sub-agents from session data
     const accessiblePaths = session?.accessiblePaths ?? []
+    const subAgents = session?.subAgents ?? []
 
-    // Only render if we have accessible paths
-    if (accessiblePaths.length === 0) {
+    // Only render if we have accessible paths or sub-agents
+    if (accessiblePaths.length === 0 && subAgents.length === 0) {
       return null
     }
 
@@ -38,6 +39,7 @@ const activityDirectoryTool = defineTool({
         quickPanel={quickPanel}
         quickPanelController={quickPanelController}
         accessiblePaths={accessiblePaths}
+        subAgents={subAgents}
         setText={onTextChange as React.Dispatch<React.SetStateAction<string>>}
       />
     )

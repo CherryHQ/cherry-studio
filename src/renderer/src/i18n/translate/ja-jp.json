@@ -156,6 +156,12 @@
         "uninstalling": "アンインストール中..."
       },
       "prompt": "プロンプト設定",
+      "sub_agents": {
+        "placeholder": "[to be translated]:Select sub agents",
+        "tab": "[to be translated]:Sub Agents",
+        "title": "[to be translated]:Sub Agents",
+        "tooltip": "[to be translated]:Select other agents that can be delegated tasks by this agent"
+      },
       "tooling": {
         "mcp": {
           "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",

@@ -156,6 +156,12 @@
         "uninstalling": "卸载中..."
       },
       "prompt": "提示词设置",
+      "sub_agents": {
+        "placeholder": "选择子智能体",
+        "tab": "子智能体",
+        "title": "子智能体",
+        "tooltip": "选择可以被此智能体委派任务的其他智能体"
+      },
       "tooling": {
         "mcp": {
           "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
@@ -641,6 +647,7 @@
           "description": "可访问目录中没有可用文件",
           "label": "未找到文件"
         },
+        "sub_agent": "子代理",
         "title": "活动目录"
       },
       "auto_resize": "自动调整高度",

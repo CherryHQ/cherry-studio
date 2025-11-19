@@ -68,6 +68,7 @@ export interface ToolContext {
     slashCommands?: Array<{ command: string; description?: string }>
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
+    subAgents?: Array<{ id: string; name: string; description?: string }>
   }
 }
 

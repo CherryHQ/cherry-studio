@@ -117,6 +117,19 @@ export class AgentService extends BaseService {
     return agent
   }
 
+  async getAgentConfigForSDK(id: string): Promise<AgentEntity | null> {
+    this.ensureInitialized()
+
+    const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
+
+    if (!result[0]) {
+      return null
+    }
+
+    const agent = this.deserializeJsonFields(result[0]) as AgentEntity
+    return agent
+  }
+
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     this.ensureInitialized() // Build query with pagination
 
