@@ -43,8 +43,153 @@ const meta: Meta<typeof InputGroup> = {
   tags: ['autodocs']
 }
 
+// Shared arg types for stories that use InputGroupButton
+const buttonSizeArgType = {
+  control: 'select' as const,
+  options: ['xs', 'sm', 'icon-xs', 'icon-sm'],
+  description: 'Size of the button',
+  table: {
+    category: 'InputGroupButton'
+  }
+}
+
+const buttonVariantArgType = {
+  control: 'select' as const,
+  options: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link'],
+  description: 'Variant of the button',
+  table: {
+    category: 'InputGroupButton'
+  }
+}
+
 export default meta
 type Story = StoryObj<typeof meta>
+
+// Playground - Interactive example with all controls
+interface PlaygroundArgs {
+  placeholder: string
+  disabled: boolean
+  showStartAddon: boolean
+  showEndAddon: boolean
+  startAddonAlign: 'inline-start' | 'block-start'
+  endAddonAlign: 'inline-end' | 'block-end'
+  startAddonType: 'icon' | 'text' | 'button'
+  endAddonType: 'icon' | 'text' | 'button'
+  buttonSize: 'xs' | 'sm' | 'icon-xs' | 'icon-sm'
+  buttonVariant: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
+  inputType: 'text' | 'email' | 'password' | 'number' | 'search'
+}
+
+export const Playground: StoryObj<PlaygroundArgs> = {
+  argTypes: {
+    placeholder: {
+      control: 'text',
+      description: 'Input placeholder text',
+      table: { category: 'Input' }
+    },
+    disabled: {
+      control: 'boolean',
+      description: 'Whether the input group is disabled',
+      table: { category: 'InputGroup' }
+    },
+    showStartAddon: {
+      control: 'boolean',
+      description: 'Show start addon',
+      table: { category: 'Addons' }
+    },
+    showEndAddon: {
+      control: 'boolean',
+      description: 'Show end addon',
+      table: { category: 'Addons' }
+    },
+    startAddonAlign: {
+      control: 'select',
+      options: ['inline-start', 'block-start'],
+      description: 'Start addon alignment',
+      table: { category: 'Addons' },
+      if: { arg: 'showStartAddon' }
+    },
+    endAddonAlign: {
+      control: 'select',
+      options: ['inline-end', 'block-end'],
+      description: 'End addon alignment',
+      table: { category: 'Addons' },
+      if: { arg: 'showEndAddon' }
+    },
+    startAddonType: {
+      control: 'select',
+      options: ['icon', 'text', 'button'],
+      description: 'Start addon content type',
+      table: { category: 'Addons' },
+      if: { arg: 'showStartAddon' }
+    },
+    endAddonType: {
+      control: 'select',
+      options: ['icon', 'text', 'button'],
+      description: 'End addon content type',
+      table: { category: 'Addons' },
+      if: { arg: 'showEndAddon' }
+    },
+    buttonSize: {
+      ...buttonSizeArgType,
+      description: 'Button size (when addon type is button)'
+    },
+    buttonVariant: {
+      ...buttonVariantArgType,
+      description: 'Button variant (when addon type is button)'
+    },
+    inputType: {
+      control: 'select',
+      options: ['text', 'email', 'password', 'number', 'search'],
+      description: 'Input type',
+      table: { category: 'Input' }
+    }
+  },
+  args: {
+    placeholder: 'Enter text...',
+    disabled: false,
+    showStartAddon: true,
+    showEndAddon: true,
+    startAddonAlign: 'inline-start',
+    endAddonAlign: 'inline-end',
+    startAddonType: 'icon',
+    endAddonType: 'button',
+    buttonSize: 'xs',
+    buttonVariant: 'ghost',
+    inputType: 'text'
+  },
+  render: (args) => {
+    const renderAddonContent = (type: string, isStart: boolean) => {
+      if (type === 'icon') {
+        return <InputGroupText>{isStart ? <User /> : <Search />}</InputGroupText>
+      }
+      if (type === 'text') {
+        return <InputGroupText>{isStart ? 'Label' : 'Suffix'}</InputGroupText>
+      }
+      return (
+        <InputGroupButton size={args.buttonSize} variant={args.buttonVariant}>
+          {isStart ? <Settings /> : <Send />}
+        </InputGroupButton>
+      )
+    }
+
+    return (
+      <div className="w-80">
+        <InputGroup data-disabled={args.disabled || undefined}>
+          {args.showStartAddon && (
+            <InputGroupAddon align={args.startAddonAlign}>
+              {renderAddonContent(args.startAddonType, true)}
+            </InputGroupAddon>
+          )}
+          <InputGroupInput type={args.inputType} placeholder={args.placeholder} disabled={args.disabled} />
+          {args.showEndAddon && (
+            <InputGroupAddon align={args.endAddonAlign}>{renderAddonContent(args.endAddonType, false)}</InputGroupAddon>
+          )}
+        </InputGroup>
+      </div>
+    )
+  }
+}
 
 // Basic Examples
 export const Default: Story = {
