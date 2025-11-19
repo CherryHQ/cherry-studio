@@ -72,13 +72,13 @@ const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
     },
     variant: {
       default: [],
-      button: ['border-r-[1px]'],
+      button: 'border-r-[1px]',
       email: [],
       select: []
     },
     disabled: {
       false: null,
-      true: ['border-background-subtle']
+      true: 'border-background-subtle'
     }
   },
   defaultVariants: {
@@ -89,13 +89,13 @@ const inputWrapperVariants = cva(['flex', 'flex-1', 'items-center', 'gap-2'], {
 const iconVariants = cva([], {
   variants: {
     size: {
-      sm: ['size-4.5'],
-      md: ['size-5'],
-      lg: ['size-6']
+      sm: 'size-4.5',
+      md: 'size-5',
+      lg: 'size-6'
     },
     disabled: {
       false: null,
-      true: ['text-foreground/40']
+      true: 'text-foreground/40'
     }
   },
   defaultVariants: {
