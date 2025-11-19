@@ -1891,7 +1891,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/ai-core@workspace:^1.0.5, @cherrystudio/ai-core@workspace:packages/aiCore":
+"@cherrystudio/ai-core@workspace:^1.0.6, @cherrystudio/ai-core@workspace:packages/aiCore":
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-core@workspace:packages/aiCore"
   dependencies:
@@ -9920,7 +9920,7 @@ __metadata:
     "@aws-sdk/client-bedrock-runtime": "npm:^3.910.0"
     "@aws-sdk/client-s3": "npm:^3.910.0"
     "@biomejs/biome": "npm:2.2.4"
-    "@cherrystudio/ai-core": "workspace:^1.0.5"
+    "@cherrystudio/ai-core": "workspace:^1.0.6"
     "@cherrystudio/embedjs": "npm:^0.1.31"
     "@cherrystudio/embedjs-libsql": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-csv": "npm:^0.1.31"
