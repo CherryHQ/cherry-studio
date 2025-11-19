@@ -6,20 +6,28 @@
 import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import type {
+  FileMessageBlock,
+  ImageMessageBlock,
+  ThinkingMessageBlock,
+  ToolMessageBlock
+} from '@renderer/types/newMessage'
 import {
   findFileBlocks,
   findImageBlocks,
   findThinkingBlocks,
+  findToolBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
 import type {
-  AssistantModelMessage,
+  AssistantContent,
   FilePart,
   ImagePart,
   ModelMessage,
   SystemModelMessage,
   TextPart,
+  ToolCallPart,
+  ToolResultPart,
   UserModelMessage
 } from 'ai'
 
@@ -40,10 +48,11 @@ export async function convertMessageToSdkParam(
   const fileBlocks = findFileBlocks(message)
   const imageBlocks = findImageBlocks(message)
   const reasoningBlocks = findThinkingBlocks(message)
+  const toolBlocks = findToolBlocks(message)
   if (message.role === 'user' || message.role === 'system') {
     return convertMessageToUserModelMessage(content, fileBlocks, imageBlocks, isVisionModel, model)
   } else {
-    return convertMessageToAssistantModelMessage(content, fileBlocks, reasoningBlocks, model)
+    return convertMessageToAssistantAndToolMessages(content, fileBlocks, toolBlocks, reasoningBlocks, model)
   }
 }
 
@@ -147,30 +156,65 @@ async function convertMessageToUserModelMessage(
   }
 }
 
-/**
- * 转换为助手模型消息
- */
-async function convertMessageToAssistantModelMessage(
+function convertToolBlockToToolCallPart(toolBlock: ToolMessageBlock): ToolCallPart {
+  return {
+    type: 'tool-call',
+    toolCallId: toolBlock.toolId,
+    toolName: toolBlock.toolName || 'unknown',
+    input: toolBlock.arguments || {}
+  }
+}
+
+function convertToolBlockToToolResultPart(toolBlock: ToolMessageBlock): ToolResultPart {
+  const content = toolBlock.content
+  let output: ToolResultPart['output']
+
+  if (content === undefined || content === null) {
+    output = { type: 'text', value: '' }
+  } else if (typeof content === 'string') {
+    output = { type: 'text', value: content }
+  } else {
+    output = { type: 'json', value: JSON.parse(JSON.stringify(content)) }
+  }
+
+  return {
+    type: 'tool-result',
+    toolCallId: toolBlock.toolId,
+    toolName: toolBlock.toolName || 'unknown',
+    output
+  }
+}
+
+function hasToolResult(toolBlock: ToolMessageBlock): boolean {
+  return toolBlock.content !== undefined && toolBlock.content !== null
+}
+
+async function convertMessageToAssistantAndToolMessages(
   content: string,
   fileBlocks: FileMessageBlock[],
+  toolBlocks: ToolMessageBlock[],
   thinkingBlocks: ThinkingMessageBlock[],
   model?: Model
-): Promise<AssistantModelMessage> {
-  const parts: Array<TextPart | FilePart> = []
+): Promise<ModelMessage | ModelMessage[]> {
+  const assistantParts: AssistantContent = []
+
+  // 添加文本内容
   if (content) {
-    parts.push({ type: 'text', text: content })
+    assistantParts.push({ type: 'text', text: content })
   }
 
+  // 添加推理内容
   for (const thinkingBlock of thinkingBlocks) {
-    parts.push({ type: 'text', text: thinkingBlock.content })
+    assistantParts.push({ type: 'reasoning', text: thinkingBlock.content })
   }
 
+  // 处理文件
   for (const fileBlock of fileBlocks) {
     // 优先尝试原生文件支持（PDF等）
     if (model) {
       const filePart = await convertFileBlockToFilePart(fileBlock, model)
       if (filePart) {
-        parts.push(filePart)
+        assistantParts.push(filePart)
         continue
       }
     }
@@ -178,13 +222,33 @@ async function convertMessageToAssistantModelMessage(
     // 回退到文本处理
     const textPart = await convertFileBlockToTextPart(fileBlock)
     if (textPart) {
-      parts.push(textPart)
+      assistantParts.push(textPart)
+    }
+  }
+
+  // 如果没有 tool blocks，直接返回 assistant 消息
+  if (toolBlocks.length === 0) {
+    return {
+      role: 'assistant',
+      content: assistantParts
+    }
+  }
+
+  // 处理 tool blocks
+  // 将 tool calls 和 tool results 都添加到 assistant 消息的 content 中
+  for (const toolBlock of toolBlocks) {
+    // 添加 tool call
+    assistantParts.push(convertToolBlockToToolCallPart(toolBlock))
+
+    // 如果有结果，添加 tool result
+    if (hasToolResult(toolBlock)) {
+      assistantParts.push(convertToolBlockToToolResultPart(toolBlock))
     }
   }
 
   return {
     role: 'assistant',
-    content: parts
+    content: assistantParts
   }
 }
 
