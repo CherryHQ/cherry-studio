@@ -254,7 +254,7 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 
 // Gemini 支持思考模式的模型正则
 export const GEMINI_THINKING_MODEL_REGEX =
-  /gemini-(?:2\.5.*(?:-latest)?|3-pro-preview|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
+  /gemini-(?:2\.5.*(?:-latest)?|3-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')

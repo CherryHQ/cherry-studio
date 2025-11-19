@@ -303,6 +303,7 @@ describe('Gemini Models', () => {
     })
 
     it('should return true for gemini 3 models', () => {
+      // Preview versions
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3-pro-preview',
@@ -314,6 +315,39 @@ describe('Gemini Models', () => {
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'google/gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Future stable versions
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'google/gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'google/gemini-3-pro',
           name: '',
           provider: '',
           group: ''
@@ -408,6 +442,7 @@ describe('Gemini Models', () => {
     })
 
     it('should return true for gemini-3 models', () => {
+      // Preview versions
       expect(
         isGeminiReasoningModel({
           id: 'gemini-3-pro-preview',
@@ -419,6 +454,39 @@ describe('Gemini Models', () => {
       expect(
         isGeminiReasoningModel({
           id: 'google/gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Future stable versions
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'google/gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'google/gemini-3-pro',
           name: '',
           provider: '',
           group: ''
