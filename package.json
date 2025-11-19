@@ -77,7 +77,7 @@
     "release:aicore:alpha": "yarn workspace @cherrystudio/ai-core version prerelease --preid alpha --immediate && yarn workspace @cherrystudio/ai-core build && yarn workspace @cherrystudio/ai-core npm publish --tag alpha --access public",
     "release:aicore:beta": "yarn workspace @cherrystudio/ai-core version prerelease --preid beta --immediate && yarn workspace @cherrystudio/ai-core build && yarn workspace @cherrystudio/ai-core npm publish --tag beta --access public",
     "release:aicore": "yarn workspace @cherrystudio/ai-core version patch --immediate && yarn workspace @cherrystudio/ai-core build && yarn workspace @cherrystudio/ai-core npm publish --access public",
-    "release:ai-sdk-provider": "yarn workspace @cherrystudio/ai-sdk-provider version patch --immediate && yarn workspace @cherrystudio/ai-sdk-provider npm publish --access public"
+    "release:ai-sdk-provider": "yarn workspace @cherrystudio/ai-sdk-provider version patch --immediate && yarn workspace @cherrystudio/ai-sdk-provider build && yarn workspace @cherrystudio/ai-sdk-provider npm publish --access public"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.30#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.30-b50a299674.patch",
