@@ -162,12 +162,16 @@ export function buildProviderOptions(
     ...getCustomParameters(assistant)
   }
 
-  const rawProviderKey =
+  let rawProviderKey =
     {
       'google-vertex': 'google',
       'google-vertex-anthropic': 'anthropic',
       'ai-gateway': 'gateway'
     }[rawProviderId] || rawProviderId
+
+  if (rawProviderKey === 'cherryin') {
+    rawProviderKey = { gemini: 'google' }[actualProvider.type] || actualProvider.type
+  }
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
   return {
