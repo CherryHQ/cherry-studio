@@ -3,120 +3,44 @@
 exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = `
 .c0 .ant-modal-title {
   font-size: 14px;
+  font-weight: 500;
 }
 
 .c0 .ant-modal-close {
-  top: 4px;
-  right: 4px;
+  top: 8px;
+  right: 8px;
 }
 
 .c1 {
   display: flex;
-  height: 100%;
-  border-right: 0.5px solid var(--color-border);
-}
-
-.c3 {
-  flex: 1;
-  padding: 16px 16px;
-  overflow-y: scroll;
+  flex-direction: column;
 }
 
 .c2 {
-  width: 200px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  border-inline-end: none!important;
-}
-
-.c2 .ant-menu-item {
-  height: 36px;
-  color: var(--color-text-2);
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  border: 0.5px solid transparent;
-  border-radius: 6px;
-  margin-bottom: 7px;
-}
-
-.c2 .ant-menu-item .ant-menu-title-content {
-  line-height: 36px;
-}
-
-.c2 .ant-menu-item-active {
-  background-color: var(--color-background-soft)!important;
-  transition: none;
-}
-
-.c2 .ant-menu-item-selected {
-  background-color: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-}
-
-.c2 .ant-menu-item-selected .ant-menu-title-content {
-  color: var(--color-text-1);
-  font-weight: 500;
+  width: 100%;
 }
 
 <div
   class="c0"
   data-testid="modal"
-  data-title="Knowledge Base Settings"
   styles="[object Object]"
   transitionname="animation-move-down"
-  width="min(900px, 65vw)"
+  width="min(500px, 60vw)"
 >
-  <div
-    data-testid="modal-header"
-  >
-    <span>
-      Knowledge Base Settings
-    </span>
-    <button
-      data-testid="modal-close"
-      type="button"
-    >
-      ×
-    </button>
-  </div>
   <div
     data-testid="modal-body"
   >
     <div
-      data-testid="hstack"
-      height="100%"
+      class="c1"
     >
-      <div
-        class="c1"
-      >
-        <div
-          class="c2"
-          data-default-selected="general"
-          data-testid="menu"
-          mode="vertical"
-        >
-          <div
-            data-testid="menu-item-general"
-            style="cursor: pointer;"
-          >
-            General Settings
-          </div>
-          <div
-            data-testid="menu-item-advanced"
-            style="cursor: pointer;"
-          >
-            Advanced Settings
-          </div>
-        </div>
-      </div>
-      <div
-        class="c3"
-      >
+      <div>
         <div
           data-testid="general-panel"
         >
-          General Settings Panel
+          General Settings Content
         </div>
       </div>
     </div>
@@ -124,18 +48,39 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
   <div
     data-testid="modal-footer"
   >
-    <button
-      data-testid="modal-cancel"
-      type="button"
+    <div
+      class="c2"
     >
-      Cancel
-    </button>
-    <button
-      data-testid="modal-ok"
-      type="button"
-    >
-      OK
-    </button>
+      <div
+        style="display: flex; gap: 8px;"
+      >
+        <button
+          data-testid="button"
+        >
+          <span
+            data-testid="chevron-down"
+          >
+            ▼
+          </span>
+          settings.advanced.title
+        </button>
+      </div>
+      <div
+        style="display: flex; gap: 8px;"
+      >
+        <button
+          data-testid="button"
+        >
+          common.cancel
+        </button>
+        <button
+          data-testid="button"
+          data-type="primary"
+        >
+          common.confirm
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 `;
