@@ -91,17 +91,18 @@ class AgentMessageRepository extends BaseService {
     return tx ?? this.database
   }
 
-  private async findExistingMessageRow(
+  private findExistingMessageRow(
     writer: TxClient,
     sessionId: string,
     role: string,
     messageId: string
-  ): Promise<SessionMessageRow | null> {
-    const candidateRows: SessionMessageRow[] = await writer
+  ): SessionMessageRow | null {
+    const candidateRows: SessionMessageRow[] = writer
       .select()
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.session_id, sessionId), eq(sessionMessagesTable.role, role)))
       .orderBy(asc(sessionMessagesTable.created_at))
+      .all()
 
     for (const row of candidateRows) {
       if (!row?.content) continue
@@ -119,12 +120,9 @@ class AgentMessageRepository extends BaseService {
     return null
   }
 
-  private async upsertMessage(
+  private upsertMessageSync(
     params: PersistUserMessageParams | PersistAssistantMessageParams
-  ): Promise<AgentSessionMessageEntity> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
+  ): AgentSessionMessageEntity {
     const { sessionId, agentSessionId = '', payload, metadata, createdAt, tx } = params
 
     if (!payload?.message?.role) {
@@ -140,13 +138,13 @@ class AgentMessageRepository extends BaseService {
     const serializedPayload = this.serializeMessage(payload)
     const serializedMetadata = this.serializeMetadata(metadata)
 
-    const existingRow = await this.findExistingMessageRow(writer, sessionId, payload.message.role, payload.message.id)
+    const existingRow = this.findExistingMessageRow(writer, sessionId, payload.message.role, payload.message.id)
 
     if (existingRow) {
       const metadataToPersist = serializedMetadata ?? existingRow.metadata ?? undefined
       const agentSessionToPersist = agentSessionId || existingRow.agent_session_id || ''
 
-      await writer
+      writer
         .update(sessionMessagesTable)
         .set({
           content: serializedPayload,
@@ -155,6 +153,7 @@ class AgentMessageRepository extends BaseService {
           updated_at: now
         })
         .where(eq(sessionMessagesTable.id, existingRow.id))
+        .run()
 
       return this.deserialize({
         ...existingRow,
@@ -175,9 +174,17 @@ class AgentMessageRepository extends BaseService {
       updated_at: now
     }
 
-    const [saved] = await writer.insert(sessionMessagesTable).values(insertData).returning()
+    const [saved] = writer.insert(sessionMessagesTable).values(insertData).returning().all()
 
     return this.deserialize(saved)
+  }
+
+  private async upsertMessage(
+    params: PersistUserMessageParams | PersistAssistantMessageParams
+  ): Promise<AgentSessionMessageEntity> {
+    await AgentMessageRepository.initialize()
+    this.ensureInitialized()
+    return this.upsertMessageSync(params)
   }
 
   async persistUserMessage(params: PersistUserMessageParams): Promise<AgentSessionMessageEntity> {
@@ -194,11 +201,11 @@ class AgentMessageRepository extends BaseService {
 
     const { sessionId, agentSessionId, user, assistant } = params
 
-    const result = await this.database.transaction(async (tx) => {
+    const result = this.database.transaction((tx) => {
       const exchangeResult: PersistExchangeResult = {}
 
       if (user?.payload) {
-        exchangeResult.userMessage = await this.persistUserMessage({
+        exchangeResult.userMessage = this.upsertMessageSync({
           sessionId,
           agentSessionId,
           payload: user.payload,
@@ -209,7 +216,7 @@ class AgentMessageRepository extends BaseService {
       }
 
       if (assistant?.payload) {
-        exchangeResult.assistantMessage = await this.persistAssistantMessage({
+        exchangeResult.assistantMessage = this.upsertMessageSync({
           sessionId,
           agentSessionId,
           payload: assistant.payload,

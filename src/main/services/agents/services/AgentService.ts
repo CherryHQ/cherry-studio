@@ -202,9 +202,9 @@ export class AgentService extends BaseService {
   async deleteAgent(id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.delete(agentsTable).where(eq(agentsTable.id, id))
+    const result = this.database.delete(agentsTable).where(eq(agentsTable.id, id)).run()
 
-    return result.rowsAffected > 0
+    return result.changes > 0
   }
 
   async agentExists(id: string): Promise<boolean> {

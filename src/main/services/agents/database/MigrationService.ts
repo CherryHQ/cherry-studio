@@ -1,7 +1,7 @@
-import { type Client } from '@libsql/client'
 import { loggerService } from '@logger'
 import { getResourcePath } from '@main/utils'
-import { type LibSQLDatabase } from 'drizzle-orm/libsql'
+import type Database from 'better-sqlite3'
+import { type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
@@ -23,11 +23,11 @@ interface MigrationJournal {
 }
 
 export class MigrationService {
-  private db: LibSQLDatabase<typeof schema>
-  private client: Client
+  private db: BetterSQLite3Database<typeof schema>
+  private client: Database.Database
   private migrationDir: string
 
-  constructor(db: LibSQLDatabase<typeof schema>, client: Client) {
+  constructor(db: BetterSQLite3Database<typeof schema>, client: Database.Database) {
     this.db = db
     this.client = client
     this.migrationDir = path.join(getResourcePath(), 'database', 'drizzle')
@@ -88,8 +88,8 @@ export class MigrationService {
 
   private async migrationsTableExists(): Promise<boolean> {
     try {
-      const table = await this.client.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`)
-      return table.rows.length > 0
+      const rows = this.client.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`).all()
+      return rows.length > 0
     } catch (error) {
       logger.error('Failed to check migrations table status:', { error })
       throw error
@@ -136,7 +136,7 @@ export class MigrationService {
 
       // Read and execute SQL
       const sqlContent = fs.readFileSync(sqlFilePath, 'utf-8')
-      await this.client.executeMultiple(sqlContent)
+      this.client.exec(sqlContent)
 
       // Record migration as applied (store journal idx as version for tracking)
       const newMigration: NewMigration = {

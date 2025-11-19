@@ -1,11 +1,11 @@
-import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
-import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
+import Database from 'better-sqlite3'
+import { type BetterSQLite3Database, drizzle } from 'drizzle-orm/better-sqlite3'
 import fs from 'fs'
 import path from 'path'
 
@@ -32,8 +32,8 @@ const logger = loggerService.withContext('BaseService')
  * - Connection retry logic with exponential backoff
  */
 export abstract class BaseService {
-  protected static client: Client | null = null
-  protected static db: LibSQLDatabase<typeof schema> | null = null
+  protected static client: Database.Database | null = null
+  protected static db: BetterSQLite3Database<typeof schema> | null = null
   protected static isInitialized = false
   protected static initializationPromise: Promise<void> | null = null
   protected jsonFields: string[] = [
@@ -116,9 +116,7 @@ export abstract class BaseService {
           fs.mkdirSync(dbDir, { recursive: true })
         }
 
-        BaseService.client = createClient({
-          url: `file:${dbPath}`
-        })
+        BaseService.client = new Database(dbPath)
 
         BaseService.db = drizzle(BaseService.client, { schema })
 
@@ -165,12 +163,12 @@ export abstract class BaseService {
     }
   }
 
-  protected get database(): LibSQLDatabase<typeof schema> {
+  protected get database(): BetterSQLite3Database<typeof schema> {
     this.ensureInitialized()
     return BaseService.db!
   }
 
-  protected get rawClient(): Client {
+  protected get rawClient(): Database.Database {
     this.ensureInitialized()
     return BaseService.client!
   }

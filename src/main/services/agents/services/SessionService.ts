@@ -270,11 +270,12 @@ export class SessionService extends BaseService {
   async deleteSession(agentId: string, id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database
+    const result = this.database
       .delete(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .run()
 
-    return result.rowsAffected > 0
+    return result.changes > 0
   }
 
   async sessionExists(agentId: string, id: string): Promise<boolean> {

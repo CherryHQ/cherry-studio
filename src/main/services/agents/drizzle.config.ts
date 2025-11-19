@@ -24,7 +24,7 @@ export default defineConfig({
   schema: './src/main/services/agents/database/schema/index.ts',
   out: './resources/database/drizzle',
   dbCredentials: {
-    url: `file:${resolvedDbPath}`
+    url: resolvedDbPath
   },
   verbose: true,
   strict: true

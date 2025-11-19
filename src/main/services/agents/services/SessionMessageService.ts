@@ -148,11 +148,12 @@ export class SessionMessageService extends BaseService {
   async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database
+    const result = this.database
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.session_id, sessionId)))
+      .run()
 
-    return result.rowsAffected > 0
+    return result.changes > 0
   }
 
   async createSessionMessage(
