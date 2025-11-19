@@ -68,6 +68,18 @@ const switchThumbVariants = cva(
   }
 )
 
+const switchThumbSvgVariants = cva(['transition-all'], {
+  variants: {
+    loading: {
+      false: null,
+      true: ['animate-spin']
+    }
+  },
+  defaultVariants: {
+    loading: false
+  }
+})
+
 // Enhanced Switch component with loading state support
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
   /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
@@ -95,7 +107,7 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
           viewBox="0 0 19 19"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          className={cn('transition-all', loading && 'animate-spin', classNames?.thumbSvg)}>
+          className={cn(switchThumbSvgVariants({ loading }), classNames?.thumbSvg)}>
           <path
             d="M9.5 0C14.7467 0 19 4.25329 19 9.5C19 14.7467 14.7467 19 9.5 19C4.25329 19 0 14.7467 0 9.5C0 4.25329 4.25329 0 9.5 0ZM9.5 6.33301C8.91711 6.33301 8.44445 6.8058 8.44434 7.38867V11.6113C8.44445 12.1942 8.91711 12.667 9.5 12.667C10.0829 12.667 10.5555 12.1942 10.5557 11.6113V7.38867C10.5555 6.8058 10.0829 6.33301 9.5 6.33301Z"
             fill="white"
