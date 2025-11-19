@@ -56,6 +56,7 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
       >
         <button
           data-testid="button"
+          type="button"
         >
           <span
             data-testid="chevron-down"
@@ -70,12 +71,14 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
       >
         <button
           data-testid="button"
+          type="button"
         >
           common.cancel
         </button>
         <button
           data-testid="button"
           data-type="primary"
+          type="button"
         >
           common.confirm
         </button>
