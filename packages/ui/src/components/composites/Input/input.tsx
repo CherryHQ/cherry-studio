@@ -117,13 +117,13 @@ const iconButtonVariants = cva(['text-foreground/60 cursor-pointer transition-co
 })
 
 const buttonVariants = cva(
-  ['flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
+  ['py-3xs', 'flex flex-col', 'text-foreground/60 cursor-pointer transition-colors', 'hover:shadow-none'],
   {
     variants: {
       size: {
-        sm: ['px-3xs py-3xs'],
-        md: ['px-3xs py-3xs'],
-        lg: ['px-2xs py-3xs']
+        sm: 'px-3xs',
+        md: 'px-3xs',
+        lg: 'px-2xs'
       },
       disabled: {
         false: null,
@@ -141,9 +141,9 @@ const buttonLabelVariants = cva([], {
   variants: {
     size: {
       // TODO: p/font-family, p/letter-spacing ... p?
-      sm: ['text-sm leading-4'],
-      md: ['leading-4.5'],
-      lg: ['text-lg leading-5 tracking-normal']
+      sm: 'text-sm leading-4',
+      md: 'leading-4.5',
+      lg: 'text-lg leading-5 tracking-normal'
     },
     disabled: {
       false: null,
@@ -179,9 +179,9 @@ const selectPrefixVariants = cva(['font-medium', 'border-r-[1px]', 'text-foregro
   variants: {
     size: {
       // TODO: semantic letter-spacing
-      sm: ['text-sm leading-4'],
-      md: ['leading-4.5'],
-      lg: ['leading-5 tracking-normal']
+      sm: 'text-sm leading-4',
+      md: 'leading-4.5',
+      lg: 'leading-5 tracking-normal'
     },
     disabled: {
       false: null,
@@ -215,9 +215,9 @@ const selectTriggerLabelVariants = cva([], {
   variants: {
     size: {
       // TODO: p/font-family, p/letter-spacing ... p?
-      sm: ['text-sm leading-4'],
-      md: ['leading-4.5'],
-      lg: ['text-lg leading-5 tracking-normal']
+      sm: 'text-sm leading-4',
+      md: 'leading-4.5',
+      lg: 'text-lg leading-5 tracking-normal'
     }
   }
 })
