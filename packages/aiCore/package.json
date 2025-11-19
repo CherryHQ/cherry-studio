@@ -33,7 +33,8 @@
   },
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "peerDependencies": {
-    "ai": "^5.0.26"
+    "ai": "^5.0.26",
+    "@cherrystudio/ai-sdk-provider": "^0.1.1"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.43",
@@ -45,7 +46,6 @@
     "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": "^3.0.16",
     "@ai-sdk/xai": "^2.0.31",
-    "@cherrystudio/ai-sdk-provider": "workspace:*",
     "zod": "^4.1.5"
   },
   "devDependencies": {
