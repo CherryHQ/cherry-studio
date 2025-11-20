@@ -452,6 +452,7 @@
 .tiptap ul[data-type='taskList'] li > label {
   flex: 0 0 auto;
   margin-right: 0.5rem;
+  margin-top: 0.1rem;
   user-select: none;
   display: flex;
   align-items: center;
@@ -461,12 +462,39 @@
   flex: 1 1 auto;
 }
 
+/* For nested task lists, align label with first line of text */
+.tiptap ul[data-type='taskList'] li:has(ul[data-type='taskList']) {
+  align-items: flex-start;
+}
+
+.tiptap ul[data-type='taskList'] li:has(ul[data-type='taskList']) > label {
+  margin-top: 0.4rem;
+}
+
 .tiptap ul[data-type='taskList'] li > div p {
   margin: 0;
 }
 
 /* Checked task item appearance */
-.tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+.tiptap ul[data-type='taskList'] li[data-checked='true'] > div > p {
+  color: var(--color-text-2);
+  text-decoration: line-through;
+}
+
+/* Prevent nested task lists from inheriting checked styles */
+.tiptap ul[data-type='taskList'] li[data-checked='true'] > div ul[data-type='taskList'] li > div > p {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tiptap
+  ul[data-type='taskList']
+  li[data-checked='true']
+  > div
+  ul[data-type='taskList']
+  li[data-checked='true']
+  > div
+  > p {
   color: var(--color-text-2);
   text-decoration: line-through;
 }

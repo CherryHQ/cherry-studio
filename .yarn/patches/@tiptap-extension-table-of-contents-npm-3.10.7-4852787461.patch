@@ -1,0 +1,28 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index f27ba0ac6bb377fb0e394e7b656edd60dd20cfd5..6dad2fc41d1df08a608ecc73ad89efabd4ccce31 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -45,6 +45,9 @@ var TableOfContentsPlugin = ({
+   return new import_state.Plugin({
+     key: new import_state.PluginKey("tableOfContent"),
+     appendTransaction(transactions, _oldState, newState) {
++      if (transactions.some(tr => tr.getMeta('composition'))) {
++        return
++      }
+       const tr = newState.tr;
+       let modified = false;
+       if (transactions.some((transaction) => transaction.docChanged)) {
+diff --git a/dist/index.js b/dist/index.js
+index 83afa3f0b57db38a80194d991dadb4e21a8f83da..bfbc84135845a9789f419c895eb4ea735b573363 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -12,6 +12,9 @@ var TableOfContentsPlugin = ({
+   return new Plugin({
+     key: new PluginKey("tableOfContent"),
+     appendTransaction(transactions, _oldState, newState) {
++      if (transactions.some(tr => tr.getMeta('composition'))) {
++        return
++      }
+       const tr = newState.tr;
+       let modified = false;
+       if (transactions.some((transaction) => transaction.docChanged)) {

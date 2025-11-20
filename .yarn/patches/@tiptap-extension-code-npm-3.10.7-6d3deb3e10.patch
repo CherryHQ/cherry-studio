@@ -1,0 +1,29 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 650402009637c04dce23b2de9baa48b69601f6e7..e4106894f67ff68b78e4e7485b7beb24570f91c0 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -29,8 +29,8 @@ module.exports = __toCommonJS(index_exports);
+ 
+ // src/code.ts
+ var import_core = require("@tiptap/core");
+-var inputRegex = /(^|[^`])`([^`]+)`(?!`)$/;
+-var pasteRegex = /(^|[^`])`([^`]+)`(?!`)/g;
++var inputRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))$/;
++var pasteRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))/g;
+ var Code = import_core.Mark.create({
+   name: "code",
+   addOptions() {
+diff --git a/dist/index.js b/dist/index.js
+index 7f9e650a5713377d8d6a824f884bbfe6d27fe519..3736cac514b979438a808705931636ae04b06d16 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,7 +1,7 @@
+ // src/code.ts
+ import { Mark, markInputRule, markPasteRule, mergeAttributes } from "@tiptap/core";
+-var inputRegex = /(^|[^`])`([^`]+)`(?!`)$/;
+-var pasteRegex = /(^|[^`])`([^`]+)`(?!`)/g;
++var inputRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))$/;
++var pasteRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))/g;
+ var Code = Mark.create({
+   name: "code",
+   addOptions() {
