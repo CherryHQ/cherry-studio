@@ -621,7 +621,18 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
 
+        // Show loading toast for multiple files to indicate processing
+        let loadingToast: number | string | undefined
+        if (files.length > 5) {
+          loadingToast = window.toast.loading(t('notes.uploading_files', { count: files.length }))
+        }
+
         const result = await uploadNotes(files, targetFolderPath)
+
+        // Dismiss loading toast if shown
+        if (loadingToast) {
+          window.toast.dismiss(loadingToast)
+        }
 
         // 检查上传结果
         if (result.fileCount === 0) {

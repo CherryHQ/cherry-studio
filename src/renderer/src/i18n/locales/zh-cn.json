@@ -2175,7 +2175,8 @@
     "untitled_folder": "新文件夹",
     "untitled_note": "无标题笔记",
     "upload_failed": "笔记上传失败",
-    "upload_success": "笔记上传成功"
+    "upload_success": "笔记上传成功",
+    "uploading_files": "正在上传 {{count}} 个文件..."
   },
   "notification": {
     "assistant": "助手响应",

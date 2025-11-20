@@ -101,18 +101,37 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
   await createFolders(folders)
 
   let fileCount = 0
+  const BATCH_SIZE = 5 // Process 5 files concurrently to balance performance and responsiveness
 
-  for (const file of markdownFiles) {
-    const { dir, name } = resolveFileTarget(file, basePath)
-    const { safeName } = await window.api.file.checkFileName(dir, name, true)
-    const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
+  // Process files in batches to avoid blocking the UI thread
+  for (let i = 0; i < markdownFiles.length; i += BATCH_SIZE) {
+    const batch = markdownFiles.slice(i, i + BATCH_SIZE)
+    
+    // Process current batch in parallel
+    const results = await Promise.allSettled(
+      batch.map(async (file) => {
+        const { dir, name } = resolveFileTarget(file, basePath)
+        const { safeName } = await window.api.file.checkFileName(dir, name, true)
+        const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
 
-    try {
-      const content = await file.text()
-      await window.api.file.write(finalPath, content)
-      fileCount += 1
-    } catch (error) {
-      logger.error('Failed to write uploaded file:', error as Error)
+        const content = await file.text()
+        await window.api.file.write(finalPath, content)
+        return true
+      })
+    )
+
+    // Count successful uploads
+    results.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        fileCount += 1
+      } else {
+        logger.error('Failed to write uploaded file:', result.reason)
+      }
+    })
+
+    // Yield to the event loop between batches to keep UI responsive
+    if (i + BATCH_SIZE < markdownFiles.length) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
   }
 

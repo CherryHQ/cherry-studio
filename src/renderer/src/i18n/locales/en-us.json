@@ -2175,7 +2175,8 @@
     "untitled_folder": "New Folder",
     "untitled_note": "Untitled Note",
     "upload_failed": "Note upload failed",
-    "upload_success": "Note uploaded success"
+    "upload_success": "Note uploaded success",
+    "uploading_files": "Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Assistant Response",

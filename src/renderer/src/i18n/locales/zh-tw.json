@@ -2175,7 +2175,8 @@
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
     "upload_failed": "筆記上傳失敗",
-    "upload_success": "筆記上傳成功"
+    "upload_success": "筆記上傳成功",
+    "uploading_files": "正在上傳 {{count}} 個檔案..."
   },
   "notification": {
     "assistant": "助手回應",
