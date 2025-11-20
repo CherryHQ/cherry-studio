@@ -142,16 +142,18 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // reasoningEffort有效的情况
 
-  // Poe provider - supports standard OpenAI reasoning parameters
+  // Poe provider - supports custom bot parameters via extra_body
   if (provider.id === SystemProviderIds.poe) {
-    // GPT-5 series models use reasoning_effort parameter
+    // GPT-5 series models use reasoning_effort parameter in extra_body
     if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) {
       return {
-        reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
+        extra_body: {
+          reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
+        }
       }
     }
 
-    // Claude models use thinking parameter with budget_tokens
+    // Claude models use thinking_budget parameter in extra_body
     if (isSupportedThinkingTokenClaudeModel(model)) {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
       const tokenLimit = findTokenLimit(model.id)
@@ -164,14 +166,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         )
       }
       return {
-        thinking: {
-          type: 'enabled',
-          budget_tokens: budgetTokens
+        extra_body: {
+          thinking_budget: budgetTokens
         }
       }
     }
 
-    // Gemini models use extra_body with google.thinking_config
+    // Gemini models use thinking_budget parameter in extra_body
     if (isSupportedThinkingTokenGeminiModel(model)) {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
       const tokenLimit = findTokenLimit(model.id)
@@ -181,12 +182,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
       return {
         extra_body: {
-          google: {
-            thinking_config: {
-              thinking_budget: budgetTokens ?? -1,
-              include_thoughts: true
-            }
-          }
+          thinking_budget: budgetTokens ?? -1
         }
       }
     }
