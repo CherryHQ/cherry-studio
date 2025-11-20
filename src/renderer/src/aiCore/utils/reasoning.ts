@@ -12,6 +12,7 @@ import {
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
   isGPT51SeriesModel,
+  isGPT5SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
   isOpenAIDeepResearchModel,
