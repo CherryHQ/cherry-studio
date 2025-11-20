@@ -3,8 +3,9 @@
  * Each migrator handles migration of a specific business domain
  */
 
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+
 import type { MigrationContext } from '../core/MigrationContext'
-import type { ExecuteResult, PrepareResult, ValidateResult } from '../core/types'
 
 export abstract class BaseMigrator {
   // Metadata - must be implemented by subclasses

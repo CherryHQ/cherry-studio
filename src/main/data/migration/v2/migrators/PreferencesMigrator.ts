@@ -5,11 +5,11 @@
 import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import { configManager } from '@main/services/ConfigManager'
+import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '../core/types'
 import { BaseMigrator } from './BaseMigrator'
 import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from './mappings/PreferencesMappings'
 

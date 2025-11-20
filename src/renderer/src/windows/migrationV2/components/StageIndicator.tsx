@@ -3,10 +3,9 @@
  * Shows the current migration stage in a stepper format
  */
 
+import type { MigrationStage } from '@shared/data/migration/v2/types'
 import { CheckCircle2, Database, FileArchive, Rocket } from 'lucide-react'
 import React from 'react'
-
-import type { MigrationStage } from '../types'
 
 interface Props {
   stage: MigrationStage

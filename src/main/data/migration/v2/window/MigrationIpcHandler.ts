@@ -4,12 +4,12 @@
 
 import { loggerService } from '@logger'
 import BackupManager from '@main/services/BackupManager'
+import { MigrationIpcChannels, type MigrationProgress } from '@shared/data/migration/v2/types'
 import { app, dialog, ipcMain } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
 import { migrationEngine } from '../core/MigrationEngine'
-import { MigrationIpcChannels, type MigrationProgress } from '../core/types'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')

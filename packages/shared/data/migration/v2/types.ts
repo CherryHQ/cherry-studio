@@ -1,5 +1,5 @@
 /**
- * Core type definitions for the migration system
+ * Shared type definitions for the migration system
  */
 
 // Migration stages for UI flow

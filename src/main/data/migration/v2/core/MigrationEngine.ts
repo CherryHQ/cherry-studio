@@ -7,11 +7,6 @@ import { dbService } from '@data/db/DbService'
 import { appStateTable } from '@data/db/schemas/appState'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
-import { eq, sql } from 'drizzle-orm'
-import fs from 'fs/promises'
-
-import type { BaseMigrator } from '../migrators/BaseMigrator'
-import { createMigrationContext } from './MigrationContext'
 import type {
   MigrationProgress,
   MigrationResult,
@@ -20,7 +15,12 @@ import type {
   MigratorResult,
   MigratorStatus,
   ValidateResult
-} from './types'
+} from '@shared/data/migration/v2/types'
+import { eq, sql } from 'drizzle-orm'
+import fs from 'fs/promises'
+
+import type { BaseMigrator } from '../migrators/BaseMigrator'
+import { createMigrationContext } from './MigrationContext'
 
 // TODO: Import these tables when they are created in user data schema
 // import { assistantTable } from '../../db/schemas/assistant'

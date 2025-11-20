@@ -10,8 +10,8 @@
  */
 
 import { loggerService } from '@logger'
+import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 
-import type { ExecuteResult, PrepareResult, ValidateResult } from '../core/types'
 import { BaseMigrator } from './BaseMigrator'
 
 const logger = loggerService.withContext('ChatMigrator')

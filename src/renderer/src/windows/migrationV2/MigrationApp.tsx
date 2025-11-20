@@ -1,6 +1,7 @@
 import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
+import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { Progress, Space, Steps } from 'antd'
 import { AlertTriangle, CheckCircle, CheckCircle2, Database, Loader2, Rocket } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
@@ -10,7 +11,6 @@ import styled from 'styled-components'
 import { MigratorProgressList } from './components'
 import { DexieExporter, ReduxExporter } from './exporters'
 import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationProgress'
-import { MigrationIpcChannels } from './types'
 
 const logger = loggerService.withContext('MigrationApp')
 

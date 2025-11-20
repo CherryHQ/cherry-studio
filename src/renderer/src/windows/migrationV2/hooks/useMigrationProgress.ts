@@ -2,9 +2,13 @@
  * Hook for subscribing to migration progress updates
  */
 
+import {
+  MigrationIpcChannels,
+  type MigrationProgress,
+  type MigrationStage,
+  type MigratorStatus
+} from '@shared/data/migration/v2/types'
 import { useCallback, useEffect, useState } from 'react'
-
-import { MigrationIpcChannels, type MigrationProgress, type MigrationStage, type MigratorStatus } from '../types'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }

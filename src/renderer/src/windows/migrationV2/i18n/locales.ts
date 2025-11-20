@@ -33,8 +33,7 @@ export const zhCN = {
     },
     introduction: {
       title: '将数据迁移到新的架构中',
-      description_1:
-        'Cherry Studio对数据的存储和使用方式进行了重大重构，在新的架构下，效率和安全性将会得到极大提升。',
+      description_1: 'Cherry Studio对数据的存储和使用方式进行了重大重构，在新的架构下，效率和安全性将会得到极大提升。',
       description_2: '数据必须进行迁移，才能在新版本中使用。',
       description_3: '我们会指导你完成迁移，迁移过程不会损坏原来的数据，你随时可以取消迁移，并继续使用旧版本。'
     },

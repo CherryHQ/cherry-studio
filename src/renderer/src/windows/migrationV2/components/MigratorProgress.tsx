@@ -3,12 +3,11 @@
  * Shows the status of each migrator
  */
 
+import type { MigratorProgress as MigratorProgressType, MigratorStatus } from '@shared/data/migration/v2/types'
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { keyframes } from 'styled-components'
-
-import type { MigratorProgress as MigratorProgressType, MigratorStatus } from '../types'
 
 interface Props {
   migrators: MigratorProgressType[]

@@ -3,9 +3,8 @@
  */
 
 import { Button } from '@cherrystudio/ui'
+import type { MigrationStage } from '@shared/data/migration/v2/types'
 import React from 'react'
-
-import type { MigrationStage } from '../types'
 
 interface Props {
   stage: MigrationStage
