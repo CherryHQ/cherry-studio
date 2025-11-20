@@ -10074,6 +10074,7 @@ __metadata:
     electron-window-state: "npm:^5.0.3"
     emittery: "npm:^1.0.3"
     emoji-picker-element: "npm:^1.22.1"
+    emoji-picker-element-data: "npm:^1"
     epub: "patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch"
     eslint: "npm:^9.22.0"
     eslint-plugin-import-zod: "npm:^1.2.0"
@@ -13652,6 +13653,13 @@ __metadata:
   version: 1.1.0
   resolution: "emittery@npm:1.1.0"
   checksum: 10c0/645d4d7307b52c81bb2d2f9f320aa6a3c0225f53a4bfef2d337be8086df975746f7dd619f1dd7b2ffd4f2288103f28019e7b8567718677600e47507496d3af5f
+  languageName: node
+  linkType: hard
+
+"emoji-picker-element-data@npm:^1":
+  version: 1.8.0
+  resolution: "emoji-picker-element-data@npm:1.8.0"
+  checksum: 10c0/c8976b636205a0cc90d2690859a1193add71a948dadf743962b47c338a4c3715768404d0ccbc02156608b44abf41f3e1d51756e06f1bbed9d164dd4cb1752103
   languageName: node
   linkType: hard
 
