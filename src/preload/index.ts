@@ -220,6 +220,10 @@ const api = {
     startFileWatcher: (dirPath: string, config?: any) =>
       ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
     stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
+    pauseFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_PauseWatcher),
+    resumeFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_ResumeWatcher),
+    batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
+      ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
     onFileChange: (callback: (data: FileChangeEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: any) => {
         if (data && typeof data === 'object') {

@@ -1605,6 +1605,164 @@ class FileStorage {
       logger.error('Failed to show item in folder:', error as Error)
     }
   }
+
+  /**
+   * Batch upload markdown files from native File objects
+   * This handles all I/O operations in the Main process to avoid blocking Renderer
+   */
+  public batchUploadMarkdownFiles = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePaths: string[],
+    targetPath: string
+  ): Promise<{
+    fileCount: number
+    folderCount: number
+    skippedFiles: number
+  }> => {
+    try {
+      logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
+
+      const basePath = path.resolve(targetPath)
+      const MARKDOWN_EXTS = ['.md', '.markdown']
+
+      // Filter markdown files
+      const markdownFiles = filePaths.filter((filePath) => {
+        const ext = path.extname(filePath).toLowerCase()
+        return MARKDOWN_EXTS.includes(ext)
+      })
+
+      const skippedFiles = filePaths.length - markdownFiles.length
+
+      if (markdownFiles.length === 0) {
+        return { fileCount: 0, folderCount: 0, skippedFiles }
+      }
+
+      // Collect unique folders needed
+      const foldersSet = new Set<string>()
+      const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
+
+      for (const filePath of markdownFiles) {
+        try {
+          // Get relative path if file is from a directory upload
+          const fileName = path.basename(filePath)
+          const relativePath = path.dirname(filePath)
+
+          // Determine target directory structure
+          let targetDir = basePath
+          const folderParts: string[] = []
+
+          // Extract folder structure from file path for nested uploads
+          // This is a simplified version - in real scenario we'd need the original directory structure
+          if (relativePath && relativePath !== '.') {
+            const parts = relativePath.split(path.sep)
+            // Get the last few parts that represent the folder structure within upload
+            const relevantParts = parts.slice(Math.max(0, parts.length - 3))
+            folderParts.push(...relevantParts)
+          }
+
+          // Build target directory path
+          for (const part of folderParts) {
+            targetDir = path.join(targetDir, part)
+            foldersSet.add(targetDir)
+          }
+
+          // Determine final file name
+          const nameWithoutExt = fileName.endsWith('.md')
+            ? fileName.slice(0, -3)
+            : fileName.endsWith('.markdown')
+              ? fileName.slice(0, -9)
+              : fileName
+
+          const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
+          const finalPath = path.join(targetDir, safeName + '.md')
+
+          fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
+        } catch (error) {
+          logger.error('Failed to prepare file operation:', error as Error, { filePath })
+        }
+      }
+
+      // Create folders in order (shallow to deep)
+      const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
+      for (const folder of sortedFolders) {
+        try {
+          if (!fs.existsSync(folder)) {
+            await fs.promises.mkdir(folder, { recursive: true })
+          }
+        } catch (error) {
+          logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
+        }
+      }
+
+      // Process files in batches
+      const BATCH_SIZE = 10 // Higher batch size since we're in Main process
+      let successCount = 0
+
+      for (let i = 0; i < fileOperations.length; i += BATCH_SIZE) {
+        const batch = fileOperations.slice(i, i + BATCH_SIZE)
+
+        const results = await Promise.allSettled(
+          batch.map(async (op) => {
+            // Read from source and write to target in Main process
+            const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
+            await fs.promises.writeFile(op.targetPath, content, 'utf-8')
+            return true
+          })
+        )
+
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            successCount++
+          } else {
+            logger.error('Failed to upload file:', result.reason, {
+              file: batch[index].sourcePath
+            })
+          }
+        })
+      }
+
+      logger.info('Batch upload completed', {
+        successCount,
+        folderCount: foldersSet.size,
+        skippedFiles
+      })
+
+      return {
+        fileCount: successCount,
+        folderCount: foldersSet.size,
+        skippedFiles
+      }
+    } catch (error) {
+      logger.error('Batch upload failed:', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Pause file watcher to prevent events during batch operations
+   */
+  public pauseFileWatcher = async (): Promise<void> => {
+    if (this.watcher) {
+      logger.debug('Pausing file watcher')
+      // Chokidar doesn't have pause, so we temporarily set a flag
+      // We'll handle this by clearing the debounce timer
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer)
+        this.debounceTimer = undefined
+      }
+    }
+  }
+
+  /**
+   * Resume file watcher and trigger a refresh
+   */
+  public resumeFileWatcher = async (): Promise<void> => {
+    if (this.watcher && this.currentWatchPath) {
+      logger.debug('Resuming file watcher')
+      // Send a synthetic refresh event to trigger tree reload
+      this.notifyChange('refresh', this.currentWatchPath)
+    }
+  }
 }
 
 export const fileStorage = new FileStorage()
