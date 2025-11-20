@@ -257,6 +257,7 @@
       "error": {
         "sendFailed": "Failed to send your decision. Please try again."
       },
+      "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
       "pending": "Pending ({{seconds}}s)",

@@ -257,6 +257,7 @@
       "error": {
         "sendFailed": "发送您的决定失败，请重试。"
       },
+      "executing": "正在执行...",
       "expired": "已过期",
       "inputPreview": "工具输入预览",
       "pending": "等待中 ({{seconds}}秒)",

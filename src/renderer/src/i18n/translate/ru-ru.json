@@ -257,6 +257,7 @@
       "error": {
         "sendFailed": "Не удалось отправить ваше решение. Попробуйте ещё раз."
       },
+      "executing": "[to be translated]:Executing...",
       "expired": "Истёк",
       "inputPreview": "Предварительный просмотр ввода инструмента",
       "pending": "Ожидание ({{seconds}}с)",
