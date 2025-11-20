@@ -34,7 +34,13 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
-import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefactorMigrateService'
+import {
+  getAllMigrators,
+  migrationEngine,
+  migrationWindowManager,
+  registerMigrationIpcHandlers,
+  unregisterMigrationIpcHandlers
+} from '@data/migration/v2'
 import { dataApiService } from '@data/DataApiService'
 import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
@@ -121,23 +127,35 @@ if (!app.requestSingleInstanceLock()) {
     await dbService.migrateDb()
     await dbService.migrateSeed('preference')
 
-    // Data Refactor Migration
+    // Data Migration v2
     // Check if data migration is needed BEFORE creating any windows
     try {
-      logger.info('Checking if data refactor migration is needed')
-      const isMigrated = await dataRefactorMigrateService.isMigrated()
-      logger.info('Migration status check result', { isMigrated })
+      logger.info('Checking if data migration v2 is needed')
 
-      if (!isMigrated) {
-        logger.info('Data Refactor Migration needed, starting migration process')
+      // Register migration IPC handlers
+      registerMigrationIpcHandlers()
+
+      // Register migrators
+      migrationEngine.registerMigrators(getAllMigrators())
+
+      const needsMigration = await migrationEngine.needsMigration()
+      logger.info('Migration status check result', { needsMigration })
+
+      if (needsMigration) {
+        logger.info('Data Migration v2 needed, starting migration process')
 
         try {
-          await dataRefactorMigrateService.runMigration()
+          // Create and show migration window
+          migrationWindowManager.create()
+          await migrationWindowManager.waitForReady()
           logger.info('Migration window created successfully')
-          // Migration service will handle the migration flow, no need to continue startup
+          // Migration window will handle the flow, no need to continue startup
           return
         } catch (migrationError) {
           logger.error('Failed to start migration process', migrationError as Error)
+
+          // Cleanup IPC handlers on failure
+          unregisterMigrationIpcHandlers()
 
           // Migration is required for this version - show error and exit
           await dialog.showErrorBox(
