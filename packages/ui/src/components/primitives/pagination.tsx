@@ -39,7 +39,7 @@ function PaginationLink({ className, isActive, size = 'icon', ...props }: Pagina
           variant: isActive ? 'outline' : 'ghost',
           size
         }),
-        'text-foreground hover:text-primary hover:shadow-none hover:bg-primary/10',
+        'text-foreground hover:text-primary hover:shadow-none hover:bg-primary/10 rounded-3xs',
         isActive && 'bg-background text-primary',
         className
       )}
