@@ -1040,6 +1040,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.WebSocket_SendFile, WebSocketService.sendFile)
   ipcMain.handle(IpcChannel.WebSocket_GetAllCandidates, WebSocketService.getAllCandidates)
 
+  ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
+    mainWindow.webContents.forcefullyCrashRenderer()
+  })
+
   // Preference handlers
   PreferenceService.registerIpcHandler()
 }
