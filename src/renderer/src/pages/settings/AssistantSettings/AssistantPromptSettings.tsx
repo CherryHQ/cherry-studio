@@ -1,5 +1,3 @@
-import 'emoji-picker-element'
-
 import { CloseCircleFilled } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
