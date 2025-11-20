@@ -37,6 +37,7 @@ type RendererPermissionRequestPayload = {
   requestId: string
   toolName: string
   toolId: string
+  toolCallId: string
   description?: string
   requiresPermissions: boolean
   input: Record<string, unknown>
@@ -206,10 +207,19 @@ const ensureIpcHandlersRegistered = () => {
   })
 }
 
+type PromptForToolApprovalOptions = {
+  signal: AbortSignal
+  suggestions?: PermissionUpdate[]
+
+  // NOTICE: This ID is namespaced with session ID, not the raw SDK tool call ID.
+  // Format: `${sessionId}:${rawToolCallId}`, e.g., `session_123:WebFetch_0`
+  toolCallId: string
+}
+
 export async function promptForToolApproval(
   toolName: string,
   input: Record<string, unknown>,
-  options?: { signal: AbortSignal; suggestions?: PermissionUpdate[] }
+  options: PromptForToolApprovalOptions
 ): Promise<PermissionResult> {
   if (shouldAutoApproveTools) {
     logger.debug('promptForToolApproval auto-approving tool for test', {
@@ -245,6 +255,7 @@ export async function promptForToolApproval(
   logger.info('Requesting user approval for tool usage', {
     requestId,
     toolName,
+    toolCallId: options.toolCallId,
     description: toolMetadata?.description
   })
 
@@ -252,6 +263,7 @@ export async function promptForToolApproval(
     requestId,
     toolName,
     toolId: toolMetadata?.id ?? toolName,
+    toolCallId: options.toolCallId,
     description: toolMetadata?.description,
     requiresPermissions: toolMetadata?.requirePermissions ?? false,
     input: sanitizedInput,
@@ -266,6 +278,7 @@ export async function promptForToolApproval(
   logger.debug('Registering tool permission request', {
     requestId,
     toolName,
+    toolCallId: options.toolCallId,
     requiresPermissions: requestPayload.requiresPermissions,
     timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
     suggestionCount: sanitizedSuggestions.length
@@ -273,7 +286,11 @@ export async function promptForToolApproval(
 
   return new Promise<PermissionResult>((resolve) => {
     const timeout = setTimeout(() => {
-      logger.info('User tool permission request timed out', { requestId, toolName })
+      logger.info('User tool permission request timed out', {
+        requestId,
+        toolName,
+        toolCallId: options.toolCallId
+      })
       finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
     }, TOOL_APPROVAL_TIMEOUT_MS)
 
@@ -287,7 +304,11 @@ export async function promptForToolApproval(
 
     if (options?.signal) {
       const abortListener = () => {
-        logger.info('Tool permission request aborted before user responded', { requestId, toolName })
+        logger.info('Tool permission request aborted before user responded', {
+          requestId,
+          toolName,
+          toolCallId: options.toolCallId
+        })
         finalizeRequest(requestId, defaultDenyUpdate, 'aborted')
       }
 

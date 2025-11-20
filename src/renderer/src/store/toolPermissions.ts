@@ -6,6 +6,7 @@ export type ToolPermissionRequestPayload = {
   requestId: string
   toolName: string
   toolId: string
+  toolCallId: string
   description?: string
   requiresPermissions: boolean
   input: Record<string, unknown>
@@ -82,12 +83,12 @@ export const selectActiveToolPermission = (state: ToolPermissionsState): ToolPer
   return activeEntries[0]
 }
 
-export const selectPendingPermissionByToolName = (
+export const selectPendingPermission = (
   state: ToolPermissionsState,
-  toolName: string
+  toolCallId: string
 ): ToolPermissionEntry | undefined => {
   const activeEntries = Object.values(state.requests)
-    .filter((entry) => entry.toolName === toolName)
+    .filter((entry) => entry.toolCallId === toolCallId)
     .filter(
       (entry) => entry.status === 'pending' || entry.status === 'submitting-allow' || entry.status === 'submitting-deny'
     )

@@ -1,7 +1,7 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermissionByToolName, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import { Button } from 'antd'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
@@ -17,9 +17,7 @@ interface Props {
 export function ToolPermissionRequestCard({ toolResponse }: Props) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const request = useAppSelector((state) =>
-    selectPendingPermissionByToolName(state.toolPermissions, toolResponse.tool.name)
-  )
+  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
   const [now, setNow] = useState(() => Date.now())
   const [showDetails, setShowDetails] = useState(false)
 
