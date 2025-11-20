@@ -652,7 +652,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           logger.warn('No user message. Some providers may not support.')
         }
 
-        // poe 需要通过用户消息传递 reasoningEffort
         const reasoningEffort = this.getReasoningEffort(assistant, model)
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
@@ -662,22 +661,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             const currentContent = lastUserMsg.content
 
             lastUserMsg.content = processPostsuffixQwen3Model(currentContent, qwenThinkModeEnabled)
-          }
-          if (this.provider.id === SystemProviderIds.poe) {
-            // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分
-            let suffix = ''
-            if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
-              suffix = ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
-            } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
-              suffix = ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
-            } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
-              suffix = ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
-            }
-            // FIXME: poe 不支持多个text part，上传文本文件的时候用的不是file part而是text part，因此会出问题
-            // 临时解决方案是强制poe用string content，但是其实poe部分支持array
-            if (typeof lastUserMsg.content === 'string') {
-              lastUserMsg.content += suffix
-            }
           }
         }
 

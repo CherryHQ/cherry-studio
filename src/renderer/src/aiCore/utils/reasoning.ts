@@ -141,6 +141,56 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // reasoningEffort有效的情况
 
+  // Poe provider - supports standard OpenAI reasoning parameters
+  if (provider.id === SystemProviderIds.poe) {
+    // GPT-5 series models use reasoning_effort parameter
+    if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) {
+      return {
+        reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
+      }
+    }
+
+    // Claude models use thinking parameter with budget_tokens
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
+      const tokenLimit = findTokenLimit(model.id)
+      const maxTokens = assistant.settings?.maxTokens
+      let budgetTokens: number | undefined
+      if (tokenLimit) {
+        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+        budgetTokens = Math.floor(
+          Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+        )
+      }
+      return {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: budgetTokens
+        }
+      }
+    }
+
+    // Gemini models use extra_body with google.thinking_config
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
+      const tokenLimit = findTokenLimit(model.id)
+      let budgetTokens: number | undefined
+      if (tokenLimit && reasoningEffort !== 'auto') {
+        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+      }
+      return {
+        extra_body: {
+          google: {
+            thinking_config: {
+              thinking_budget: budgetTokens ?? -1,
+              include_thoughts: true
+            }
+          }
+        }
+      }
+    }
+  }
+
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
     // Grok 4 Fast doesn't support effort levels, always use enabled: true
