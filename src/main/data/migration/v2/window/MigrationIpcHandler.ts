@@ -242,9 +242,9 @@ export function registerMigrationIpcHandlers(): void {
 
       if (result.success) {
         updateProgress({
-          stage: 'completed',
+          stage: 'migration_completed',
           overallProgress: 100,
-          currentMessage: 'Migration completed successfully! Click restart to continue.',
+          currentMessage: 'Migration completed successfully! Please confirm to continue.',
           migrators: currentProgress.migrators.map((m) => ({
             ...m,
             status: 'completed'

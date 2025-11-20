@@ -1,4 +1,5 @@
-import { Button, buttonVariants } from '@cherrystudio/ui/components/primitives/button'
+import type { Button } from '@cherrystudio/ui/components/primitives/button'
+import { buttonVariants } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/utils/index'
 import { ChevronLeftIcon, ChevronRightIcon, MoreHorizontalIcon } from 'lucide-react'
 import * as React from 'react'

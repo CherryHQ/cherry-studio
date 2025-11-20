@@ -14,7 +14,7 @@ import { MigrationIpcChannels } from './types'
 const logger = loggerService.withContext('MigrationApp')
 
 const MigrationApp: React.FC = () => {
-  const { progress, lastError } = useMigrationProgress()
+  const { progress, lastError, confirmComplete } = useMigrationProgress()
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
 
@@ -60,6 +60,7 @@ const MigrationApp: React.FC = () => {
       case 'backup_confirmed':
         return 1
       case 'migration':
+      case 'migration_completed':
         return 2
       case 'completed':
         return 3
@@ -160,6 +161,13 @@ const MigrationApp: React.FC = () => {
             <Button disabled>迁移进行中...</Button>
           </ButtonRow>
         )
+      case 'migration_completed':
+        return (
+          <ButtonRow>
+            <div></div>
+            <Button onClick={confirmComplete}>确定</Button>
+          </ButtonRow>
+        )
       case 'completed':
         return (
           <ButtonRow>
@@ -251,10 +259,25 @@ const MigrationApp: React.FC = () => {
                 </InfoCard>
                 <ProgressContainer>
                   <Progress
-                    percent={Math.round(progress.overallProgress * 100)}
+                    percent={Math.round(progress.overallProgress)}
                     strokeColor={getProgressColor()}
                     trailColor="#f0f0f0"
                   />
+                </ProgressContainer>
+                <div style={{ marginTop: '20px', height: '200px', overflowY: 'auto' }}>
+                  <MigratorProgressList migrators={progress.migrators} overallProgress={progress.overallProgress} />
+                </div>
+              </div>
+            )}
+
+            {progress.stage === 'migration_completed' && (
+              <div style={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
+                <InfoCard variant="success">
+                  <InfoTitle>数据迁移完成！</InfoTitle>
+                  <InfoDescription>所有数据已成功迁移到新架构，请点击确定继续。</InfoDescription>
+                </InfoCard>
+                <ProgressContainer>
+                  <Progress percent={100} strokeColor={getProgressColor()} trailColor="#f0f0f0" />
                 </ProgressContainer>
                 <div style={{ marginTop: '20px', height: '200px', overflowY: 'auto' }}>
                   <MigratorProgressList migrators={progress.migrators} overallProgress={progress.overallProgress} />

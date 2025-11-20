@@ -56,6 +56,15 @@ export function useMigrationProgress() {
     }
   }, [])
 
+  // Local state transition for confirming migration completion (frontend only)
+  const confirmComplete = useCallback(() => {
+    setProgress((prev) => ({
+      ...prev,
+      stage: 'completed',
+      currentMessage: 'Migration completed successfully! Click restart to continue.'
+    }))
+  }, [])
+
   // Stage helpers
   const isInProgress = progress.stage === 'migration'
   const isCompleted = progress.stage === 'completed'
@@ -68,7 +77,8 @@ export function useMigrationProgress() {
     isInProgress,
     isCompleted,
     isError,
-    canCancel
+    canCancel,
+    confirmComplete
   }
 }
 

@@ -9,6 +9,7 @@ export type MigrationStage =
   | 'backup_progress'
   | 'backup_confirmed'
   | 'migration'
+  | 'migration_completed'
   | 'completed'
   | 'error'
 
