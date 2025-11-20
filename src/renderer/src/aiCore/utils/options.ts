@@ -99,9 +99,6 @@ export function buildProviderOptions(
           serviceTier: serviceTierSetting
         }
         break
-      case 'huggingface':
-        providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
-        break
       case 'anthropic':
         providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
         break
@@ -143,6 +140,9 @@ export function buildProviderOptions(
           break
         case 'bedrock':
           providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
+          break
+        case 'huggingface':
+          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
