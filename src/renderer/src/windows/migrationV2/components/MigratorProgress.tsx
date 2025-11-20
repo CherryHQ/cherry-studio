@@ -45,7 +45,7 @@ export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
   const { t } = useTranslation()
 
   const getStatusText = (status: MigratorStatus): string => {
-    return t(`migration.status.${status}`)
+    return t('migration.status.' + status)
   }
 
   return (
