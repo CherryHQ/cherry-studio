@@ -5,6 +5,7 @@
 
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import styled, { keyframes } from 'styled-components'
 
 import type { MigratorProgress as MigratorProgressType, MigratorStatus } from '../types'
@@ -41,14 +42,13 @@ const SpinningIcon = styled.div`
   animation: ${spin} 1s linear infinite;
 `
 
-const statusTextMap: Record<MigratorStatus, string> = {
-  pending: '等待中',
-  running: '进行中',
-  completed: '完成',
-  failed: '失败'
-}
-
 export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
+  const { t } = useTranslation()
+
+  const getStatusText = (status: MigratorStatus): string => {
+    return t(`migration.status.${status}`)
+  }
+
   return (
     <Container>
       <List>
@@ -58,7 +58,7 @@ export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
               <StatusIcon status={migrator.status} />
               <ItemName>{migrator.name}</ItemName>
             </ItemLeft>
-            <ItemStatus status={migrator.status}>{migrator.error || statusTextMap[migrator.status]}</ItemStatus>
+            <ItemStatus status={migrator.status}>{migrator.error || getStatusText(migrator.status)}</ItemStatus>
           </ListItem>
         ))}
       </List>

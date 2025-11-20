@@ -9,6 +9,7 @@ import '@ant-design/v5-patch-for-react-19'
 import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
 
+import { initI18n } from './i18n'
 import MigrationApp from './MigrationApp'
 
 // Initialize logger for this window
@@ -16,4 +17,7 @@ loggerService.initWindowSource('MigrationV2')
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 
-root.render(<MigrationApp />)
+// Wait for i18n to be fully initialized before rendering
+initI18n().then(() => {
+  root.render(<MigrationApp />)
+})

@@ -1,9 +1,10 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
 import { Progress, Space, Steps } from 'antd'
 import { AlertTriangle, CheckCircle, CheckCircle2, Database, Loader2, Rocket } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { MigratorProgressList } from './components'
@@ -14,9 +15,14 @@ import { MigrationIpcChannels } from './types'
 const logger = loggerService.withContext('MigrationApp')
 
 const MigrationApp: React.FC = () => {
+  const { t, i18n } = useTranslation()
   const { progress, lastError, confirmComplete } = useMigrationProgress()
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
+
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang)
+  }
 
   const handleStartMigration = async () => {
     setIsLoading(true)
@@ -118,19 +124,19 @@ const MigrationApp: React.FC = () => {
       case 'introduction':
         return (
           <>
-            <Button onClick={actions.cancel}>取消</Button>
+            <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
             <Spacer />
-            <Button onClick={actions.proceedToBackup}>下一步</Button>
+            <Button onClick={actions.proceedToBackup}>{t('migration.buttons.next')}</Button>
           </>
         )
       case 'backup_required':
         return (
           <>
-            <Button onClick={actions.cancel}>取消</Button>
+            <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
             <Spacer />
             <Space>
-              <Button onClick={actions.showBackupDialog}>创建备份</Button>
-              <Button onClick={actions.confirmBackup}>我已备份，开始迁移</Button>
+              <Button onClick={actions.showBackupDialog}>{t('migration.buttons.create_backup')}</Button>
+              <Button onClick={actions.confirmBackup}>{t('migration.buttons.confirm_backup')}</Button>
             </Space>
           </>
         )
@@ -139,17 +145,17 @@ const MigrationApp: React.FC = () => {
           <ButtonRow>
             <div></div>
             <Button disabled loading>
-              正在备份...
+              {t('migration.buttons.backing_up')}
             </Button>
           </ButtonRow>
         )
       case 'backup_confirmed':
         return (
           <ButtonRow>
-            <Button onClick={actions.cancel}>取消</Button>
+            <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
             <Space>
               <Button onClick={handleStartMigration} loading={isLoading}>
-                开始迁移
+                {t('migration.buttons.start_migration')}
               </Button>
             </Space>
           </ButtonRow>
@@ -158,29 +164,29 @@ const MigrationApp: React.FC = () => {
         return (
           <ButtonRow>
             <div></div>
-            <Button disabled>迁移进行中...</Button>
+            <Button disabled>{t('migration.buttons.migrating')}</Button>
           </ButtonRow>
         )
       case 'migration_completed':
         return (
           <ButtonRow>
             <div></div>
-            <Button onClick={confirmComplete}>确定</Button>
+            <Button onClick={confirmComplete}>{t('migration.buttons.confirm')}</Button>
           </ButtonRow>
         )
       case 'completed':
         return (
           <ButtonRow>
             <div></div>
-            <Button onClick={actions.restart}>重启应用</Button>
+            <Button onClick={actions.restart}>{t('migration.buttons.restart')}</Button>
           </ButtonRow>
         )
       case 'error':
         return (
           <ButtonRow>
-            <Button onClick={actions.cancel}>关闭应用</Button>
+            <Button onClick={actions.cancel}>{t('migration.buttons.close')}</Button>
             <Space>
-              <Button onClick={actions.retry}>重新尝试</Button>
+              <Button onClick={actions.retry}>{t('migration.buttons.retry')}</Button>
             </Space>
           </ButtonRow>
         )
@@ -193,7 +199,7 @@ const MigrationApp: React.FC = () => {
     <Container>
       <Header>
         <HeaderLogo src={AppLogo} />
-        <HeaderTitle>数据迁移向导</HeaderTitle>
+        <HeaderTitle>{t('migration.title')}</HeaderTitle>
       </Header>
 
       <MainContent>
@@ -204,9 +210,25 @@ const MigrationApp: React.FC = () => {
               current={currentStep}
               status={stepStatus}
               size="small"
-              items={[{ title: '介绍' }, { title: '备份' }, { title: '迁移' }, { title: '完成' }]}
+              items={[
+                { title: t('migration.stages.introduction') },
+                { title: t('migration.stages.backup') },
+                { title: t('migration.stages.migration') },
+                { title: t('migration.stages.completed') }
+              ]}
             />
           </StepsContainer>
+          <LanguageSelectorContainer>
+            <Select value={i18n.language} onValueChange={handleLanguageChange}>
+              <SelectTrigger size="sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="zh-CN">中文</SelectItem>
+                <SelectItem value="en-US">English</SelectItem>
+              </SelectContent>
+            </Select>
+          </LanguageSelectorContainer>
         </LeftSidebar>
 
         <RightContent>
@@ -215,46 +237,44 @@ const MigrationApp: React.FC = () => {
 
             {progress.stage === 'introduction' && (
               <InfoCard>
-                <InfoTitle>将数据迁移到新的架构中</InfoTitle>
+                <InfoTitle>{t('migration.introduction.title')}</InfoTitle>
                 <InfoDescription>
-                  Cherry Studio对数据的存储和使用方式进行了重大重构，在新的架构下，效率和安全性将会得到极大提升。
+                  {t('migration.introduction.description_1')}
                   <br />
                   <br />
-                  数据必须进行迁移，才能在新版本中使用。
+                  {t('migration.introduction.description_2')}
                   <br />
                   <br />
-                  我们会指导你完成迁移，迁移过程不会损坏原来的数据，你随时可以取消迁移，并继续使用旧版本。
+                  {t('migration.introduction.description_3')}
                 </InfoDescription>
               </InfoCard>
             )}
 
             {progress.stage === 'backup_required' && (
               <InfoCard variant="warning">
-                <InfoTitle>创建数据备份</InfoTitle>
-                <InfoDescription>
-                  迁移前必须创建数据备份以确保数据安全。请选择备份位置或确认已有最新备份。
-                </InfoDescription>
+                <InfoTitle>{t('migration.backup_required.title')}</InfoTitle>
+                <InfoDescription>{t('migration.backup_required.description')}</InfoDescription>
               </InfoCard>
             )}
 
             {progress.stage === 'backup_progress' && (
               <InfoCard variant="warning">
-                <InfoTitle>准备数据备份</InfoTitle>
-                <InfoDescription>请选择备份位置，保存后等待备份完成。</InfoDescription>
+                <InfoTitle>{t('migration.backup_progress.title')}</InfoTitle>
+                <InfoDescription>{t('migration.backup_progress.description')}</InfoDescription>
               </InfoCard>
             )}
 
             {progress.stage === 'backup_confirmed' && (
               <InfoCard variant="success">
-                <InfoTitle>备份完成</InfoTitle>
-                <InfoDescription>数据备份已完成，现在可以安全地开始迁移。</InfoDescription>
+                <InfoTitle>{t('migration.backup_confirmed.title')}</InfoTitle>
+                <InfoDescription>{t('migration.backup_confirmed.description')}</InfoDescription>
               </InfoCard>
             )}
 
             {progress.stage === 'migration' && (
               <div style={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
                 <InfoCard>
-                  <InfoTitle>正在迁移数据...</InfoTitle>
+                  <InfoTitle>{t('migration.migration.title')}</InfoTitle>
                   <InfoDescription>{progress.currentMessage}</InfoDescription>
                 </InfoCard>
                 <ProgressContainer>
@@ -273,8 +293,8 @@ const MigrationApp: React.FC = () => {
             {progress.stage === 'migration_completed' && (
               <div style={{ width: '100%', maxWidth: '600px', margin: '0 auto' }}>
                 <InfoCard variant="success">
-                  <InfoTitle>数据迁移完成！</InfoTitle>
-                  <InfoDescription>所有数据已成功迁移到新架构，请点击确定继续。</InfoDescription>
+                  <InfoTitle>{t('migration.migration_completed.title')}</InfoTitle>
+                  <InfoDescription>{t('migration.migration_completed.description')}</InfoDescription>
                 </InfoCard>
                 <ProgressContainer>
                   <Progress percent={100} strokeColor={getProgressColor()} trailColor="#f0f0f0" />
@@ -287,19 +307,20 @@ const MigrationApp: React.FC = () => {
 
             {progress.stage === 'completed' && (
               <InfoCard variant="success">
-                <InfoTitle>迁移完成</InfoTitle>
-                <InfoDescription>数据已成功迁移，重启应用后即可正常使用。</InfoDescription>
+                <InfoTitle>{t('migration.completed.title')}</InfoTitle>
+                <InfoDescription>{t('migration.completed.description')}</InfoDescription>
               </InfoCard>
             )}
 
             {progress.stage === 'error' && (
               <InfoCard variant="error">
-                <InfoTitle>迁移失败</InfoTitle>
+                <InfoTitle>{t('migration.error.title')}</InfoTitle>
                 <InfoDescription>
-                  迁移过程遇到错误，您可以重新尝试或继续使用之前版本（原始数据完好保存）。
+                  {t('migration.error.description')}
                   <br />
                   <br />
-                  错误信息：{lastError || progress.error || '发生未知错误'}
+                  {t('migration.error.error_prefix')}
+                  {lastError || progress.error || 'Unknown error'}
                 </InfoDescription>
               </InfoCard>
             )}
@@ -383,6 +404,11 @@ const StepsContainer = styled.div`
   .ant-steps-item-wait .ant-steps-item-icon {
     border-color: #d9d9d9;
   }
+`
+
+const LanguageSelectorContainer = styled.div`
+  padding: 16px 24px 24px 24px;
+  border-top: 1px solid #f0f0f0;
 `
 
 const RightContent = styled.div`
