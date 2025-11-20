@@ -1931,18 +1931,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@cherrystudio/embedjs-interfaces@npm:0.1.30":
-  version: 0.1.30
-  resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.30"
-  dependencies:
-    "@langchain/core": "npm:^0.3.26"
-    debug: "npm:^4.4.0"
-    md5: "npm:^2.3.0"
-    uuid: "npm:^11.0.3"
-  checksum: 10c0/1d0eca816d89df25adfa15eb0b6ce67e8b3446966886c4e5e84f4c657daf3b5cad728c953479e8f317136a3c86ca512ebf13ceb070462da733eaab02937bc460
-  languageName: node
-  linkType: hard
-
 "@cherrystudio/embedjs-interfaces@npm:0.1.31":
   version: 0.1.31
   resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.31"
@@ -1955,15 +1943,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-libsql@npm:^0.1.31":
-  version: 0.1.31
-  resolution: "@cherrystudio/embedjs-libsql@npm:0.1.31"
+"@cherrystudio/embedjs-interfaces@npm:0.1.33":
+  version: 0.1.33
+  resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.33"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.30"
-    "@cherrystudio/embedjs-utils": "npm:0.1.30"
-    "@libsql/client": "npm:^0.14.0"
+    "@langchain/core": "npm:^0.3.26"
     debug: "npm:^4.4.0"
-  checksum: 10c0/248453e07b7ff1661f18213f69d74a0ab2e5d722d3ae5409240fd38cf3c263da5c8a224635f6ec4cf823cdaa91846ba0f4890d64872133950810afcfd8512498
+    md5: "npm:^2.3.0"
+    uuid: "npm:^11.0.3"
+  checksum: 10c0/b5e8a9ca589056aa608f82e661b3185e417bcc4c0b27262d7c78c3cb99b8c3d2e64d69a645a95d94a7a7f5d6546b2ca3a8a6e11b0922a07f78ebcecc6e56630a
   languageName: node
   linkType: hard
 
@@ -2100,21 +2088,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-utils@npm:0.1.30":
-  version: 0.1.30
-  resolution: "@cherrystudio/embedjs-utils@npm:0.1.30"
-  dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.30"
-  checksum: 10c0/1bd6151a69b6e4db6c93528622ff4f7834f80834681f28758d19f9780e8da36f29c21737d49809021ba5b6b1127dd7d2891e26864e2d696f83f577966d1cbf2c
-  languageName: node
-  linkType: hard
-
 "@cherrystudio/embedjs-utils@npm:0.1.31":
   version: 0.1.31
   resolution: "@cherrystudio/embedjs-utils@npm:0.1.31"
   dependencies:
     "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
   checksum: 10c0/249e0cbf84adf04948ef5d3071df56ceb1804a716ae577e68c167415ac90eb711ded49375c95de3d68b49700dbfdfc16ac80b00b571d15469672898dfc82be77
+  languageName: node
+  linkType: hard
+
+"@cherrystudio/embedjs-utils@npm:0.1.33":
+  version: 0.1.33
+  resolution: "@cherrystudio/embedjs-utils@npm:0.1.33"
+  dependencies:
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.33"
+  checksum: 10c0/5e5cbf4a3cb7af4f3c5b48ed0a0c20090abea39d80fe57c2aa6e2d6d304248c5b3cc4229d2733968b6f28a724aedeae96848d9b3a8138d27eda292c481200b8a
   languageName: node
   linkType: hard
 
@@ -2668,6 +2656,18 @@ __metadata:
     enabled: "npm:2.0.x"
     kuler: "npm:^2.0.0"
   checksum: 10c0/a5133df8492802465ed01f2f0a5784585241a1030c362d54a602ed1839816d6c93d71dde05cf2ddb4fd0796238c19774406bd62fa2564b637907b495f52425fe
+  languageName: node
+  linkType: hard
+
+"@defi-failure/embedjs-libsql@npm:0.1.33":
+  version: 0.1.33
+  resolution: "@defi-failure/embedjs-libsql@npm:0.1.33"
+  dependencies:
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.33"
+    "@cherrystudio/embedjs-utils": "npm:0.1.33"
+    "@libsql/client": "npm:^0.15.15"
+    debug: "npm:^4.4.0"
+  checksum: 10c0/28b8b5f31f78ca2c6576ba357a1d807938e41e85637cfb898724b732fc71cc759dfe2a1777fd1f855ec63029ebbb8ccefa66902bc891a62f3ee91a2603061a17
   languageName: node
   linkType: hard
 
@@ -4558,38 +4558,38 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libsql/client@npm:0.14.0, @libsql/client@npm:^0.14.0":
-  version: 0.14.0
-  resolution: "@libsql/client@npm:0.14.0"
+"@libsql/client@npm:0.15.15, @libsql/client@npm:^0.15.15":
+  version: 0.15.15
+  resolution: "@libsql/client@npm:0.15.15"
   dependencies:
-    "@libsql/core": "npm:^0.14.0"
+    "@libsql/core": "npm:^0.15.14"
     "@libsql/hrana-client": "npm:^0.7.0"
     js-base64: "npm:^3.7.5"
-    libsql: "npm:^0.4.4"
+    libsql: "npm:^0.5.22"
     promise-limit: "npm:^2.7.0"
-  checksum: 10c0/9c6bab468453df765f647422c772af3578f1e108b663a80b99063f47ed3542db26ae0fcdba2e153d72e6d5089c5caeba947a167a6c065b0191a0832621539335
+  checksum: 10c0/1ae67280ebe27903ff142b07e2a256c22ef5ada65185286a72823e8eae8d9d2602e0d72e423d3bd64ae57494791bfffff946aa0fc7c2378b55a227ff63f8df69
   languageName: node
   linkType: hard
 
-"@libsql/core@npm:^0.14.0":
-  version: 0.14.0
-  resolution: "@libsql/core@npm:0.14.0"
+"@libsql/core@npm:^0.15.14":
+  version: 0.15.15
+  resolution: "@libsql/core@npm:0.15.15"
   dependencies:
     js-base64: "npm:^3.7.5"
-  checksum: 10c0/327bb991cf191d5a9a9fc0cc1a17123f7ca88f222187a3bde845fbad8ceaeaa1f139882080e4b2969da57b83e576c52702572e2838d1743c6bff75f95e6f774a
+  checksum: 10c0/0a619689c9504f4239d9745882a128b81e2f6c0547352bbb0d36932261c053bbcbea4435a17f91abe61556bb791f2f1203b36c36b2d4b4f369953d7949bdc40e
   languageName: node
   linkType: hard
 
-"@libsql/darwin-arm64@npm:0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/darwin-arm64@npm:0.4.7"
+"@libsql/darwin-arm64@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/darwin-arm64@npm:0.5.22"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@libsql/darwin-x64@npm:0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/darwin-x64@npm:0.4.7"
+"@libsql/darwin-x64@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/darwin-x64@npm:0.5.22"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
@@ -4623,38 +4623,52 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libsql/linux-arm64-gnu@npm:0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/linux-arm64-gnu@npm:0.4.7"
+"@libsql/linux-arm-gnueabihf@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/linux-arm-gnueabihf@npm:0.5.22"
+  conditions: os=linux & cpu=arm
+  languageName: node
+  linkType: hard
+
+"@libsql/linux-arm-musleabihf@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/linux-arm-musleabihf@npm:0.5.22"
+  conditions: os=linux & cpu=arm
+  languageName: node
+  linkType: hard
+
+"@libsql/linux-arm64-gnu@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/linux-arm64-gnu@npm:0.5.22"
   conditions: os=linux & cpu=arm64
   languageName: node
   linkType: hard
 
-"@libsql/linux-arm64-musl@npm:0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/linux-arm64-musl@npm:0.4.7"
+"@libsql/linux-arm64-musl@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/linux-arm64-musl@npm:0.5.22"
   conditions: os=linux & cpu=arm64
   languageName: node
   linkType: hard
 
-"@libsql/linux-x64-gnu@npm:0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/linux-x64-gnu@npm:0.4.7"
+"@libsql/linux-x64-gnu@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/linux-x64-gnu@npm:0.5.22"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
-"@libsql/linux-x64-musl@npm:0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/linux-x64-musl@npm:0.4.7"
+"@libsql/linux-x64-musl@npm:0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/linux-x64-musl@npm:0.5.22"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
-"@libsql/win32-x64-msvc@npm:0.4.7, @libsql/win32-x64-msvc@npm:^0.4.7":
-  version: 0.4.7
-  resolution: "@libsql/win32-x64-msvc@npm:0.4.7"
-  checksum: 10c0/2fcb8715b6f0571dec145eaaf3fd53c7c5aa5bf408fe1be9d84b10adc8a909bb6ee60b45e0d7052b0c1722c30ac212356a3f1adcdf7f57d5a59b48f36ca5bdf5
+"@libsql/win32-x64-msvc@npm:0.5.22, @libsql/win32-x64-msvc@npm:^0.5.22":
+  version: 0.5.22
+  resolution: "@libsql/win32-x64-msvc@npm:0.5.22"
+  checksum: 10c0/1bb2730563c603c03a229faa352897685648659d85ba0872dda60cc02abc469fbd55539ffd8b86c81d00230d76292e5a4d2a763fe44c05694612ce6db6e929aa
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -7125,14 +7139,6 @@ __metadata:
   version: 1.0.0
   resolution: "@standard-schema/spec@npm:1.0.0"
   checksum: 10c0/a1ab9a8bdc09b5b47aa8365d0e0ec40cc2df6437be02853696a0e377321653b0d3ac6f079a8c67d5ddbe9821025584b1fb71d9cc041a6666a96f1fadf2ece15f
-  languageName: node
-  linkType: hard
-
-"@strongtz/win32-arm64-msvc@npm:^0.4.7":
-  version: 0.4.7
-  resolution: "@strongtz/win32-arm64-msvc@npm:0.4.7"
-  checksum: 10c0/21946f2ed43ff0b2381f945e22cf7f5ef6de412347c36523ed1d72f33591b2b85bf4cc9dd493f0eab95ed5e152d3944a2329791c3d8ed88c7ad450ccd9078015
-  conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
 
@@ -9922,7 +9928,6 @@ __metadata:
     "@biomejs/biome": "npm:2.2.4"
     "@cherrystudio/ai-core": "workspace:^1.0.9"
     "@cherrystudio/embedjs": "npm:^0.1.31"
-    "@cherrystudio/embedjs-libsql": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-csv": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-image": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-markdown": "npm:^0.1.31"
@@ -9935,6 +9940,7 @@ __metadata:
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@cherrystudio/extension-table-plus": "workspace:^"
     "@cherrystudio/openai": "npm:^6.9.0"
+    "@defi-failure/embedjs-libsql": "npm:0.1.33"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
@@ -9953,8 +9959,8 @@ __metadata:
     "@langchain/community": "npm:^1.0.0"
     "@langchain/core": "patch:@langchain/core@npm%3A1.0.2#~/.yarn/patches/@langchain-core-npm-1.0.2-183ef83fe4.patch"
     "@langchain/openai": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch"
-    "@libsql/client": "npm:0.14.0"
-    "@libsql/win32-x64-msvc": "npm:^0.4.7"
+    "@libsql/client": "npm:0.15.15"
+    "@libsql/win32-x64-msvc": "npm:^0.5.22"
     "@mistralai/mistralai": "npm:^1.7.5"
     "@modelcontextprotocol/sdk": "npm:^1.17.5"
     "@mozilla/readability": "npm:^0.6.0"
@@ -9973,7 +9979,6 @@ __metadata:
     "@radix-ui/react-context-menu": "npm:^2.2.16"
     "@reduxjs/toolkit": "npm:^2.2.5"
     "@shikijs/markdown-it": "npm:^3.12.0"
-    "@strongtz/win32-arm64-msvc": "npm:^0.4.7"
     "@swc/plugin-styled-components": "npm:^8.0.4"
     "@tailwindcss/vite": "npm:^4.1.13"
     "@tanstack/react-query": "npm:^5.85.5"
@@ -10107,6 +10112,7 @@ __metadata:
     jest-styled-components: "npm:^7.2.0"
     js-yaml: "npm:^4.1.0"
     jsdom: "npm:26.1.0"
+    libsql: "npm:^0.5.22"
     linguist-languages: "npm:^8.1.0"
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
@@ -17267,23 +17273,29 @@ __metadata:
   languageName: node
   linkType: hard
 
-"libsql@npm:0.4.7":
-  version: 0.4.7
-  resolution: "libsql@npm:0.4.7"
+"libsql@npm:^0.5.22":
+  version: 0.5.22
+  resolution: "libsql@npm:0.5.22"
   dependencies:
-    "@libsql/darwin-arm64": "npm:0.4.7"
-    "@libsql/darwin-x64": "npm:0.4.7"
-    "@libsql/linux-arm64-gnu": "npm:0.4.7"
-    "@libsql/linux-arm64-musl": "npm:0.4.7"
-    "@libsql/linux-x64-gnu": "npm:0.4.7"
-    "@libsql/linux-x64-musl": "npm:0.4.7"
-    "@libsql/win32-x64-msvc": "npm:0.4.7"
+    "@libsql/darwin-arm64": "npm:0.5.22"
+    "@libsql/darwin-x64": "npm:0.5.22"
+    "@libsql/linux-arm-gnueabihf": "npm:0.5.22"
+    "@libsql/linux-arm-musleabihf": "npm:0.5.22"
+    "@libsql/linux-arm64-gnu": "npm:0.5.22"
+    "@libsql/linux-arm64-musl": "npm:0.5.22"
+    "@libsql/linux-x64-gnu": "npm:0.5.22"
+    "@libsql/linux-x64-musl": "npm:0.5.22"
+    "@libsql/win32-x64-msvc": "npm:0.5.22"
     "@neon-rs/load": "npm:^0.0.4"
     detect-libc: "npm:2.0.2"
   dependenciesMeta:
     "@libsql/darwin-arm64":
       optional: true
     "@libsql/darwin-x64":
+      optional: true
+    "@libsql/linux-arm-gnueabihf":
+      optional: true
+    "@libsql/linux-arm-musleabihf":
       optional: true
     "@libsql/linux-arm64-gnu":
       optional: true
@@ -17295,41 +17307,8 @@ __metadata:
       optional: true
     "@libsql/win32-x64-msvc":
       optional: true
-  checksum: 10c0/351952440e6bad3477e5f1bb1b9d6570d16e403b894f4a13c5c7e183a1307b2fb04a2fa902728cb8594a259e1726c51c61b822d545bbc88319b126ad15468a87
-  conditions: (os=darwin | os=linux | os=win32) & (cpu=x64 | cpu=arm64 | cpu=wasm32)
-  languageName: node
-  linkType: hard
-
-"libsql@patch:libsql@npm%3A0.4.7#~/.yarn/patches/libsql-npm-0.4.7-444e260fb1.patch":
-  version: 0.4.7
-  resolution: "libsql@patch:libsql@npm%3A0.4.7#~/.yarn/patches/libsql-npm-0.4.7-444e260fb1.patch::version=0.4.7&hash=972e11"
-  dependencies:
-    "@libsql/darwin-arm64": "npm:0.4.7"
-    "@libsql/darwin-x64": "npm:0.4.7"
-    "@libsql/linux-arm64-gnu": "npm:0.4.7"
-    "@libsql/linux-arm64-musl": "npm:0.4.7"
-    "@libsql/linux-x64-gnu": "npm:0.4.7"
-    "@libsql/linux-x64-musl": "npm:0.4.7"
-    "@libsql/win32-x64-msvc": "npm:0.4.7"
-    "@neon-rs/load": "npm:^0.0.4"
-    detect-libc: "npm:2.0.2"
-  dependenciesMeta:
-    "@libsql/darwin-arm64":
-      optional: true
-    "@libsql/darwin-x64":
-      optional: true
-    "@libsql/linux-arm64-gnu":
-      optional: true
-    "@libsql/linux-arm64-musl":
-      optional: true
-    "@libsql/linux-x64-gnu":
-      optional: true
-    "@libsql/linux-x64-musl":
-      optional: true
-    "@libsql/win32-x64-msvc":
-      optional: true
-  checksum: 10c0/6098770dc6c31ae0dbfe0821719d184d9bb353ac92553923096f6e3420d3786f240f0b3858f519af0aeada93beb4aa83cb9a9a1a6aa18d625511b484dcb53d07
-  conditions: (os=darwin | os=linux | os=win32) & (cpu=x64 | cpu=arm64 | cpu=wasm32)
+  checksum: 10c0/6c34f08fc7408ebee16708ba12e5def9d1b2a4fa166070c956a120133ba9be68ec532e2d0b76bdc7005ef9ef69bf70d2ba7208ed824c4288c2a3d881edd5eaf6
+  conditions: (os=darwin | os=linux | os=win32) & (cpu=x64 | cpu=arm64 | cpu=wasm32 | cpu=arm)
   languageName: node
   linkType: hard
 
