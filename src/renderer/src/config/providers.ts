@@ -686,7 +686,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'AI Gateway',
     type: 'ai-gateway',
     apiKey: '',
-    apiHost: 'https://ai-gateway.vercel.sh/v1',
+    apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
     models: [],
     isSystem: true,
     enabled: false

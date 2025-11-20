@@ -140,7 +140,7 @@ const MCPSettings: FC = () => {
             <Route
               path="mcp-install"
               element={
-                <SettingContainer theme={theme}>
+                <SettingContainer style={{ backgroundColor: 'inherit' }}>
                   <InstallNpxUv />
                 </SettingContainer>
               }
