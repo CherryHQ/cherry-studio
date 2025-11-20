@@ -141,7 +141,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // reasoningEffort有效的情况
-
+  // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
   // Poe provider - supports custom bot parameters via extra_body
   if (provider.id === SystemProviderIds.poe) {
     // GPT-5 series models use reasoning_effort parameter in extra_body
