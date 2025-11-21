@@ -85,13 +85,18 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'qwen-image-edit',
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-2.0-flash-preview-image-generation'
+  'gemini-2.0-flash-preview-image-generation',
+  'gemini-3.0-pro-image(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
-const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image', ...DEDICATED_IMAGE_MODELS]
+const AUTO_ENABLE_IMAGE_MODELS = [
+  'gemini-2.5-flash-image(?:-[\\w-]+)?',
+  'gemini-3.0-pro-image(?:-[\\w-]+)?',
+  ...DEDICATED_IMAGE_MODELS
+]
 
 const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
   'o3',
@@ -110,6 +115,7 @@ const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-2.5-flash-image',
+  'gemini-3.0-pro-image-preview',
   ...DEDICATED_IMAGE_MODELS
 ]
 
@@ -155,6 +161,11 @@ export function isGenerateImageModel(model: Model): boolean {
   return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
 }
 
+export function isModernGenerateImageModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return /gemini-3(\.\d+)?-pro-image-preview/i.test(modelId)
+}
+
 /**
  * 判断模型是否支持纯图片生成（不支持通过工具调用）
  * @param model
@@ -166,7 +177,10 @@ export function isPureGenerateImageModel(model: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  return !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel))
+  return (
+    !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel)) &&
+    !isModernGenerateImageModel(model)
+  )
 }
 
 // Text to image models

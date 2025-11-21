@@ -11,6 +11,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isGemini3Model,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
@@ -36,7 +37,7 @@ import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { SettingsState } from '@renderer/store/settings'
-import type { Assistant, Model } from '@renderer/types'
+import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
 import { toInteger } from 'lodash'
@@ -278,6 +279,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   // gemini series, openai compatible api
   if (isSupportedThinkingTokenGeminiModel(model)) {
+    // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
+    if (isGemini3Model(model)) {
+      return {
+        reasoning_effort: reasoningEffort
+      }
+    }
     if (reasoningEffort === 'auto') {
       return {
         extra_body: {
@@ -445,6 +452,19 @@ export function getAnthropicReasoningParams(
   return {}
 }
 
+function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): 'low' | 'medium' | 'high' {
+  switch (reasoningEffort) {
+    case 'low':
+      return 'low'
+    case 'medium':
+      return 'medium'
+    case 'high':
+      return 'high'
+    default:
+      return 'medium'
+  }
+}
+
 /**
  * 获取 Gemini 推理参数
  * 从 GeminiAPIClient 中提取的逻辑
@@ -468,6 +488,15 @@ export function getGeminiReasoningParams(
         thinkingConfig: {
           includeThoughts: false,
           ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
+        }
+      }
+    }
+
+    // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
+    if (isGemini3Model(model)) {
+      return {
+        thinkingConfig: {
+          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
         }
       }
     }

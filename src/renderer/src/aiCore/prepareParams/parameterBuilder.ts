@@ -4,6 +4,7 @@
  */
 
 import { anthropic } from '@ai-sdk/anthropic'
+import { azure } from '@ai-sdk/azure'
 import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
@@ -144,6 +145,10 @@ export async function buildStreamTextParams(
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'azure-responses') {
+      tools.web_search_preview = azure.tools.webSearchPreview(webSearchPluginConfig?.openai!) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'azure-anthropic') {
+      tools.web_search = anthropic.tools.webSearch_20250305(webSearchPluginConfig?.anthropic!) as ProviderDefinedTool
     }
   }
 
@@ -161,9 +166,10 @@ export async function buildStreamTextParams(
         tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
         break
       case 'anthropic':
+      case 'azure-anthropic':
       case 'google-vertex-anthropic':
         tools.web_fetch = (
-          aiSdkProviderId === 'anthropic'
+          ['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)
             ? anthropic.tools.webFetch_20250910({
                 maxUses: webSearchConfig.maxResults,
                 blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined

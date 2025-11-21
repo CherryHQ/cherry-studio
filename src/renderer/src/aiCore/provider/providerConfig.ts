@@ -29,6 +29,7 @@ import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEn
 import { cloneDeep } from 'lodash'
 
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -73,6 +74,9 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
     if (provider.id === 'vertexai') {
       return vertexAnthropicProviderCreator(model, provider)
     }
+  }
+  if (isAzureOpenAIProvider(provider)) {
+    return azureAnthropicProviderCreator(model, provider)
   }
   return provider
 }
