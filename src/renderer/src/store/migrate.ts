@@ -2863,7 +2863,7 @@ const migrateConfig = {
     try {
       // @ts-expect-error it's a removed type
       if (state.settings.openAI.summaryText === 'off') {
-        state.settings.openAI.summaryText = null
+        state.settings.openAI.summaryText = 'auto'
       }
       logger.info('migrate 177 success')
       return state

@@ -37,4 +37,8 @@ export type OpenAIVerbosity = NotNull<OpenAI.Responses.ResponseTextConfig['verbo
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
 export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
-export type OpenAISummaryText = OpenAI.Reasoning['summary']
+
+// The original type unite both undefined and null.
+// I pick undefined as the unique falsy type since they seem like share the same meaning according to OpenAI API docs.
+// Parameter would not be passed into request if it's null.
+export type OpenAISummaryText = NotNull<OpenAI.Reasoning['summary']>

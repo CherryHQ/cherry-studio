@@ -27,6 +27,11 @@ type VerbosityOption = {
   label: string
 }
 
+type SummaryTextOption = {
+  value: OpenAISummaryText
+  label: string
+}
+
 interface Props {
   model: Model
   providerId: string
@@ -73,10 +78,6 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   const summaryTextOptions = [
     {
-      value: null,
-      label: t('common.off')
-    },
-    {
       value: undefined,
       label: t('common.default')
     },
@@ -89,10 +90,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       label: t('settings.openai.summary_text_mode.detailed')
     },
     {
-      value: 'off',
-      label: t('settings.openai.summary_text_mode.off')
+      value: 'concise',
+      label: t('settings.openai.summary_text_mode.concise')
     }
-  ]
+  ] as const satisfies SummaryTextOption[]
 
   const verbosityOptions = useMemo(() => {
     const allOptions = [

@@ -374,7 +374,7 @@ export const initialState: SettingsState = {
   },
   // OpenAI
   openAI: {
-    summaryText: null,
+    summaryText: 'auto',
     serviceTier: 'auto',
     verbosity: 'medium'
   },
