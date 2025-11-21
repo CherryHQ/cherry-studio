@@ -132,6 +132,7 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(async () => {
     // First of all, init & migrate the database
+    await dbService.init()
     await dbService.migrateDb()
     await dbService.migrateSeed('preference')
 
