@@ -283,6 +283,15 @@
     },
     "warning": {
       "enable_server": "Enable API Server to use agents."
+    },
+    "gitBash": {
+      "error": {
+        "title": "Git Bash Required",
+        "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
+        "recheck": "Recheck Git Bash Installation"
+      },
+      "success": "Git Bash detected successfully!",
+      "notFound": "Git Bash not found. Please install it first."
     }
   },
   "apiServer": {

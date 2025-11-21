@@ -283,6 +283,15 @@
     },
     "warning": {
       "enable_server": "啟用 API 伺服器以使用代理程式。"
+    },
+    "gitBash": {
+      "error": {
+        "title": "需要 Git Bash",
+        "description": "在 Windows 上執行代理程式需要 Git Bash。沒有它代理程式無法運作。請從以下地址安裝 Git for Windows",
+        "recheck": "重新檢測 Git Bash 安裝"
+      },
+      "success": "成功偵測到 Git Bash！",
+      "notFound": "找不到 Git Bash。請先安裝。"
     }
   },
   "apiServer": {
