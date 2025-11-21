@@ -256,7 +256,7 @@ export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
   } else {
     supportedValues = MODEL_SUPPORTED_VERBOSITY.default
   }
-  return [null, ...supportedValues]
+  return [undefined, ...supportedValues]
 }
 
 export const isGeminiModel = (model: Model) => {

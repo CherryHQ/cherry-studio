@@ -97,7 +97,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const verbosityOptions = useMemo(() => {
     const allOptions = [
       {
-        value: null,
+        value: undefined,
         label: t('common.default')
       },
       {
