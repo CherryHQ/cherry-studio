@@ -1,5 +1,3 @@
-import type { Meta, StoryObj } from '@storybook/react'
-
 import {
   Pagination,
   PaginationContent,
@@ -8,7 +6,8 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious
-} from '../../../src/components/primitives/pagination'
+} from '@cherrystudio/ui'
+import type { Meta, StoryObj } from '@storybook/react'
 
 const meta: Meta<typeof Pagination> = {
   title: 'Components/Primitives/Pagination',
