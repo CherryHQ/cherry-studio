@@ -465,7 +465,7 @@ export default class ModernAiProvider {
     if (isModernSdkSupported(this.actualProvider)) {
       try {
         // 确保本地provider已创建
-        if (!this.localProvider) {
+        if (!this.localProvider && this.config) {
           this.localProvider = await createAiSdkProvider(this.config)
           if (!this.localProvider) {
             throw new Error('Local provider not created')

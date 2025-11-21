@@ -5,6 +5,9 @@ import type { Provider } from '@renderer/types'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import { initializeNewProviders } from './providerInitialization'
+import type { providerToAiSdkConfig } from './providerConfig'
+import { isAzureOpenAIProvider } from '@renderer/config/providers'
+import { isAzureResponsesEndpoint } from '@renderer/utils/provider'
 
 const logger = loggerService.withContext('ProviderFactory')
 
@@ -58,6 +61,9 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-compatible' {
   // 1. 尝试解析provider.id
   const resolvedFromId = tryResolveProviderId(provider.id)
+  if (isAzureOpenAIProvider(provider) && isAzureResponsesEndpoint(provider)) {
+    return 'azure-responses'
+  }
   if (resolvedFromId) {
     return resolvedFromId
   }
@@ -66,6 +72,9 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
   // 会把所有类型为openai的自定义provider解析到aisdk的openaiProvider上
   if (provider.type !== 'openai') {
     const resolvedFromType = tryResolveProviderId(provider.type)
+    if (isAzureOpenAIProvider(provider) && isAzureResponsesEndpoint(provider)) {
+      return 'azure-responses'
+    }
     if (resolvedFromType) {
       return resolvedFromType
     }
@@ -77,7 +86,9 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
   return provider.id as ProviderId
 }
 
-export async function createAiSdkProvider(config) {
+export async function createAiSdkProvider(
+  config: ReturnType<typeof providerToAiSdkConfig>
+): Promise<AiSdkProvider | null> {
   let localProvider: Awaited<AiSdkProvider> | null = null
   try {
     if (config.providerId === 'openai' && config.options?.mode === 'chat') {
