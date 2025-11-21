@@ -256,7 +256,7 @@ export const SystemProviderIds = {
   cerebras: 'cerebras'
 } as const satisfies Record<SystemProviderId, SystemProviderId>
 
-export type SystemProviderIdTypeMap = typeof SystemProviderIds
+type SystemProviderIdTypeMap = typeof SystemProviderIds
 
 export type SystemProvider = Provider & {
   id: SystemProviderId
