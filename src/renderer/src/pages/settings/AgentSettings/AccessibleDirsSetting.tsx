@@ -1,6 +1,6 @@
-import { Button, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
+import { Button, Tooltip } from 'antd'
 import { Plus } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,21 +65,21 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
     <SettingsItem>
       <SettingsTitle
         actions={
-          <Tooltip content={t('agent.session.accessible_paths.add')}>
-            <Button variant="light" size="sm" startContent={<Plus />} isIconOnly onPress={addAccessiblePath} />
+          <Tooltip title={t('agent.session.accessible_paths.add')}>
+            <Button type="text" icon={<Plus size={16} />} shape="circle" onClick={addAccessiblePath} />
           </Tooltip>
         }>
         {t('agent.session.accessible_paths.label')}
       </SettingsTitle>
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col">
         {base.accessible_paths.map((path) => (
-          <li
-            key={path}
-            className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-2 py-1">
-            <span className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm" title={path}>
+          <li key={path} className="flex items-center justify-between gap-2 py-1">
+            <span
+              className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[var(--color-text-2)] text-sm"
+              title={path}>
               {path}
             </span>
-            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
+            <Button size="small" type="text" danger onClick={() => removeAccessiblePath(path)}>
               {t('common.delete')}
             </Button>
           </li>

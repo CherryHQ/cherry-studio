@@ -97,7 +97,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -135,128 +134,58 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.3
+    What's New in v1.7.0-rc.1
 
-    New Features:
-    - Enhanced Tool Permission System: Real-time tool approval interface with improved UX
-    - Plugin Management System: Support for Claude Agent plugins (agents, commands, skills)
-    - Skill Tool: Add skill execution capabilities for agents
-    - Mobile App Data Restore: Support restoring data to mobile applications
-    - OpenMinerU Preprocessor: Knowledge base now supports open-source MinerU for document processing
-    - HuggingFace Provider: Added HuggingFace as AI provider
-    - Claude Haiku 4.5: Support for the latest Claude Haiku 4.5 model
-    - Ling Series Models: Added support for Ling-1T and related models
-    - Intel OVMS Painting: New painting provider using Intel OpenVINO Model Server
-    - Automatic Update Checks: Implement periodic update checking with configurable intervals
-    - HuggingChat Mini App: New mini app for HuggingChat integration
+    🎉 MAJOR NEW FEATURE: AI Agents
+    - Create and manage custom AI agents with specialized tools and permissions
+    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
+    - Real-time tool approval system - review and approve agent actions dynamically
+    - MCP (Model Context Protocol) integration for connecting external tools
+    - Slash commands support for quick agent interactions
+    - OpenAI-compatible REST API for agent access
 
-    Improvements:
-    - Agent Creation: New agents are now automatically activated upon creation
-    - Lazy Loading: Optimize page load performance with route lazy loading
-    - UI Enhancements: Improved agent item styling and layout consistency
-    - Navigation: Better navbar layout for fullscreen mode on macOS
-    - Settings Tab: Enhanced context slider consistency
-    - Backup Manager: Unified footer layout for local and S3 backup managers
-    - Menu System: Enhanced application menu with improved help section
-    - Proxy Rules: Comprehensive proxy bypass rule matching
-    - German Language: Added German language support
-    - MCP Confirmation: Added confirmation modal when activating protocol-installed MCP servers
-    - Translation: Enhanced translation script with concurrency and validation
-    - Electron & Vite: Updated to Electron 38 and Vite 4.0.1
-    - QR Code Generation: Optimized performance for phone LAN export
-    - Enterprise Settings: Added enterprise section in About settings
-    - Assistant/Agent Popup: Enhanced UI for adding assistants and agents
+    ✨ New Features:
+    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
+    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
+    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
+    - MCP Management: Redesigned interface with dual-column layout for easier management
+    - Languages: Added German language support
 
-    Claude Code Tool Improvements:
-    - GlobTool: Now counts lines instead of files in output for better clarity
-    - ReadTool: Automatically removes system reminder tags from output
-    - TodoWriteTool: Improved rendering behavior
-    - Environment Variables: Updated model-related environment variable names
+    ⚡ Improvements:
+    - Upgraded to Electron 38.7.0
+    - Enhanced system shutdown handling and automatic update checks
+    - Improved proxy bypass rules
 
-    Bug Fixes:
-    - Fixed session model not being used when sending messages
-    - Fixed tool approval UI and shared workspace plugin inconsistencies
-    - Fixed API server readiness notification to renderer
-    - Fixed grouped items not respecting saved tag order
-    - Fixed assistant/agent activation when creating new ones
-    - Fixed Dashscope Anthropic API host and migrated old configs
-    - Fixed Qwen3 thinking mode control for Ollama
-    - Fixed disappeared MCP button
-    - Fixed create assistant causing blank screen
-    - Fixed up-down button visibility in some cases
-    - Fixed hooks preventing save on composing enter key
-    - Fixed Azure GPT-image-1 and OpenRouter Gemini-image
-    - Fixed Silicon reasoning issues
-    - Fixed topic branch incomplete copy with two-pass ID mapping
-    - Fixed deep research model search context restrictions
-    - Fixed model capability checking logic
-    - Fixed reranker API error response capture
-    - Fixed right-click paste file content into inputbar
-    - Fixed minimax-m2 support in aiCore
-    - Fixed Azure embedding issues
-    - Fixed agent edit modal loading race condition
-    - Fixed debounced save cancellation on file path update
+    🐛 Important Bug Fixes:
+    - Fixed streaming response issues across multiple AI providers
+    - Fixed session list scrolling problems
+    - Fixed knowledge base deletion errors
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.3 新特性
+    v1.7.0-rc.1 新特性
 
-    新功能:
-    - 增强工具权限系统：实时工具审批界面，改进用户体验
-    - 插件管理系统：支持 Claude Agent 插件（agents、commands、skills）
-    - 技能工具：为 Agent 添加技能执行能力
-    - 移动应用数据恢复：支持将数据恢复到移动应用程序
-    - OpenMinerU 预处理器：知识库现支持使用开源 MinerU 处理文档
-    - HuggingFace 提供商：添加 HuggingFace 作为 AI 提供商
-    - Claude Haiku 4.5：支持最新的 Claude Haiku 4.5 模型
-    - Ling 系列模型：添加 Ling-1T 及相关模型支持
-    - Intel OVMS 绘图：使用 Intel OpenVINO 模型服务器的新绘图提供商
-    - 自动更新检查：实现可配置间隔的定期更新检查
-    - HuggingChat 小程序：新增 HuggingChat 集成小程序
+    🎉 重大更新：AI Agent 智能体系统
+    - 创建和管理专属 AI Agent，配置专用工具和权限
+    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
+    - 实时工具审批系统 - 动态审查和批准 Agent 操作
+    - MCP（模型上下文协议）集成，连接外部工具
+    - 支持斜杠命令快速交互
+    - 兼容 OpenAI 的 REST API 访问
 
-    改进:
-    - Agent 创建：新创建的 Agent 现在会自动激活
-    - 懒加载：通过路由懒加载优化页面加载性能
-    - UI 增强：改进 Agent 项目样式和布局一致性
-    - 导航：改进 macOS 全屏模式下的导航栏布局
-    - 设置选项卡：增强上下文滑块一致性
-    - 备份管理器：统一本地和 S3 备份管理器的页脚布局
-    - 菜单系统：增强应用菜单，改进帮助部分
-    - 代理规则：全面的代理绕过规则匹配
-    - 德语支持：添加德语语言支持
-    - MCP 确认：添加激活协议安装的 MCP 服务器时的确认模态框
-    - 翻译：增强翻译脚本的并发和验证功能
-    - Electron & Vite：更新至 Electron 38 和 Vite 4.0.1
-    - 二维码生成：优化手机局域网导出性能
-    - 企业设置：在关于设置中添加企业部分
-    - 助手/Agent 弹窗：增强添加助手和 Agent 的界面
+    ✨ 新功能:
+    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
+    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
+    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
+    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
+    - 语言：新增德语支持
 
-    Claude Code 工具改进:
-    - GlobTool：现在计算行数而不是文件数，提供更清晰的输出
-    - ReadTool：自动从输出中移除系统提醒标签
-    - TodoWriteTool：改进渲染行为
-    - 环境变量：更新模型相关的环境变量名称
+    ⚡ 改进:
+    - 升级到 Electron 38.7.0
+    - 增强的系统关机处理和自动更新检查
+    - 改进的代理绕过规则
 
-    问题修复:
-    - 修复发送消息时未使用会话模型
-    - 修复工具审批 UI 和共享工作区插件不一致
-    - 修复 API 服务器就绪通知到渲染器
-    - 修复分组项目不遵守已保存标签顺序
-    - 修复创建新的助手/Agent 时的激活问题
-    - 修复 Dashscope Anthropic API 主机并迁移旧配置
-    - 修复 Ollama 的 Qwen3 思考模式控制
-    - 修复 MCP 按钮消失
-    - 修复创建助手导致空白屏幕
-    - 修复某些情况下上下按钮可见性
-    - 修复钩子在输入法输入时阻止保存
-    - 修复 Azure GPT-image-1 和 OpenRouter Gemini-image
-    - 修复 Silicon 推理问题
-    - 修复主题分支不完整复制，采用两阶段 ID 映射
-    - 修复深度研究模型搜索上下文限制
-    - 修复模型能力检查逻辑
-    - 修复 reranker API 错误响应捕获
-    - 修复右键粘贴文件内容到输入栏
-    - 修复 aiCore 中的 minimax-m2 支持
-    - 修复 Azure embedding 问题
-    - 修复 Agent 编辑模态框加载竞态条件
-    - 修复文件路径更新时防抖保存取消问题
+    🐛 重要修复:
+    - 修复多个 AI 提供商的流式响应问题
+    - 修复会话列表滚动问题
+    - 修复知识库删除错误
     <!--LANG:END-->

@@ -1,9 +1,9 @@
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
-import { Button, Chip, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectPendingPermissionByToolName, toolPermissionsActions } from '@renderer/store/toolPermissions'
+import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
+import { Button } from 'antd'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,9 +17,7 @@ interface Props {
 export function ToolPermissionRequestCard({ toolResponse }: Props) {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
-  const request = useAppSelector((state) =>
-    selectPendingPermissionByToolName(state.toolPermissions, toolResponse.tool.name)
-  )
+  const request = useAppSelector((state) => selectPendingPermission(state.toolPermissions, toolResponse.toolCallId))
   const [now, setNow] = useState(() => Date.now())
   const [showDetails, setShowDetails] = useState(false)
 
@@ -127,33 +125,39 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Chip color={isExpired ? 'danger' : 'warning'} size="sm" variant="flat">
+            <div
+              className={`rounded px-2 py-0.5 font-medium text-xs ${
+                isExpired ? 'text-[var(--color-error)]' : 'text-[var(--color-status-warning)]'
+              }`}>
               {isExpired
                 ? t('agent.toolPermission.expired')
                 : t('agent.toolPermission.pending', { seconds: remainingSeconds })}
-            </Chip>
+            </div>
 
             <div className="flex items-center gap-1">
               <Button
                 aria-label={t('agent.toolPermission.aria.denyRequest')}
                 className="h-8"
                 color="danger"
-                isDisabled={isSubmitting || isExpired}
-                isLoading={isSubmittingDeny}
-                onPress={() => handleDecision('deny')}
-                startContent={<CircleX size={16} />}
-                variant="bordered">
+                disabled={isSubmitting || isExpired}
+                loading={isSubmittingDeny}
+                onClick={() => handleDecision('deny')}
+                icon={<CircleX size={16} />}
+                iconPosition={'start'}
+                variant="outlined">
                 {t('agent.toolPermission.button.cancel')}
               </Button>
 
               <Button
                 aria-label={t('agent.toolPermission.aria.allowRequest')}
                 className="h-8 px-3"
-                color="success"
-                isDisabled={isSubmitting || isExpired}
-                isLoading={isSubmittingAllow}
-                onPress={() => handleDecision('allow')}
-                startContent={<CirclePlay size={16} />}>
+                color="primary"
+                disabled={isSubmitting || isExpired}
+                loading={isSubmittingAllow}
+                onClick={() => handleDecision('allow')}
+                icon={<CirclePlay size={16} />}
+                iconPosition={'start'}
+                variant="solid">
                 {t('agent.toolPermission.button.run')}
               </Button>
 
@@ -161,12 +165,12 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
                 aria-label={
                   showDetails ? t('agent.toolPermission.aria.hideDetails') : t('agent.toolPermission.aria.showDetails')
                 }
-                className="h-8"
-                isIconOnly
-                onPress={() => setShowDetails((value) => !value)}
-                variant="light">
-                <ChevronDown className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} size={16} />
-              </Button>
+                className="h-8 text-default-600 transition-colors hover:bg-default-200/50 hover:text-default-800"
+                onClick={() => setShowDetails((value) => !value)}
+                icon={<ChevronDown className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} size={16} />}
+                variant="text"
+                style={{ backgroundColor: 'transparent' }}
+              />
             </div>
           </div>
         </div>
@@ -181,9 +185,9 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
               <p className="mb-2 font-medium text-default-400 text-xs uppercase tracking-wide">
                 {t('agent.toolPermission.inputPreview')}
               </p>
-              <ScrollShadow className="max-h-48 font-mono text-xs" hideScrollBar>
-                <pre className="whitespace-pre-wrap break-all text-left">{request.inputPreview}</pre>
-              </ScrollShadow>
+              <div className="max-h-[192px] overflow-auto font-mono text-xs">
+                <pre className="whitespace-pre-wrap break-all p-2 text-left">{request.inputPreview}</pre>
+              </div>
             </div>
 
             {request.requiresPermissions && (

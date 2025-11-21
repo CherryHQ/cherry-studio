@@ -27,6 +27,18 @@
         "null_id": "智能体 ID 为空。"
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
+        "recheck": "重新检测 Git Bash 安装",
+        "title": "需要 Git Bash"
+      },
+      "notFound": "未找到 Git Bash。请先安装。",
+      "success": "成功检测到 Git Bash！"
+    },
+    "input": {
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
+    },
     "list": {
       "error": {
         "failed": "获取智能体列表失败"
@@ -339,6 +351,41 @@
     },
     "title": "API 服务器"
   },
+  "appMenu": {
+    "about": "关于",
+    "close": "关闭窗口",
+    "copy": "复制",
+    "cut": "剪切",
+    "delete": "删除",
+    "documentation": "文档",
+    "edit": "编辑",
+    "feedback": "反馈",
+    "file": "文件",
+    "forceReload": "强制重新加载",
+    "front": "全部置于顶层",
+    "help": "帮助",
+    "hide": "隐藏",
+    "hideOthers": "隐藏其他",
+    "minimize": "最小化",
+    "paste": "粘贴",
+    "quit": "退出",
+    "redo": "重做",
+    "releases": "版本发布",
+    "reload": "重新加载",
+    "resetZoom": "实际大小",
+    "selectAll": "全选",
+    "services": "服务",
+    "toggleDevTools": "切换开发者工具",
+    "toggleFullscreen": "切换全屏",
+    "undo": "撤销",
+    "unhide": "全部显示",
+    "view": "视图",
+    "website": "网站",
+    "window": "窗口",
+    "zoom": "缩放",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
+  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -596,6 +643,15 @@
       "view_full_content": "查看完整内容"
     },
     "input": {
+      "activity_directory": {
+        "description": "从活动目录中选择文件",
+        "loading": "正在加载文件...",
+        "no_file_found": {
+          "description": "可访问目录中没有可用文件",
+          "label": "未找到文件"
+        },
+        "title": "活动目录"
+      },
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
@@ -619,6 +675,7 @@
       "new": {
         "context": "清除上下文 {{Command}}"
       },
+      "new_session": "新会话 {{Command}}",
       "new_topic": "新话题 {{Command}}",
       "paste_text_file_confirm": "粘贴到输入框？",
       "pause": "暂停",
@@ -626,6 +683,10 @@
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "send": "发送",
       "settings": "设置",
+      "slash_commands": {
+        "description": "代理会话斜杠命令",
+        "title": "斜杠命令"
+      },
       "thinking": {
         "budget_exceeds_max": "思考预算超过最大 Token 数",
         "label": "思考",
@@ -855,7 +916,7 @@
       "show_line_numbers": "代码显示行号",
       "temperature": {
         "label": "模型温度",
-        "tip": "模型生成文本的随机程度。值越大，回复内容越赋有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7"
+        "tip": "模型生成文本的随机程度。值越大，回复内容越富有多样性、创造性、随机性；设为 0 根据事实回答。日常聊天建议设置为 0.7"
       },
       "thought_auto_collapse": {
         "label": "思考内容自动折叠",
@@ -1325,6 +1386,36 @@
     "preview": "预览",
     "split": "分屏"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT 导入",
+      "button": "选择文件",
+      "description": "仅导入对话文字，不携带图片和附件",
+      "error": {
+        "invalid_json": "无效的 JSON 文件格式",
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "help": {
+        "step1": "1. 登录 ChatGPT，进入设置 > 数据控制 > 导出数据",
+        "step2": "2. 等待邮件接收导出文件",
+        "step3": "3. 解压下载的文件，找到 conversations.json",
+        "title": "如何导出 ChatGPT 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "title": "导入 ChatGPT 对话",
+      "untitled_conversation": "未命名对话"
+    },
+    "confirm": {
+      "button": "选择导入文件",
+      "label": "确定要导入外部数据吗？"
+    },
+    "content": "选择要导入的外部应用对话文件，暂时仅支持ChatGPT的JSON格式文件",
+    "title": "导入外部对话"
+  },
   "knowledge": {
     "add": {
       "title": "添加知识库"
@@ -1612,7 +1703,7 @@
     },
     "assistant": {
       "added": {
-        "content": "智能体添加成功"
+        "content": "助手添加成功"
       }
     },
     "attachments": {
@@ -1737,6 +1828,9 @@
     },
     "message": {
       "code_style": "代码风格",
+      "compact": {
+        "title": "对话已压缩"
+      },
       "delete": {
         "content": "确定要删除此消息吗？",
         "title": "删除消息"
@@ -2433,6 +2527,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2443,6 +2538,7 @@
     "baidu-cloud": "百度云千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里云百炼",
@@ -3029,6 +3125,7 @@
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
         "export_settings": "导出设置",
+        "import_settings": "导入设置",
         "third_party": "第三方连接"
       },
       "export_menu": {
@@ -3087,6 +3184,11 @@
       },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
+      "import_settings": {
+        "button": "导入文件",
+        "chatgpt": "导入 ChatGPT 数据",
+        "title": "导入外部应用数据"
+      },
       "joplin": {
         "check": {
           "button": "检测",
@@ -3767,6 +3869,7 @@
         "description": "不启用 MCP 服务功能",
         "label": "不使用 MCP 服务器"
       },
+      "discover": "发现",
       "duplicateName": "已存在同名服务器",
       "editJson": "编辑 JSON",
       "editMcpJson": "编辑 MCP 配置",
@@ -3776,6 +3879,10 @@
       "errors": {
         "32000": "MCP 服务器启动失败，请根据教程检查参数是否填写完整",
         "toolNotFound": "未找到工具 {{name}}"
+      },
+      "fetch": {
+        "button": "获取服务器",
+        "success": "服务器获取成功"
       },
       "findMore": "更多 MCP",
       "headers": "请求头",
@@ -3792,6 +3899,7 @@
       "logoUrl": "标志网址",
       "longRunning": "长时间运行模式",
       "longRunningTooltip": "启用后，服务器支持长时间任务，接收到进度通知时会重置超时计时器，并延长最大超时时间至10分钟",
+      "marketplaces": "市场",
       "missingDependencies": "缺失，请安装它以继续",
       "more": {
         "awesome": "精选的 MCP 服务器列表",
@@ -3823,6 +3931,12 @@
         "usage": "用法",
         "version": "版本"
       },
+      "oauth": {
+        "callback": {
+          "message": "您可以关闭此页面并返回 Cherry Studio",
+          "title": "认证成功"
+        }
+      },
       "prompts": {
         "arguments": "参数",
         "availablePrompts": "可用提示",
@@ -3840,6 +3954,7 @@
       "provider": "提供者",
       "providerPlaceholder": "提供者名称",
       "providerUrl": "提供者网址",
+      "providers": "提供商",
       "registry": "包管理源",
       "registryDefault": "默认",
       "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题",
@@ -3862,6 +3977,7 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "服务器",
       "serverSingular": "服务器",
+      "servers": "MCP 服务器",
       "sse": "服务器发送事件 (sse)",
       "startError": "启动失败",
       "stdio": "标准输入 / 输出 (stdio)",
@@ -4275,7 +4391,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 preview 版本"
+          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，请输入 v1 版本"
         }
       },
       "basic_auth": {
@@ -4410,6 +4526,7 @@
       "confirm": "确认",
       "forward": "前进",
       "multiple": "多选",
+      "noResult": "未找到结果",
       "page": "翻页",
       "select": "选择",
       "title": "快捷菜单"

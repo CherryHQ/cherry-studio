@@ -1,6 +1,7 @@
-import { Accordion } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { NormalToolResponse } from '@renderer/types'
+import type { CollapseProps } from 'antd'
+import { Collapse } from 'antd'
 
 // 导出所有类型
 export * from './types'
@@ -54,29 +55,28 @@ export function isValidAgentToolsType(toolName: unknown): toolName is AgentTools
   return typeof toolName === 'string' && Object.values(AgentToolsType).includes(toolName as AgentToolsType)
 }
 
-// 统一的渲染函数
-function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: ToolOutput) {
+// 统一的渲染组件
+function ToolContent({ toolName, input, output }: { toolName: AgentToolsType; input: ToolInput; output?: ToolOutput }) {
   const Renderer = toolRenderers[toolName]
+  const renderedItem = Renderer
+    ? Renderer({ input: input as any, output: output as any })
+    : UnknownToolRenderer({ input: input as any, output: output as any, toolName })
+
+  const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
+    ...renderedItem,
+    classNames: {
+      body: 'bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 p-2 overflow-scroll'
+    }
+  }
 
   return (
-    <div className="w-max max-w-full rounded-md bg-foreground-100 py-1 transition-all duration-300 ease-in-out dark:bg-foreground-100">
-      <Accordion
-        className="w-max max-w-full"
-        itemClasses={{
-          trigger:
-            'p-0 [&>div:first-child]:!flex-none [&>div:first-child]:flex [&>div:first-child]:flex-col [&>div:first-child]:text-start [&>div:first-child]:max-w-full',
-          indicator: 'flex-shrink-0',
-          subtitle: 'text-xs',
-          content:
-            'rounded-md bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 p-2 overflow-scroll',
-          base: 'space-y-1'
-        }}
-        defaultExpandedKeys={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}>
-        {Renderer
-          ? Renderer({ input: input as any, output: output as any })
-          : UnknownToolRenderer({ input: input as any, output: output as any, toolName })}
-      </Accordion>
-    </div>
+    <Collapse
+      className="w-max max-w-full"
+      expandIconPosition="end"
+      size="small"
+      defaultActiveKey={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}
+      items={[toolContentItem]}
+    />
   )
 }
 
@@ -93,5 +93,7 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
     return <ToolPermissionRequestCard toolResponse={toolResponse} />
   }
 
-  return renderToolContent(tool.name as AgentToolsType, args as ToolInput, response as ToolOutput)
+  return (
+    <ToolContent toolName={tool.name as AgentToolsType} input={args as ToolInput} output={response as ToolOutput} />
+  )
 }

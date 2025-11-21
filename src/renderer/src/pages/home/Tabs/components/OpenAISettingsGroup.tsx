@@ -1,5 +1,6 @@
 import Selector from '@renderer/components/Selector'
 import {
+  getModelSupportedVerbosity,
   isSupportedReasoningEffortOpenAIModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
@@ -20,6 +21,11 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+
+type VerbosityOption = {
+  value: OpenAIVerbosity
+  label: string
+}
 
 interface Props {
   model: Model
@@ -88,28 +94,28 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     }
   ]
 
-  const verbosityOptions = [
-    {
-      value: null,
-      label: t('common.off')
-    },
-    {
-      value: undefined,
-      label: t('common.default')
-    },
-    {
-      value: 'low',
-      label: t('settings.openai.verbosity.low')
-    },
-    {
-      value: 'medium',
-      label: t('settings.openai.verbosity.medium')
-    },
-    {
-      value: 'high',
-      label: t('settings.openai.verbosity.high')
-    }
-  ]
+  const verbosityOptions = useMemo(() => {
+    const allOptions = [
+      {
+        value: null,
+        label: t('common.default')
+      },
+      {
+        value: 'low',
+        label: t('settings.openai.verbosity.low')
+      },
+      {
+        value: 'medium',
+        label: t('settings.openai.verbosity.medium')
+      },
+      {
+        value: 'high',
+        label: t('settings.openai.verbosity.high')
+      }
+    ] as const satisfies VerbosityOption[]
+    const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+    return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value))
+  }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
     let baseOptions: { value: OpenAIServiceTier; label: string }[] | { value: GroqServiceTier; label: string }[]
@@ -174,6 +180,15 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       }
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
+
+  useEffect(() => {
+    if (verbosity && !verbosityOptions.some((option) => option.value === verbosity)) {
+      const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+      // Default to the highest supported verbosity level
+      const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
+      setVerbosity(defaultVerbosity)
+    }
+  }, [model, verbosity, verbosityOptions, setVerbosity])
 
   if (!isOpenAIReasoning && !isSupportServiceTier && !isSupportVerbosity) {
     return null

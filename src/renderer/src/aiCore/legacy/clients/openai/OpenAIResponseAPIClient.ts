@@ -90,7 +90,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     if (isOpenAILLMModel(model) && !isOpenAIChatCompletionOnlyModel(model)) {
       if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
         this.provider = { ...this.provider, apiHost: this.formatApiHost() }
-        if (this.provider.apiVersion === 'preview') {
+        if (this.provider.apiVersion === 'preview' || this.provider.apiVersion === 'v1') {
           return this
         } else {
           return this.client
@@ -297,7 +297,31 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   private convertResponseToMessageContent(response: OpenAI.Responses.Response): ResponseInput {
     const content: OpenAI.Responses.ResponseInput = []
-    content.push(...response.output)
+    response.output.forEach((item) => {
+      if (item.type !== 'apply_patch_call' && item.type !== 'apply_patch_call_output') {
+        content.push(item)
+      } else if (item.type === 'apply_patch_call') {
+        if (item.operation !== undefined) {
+          const applyPatchToolCall: OpenAI.Responses.ResponseInputItem.ApplyPatchCall = {
+            ...item,
+            operation: item.operation
+          }
+          content.push(applyPatchToolCall)
+        } else {
+          logger.warn('Undefined tool call operation for ApplyPatchToolCall.')
+        }
+      } else if (item.type === 'apply_patch_call_output') {
+        if (item.output !== undefined) {
+          const applyPatchToolCallOutput: OpenAI.Responses.ResponseInputItem.ApplyPatchCallOutput = {
+            ...item,
+            output: item.output === null ? undefined : item.output
+          }
+          content.push(applyPatchToolCallOutput)
+        } else {
+          logger.warn('Undefined tool call operation for ApplyPatchToolCall.')
+        }
+      }
+    })
     return content
   }
 
@@ -496,7 +520,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ...(isSupportVerbosityModel(model)
             ? {
                 text: {
-                  verbosity: this.getVerbosity()
+                  verbosity: this.getVerbosity(model)
                 }
               }
             : {}),

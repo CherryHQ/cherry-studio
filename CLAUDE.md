@@ -7,12 +7,10 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Keep it clear**: Write code that is easy to read, maintain, and explain.
 - **Match the house style**: Reuse existing patterns, naming, and conventions.
 - **Search smart**: Prefer `ast-grep` for semantic queries; fall back to `rg`/`grep` when needed.
-- **Build with HeroUI**: Use HeroUI for every new UI component; never add `antd` or `styled-components`.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
-- **Write conventional commits with emoji**: Commit small, focused changes using emoji-prefixed Conventional Commit messages (e.g., `✨ feat:`, `🐛 fix:`, `♻️ refactor:`, `
-📝 docs:`).
+- **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat:`, `fix:`, `refactor:`, `docs:`).
 
 ## Development Commands
 
@@ -41,7 +39,6 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
 - **Build System**: Electron-Vite with experimental rolldown-vite, yarn workspaces.
 - **State Management**: Redux Toolkit (`src/renderer/src/store/`) for predictable state.
-- **UI Components**: HeroUI (`@heroui/*`) for all new UI elements.
 
 ### Logging
 ```typescript

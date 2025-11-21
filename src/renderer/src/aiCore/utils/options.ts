@@ -1,6 +1,13 @@
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
-import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
+import { loggerService } from '@logger'
+import {
+  getModelSupportedVerbosity,
+  isOpenAIModel,
+  isQwenMTModel,
+  isSupportFlexServiceTierModel,
+  isSupportVerbosityModel
+} from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -37,6 +44,8 @@ import {
   getXAIReasoningParams
 } from './reasoning'
 import { getWebSearchParams } from './websearch'
+
+const logger = loggerService.withContext('aiCore.utils.options')
 
 function getServiceTier<T extends GroqSystemProvider>(model: Model, provider: T): GroqServiceTier
 function getServiceTier<T extends NotGroqProvider>(model: Model, provider: T): OpenAIServiceTier
@@ -90,6 +99,7 @@ export function buildProviderOptions(
     enableGenerateImage: boolean
   }
 ): Record<string, Record<string, JSONValue>> {
+  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
@@ -109,9 +119,6 @@ export function buildProviderOptions(
           textVerbosity,
           serviceTier
         } satisfies OpenAIResponsesProviderOptions
-        break
-      case 'huggingface':
-        providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
         break
       case 'anthropic':
         providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
@@ -135,6 +142,9 @@ export function buildProviderOptions(
         }
         break
       }
+      case 'cherryin':
+        providerSpecificOptions = buildCherryInProviderOptions(assistant, model, capabilities, actualProvider)
+        break
       default:
         throw new Error(`Unsupported base provider ${baseProviderId}`)
     }
@@ -152,6 +162,9 @@ export function buildProviderOptions(
           break
         case 'bedrock':
           providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
+          break
+        case 'huggingface':
+          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
@@ -171,12 +184,17 @@ export function buildProviderOptions(
     ...providerSpecificOptions,
     ...getCustomParameters(assistant)
   }
-  // vertex需要映射到google或anthropic
-  const rawProviderKey =
+
+  let rawProviderKey =
     {
       'google-vertex': 'google',
-      'google-vertex-anthropic': 'anthropic'
+      'google-vertex-anthropic': 'anthropic',
+      'ai-gateway': 'gateway'
     }[rawProviderId] || rawProviderId
+
+  if (rawProviderKey === 'cherryin') {
+    rawProviderKey = { gemini: 'google' }[actualProvider.type] || actualProvider.type
+  }
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
   return {
@@ -206,6 +224,23 @@ function buildOpenAIProviderOptions(
       ...reasoningParams
     }
   }
+
+  if (isSupportVerbosityModel(model)) {
+    const state = window.store?.getState()
+    const userVerbosity = state?.settings?.openAI?.verbosity
+
+    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
+      const supportedVerbosity = getModelSupportedVerbosity(model)
+      // Use user's verbosity if supported, otherwise use the first supported option
+      const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+
+      providerOptions = {
+        ...providerOptions,
+        textVerbosity: verbosity
+      }
+    }
+  }
+
   return providerOptions
 }
 
@@ -291,6 +326,34 @@ function buildXAIProviderOptions(
   }
 
   return providerOptions
+}
+
+function buildCherryInProviderOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  },
+  actualProvider: Provider
+): Record<string, any> {
+  const serviceTierSetting = getServiceTier(model, actualProvider)
+
+  switch (actualProvider.type) {
+    case 'openai':
+      return {
+        ...buildOpenAIProviderOptions(assistant, model, capabilities),
+        serviceTier: serviceTierSetting
+      }
+
+    case 'anthropic':
+      return buildAnthropicProviderOptions(assistant, model, capabilities)
+
+    case 'gemini':
+      return buildGeminiProviderOptions(assistant, model, capabilities)
+  }
+  return {}
 }
 
 /**

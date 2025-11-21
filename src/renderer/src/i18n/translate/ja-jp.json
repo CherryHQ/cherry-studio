@@ -27,6 +27,18 @@
         "null_id": "エージェント ID が null です。"
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "[to be translated]:Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
+        "recheck": "[to be translated]:Recheck Git Bash Installation",
+        "title": "[to be translated]:Git Bash Required"
+      },
+      "notFound": "[to be translated]:Git Bash not found. Please install it first.",
+      "success": "[to be translated]:Git Bash detected successfully!"
+    },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "エージェントの一覧取得に失敗しました。"
@@ -339,6 +351,41 @@
     },
     "title": "API サーバー"
   },
+  "appMenu": {
+    "about": "について",
+    "close": "ウィンドウを閉じる",
+    "copy": "コピー",
+    "cut": "切る",
+    "delete": "削除",
+    "documentation": "ドキュメント",
+    "edit": "編集",
+    "feedback": "フィードバック",
+    "file": "ファイル",
+    "forceReload": "強制再読み込み",
+    "front": "すべてを前面に移動",
+    "help": "助け",
+    "hide": "隠す",
+    "hideOthers": "他を隠す",
+    "minimize": "最小化",
+    "paste": "ペースト",
+    "quit": "やめる",
+    "redo": "やり直し",
+    "releases": "リリース",
+    "reload": "リロード",
+    "resetZoom": "実寸",
+    "selectAll": "すべて選択",
+    "services": "サービス",
+    "toggleDevTools": "開発者ツールを切り替え",
+    "toggleFullscreen": "全画面表示を切り替え",
+    "undo": "元に戻す",
+    "unhide": "すべて表示",
+    "view": "表示",
+    "website": "ウェブサイト",
+    "window": "窓",
+    "zoom": "ズーム",
+    "zoomIn": "ズームイン",
+    "zoomOut": "ズームアウト"
+  },
   "assistants": {
     "abbr": "アシスタント",
     "clear": {
@@ -596,6 +643,15 @@
       "view_full_content": "完全な内容を表示"
     },
     "input": {
+      "activity_directory": {
+        "description": "アクティビティディレクトリからファイルを選択",
+        "loading": "ファイルを読み込んでいます...",
+        "no_file_found": {
+          "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
+          "label": "ファイルが見つかりません"
+        },
+        "title": "アクティビティディレクトリ"
+      },
       "auto_resize": "高さを自動調整",
       "clear": {
         "content": "現在のトピックのすべてのメッセージをクリアしますか？",
@@ -619,6 +675,7 @@
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
+      "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
       "paste_text_file_confirm": "入力欄に貼り付けますか？",
       "pause": "一時停止",
@@ -626,6 +683,10 @@
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "send": "送信",
       "settings": "設定",
+      "slash_commands": {
+        "description": "エージェントセッションスラッシュコマンド",
+        "title": "スラッシュコマンド"
+      },
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
         "label": "思考",
@@ -1611,7 +1672,7 @@
     },
     "assistant": {
       "added": {
-        "content": "アシスタントが追加されました"
+        "content": "助手が追加されました"
       }
     },
     "attachments": {
@@ -1736,6 +1797,9 @@
     },
     "message": {
       "code_style": "コードスタイル",
+      "compact": {
+        "title": "会話圧縮"
+      },
       "delete": {
         "content": "このメッセージを削除してもよろしいですか？",
         "title": "メッセージを削除"
@@ -2432,6 +2496,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AIゲートウェイ",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2442,6 +2507,7 @@
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
@@ -3766,6 +3832,7 @@
         "description": "MCP機能を有効にしない",
         "label": "MCPサーバーを無効にする"
       },
+      "discover": "発見",
       "duplicateName": "同じ名前のサーバーが既に存在します",
       "editJson": "JSONを編集",
       "editMcpJson": "MCP 設定を編集",
@@ -3775,6 +3842,10 @@
       "errors": {
         "32000": "MCP サーバーが起動しませんでした。パラメーターを確認してください",
         "toolNotFound": "ツール {{name}} が見つかりません"
+      },
+      "fetch": {
+        "button": "サーバーを取得",
+        "success": "MCPサーバーの取得に成功しました"
       },
       "findMore": "MCP を見つける",
       "headers": "ヘッダー",
@@ -3791,6 +3862,7 @@
       "logoUrl": "ロゴURL",
       "longRunning": "長時間運行モード",
       "longRunningTooltip": "このオプションを有効にすると、サーバーは長時間のタスクをサポートします。進行状況通知を受信すると、タイムアウトがリセットされ、最大実行時間が10分に延長されます。",
+      "marketplaces": "マーケットプレイス",
       "missingDependencies": "が不足しています。続行するにはインストールしてください。",
       "more": {
         "awesome": "厳選された MCP サーバーリスト",
@@ -3822,6 +3894,12 @@
         "usage": "使用法",
         "version": "バージョン"
       },
+      "oauth": {
+        "callback": {
+          "message": "このページを閉じてCherry Studioに戻ることができます",
+          "title": "認証成功"
+        }
+      },
       "prompts": {
         "arguments": "引数",
         "availablePrompts": "利用可能なプロンプト",
@@ -3839,6 +3917,7 @@
       "provider": "プロバイダー",
       "providerPlaceholder": "プロバイダー名",
       "providerUrl": "プロバイダーURL",
+      "providers": "プロバイダー",
       "registry": "パッケージ管理レジストリ",
       "registryDefault": "デフォルト",
       "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
@@ -3861,6 +3940,7 @@
       "searchNpx": "MCP を検索",
       "serverPlural": "サーバー",
       "serverSingular": "サーバー",
+      "servers": "MCPサーバー",
       "sse": "サーバー送信イベント (sse)",
       "startError": "起動に失敗しました",
       "stdio": "標準入力/出力 (stdio)",
@@ -4275,7 +4355,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、previewバージョンを入力してください"
+          "tip": "Azure OpenAIのAPIバージョン。Response APIを使用する場合は、v1バージョンを入力してください"
         }
       },
       "basic_auth": {
@@ -4410,6 +4490,7 @@
       "confirm": "確認",
       "forward": "進む",
       "multiple": "複数選択",
+      "noResult": "結果が見つかりません",
       "page": "ページ",
       "select": "選択",
       "title": "クイックメニュー"

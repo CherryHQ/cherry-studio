@@ -11,7 +11,8 @@ import {
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
-  isNewApiProvider
+  isNewApiProvider,
+  isPerplexityProvider
 } from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
@@ -103,6 +104,8 @@ function formatProviderApiHost(provider: Provider): Provider {
     formatted.apiHost = formatVertexApiHost(formatted)
   } else if (isCherryAIProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isPerplexityProvider(formatted)) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else {
     formatted.apiHost = formatApiHost(formatted.apiHost)
   }
@@ -168,7 +171,7 @@ export function providerToAiSdkConfig(
   extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai') {
+  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
     extraOptions.mode = 'chat'
   }
 
@@ -186,9 +189,11 @@ export function providerToAiSdkConfig(
     }
   }
   // azure
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
   if (aiSdkProviderId === 'azure' || actualProvider.type === 'azure-openai') {
-    // extraOptions.apiVersion = actualProvider.apiVersion 默认使用v1，不使用azure endpoint
-    if (actualProvider.apiVersion === 'preview') {
+    // extraOptions.apiVersion = actualProvider.apiVersion === 'preview' ? 'v1' : actualProvider.apiVersion 默认使用v1，不使用azure endpoint
+    if (actualProvider.apiVersion === 'preview' || actualProvider.apiVersion === 'v1') {
       extraOptions.mode = 'responses'
     } else {
       extraOptions.mode = 'chat'
@@ -220,6 +225,13 @@ export function providerToAiSdkConfig(
       privateKey: formatPrivateKey(googleCredentials.privateKey)
     }
     baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
+  }
+
+  // cherryin
+  if (aiSdkProviderId === 'cherryin') {
+    if (model.endpoint_type) {
+      extraOptions.endpointType = model.endpoint_type
+    }
   }
 
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {

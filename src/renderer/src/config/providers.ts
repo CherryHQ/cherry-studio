@@ -12,6 +12,7 @@ import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-clou
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
+import CerebrasProviderLogo from '@renderer/assets/images/providers/cerebras.webp'
 import CherryInProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
@@ -51,6 +52,7 @@ import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import AIGatewayProviderLogo from '@renderer/assets/images/providers/vercel.svg'
 import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
@@ -65,7 +67,7 @@ import type {
   SystemProvider,
   SystemProviderId
 } from '@renderer/types'
-import { isSystemProvider, OpenAIServiceTiers } from '@renderer/types'
+import { isSystemProvider, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
@@ -273,6 +275,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.qnaigc.com',
+    anthropicApiHost: 'https://api.qnaigc.com',
     models: SYSTEM_MODELS.qiniu,
     isSystem: true,
     enabled: false
@@ -470,7 +473,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'MiniMax',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.minimax.chat/v1/',
+    apiHost: 'https://api.minimaxi.com/v1',
+    anthropicApiHost: 'https://api.minimaxi.com/anthropic',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
     enabled: false
@@ -662,6 +666,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.longcat.chat/openai',
+    anthropicApiHost: 'https://api.longcat.chat/anthropic',
     models: SYSTEM_MODELS.longcat,
     isSystem: true,
     enabled: false
@@ -673,6 +678,26 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://router.huggingface.co/v1/',
     models: [],
+    isSystem: true,
+    enabled: false
+  },
+  'ai-gateway': {
+    id: 'ai-gateway',
+    name: 'AI Gateway',
+    type: 'ai-gateway',
+    apiKey: '',
+    apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
+    models: [],
+    isSystem: true,
+    enabled: false
+  },
+  cerebras: {
+    id: 'cerebras',
+    name: 'Cerebras AI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.cerebras.ai/v1',
+    models: SYSTEM_MODELS.cerebras,
     isSystem: true,
     enabled: false
   }
@@ -741,7 +766,9 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   aionly: AiOnlyProviderLogo,
   longcat: LongCatProviderLogo,
   huggingface: HuggingfaceProviderLogo,
-  sophnet: SophnetProviderLogo
+  sophnet: SophnetProviderLogo,
+  'ai-gateway': AIGatewayProviderLogo,
+  cerebras: CerebrasProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1048,7 +1075,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   minimax: {
     api: {
-      url: 'https://api.minimax.chat/v1/'
+      url: 'https://api.minimaxi.com/v1/'
     },
     websites: {
       official: 'https://platform.minimaxi.com/',
@@ -1390,6 +1417,28 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       docs: 'https://huggingface.co/docs',
       models: 'https://huggingface.co/models'
     }
+  },
+  'ai-gateway': {
+    api: {
+      url: 'https://ai-gateway.vercel.sh/v1/ai'
+    },
+    websites: {
+      official: 'https://vercel.com/ai-gateway',
+      apiKey: 'https://vercel.com/',
+      docs: 'https://vercel.com/docs/ai-gateway',
+      models: 'https://vercel.com/ai-gateway/models'
+    }
+  },
+  cerebras: {
+    api: {
+      url: 'https://api.cerebras.ai/v1'
+    },
+    websites: {
+      official: 'https://www.cerebras.ai',
+      apiKey: 'https://cloud.cerebras.ai',
+      docs: 'https://inference-docs.cerebras.ai/introduction',
+      models: 'https://inference-docs.cerebras.ai/models/overview'
+    }
   }
 }
 
@@ -1452,7 +1501,7 @@ export const isSupportEnableThinkingProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot', 'cerebras'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 service_tier 设置。 Only for OpenAI API.
@@ -1472,7 +1521,10 @@ const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
 ] as const satisfies ProviderType[]
 
 export const isSupportUrlContextProvider = (provider: Provider) => {
-  return SUPPORT_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+  return (
+    SUPPORT_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type) ||
+    provider.id === SystemProviderIds.cherryin
+  )
 }
 
 const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]
@@ -1488,6 +1540,10 @@ export const isNewApiProvider = (provider: Provider) => {
 
 export function isCherryAIProvider(provider: Provider): boolean {
   return provider.id === 'cherryai'
+}
+
+export function isPerplexityProvider(provider: Provider): boolean {
+  return provider.id === 'perplexity'
 }
 
 /**
@@ -1515,7 +1571,19 @@ export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
 }
 
-const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot'] as const satisfies SystemProviderId[]
+export function isVertexAiProvider(provider: Provider): boolean {
+  return provider.type === 'vertexai'
+}
+
+export function isAIGatewayProvider(provider: Provider): boolean {
+  return provider.type === 'ai-gateway'
+}
+
+export function isAwsBedrockProvider(provider: Provider): boolean {
+  return provider.type === 'aws-bedrock'
+}
+
+const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
 
 export const isSupportAPIVersionProvider = (provider: Provider) => {
   if (isSystemProvider(provider)) {
