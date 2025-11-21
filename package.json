@@ -89,6 +89,7 @@
     "@paymoapp/electron-shutdown-handler": "^1.1.2",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "better-sqlite3": "12.4.1",
+    "emoji-picker-element-data": "^1",
     "express": "^5.1.0",
     "font-list": "^2.0.0",
     "graceful-fs": "^4.2.11",
