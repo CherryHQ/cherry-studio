@@ -29,20 +29,33 @@ export class ConversationService {
       }
     }
 
-    const filteredMessages1 = filterAfterContextClearMessages(messages)
+    // Step 1: Filter messages after the last context clear marker
+    const messagesAfterContextClear = filterAfterContextClearMessages(messages)
 
-    const filteredMessages2 = filterUsefulMessages(filteredMessages1)
+    // Step 2: Keep only useful messages (based on useful flag)
+    const usefulMessages = filterUsefulMessages(messagesAfterContextClear)
 
-    const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
+    // Step 3: Remove trailing assistant messages
+    const withoutTrailingAssistant = filterLastAssistantMessage(usefulMessages)
 
-    // Filter out error-only assistant messages and their associated user messages
-    const filteredMessages4 = filterErrorOnlyMessagesWithRelated(filteredMessages3)
+    // Step 4: Filter out error-only assistant messages and their associated user messages
+    const withoutErrorOnlyPairs = filterErrorOnlyMessagesWithRelated(withoutTrailingAssistant)
 
-    const filteredMessages5 = filterAdjacentUserMessaegs(filteredMessages4)
+    // Step 5: Filter adjacent user messages, keeping only the last one
+    const withoutAdjacentUsers = filterAdjacentUserMessaegs(withoutErrorOnlyPairs)
 
-    let uiMessages = filterUserRoleStartMessages(
-      filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages5, contextCount + 2))) // 取原来几个provider的最大值
-    )
+    // Step 6: Apply context limit and final filters
+    // Take the last N messages based on context count (取原来几个provider的最大值)
+    const limitedByContext = takeRight(withoutAdjacentUsers, contextCount + 2)
+
+    // Filter again after context clear (in case context limit included old messages)
+    const contextClearFiltered = filterAfterContextClearMessages(limitedByContext)
+
+    // Remove empty messages
+    const nonEmptyMessages = filterEmptyMessages(contextClearFiltered)
+
+    // Ensure messages start with a user message
+    let uiMessages = filterUserRoleStartMessages(nonEmptyMessages)
 
     // Fallback: ensure at least the last user message is present to avoid empty payloads
     if ((!uiMessages || uiMessages.length === 0) && lastUserMessage) {
