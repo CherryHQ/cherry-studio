@@ -46,6 +46,7 @@ export type ProviderApiOptions = {
 
 // scale is not well supported now. It even lacks of docs
 // We take undefined as same as default, and null as same as explicitly off.
+// It controls whether the response contains the serviceTier field or not, so undefined and null should be separated.
 export type OpenAIServiceTier = Exclude<OpenAI.Responses.ResponseCreateParams['service_tier'], 'scale'>
 
 export const OpenAIServiceTiers = {
