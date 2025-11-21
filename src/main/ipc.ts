@@ -493,6 +493,44 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
   ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
   ipcMain.handle(IpcChannel.System_GetCpuName, () => require('os').cpus()[0].model)
+  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
+    if (!isWin) {
+      return true // Non-Windows systems don't need Git Bash
+    }
+
+    try {
+      // Check common Git Bash installation paths
+      const commonPaths = [
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe')
+      ]
+
+      // Check if any of the common paths exist
+      for (const bashPath of commonPaths) {
+        if (fs.existsSync(bashPath)) {
+          logger.debug('Git Bash found', { path: bashPath })
+          return true
+        }
+      }
+
+      // Check if git is in PATH
+      const { execSync } = require('child_process')
+      try {
+        execSync('git --version', { stdio: 'ignore' })
+        logger.debug('Git found in PATH')
+        return true
+      } catch {
+        // Git not in PATH
+      }
+
+      logger.debug('Git Bash not found on Windows system')
+      return false
+    } catch (error) {
+      logger.error('Error checking Git Bash', error as Error)
+      return false
+    }
+  })
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     win && win.webContents.toggleDevTools()
