@@ -1,6 +1,7 @@
 import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
+import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
@@ -37,7 +38,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
-import type { OpenAIReasoningEffort, OpenAISummaryText } from '@renderer/types/aiCoreTypes'
+import type { OpenAISummaryText } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
 import { toInteger } from 'lodash'
 
@@ -348,7 +349,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 export function getOpenAIReasoningParams(
   assistant: Assistant,
   model: Model
-): { reasoningEffort?: OpenAIReasoningEffort; reasoningSummary?: OpenAISummaryText } {
+): Pick<OpenAIResponsesProviderOptions, 'reasoningEffort' | 'reasoningSummary'> {
   if (!isReasoningModel(model)) {
     return {}
   }
