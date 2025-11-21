@@ -101,27 +101,25 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
 
   const onCancel = () => {
     setOpen(false)
-    resolve(null)
   }
 
   const panelConfigs: PanelConfig[] = [
     {
       key: 'general',
       label: t('settings.general.label'),
+      panel: <GeneralSettingsPanel newBase={newBase} setNewBase={setNewBase} handlers={handlers} />
+    },
+    {
+      key: 'advanced',
+      label: t('settings.advanced.title'),
       panel: (
-        <GeneralSettingsPanel
+        <AdvancedSettingsPanel
           newBase={newBase}
-          setNewBase={setNewBase}
           selectedDocPreprocessProvider={selectedDocPreprocessProvider}
           docPreprocessSelectOptions={docPreprocessSelectOptions}
           handlers={handlers}
         />
       )
-    },
-    {
-      key: 'advanced',
-      label: t('settings.advanced.title'),
-      panel: <AdvancedSettingsPanel newBase={newBase} handlers={handlers} />
     }
   ]
 
@@ -134,6 +132,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
       onCancel={onCancel}
       afterClose={() => resolve(null)}
       panels={panelConfigs}
+      defaultExpandAdvanced={true}
     />
   )
 }

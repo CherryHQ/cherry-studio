@@ -2,12 +2,11 @@ import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimensio
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isEmbeddingModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import type { SelectProps } from 'antd'
-import { Input, Select, Slider } from 'antd'
+import type { KnowledgeBase } from '@renderer/types'
+import { Input, Slider } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
@@ -15,27 +14,16 @@ import { SettingsItem, SettingsPanel } from './styles'
 interface GeneralSettingsPanelProps {
   newBase: KnowledgeBase
   setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>
-  selectedDocPreprocessProvider?: PreprocessProvider
-  docPreprocessSelectOptions: SelectProps['options']
   handlers: {
     handleEmbeddingModelChange: (value: string) => void
     handleDimensionChange: (value: number | null) => void
-    handleRerankModelChange: (value: string) => void
-    handleDocPreprocessChange: (value: string) => void
   }
 }
 
-const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
-  newBase,
-  setNewBase,
-  selectedDocPreprocessProvider,
-  docPreprocessSelectOptions,
-  handlers
-}) => {
+const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, setNewBase, handlers }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { handleEmbeddingModelChange, handleDimensionChange, handleRerankModelChange, handleDocPreprocessChange } =
-    handlers
+  const { handleEmbeddingModelChange, handleDimensionChange } = handlers
 
   return (
     <SettingsPanel>
@@ -45,21 +33,6 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           placeholder={t('common.name')}
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
-        />
-      </SettingsItem>
-
-      <SettingsItem>
-        <div className="settings-label">
-          {t('settings.tool.preprocess.title')}
-          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
-        </div>
-        <Select
-          value={selectedDocPreprocessProvider?.id}
-          style={{ width: '100%' }}
-          onChange={handleDocPreprocessChange}
-          placeholder={t('settings.tool.preprocess.provider_placeholder')}
-          options={docPreprocessSelectOptions}
-          allowClear
         />
       </SettingsItem>
 
@@ -93,27 +66,11 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
 
       <SettingsItem>
         <div className="settings-label">
-          {t('models.rerank_model')}
-          <InfoTooltip title={t('models.rerank_model_tooltip')} placement="right" />
-        </div>
-        <ModelSelector
-          providers={providers}
-          predicate={isRerankModel}
-          style={{ width: '100%' }}
-          value={getModelUniqId(newBase.rerankModel) || undefined}
-          placeholder={t('settings.models.empty')}
-          onChange={handleRerankModelChange}
-          allowClear
-        />
-      </SettingsItem>
-
-      <SettingsItem>
-        <div className="settings-label">
           {t('knowledge.document_count')}
           <InfoTooltip title={t('knowledge.document_count_help')} placement="right" />
         </div>
         <Slider
-          style={{ width: '100%' }}
+          style={{ width: '97%' }}
           min={1}
           max={50}
           step={1}
