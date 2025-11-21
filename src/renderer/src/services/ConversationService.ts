@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { convertMessagesToSdkMessages } from '@renderer/aiCore/prepareParams'
 import type { Assistant, Message } from '@renderer/types'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
@@ -12,6 +13,8 @@ import {
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from './MessagesService'
+
+const logger = loggerService.withContext('ConversationService')
 
 export class ConversationService {
   /**
@@ -28,7 +31,8 @@ export class ConversationService {
     const limitedByContext = takeRight(withoutAdjacentUsers, contextCount + 2)
     const contextClearFiltered = filterAfterContextClearMessages(limitedByContext)
     const nonEmptyMessages = filterEmptyMessages(contextClearFiltered)
-    return filterUserRoleStartMessages(nonEmptyMessages)
+    const userRoleStartMessages = filterUserRoleStartMessages(nonEmptyMessages)
+    return userRoleStartMessages
   }
 
   static async prepareMessagesForModel(
@@ -47,6 +51,7 @@ export class ConversationService {
     }
 
     const uiMessagesFromPipeline = ConversationService.filterMessagesPipeline(messages, contextCount)
+    logger.debug('uiMessagesFromPipeline', uiMessagesFromPipeline)
 
     // Fallback: ensure at least the last user message is present to avoid empty payloads
     let uiMessages = uiMessagesFromPipeline
