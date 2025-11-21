@@ -194,7 +194,7 @@ describe('Claude → AiSDK transform', () => {
   })
 
   it('handles tool calls without streaming events (no content_block_start/stop)', () => {
-    const state = new ClaudeStreamState()
+    const state = new ClaudeStreamState({ agentSessionId: '12344' })
     const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
 
     const messages: SDKMessage[] = [
@@ -412,7 +412,7 @@ describe('Claude → AiSDK transform', () => {
   })
 
   it('emits fallback text when Claude sends a snapshot instead of deltas', () => {
-    const state = new ClaudeStreamState()
+    const state = new ClaudeStreamState({ agentSessionId: '12344' })
     const parts: ReturnType<typeof transformSDKMessageToStreamParts>[number][] = []
 
     const messages: SDKMessage[] = [
