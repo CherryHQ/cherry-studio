@@ -10,7 +10,7 @@ export const defaultAppHeaders = () => {
  * @returns `null` if the input is `undefined`; otherwise the input value
  */
 
-export function defined<T>(value: T | undefined): T | null {
+export function toNullIfUndefined<T>(value: T | undefined): T | null {
   if (value === undefined) {
     return null
   } else {
@@ -22,7 +22,7 @@ export function defined<T>(value: T | undefined): T | null {
  * @returns `undefined` if the input is `null`; otherwise the input value
  */
 
-export function notNull<T>(value: T | null): T | undefined {
+export function toUndefinedIfNull<T>(value: T | null): T | undefined {
   if (value === null) {
     return undefined
   } else {
