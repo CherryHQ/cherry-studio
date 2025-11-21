@@ -1,6 +1,7 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
 import type { Model } from '@renderer/types'
+import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from '../prompts'
@@ -242,17 +243,20 @@ export const isGPT51SeriesModel = (model: Model) => {
 
 // GPT-5 verbosity configuration
 // gpt-5-pro only supports 'high', other GPT-5 models support all levels
-export const MODEL_SUPPORTED_VERBOSITY: Record<string, ('low' | 'medium' | 'high')[]> = {
+export const MODEL_SUPPORTED_VERBOSITY: Record<string, ValidOpenAIVerbosity[]> = {
   'gpt-5-pro': ['high'],
   default: ['low', 'medium', 'high']
-}
+} as const
 
-export const getModelSupportedVerbosity = (model: Model): ('low' | 'medium' | 'high')[] => {
+export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
   const modelId = getLowerBaseModelName(model.id)
+  let supportedValues: ValidOpenAIVerbosity[]
   if (modelId.includes('gpt-5-pro')) {
-    return MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
+    supportedValues = MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
+  } else {
+    supportedValues = MODEL_SUPPORTED_VERBOSITY.default
   }
-  return MODEL_SUPPORTED_VERBOSITY.default
+  return [null, ...supportedValues]
 }
 
 export const isGeminiModel = (model: Model) => {
