@@ -14,6 +14,23 @@ import {
 } from './MessagesService'
 
 export class ConversationService {
+  /**
+   * Applies the filtering pipeline that prepares UI messages for model consumption.
+   * This keeps the logic testable and prevents future regressions when the pipeline changes.
+   */
+  static filterMessagesPipeline(messages: Message[], contextCount: number): Message[] {
+    const messagesAfterContextClear = filterAfterContextClearMessages(messages)
+    const usefulMessages = filterUsefulMessages(messagesAfterContextClear)
+    // Run the error-only filter before trimming trailing assistant responses so the pair is removed together.
+    const withoutErrorOnlyPairs = filterErrorOnlyMessagesWithRelated(usefulMessages)
+    const withoutTrailingAssistant = filterLastAssistantMessage(withoutErrorOnlyPairs)
+    const withoutAdjacentUsers = filterAdjacentUserMessaegs(withoutTrailingAssistant)
+    const limitedByContext = takeRight(withoutAdjacentUsers, contextCount + 2)
+    const contextClearFiltered = filterAfterContextClearMessages(limitedByContext)
+    const nonEmptyMessages = filterEmptyMessages(contextClearFiltered)
+    return filterUserRoleStartMessages(nonEmptyMessages)
+  }
+
   static async prepareMessagesForModel(
     messages: Message[],
     assistant: Assistant
@@ -29,35 +46,10 @@ export class ConversationService {
       }
     }
 
-    // Step 1: Filter messages after the last context clear marker
-    const messagesAfterContextClear = filterAfterContextClearMessages(messages)
-
-    // Step 2: Keep only useful messages (based on useful flag)
-    const usefulMessages = filterUsefulMessages(messagesAfterContextClear)
-
-    // Step 3: Remove trailing assistant messages
-    const withoutTrailingAssistant = filterLastAssistantMessage(usefulMessages)
-
-    // Step 4: Filter out error-only assistant messages and their associated user messages
-    const withoutErrorOnlyPairs = filterErrorOnlyMessagesWithRelated(withoutTrailingAssistant)
-
-    // Step 5: Filter adjacent user messages, keeping only the last one
-    const withoutAdjacentUsers = filterAdjacentUserMessaegs(withoutErrorOnlyPairs)
-
-    // Step 6: Apply context limit and final filters
-    // Take the last N messages based on context count (取原来几个provider的最大值)
-    const limitedByContext = takeRight(withoutAdjacentUsers, contextCount + 2)
-
-    // Filter again after context clear (in case context limit included old messages)
-    const contextClearFiltered = filterAfterContextClearMessages(limitedByContext)
-
-    // Remove empty messages
-    const nonEmptyMessages = filterEmptyMessages(contextClearFiltered)
-
-    // Ensure messages start with a user message
-    let uiMessages = filterUserRoleStartMessages(nonEmptyMessages)
+    const uiMessagesFromPipeline = ConversationService.filterMessagesPipeline(messages, contextCount)
 
     // Fallback: ensure at least the last user message is present to avoid empty payloads
+    let uiMessages = uiMessagesFromPipeline
     if ((!uiMessages || uiMessages.length === 0) && lastUserMessage) {
       uiMessages = [lastUserMessage]
     }
