@@ -52,6 +52,7 @@ export { default as ImageToolButton } from './composites/ImageToolButton'
 export { Sortable } from './composites/Sortable'
 
 /* Shadcn Primitive Components */
+export * from './primitives/breadcrumb'
 export * from './primitives/button'
 export * from './primitives/checkbox'
 export * from './primitives/combobox'
