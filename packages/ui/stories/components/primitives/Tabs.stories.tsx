@@ -87,33 +87,19 @@ export const LineStyle: Story = {
 // Vertical
 export const Vertical: Story = {
   render: () => (
-    <Tabs
-      defaultValue="music"
-      orientation="vertical"
-      variant="line"
-      className="w-[400px]"
-    >
+    <Tabs defaultValue="music" orientation="vertical" variant="line" className="w-[400px]">
       <TabsList className="w-[120px]">
         <TabsTrigger value="music">Music</TabsTrigger>
         <TabsTrigger value="podcasts">Podcasts</TabsTrigger>
         <TabsTrigger value="live">Live</TabsTrigger>
       </TabsList>
-      <TabsContent
-        value="music"
-        className="flex-1 p-4 border rounded-md bg-muted/10 mt-0"
-      >
+      <TabsContent value="music" className="flex-1 p-4 border rounded-md bg-muted/10 mt-0">
         Music content
       </TabsContent>
-      <TabsContent
-        value="podcasts"
-        className="flex-1 p-4 border rounded-md bg-muted/10 mt-0"
-      >
+      <TabsContent value="podcasts" className="flex-1 p-4 border rounded-md bg-muted/10 mt-0">
         Podcasts content
       </TabsContent>
-      <TabsContent
-        value="live"
-        className="flex-1 p-4 border rounded-md bg-muted/10 mt-0"
-      >
+      <TabsContent value="live" className="flex-1 p-4 border rounded-md bg-muted/10 mt-0">
         Live content
       </TabsContent>
     </Tabs>
