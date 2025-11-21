@@ -32,6 +32,11 @@ type SummaryTextOption = {
   label: string
 }
 
+type OpenAIServiceTierOption = { value: OpenAIServiceTier; label: string }
+type GroqServiceTierOption = { value: GroqServiceTier; label: string }
+
+type ServiceTierOptions = OpenAIServiceTierOption[] | GroqServiceTierOption[]
+
 interface Props {
   model: Model
   providerId: string
@@ -119,9 +124,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
-    let baseOptions: { value: OpenAIServiceTier; label: string }[] | { value: GroqServiceTier; label: string }[]
+    let options: ServiceTierOptions
     if (provider.id === SystemProviderIds.groq) {
-      baseOptions = [
+      options = [
         {
           value: null,
           label: t('common.off')
@@ -142,10 +147,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
           value: 'flex',
           label: t('settings.openai.service_tier.flex')
         }
-      ] as const
+      ] as const satisfies GroqServiceTierOption[]
     } else {
       // 其他情况默认是和 OpenAI 相同
-      baseOptions = [
+      options = [
         {
           value: 'auto',
           label: t('settings.openai.service_tier.auto')
@@ -162,9 +167,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
           value: 'priority',
           label: t('settings.openai.service_tier.priority')
         }
-      ] as const
+      ] as const satisfies OpenAIServiceTierOption[]
     }
-    return baseOptions.filter((option) => {
+    return options.filter((option) => {
       if (option.value === 'flex') {
         return isSupportedFlexServiceTier
       }
