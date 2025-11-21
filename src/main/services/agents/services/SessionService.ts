@@ -84,7 +84,8 @@ export class SessionService extends BaseService {
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
 
-    const agents = await this.database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
+    const database = await this.getDatabase()
+    const agents = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
     }
@@ -129,9 +130,10 @@ export class SessionService extends BaseService {
       updated_at: now
     }
 
-    await this.database.insert(sessionsTable).values(insertData)
+    const db = await this.getDatabase()
+    await db.insert(sessionsTable).values(insertData)
 
-    const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+    const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
     if (!result[0]) {
       throw new Error('Failed to create session')
@@ -142,7 +144,8 @@ export class SessionService extends BaseService {
   }
 
   async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
-    const result = await this.database
+    const database = await this.getDatabase()
+    const result = await database
       .select()
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
@@ -182,16 +185,13 @@ export class SessionService extends BaseService {
           : undefined
 
     // Get total count
-    const totalResult = await this.database.select({ count: count() }).from(sessionsTable).where(whereClause)
+    const database = await this.getDatabase()
+    const totalResult = await database.select({ count: count() }).from(sessionsTable).where(whereClause)
 
     const total = totalResult[0].count
 
     // Build list query with pagination - sort by updated_at descending (latest first)
-    const baseQuery = this.database
-      .select()
-      .from(sessionsTable)
-      .where(whereClause)
-      .orderBy(desc(sessionsTable.updated_at))
+    const baseQuery = database.select().from(sessionsTable).where(whereClause).orderBy(desc(sessionsTable.updated_at))
 
     const result =
       options.limit !== undefined
@@ -250,13 +250,15 @@ export class SessionService extends BaseService {
       }
     }
 
-    await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
+    const database = await this.getDatabase()
+    await database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
     return await this.getSession(agentId, id)
   }
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
-    const result = await this.database
+    const database = await this.getDatabase()
+    const result = await database
       .delete(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
@@ -264,7 +266,8 @@ export class SessionService extends BaseService {
   }
 
   async sessionExists(agentId: string, id: string): Promise<boolean> {
-    const result = await this.database
+    const database = await this.getDatabase()
+    const result = await database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))

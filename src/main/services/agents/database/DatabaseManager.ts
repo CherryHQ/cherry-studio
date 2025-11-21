@@ -37,28 +37,30 @@ export class DatabaseManager {
   private client: Client | null = null
   private db: LibSQLDatabase<typeof schema> | null = null
   private state: InitState = InitState.INITIALIZING
-  private initializationPromise: Promise<void>
-
-  private constructor() {
-    // Private constructor for singleton
-    // Start initialization immediately (async, fire and forget)
-    this.initializationPromise = this.performInitialization()
-  }
 
   /**
    * Get the singleton instance (database initialization starts automatically)
    */
-  public static getInstance(): DatabaseManager {
-    if (!DatabaseManager.instance) {
-      DatabaseManager.instance = new DatabaseManager()
+  public static async getInstance(): Promise<DatabaseManager> {
+    if (DatabaseManager.instance) {
+      return DatabaseManager.instance
     }
-    return DatabaseManager.instance
+
+    const instance = new DatabaseManager()
+    await instance.initialize()
+    DatabaseManager.instance = instance
+
+    return instance
   }
 
   /**
    * Perform the actual initialization
    */
-  private async performInitialization(): Promise<void> {
+  public async initialize(): Promise<void> {
+    if (this.state === InitState.INITIALIZED) {
+      return
+    }
+
     try {
       logger.info(`Initializing database at: ${dbPath}`)
 
@@ -133,7 +135,6 @@ export class DatabaseManager {
    * @throws Error if database initialization failed
    */
   public async getDatabase(): Promise<LibSQLDatabase<typeof schema>> {
-    await this.waitForInitialization()
     return this.db!
   }
 
@@ -143,7 +144,6 @@ export class DatabaseManager {
    * @throws Error if database initialization failed
    */
   public async getClient(): Promise<Client> {
-    await this.waitForInitialization()
     return this.client!
   }
 
@@ -153,20 +153,4 @@ export class DatabaseManager {
   public isInitialized(): boolean {
     return this.state === InitState.INITIALIZED
   }
-
-  /**
-   * Wait for initialization to complete
-   */
-  private async waitForInitialization(): Promise<void> {
-    await this.initializationPromise
-
-    if (this.state === InitState.FAILED) {
-      throw new Error('Database initialization failed. Please restart the application.')
-    }
-  }
 }
-
-/**
- * Export singleton instance getter for convenience
- */
-export const getDatabaseManager = () => DatabaseManager.getInstance()

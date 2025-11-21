@@ -4,12 +4,10 @@ import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
-import type { LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
 
-import { getDatabaseManager } from './database/DatabaseManager'
-import type * as schema from './database/schema'
+import { DatabaseManager } from './database/DatabaseManager'
 import type { AgentModelField } from './errors'
 import { AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
@@ -80,25 +78,9 @@ export abstract class BaseService {
    * Get database instance
    * Automatically waits for initialization to complete
    */
-  protected get database() {
-    const dbManager = getDatabaseManager()
-    // Access private fields directly for synchronous getter
-    // Database is auto-initialized on first getDatabaseManager() call
-    if (!dbManager.isInitialized()) {
-      throw new Error('Database is still initializing')
-    }
-    return (dbManager as any).db as LibSQLDatabase<typeof schema>
-  }
-
-  /**
-   * Get raw client (for advanced operations)
-   */
-  protected get rawClient() {
-    const dbManager = getDatabaseManager()
-    if (!dbManager.isInitialized()) {
-      throw new Error('Database is still initializing')
-    }
-    return (dbManager as any).client
+  protected async getDatabase() {
+    const dbManager = await DatabaseManager.getInstance()
+    return dbManager.getDatabase()
   }
 
   protected serializeJsonFields(data: any): any {

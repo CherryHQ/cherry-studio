@@ -87,8 +87,8 @@ class AgentMessageRepository extends BaseService {
     return deserialized
   }
 
-  private getWriter(tx?: TxClient): TxClient {
-    return tx ?? this.database
+  private async getWriter(tx?: TxClient): Promise<TxClient> {
+    return tx ?? (await this.getDatabase())
   }
 
   private async findExistingMessageRow(
@@ -132,7 +132,7 @@ class AgentMessageRepository extends BaseService {
       throw new Error('Message payload missing id')
     }
 
-    const writer = this.getWriter(tx)
+    const writer = await this.getWriter(tx)
     const now = createdAt ?? payload.message.createdAt ?? new Date().toISOString()
     const serializedPayload = this.serializeMessage(payload)
     const serializedMetadata = this.serializeMetadata(metadata)
@@ -188,7 +188,8 @@ class AgentMessageRepository extends BaseService {
   async persistExchange(params: PersistExchangeParams): Promise<PersistExchangeResult> {
     const { sessionId, agentSessionId, user, assistant } = params
 
-    const result = await this.database.transaction(async (tx) => {
+    const database = await this.getDatabase()
+    const result = await database.transaction(async (tx) => {
       const exchangeResult: PersistExchangeResult = {}
 
       if (user?.payload) {
@@ -221,7 +222,8 @@ class AgentMessageRepository extends BaseService {
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
     try {
-      const rows = await this.database
+      const database = await this.getDatabase()
+      const rows = await database
         .select()
         .from(sessionMessagesTable)
         .where(eq(sessionMessagesTable.session_id, sessionId))
