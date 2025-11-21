@@ -1939,6 +1939,9 @@
       },
       "remove_custom": {
         "title": "Eliminar aplicación personalizada"
+      },
+      "edit_custom": {
+        "title": "Editar aplicación personalizada"
       }
     },
     "title": "Mini programa"
@@ -4068,6 +4071,7 @@
         "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
         "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
         "save": "Guardar",
+        "edit": "Editar",
         "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
         "save_success": "La aplicación pequeña personalizada se ha guardado correctamente.",
         "title": "Aplicación Pequeña Personalizada",
