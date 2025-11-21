@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import { app } from 'electron'
@@ -13,17 +14,53 @@ const logger = loggerService.withContext('DbService')
 const DB_NAME = 'cherrystudio.sqlite'
 const MIGRATIONS_BASE_PATH = 'migrations/sqlite-drizzle'
 
+/**
+ * Database service managing SQLite connection via Drizzle ORM
+ * Implements singleton pattern for centralized database access
+ *
+ * Features:
+ * - Database initialization and connection management
+ * - Migration and seeding support
+ *
+ * @example
+ * ```typescript
+ * import { dbService } from '@data/db/DbService'
+ *
+ * // Run migrations
+ * await dbService.migrateDb()
+ *
+ * // Get database instance
+ * const db = dbService.getDb()
+ * ```
+ */
 class DbService {
   private static instance: DbService
   private db: DbType
+  private isInitialized = false
+  private walConfigured = false
 
   private constructor() {
-    this.db = drizzle({
-      connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
-      casing: 'snake_case'
-    })
+    try {
+      this.db = drizzle({
+        connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
+        casing: 'snake_case'
+      })
+      this.isInitialized = true
+      logger.info('Database connection initialized', {
+        dbPath: path.join(app.getPath('userData'), DB_NAME)
+      })
+    } catch (error) {
+      logger.error('Failed to initialize database connection', error as Error)
+      throw new Error('Database initialization failed')
+    }
   }
 
+  /**
+   * Get singleton instance of DbService
+   * Creates a new instance if one doesn't exist
+   * @returns {DbService} The singleton DbService instance
+   * @throws {Error} If database initialization fails
+   */
   public static getInstance(): DbService {
     if (!DbService.instance) {
       DbService.instance = new DbService()
@@ -31,23 +68,83 @@ class DbService {
     return DbService.instance
   }
 
-  public async migrateDb() {
-    const migrationsFolder = this.getMigrationsFolder()
-    await migrate(this.db, { migrationsFolder })
+  /**
+   * Configure WAL mode for better concurrency performance
+   * Called once during the first database operation
+   */
+  private async configureWAL(): Promise<void> {
+    if (this.walConfigured) {
+      return
+    }
+
+    try {
+      await this.db.run(
+        sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`
+      )
+
+      this.walConfigured = true
+      logger.info('WAL mode configured for database')
+    } catch (error) {
+      logger.warn('Failed to configure WAL mode, using default journal mode', error as Error)
+      // Don't throw error, allow database to continue with default mode
+    }
   }
 
+  /**
+   * Run database migrations
+   * @throws {Error} If migration fails
+   */
+  public async migrateDb(): Promise<void> {
+    try {
+      // Configure WAL mode on first database operation
+      await this.configureWAL()
+
+      const migrationsFolder = this.getMigrationsFolder()
+      await migrate(this.db, { migrationsFolder })
+
+      logger.info('Database migration completed successfully')
+    } catch (error) {
+      logger.error('Database migration failed', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Get the database instance
+   * @throws {Error} If database is not initialized
+   */
   public getDb(): DbType {
+    if (!this.isInitialized) {
+      throw new Error('Database is not initialized')
+    }
     return this.db
   }
 
-  public async migrateSeed(seedName: keyof typeof Seeding): Promise<boolean> {
+  /**
+   * Check if database is initialized
+   */
+  public isReady(): boolean {
+    return this.isInitialized
+  }
+
+  /**
+   * Run seed data migration
+   * @param seedName - Name of the seed to run
+   * @throws {Error} If seed migration fails
+   */
+  public async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
     try {
       const Seed = Seeding[seedName]
+      if (!Seed) {
+        throw new Error(`Seed "${seedName}" not found`)
+      }
+
       await new Seed().migrate(this.db)
-      return true
+
+      logger.info('Seed migration completed successfully', { seedName })
     } catch (error) {
-      logger.error('migration seeding failed', error as Error)
-      return false
+      logger.error('Seed migration failed', error as Error, { seedName })
+      throw error
     }
   }
 
@@ -55,7 +152,7 @@ class DbService {
    * Get the migrations folder based on the app's packaging status
    * @returns The path to the migrations folder
    */
-  private getMigrationsFolder() {
+  private getMigrationsFolder(): string {
     if (app.isPackaged) {
       //see electron-builder.yml, extraResources from/to
       return path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

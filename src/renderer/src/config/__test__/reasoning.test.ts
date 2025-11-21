@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { isDoubaoSeedAfter251015, isDoubaoThinkingAutoModel, isLingReasoningModel } from '../models/reasoning'
+import {
+  isDoubaoSeedAfter251015,
+  isDoubaoThinkingAutoModel,
+  isGeminiReasoningModel,
+  isLingReasoningModel,
+  isSupportedThinkingTokenGeminiModel
+} from '../models/reasoning'
 
 vi.mock('@renderer/store', () => ({
   default: {
@@ -228,6 +234,287 @@ describe('Ling Models', () => {
           group: ''
         })
       ).toBe(true)
+    })
+  })
+})
+
+describe('Gemini Models', () => {
+  describe('isSupportedThinkingTokenGeminiModel', () => {
+    it('should return true for gemini 2.5 models', () => {
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-flash-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-pro-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini latest models', () => {
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-flash-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-pro-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-flash-lite-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini 3 models', () => {
+      // Preview versions
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'google/gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Future stable versions
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'google/gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'google/gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for image and tts models', () => {
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-flash-image',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-flash-preview-tts',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+    })
+
+    it('should return false for older gemini models', () => {
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-1.5-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-1.5-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-1.0-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+    })
+  })
+
+  describe('isGeminiReasoningModel', () => {
+    it('should return true for gemini thinking models', () => {
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-2.0-flash-thinking',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-thinking-exp',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for supported thinking token gemini models', () => {
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-2.5-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-2.5-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini-3 models', () => {
+      // Preview versions
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'google/gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Future stable versions
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'google/gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'google/gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for older gemini models without thinking', () => {
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-1.5-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-1.5-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+    })
+
+    it('should return false for undefined model', () => {
+      expect(isGeminiReasoningModel(undefined)).toBe(false)
     })
   })
 })

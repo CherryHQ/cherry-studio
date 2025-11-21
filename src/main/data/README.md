@@ -30,7 +30,7 @@ src/main/data/
 │   # - TopicRepository.ts   # Complex: Topic data access
 │   # - MessageRepository.ts # Complex: Message data access
 │
-├── db/                        # Database layer
+├── db/                       # Database layer
 │   ├── schemas/              # Drizzle table definitions
 │   │   ├── preference.ts     # Preference configuration table
 │   │   ├── appState.ts       # Application state table
@@ -38,8 +38,8 @@ src/main/data/
 │   ├── seeding/              # Database initialization
 │   └── DbService.ts          # Database connection and management
 │
-├── migrate/                   # Data migration system
-│   └── dataRefactor/         # v2 data refactoring migration tools
+├── migration/                # Data migration system
+│   └── v2/                   # v2 data refactoring migration tools
 │
 ├── CacheService.ts           # Infrastructure: Cache management
 ├── DataApiService.ts         # Infrastructure: API coordination
