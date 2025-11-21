@@ -275,6 +275,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.qnaigc.com',
+    anthropicApiHost: 'https://api.qnaigc.com',
     models: SYSTEM_MODELS.qiniu,
     isSystem: true,
     enabled: false
@@ -665,6 +666,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.longcat.chat/openai',
+    anthropicApiHost: 'https://api.longcat.chat/anthropic',
     models: SYSTEM_MODELS.longcat,
     isSystem: true,
     enabled: false
@@ -684,7 +686,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'AI Gateway',
     type: 'ai-gateway',
     apiKey: '',
-    apiHost: 'https://ai-gateway.vercel.sh/v1',
+    apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
     models: [],
     isSystem: true,
     enabled: false
@@ -1569,8 +1571,16 @@ export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
 }
 
+export function isVertexAiProvider(provider: Provider): boolean {
+  return provider.type === 'vertexai'
+}
+
 export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'ai-gateway'
+}
+
+export function isAwsBedrockProvider(provider: Provider): boolean {
+  return provider.type === 'aws-bedrock'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]

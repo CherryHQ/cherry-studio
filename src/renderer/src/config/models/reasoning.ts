@@ -8,7 +8,7 @@ import type {
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isGPT5SeriesModel, isGPT51SeriesModel } from './utils'
+import { isGPT5ProModel, isGPT5SeriesModel, isGPT51SeriesModel } from './utils'
 import { isTextToImageModel } from './vision'
 import { GEMINI_FLASH_MODEL_REGEX, isOpenAIDeepResearchModel } from './websearch'
 
@@ -26,6 +26,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   gpt5_codex: ['low', 'medium', 'high'] as const,
   gpt5_1: ['none', 'low', 'medium', 'high'] as const,
   gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5pro: ['high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
@@ -47,6 +48,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   o: MODEL_SUPPORTED_REASONING_EFFORT.o,
   openai_deep_research: MODEL_SUPPORTED_REASONING_EFFORT.openai_deep_research,
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  gpt5pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt5pro,
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
   gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
@@ -90,6 +92,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gpt5_codex'
     } else {
       thinkingModelType = 'gpt5'
+      if (isGPT5ProModel(model)) {
+        thinkingModelType = 'gpt5pro'
+      }
     }
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
@@ -249,7 +254,7 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 
 // Gemini 支持思考模式的模型正则
 export const GEMINI_THINKING_MODEL_REGEX =
-  /gemini-(?:2\.5.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
+  /gemini-(?:2\.5.*(?:-latest)?|3-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')

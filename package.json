@@ -74,9 +74,10 @@
     "format:check": "biome format && biome lint",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
     "claude": "dotenv -e .env -- claude",
-    "release:aicore:alpha": "yarn workspace @cherrystudio/ai-core version prerelease --immediate && yarn workspace @cherrystudio/ai-core npm publish --tag alpha --access public",
-    "release:aicore:beta": "yarn workspace @cherrystudio/ai-core version prerelease --immediate && yarn workspace @cherrystudio/ai-core npm publish --tag beta --access public",
-    "release:aicore": "yarn workspace @cherrystudio/ai-core version patch --immediate && yarn workspace @cherrystudio/ai-core npm publish --access public"
+    "release:aicore:alpha": "yarn workspace @cherrystudio/ai-core version prerelease --preid alpha --immediate && yarn workspace @cherrystudio/ai-core build && yarn workspace @cherrystudio/ai-core npm publish --tag alpha --access public",
+    "release:aicore:beta": "yarn workspace @cherrystudio/ai-core version prerelease --preid beta --immediate && yarn workspace @cherrystudio/ai-core build && yarn workspace @cherrystudio/ai-core npm publish --tag beta --access public",
+    "release:aicore": "yarn workspace @cherrystudio/ai-core version patch --immediate && yarn workspace @cherrystudio/ai-core build && yarn workspace @cherrystudio/ai-core npm publish --access public",
+    "release:ai-sdk-provider": "yarn workspace @cherrystudio/ai-sdk-provider version patch --immediate && yarn workspace @cherrystudio/ai-sdk-provider build && yarn workspace @cherrystudio/ai-sdk-provider npm publish --access public"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.30#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.30-b50a299674.patch",
@@ -108,11 +109,14 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.53",
+    "@ai-sdk/anthropic": "^2.0.44",
     "@ai-sdk/cerebras": "^1.0.31",
     "@ai-sdk/gateway": "^2.0.9",
-    "@ai-sdk/google-vertex": "^3.0.62",
+    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A2.0.36#~/.yarn/patches/@ai-sdk-google-npm-2.0.36-6f3cc06026.patch",
+    "@ai-sdk/google-vertex": "^3.0.68",
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch",
     "@ai-sdk/mistral": "^2.0.23",
+    "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch",
     "@ai-sdk/perplexity": "^2.0.17",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
@@ -121,7 +125,7 @@
     "@aws-sdk/client-bedrock-runtime": "^3.910.0",
     "@aws-sdk/client-s3": "^3.910.0",
     "@biomejs/biome": "2.2.4",
-    "@cherrystudio/ai-core": "workspace:^1.0.0-alpha.18",
+    "@cherrystudio/ai-core": "workspace:^1.0.9",
     "@cherrystudio/embedjs": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
     "@cherrystudio/embedjs-loader-csv": "^0.1.31",
@@ -408,7 +412,7 @@
     "@langchain/openai@npm:>=0.2.0 <0.7.0": "patch:@langchain/openai@npm%3A1.0.0#~/.yarn/patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch",
     "@ai-sdk/openai@npm:2.0.64": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch",
     "@ai-sdk/openai@npm:^2.0.42": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch",
-    "@ai-sdk/google@npm:2.0.31": "patch:@ai-sdk/google@npm%3A2.0.31#~/.yarn/patches/@ai-sdk-google-npm-2.0.31-b0de047210.patch"
+    "@ai-sdk/google@npm:2.0.36": "patch:@ai-sdk/google@npm%3A2.0.36#~/.yarn/patches/@ai-sdk-google-npm-2.0.36-6f3cc06026.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {

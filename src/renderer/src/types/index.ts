@@ -86,6 +86,7 @@ const ThinkModelTypes = [
   'gpt5_1',
   'gpt5_codex',
   'gpt5_1_codex',
+  'gpt5pro',
   'grok',
   'grok4_fast',
   'gemini',
@@ -113,7 +114,7 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
-  none: 0,
+  none: 0.01,
   minimal: 0.05,
   low: 0.05,
   medium: 0.5,

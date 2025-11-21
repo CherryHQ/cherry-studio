@@ -271,9 +271,10 @@ function handleAssistantToolUse(
   state: ClaudeStreamState,
   chunks: AgentStreamPart[]
 ): void {
+  const toolCallId = state.getNamespacedToolCallId(block.id)
   chunks.push({
     type: 'tool-call',
-    toolCallId: block.id,
+    toolCallId,
     toolName: block.name,
     input: block.input,
     providerExecuted: true,
@@ -359,10 +360,11 @@ function handleUserMessage(
     if (block.type === 'tool_result') {
       const toolResult = block as ToolResultContent
       const pendingCall = state.consumePendingToolCall(toolResult.tool_use_id)
+      const toolCallId = pendingCall?.toolCallId ?? state.getNamespacedToolCallId(toolResult.tool_use_id)
       if (toolResult.is_error) {
         chunks.push({
           type: 'tool-error',
-          toolCallId: toolResult.tool_use_id,
+          toolCallId,
           toolName: pendingCall?.toolName ?? 'unknown',
           input: pendingCall?.input,
           error: toolResult.content,
@@ -371,7 +373,7 @@ function handleUserMessage(
       } else {
         chunks.push({
           type: 'tool-result',
-          toolCallId: toolResult.tool_use_id,
+          toolCallId,
           toolName: pendingCall?.toolName ?? 'unknown',
           input: pendingCall?.input,
           output: toolResult.content,
@@ -545,7 +547,7 @@ function handleContentBlockStart(
     }
     case 'tool_use': {
       const block = state.openToolBlock(index, {
-        toolCallId: contentBlock.id,
+        rawToolCallId: contentBlock.id,
         toolName: contentBlock.name,
         providerMetadata
       })

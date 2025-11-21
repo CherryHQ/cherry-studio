@@ -1,6 +1,12 @@
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { isOpenAIModel, isQwenMTModel, isSupportFlexServiceTierModel } from '@renderer/config/models'
+import {
+  getModelSupportedVerbosity,
+  isOpenAIModel,
+  isQwenMTModel,
+  isSupportFlexServiceTierModel,
+  isSupportVerbosityModel
+} from '@renderer/config/models'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import type { Assistant, Model, Provider } from '@renderer/types'
@@ -93,9 +99,6 @@ export function buildProviderOptions(
           serviceTier: serviceTierSetting
         }
         break
-      case 'huggingface':
-        providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
-        break
       case 'anthropic':
         providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
         break
@@ -138,6 +141,9 @@ export function buildProviderOptions(
         case 'bedrock':
           providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
           break
+        case 'huggingface':
+          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
+          break
         default:
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = {
@@ -156,12 +162,16 @@ export function buildProviderOptions(
     ...getCustomParameters(assistant)
   }
 
-  const rawProviderKey =
+  let rawProviderKey =
     {
       'google-vertex': 'google',
       'google-vertex-anthropic': 'anthropic',
       'ai-gateway': 'gateway'
     }[rawProviderId] || rawProviderId
+
+  if (rawProviderKey === 'cherryin') {
+    rawProviderKey = { gemini: 'google' }[actualProvider.type] || actualProvider.type
+  }
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
   return {
@@ -191,6 +201,23 @@ function buildOpenAIProviderOptions(
       ...reasoningParams
     }
   }
+
+  if (isSupportVerbosityModel(model)) {
+    const state = window.store?.getState()
+    const userVerbosity = state?.settings?.openAI?.verbosity
+
+    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
+      const supportedVerbosity = getModelSupportedVerbosity(model)
+      // Use user's verbosity if supported, otherwise use the first supported option
+      const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+
+      providerOptions = {
+        ...providerOptions,
+        textVerbosity: verbosity
+      }
+    }
+  }
+
   return providerOptions
 }
 
