@@ -1,6 +1,6 @@
 import type { ActionToolSpec } from './types'
 
-export const TOOL_SPECS: Record<string, ActionToolSpec> = {
+export const TOOL_SPECS = {
   // Core tools
   copy: {
     id: 'copy',
@@ -72,5 +72,10 @@ export const TOOL_SPECS: Record<string, ActionToolSpec> = {
     id: 'zoom-out',
     type: 'quick',
     order: 41
+  },
+  mermaid_fix: {
+    id: 'mermaid-fix',
+    type: 'core',
+    order: 42
   }
-}
+} as const satisfies Record<string, ActionToolSpec>

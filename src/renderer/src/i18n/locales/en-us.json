@@ -1074,6 +1074,11 @@
       }
     },
     "expand": "Expand",
+    "mermaid_fix": {
+      "failed": "Failed to fix",
+      "invalid_result": "Model returned invalid data. Please try again or try changing the quick model.",
+      "label": "Fix mermaid error"
+    },
     "more": "More",
     "run": "Run",
     "split": {

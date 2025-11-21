@@ -1074,6 +1074,11 @@
       }
     },
     "expand": "Ausklappen",
+    "mermaid_fix": {
+      "failed": "Konnte nicht repariert werden",
+      "invalid_result": "Das Modell hat ungültige Daten zurückgegeben. Bitte versuchen Sie es erneut oder wechseln Sie das Schnellmodell.",
+      "label": "Mermaid-Fehler beheben"
+    },
     "more": "Mehr",
     "run": "Code ausführen",
     "split": {

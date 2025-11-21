@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next'
 import { useStore } from 'react-redux'
 const logger = loggerService.withContext('useChatContext')
 
+// TODO: use useContext to refactor it.
 export const useChatContext = (activeTopic: Topic) => {
   const { t } = useTranslation()
   const store = useStore<RootState>()

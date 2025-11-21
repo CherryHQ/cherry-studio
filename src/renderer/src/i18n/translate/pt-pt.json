@@ -1074,6 +1074,11 @@
       }
     },
     "expand": "Expandir",
+    "mermaid_fix": {
+      "failed": "Falha ao corrigir",
+      "invalid_result": "O modelo retornou dados inválidos. Tente novamente ou tente alterar o modelo rápido.",
+      "label": "Corrigir erro do mermaid"
+    },
     "more": "Mais",
     "run": "Executar código",
     "split": {

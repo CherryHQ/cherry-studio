@@ -58,6 +58,12 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => mocks.useSettings()
 }))
 
+vi.mock('@cherrystudio/ui', () => ({
+  cn: vi.fn((...classes) => classes.filter(Boolean).join(' ')),
+  Spinner: vi.fn(() => <div data-testid="spinner" />),
+  BlockingOverlay: vi.fn(({ children }) => <div>{children}</div>)
+}))
+
 vi.mock('@renderer/components/CodeBlockView', () => ({
   CodeBlockView: mocks.CodeBlockView,
   HtmlArtifactsCard: mocks.HtmlArtifactsCard

@@ -5,6 +5,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useEditCodeBlock } from '@renderer/hooks/useEditCodeBlock'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -15,22 +16,18 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import store, { useAppDispatch } from '@renderer/store'
-import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
+import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import type { MessageBlock } from '@renderer/types/newMessage'
-import { type Message, MessageBlockType } from '@renderer/types/newMessage'
+import { type Message } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
-import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,6 +67,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
+  const editCodeBlock = useEditCodeBlock()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
 
@@ -199,40 +197,18 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           window.toast.error(t('message.branch.error')) // Example error message
         }
       }),
+      // TODO: We should move this processing function out of the component and turn it into a Hook, so that other components can reuse this function.
+      // The current implementation prevents the party emitting the event from knowing the completion status of the asynchronous function through a promise.
       EventEmitter.on(
         EVENT_NAMES.EDIT_CODE_BLOCK,
         async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
           const { msgBlockId, codeBlockId, newContent } = data
-
-          const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
-
-          // FIXME: 目前 error block 没有 content
-          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
-            try {
-              const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
-              const updatedBlock: MessageBlock = {
-                ...msgBlock,
-                content: updatedRaw,
-                updatedAt: new Date().toISOString()
-              }
-
-              dispatch(updateOneBlock({ id: msgBlockId, changes: { content: updatedRaw } }))
-              await dispatch(updateMessageAndBlocksThunk(topic.id, null, [updatedBlock]))
-
-              window.toast.success(t('code_block.edit.save.success'))
-            } catch (error) {
-              logger.error(
-                `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
-                error as Error
-              )
-              window.toast.error(t('code_block.edit.save.failed.label'))
-            }
-          } else {
-            logger.error(
-              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
-            )
-            window.toast.error(t('code_block.edit.save.failed.label'))
-          }
+          return editCodeBlock({
+            topicId: topic.id,
+            msgBlockId,
+            codeBlockId,
+            newContent
+          })
         }
       )
     ]

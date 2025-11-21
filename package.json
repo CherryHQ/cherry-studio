@@ -311,7 +311,7 @@
     "lint-staged": "^15.5.0",
     "lodash": "^4.17.21",
     "lru-cache": "^11.1.0",
-    "lucide-react": "^0.525.0",
+    "lucide-react": "^0.546.0",
     "macos-release": "^3.4.0",
     "markdown-it": "^14.1.0",
     "mermaid": "^11.10.1",

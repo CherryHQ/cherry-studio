@@ -1074,6 +1074,11 @@
       }
     },
     "expand": "展开",
+    "mermaid_fix": {
+      "failed": "修复失败",
+      "invalid_result": "模型返回了无效数据。请重试或尝试更换快速模型。",
+      "label": "修复 mermaid 错误"
+    },
     "more": "更多",
     "run": "运行代码",
     "split": {

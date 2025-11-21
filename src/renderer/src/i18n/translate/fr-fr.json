@@ -1074,6 +1074,11 @@
       }
     },
     "expand": "Développer",
+    "mermaid_fix": {
+      "failed": "Échec de la réparation",
+      "invalid_result": "Le modèle a renvoyé des données invalides. Veuillez réessayer ou essayer de changer le modèle rapide.",
+      "label": "Corriger l'erreur mermaid"
+    },
     "more": "Plus",
     "run": "Exécuter le code",
     "split": {

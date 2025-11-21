@@ -26,6 +26,7 @@ import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, 
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
+import { useMermaidFixTool } from '../CodeToolbar/hooks/useMermaidFixTool'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
@@ -33,9 +34,12 @@ import type { ViewMode } from './types'
 const logger = loggerService.withContext('CodeBlockView')
 
 interface Props {
+  // FIXME: It's may not runtime string!
   children: string
   language: string
-  onSave?: (newContent: string) => void
+  // Message Block ID
+  blockId: string
+  onSave: (newContent: string) => Promise<void>
 }
 
 /**
@@ -54,7 +58,7 @@ interface Props {
  * - quick 工具
  * - core 工具
  */
-export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
+export const CodeBlockView: React.FC<Props> = memo(({ children: code, language, blockId, onSave }) => {
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -113,6 +117,8 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const specialViewRef = useRef<BasicPreviewHandles>(null)
 
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
+  const [error, setError] = useState<unknown>(null)
+  const isMermaid = language === 'mermaid'
 
   const isInSpecialView = useMemo(() => {
     return hasSpecialView && viewMode === 'special'
@@ -146,16 +152,16 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [])
 
   const handleCopySource = useCallback(() => {
-    navigator.clipboard.writeText(children)
+    navigator.clipboard.writeText(code)
     window.toast.success(t('code_block.copy.success'))
-  }, [children, t])
+  }, [code, t])
 
   const handleDownloadSource = useCallback(() => {
     let fileName = ''
 
     // 尝试提取 HTML 标题
     if (language === 'html') {
-      fileName = getFileNameFromHtmlTitle(extractHtmlTitle(children)) || ''
+      fileName = getFileNameFromHtmlTitle(extractHtmlTitle(code)) || ''
     }
 
     // 默认使用日期格式命名
@@ -164,15 +170,15 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     }
 
     const ext = getExtensionByLanguage(language)
-    window.api.file.save(`${fileName}${ext}`, children)
-  }, [children, language])
+    window.api.file.save(`${fileName}${ext}`, code)
+  }, [code, language])
 
   const handleRunScript = useCallback(() => {
     setIsRunning(true)
     setExecutionResult(null)
 
     pyodideService
-      .runScript(children, {}, codeExecutionTimeoutMinutes * 60000)
+      .runScript(code, {}, codeExecutionTimeoutMinutes * 60000)
       .then((result) => {
         setExecutionResult(result)
       })
@@ -185,7 +191,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       .finally(() => {
         setIsRunning(false)
       })
-  }, [children, codeExecutionTimeoutMinutes])
+  }, [code, codeExecutionTimeoutMinutes])
 
   const showPreviewTools = useMemo(() => {
     return viewMode !== 'source' && hasSpecialView
@@ -257,6 +263,18 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     setTools
   })
 
+  // Mermaid fix tool
+  useMermaidFixTool({
+    enabled: isMermaid && error !== undefined && error !== null,
+    context: {
+      blockId,
+      error,
+      content: code
+    },
+    onSave,
+    setTools
+  })
+
   // 源代码视图组件
   const sourceView = useMemo(
     () =>
@@ -266,7 +284,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           ref={sourceViewRef}
           theme={activeCmTheme}
           fontSize={fontSize - 1}
-          value={children}
+          value={code}
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
@@ -278,7 +296,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       ) : (
         <CodeViewer
           className="source-view"
-          value={children}
+          value={code}
           language={language}
           onHeightChange={handleHeightChange}
           expanded={shouldExpand}
@@ -288,7 +306,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       ),
     [
       activeCmTheme,
-      children,
+      code,
       codeEditor,
       codeShowLineNumbers,
       fontSize,
@@ -307,11 +325,11 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     if (!SpecialView) return null
 
     return (
-      <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
-        {children}
+      <SpecialView ref={specialViewRef} enableToolbar={codeImageTools} onError={setError}>
+        {code}
       </SpecialView>
     )
-  }, [children, codeImageTools, language])
+  }, [code, codeImageTools, language])
 
   const renderHeader = useMemo(() => {
     const langTag = '<' + language.toUpperCase() + '>'

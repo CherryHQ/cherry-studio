@@ -8,6 +8,8 @@ export type UseCacheSchema = {
   // App state
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
   'app.user.avatar': string
+  /** Used to indicate whether any asynchronous task with a given ID is currently in progress */
+  'app.pending_map': Record<string, boolean>
 
   // Chat context
   'chat.multi_select_mode': boolean
@@ -39,6 +41,7 @@ export const DefaultUseCache: UseCacheSchema = {
     available: false
   },
   'app.user.avatar': '',
+  'app.pending_map': {},
 
   // Chat context
   'chat.multi_select_mode': false,

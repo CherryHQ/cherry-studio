@@ -13847,7 +13847,7 @@ __metadata:
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
-    lucide-react: "npm:^0.525.0"
+    lucide-react: "npm:^0.546.0"
     macos-release: "npm:^3.4.0"
     markdown-it: "npm:^14.1.0"
     mermaid: "npm:^11.10.1"
@@ -21746,21 +21746,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^0.525.0":
-  version: 0.525.0
-  resolution: "lucide-react@npm:0.525.0"
-  peerDependencies:
-    react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/81c4438e2cf1c86ea2ebe0a97b378201512450894283cccce766a89bc6a4e47c8df1d9115d845d98f582bb0a10be31c454aa232520fea35018dac1cd8466ea9b
-  languageName: node
-  linkType: hard
-
 "lucide-react@npm:^0.545.0":
   version: 0.545.0
   resolution: "lucide-react@npm:0.545.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
   checksum: 10c0/942622c8e5d113e6fc6f66407703dc06474cf1a36ee9998b9f562f2e64737ea098c0db5a4e5ba2a8eb14abecb9da05be4584e9400c4a192ba5b2781f21928c21
+  languageName: node
+  linkType: hard
+
+"lucide-react@npm:^0.546.0":
+  version: 0.546.0
+  resolution: "lucide-react@npm:0.546.0"
+  peerDependencies:
+    react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/42ee0bd358517f012297aefb69b54da0b3c62f1ac8485ffa24141b63f05c9f4a682eacc2637c4b13f597aed11f9a8c79627af0c17717400bebb25581daeaad80
   languageName: node
   linkType: hard
 

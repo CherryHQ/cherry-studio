@@ -1074,6 +1074,11 @@
       }
     },
     "expand": "展開",
+    "mermaid_fix": {
+      "failed": "修復失敗",
+      "invalid_result": "模型傳回了無效的資料。請再試一次，或嘗試更換快速模型。",
+      "label": "修復 mermaid 錯誤"
+    },
     "more": "更多",
     "run": "運行代碼",
     "split": {

@@ -1,4 +1,6 @@
+import { BlockingOverlay, cn, Spinner } from '@cherrystudio/ui'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
+import { usePendingMap } from '@renderer/hooks/usePendingMap'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -21,6 +23,8 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const isMultiline = children?.includes('\n')
   const language = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
   const { codeFancyBlock } = useSettings()
+  const { isPending } = usePendingMap()
+  const isBlockPending = isPending(blockId)
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
@@ -30,8 +34,10 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
   const isStreaming = useMemo(() => msgBlock?.status === MessageBlockStatus.STREAMING, [msgBlock?.status])
 
   const handleSave = useCallback(
-    (newContent: string) => {
+    async (newContent: string) => {
       if (id !== undefined) {
+        // The event form cannot obtain the completion status of the handler via a promise.
+        // TODO: Use useContext to get topicId, use useEditCodeBlock to edit code block.
         EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
           msgBlockId: blockId,
           codeBlockId: id,
@@ -52,14 +58,24 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     }
 
     return (
-      <CodeBlockView language={language} onSave={handleSave}>
-        {children}
-      </CodeBlockView>
+      <div className="relative">
+        <CodeBlockView language={language} onSave={handleSave} blockId={blockId}>
+          {children}
+        </CodeBlockView>
+        {isBlockPending && (
+          <BlockingOverlay isVisible={isBlockPending}>
+            <Spinner />
+          </BlockingOverlay>
+        )}
+        {/* <BlockingOverlay isVisible={true}>
+          <Spinner />
+        </BlockingOverlay> */}
+      </div>
     )
   }
 
   return (
-    <code className={className} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
+    <code className={cn('relative', className)} style={{ textWrap: 'wrap', fontSize: '95%', padding: '2px 4px' }}>
       {children}
     </code>
   )
