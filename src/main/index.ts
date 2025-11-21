@@ -16,6 +16,7 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
+import { getDatabaseManager } from './services/agents/database/DatabaseManager'
 import { apiServerService } from './services/ApiServerService'
 import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
@@ -172,7 +173,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Wait for agent database to initialize
     try {
-      const { getDatabaseManager } = await import('./services/agents/database/DatabaseManager')
       const dbManager = getDatabaseManager()
       await dbManager.getDatabase()
       logger.info('Agent database initialized successfully')
