@@ -109,7 +109,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     <Container>
       <Alert
         type={isUvInstalled ? 'success' : 'warning'}
-        banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
           <VStack>
@@ -140,7 +139,6 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       />
       <Alert
         type={isBunInstalled ? 'success' : 'warning'}
-        banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
           <VStack>
