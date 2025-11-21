@@ -27,6 +27,15 @@
         "null_id": "Agent ID is null."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
+        "recheck": "Recheck Git Bash Installation",
+        "title": "Git Bash Required"
+      },
+      "notFound": "Git Bash not found. Please install it first.",
+      "success": "Git Bash detected successfully!"
+    },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
     },
@@ -283,15 +292,6 @@
     },
     "warning": {
       "enable_server": "Enable API Server to use agents."
-    },
-    "gitBash": {
-      "error": {
-        "title": "Git Bash Required",
-        "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
-        "recheck": "Recheck Git Bash Installation"
-      },
-      "success": "Git Bash detected successfully!",
-      "notFound": "Git Bash not found. Please install it first."
     }
   },
   "apiServer": {

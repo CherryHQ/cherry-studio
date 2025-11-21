@@ -27,6 +27,15 @@
         "null_id": "智能体 ID 为空。"
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
+        "recheck": "重新检测 Git Bash 安装",
+        "title": "需要 Git Bash"
+      },
+      "notFound": "未找到 Git Bash。请先安装。",
+      "success": "成功检测到 Git Bash！"
+    },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
     },
@@ -283,15 +292,6 @@
     },
     "warning": {
       "enable_server": "请启用 API 服务器以使用智能体功能"
-    },
-    "gitBash": {
-      "error": {
-        "title": "需要 Git Bash",
-        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
-        "recheck": "重新检测 Git Bash 安装"
-      },
-      "success": "成功检测到 Git Bash！",
-      "notFound": "未找到 Git Bash。请先安装。"
     }
   },
   "apiServer": {
