@@ -2175,7 +2175,10 @@
     "untitled_folder": "Νέος φάκελος",
     "untitled_note": "σημείωση χωρίς τίτλο",
     "upload_failed": "Η σημείωση δεν ανέβηκε",
-    "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Απάντηση Βοηθού",

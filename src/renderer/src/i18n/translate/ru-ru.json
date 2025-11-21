@@ -2175,7 +2175,10 @@
     "untitled_folder": "Новая папка",
     "untitled_note": "Незаглавленная заметка",
     "upload_failed": "Не удалось загрузить заметку",
-    "upload_success": "Заметка успешно загружена"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Заметка успешно загружена",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Ответ ассистента",

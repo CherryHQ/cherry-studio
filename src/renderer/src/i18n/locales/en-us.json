@@ -2175,6 +2175,8 @@
     "untitled_folder": "New Folder",
     "untitled_note": "Untitled Note",
     "upload_failed": "Note upload failed",
+    "upload_files": "Upload Files",
+    "upload_folder": "Upload Folder",
     "upload_success": "Note uploaded success",
     "uploading_files": "Uploading {{count}} files..."
   },

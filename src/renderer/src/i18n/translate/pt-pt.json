@@ -2175,7 +2175,10 @@
     "untitled_folder": "Nova pasta",
     "untitled_note": "Nota sem título",
     "upload_failed": "Falha ao carregar a nota",
-    "upload_success": "Nota carregada com sucesso"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Nota carregada com sucesso",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Resposta do assistente",

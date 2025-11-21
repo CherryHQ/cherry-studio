@@ -2175,7 +2175,10 @@
     "untitled_folder": "新ファイル夹",
     "untitled_note": "無題のメモ",
     "upload_failed": "ノートのアップロードに失敗しました",
-    "upload_success": "ノートのアップロードが成功しました"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "ノートのアップロードが成功しました",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "助手回應",

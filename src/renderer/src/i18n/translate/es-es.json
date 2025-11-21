@@ -2175,7 +2175,10 @@
     "untitled_folder": "Nueva carpeta",
     "untitled_note": "Nota sin título",
     "upload_failed": "Error al cargar la nota",
-    "upload_success": "Nota cargada con éxito"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Nota cargada con éxito",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Respuesta del asistente",

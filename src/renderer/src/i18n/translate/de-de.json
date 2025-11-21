@@ -2175,7 +2175,10 @@
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
-    "upload_success": "Notizen erfolgreich hochgeladen"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Notizen erfolgreich hochgeladen",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
