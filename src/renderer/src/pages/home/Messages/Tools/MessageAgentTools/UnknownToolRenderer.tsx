@@ -11,11 +11,24 @@ interface UnknownToolProps {
   output?: unknown
 }
 
-export function UnknownToolRenderer({
-  toolName = '',
-  input,
-  output
-}: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
+const getToolDisplayName = (name: string) => {
+  if (name.startsWith('mcp__')) {
+    const parts = name.substring(5).split('__')
+    if (parts.length >= 2) {
+      return `${parts[0]}:${parts.slice(1).join(':')}`
+    }
+  }
+  return name
+}
+
+const getToolDescription = (toolName: string) => {
+  if (toolName.startsWith('mcp__')) {
+    return 'MCP Server Tool'
+  }
+  return 'Tool'
+}
+
+const UnknownToolContent = ({ input, output }: { input?: unknown; output?: unknown }) => {
   const { highlightCode } = useCodeStyle()
   const [inputHtml, setInputHtml] = useState<string>('')
   const [outputHtml, setOutputHtml] = useState<string>('')
@@ -34,58 +47,49 @@ export function UnknownToolRenderer({
     }
   }, [output, highlightCode])
 
-  const getToolDisplayName = (name: string) => {
-    if (name.startsWith('mcp__')) {
-      const parts = name.substring(5).split('__')
-      if (parts.length >= 2) {
-        return `${parts[0]}:${parts.slice(1).join(':')}`
-      }
-    }
-    return name
+  if (input === undefined && output === undefined) {
+    return <div className="text-foreground-500 text-xs">No data available for this tool</div>
   }
 
-  const getToolDescription = () => {
-    if (toolName.startsWith('mcp__')) {
-      return 'MCP Server Tool'
-    }
-    return 'Tool'
-  }
+  return (
+    <div className="space-y-3">
+      {input !== undefined && (
+        <div>
+          <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Input:</div>
+          <div
+            className="overflow-x-auto rounded bg-gray-50 dark:bg-gray-900"
+            dangerouslySetInnerHTML={{ __html: inputHtml }}
+          />
+        </div>
+      )}
 
+      {output !== undefined && (
+        <div>
+          <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Output:</div>
+          <div
+            className="rounded bg-gray-50 dark:bg-gray-900 [&>*]:whitespace-pre-line"
+            dangerouslySetInnerHTML={{ __html: outputHtml }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function UnknownToolRenderer({
+  toolName = '',
+  input,
+  output
+}: UnknownToolProps): NonNullable<CollapseProps['items']>[number] {
   return {
     key: 'unknown-tool',
     label: (
       <ToolTitle
         icon={<Wrench className="h-4 w-4" />}
         label={getToolDisplayName(toolName)}
-        params={getToolDescription()}
+        params={getToolDescription(toolName)}
       />
     ),
-    children: (
-      <div className="space-y-3">
-        {input !== undefined && (
-          <div>
-            <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Input:</div>
-            <div
-              className="overflow-x-auto rounded bg-gray-50 dark:bg-gray-900"
-              dangerouslySetInnerHTML={{ __html: inputHtml }}
-            />
-          </div>
-        )}
-
-        {output !== undefined && (
-          <div>
-            <div className="mb-1 font-semibold text-foreground-600 text-xs dark:text-foreground-400">Output:</div>
-            <div
-              className="rounded bg-gray-50 dark:bg-gray-900 [&>*]:whitespace-pre-line"
-              dangerouslySetInnerHTML={{ __html: outputHtml }}
-            />
-          </div>
-        )}
-
-        {input === undefined && output === undefined && (
-          <div className="text-foreground-500 text-xs">No data available for this tool</div>
-        )}
-      </div>
-    )
+    children: <UnknownToolContent input={input} output={output} />
   }
 }

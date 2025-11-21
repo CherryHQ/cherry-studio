@@ -32,7 +32,7 @@ export class ModelsService {
 
       for (const model of models) {
         const provider = providers.find((p) => p.id === model.provider)
-        logger.debug(`Processing model ${model.id}`)
+        // logger.debug(`Processing model ${model.id}`)
         if (!provider) {
           logger.debug(`Skipping model ${model.id} . Reason: Provider not found.`)
           continue
