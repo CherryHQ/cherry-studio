@@ -170,13 +170,8 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
-    // Initialize Agent Service
-    try {
-      await agentService.initialize()
-      logger.info('Agent service initialized successfully')
-    } catch (error: any) {
-      logger.error('Failed to initialize Agent service:', error)
-    }
+    // Agent database is auto-initialized on first access
+    logger.info('Agent service ready (database will initialize on first use)')
 
     // Start API server if enabled or if agents exist
     try {

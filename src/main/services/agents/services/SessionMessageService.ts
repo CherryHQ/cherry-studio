@@ -104,13 +104,7 @@ export class SessionMessageService extends BaseService {
     return SessionMessageService.instance
   }
 
-  async initialize(): Promise<void> {
-    await BaseService.initialize()
-  }
-
   async sessionMessageExists(id: number): Promise<boolean> {
-    this.ensureInitialized()
-
     const result = await this.database
       .select({ id: sessionMessagesTable.id })
       .from(sessionMessagesTable)
@@ -124,8 +118,6 @@ export class SessionMessageService extends BaseService {
     sessionId: string,
     options: ListOptions = {}
   ): Promise<{ messages: AgentSessionMessageEntity[] }> {
-    this.ensureInitialized()
-
     // Get messages with pagination
     const baseQuery = this.database
       .select()
@@ -146,8 +138,6 @@ export class SessionMessageService extends BaseService {
   }
 
   async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
-    this.ensureInitialized()
-
     const result = await this.database
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.session_id, sessionId)))
@@ -160,8 +150,6 @@ export class SessionMessageService extends BaseService {
     messageData: CreateSessionMessageRequest,
     abortController: AbortController
   ): Promise<SessionStreamResult> {
-    this.ensureInitialized()
-
     return await this.startSessionMessageStream(session, messageData, abortController)
   }
 
@@ -270,8 +258,6 @@ export class SessionMessageService extends BaseService {
   }
 
   private async getLastAgentSessionId(sessionId: string): Promise<string> {
-    this.ensureInitialized()
-
     try {
       const result = await this.database
         .select({ agent_session_id: sessionMessagesTable.agent_session_id })

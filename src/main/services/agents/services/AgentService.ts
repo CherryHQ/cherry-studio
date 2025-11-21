@@ -32,14 +32,8 @@ export class AgentService extends BaseService {
     return AgentService.instance
   }
 
-  async initialize(): Promise<void> {
-    await BaseService.initialize()
-  }
-
   // Agent Methods
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
-    this.ensureInitialized()
-
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
@@ -86,8 +80,6 @@ export class AgentService extends BaseService {
   }
 
   async getAgent(id: string): Promise<GetAgentResponse | null> {
-    this.ensureInitialized()
-
     const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
 
     if (!result[0]) {
@@ -118,8 +110,7 @@ export class AgentService extends BaseService {
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
-    this.ensureInitialized() // Build query with pagination
-
+    // Build query with pagination
     const totalResult = await this.database.select({ count: count() }).from(agentsTable)
 
     const sortBy = options.sortBy || 'created_at'
@@ -151,8 +142,6 @@ export class AgentService extends BaseService {
     updates: UpdateAgentRequest,
     options: { replace?: boolean } = {}
   ): Promise<UpdateAgentResponse | null> {
-    this.ensureInitialized()
-
     // Check if agent exists
     const existing = await this.getAgent(id)
     if (!existing) {
@@ -200,16 +189,12 @@ export class AgentService extends BaseService {
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    this.ensureInitialized()
-
     const result = await this.database.delete(agentsTable).where(eq(agentsTable.id, id))
 
     return result.rowsAffected > 0
   }
 
   async agentExists(id: string): Promise<boolean> {
-    this.ensureInitialized()
-
     const result = await this.database
       .select({ id: agentsTable.id })
       .from(agentsTable)

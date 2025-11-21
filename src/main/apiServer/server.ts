@@ -3,7 +3,6 @@ import { createServer } from 'node:http'
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { agentService } from '../services/agents'
 import { windowService } from '../services/WindowService'
 import { app } from './app'
 import { config } from './config'
@@ -32,10 +31,8 @@ export class ApiServer {
     // Load config
     const { port, host } = await config.load()
 
-    // Initialize AgentService
-    logger.info('Initializing AgentService')
-    await agentService.initialize()
-    logger.info('AgentService initialized')
+    // AgentService database auto-initializes on first access
+    logger.info('AgentService ready')
 
     // Create server with Express app
     this.server = createServer(app)

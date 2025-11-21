@@ -122,9 +122,6 @@ class AgentMessageRepository extends BaseService {
   private async upsertMessage(
     params: PersistUserMessageParams | PersistAssistantMessageParams
   ): Promise<AgentSessionMessageEntity> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
     const { sessionId, agentSessionId = '', payload, metadata, createdAt, tx } = params
 
     if (!payload?.message?.role) {
@@ -189,9 +186,6 @@ class AgentMessageRepository extends BaseService {
   }
 
   async persistExchange(params: PersistExchangeParams): Promise<PersistExchangeResult> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
     const { sessionId, agentSessionId, user, assistant } = params
 
     const result = await this.database.transaction(async (tx) => {
@@ -226,9 +220,6 @@ class AgentMessageRepository extends BaseService {
   }
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
     try {
       const rows = await this.database
         .select()

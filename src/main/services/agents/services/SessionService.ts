@@ -30,10 +30,6 @@ export class SessionService extends BaseService {
     return SessionService.instance
   }
 
-  async initialize(): Promise<void> {
-    await BaseService.initialize()
-  }
-
   /**
    * Override BaseService.listSlashCommands to merge builtin and plugin commands
    */
@@ -84,8 +80,6 @@ export class SessionService extends BaseService {
     agentId: string,
     req: Partial<CreateSessionRequest> = {}
   ): Promise<GetAgentSessionResponse | null> {
-    this.ensureInitialized()
-
     // Validate agent exists - we'll need to import AgentService for this check
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
@@ -148,8 +142,6 @@ export class SessionService extends BaseService {
   }
 
   async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
-    this.ensureInitialized()
-
     const result = await this.database
       .select()
       .from(sessionsTable)
@@ -176,8 +168,6 @@ export class SessionService extends BaseService {
     agentId?: string,
     options: ListOptions = {}
   ): Promise<{ sessions: AgentSessionEntity[]; total: number }> {
-    this.ensureInitialized()
-
     // Build where conditions
     const whereConditions: SQL[] = []
     if (agentId) {
@@ -220,8 +210,6 @@ export class SessionService extends BaseService {
     id: string,
     updates: UpdateSessionRequest
   ): Promise<UpdateSessionResponse | null> {
-    this.ensureInitialized()
-
     // Check if session exists
     const existing = await this.getSession(agentId, id)
     if (!existing) {
@@ -268,8 +256,6 @@ export class SessionService extends BaseService {
   }
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
-    this.ensureInitialized()
-
     const result = await this.database
       .delete(sessionsTable)
       .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
@@ -278,8 +264,6 @@ export class SessionService extends BaseService {
   }
 
   async sessionExists(agentId: string, id: string): Promise<boolean> {
-    this.ensureInitialized()
-
     const result = await this.database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
