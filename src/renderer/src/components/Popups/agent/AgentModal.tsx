@@ -15,7 +15,7 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
-import { Button, Input, Modal, Select } from 'antd'
+import { Alert, Button, Input, Modal, Select } from 'antd'
 import { AlertTriangleIcon } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -58,12 +58,37 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
+  const [hasGitBash, setHasGitBash] = useState<boolean>(true)
 
   useEffect(() => {
     if (open) {
       setForm(buildAgentForm(agent))
     }
   }, [agent, open])
+
+  const checkGitBash = useCallback(
+    async (showToast = false) => {
+      try {
+        const gitBashInstalled = await window.api.system.checkGitBash()
+        setHasGitBash(gitBashInstalled)
+        if (showToast) {
+          if (gitBashInstalled) {
+            window.toast.success(t('agent.gitBash.success', 'Git Bash detected successfully!'))
+          } else {
+            window.toast.error(t('agent.gitBash.notFound', 'Git Bash not found. Please install it first.'))
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check Git Bash:', error as Error)
+        setHasGitBash(true) // Default to true on error to avoid false warnings
+      }
+    },
+    [t]
+  )
+
+  useEffect(() => {
+    checkGitBash()
+  }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
 
@@ -275,6 +300,36 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         footer={null}>
         <StyledForm onSubmit={onSubmit}>
           <FormContent>
+            {!hasGitBash && (
+              <Alert
+                message={t('agent.gitBash.error.title', 'Git Bash Required')}
+                description={
+                  <div>
+                    <div style={{ marginBottom: 8 }}>
+                      {t(
+                        'agent.gitBash.error.description',
+                        'Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from'
+                      )}{' '}
+                      <a
+                        href="https://git-scm.com/download/win"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.api.openWebsite('https://git-scm.com/download/win')
+                        }}
+                        style={{ textDecoration: 'underline' }}>
+                        git-scm.com
+                      </a>
+                    </div>
+                    <Button size="small" onClick={() => checkGitBash(true)}>
+                      {t('agent.gitBash.error.recheck', 'Recheck Git Bash Installation')}
+                    </Button>
+                  </div>
+                }
+                type="error"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <FormRow>
               <FormItem style={{ flex: 1 }}>
                 <Label>
@@ -377,7 +432,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
           <FormFooter>
             <Button onClick={onCancel}>{t('common.close')}</Button>
-            <Button type="primary" htmlType="submit" loading={loadingRef.current}>
+            <Button type="primary" htmlType="submit" loading={loadingRef.current} disabled={!hasGitBash}>
               {isEditing(agent) ? t('common.confirm') : t('common.add')}
             </Button>
           </FormFooter>
