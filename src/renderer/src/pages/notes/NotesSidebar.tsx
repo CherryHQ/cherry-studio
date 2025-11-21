@@ -60,7 +60,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
 
-  // --- State ---
   const [isShowStarred, setIsShowStarred] = useState(false)
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
@@ -72,13 +71,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const trimmedSearchKeyword = useMemo(() => searchKeyword.trim(), [searchKeyword])
   const hasSearchKeyword = trimmedSearchKeyword.length > 0
 
-  // --- Hooks ---
-
-  // Editing Hook
   const { editingNodeId, renamingNodeIds, newlyRenamedNodeIds, inPlaceEdit, handleStartEdit, handleAutoRename } =
     useNotesEditing({ onRenameNode })
 
-  // Drag and Drop Hook
   const {
     draggedNodeId,
     dragOverNodeId,
@@ -90,13 +85,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     handleDragEnd
   } = useNotesDragAndDrop({ onMoveNode })
 
-  // File Upload Hook
   const { handleDropFiles, handleSelectFiles, handleSelectFolder } = useNotesFileUpload({
     onUploadFiles,
     setIsDragOverSidebar
   })
 
-  // Menu Hook
   const { getMenuItems } = useNotesMenu({
     renamingNodeIds,
     onCreateNote,
@@ -110,7 +103,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     activeNode
   })
 
-  // Search Hook
   const searchOptions = useMemo(
     () => ({
       debounceMs: 300,
@@ -132,14 +124,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     stats: searchStats
   } = useFullTextSearch(searchOptions)
 
-  // --- Effects ---
-
-  // Sync notesTree to ref
   useEffect(() => {
     notesTreeRef.current = notesTree
   }, [notesTree])
 
-  // Trigger Search
   useEffect(() => {
     if (!isShowSearch) {
       reset()

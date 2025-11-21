@@ -131,7 +131,6 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const internalStickyRangeExtractor = useCallback(
     (range: Range) => {
-      // VSCode-like sticky behavior: show ancestor chain of current visible items
       const activeStickies: number[] = []
 
       if (getItemDepth) {
@@ -298,14 +297,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             position: isItemActiveSticky ? 'sticky' : 'absolute',
             top: isItemActiveSticky ? stickyOffset : 0,
             left: 0,
-            // Critical: Sticky items need higher z-index than non-sticky items
-            // Ancestors (lower activeStickyIndex) should have HIGHER z-index
-            // Non-sticky items get z-index 0 to ensure they render below sticky items
             zIndex: isItemActiveSticky ? 1000 + (100 - activeStickyIndex) : isItemSticky ? 999 : 0,
-            // CRITICAL: Disable pointer events for items covered by sticky headers
-            // This prevents hover/click events from bleeding through
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
-            // Add background and shadow for active sticky items
             ...(isItemActiveSticky && {
               backgroundColor: 'var(--color-background)'
             }),
