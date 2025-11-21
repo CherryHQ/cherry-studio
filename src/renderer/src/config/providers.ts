@@ -686,7 +686,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'AI Gateway',
     type: 'ai-gateway',
     apiKey: '',
-    apiHost: 'https://ai-gateway.vercel.sh/v1',
+    apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
     models: [],
     isSystem: true,
     enabled: false
@@ -1569,6 +1569,10 @@ export function isAnthropicProvider(provider: Provider): boolean {
 
 export function isGeminiProvider(provider: Provider): boolean {
   return provider.type === 'gemini'
+}
+
+export function isVertexAiProvider(provider: Provider): boolean {
+  return provider.type === 'vertexai'
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
