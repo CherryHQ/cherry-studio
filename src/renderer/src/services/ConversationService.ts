@@ -8,6 +8,7 @@ import { getAssistantSettings, getDefaultModel } from './AssistantService'
 import {
   filterAfterContextClearMessages,
   filterEmptyMessages,
+  filterErrorOnlyMessagesWithRelated,
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from './MessagesService'
@@ -34,10 +35,13 @@ export class ConversationService {
 
     const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
 
-    const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
+    // Filter out error-only assistant messages and their associated user messages
+    const filteredMessages4 = filterErrorOnlyMessagesWithRelated(filteredMessages3)
+
+    const filteredMessages5 = filterAdjacentUserMessaegs(filteredMessages4)
 
     let uiMessages = filterUserRoleStartMessages(
-      filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
+      filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages5, contextCount + 2))) // 取原来几个provider的最大值
     )
 
     // Fallback: ensure at least the last user message is present to avoid empty payloads
