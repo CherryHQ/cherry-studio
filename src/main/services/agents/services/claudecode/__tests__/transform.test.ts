@@ -277,9 +277,9 @@ describe('Claude → AiSDK transform', () => {
     >[]
     expect(toolCalls).toHaveLength(2)
     expect(toolCalls[0].toolName).toBe('Read')
-    expect(toolCalls[0].toolCallId).toBe('tool-read')
+    expect(toolCalls[0].toolCallId).toBe('12344:tool-read')
     expect(toolCalls[1].toolName).toBe('Bash')
-    expect(toolCalls[1].toolCallId).toBe('tool-bash')
+    expect(toolCalls[1].toolCallId).toBe('12344:tool-bash')
 
     const toolResults = parts.filter((part) => part.type === 'tool-result') as Extract<
       (typeof parts)[number],
@@ -288,12 +288,12 @@ describe('Claude → AiSDK transform', () => {
     expect(toolResults).toHaveLength(2)
     // This is the key assertion - toolName should NOT be 'unknown'
     expect(toolResults[0].toolName).toBe('Read')
-    expect(toolResults[0].toolCallId).toBe('tool-read')
+    expect(toolResults[0].toolCallId).toBe('12344:tool-read')
     expect(toolResults[0].input).toEqual({ file_path: '/test.txt' })
     expect(toolResults[0].output).toBe('file contents')
 
     expect(toolResults[1].toolName).toBe('Bash')
-    expect(toolResults[1].toolCallId).toBe('tool-bash')
+    expect(toolResults[1].toolCallId).toBe('12344:tool-bash')
     expect(toolResults[1].input).toEqual({ command: 'ls -la' })
     expect(toolResults[1].output).toBe('total 42\n...')
   })
