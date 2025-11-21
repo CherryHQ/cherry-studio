@@ -67,6 +67,10 @@ export interface CherryInProviderSettings {
    * Optional static headers applied to every request.
    */
   headers?: HeadersInput
+  /**
+   * Optional endpoint type to distinguish different endpoint behaviors.
+   */
+  endpointType?: 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 }
 
 export interface CherryInProvider extends ProviderV2 {
@@ -151,7 +155,8 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     baseURL = DEFAULT_CHERRYIN_BASE_URL,
     anthropicBaseURL = DEFAULT_CHERRYIN_ANTHROPIC_BASE_URL,
     geminiBaseURL = DEFAULT_CHERRYIN_GEMINI_BASE_URL,
-    fetch
+    fetch,
+    endpointType
   } = options
 
   const getJsonHeaders = createJsonHeadersGetter(options)
@@ -205,7 +210,7 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       fetch
     })
 
-  const createChatModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
+  const createChatModelByModelId = (modelId: string, settings: OpenAIProviderSettings = {}) => {
     if (isAnthropicModel(modelId)) {
       return createAnthropicModel(modelId)
     }
@@ -221,6 +226,29 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       }),
       fetch
     })
+  }
+
+  const createChatModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
+    if (!endpointType) return createChatModelByModelId(modelId, settings)
+    switch (endpointType) {
+      case 'anthropic':
+        return createAnthropicModel(modelId)
+      case 'gemini':
+        return createGeminiModel(modelId)
+      case 'openai':
+        return createOpenAIChatModel(modelId)
+      case 'openai-response':
+      default:
+        return new OpenAIResponsesLanguageModel(modelId, {
+          provider: `${CHERRYIN_PROVIDER_NAME}.openai`,
+          url,
+          headers: () => ({
+            ...getJsonHeaders(),
+            ...settings.headers
+          }),
+          fetch
+        })
+    }
   }
 
   const createCompletionModel = (modelId: string, settings: OpenAIProviderSettings = {}) =>
