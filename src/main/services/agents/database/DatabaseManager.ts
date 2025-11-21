@@ -134,7 +134,7 @@ export class DatabaseManager {
    * Automatically waits for initialization to complete
    * @throws Error if database initialization failed
    */
-  public async getDatabase(): Promise<LibSQLDatabase<typeof schema>> {
+  public getDatabase(): LibSQLDatabase<typeof schema> {
     return this.db!
   }
 
