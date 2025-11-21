@@ -31,9 +31,6 @@ export class ApiServer {
     // Load config
     const { port, host } = await config.load()
 
-    // AgentService database auto-initializes on first access
-    logger.info('AgentService ready')
-
     // Create server with Express app
     this.server = createServer(app)
     this.applyServerTimeouts(this.server)
