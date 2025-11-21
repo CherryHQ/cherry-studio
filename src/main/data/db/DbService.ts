@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import { app } from 'electron'
@@ -36,6 +37,7 @@ class DbService {
   private static instance: DbService
   private db: DbType
   private isInitialized = false
+  private walConfigured = false
 
   private constructor() {
     try {
@@ -67,11 +69,36 @@ class DbService {
   }
 
   /**
+   * Configure WAL mode for better concurrency performance
+   * Called once during the first database operation
+   */
+  private async configureWAL(): Promise<void> {
+    if (this.walConfigured) {
+      return
+    }
+
+    try {
+      await this.db.run(
+        sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`
+      )
+
+      this.walConfigured = true
+      logger.info('WAL mode configured for database')
+    } catch (error) {
+      logger.warn('Failed to configure WAL mode, using default journal mode', error as Error)
+      // Don't throw error, allow database to continue with default mode
+    }
+  }
+
+  /**
    * Run database migrations
    * @throws {Error} If migration fails
    */
   public async migrateDb(): Promise<void> {
     try {
+      // Configure WAL mode on first database operation
+      await this.configureWAL()
+
       const migrationsFolder = this.getMigrationsFolder()
       await migrate(this.db, { migrationsFolder })
 
