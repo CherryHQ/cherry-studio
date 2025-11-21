@@ -78,9 +78,7 @@ class DbService {
     }
 
     try {
-      await this.db.run(
-        sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`
-      )
+      await this.db.run(sql`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON`)
 
       this.walConfigured = true
       logger.info('WAL mode configured for database')
