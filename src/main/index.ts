@@ -170,8 +170,15 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
-    // Agent database is auto-initialized on first access
-    logger.info('Agent service ready (database will initialize on first use)')
+    // Wait for agent database to initialize
+    try {
+      const { getDatabaseManager } = await import('./services/agents/database/DatabaseManager')
+      const dbManager = getDatabaseManager()
+      await dbManager.getDatabase()
+      logger.info('Agent database initialized successfully')
+    } catch (error: any) {
+      logger.error('Failed to initialize Agent database:', error)
+    }
 
     // Start API server if enabled or if agents exist
     try {
