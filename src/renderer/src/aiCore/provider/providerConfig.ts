@@ -228,6 +228,13 @@ export function providerToAiSdkConfig(
     baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
   }
 
+  // cherryin
+  if (aiSdkProviderId === 'cherryin') {
+    if (model.endpoint_type) {
+      extraOptions.endpointType = model.endpoint_type
+    }
+  }
+
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {

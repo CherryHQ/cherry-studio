@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => {
           'knowledge.chunk_size': '分块大小',
           'knowledge.chunk_overlap': '分块重叠',
           'knowledge.threshold': '检索相似度阈值',
-          'knowledge.chunk_size_change_warning': '避免修改这个高级设置。'
+          'knowledge.chunk_size_change_warning': '避免修改这个高级设置。',
+          'settings.tool.preprocess.title': '文档预处理',
+          'models.rerank_model': '重排模型',
+          'settings.models.empty': '未选择'
         }
         return translations[k] || k
       }
@@ -20,7 +23,9 @@ const mocks = vi.hoisted(() => {
     handlers: {
       handleChunkSizeChange: vi.fn(),
       handleChunkOverlapChange: vi.fn(),
-      handleThresholdChange: vi.fn()
+      handleThresholdChange: vi.fn(),
+      handleDocPreprocessChange: vi.fn(),
+      handleRerankModelChange: vi.fn()
     }
   }
 })
@@ -56,7 +61,37 @@ vi.mock('antd', () => ({
       disabled={disabled}
       style={style}
     />
+  ),
+  Select: ({ value, onChange, options, placeholder }: any) => (
+    <select value={value} onChange={(e) => onChange(e.target.value)} data-testid="select">
+      <option value="">{placeholder}</option>
+      {options?.map((opt: any) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
   )
+}))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  default: ({ value, onChange, placeholder }: any) => (
+    <select value={value} onChange={(e) => onChange(e.target.value)} data-testid="model-selector">
+      <option value="">{placeholder}</option>
+    </select>
+  )
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] })
+}))
+
+vi.mock('@renderer/services/ModelService', () => ({
+  getModelUniqId: (model: any) => model?.id || ''
+}))
+
+vi.mock('@renderer/config/models', () => ({
+  isRerankModel: () => true
 }))
 
 /**
@@ -94,7 +129,9 @@ describe('AdvancedSettingsPanel', () => {
 
   describe('basic rendering', () => {
     it('should match snapshot', () => {
-      const { container } = render(<AdvancedSettingsPanel newBase={mockBase} handlers={mocks.handlers} />)
+      const { container } = render(
+        <AdvancedSettingsPanel newBase={mockBase} handlers={mocks.handlers} docPreprocessSelectOptions={[]} />
+      )
 
       expect(container.firstChild).toMatchSnapshot()
     })
@@ -102,7 +139,7 @@ describe('AdvancedSettingsPanel', () => {
 
   describe('handlers', () => {
     it('should call handlers when values are changed', () => {
-      render(<AdvancedSettingsPanel newBase={mockBase} handlers={mocks.handlers} />)
+      render(<AdvancedSettingsPanel newBase={mockBase} handlers={mocks.handlers} docPreprocessSelectOptions={[]} />)
 
       const chunkSizeInput = screen.getByLabelText('分块大小')
       fireEvent.change(chunkSizeInput, { target: { value: '600' } })
