@@ -10,7 +10,7 @@ const INTERLEAVED_THINKING_HEADER = 'interleaved-thinking-2025-05-14'
 // https://docs.claude.com/en/docs/build-with-claude/context-windows#1m-token-context-window
 const CONTEXT_100M_HEADER = 'context-1m-2025-08-07'
 // https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/claude/web-search
-const WEBSERACH_HEADER = 'web-search-2025-03-05'
+const WEBSEARCH_HEADER = 'web-search-2025-03-05'
 
 export function addAnthropicHeaders(assistant: Assistant, model: Model): string[] {
   const anthropicHeaders: string[] = []
@@ -24,7 +24,7 @@ export function addAnthropicHeaders(assistant: Assistant, model: Model): string[
   }
   if (isClaude4SeriesModel(model)) {
     if (isVertexProvider(provider) && assistant.enableWebSearch) {
-      anthropicHeaders.push(WEBSERACH_HEADER)
+      anthropicHeaders.push(WEBSEARCH_HEADER)
     }
     anthropicHeaders.push(CONTEXT_100M_HEADER)
   }
