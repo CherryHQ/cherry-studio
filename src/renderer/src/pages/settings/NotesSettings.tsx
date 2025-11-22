@@ -105,7 +105,6 @@ const NotesSettings: FC = () => {
               value={tempPath}
               onChange={(e) => setTempPath(e.target.value)}
               placeholder={t('notes.settings.data.work_directory_placeholder')}
-              readOnly
             />
             <Button
               type="default"
