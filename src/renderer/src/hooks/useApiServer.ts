@@ -1,10 +1,30 @@
 import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setApiServerEnabled as setApiServerEnabledAction } from '@renderer/store/settings'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useApiServer')
+
+// Module-level single instance subscription to prevent EventEmitter memory leak
+// Only one IPC listener will be registered regardless of how many components use this hook
+const onReadyCallbacks = new Set<() => void>()
+let removeIpcListener: (() => void) | null = null
+
+const ensureIpcSubscribed = () => {
+  if (!removeIpcListener) {
+    removeIpcListener = window.api.apiServer.onReady(() => {
+      onReadyCallbacks.forEach((cb) => cb())
+    })
+  }
+}
+
+const cleanupIpcIfEmpty = () => {
+  if (onReadyCallbacks.size === 0 && removeIpcListener) {
+    removeIpcListener()
+    removeIpcListener = null
+  }
+}
 
 export const useApiServer = () => {
   const { t } = useTranslation()
@@ -102,15 +122,28 @@ export const useApiServer = () => {
     checkApiServerStatus()
   }, [checkApiServerStatus])
 
-  // Listen for API server ready event
+  // Use ref to keep the latest checkApiServerStatus without causing re-subscription
+  const checkStatusRef = useRef(checkApiServerStatus)
   useEffect(() => {
-    const cleanup = window.api.apiServer.onReady(() => {
-      logger.info('API server ready event received, checking status')
-      checkApiServerStatus()
-    })
+    checkStatusRef.current = checkApiServerStatus
+  })
 
-    return cleanup
-  }, [checkApiServerStatus])
+  // Create stable callback for the single instance subscription
+  const handleReady = useCallback(() => {
+    logger.info('API server ready event received, checking status')
+    checkStatusRef.current()
+  }, [])
+
+  // Listen for API server ready event using single instance subscription
+  useEffect(() => {
+    ensureIpcSubscribed()
+    onReadyCallbacks.add(handleReady)
+
+    return () => {
+      onReadyCallbacks.delete(handleReady)
+      cleanupIpcIfEmpty()
+    }
+  }, [handleReady])
 
   return {
     apiServerConfig,

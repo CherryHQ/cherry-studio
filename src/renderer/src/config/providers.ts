@@ -268,6 +268,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.qnaigc.com',
+    anthropicApiHost: 'https://api.qnaigc.com',
     models: SYSTEM_MODELS.qiniu,
     isSystem: true,
     enabled: false
@@ -658,6 +659,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.longcat.chat/openai',
+    anthropicApiHost: 'https://api.longcat.chat/anthropic',
     models: SYSTEM_MODELS.longcat,
     isSystem: true,
     enabled: false
@@ -677,7 +679,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'AI Gateway',
     type: 'ai-gateway',
     apiKey: '',
-    apiHost: 'https://ai-gateway.vercel.sh/v1',
+    apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
     models: [],
     isSystem: true,
     enabled: false

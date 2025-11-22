@@ -8,7 +8,6 @@ import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
@@ -37,7 +36,8 @@ import {
   isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
-  isSupportAPIVersionProvider
+  isSupportAPIVersionProvider,
+  isVertexProvider
 } from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'

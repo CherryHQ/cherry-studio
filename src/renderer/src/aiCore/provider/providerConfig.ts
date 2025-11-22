@@ -13,7 +13,7 @@ import {
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
-import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
@@ -24,7 +24,8 @@ import {
   isCherryAIProvider,
   isGeminiProvider,
   isNewApiProvider,
-  isPerplexityProvider
+  isPerplexityProvider,
+  isVertexProvider
 } from '@renderer/utils/provider'
 import { cloneDeep } from 'lodash'
 
@@ -225,6 +226,13 @@ export function providerToAiSdkConfig(
       privateKey: formatPrivateKey(googleCredentials.privateKey)
     }
     baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
+  }
+
+  // cherryin
+  if (aiSdkProviderId === 'cherryin') {
+    if (model.endpoint_type) {
+      extraOptions.endpointType = model.endpoint_type
+    }
   }
 
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {

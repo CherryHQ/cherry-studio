@@ -1,4 +1,4 @@
-import { isGeminiModel } from '@renderer/config/models'
+import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { isSupportUrlContextProvider } from '@renderer/utils/provider'
@@ -10,9 +10,8 @@ const urlContextTool = defineTool({
   label: (t) => t('chat.input.url_context'),
   visibleInScopes: [TopicType.Chat],
   condition: ({ model }) => {
-    if (!isGeminiModel(model)) return false
     const provider = getProviderByModel(model)
-    return !!provider && isSupportUrlContextProvider(provider)
+    return !!provider && isSupportUrlContextProvider(provider) && (isGeminiModel(model) || isAnthropicModel(model))
   },
   render: ({ assistant }) => <UrlContextButton assistantId={assistant.id} />
 })

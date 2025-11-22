@@ -27,6 +27,18 @@
         "null_id": "El ID del agente es nulo."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "[to be translated]:Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
+        "recheck": "[to be translated]:Recheck Git Bash Installation",
+        "title": "[to be translated]:Git Bash Required"
+      },
+      "notFound": "[to be translated]:Git Bash not found. Please install it first.",
+      "success": "[to be translated]:Git Bash detected successfully!"
+    },
+    "input": {
+      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+    },
     "list": {
       "error": {
         "failed": "Error al listar agentes."
@@ -4478,7 +4490,7 @@
       "confirm": "Confirmar",
       "forward": "Adelante",
       "multiple": "Selección múltiple",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "No se encontraron resultados",
       "page": "Página",
       "select": "Seleccionar",
       "title": "Menú de acceso rápido"

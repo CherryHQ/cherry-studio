@@ -6,7 +6,7 @@ import AiProvider from '@renderer/aiCore'
 import type { CompletionsParams } from '@renderer/aiCore/legacy/middleware/schemas'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
-import { isDedicatedImageGenerationModel, isEmbeddingModel } from '@renderer/config/models'
+import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -18,6 +18,7 @@ import type { Message } from '@renderer/types/newMessage'
 import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isAbortError } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
@@ -126,12 +127,16 @@ export async function fetchChatCompletion({
     requestOptions: options
   })
 
+  // Safely fallback to prompt tool use when function calling is not supported by model.
+  const usePromptToolUse =
+    isPromptToolUse(assistant) || (isToolUseModeFunction(assistant) && !isFunctionCallingModel(assistant.model))
+
   const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: assistant.settings?.streamOutput ?? true,
     onChunk: onChunkReceived,
     model: assistant.model,
     enableReasoning: capabilities.enableReasoning,
-    isPromptToolUse: isPromptToolUse(assistant),
+    isPromptToolUse: usePromptToolUse,
     isSupportedToolUse: isSupportedToolUse(assistant),
     isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
     webSearchPluginConfig: webSearchPluginConfig,

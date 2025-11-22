@@ -2,6 +2,9 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { isEmbeddingModel, isRerankModel } from '../embedding'
+import { isAutoEnableImageGenerationModel, isDedicatedImageGenerationModel, isGenerateImageModel, isImageEnhancementModel, isPureGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
+
 vi.mock('@renderer/hooks/useStore', () => ({
   getStoreProviders: vi.fn(() => [])
 }))
@@ -39,18 +42,6 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
   getStoreSetting: vi.fn()
 }))
-
-import { isEmbeddingModel, isRerankModel } from '../embedding'
-import {
-  isAutoEnableImageGenerationModel,
-  isDedicatedImageGenerationModel,
-  isGenerateImageModel,
-  isImageEnhancementModel,
-  isNotSupportedImageSizeModel,
-  isPureGenerateImageModel,
-  isTextToImageModel,
-  isVisionModel
-} from '../vision'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getProviderByModel: vi.fn()
@@ -121,7 +112,6 @@ describe('vision helpers', () => {
     })
 
     it('detects models with restricted image size support and enhancement', () => {
-      expect(isNotSupportedImageSizeModel(createModel({ id: 'grok-2-image-latest' }))).toBe(true)
       expect(isImageEnhancementModel(createModel({ id: 'qwen-image-edit' }))).toBe(true)
       expect(isImageEnhancementModel(createModel({ id: 'gpt-4o' }))).toBe(false)
     })
@@ -136,9 +126,10 @@ describe('vision helpers', () => {
       expect(isAutoEnableImageGenerationModel(createModel({ id: 'gpt-4o' }))).toBe(false)
     })
   })
+})
 
-  describe('isVisionModel', () => {
-    it('returns false for embedding/rerank models and honors overrides', () => {
+describe('isVisionModel', () => {
+  it('returns false for embedding/rerank models and honors overrides', () => {
       embeddingMock.mockReturnValueOnce(true)
       expect(isVisionModel(createModel({ id: 'gpt-4o' }))).toBe(false)
 
@@ -174,6 +165,138 @@ describe('vision helpers', () => {
     it('returns false for doubao models that fail regex checks', () => {
       const doubao = createModel({ id: 'doubao-standard', provider: 'doubao', name: 'basic' })
       expect(isVisionModel(doubao)).toBe(false)
+    })
+  describe('Gemini Models', () => {
+    it('should return true for gemini 1.5 models', () => {
+      expect(
+        isVisionModel({
+          id: 'gemini-1.5-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-1.5-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini 2.x models', () => {
+      expect(
+        isVisionModel({
+          id: 'gemini-2.0-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-2.0-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-2.5-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-2.5-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini latest models', () => {
+      expect(
+        isVisionModel({
+          id: 'gemini-flash-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-pro-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-flash-lite-latest',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini 3 models', () => {
+      // Preview versions
+      expect(
+        isVisionModel({
+          id: 'gemini-3-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Future stable versions
+      expect(
+        isVisionModel({
+          id: 'gemini-3-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isVisionModel({
+          id: 'gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini exp models', () => {
+      expect(
+        isVisionModel({
+          id: 'gemini-exp-1206',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for gemini 1.0 models', () => {
+      expect(
+        isVisionModel({
+          id: 'gemini-1.0-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
     })
   })
 })

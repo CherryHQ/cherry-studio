@@ -1,5 +1,5 @@
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
-import type { AzureOpenAIProvider, ProviderType } from '@renderer/types'
+import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
 
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
@@ -127,6 +127,14 @@ export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpen
 
 export function isOpenAIProvider(provider: Provider): boolean {
   return provider.type === 'openai-response'
+}
+
+export function isVertexProvider(provider: Provider): provider is VertexProvider {
+  return provider.type === 'vertexai'
+}
+
+export function isAwsBedrockProvider(provider: Provider): boolean {
+  return provider.type === 'aws-bedrock'
 }
 
 export function isAnthropicProvider(provider: Provider): boolean {

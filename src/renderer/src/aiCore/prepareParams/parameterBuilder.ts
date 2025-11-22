@@ -7,10 +7,12 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
+import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
+  isAnthropicModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
@@ -25,6 +27,7 @@ import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
+import { isAwsBedrockProvider, isVertexProvider } from '@renderer/utils/provider'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -32,6 +35,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
+import { addAnthropicHeaders } from './header'
 import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
@@ -157,6 +161,14 @@ export async function buildStreamTextParams(
     }
   }
 
+  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+
+  // https://docs.claude.com/en/docs/build-with-claude/extended-thinking#interleaved-thinking
+  if (!isVertexProvider(provider) && !isAwsBedrockProvider(provider) && isAnthropicModel(model)) {
+    const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
+    headers = combineHeaders(headers, newBetaHeaders)
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
@@ -164,7 +176,7 @@ export async function buildStreamTextParams(
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
     abortSignal: options.requestOptions?.signal,
-    headers: options.requestOptions?.headers,
+    headers,
     providerOptions,
     stopWhen: stepCountIs(20),
     maxRetries: 0

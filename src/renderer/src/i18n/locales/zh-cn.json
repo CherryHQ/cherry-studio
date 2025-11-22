@@ -27,6 +27,18 @@
         "null_id": "智能体 ID 为空。"
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "在 Windows 上运行智能体需要 Git Bash。没有它智能体无法运行。请从以下地址安装 Git for Windows",
+        "recheck": "重新检测 Git Bash 安装",
+        "title": "需要 Git Bash"
+      },
+      "notFound": "未找到 Git Bash。请先安装。",
+      "success": "成功检测到 Git Bash！"
+    },
+    "input": {
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
+    },
     "list": {
       "error": {
         "failed": "获取智能体列表失败"
@@ -1372,6 +1384,36 @@
     "generating": "生成中",
     "preview": "预览",
     "split": "分屏"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT 导入",
+      "button": "选择文件",
+      "description": "仅导入对话文字，不携带图片和附件",
+      "error": {
+        "invalid_json": "无效的 JSON 文件格式",
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "help": {
+        "step1": "1. 登录 ChatGPT，进入设置 > 数据控制 > 导出数据",
+        "step2": "2. 等待邮件接收导出文件",
+        "step3": "3. 解压下载的文件，找到 conversations.json",
+        "title": "如何导出 ChatGPT 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "title": "导入 ChatGPT 对话",
+      "untitled_conversation": "未命名对话"
+    },
+    "confirm": {
+      "button": "选择导入文件",
+      "label": "确定要导入外部数据吗？"
+    },
+    "content": "选择要导入的外部应用对话文件，暂时仅支持ChatGPT的JSON格式文件",
+    "title": "导入外部对话"
   },
   "knowledge": {
     "add": {
@@ -3082,6 +3124,7 @@
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
         "export_settings": "导出设置",
+        "import_settings": "导入设置",
         "third_party": "第三方连接"
       },
       "export_menu": {
@@ -3140,6 +3183,11 @@
       },
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
+      "import_settings": {
+        "button": "导入文件",
+        "chatgpt": "导入 ChatGPT 数据",
+        "title": "导入外部应用数据"
+      },
       "joplin": {
         "check": {
           "button": "检测",
@@ -4478,7 +4526,7 @@
       "confirm": "确认",
       "forward": "前进",
       "multiple": "多选",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "未找到结果",
       "page": "翻页",
       "select": "选择",
       "title": "快捷菜单"

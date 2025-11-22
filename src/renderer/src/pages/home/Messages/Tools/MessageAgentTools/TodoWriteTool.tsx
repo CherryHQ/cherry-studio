@@ -1,4 +1,3 @@
-import { cn } from '@renderer/utils'
 import type { CollapseProps } from 'antd'
 import { Card } from 'antd'
 import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
@@ -11,23 +10,27 @@ const getStatusConfig = (status: TodoItem['status']) => {
   switch (status) {
     case 'completed':
       return {
-        color: 'success' as const,
-        icon: <CheckCircle className="h-3 w-3" />
+        color: 'var(--color-status-success)',
+        opacity: 0.6,
+        icon: <CheckCircle className="h-4 w-4" strokeWidth={2.5} />
       }
     case 'in_progress':
       return {
-        color: 'primary' as const,
-        icon: <Clock className="h-3 w-3" />
+        color: 'var(--color-primary)',
+        opacity: 0.9,
+        icon: <Clock className="h-4 w-4" strokeWidth={2.5} />
       }
     case 'pending':
       return {
-        color: 'default' as const,
-        icon: <Circle className="h-3 w-3" />
+        color: 'var(--color-border)',
+        opacity: 0.4,
+        icon: <Circle className="h-4 w-4" strokeWidth={2.5} />
       }
     default:
       return {
-        color: 'default' as const,
-        icon: <Circle className="h-3 w-3" />
+        color: 'var(--color-border)',
+        opacity: 0.4,
+        icon: <Circle className="h-4 w-4" strokeWidth={2.5} />
       }
   }
 }
@@ -64,10 +67,8 @@ export function TodoWriteTool({
                 <div className="p-2">
                   <div className="flex items-center justify-center gap-3">
                     <div
-                      className={cn(
-                        'flex items-center justify-center rounded-full border bg-opacity-50 p-2',
-                        `bg-${statusConfig.color}`
-                      )}>
+                      className="flex items-center justify-center rounded-full border p-1"
+                      style={{ backgroundColor: statusConfig.color, opacity: statusConfig.opacity }}>
                       {statusConfig.icon}
                     </div>
                     <div className="min-w-0 flex-1">

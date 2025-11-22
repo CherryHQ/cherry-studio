@@ -104,9 +104,6 @@ export function buildProviderOptions(
           serviceTier: serviceTierSetting
         }
         break
-      case 'huggingface':
-        providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
-        break
       case 'anthropic':
         providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
         break
@@ -149,6 +146,9 @@ export function buildProviderOptions(
         case 'bedrock':
           providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
           break
+        case 'huggingface':
+          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
+          break
         default:
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = {
@@ -167,12 +167,16 @@ export function buildProviderOptions(
     ...getCustomParameters(assistant)
   }
 
-  const rawProviderKey =
+  let rawProviderKey =
     {
       'google-vertex': 'google',
       'google-vertex-anthropic': 'anthropic',
       'ai-gateway': 'gateway'
     }[rawProviderId] || rawProviderId
+
+  if (rawProviderKey === 'cherryin') {
+    rawProviderKey = { gemini: 'google' }[actualProvider.type] || actualProvider.type
+  }
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
   return {
