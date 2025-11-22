@@ -12,6 +12,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
@@ -141,6 +142,52 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // reasoningEffort有效的情况
+  // https://creator.poe.com/docs/external-applications/openai-compatible-api#additional-considerations
+  // Poe provider - supports custom bot parameters via extra_body
+  if (provider.id === SystemProviderIds.poe) {
+    // GPT-5 series models use reasoning_effort parameter in extra_body
+    if (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) {
+      return {
+        extra_body: {
+          reasoning_effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
+        }
+      }
+    }
+
+    // Claude models use thinking_budget parameter in extra_body
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
+      const tokenLimit = findTokenLimit(model.id)
+      const maxTokens = assistant.settings?.maxTokens
+      let budgetTokens: number | undefined
+      if (tokenLimit) {
+        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+        budgetTokens = Math.floor(
+          Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+        )
+      }
+      return {
+        extra_body: {
+          thinking_budget: budgetTokens
+        }
+      }
+    }
+
+    // Gemini models use thinking_budget parameter in extra_body
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
+      const tokenLimit = findTokenLimit(model.id)
+      let budgetTokens: number | undefined
+      if (tokenLimit && reasoningEffort !== 'auto') {
+        budgetTokens = Math.floor((tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min)
+      }
+      return {
+        extra_body: {
+          thinking_budget: budgetTokens ?? -1
+        }
+      }
+    }
+  }
 
   // OpenRouter models
   if (model.provider === SystemProviderIds.openrouter) {
