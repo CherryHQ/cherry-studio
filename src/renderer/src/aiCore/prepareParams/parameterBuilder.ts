@@ -123,7 +123,11 @@ export async function buildStreamTextParams(
     isSupportedThinkingTokenClaudeModel(model) &&
     (provider.type === 'anthropic' || provider.type === 'aws-bedrock')
   ) {
-    maxTokens -= getAnthropicThinkingBudget(assistant, model)
+    const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
+    const budget = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    if (budget) {
+      maxTokens -= budget
+    }
   }
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined

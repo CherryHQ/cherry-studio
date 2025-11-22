@@ -393,19 +393,26 @@ export function getOpenAIReasoningParams(
   return {}
 }
 
-export function getAnthropicThinkingBudget(assistant: Assistant, model: Model): number {
-  const { maxTokens, reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
+export function getAnthropicThinkingBudget(
+  maxTokens: number | undefined,
+  reasoningEffort: string | undefined,
+  modelId: string
+): number | undefined {
   if (reasoningEffort === undefined || reasoningEffort === 'none') {
-    return 0
+    return undefined
   }
   const effortRatio = EFFORT_RATIO[reasoningEffort]
+
+  const tokenLimit = findTokenLimit(modelId)
+  if (!tokenLimit) {
+    return undefined
+  }
 
   const budgetTokens = Math.max(
     1024,
     Math.floor(
       Math.min(
-        (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
-          findTokenLimit(model.id)?.min!,
+        (tokenLimit.max - tokenLimit.min) * effortRatio + tokenLimit.min,
         (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
       )
     )
@@ -437,7 +444,8 @@ export function getAnthropicReasoningParams(
 
   // Claude 推理参数
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    const budgetTokens = getAnthropicThinkingBudget(assistant, model)
+    const { maxTokens } = getAssistantSettings(assistant)
+    const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
 
     return {
       thinking: {
@@ -560,7 +568,8 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  const budgetTokens = getAnthropicThinkingBudget(assistant, model)
+  const { maxTokens } = getAssistantSettings(assistant)
+  const budgetTokens = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
   return {
     reasoningConfig: {
       type: 'enabled',
