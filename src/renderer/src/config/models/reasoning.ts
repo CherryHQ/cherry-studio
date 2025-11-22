@@ -384,7 +384,7 @@ export function isClaude45ReasoningModel(model: Model): boolean {
 
 export function isClaude4SeriesModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /claude-(sonnet|opus|haiku)-4(?:-[\w-]+)?$/i
+  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:-[\w-]+)?$/i
   return regex.test(modelId)
 }
 
