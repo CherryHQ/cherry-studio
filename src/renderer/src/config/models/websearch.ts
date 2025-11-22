@@ -13,10 +13,11 @@ import {
 export { GEMINI_FLASH_MODEL_REGEX } from './utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
+import { isClaude4SeriesModel } from './reasoning'
 import { isAnthropicModel } from './utils'
 import { isGenerateImageModel, isPureGenerateImageModel, isTextToImageModel } from './vision'
 
-export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
+const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
   'i'
 )
@@ -58,11 +59,11 @@ export function isWebSearchModel(model: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // bedrock和vertex不支持
-  if (
-    isAnthropicModel(model) &&
-    !(provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
-  ) {
+  // bedrock不支持
+  if (isAnthropicModel(model) && !(provider.id === SystemProviderIds['aws-bedrock'])) {
+    if (isVertexAiProvider(provider)) {
+      return isClaude4SeriesModel(model)
+    }
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
   }
 

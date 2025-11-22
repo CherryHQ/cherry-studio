@@ -27,7 +27,6 @@ import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
-import { isAwsBedrockProvider, isVertexProvider } from '@renderer/utils/provider'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -163,8 +162,7 @@ export async function buildStreamTextParams(
 
   let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
 
-  // https://docs.claude.com/en/docs/build-with-claude/extended-thinking#interleaved-thinking
-  if (!isVertexProvider(provider) && !isAwsBedrockProvider(provider) && isAnthropicModel(model)) {
+  if (isAnthropicModel(model)) {
     const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
     headers = combineHeaders(headers, newBetaHeaders)
   }
