@@ -3,7 +3,15 @@ import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isEmbeddingModel, isRerankModel } from '../embedding'
-import { isAutoEnableImageGenerationModel, isDedicatedImageGenerationModel, isGenerateImageModel, isImageEnhancementModel, isPureGenerateImageModel, isTextToImageModel, isVisionModel } from '../vision'
+import {
+  isAutoEnableImageGenerationModel,
+  isDedicatedImageGenerationModel,
+  isGenerateImageModel,
+  isImageEnhancementModel,
+  isPureGenerateImageModel,
+  isTextToImageModel,
+  isVisionModel
+} from '../vision'
 
 vi.mock('@renderer/hooks/useStore', () => ({
   getStoreProviders: vi.fn(() => [])
@@ -130,42 +138,42 @@ describe('vision helpers', () => {
 
 describe('isVisionModel', () => {
   it('returns false for embedding/rerank models and honors overrides', () => {
-      embeddingMock.mockReturnValueOnce(true)
-      expect(isVisionModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+    embeddingMock.mockReturnValueOnce(true)
+    expect(isVisionModel(createModel({ id: 'gpt-4o' }))).toBe(false)
 
-      embeddingMock.mockReturnValue(false)
-      const disabled = createModel({
-        id: 'gpt-4o',
-        capabilities: [{ type: 'vision', isUserSelected: false }]
-      })
-      expect(isVisionModel(disabled)).toBe(false)
-
-      const forced = createModel({
-        id: 'gpt-4o',
-        capabilities: [{ type: 'vision', isUserSelected: true }]
-      })
-      expect(isVisionModel(forced)).toBe(true)
+    embeddingMock.mockReturnValue(false)
+    const disabled = createModel({
+      id: 'gpt-4o',
+      capabilities: [{ type: 'vision', isUserSelected: false }]
     })
+    expect(isVisionModel(disabled)).toBe(false)
 
-    it('matches doubao models by name and general regexes by id', () => {
-      const doubao = createModel({
-        id: 'custom-id',
-        provider: 'doubao',
-        name: 'Doubao-Seed-1-6-Lite-251015'
-      })
-      expect(isVisionModel(doubao)).toBe(true)
-
-      expect(isVisionModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
+    const forced = createModel({
+      id: 'gpt-4o',
+      capabilities: [{ type: 'vision', isUserSelected: true }]
     })
+    expect(isVisionModel(forced)).toBe(true)
+  })
 
-    it('leverages image enhancement regex when standard vision regex does not match', () => {
-      expect(isVisionModel(createModel({ id: 'qwen-image-edit' }))).toBe(true)
+  it('matches doubao models by name and general regexes by id', () => {
+    const doubao = createModel({
+      id: 'custom-id',
+      provider: 'doubao',
+      name: 'Doubao-Seed-1-6-Lite-251015'
     })
+    expect(isVisionModel(doubao)).toBe(true)
 
-    it('returns false for doubao models that fail regex checks', () => {
-      const doubao = createModel({ id: 'doubao-standard', provider: 'doubao', name: 'basic' })
-      expect(isVisionModel(doubao)).toBe(false)
-    })
+    expect(isVisionModel(createModel({ id: 'gpt-4o-mini' }))).toBe(true)
+  })
+
+  it('leverages image enhancement regex when standard vision regex does not match', () => {
+    expect(isVisionModel(createModel({ id: 'qwen-image-edit' }))).toBe(true)
+  })
+
+  it('returns false for doubao models that fail regex checks', () => {
+    const doubao = createModel({ id: 'doubao-standard', provider: 'doubao', name: 'basic' })
+    expect(isVisionModel(doubao)).toBe(false)
+  })
   describe('Gemini Models', () => {
     it('should return true for gemini 1.5 models', () => {
       expect(
