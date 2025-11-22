@@ -161,6 +161,11 @@ export function isGenerateImageModel(model: Model): boolean {
   return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
 }
 
+/**
+ * the modern image generation models that support advanced features: tool use, reasoning, etc.
+ * @param model
+ * @returns Boolean
+ */
 export function isModernGenerateImageModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
   return /gemini-3(\.\d+)?-pro-image-preview/i.test(modelId)
