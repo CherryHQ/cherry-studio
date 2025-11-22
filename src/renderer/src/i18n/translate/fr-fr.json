@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
       },
+      "executing": "[to be translated]:Executing...",
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",

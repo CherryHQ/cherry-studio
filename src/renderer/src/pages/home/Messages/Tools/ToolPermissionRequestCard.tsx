@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectPendingPermission, toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
-import { Button } from 'antd'
+import { Button, Spin } from 'antd'
 import { ChevronDown, CirclePlay, CircleX } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,6 +52,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
   const isSubmittingAllow = request?.status === 'submitting-allow'
   const isSubmittingDeny = request?.status === 'submitting-deny'
   const isSubmitting = isSubmittingAllow || isSubmittingDeny
+  const isInvoking = request?.status === 'invoking'
 
   const handleDecision = useCallback(
     async (
@@ -109,6 +110,53 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
     return (
       <div className="rounded-xl border border-default-200 bg-default-100 px-4 py-3 text-default-500 text-sm">
         {t('agent.toolPermission.waiting')}
+      </div>
+    )
+  }
+
+  if (isInvoking) {
+    return (
+      <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Spin size="small" />
+              <div className="flex flex-col gap-1">
+                <div className="font-semibold text-default-700 text-sm">{request.toolName}</div>
+                <div className="text-default-500 text-xs">{t('agent.toolPermission.executing')}</div>
+              </div>
+            </div>
+            {request.inputPreview && (
+              <div className="flex items-center justify-end">
+                <Button
+                  aria-label={
+                    showDetails
+                      ? t('agent.toolPermission.aria.hideDetails')
+                      : t('agent.toolPermission.aria.showDetails')
+                  }
+                  className="h-8 text-default-600 transition-colors hover:bg-default-200/50 hover:text-default-800"
+                  onClick={() => setShowDetails((value) => !value)}
+                  icon={<ChevronDown className={`transition-transform ${showDetails ? 'rotate-180' : ''}`} size={16} />}
+                  variant="text"
+                  style={{ backgroundColor: 'transparent' }}
+                />
+              </div>
+            )}
+          </div>
+
+          {showDetails && request.inputPreview && (
+            <div className="flex flex-col gap-3 border-default-200 border-t pt-3">
+              <div className="rounded-md border border-default-200 bg-default-100 p-3">
+                <p className="mb-2 font-medium text-default-400 text-xs uppercase tracking-wide">
+                  {t('agent.toolPermission.inputPreview')}
+                </p>
+                <div className="max-h-[192px] overflow-auto font-mono text-xs">
+                  <pre className="whitespace-pre-wrap break-all p-2 text-left">{request.inputPreview}</pre>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     )
   }

@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "Αποτυχία αποστολής της απόφασής σας. Προσπαθήστε ξανά."
       },
+      "executing": "[to be translated]:Executing...",
       "expired": "Ληγμένο",
       "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
       "pending": "Εκκρεμεί ({{seconds}}δ)",

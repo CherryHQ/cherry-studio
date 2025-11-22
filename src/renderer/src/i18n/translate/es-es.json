@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo."
       },
+      "executing": "[to be translated]:Executing...",
       "expired": "Caducado",
       "inputPreview": "Vista previa de entrada de herramienta",
       "pending": "Pendiente ({{seconds}}s)",
