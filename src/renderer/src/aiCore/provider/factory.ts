@@ -78,7 +78,7 @@ export function getAiSdkProviderId(provider: Provider): string {
   return provider.id
 }
 
-export async function createAiSdkProvider(config: AiSdkConfig) {
+export async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider | null> {
   let localProvider: Awaited<AiSdkProvider> | null = null
   try {
     if (config.providerId === 'openai' && config.options?.mode === 'chat') {
