@@ -1499,7 +1499,7 @@ const migrateConfig = {
   '102': (state: RootState) => {
     try {
       state.settings.openAI = {
-        // @ts-expect-error it's a removed type. migrated on 172
+        // @ts-expect-error it's a removed type. migrated on 177
         summaryText: 'off',
         serviceTier: 'auto',
         verbosity: 'medium'
@@ -1593,7 +1593,7 @@ const migrateConfig = {
       addMiniApp(state, 'google')
       if (!state.settings.openAI) {
         state.settings.openAI = {
-          // @ts-expect-error it's a removed type. migrated on 172
+          // @ts-expect-error it's a removed type. migrated on 177
           summaryText: 'off',
           serviceTier: 'auto',
           verbosity: 'medium'
