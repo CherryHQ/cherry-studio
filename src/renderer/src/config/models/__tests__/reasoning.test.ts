@@ -6,6 +6,7 @@ import { isOpenAIReasoningModel, isSupportedReasoningEffortOpenAIModel } from '.
 import {
   findTokenLimit,
   getThinkModelType,
+  isClaude4SeriesModel,
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
   isDeepSeekHybridInferenceModel,
@@ -306,6 +307,12 @@ describe('Claude & regional providers', () => {
   it('identifies claude 4.5 variants', () => {
     expect(isClaude45ReasoningModel(createModel({ id: 'claude-sonnet-4.5-preview' }))).toBe(true)
     expect(isClaude45ReasoningModel(createModel({ id: 'claude-3-sonnet' }))).toBe(false)
+  })
+
+  it('identifies claude 4 variants', () => {
+    expect(isClaude4SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(true)
+    expect(isClaude4SeriesModel(createModel({ id: 'claude-4.2-sonnet-variant' }))).toBe(false)
+    expect(isClaude4SeriesModel(createModel({ id: 'claude-3-haiku' }))).toBe(false)
   })
 
   it('detects general claude reasoning support', () => {
