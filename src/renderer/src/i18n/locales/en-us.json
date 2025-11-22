@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "Failed to send your decision. Please try again."
       },
+      "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
       "pending": "Pending ({{seconds}}s)",
@@ -1158,6 +1159,7 @@
     "name": "Name",
     "no_results": "No results",
     "none": "None",
+    "off": "Off",
     "open": "Open",
     "paste": "Paste",
     "placeholders": {
@@ -4259,7 +4261,6 @@
         "default": "default",
         "flex": "flex",
         "on_demand": "on demand",
-        "performance": "performance",
         "priority": "priority",
         "tip": "Specifies the latency tier to use for processing the request",
         "title": "Service Tier"
@@ -4278,7 +4279,7 @@
         "low": "Low",
         "medium": "Medium",
         "tip": "Control the level of detail in the model's output",
-        "title": "Level of detail"
+        "title": "Verbosity"
       }
     },
     "privacy": {

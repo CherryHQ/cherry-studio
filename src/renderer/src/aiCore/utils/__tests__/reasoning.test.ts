@@ -3,8 +3,9 @@
  * Tests for reasoning parameter generation utilities
  */
 
+import * as models from '@renderer/config/models'
 import type { Assistant, Model, Provider } from '@renderer/types'
-import { EFFORT_RATIO, SystemProviderIds } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -653,66 +654,6 @@ describe('reasoning utils', () => {
     })
   })
 
-  describe('getAnthropicThinkingBudget', () => {
-    it('should return 0 when no reasoning effort', async () => {
-      const model: Model = {
-        id: 'claude-3-7-sonnet',
-        name: 'Claude 3.7 Sonnet',
-        provider: SystemProviderIds.anthropic
-      } as Model
-
-      const assistant: Assistant = {
-        id: 'test',
-        name: 'Test',
-        settings: {}
-      } as Assistant
-
-      const result = getAnthropicThinkingBudget(assistant, model)
-      expect(result).toBe(0)
-    })
-
-    it('should calculate budget based on effort ratio', async () => {
-      const model: Model = {
-        id: 'claude-3-7-sonnet',
-        name: 'Claude 3.7 Sonnet',
-        provider: SystemProviderIds.anthropic
-      } as Model
-
-      const assistant: Assistant = {
-        id: 'test',
-        name: 'Test',
-        settings: {
-          maxTokens: 8192,
-          reasoning_effort: 'medium'
-        }
-      } as Assistant
-
-      const result = getAnthropicThinkingBudget(assistant, model)
-      expect(result).toBeGreaterThan(1024) // Should be at least minimum
-    })
-
-    it('should respect maximum tokens constraint', async () => {
-      const model: Model = {
-        id: 'claude-3-7-sonnet',
-        name: 'Claude 3.7 Sonnet',
-        provider: SystemProviderIds.anthropic
-      } as Model
-
-      const assistant: Assistant = {
-        id: 'test',
-        name: 'Test',
-        settings: {
-          maxTokens: 2048,
-          reasoning_effort: 'high'
-        }
-      } as Assistant
-
-      const result = getAnthropicThinkingBudget(assistant, model)
-      const effortRatio = EFFORT_RATIO.high
-      expect(result).toBeLessThanOrEqual(2048 * effortRatio)
-    })
-  })
-
   describe('getGeminiReasoningParams', () => {
     it('should return empty for non-reasoning model', async () => {
       const { isReasoningModel } = await import('@renderer/config/models')
@@ -1047,6 +988,63 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         valid: 'value3'
       })
+    })
+  })
+  describe('getAnthropicThinkingBudget', () => {
+    const findTokenLimitSpy = vi.spyOn(models, 'findTokenLimit')
+    const applyTokenLimit = (limit?: { min: number; max: number }) => findTokenLimitSpy.mockReturnValueOnce(limit)
+
+    beforeEach(() => {
+      findTokenLimitSpy.mockReset()
+    })
+
+    it('returns undefined when reasoningEffort is undefined', () => {
+      const result = getAnthropicThinkingBudget(8000, undefined, 'claude-model')
+      expect(result).toBe(undefined)
+      expect(findTokenLimitSpy).not.toHaveBeenCalled()
+    })
+
+    it('returns undefined when tokenLimit is not found', () => {
+      const unknownId = 'unknown-model'
+      applyTokenLimit(undefined)
+      const result = getAnthropicThinkingBudget(8000, 'medium', unknownId)
+      expect(result).toBe(undefined)
+      expect(findTokenLimitSpy).toHaveBeenCalledWith(unknownId)
+    })
+
+    it('uses DEFAULT_MAX_TOKENS when maxTokens is undefined', () => {
+      applyTokenLimit({ min: 1000, max: 10_000 })
+      const result = getAnthropicThinkingBudget(undefined, 'medium', 'claude-model')
+      expect(result).toBe(2048)
+      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
+    })
+
+    it('respects maxTokens limit when lower than token limit', () => {
+      applyTokenLimit({ min: 1000, max: 10_000 })
+      const result = getAnthropicThinkingBudget(8000, 'medium', 'claude-model')
+      expect(result).toBe(4000)
+      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
+    })
+
+    it('caps to token limit when lower than maxTokens budget', () => {
+      applyTokenLimit({ min: 1000, max: 5000 })
+      const result = getAnthropicThinkingBudget(100_000, 'high', 'claude-model')
+      expect(result).toBe(4200)
+      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
+    })
+
+    it('enforces minimum budget of 1024', () => {
+      applyTokenLimit({ min: 0, max: 500 })
+      const result = getAnthropicThinkingBudget(200, 'low', 'claude-model')
+      expect(result).toBe(1024)
+      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
+    })
+
+    it('respects large token limits when maxTokens is high', () => {
+      applyTokenLimit({ min: 1024, max: 64_000 })
+      const result = getAnthropicThinkingBudget(64_000, 'high', 'claude-model')
+      expect(result).toBe(51_200)
+      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
     })
   })
 })

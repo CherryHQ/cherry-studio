@@ -77,7 +77,11 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
 
   const provider = getProviderByModel(model)
   if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
-    maxTokens -= getAnthropicThinkingBudget(assistant, model)
+    const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
+    const budget = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    if (budget) {
+      maxTokens -= budget
+    }
   }
   return maxTokens
 }

@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "決定の送信に失敗しました。もう一度お試しください。"
       },
+      "executing": "[to be translated]:Executing...",
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
       "pending": "保留中（{{seconds}}秒）",
