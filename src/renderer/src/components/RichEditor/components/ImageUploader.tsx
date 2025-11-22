@@ -1,5 +1,7 @@
 import { InboxOutlined, LinkOutlined, LoadingOutlined, UploadOutlined } from '@ant-design/icons'
-import { Button, Flex, Input, message, Modal, Spin, Tabs, Upload } from 'antd'
+import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
+import { Input, Modal, Spin, Tabs, Upload } from 'antd'
 
 const { Dragger } = Upload
 import type { RcFile } from 'antd/es/upload'
@@ -24,20 +26,20 @@ const TabContent = styled.div`
 
 const UrlInput = styled(Input)`
   .ant-input {
-    padding: 12px 16px
-    font-size: 14px
-    border-radius: 4px
-    border: 1px solid #dadce0
-    transition: all 0.2s ease
-    background: #ffffff
+    padding: 12px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #dadce0;
+    transition: all 0.2s ease;
+    background: #ffffff;
 
     &:hover {
-      border-color: #4285f4
+      border-color: #4285f4;
     }
 
     &:focus {
-      border-color: #4285f4
-      box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.3)
+      border-color: #4285f4;
+      box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.3);
     }
   }
 `
@@ -70,24 +72,24 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       // Validate file type
       const isImage = file.type.startsWith('image/')
       if (!isImage) {
-        message.error(t('richEditor.imageUploader.invalidType'))
+        window.toast.error(t('richEditor.imageUploader.invalidType'))
         return false
       }
 
       // Validate file size (max 10MB)
       const isLt10M = file.size / 1024 / 1024 < 10
       if (!isLt10M) {
-        message.error(t('richEditor.imageUploader.tooLarge'))
+        window.toast.error(t('richEditor.imageUploader.tooLarge'))
         return false
       }
 
       // Convert to base64 and call callback
       const base64Url = await convertFileToBase64(file)
       onImageSelect(base64Url)
-      message.success(t('richEditor.imageUploader.uploadSuccess'))
+      window.toast.success(t('richEditor.imageUploader.uploadSuccess'))
       onClose()
     } catch (error) {
-      message.error(t('richEditor.imageUploader.uploadError'))
+      window.toast.error(t('richEditor.imageUploader.uploadError'))
     } finally {
       setLoading(false)
     }
@@ -97,7 +99,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
 
   const handleUrlSubmit = () => {
     if (!urlInput.trim()) {
-      message.error(t('richEditor.imageUploader.urlRequired'))
+      window.toast.error(t('richEditor.imageUploader.urlRequired'))
       return
     }
 
@@ -105,11 +107,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
     try {
       new URL(urlInput.trim())
       onImageSelect(urlInput.trim())
-      message.success(t('richEditor.imageUploader.embedSuccess'))
+      window.toast.success(t('richEditor.imageUploader.embedSuccess'))
       setUrlInput('')
       onClose()
     } catch {
-      message.error(t('richEditor.imageUploader.invalidUrl'))
+      window.toast.error(t('richEditor.imageUploader.invalidUrl'))
     }
   }
 
@@ -164,7 +166,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       ),
       children: (
         <TabContent>
-          <Flex gap={12} justify="center">
+          <Flex className="justify-center gap-3">
             <UrlInput
               placeholder={t('richEditor.imageUploader.urlPlaceholder')}
               value={urlInput}
@@ -173,17 +175,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               prefix={<LinkOutlined style={{ color: '#999' }} />}
               style={{ flex: 1 }}
             />
-            <Button
-              onClick={() => setUrlInput('')}
-              style={{
-                border: '1px solid #dadce0',
-                borderRadius: '4px',
-                color: '#3c4043',
-                background: '#ffffff'
-              }}>
+            <Button onClick={() => setUrlInput('')} className="border border-gray-300 bg-white text-gray-700">
               {t('common.clear')}
             </Button>
-            <Button type="primary" onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
+            <Button color="primary" onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
               {t('richEditor.imageUploader.embedImage')}
             </Button>
           </Flex>

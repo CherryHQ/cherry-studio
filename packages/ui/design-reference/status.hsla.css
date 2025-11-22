@@ -1,0 +1,55 @@
+/**
+ * Status Colors - Light Mode & Dark Mode
+ * 状态颜色 - Error, Success, Warning
+ */
+
+:root {
+  /* Status Colors - Error */
+  --cs-error-base: var(--cs-red-500); /* #ef4444 */
+  --cs-error-text: var(--cs-red-800); /* #991b1b */
+  --cs-error-bg: var(--cs-red-50); /* #fef2f2 */
+  --cs-error-text-hover: var(--cs-red-700); /* #b91c1c */
+  --cs-error-bg-hover: var(--cs-red-100); /* #fee2e2 */
+  --cs-error-border: var(--cs-red-200); /* #fecaca */
+  --cs-error-border-hover: var(--cs-red-300); /* #fca5a5 */
+  --cs-error-active: var(--cs-red-600); /* #dc2626 */
+
+  /* Status Colors - Success */
+  --cs-success-base: var(--cs-green-500); /* #22c55e */
+  --cs-success-text-hover: var(--cs-green-700); /* #15803d */
+  --cs-success-bg: var(--cs-green-50); /* #f0fdf4 */
+  --cs-success-bg-hover: var(--cs-green-200); /* #bbf7d0 */
+
+  /* Status Colors - Warning */
+  --cs-warning-base: var(--cs-amber-400); /* #fbbf24 */
+  --cs-warning-text-hover: var(--cs-amber-700); /* #b45309 */
+  --cs-warning-bg: var(--cs-amber-50); /* #fffbeb */
+  --cs-warning-bg-hover: var(--cs-amber-100); /* #fef3c7 */
+  --cs-warning-active: var(--cs-amber-600); /* #d97706 */
+}
+
+/* Dark Mode */
+.dark {
+  /* Status Colors - Error (Dark Mode) */
+  --cs-error-base: var(--cs-red-400); /* #f87171 */
+  --cs-error-text: var(--cs-red-100); /* #fee2e2 */
+  --cs-error-bg: var(--cs-red-900); /* #7f1d1d */
+  --cs-error-text-hover: var(--cs-red-200); /* #fecaca */
+  --cs-error-bg-hover: var(--cs-red-800); /* #991b1b */
+  --cs-error-border: var(--cs-red-700); /* #b91c1c */
+  --cs-error-border-hover: var(--cs-red-600); /* #dc2626 */
+  --cs-error-active: var(--cs-red-300); /* #fca5a5 */
+
+  /* Status Colors - Success (Dark Mode) */
+  --cs-success-base: var(--cs-green-400); /* #4ade80 */
+  --cs-success-text-hover: var(--cs-green-200); /* #bbf7d0 */
+  --cs-success-bg: var(--cs-green-900); /* #14532d */
+  --cs-success-bg-hover: var(--cs-green-800); /* #166534 */
+
+  /* Status Colors - Warning (Dark Mode) */
+  --cs-warning-base: var(--cs-amber-400); /* #fbbf24 */
+  --cs-warning-text-hover: var(--cs-amber-200); /* #fde68a */
+  --cs-warning-bg: var(--cs-amber-900); /* #78350f */
+  --cs-warning-bg-hover: var(--cs-amber-800); /* #92400e */
+  --cs-warning-active: var(--cs-amber-600); /* #d97706 */
+}

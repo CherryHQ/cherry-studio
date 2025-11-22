@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -15,6 +16,8 @@ import { ThemeProvider } from './context/ThemeProvider'
 import Router from './Router'
 
 const logger = loggerService.withContext('App.tsx')
+
+preferenceService.preloadAll()
 
 // 创建 React Query 客户端
 const queryClient = new QueryClient({

@@ -1,13 +1,13 @@
 /**
  * 职责：提供原子化的、无状态的API调用函数
  */
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import type { CompletionsParams } from '@renderer/aiCore/legacy/middleware/schemas'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import type { FetchChatCompletionParams } from '@renderer/types'
@@ -159,7 +159,7 @@ export async function fetchChatCompletion({
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const model = getQuickModel() || assistant?.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
@@ -259,7 +259,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchNoteSummary({ content, assistant }: { content: string; assistant?: Assistant }) {
-  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
   const resolvedAssistant = assistant || getDefaultAssistant()
   const model = getQuickModel() || resolvedAssistant.model || getDefaultModel()
 

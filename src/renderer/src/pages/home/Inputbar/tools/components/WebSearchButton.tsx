@@ -31,9 +31,10 @@ const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
       title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={onClick} active={!!enableWebSearch}>
-        <WebSearchProviderIcon pid={selectedProviderId} />
-      </ActionIconButton>
+      <ActionIconButton
+        onClick={onClick}
+        active={!!enableWebSearch}
+        icon={<WebSearchProviderIcon pid={selectedProviderId} />}></ActionIconButton>
     </Tooltip>
   )
 }

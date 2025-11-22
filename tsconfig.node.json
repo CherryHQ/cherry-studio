@@ -9,7 +9,8 @@
     "packages/shared/**/*",
     "scripts",
     "packages/mcp-trace/**/*",
-    "src/renderer/src/services/traceApi.ts"
+    "src/renderer/src/services/traceApi.ts",
+    "tests/__mocks__/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -22,6 +23,7 @@
     ],
     "paths": {
       "@logger": ["./src/main/services/LoggerService"],
+      "@data/*": ["./src/main/data/*"],
       "@main/*": ["./src/main/*"],
       "@types": ["./src/renderer/src/types/index.ts"],
       "@shared/*": ["./packages/shared/*"],

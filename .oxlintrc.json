@@ -26,7 +26,7 @@
       "env": {
         "node": true
       },
-      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts"]
+      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts", "packages/ui/scripts/**"]
     },
     {
       "env": {
@@ -35,7 +35,8 @@
       "files": [
         "src/renderer/**/*.{ts,tsx}",
         "packages/aiCore/**",
-        "packages/extension-table-plus/**"
+        "packages/extension-table-plus/**",
+        "packages/ui/**"
       ]
     },
     {

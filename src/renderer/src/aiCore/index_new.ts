@@ -9,8 +9,8 @@
 
 import type { GatewayLanguageModelEntry } from '@ai-sdk/gateway'
 import { createExecutor } from '@cherrystudio/ai-core'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
@@ -132,7 +132,7 @@ export default class ModernAiProvider {
       params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
     }
 
-    if (providerConfig.topicId && getEnableDeveloperMode()) {
+    if (providerConfig.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
       // TypeScript类型窄化：确保topicId是string类型
       const traceConfig = {
         ...providerConfig,
@@ -201,7 +201,7 @@ export default class ModernAiProvider {
       isImageGeneration: config.isImageGenerationEndpoint
     })
 
-    const span = addSpan(traceParams)
+    const span = await addSpan(traceParams)
     if (!span) {
       logger.warn('Failed to create span, falling back to regular completions', {
         topicId: config.topicId,
@@ -277,7 +277,7 @@ export default class ModernAiProvider {
     // })
 
     // 根据条件构建插件数组
-    const plugins = buildPlugins(config)
+    const plugins = await buildPlugins(config)
 
     // 用构建好的插件数组创建executor
     const executor = createExecutor(this.config!.providerId, this.config!.options, plugins)

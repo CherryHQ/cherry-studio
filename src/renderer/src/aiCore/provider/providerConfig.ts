@@ -5,6 +5,7 @@ import {
   type ProviderId,
   type ProviderSettingsMap
 } from '@cherrystudio/ai-core/provider'
+import { cacheService } from '@data/CacheService'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
   isAnthropicProvider,
@@ -44,16 +45,16 @@ function getRotatedApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = window.keyv.get(keyName)
-  if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
+  const lastUsedKey = cacheService.getShared(keyName) as string | undefined
+  if (lastUsedKey === undefined) {
+    cacheService.setShared(keyName, keys[0])
     return keys[0]
   }
 
   const currentIndex = keys.indexOf(lastUsedKey)
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
+  cacheService.setShared(keyName, nextKey)
 
   return nextKey
 }

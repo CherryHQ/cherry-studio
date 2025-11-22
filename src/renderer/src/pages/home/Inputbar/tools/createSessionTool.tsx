@@ -43,9 +43,11 @@ const createSessionTool = defineTool({
 
     return (
       <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })}>
-        <ActionIconButton onClick={handleCreateSession} disabled={createSessionDisabled} loading={creatingSession}>
-          <MessageSquareDiff size={19} />
-        </ActionIconButton>
+        <ActionIconButton
+          onClick={handleCreateSession}
+          disabled={createSessionDisabled}
+          loading={creatingSession}
+          icon={<MessageSquareDiff size={19} />}></ActionIconButton>
       </Tooltip>
     )
   }

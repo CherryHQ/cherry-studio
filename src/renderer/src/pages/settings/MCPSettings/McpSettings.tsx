@@ -1,3 +1,5 @@
+import { Flex, Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -9,7 +11,7 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import type { TabsProps } from 'antd'
-import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import { Badge, Form, Input, Radio, Select, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -651,7 +653,7 @@ const McpSettings: React.FC = () => {
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
             valuePropName="checked">
-            <Switch size="small" style={{ marginLeft: 10 }} />
+            <Switch size="sm" className="ml-2.5" />
           </Form.Item>
           <Form.Item
             name="timeout"
@@ -745,32 +747,29 @@ const McpSettings: React.FC = () => {
       <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
         <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
           <SettingTitle>
-            <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-              <Flex align="center" gap={8}>
+            <Flex className="mr-10 items-center justify-between gap-5">
+              <Flex className="items-center gap-2">
                 <ServerName className="text-nowrap">{server?.name}</ServerName>
                 {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
               </Flex>
-              <Button
-                danger
-                icon={<DeleteIcon size={14} className="lucide-custom" />}
-                type="text"
-                onClick={() => onDeleteMcpServer(server)}
-              />
+              <Button size="sm" variant="ghost" onClick={() => onDeleteMcpServer(server)}>
+                <DeleteIcon size={14} className="lucide-custom text-destructive" />
+              </Button>
             </Flex>
-            <Flex align="center" gap={16}>
+            <Flex className="items-center gap-4">
               <Switch
-                value={server.isActive}
+                isSelected={server.isActive}
                 key={server.id}
-                loading={loadingServer === server.id}
-                onChange={onToggleActive}
+                isLoading={loadingServer === server.id}
+                onValueChange={onToggleActive}
               />
               <Button
-                type="primary"
-                icon={<SaveIcon size={14} />}
+                size="sm"
+                variant="default"
                 onClick={onSave}
-                loading={loading}
-                shape="round"
-                disabled={!isFormChanged || activeTab !== 'settings'}>
+                disabled={loading || !isFormChanged || activeTab !== 'settings'}
+                className="rounded-full">
+                <SaveIcon size={14} />
                 {t('common.save')}
               </Button>
             </Flex>
