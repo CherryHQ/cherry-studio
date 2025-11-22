@@ -33,7 +33,9 @@ const providerMocks = vi.hoisted(() => ({
   isGeminiProvider: vi.fn(),
   isNewApiProvider: vi.fn(),
   isOpenAICompatibleProvider: vi.fn(),
-  isOpenAIProvider: vi.fn()
+  isOpenAIProvider: vi.fn(),
+  isVertexProvider: vi.fn(),
+  isAwsBedrockProvider: vi.fn()
 }))
 
 vi.mock('@renderer/utils/provider', () => providerMocks)

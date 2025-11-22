@@ -11,6 +11,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isGeminiReasoningModel,
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
   isLingReasoningModel,
