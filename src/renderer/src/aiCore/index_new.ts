@@ -14,7 +14,7 @@ import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import type { AiSdkConfig, AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway, type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
@@ -32,6 +32,7 @@ import {
   prepareSpecialProviderConfig,
   providerToAiSdkConfig
 } from './provider/providerConfig'
+import type { AiSdkConfig } from './types'
 
 const logger = loggerService.withContext('ModernAiProvider')
 
@@ -89,6 +90,11 @@ export default class ModernAiProvider {
     // 每次请求时重新生成配置以确保API key轮换生效
     this.config = providerToAiSdkConfig(this.actualProvider, this.model)
     logger.debug('Generated provider config for completions', this.config)
+
+    // 检查 config 是否存在
+    if (!this.config) {
+      throw new Error('Provider config is undefined; cannot proceed with completions')
+    }
     if (SUPPORTED_IMAGE_ENDPOINT_LIST.includes(this.config.options.endpoint)) {
       providerConfig.isImageGenerationEndpoint = true
     }

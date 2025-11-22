@@ -18,11 +18,11 @@ import {
 import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import type { AiSdkConfig } from '@renderer/types'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
 import { cloneDeep } from 'lodash'
 
+import type { AiSdkConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
