@@ -165,6 +165,12 @@
         "uninstalling": "Удаление..."
       },
       "prompt": "Настройки подсказки",
+      "sub_agents": {
+        "placeholder": "[to be translated]:Select sub agents",
+        "tab": "[to be translated]:Sub Agents",
+        "title": "[to be translated]:Sub Agents",
+        "tooltip": "[to be translated]:Select other agents that can be delegated tasks by this agent"
+      },
       "tooling": {
         "mcp": {
           "description": "Подключите серверы MCP, чтобы разблокировать дополнительные инструменты, которые вы можете одобрить выше.",

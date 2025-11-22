@@ -103,12 +103,23 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   // Prepare session data for tools
   const sessionData = useMemo(() => {
     if (!session) return undefined
+
+    // Get installed agent plugins from session.plugins
+    const agentPlugins = (session.plugins ?? [])
+      .filter((plugin) => plugin.type === 'agent')
+      .map((plugin) => ({
+        id: plugin.filename,
+        name: plugin.metadata.name ?? plugin.filename.replace(/\.md$/i, ''),
+        description: plugin.metadata.description
+      }))
+
     return {
       agentId,
       sessionId,
       slashCommands: session.slash_commands,
       tools: session.tools,
-      accessiblePaths: session.accessible_paths ?? []
+      accessiblePaths: session.accessible_paths ?? [],
+      subAgents: agentPlugins
     }
   }, [session, agentId, sessionId])
 
@@ -158,6 +169,8 @@ interface InnerProps {
     sessionId?: string
     slashCommands?: Array<{ command: string; description?: string }>
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
+    accessiblePaths?: string[]
+    subAgents?: Array<{ id: string; name: string; description?: string }>
   }
   actionsRef: React.MutableRefObject<{
     resizeTextArea: () => void

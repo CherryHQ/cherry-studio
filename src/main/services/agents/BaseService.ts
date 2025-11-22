@@ -32,6 +32,7 @@ export abstract class BaseService {
     'configuration',
     'accessible_paths',
     'allowed_tools',
+    'sub_agents',
     'slash_commands'
   ]
 

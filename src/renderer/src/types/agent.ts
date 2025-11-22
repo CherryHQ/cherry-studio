@@ -82,6 +82,7 @@ export const AgentBaseSchema = z.object({
   // Tools
   mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
   allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
+  sub_agents: z.array(z.string()).optional(), // Array of sub-agent IDs
   slash_commands: z.array(SlashCommandSchema).optional(), // Array of slash commands merged from builtin and SDK
 
   // Configuration
@@ -132,7 +133,7 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   agent_id: z.string(), // Primary agent ID for the session
   agent_type: AgentTypeSchema,
-  // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
+  sub_agents: z.array(z.string()).optional(), // Array of sub-agent IDs involved in the session
 
   created_at: z.iso.datetime(),
   updated_at: z.iso.datetime()
@@ -205,6 +206,7 @@ export type BaseAgentForm = {
   model: string
   accessible_paths: string[]
   allowed_tools: string[]
+  sub_agents?: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
 }
@@ -286,6 +288,7 @@ export interface UpdateSessionRequest extends Partial<AgentBase> {}
 
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
+  sub_agents: z.array(z.string()).optional(), // Array of sub-agent IDs
   messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
   plugins: z
     .array(

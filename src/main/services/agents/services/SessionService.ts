@@ -125,6 +125,7 @@ export class SessionService extends BaseService {
       small_model: serializedData.small_model || null,
       mcps: serializedData.mcps || null,
       allowed_tools: serializedData.allowed_tools || null,
+      sub_agents: serializedData.sub_agents || null,
       configuration: serializedData.configuration || null,
       created_at: now,
       updated_at: now
@@ -162,6 +163,22 @@ export class SessionService extends BaseService {
     // fall back to builtin + local commands. Otherwise, use the merged commands from database.
     if (!session.slash_commands || session.slash_commands.length === 0) {
       session.slash_commands = await this.listSlashCommands(session.agent_type, agentId)
+    }
+
+    // Load installed plugins from cache file
+    const workdir = session.accessible_paths?.[0]
+    if (workdir) {
+      try {
+        session.plugins = await pluginService.listInstalledFromCache(workdir)
+      } catch (error) {
+        logger.warn(`Failed to load installed plugins for session ${id}`, {
+          workdir,
+          error: error instanceof Error ? error.message : String(error)
+        })
+        session.plugins = []
+      }
+    } else {
+      session.plugins = []
     }
 
     return session

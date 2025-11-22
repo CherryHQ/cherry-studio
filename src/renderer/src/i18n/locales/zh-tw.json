@@ -165,6 +165,12 @@
         "uninstalling": "解除安裝中..."
       },
       "prompt": "提示設定",
+      "sub_agents": {
+        "placeholder": "選擇子助手",
+        "tab": "子助手",
+        "title": "子助手",
+        "tooltip": "選擇可以被此助手委派任務的其他助手"
+      },
       "tooling": {
         "mcp": {
           "description": "連線 MCP 伺服器即可解鎖更多可在上方預先授權的工具。",
@@ -650,6 +656,7 @@
           "description": "可存取的目錄中沒有檔案",
           "label": "找不到檔案"
         },
+        "sub_agent": "子代理",
         "title": "活動目錄"
       },
       "auto_resize": "自動調整高度",

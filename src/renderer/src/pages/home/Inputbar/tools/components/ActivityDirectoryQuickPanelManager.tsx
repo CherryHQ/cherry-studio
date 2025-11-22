@@ -15,8 +15,9 @@ const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
     session
   } = context
 
-  // Get accessible paths from session data
+  // Get accessible paths and sub-agents from session data
   const accessiblePaths = session?.accessiblePaths ?? []
+  const subAgents = session?.subAgents ?? []
 
   // Always call hooks unconditionally (React rules)
   useActivityDirectoryPanel(
@@ -24,6 +25,7 @@ const ActivityDirectoryQuickPanelManager = ({ context }: ManagerProps) => {
       quickPanel,
       quickPanelController,
       accessiblePaths,
+      subAgents,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>
     },
     'manager'

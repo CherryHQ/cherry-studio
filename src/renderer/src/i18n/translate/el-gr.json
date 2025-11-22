@@ -165,6 +165,12 @@
         "uninstalling": "Απεγκατάσταση..."
       },
       "prompt": "Ρυθμίσεις Προτροπής",
+      "sub_agents": {
+        "placeholder": "[to be translated]:Select sub agents",
+        "tab": "[to be translated]:Sub Agents",
+        "title": "[to be translated]:Sub Agents",
+        "tooltip": "[to be translated]:Select other agents that can be delegated tasks by this agent"
+      },
       "tooling": {
         "mcp": {
           "description": "Συνδέστε διακομιστές MCP για να ξεκλειδώσετε πρόσθετα εργαλεία που μπορείτε να εγκρίνετε παραπάνω.",

@@ -22,6 +22,7 @@ export const sessionsTable = sqliteTable('sessions', {
 
   mcps: text('mcps'), // JSON array of MCP tool IDs
   allowed_tools: text('allowed_tools'), // JSON array of allowed tool IDs (whitelist)
+  sub_agents: text('sub_agents'), // JSON array of sub-agent IDs
   slash_commands: text('slash_commands'), // JSON array of slash command objects from SDK init
 
   configuration: text('configuration'), // JSON, extensible settings
