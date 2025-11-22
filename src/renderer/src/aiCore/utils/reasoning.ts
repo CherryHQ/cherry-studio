@@ -452,7 +452,9 @@ export function getAnthropicReasoningParams(
   return {}
 }
 
-function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): 'low' | 'medium' | 'high' {
+type GoogelThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
+
+function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogelThinkingLevel {
   switch (reasoningEffort) {
     case 'low':
       return 'low'
