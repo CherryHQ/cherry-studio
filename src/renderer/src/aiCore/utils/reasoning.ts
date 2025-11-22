@@ -392,15 +392,15 @@ export function getAnthropicThinkingBudget(
   maxTokens: number | undefined,
   reasoningEffort: string | undefined,
   modelId: string
-): number {
+): number | undefined {
   if (reasoningEffort === undefined || reasoningEffort === 'none') {
-    return 0
+    return undefined
   }
   const effortRatio = EFFORT_RATIO[reasoningEffort]
 
   const tokenLimit = findTokenLimit(modelId)
   if (!tokenLimit) {
-    return 0
+    return undefined
   }
 
   const budgetTokens = Math.max(

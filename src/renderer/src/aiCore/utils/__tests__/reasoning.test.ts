@@ -35,17 +35,17 @@ describe('reasoning utils', () => {
       findTokenLimitSpy.mockReset()
     })
 
-    it('returns 0 when reasoningEffort is undefined', () => {
+    it('returns undefined when reasoningEffort is undefined', () => {
       const result = getAnthropicThinkingBudget(8000, undefined, 'claude-model')
-      expect(result).toBe(0)
+      expect(result).toBe(undefined)
       expect(findTokenLimitSpy).not.toHaveBeenCalled()
     })
 
-    it('returns 0 when tokenLimit is not found', () => {
+    it('returns undefined when tokenLimit is not found', () => {
       const unknownId = 'unknown-model'
       applyTokenLimit(undefined)
       const result = getAnthropicThinkingBudget(8000, 'medium', unknownId)
-      expect(result).toBe(0)
+      expect(result).toBe(undefined)
       expect(findTokenLimitSpy).toHaveBeenCalledWith(unknownId)
     })
 

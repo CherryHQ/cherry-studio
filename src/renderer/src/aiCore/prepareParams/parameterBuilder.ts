@@ -126,7 +126,10 @@ export async function buildStreamTextParams(
     (provider.type === 'anthropic' || provider.type === 'aws-bedrock')
   ) {
     const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
-    maxTokens -= getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    const budget = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    if (budget) {
+      maxTokens -= budget
+    }
   }
 
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
