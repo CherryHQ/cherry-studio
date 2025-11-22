@@ -83,7 +83,7 @@ export async function fetchChatCompletion({
   messages,
   prompt,
   assistant,
-  options,
+  requestOptions,
   onChunkReceived,
   topicId,
   uiMessages
@@ -124,7 +124,7 @@ export async function fetchChatCompletion({
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     webSearchProviderId: assistant.webSearchProviderId,
-    requestOptions: options
+    requestOptions
   })
 
   // Safely fallback to prompt tool use when function calling is not supported by model.

@@ -19,7 +19,6 @@ import type {
   MCPToolResponse,
   MemoryItem,
   Model,
-  OpenAIVerbosity,
   Provider,
   ToolCallResponse,
   WebSearchProviderResponse,
@@ -33,6 +32,7 @@ import {
   OpenAIServiceTiers,
   SystemProviderIds
 } from '@renderer/types'
+import type { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import type { Message } from '@renderer/types/newMessage'
 import type {
   RequestOptions,

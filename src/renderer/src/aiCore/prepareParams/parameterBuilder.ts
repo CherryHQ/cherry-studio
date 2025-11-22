@@ -61,7 +61,7 @@ export async function buildStreamTextParams(
       timeout?: number
       headers?: Record<string, string>
     }
-  } = {}
+  }
 ): Promise<{
   params: StreamTextParams
   modelId: string
