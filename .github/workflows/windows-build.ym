@@ -1,0 +1,37 @@
+name: Build Windows installers
+
+on:
+  push:
+    branches:
+      - tr-TR-i18n
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Rebuild native modules (if any)
+        run: npx electron-rebuild || echo "no native modules or rebuild needed"
+
+      - name: Build (nsis + portable)
+        run: npm run build -- --win nsis,portable --x64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/**/*portable*
