@@ -81,6 +81,7 @@ export default class ModernAiProvider {
   }
 
   public async completions(modelId: string, params: StreamTextParams, providerConfig: ModernAiProviderConfig) {
+    logger.debug('completions parameters', { modelId, params, providerConfig })
     // 检查model是否存在
     if (!this.model) {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
@@ -112,6 +113,8 @@ export default class ModernAiProvider {
     })
     if (!this.localProvider) {
       throw new Error('Local provider not created')
+    } else {
+      logger.debug('using localProvider', this.localProvider)
     }
 
     // 根据endpoint类型创建对应的模型

@@ -191,42 +191,42 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/google-vertex@npm:^3.0.68":
-  version: 3.0.68
-  resolution: "@ai-sdk/google-vertex@npm:3.0.68"
+"@ai-sdk/google-vertex@npm:^3.0.72":
+  version: 3.0.72
+  resolution: "@ai-sdk/google-vertex@npm:3.0.72"
   dependencies:
     "@ai-sdk/anthropic": "npm:2.0.45"
-    "@ai-sdk/google": "npm:2.0.36"
+    "@ai-sdk/google": "npm:2.0.40"
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.17"
     google-auth-library: "npm:^9.15.0"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/6a3f4cb1e649313b46a0c349c717757071f8b012b0a28e59ab7a55fd35d9600f0043f0a4f57417c4cc49e0d3734e89a1e4fb248fc88795b5286c83395d3f617a
+  checksum: 10c0/ac3f2465f911ba0872a6b3616bda9b80d6ccdde8e56de3ce8395be798614a6cd01957f779d9519f5edd8d2597345162c5c08c489d7b146f21f13647691f961f5
   languageName: node
   linkType: hard
 
-"@ai-sdk/google@npm:2.0.36":
-  version: 2.0.36
-  resolution: "@ai-sdk/google@npm:2.0.36"
+"@ai-sdk/google@npm:2.0.40":
+  version: 2.0.40
+  resolution: "@ai-sdk/google@npm:2.0.40"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.17"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/2c6de5e1cf0703b6b932a3f313bf4bc9439897af39c805169ab04bba397185d99b2b1306f3b817f991ca41fdced0365b072ee39e76382c045930256bce47e0e4
+  checksum: 10c0/e0a22f24aac9475148177c725ade25ce8a6e4531dd6e51d811d2cee484770f97df876066ce75342b37191e5d7efcc3e0224450ba3c05eb48276e8f2899c6a1e5
   languageName: node
   linkType: hard
 
-"@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.36#~/.yarn/patches/@ai-sdk-google-npm-2.0.36-6f3cc06026.patch":
-  version: 2.0.36
-  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.36#~/.yarn/patches/@ai-sdk-google-npm-2.0.36-6f3cc06026.patch::version=2.0.36&hash=2da8c3"
+"@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.40#~/.yarn/patches/@ai-sdk-google-npm-2.0.40-47e0eeee83.patch":
+  version: 2.0.40
+  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.40#~/.yarn/patches/@ai-sdk-google-npm-2.0.40-47e0eeee83.patch::version=2.0.40&hash=c74c78"
   dependencies:
     "@ai-sdk/provider": "npm:2.0.0"
     "@ai-sdk/provider-utils": "npm:3.0.17"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/ce99a497360377d2917cf3a48278eb6f4337623ce3738ba743cf048c8c2a7731ec4fc27605a50e461e716ed49b3690206ca8e4078f27cb7be162b684bfc2fc22
+  checksum: 10c0/23717c7237f15b64ee47468b2377ed9ff19288204659b9aa4249b2d51dde487865221c1fc4920ce2c9ae0505c6e8241cd18ad8196a164b9a34e76002ae1043e7
   languageName: node
   linkType: hard
 
@@ -1907,7 +1907,7 @@ __metadata:
     vitest: "npm:^3.2.4"
     zod: "npm:^4.1.5"
   peerDependencies:
-    "@ai-sdk/google": ^2.0.36
+    "@ai-sdk/google": ^2.0.40
     "@ai-sdk/openai": ^2.0.64
     "@cherrystudio/ai-sdk-provider": ^0.1.3
     ai: ^5.0.26
@@ -1925,7 +1925,7 @@ __metadata:
     vitest: "npm:^3.2.4"
   peerDependencies:
     "@ai-sdk/anthropic": ^2.0.29
-    "@ai-sdk/google": ^2.0.23
+    "@ai-sdk/google": ^2.0.40
     "@ai-sdk/openai": ^2.0.64
     ai: ^5.0.26
   languageName: unknown
@@ -9906,8 +9906,8 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.44"
     "@ai-sdk/cerebras": "npm:^1.0.31"
     "@ai-sdk/gateway": "npm:^2.0.9"
-    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A2.0.36#~/.yarn/patches/@ai-sdk-google-npm-2.0.36-6f3cc06026.patch"
-    "@ai-sdk/google-vertex": "npm:^3.0.68"
+    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A2.0.40#~/.yarn/patches/@ai-sdk-google-npm-2.0.40-47e0eeee83.patch"
+    "@ai-sdk/google-vertex": "npm:^3.0.72"
     "@ai-sdk/huggingface": "patch:@ai-sdk/huggingface@npm%3A0.0.8#~/.yarn/patches/@ai-sdk-huggingface-npm-0.0.8-d4d0aaac93.patch"
     "@ai-sdk/mistral": "npm:^2.0.23"
     "@ai-sdk/openai": "patch:@ai-sdk/openai@npm%3A2.0.64#~/.yarn/patches/@ai-sdk-openai-npm-2.0.64-48f99f5bf3.patch"
