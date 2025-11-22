@@ -1853,6 +1853,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   huggingface: [],
+  kwaikat: [],
   'ai-gateway': [],
   cerebras: [
     {
