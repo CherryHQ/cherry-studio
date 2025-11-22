@@ -1,10 +1,4 @@
-import {
-  formatPrivateKey,
-  hasProviderConfig,
-  ProviderConfigFactory,
-  type ProviderId,
-  type ProviderSettingsMap
-} from '@cherrystudio/ai-core/provider'
+import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
   isAnthropicProvider,
@@ -24,6 +18,7 @@ import {
 import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
+import type { AiSdkConfig } from '@renderer/types'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
 import { cloneDeep } from 'lodash'
@@ -131,13 +126,7 @@ export function getActualProvider(model: Model): Provider {
  * 将 Provider 配置转换为新 AI SDK 格式
  * 简化版：利用新的别名映射系统
  */
-export function providerToAiSdkConfig(
-  actualProvider: Provider,
-  model: Model
-): {
-  providerId: ProviderId | 'openai-compatible'
-  options: ProviderSettingsMap[keyof ProviderSettingsMap]
-} {
+export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfig {
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
 
   // 构建基础配置
@@ -237,7 +226,7 @@ export function providerToAiSdkConfig(
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
-      providerId: aiSdkProviderId as ProviderId,
+      providerId: aiSdkProviderId,
       options
     }
   }

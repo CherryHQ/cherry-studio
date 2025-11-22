@@ -14,7 +14,7 @@ import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
+import type { AiSdkConfig, AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
 import { gateway, type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
@@ -44,7 +44,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 
 export default class ModernAiProvider {
   private legacyProvider: LegacyAiProvider
-  private config?: ReturnType<typeof providerToAiSdkConfig>
+  private config?: AiSdkConfig
   private actualProvider: Provider
   private model?: Model
   private localProvider: Awaited<AiSdkProvider> | null = null
@@ -463,6 +463,11 @@ export default class ModernAiProvider {
     // 如果支持新的 AI SDK，使用现代化实现
     if (isModernSdkSupported(this.actualProvider)) {
       try {
+        // 确保 config 已定义
+        if (!this.config) {
+          throw new Error('Provider config is undefined; cannot proceed with generateImage')
+        }
+
         // 确保本地provider已创建
         if (!this.localProvider) {
           this.localProvider = await createAiSdkProvider(this.config)

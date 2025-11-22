@@ -1,3 +1,4 @@
+import { type ProviderSettingsMap } from '@cherrystudio/ai-core/provider'
 import type { ImageModel, LanguageModel } from 'ai'
 import type { generateObject, generateText, ModelMessage, streamObject, streamText } from 'ai'
 
@@ -27,3 +28,7 @@ export type StreamObjectParams = Omit<Parameters<typeof streamObject>[0], 'model
 export type GenerateObjectParams = Omit<Parameters<typeof generateObject>[0], 'model'>
 
 export type AiSdkModel = LanguageModel | ImageModel
+export type AiSdkConfig = {
+  providerId: string
+  options: ProviderSettingsMap[keyof ProviderSettingsMap]
+}
