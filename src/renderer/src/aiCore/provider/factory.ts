@@ -1,9 +1,12 @@
 import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { isAzureOpenAIProvider } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
+import { isAzureResponsesEndpoint } from '@renderer/utils/provider'
 import type { Provider as AiSdkProvider } from 'ai'
 
+import type { providerToAiSdkConfig } from './providerConfig'
 import { initializeNewProviders } from './providerInitialization'
 
 const logger = loggerService.withContext('ProviderFactory')
@@ -58,6 +61,9 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-compatible' {
   // 1. 尝试解析provider.id
   const resolvedFromId = tryResolveProviderId(provider.id)
+  if (isAzureOpenAIProvider(provider) && isAzureResponsesEndpoint(provider)) {
+    return 'azure-responses'
+  }
   if (resolvedFromId) {
     return resolvedFromId
   }
@@ -77,7 +83,9 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
   return provider.id as ProviderId
 }
 
-export async function createAiSdkProvider(config) {
+export async function createAiSdkProvider(
+  config: ReturnType<typeof providerToAiSdkConfig>
+): Promise<AiSdkProvider | null> {
   let localProvider: Awaited<AiSdkProvider> | null = null
   try {
     if (config.providerId === 'openai' && config.options?.mode === 'chat') {

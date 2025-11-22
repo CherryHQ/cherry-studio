@@ -4,6 +4,7 @@ import { SystemProviderIds } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import {
+  isAzureOpenAIProvider,
   isGeminiProvider,
   isNewApiProvider,
   isOpenAICompatibleProvider,
@@ -12,7 +13,7 @@ import {
 } from '../providers'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'
-import { isPureGenerateImageModel, isTextToImageModel } from './vision'
+import { isModernGenerateImageModel, isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
@@ -22,7 +23,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$')
 
 export const GEMINI_SEARCH_REGEX = new RegExp(
-  'gemini-(?:2.*(?:-latest)?|3-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
+  'gemini-(?:2(?!.*-image-preview).*(?:-latest)?|3(?:\\.\\d+)?-(?:flash|pro)(?:-(?:image-)?preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$',
   'i'
 )
 
@@ -55,8 +56,7 @@ export function isWebSearchModel(model: Model): boolean {
     !model ||
     isEmbeddingModel(model) ||
     isRerankModel(model) ||
-    isTextToImageModel(model) ||
-    isPureGenerateImageModel(model)
+    ((isTextToImageModel(model) || isPureGenerateImageModel(model)) && !isModernGenerateImageModel(model))
   ) {
     return false
   }
@@ -73,7 +73,7 @@ export function isWebSearchModel(model: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  // bedrock和vertex不支持
+  // bedrock和vertex不支持, azure支持
   if (
     isAnthropicModel(model) &&
     !(provider.id === SystemProviderIds['aws-bedrock'] || provider.id === SystemProviderIds.vertexai)
@@ -82,7 +82,8 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   // TODO: 当其他供应商采用Response端点时，这个地方逻辑需要改进
-  if (isOpenAIProvider(provider)) {
+  // azure现在也支持了websearch
+  if (isOpenAIProvider(provider) || isAzureOpenAIProvider(provider)) {
     if (isOpenAIWebSearchModel(model)) {
       return true
     }

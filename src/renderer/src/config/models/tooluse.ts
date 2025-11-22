@@ -4,7 +4,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isDeepSeekHybridInferenceModel } from './reasoning'
-import { isPureGenerateImageModel, isTextToImageModel } from './vision'
+import { isModernGenerateImageModel, isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 // Tool calling models
 export const FUNCTION_CALLING_MODELS = [
@@ -54,8 +54,7 @@ export function isFunctionCallingModel(model?: Model): boolean {
     !model ||
     isEmbeddingModel(model) ||
     isRerankModel(model) ||
-    isTextToImageModel(model) ||
-    isPureGenerateImageModel(model)
+    ((isTextToImageModel(model) || isPureGenerateImageModel(model)) && !isModernGenerateImageModel(model))
   ) {
     return false
   }
@@ -64,10 +63,6 @@ export function isFunctionCallingModel(model?: Model): boolean {
 
   if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
     return isUserSelectedModelType(model, 'function_calling')!
-  }
-
-  if (model.provider === 'qiniu') {
-    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(modelId)
   }
 
   if (model.provider === 'doubao' || modelId.includes('doubao')) {

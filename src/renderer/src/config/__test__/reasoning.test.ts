@@ -353,6 +353,69 @@ describe('Gemini Models', () => {
           group: ''
         })
       ).toBe(true)
+      // Version with decimals
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3.0-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3.5-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return true for gemini-3 image models', () => {
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-pro-image-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3.0-flash-image-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3.5-pro-image-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+    })
+
+    it('should return false for gemini-2.x image models', () => {
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.5-flash-image-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-2.0-pro-image-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
     })
 
     it('should return false for image and tts models', () => {
@@ -367,6 +430,14 @@ describe('Gemini Models', () => {
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-2.5-flash-preview-tts',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(false)
+      expect(
+        isSupportedThinkingTokenGeminiModel({
+          id: 'gemini-3-flash-tts',
           name: '',
           provider: '',
           group: ''
@@ -487,6 +558,40 @@ describe('Gemini Models', () => {
       expect(
         isGeminiReasoningModel({
           id: 'google/gemini-3-pro',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Version with decimals
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3.0-flash',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3.5-pro-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      // Image models
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3-pro-image-preview',
+          name: '',
+          provider: '',
+          group: ''
+        })
+      ).toBe(true)
+      expect(
+        isGeminiReasoningModel({
+          id: 'gemini-3.5-flash-image-preview',
           name: '',
           provider: '',
           group: ''

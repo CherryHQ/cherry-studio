@@ -276,3 +276,8 @@ export const isGPT5ProModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5-pro')
 }
+
+export const isGemini3Model = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gemini-3')
+}

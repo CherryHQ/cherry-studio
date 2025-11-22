@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 992c85ac6656e51c3471af741583533c5a7bf79f..83c05952a07aebb95fc6c62f9ddb8aa96b52ac0d 100644
+index 7481f3b3511078068d87d03855b568b20bb86971..8ac5ec28d2f7ad1b3b0d3f8da945c75674e59637 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -274,6 +274,7 @@ var openaiChatResponseSchema = (0, import_provider_utils3.lazyValidator)(
@@ -18,7 +18,7 @@ index 992c85ac6656e51c3471af741583533c5a7bf79f..83c05952a07aebb95fc6c62f9ddb8aa9
                tool_calls: import_v42.z.array(
                  import_v42.z.object({
                    index: import_v42.z.number(),
-@@ -785,6 +787,13 @@ var OpenAIChatLanguageModel = class {
+@@ -795,6 +797,13 @@ var OpenAIChatLanguageModel = class {
      if (text != null && text.length > 0) {
        content.push({ type: "text", text });
      }
@@ -32,7 +32,7 @@ index 992c85ac6656e51c3471af741583533c5a7bf79f..83c05952a07aebb95fc6c62f9ddb8aa9
      for (const toolCall of (_a = choice.message.tool_calls) != null ? _a : []) {
        content.push({
          type: "tool-call",
-@@ -866,6 +875,7 @@ var OpenAIChatLanguageModel = class {
+@@ -876,6 +885,7 @@ var OpenAIChatLanguageModel = class {
      };
      let metadataExtracted = false;
      let isActiveText = false;
@@ -40,7 +40,7 @@ index 992c85ac6656e51c3471af741583533c5a7bf79f..83c05952a07aebb95fc6c62f9ddb8aa9
      const providerMetadata = { openai: {} };
      return {
        stream: response.pipeThrough(
-@@ -923,6 +933,21 @@ var OpenAIChatLanguageModel = class {
+@@ -933,6 +943,21 @@ var OpenAIChatLanguageModel = class {
                return;
              }
              const delta = choice.delta;
@@ -62,7 +62,7 @@ index 992c85ac6656e51c3471af741583533c5a7bf79f..83c05952a07aebb95fc6c62f9ddb8aa9
              if (delta.content != null) {
                if (!isActiveText) {
                  controller.enqueue({ type: "text-start", id: "0" });
-@@ -1035,6 +1060,9 @@ var OpenAIChatLanguageModel = class {
+@@ -1045,6 +1070,9 @@ var OpenAIChatLanguageModel = class {
              }
            },
            flush(controller) {
