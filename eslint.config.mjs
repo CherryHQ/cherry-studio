@@ -48,7 +48,8 @@ export default defineConfig([
       '@eslint-react/no-unstable-context-value': 'off',
       '@eslint-react/hooks-extra/prefer-use-state-lazy-initialization': 'off',
       '@eslint-react/hooks-extra/no-unnecessary-use-prefix': 'off',
-      '@eslint-react/no-children-to-array': 'off'
+      '@eslint-react/no-children-to-array': 'off',
+      '@eslint-react/dom/no-unsafe-iframe-sandbox': 'off'
     }
   },
   {
