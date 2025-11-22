@@ -86,19 +86,6 @@ export function supportsLargeFileUpload(model: Model): boolean {
 }
 
 /**
- * 检查模型是否支持TopP
- */
-export function supportsTopP(model: Model): boolean {
-  const provider = getProviderByModel(model)
-
-  if (provider?.type === 'anthropic' || model?.endpoint_type === 'anthropic') {
-    return false
-  }
-
-  return true
-}
-
-/**
  * 获取提供商特定的文件大小限制
  */
 export function getFileSizeLimit(model: Model, fileType: FileTypes): number {

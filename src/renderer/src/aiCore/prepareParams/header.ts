@@ -1,9 +1,8 @@
 import { isClaude4SeriesModel, isClaude45ReasoningModel } from '@renderer/config/models'
-import { isAwsBedrockProvider } from '@renderer/config/providers'
-import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
+import { isAwsBedrockProvider, isVertexProvider } from '@renderer/utils/provider'
 
 // https://docs.claude.com/en/docs/build-with-claude/extended-thinking#interleaved-thinking
 const INTERLEAVED_THINKING_HEADER = 'interleaved-thinking-2025-05-14'

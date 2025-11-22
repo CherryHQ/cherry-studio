@@ -32,13 +32,12 @@ import {
   isSupportedThinkingTokenZhipuModel,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
-import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
-import type { SettingsState } from '@renderer/store/settings'
 import type { Assistant, Model } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
 
 const logger = loggerService.withContext('reasoning')
@@ -130,7 +129,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     }
 
     // Specially for GPT-5.1. Suppose this is a OpenAI Compatible provider
-    if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
+    if (isGPT51SeriesModel(model)) {
       return {
         reasoningEffort: 'none'
       }
@@ -362,7 +361,7 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
     }
   }
 
-  const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+  const openAI = getStoreSetting<'openAI'>('openAI')
   const summaryText = openAI?.summaryText || 'off'
 
   let reasoningSummary: string | undefined = undefined

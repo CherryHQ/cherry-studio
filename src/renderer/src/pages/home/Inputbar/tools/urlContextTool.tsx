@@ -1,7 +1,7 @@
 import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
-import { isSupportUrlContextProvider } from '@renderer/config/providers'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import { isSupportUrlContextProvider } from '@renderer/utils/provider'
 
 import UrlContextButton from './components/UrlContextbutton'
 

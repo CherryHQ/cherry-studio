@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { isNewApiProvider } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
+import { isNewApiProvider } from '@renderer/utils/provider'
 
 import { AihubmixAPIClient } from './aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'

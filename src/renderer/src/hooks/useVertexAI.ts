@@ -39,13 +39,6 @@ export function getVertexAIServiceAccount() {
 }
 
 /**
- * 类型守卫：检查 Provider 是否为 VertexProvider
- */
-export function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return provider.type === 'vertexai'
-}
-
-/**
  * 创建 VertexProvider 对象，整合单独的配置
  * @param baseProvider 基础的 provider 配置
  * @returns VertexProvider 对象
