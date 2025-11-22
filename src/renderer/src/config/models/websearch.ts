@@ -61,7 +61,7 @@ export function isWebSearchModel(model: Model): boolean {
 
   // bedrock不支持
   if (isAnthropicModel(model) && !(provider.id === SystemProviderIds['aws-bedrock'])) {
-    if (isVertexAiProvider(provider)) {
+    if (isVertexProvider(provider)) {
       return isClaude4SeriesModel(model)
     }
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(modelId)
