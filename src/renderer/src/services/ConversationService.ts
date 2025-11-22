@@ -1,4 +1,5 @@
 import { convertMessagesToSdkMessages } from '@renderer/aiCore/prepareParams'
+import { isGeminiGenerateImageModel } from '@renderer/aiCore/utils/image'
 import type { Assistant, Message } from '@renderer/types'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import type { ModelMessage } from 'ai'
@@ -17,7 +18,14 @@ export class ConversationService {
     messages: Message[],
     assistant: Assistant
   ): Promise<{ modelMessages: ModelMessage[]; uiMessages: Message[] }> {
-    const { contextCount } = getAssistantSettings(assistant)
+    let { contextCount } = getAssistantSettings(assistant)
+
+    contextCount = contextCount + 2
+
+    if (assistant.model && isGeminiGenerateImageModel(assistant.model)) {
+      contextCount = 1
+    }
+
     // This logic is extracted from the original ApiService.fetchChatCompletion
     // const contextMessages = filterContextMessages(messages)
     const lastUserMessage = findLast(messages, (m) => m.role === 'user')
@@ -37,7 +45,7 @@ export class ConversationService {
     const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
 
     let uiMessages = filterUserRoleStartMessages(
-      filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
+      filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount))) // 取原来几个provider的最大值
     )
 
     // Fallback: ensure at least the last user message is present to avoid empty payloads

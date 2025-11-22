@@ -14,3 +14,7 @@ export function isOpenRouterGeminiGenerateImageModel(model: Model, provider: Pro
     provider.id === SystemProviderIds.openrouter
   )
 }
+
+export function isGeminiGenerateImageModel(model: Model): boolean {
+  return model.id.includes('gemini-2.5-flash-image')
+}
