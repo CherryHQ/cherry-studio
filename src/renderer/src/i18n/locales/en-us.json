@@ -27,6 +27,15 @@
         "null_id": "Agent ID is null."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
+        "recheck": "Recheck Git Bash Installation",
+        "title": "Git Bash Required"
+      },
+      "notFound": "Git Bash not found. Please install it first.",
+      "success": "Git Bash detected successfully!"
+    },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command"
     },
@@ -1375,6 +1384,36 @@
     "generating": "Generating",
     "preview": "Preview",
     "split": "Split"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT Import",
+      "button": "Select File",
+      "description": "Only imports conversation text, does not include images and attachments",
+      "error": {
+        "invalid_json": "Invalid JSON file format",
+        "no_conversations": "No conversations found in file",
+        "no_valid_conversations": "No valid conversations to import",
+        "unknown": "Import failed, please check file format"
+      },
+      "help": {
+        "step1": "1. Log in to ChatGPT, go to Settings > Data controls > Export data",
+        "step2": "2. Wait for the export file via email",
+        "step3": "3. Extract the downloaded file and find conversations.json",
+        "title": "How to export ChatGPT conversations?"
+      },
+      "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
+      "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "Import ChatGPT Conversations",
+      "untitled_conversation": "Untitled Conversation"
+    },
+    "confirm": {
+      "button": "Select Import File",
+      "label": "Are you sure you want to import external data?"
+    },
+    "content": "Select external application conversation file to import, currently only supports ChatGPT JSON format files",
+    "title": "Import External Conversations"
   },
   "knowledge": {
     "add": {
@@ -3085,6 +3124,7 @@
         "basic": "Basic Data Settings",
         "cloud_storage": "Cloud Backup Settings",
         "export_settings": "Export Settings",
+        "import_settings": "Import Settings",
         "third_party": "Third-party Connections"
       },
       "export_menu": {
@@ -3143,6 +3183,11 @@
       },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
+      "import_settings": {
+        "button": "Import Json File",
+        "chatgpt": "Import from ChatGPT",
+        "title": "Import Outside Application Data"
+      },
       "joplin": {
         "check": {
           "button": "Check",

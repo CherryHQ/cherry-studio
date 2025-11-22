@@ -13,6 +13,7 @@ import { app } from 'electron'
 import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { sessionService } from '../SessionService'
+import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -150,7 +151,10 @@ class ClaudeCodeService implements AgentServiceInterface {
         return { behavior: 'allow', updatedInput: input }
       }
 
-      return promptForToolApproval(toolName, input, options)
+      return promptForToolApproval(toolName, input, {
+        ...options,
+        toolCallId: buildNamespacedToolCallId(session.id, options.toolUseID)
+      })
     }
 
     // Build SDK options from parameters
@@ -346,7 +350,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
-    const streamState = new ClaudeStreamState()
+    const streamState = new ClaudeStreamState({ agentSessionId: sessionId })
 
     try {
       for await (const message of query({ prompt: promptStream, options })) {
@@ -408,23 +412,6 @@ class ClaudeCodeService implements AgentServiceInterface {
               error: error instanceof Error ? error.message : String(error)
             })
           }
-        }
-
-        if (message.type === 'assistant' || message.type === 'user') {
-          logger.silly('claude response', {
-            message,
-            content: JSON.stringify(message.message.content)
-          })
-        } else if (message.type === 'stream_event') {
-          // logger.silly('Claude stream event', {
-          //   message,
-          //   event: JSON.stringify(message.event)
-          // })
-        } else {
-          logger.silly('Claude response', {
-            message,
-            event: JSON.stringify(message)
-          })
         }
 
         const chunks = transformSDKMessageToStreamParts(message, streamState)
