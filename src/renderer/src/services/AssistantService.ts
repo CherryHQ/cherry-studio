@@ -6,7 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
-import { isQwenMTModel } from '@renderer/config/models'
+import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'

@@ -1,3 +1,4 @@
+import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
@@ -11,29 +12,26 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
-import type { RootState } from '@renderer/store'
-import type {
-  Assistant,
-  GroqServiceTier,
-  GroqSystemProvider,
-  Model,
-  NotGroqProvider,
-  OpenAIServiceTier,
-  Provider,
-  ServiceTier
-} from '@renderer/types'
 import {
+  type Assistant,
+  type GroqServiceTier,
   GroqServiceTiers,
+  type GroqSystemProvider,
   isGroqServiceTier,
   isGroqSystemProvider,
   isOpenAIServiceTier,
   isTranslateAssistant,
-  OpenAIServiceTiers
+  type Model,
+  type NotGroqProvider,
+  type OpenAIServiceTier,
+  OpenAIServiceTiers,
+  type Provider,
+  type ServiceTier
 } from '@renderer/types'
 import type { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
 
@@ -239,8 +237,7 @@ function buildOpenAIProviderOptions(
   serviceTier: OpenAIServiceTier
 ): OpenAIResponsesProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
-
+  let providerOptions: OpenAIResponsesProviderOptions = {}
   // OpenAI 推理参数
   if (enableReasoning) {
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
@@ -251,8 +248,8 @@ function buildOpenAIProviderOptions(
   }
 
   if (isSupportVerbosityModel(model)) {
-    const state: RootState = window.store?.getState()
-    const userVerbosity = state?.settings?.openAI?.verbosity
+    const openAI = getStoreSetting<'openAI'>('openAI')
+    const userVerbosity = openAI?.verbosity
 
     if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
       const supportedVerbosity = getModelSupportedVerbosity(model)
@@ -287,7 +284,7 @@ function buildAnthropicProviderOptions(
   }
 ): AnthropicProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: AnthropicProviderOptions = {}
 
   // Anthropic 推理参数
   if (enableReasoning) {
@@ -314,7 +311,7 @@ function buildGeminiProviderOptions(
   }
 ): GoogleGenerativeAIProviderOptions {
   const { enableReasoning, enableGenerateImage } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: GoogleGenerativeAIProviderOptions = {}
 
   // Gemini 推理参数
   if (enableReasoning) {
@@ -393,9 +390,9 @@ function buildBedrockProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): BedrockProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: BedrockProviderOptions = {}
 
   if (enableReasoning) {
     const reasoningParams = getBedrockReasoningParams(assistant, model)

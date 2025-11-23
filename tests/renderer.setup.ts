@@ -15,8 +15,9 @@ vi.mock('@logger', async () => {
 })
 
 // Mock uuid globally for renderer tests
+let uuidCounter = 0
 vi.mock('uuid', () => ({
-  v4: () => 'test-uuid-' + Date.now()
+  v4: () => 'test-uuid-' + ++uuidCounter
 }))
 
 vi.mock('axios', () => {

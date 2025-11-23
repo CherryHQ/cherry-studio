@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CONTENT_TYPES } from '../knowledge'
 
+// Mock modules to prevent circular dependencies during test loading
+vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
+  default: {}
+}))
+
+vi.mock('@renderer/pages/home/Messages/MessageMenubar', () => ({
+  default: {}
+}))
+
 // Simple mocks
 vi.mock('@renderer/hooks/useTopic', () => ({
   TopicManager: {
