@@ -183,6 +183,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     setLoadingModels(true)
     try {
       const models = await fetchModels(provider)
+      // TODO: More robust conversion
       const filteredModels = models
         .map((model) => ({
           // @ts-ignore modelId
