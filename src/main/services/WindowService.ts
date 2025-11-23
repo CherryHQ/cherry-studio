@@ -395,6 +395,7 @@ export class WindowService {
       if (this.miniWindow && !this.miniWindow.isDestroyed()) {
         this.miniWindow.hide()
       }
+      app.dock?.show()
     })
   }
 
