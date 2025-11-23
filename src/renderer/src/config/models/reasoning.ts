@@ -115,7 +115,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     } else {
       thinkingModelType = 'gemini_pro'
     }
-    if (modelId.startsWith('gemini-3')) {
+    if (isGemini3Model(model)) {
       thinkingModelType = 'gemini3'
     }
   } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
