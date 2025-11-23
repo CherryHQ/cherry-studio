@@ -16,12 +16,7 @@ export { GEMINI_FLASH_MODEL_REGEX } from './utils'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isClaude4SeriesModel } from './reasoning'
 import { isAnthropicModel } from './utils'
-import {
-  isGenerateImageModel,
-  isModernGenerateImageModel,
-  isPureGenerateImageModel,
-  isTextToImageModel
-} from './vision'
+import { isTextToImageModel } from './vision'
 
 const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-(haiku|sonnet|opus)-4(?:-[\\w-]+)?)\\b`,
@@ -42,13 +37,7 @@ export const PERPLEXITY_SEARCH_MODELS = [
 ]
 
 export function isWebSearchModel(model: Model): boolean {
-  if (
-    !model ||
-    isEmbeddingModel(model) ||
-    isRerankModel(model) ||
-    ((isTextToImageModel(model) || isPureGenerateImageModel(model) || isGenerateImageModel(model)) &&
-      !isModernGenerateImageModel(model))
-  ) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 

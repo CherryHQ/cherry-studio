@@ -17,7 +17,7 @@ import {
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
 import { GEMINI_FLASH_MODEL_REGEX, isGemini3Model } from './utils'
-import { isModernGenerateImageModel, isPureGenerateImageModel, isTextToImageModel } from './vision'
+import { isTextToImageModel } from './vision'
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -511,12 +511,7 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
 }
 
 export function isReasoningModel(model?: Model): boolean {
-  if (
-    !model ||
-    isEmbeddingModel(model) ||
-    isRerankModel(model) ||
-    ((isTextToImageModel(model) || isPureGenerateImageModel(model)) && !isModernGenerateImageModel(model))
-  ) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 

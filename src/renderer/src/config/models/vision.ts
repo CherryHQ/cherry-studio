@@ -3,6 +3,7 @@ import type { Model } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
+import { isFunctionCallingModel } from './tooluse'
 
 // Vision models
 const visionAllowedModels = [
@@ -72,12 +73,10 @@ const VISION_REGEX = new RegExp(
 
 // For middleware to identify models that must use the dedicated Image API
 const DEDICATED_IMAGE_MODELS = [
-  'grok-2-image',
-  'grok-2-image-1212',
-  'grok-2-image-latest',
-  'dall-e-3',
-  'dall-e-2',
-  'gpt-image-1'
+  'grok-2-image(?:-[\\w-]+)?',
+  'dall-e(?:-[\\w-]+)?',
+  'gpt-image-1(?:-[\\w-]+)?',
+  'imagen(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_MODELS = [
@@ -86,7 +85,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'gpt-image-1',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-3.0-pro-image(?:-[\\w-]+)?'
+  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
 ]
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
@@ -96,7 +95,7 @@ const DEDICATED_IMAGE_MODELS_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|')
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-3.0-pro-image(?:-[\\w-]+)?',
+  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?',
   ...DEDICATED_IMAGE_MODELS
 ]
 
@@ -114,14 +113,20 @@ const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
 
 const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS, 'gpt-image-1']
 
+const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?']
+
 const GENERATE_IMAGE_MODELS = [
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
-  'gemini-2.5-flash-image',
-  'gemini-3.0-pro-image-preview',
+  ...MODERN_IMAGE_MODELS,
   ...DEDICATED_IMAGE_MODELS
 ]
+
+const OPENAI_IMAGE_GENERATION_MODELS_REGEX = new RegExp(OPENAI_IMAGE_GENERATION_MODELS.join('|'), 'i')
+
+const GENERATE_IMAGE_MODELS_REGEX = new RegExp(GENERATE_IMAGE_MODELS.join('|'), 'i')
+
+const MODERN_GENERATE_IMAGE_MODELS_REGEX = new RegExp(MODERN_IMAGE_MODELS.join('|'), 'i')
 
 export const isDedicatedImageGenerationModel = (model: Model): boolean => {
   if (!model) return false
@@ -156,60 +161,43 @@ export function isGenerateImageModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
 
   if (provider.type === 'openai-response') {
-    return (
-      OPENAI_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel)) ||
-      GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
-    )
+    return OPENAI_IMAGE_GENERATION_MODELS_REGEX.test(modelId) || GENERATE_IMAGE_MODELS_REGEX.test(modelId)
   }
 
-  return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
+  return GENERATE_IMAGE_MODELS_REGEX.test(modelId)
 }
 
-/**
- * the modern image generation models that support advanced features: tool use, reasoning, etc.
- * @param model
- * @returns Boolean
- */
-export function isModernGenerateImageModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return /gemini-3(\.\d+)?-pro-image-preview/i.test(modelId)
-}
-
+// TODO: refine the regex
 /**
  * 判断模型是否支持纯图片生成（不支持通过工具调用）
  * @param model
  * @returns
  */
 export function isPureGenerateImageModel(model: Model): boolean {
-  if (!isGenerateImageModel(model) || !isTextToImageModel(model)) {
+  if (!isGenerateImageModel(model) && !isTextToImageModel(model)) {
+    return false
+  }
+
+  if (isFunctionCallingModel(model)) {
     return false
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  return (
-    !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel)) &&
-    !isModernGenerateImageModel(model)
-  )
+  if (GENERATE_IMAGE_MODELS_REGEX.test(modelId) && !MODERN_GENERATE_IMAGE_MODELS_REGEX.test(modelId)) {
+    return true
+  }
+
+  return !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((m) => modelId.includes(m))
 }
 
+// TODO: refine the regex
 // Text to image models
-const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
+const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|imagen|gpt-image/i
 
 export function isTextToImageModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return TEXT_TO_IMAGE_REGEX.test(modelId)
 }
-
-// It's not used now
-// export function isNotSupportedImageSizeModel(model?: Model): boolean {
-//   if (!model) {
-//     return false
-//   }
-
-//   const baseName = getLowerBaseModelName(model.id, '/')
-
-//   return baseName.includes('grok-2-image')
-// }
 
 /**
  * 判断模型是否支持图片增强（包括编辑、增强、修复等）
