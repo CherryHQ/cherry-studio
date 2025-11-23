@@ -1,6 +1,5 @@
 import {
   isImageEnhancementModel,
-  isPureGenerateImageModel,
   isQwenReasoningModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel
@@ -89,12 +88,5 @@ describe('Vision Model Detection', () => {
     expect(isImageEnhancementModel({ id: 'gemini-2.0-flash-preview-image-generation' } as Model)).toBe(true)
     expect(isImageEnhancementModel({ id: 'qwen-image-edit' } as Model)).toBe(true)
     expect(isImageEnhancementModel({ id: 'grok-2-image-latest' } as Model)).toBe(true)
-  })
-  test('isPureGenerateImageModel', () => {
-    expect(isPureGenerateImageModel({ id: 'gpt-image-1' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'gemini-2.5-flash-image-preview' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'gemini-2.0-flash-preview-image-generation' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'grok-2-image-latest' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'gpt-4o' } as Model)).toBe(false)
   })
 })

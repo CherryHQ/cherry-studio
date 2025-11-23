@@ -77,11 +77,14 @@ vi.mock('@renderer/config/models', async (importOriginal) => ({
   }
 }))
 
-vi.mock('@renderer/utils/provider', () => ({
-  isSupportServiceTierProvider: vi.fn((provider) => {
-    return [SystemProviderIds.openai, SystemProviderIds.groq].includes(provider.id)
-  })
-}))
+vi.mock(import('@renderer/utils/provider'), async (importOriginal) => {
+  return {
+    ...(await importOriginal()),
+    isSupportServiceTierProvider: vi.fn((provider) => {
+      return [SystemProviderIds.openai, SystemProviderIds.groq].includes(provider.id)
+    })
+  }
+})
 
 vi.mock('@renderer/store/settings', () => ({
   default: (state = { settings: {} }) => state

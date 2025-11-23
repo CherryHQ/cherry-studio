@@ -23,6 +23,26 @@ vi.mock('@cherrystudio/ai-core', () => ({
   }
 }))
 
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn(),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
+vi.mock('@renderer/store/settings', () => ({
+  default: {},
+  settingsSlice: {
+    name: 'settings',
+    reducer: vi.fn(),
+    actions: {}
+  }
+}))
+
 // Mock the provider configs
 vi.mock('../providerConfigs', () => ({
   initializeNewProviders: vi.fn()

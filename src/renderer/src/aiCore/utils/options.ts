@@ -178,6 +178,7 @@ export function buildProviderOptions(
         case 'google-vertex':
           providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
           break
+        case 'azure-anthropic':
         case 'google-vertex-anthropic':
           providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
           break
@@ -210,6 +211,7 @@ export function buildProviderOptions(
     {
       'google-vertex': 'google',
       'google-vertex-anthropic': 'anthropic',
+      'azure-anthropic': 'anthropic',
       'ai-gateway': 'gateway'
     }[rawProviderId] || rawProviderId
 

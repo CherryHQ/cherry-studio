@@ -91,6 +91,7 @@ const ThinkModelTypes = [
   'grok4_fast',
   'gemini',
   'gemini_pro',
+  'gemini3',
   'qwen',
   'qwen_thinking',
   'doubao',

@@ -33,6 +33,14 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     aliases: ['vertexai-anthropic']
   },
   {
+    id: 'azure-anthropic',
+    name: 'Azure AI Anthropic',
+    import: () => import('@ai-sdk/anthropic'),
+    creatorFunctionName: 'createAnthropic',
+    supportsImageGeneration: false,
+    aliases: ['azure-anthropic']
+  },
+  {
     id: 'github-copilot-openai-compatible',
     name: 'GitHub Copilot OpenAI Compatible',
     import: () => import('@opeoginni/github-copilot-openai-compatible'),

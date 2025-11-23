@@ -2,6 +2,10 @@ import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
 import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
 
+export const isAzureResponsesEndpoint = (provider: AzureOpenAIProvider) => {
+  return provider.apiVersion === 'preview' || provider.apiVersion === 'v1'
+}
+
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
   return providers.filter(
     (p) => p.type === 'anthropic' || !!p.anthropicApiHost || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id)

@@ -4,11 +4,12 @@
  */
 
 import { anthropic } from '@ai-sdk/anthropic'
+import { azure } from '@ai-sdk/azure'
 import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
 import { combineHeaders } from '@ai-sdk/provider-utils'
-import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
@@ -127,6 +128,17 @@ export async function buildStreamTextParams(
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'azure-responses') {
+      tools.web_search_preview = azure.tools.webSearchPreview({
+        searchContextSize: webSearchPluginConfig?.openai!.searchContextSize
+      }) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'azure-anthropic') {
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const anthropicSearchOptions: AnthropicSearchConfig = {
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+      }
+      tools.web_search = anthropic.tools.webSearch_20250305(anthropicSearchOptions) as ProviderDefinedTool
     }
   }
 
@@ -144,9 +156,10 @@ export async function buildStreamTextParams(
         tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
         break
       case 'anthropic':
+      case 'azure-anthropic':
       case 'google-vertex-anthropic':
         tools.web_fetch = (
-          aiSdkProviderId === 'anthropic'
+          ['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)
             ? anthropic.tools.webFetch_20250910({
                 maxUses: webSearchConfig.maxResults,
                 blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined

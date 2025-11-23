@@ -110,6 +110,7 @@ describe('vision helpers', () => {
     it('requires both generate and text-to-image support', () => {
       expect(isPureGenerateImageModel(createModel({ id: 'gpt-image-1' }))).toBe(true)
       expect(isPureGenerateImageModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+      expect(isPureGenerateImageModel(createModel({ id: 'gemini-2.5-flash-image-preview' }))).toBe(true)
     })
   })
 

@@ -2,6 +2,7 @@ import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } fr
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import type { Provider } from '@renderer/types'
+import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import type { AiSdkConfig } from '../types'
@@ -59,6 +60,9 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 export function getAiSdkProviderId(provider: Provider): string {
   // 1. 尝试解析provider.id
   const resolvedFromId = tryResolveProviderId(provider.id)
+  if (isAzureOpenAIProvider(provider) && isAzureResponsesEndpoint(provider)) {
+    return 'azure-responses'
+  }
   if (resolvedFromId) {
     return resolvedFromId
   }

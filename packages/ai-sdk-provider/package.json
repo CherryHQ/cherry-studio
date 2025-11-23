@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.12"
+    "@ai-sdk/provider-utils": "^3.0.17"
   },
   "devDependencies": {
     "tsdown": "^0.13.3",
