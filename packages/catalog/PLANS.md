@@ -331,7 +331,7 @@ export const ProviderBehaviorsSchema = z.object({
   // 高级功能
   supportsStreaming: z.boolean().default(true),           // 是否支持流式响应
   supportsBatchProcessing: z.boolean().default(false),     // 是否支持批量处理
-  providesModelFineTuning: z.boolean().default(false)      // 是否提供模型微调
+  supportsModelFineTuning: z.boolean().default(false)      // 是否提供模型微调
 })
 
 // 供应商配置 Schema
@@ -749,7 +749,7 @@ export const isVisionModel = (model: Model): boolean =>
         "hasRealTimeMetrics": true,
         "supportsRateLimiting": true,
         "supportsStreaming": true,
-        "providesModelFineTuning": false
+        "supportsModelFineTuning": false
       },
 
       "supportedEndpoints": [
@@ -800,7 +800,7 @@ export const isVisionModel = (model: Model): boolean =>
         "hasRealTimeMetrics": true,
         "supportsRateLimiting": true,
         "supportsStreaming": true,
-        "providesModelFineTuning": true,
+        "supportsModelFineTuning": true,
         "supportsBatchProcessing": true,
         "providesUsageAnalytics": true
       },
@@ -998,9 +998,9 @@ export const isVisionModel = (model: Model): boolean =>
    ```
 
 **验收标准**：
-- [ ] 所有 Schema 定义完成，通过 Zod 验证
-- [ ] 配置加载器可以读取 JSON 文件并返回类型安全的数据
-- [ ] 单元测试覆盖率达到 90%
+- [x] 所有 Schema 定义完成，通过 Zod 验证
+- [x] 配置加载器可以读取 JSON 文件并返回类型安全的数据
+- [x] 单元测试覆盖率达到 90%
 
 ### Phase 2: 数据迁移 (2-3 days)
 

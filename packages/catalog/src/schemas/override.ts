@@ -5,9 +5,9 @@
 
 import * as z from 'zod'
 
-import { MetadataSchema, ModelIdSchema, ProviderIdSchema, VersionSchema } from './common.types'
-import { ModelCapabilityTypeSchema, ModelPricingSchema, ParameterSupportSchema, ReasoningSchema } from './model.schema'
-import { EndpointTypeSchema } from './provider.schema'
+import { MetadataSchema, ModelIdSchema, ProviderIdSchema, VersionSchema } from './common'
+import { ModelCapabilityTypeSchema, ModelPricingSchema, ParameterSupportSchema, ReasoningSchema } from './model'
+import { EndpointTypeSchema } from './provider'
 
 // Capability override operations
 export const CapabilityOverrideSchema = z.object({

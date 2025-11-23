@@ -12,7 +12,7 @@ import {
   PricePerTokenSchema,
   TimestampSchema,
   VersionSchema
-} from './common.types'
+} from './common'
 
 // Modality types - supported input/output modalities
 export const ModalitySchema = z.enum(['TEXT', 'VISION', 'AUDIO', 'VIDEO', 'VECTOR'])

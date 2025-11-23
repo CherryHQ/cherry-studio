@@ -5,7 +5,7 @@
 
 import * as z from 'zod'
 
-import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common.types'
+import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
 
 // Endpoint types supported by providers
 export const EndpointTypeSchema = z.enum([
@@ -100,7 +100,7 @@ export const ProviderBehaviorsSchema = z.object({
   // Advanced features
   supportsStreaming: z.boolean().default(true), // Supports streaming responses
   supportsBatchProcessing: z.boolean().default(false), // Supports batch processing
-  providesModelFineTuning: z.boolean().default(false) // Provides model fine-tuning
+  supportsModelFineTuning: z.boolean().default(false) // Provides model fine-tuning
 })
 
 // Provider configuration schema

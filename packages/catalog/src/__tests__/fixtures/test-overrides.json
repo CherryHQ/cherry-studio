@@ -1,0 +1,28 @@
+{
+  "version": "1.0.0",
+  "overrides": [
+    {
+      "providerId": "test-provider",
+      "modelId": "test-model",
+      "capabilities": {
+        "add": ["FUNCTION_CALL"],
+        "remove": ["REASONING"]
+      },
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        }
+      },
+      "disabled": false,
+      "reason": "Test override for enhanced capabilities and limits",
+      "lastUpdated": "2025-11-24T07:08:00Z",
+      "updatedBy": "test-suite",
+      "priority": 100
+    }
+  ]
+}

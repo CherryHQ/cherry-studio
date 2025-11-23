@@ -1,0 +1,53 @@
+{
+  "version": "1.0.0",
+  "providers": [
+    {
+      "id": "test-provider",
+      "name": "Test Provider",
+      "description": "A test provider for unit testing",
+      "authentication": "API_KEY",
+      "pricingModel": "PER_MODEL",
+      "modelRouting": "DIRECT",
+      "behaviors": {
+        "supportsCustomModels": false,
+        "providesModelMapping": false,
+        "supportsModelVersioning": false,
+        "providesFallbackRouting": false,
+        "hasAutoRetry": false,
+        "supportsHealthCheck": false,
+        "hasRealTimeMetrics": false,
+        "providesUsageAnalytics": false,
+        "supportsWebhookEvents": false,
+        "requiresApiKeyValidation": true,
+        "supportsRateLimiting": false,
+        "providesUsageLimits": false,
+        "supportsStreaming": true,
+        "supportsBatchProcessing": false,
+        "supportsModelFineTuning": false
+      },
+      "supportedEndpoints": ["CHAT_COMPLETIONS"],
+      "apiCompatibility": {
+        "supportsArrayContent": true,
+        "supportsStreamOptions": false,
+        "supportsDeveloperRole": false,
+        "supportsThinkingControl": false,
+        "supportsApiVersion": false,
+        "supportsParallelTools": false,
+        "supportsMultimodal": false
+      },
+      "specialConfig": {},
+      "documentation": "https://docs.test.com",
+      "website": "https://test.com",
+      "deprecated": false,
+      "maintenanceMode": false,
+      "configVersion": "1.0.0",
+      "metadata": {
+        "tags": ["test"],
+        "category": "ai-provider",
+        "source": "test",
+        "reliability": "high",
+        "supportedLanguages": ["en"]
+      }
+    }
+  ]
+}

@@ -4,16 +4,16 @@
  */
 
 // Export all schemas from common types
-export * from './common.types'
+export * from './common'
 
 // Export model schemas
-export * from './model.schema'
+export * from './model'
 
 // Export provider schemas
-export * from './provider.schema'
+export * from './provider'
 
 // Export override schemas
-export * from './override.schema'
+export * from './override'
 
 // Re-export commonly used combined types for convenience
 export type {
@@ -23,12 +23,12 @@ export type {
   ModelPricing,
   ParameterSupport,
   Reasoning
-} from './model.schema'
+} from './model'
 export type {
   OverrideResult,
   OverrideValidation,
   ProviderModelOverride
-} from './override.schema'
+} from './override'
 export type {
   Authentication,
   EndpointType,
@@ -36,7 +36,7 @@ export type {
   PricingModel,
   ProviderBehaviors,
   ProviderConfig
-} from './provider.schema'
+} from './provider'
 
 // Export common types
 export type {
@@ -46,4 +46,4 @@ export type {
   ProviderId,
   Timestamp,
   Version
-} from './common.types'
+} from './common'
