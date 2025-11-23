@@ -91,7 +91,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
 // Models that should auto-enable image generation button when selected
-const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image', ...DEDICATED_IMAGE_MODELS]
+const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview', ...DEDICATED_IMAGE_MODELS]
 
 const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
   'o3',
@@ -110,6 +110,7 @@ const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-2.5-flash-image',
+  'gemini-3-pro-image-preview',
   ...DEDICATED_IMAGE_MODELS
 ]
 
