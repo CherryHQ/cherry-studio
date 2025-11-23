@@ -4770,9 +4770,9 @@
       "title": "Translation settings"
     },
     "tray": {
-      "onclose": "Leave to Tray on Close",
+      "onclose": "Minimize to Tray on Close",
       "show": "Show Tray Icon",
-      "title": "System Tray"
+      "title": "Tray"
     },
     "zoom": {
       "reset": "Reset",
