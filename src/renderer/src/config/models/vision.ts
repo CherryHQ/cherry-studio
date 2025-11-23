@@ -116,6 +116,7 @@ const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODE
 const MODERN_IMAGE_MODELS = ['gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?']
 
 const GENERATE_IMAGE_MODELS = [
+  'gemini-2.0-flash-exp(?:-[\\w-]+)?',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   ...MODERN_IMAGE_MODELS,
