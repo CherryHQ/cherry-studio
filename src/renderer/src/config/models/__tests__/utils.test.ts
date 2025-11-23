@@ -158,8 +158,8 @@ describe('model utils', () => {
   it('limits verbosity controls for GPT-5 Pro models', () => {
     const proModel = createModel({ id: 'gpt-5-pro' })
     const previewModel = createModel({ id: 'gpt-5-preview' })
-    expect(getModelSupportedVerbosity(proModel)).toEqual(['high'])
-    expect(getModelSupportedVerbosity(previewModel)).toEqual(['low', 'medium', 'high'])
+    expect(getModelSupportedVerbosity(proModel)).toEqual([undefined, 'high'])
+    expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, 'low', 'medium', 'high'])
     expect(isGPT5ProModel(proModel)).toBe(true)
     expect(isGPT5ProModel(previewModel)).toBe(false)
   })

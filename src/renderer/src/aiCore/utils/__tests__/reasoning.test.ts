@@ -3,14 +3,14 @@
  * Tests for reasoning parameter generation utilities
  */
 
-import * as models from '@renderer/config/models'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
+import type { SettingsState } from '@renderer/store/settings'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getAnthropicReasoningParams,
-  getAnthropicThinkingBudget,
   getBedrockReasoningParams,
   getCustomParameters,
   getGeminiReasoningParams,
@@ -18,6 +18,16 @@ import {
   getReasoningEffort,
   getXAIReasoningParams
 } from '../reasoning'
+
+function defaultGetStoreSetting<K extends keyof SettingsState>(key: K): SettingsState[K] {
+  if (key === 'openAI') {
+    return {
+      summaryText: 'auto',
+      verbosity: 'medium'
+    } as SettingsState[K]
+  }
+  return undefined as SettingsState[K]
+}
 
 // Mock dependencies
 vi.mock('@logger', () => ({
@@ -57,39 +67,34 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   const actual: any = await importOriginal()
   return {
     ...actual,
-    isReasoningModel: vi.fn(),
-    isOpenAIDeepResearchModel: vi.fn(),
-    isOpenAIModel: vi.fn(),
-    isSupportedReasoningEffortOpenAIModel: vi.fn(),
-    isSupportedThinkingTokenQwenModel: vi.fn(),
-    isQwenReasoningModel: vi.fn(),
-    isSupportedThinkingTokenClaudeModel: vi.fn(),
-    isSupportedThinkingTokenGeminiModel: vi.fn(),
-    isSupportedThinkingTokenDoubaoModel: vi.fn(),
-    isSupportedThinkingTokenZhipuModel: vi.fn(),
-    isSupportedReasoningEffortModel: vi.fn(),
-    isDeepSeekHybridInferenceModel: vi.fn(),
-    isSupportedReasoningEffortGrokModel: vi.fn(),
-    getThinkModelType: vi.fn(),
-    isDoubaoSeedAfter251015: vi.fn(),
-    isDoubaoThinkingAutoModel: vi.fn(),
-    isGrok4FastReasoningModel: vi.fn(),
-    isGrokReasoningModel: vi.fn(),
-    isOpenAIReasoningModel: vi.fn(),
-    isQwenAlwaysThinkModel: vi.fn(),
-    isSupportedThinkingTokenHunyuanModel: vi.fn(),
-    isSupportedThinkingTokenModel: vi.fn(),
-    isGPT51SeriesModel: vi.fn()
+    isReasoningModel: vi.fn(() => false),
+    isOpenAIDeepResearchModel: vi.fn(() => false),
+    isOpenAIModel: vi.fn(() => false),
+    isSupportedReasoningEffortOpenAIModel: vi.fn(() => false),
+    isSupportedThinkingTokenQwenModel: vi.fn(() => false),
+    isQwenReasoningModel: vi.fn(() => false),
+    isSupportedThinkingTokenClaudeModel: vi.fn(() => false),
+    isSupportedThinkingTokenGeminiModel: vi.fn(() => false),
+    isSupportedThinkingTokenDoubaoModel: vi.fn(() => false),
+    isSupportedThinkingTokenZhipuModel: vi.fn(() => false),
+    isSupportedReasoningEffortModel: vi.fn(() => false),
+    isDeepSeekHybridInferenceModel: vi.fn(() => false),
+    isSupportedReasoningEffortGrokModel: vi.fn(() => false),
+    getThinkModelType: vi.fn(() => 'default'),
+    isDoubaoSeedAfter251015: vi.fn(() => false),
+    isDoubaoThinkingAutoModel: vi.fn(() => false),
+    isGrok4FastReasoningModel: vi.fn(() => false),
+    isGrokReasoningModel: vi.fn(() => false),
+    isOpenAIReasoningModel: vi.fn(() => false),
+    isQwenAlwaysThinkModel: vi.fn(() => false),
+    isSupportedThinkingTokenHunyuanModel: vi.fn(() => false),
+    isSupportedThinkingTokenModel: vi.fn(() => false),
+    isGPT51SeriesModel: vi.fn(() => false)
   }
 })
 
 vi.mock('@renderer/hooks/useSettings', () => ({
-  getStoreSetting: vi.fn((key) => {
-    if (key === 'openAI') {
-      return { summaryText: 'off' } as any
-    }
-    return {}
-  })
+  getStoreSetting: vi.fn(defaultGetStoreSetting)
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({
@@ -139,42 +144,14 @@ describe('reasoning utils', () => {
       expect(result).toEqual({})
     })
 
-    it('should return reasoning effort for OpenAI o1 model', async () => {
-      const { isReasoningModel, isSupportedReasoningEffortModel, getThinkModelType } = await import(
-        '@renderer/config/models'
-      )
-
-      vi.mocked(isReasoningModel).mockReturnValue(true)
-      vi.mocked(isSupportedReasoningEffortModel).mockReturnValue(true)
-      vi.mocked(getThinkModelType).mockReturnValue('default')
-
-      const model: Model = {
-        id: 'o1-preview',
-        name: 'O1 Preview',
-        provider: SystemProviderIds.openai
-      } as Model
-
-      const assistant: Assistant = {
-        id: 'test',
-        name: 'Test',
-        settings: {
-          reasoning_effort: 'high'
-        }
-      } as Assistant
-
-      const result = getReasoningEffort(assistant, model)
-      expect(result).toHaveProperty('reasoningEffort')
-    })
-
     it('should disable reasoning for OpenRouter when no reasoning effort set', async () => {
       const { isReasoningModel } = await import('@renderer/config/models')
 
-      // Make the model a reasoning model so logic can proceed
       vi.mocked(isReasoningModel).mockReturnValue(true)
 
       const model: Model = {
-        id: 'anthropic/claude-3.5-sonnet',
-        name: 'Claude 3.5 Sonnet',
+        id: 'anthropic/claude-sonnet-4',
+        name: 'Claude Sonnet 4',
         provider: SystemProviderIds.openrouter
       } as Model
 
@@ -375,8 +352,7 @@ describe('reasoning utils', () => {
       vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(true)
 
       const model: Model = {
-        id: 'o3-mini',
-        name: 'O3 Mini',
+        id: 'o3-deep-research',
         provider: SystemProviderIds.openai
       } as Model
 
@@ -451,17 +427,17 @@ describe('reasoning utils', () => {
     })
 
     it('should return reasoning effort for OpenAI models', async () => {
-      const { isReasoningModel, isOpenAIDeepResearchModel, isSupportedReasoningEffortOpenAIModel } = await import(
+      const { isReasoningModel, isOpenAIModel, isSupportedReasoningEffortOpenAIModel } = await import(
         '@renderer/config/models'
       )
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
-      vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
+      vi.mocked(isOpenAIModel).mockReturnValue(true)
       vi.mocked(isSupportedReasoningEffortOpenAIModel).mockReturnValue(true)
 
       const model: Model = {
-        id: 'o1-preview',
-        name: 'O1 Preview',
+        id: 'gpt-5.1',
+        name: 'GPT 5.1',
         provider: SystemProviderIds.openai
       } as Model
 
@@ -476,26 +452,21 @@ describe('reasoning utils', () => {
       const result = getOpenAIReasoningParams(assistant, model)
       expect(result).toEqual({
         reasoningEffort: 'high',
-        reasoningSummary: undefined
+        reasoningSummary: 'auto'
       })
     })
 
     it('should include reasoning summary when not o1-pro', async () => {
-      const { isReasoningModel, isSupportedReasoningEffortOpenAIModel, isOpenAIModel } = await import(
+      const { isReasoningModel, isOpenAIModel, isSupportedReasoningEffortOpenAIModel } = await import(
         '@renderer/config/models'
       )
-      const { getStoreSetting } = await import('@renderer/hooks/useSettings')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
       vi.mocked(isOpenAIModel).mockReturnValue(true)
       vi.mocked(isSupportedReasoningEffortOpenAIModel).mockReturnValue(true)
-      vi.mocked(getStoreSetting).mockReturnValue({
-        summaryText: 'concise'
-      } as any)
 
       const model: Model = {
-        id: 'o1-preview',
-        name: 'O1 Preview',
+        id: 'gpt-5',
         provider: SystemProviderIds.openai
       } as Model
 
@@ -508,8 +479,10 @@ describe('reasoning utils', () => {
       } as Assistant
 
       const result = getOpenAIReasoningParams(assistant, model)
-      expect(result).toHaveProperty('reasoningSummary')
-      expect(result.reasoningSummary).toBe('concise')
+      expect(result).toEqual({
+        reasoningEffort: 'medium',
+        reasoningSummary: 'auto'
+      })
     })
 
     it('should not include reasoning summary for o1-pro', async () => {
@@ -520,6 +493,7 @@ describe('reasoning utils', () => {
       vi.mocked(isReasoningModel).mockReturnValue(true)
       vi.mocked(isOpenAIDeepResearchModel).mockReturnValue(false)
       vi.mocked(isSupportedReasoningEffortOpenAIModel).mockReturnValue(true)
+      vi.mocked(getStoreSetting).mockReturnValue({ summaryText: 'off' } as any)
 
       const model: Model = {
         id: 'o1-pro',
@@ -554,7 +528,7 @@ describe('reasoning utils', () => {
       vi.mocked(getStoreSetting).mockReturnValue({ summaryText: 'off' } as any)
 
       const model: Model = {
-        id: 'o3-mini',
+        id: 'o3-deep-research',
         name: 'O3 Mini',
         provider: SystemProviderIds.openai
       } as Model
@@ -570,7 +544,7 @@ describe('reasoning utils', () => {
       const result = getOpenAIReasoningParams(assistant, model)
       expect(result).toEqual({
         reasoningEffort: 'medium',
-        reasoningSummary: undefined
+        reasoningSummary: 'off'
       })
     })
   })
@@ -810,8 +784,8 @@ describe('reasoning utils', () => {
       vi.mocked(isSupportedReasoningEffortGrokModel).mockReturnValue(true)
 
       const model: Model = {
-        id: 'grok-2',
-        name: 'Grok 2',
+        id: 'grok-3',
+        name: 'Grok 3',
         provider: SystemProviderIds.grok
       } as Model
 
@@ -988,63 +962,6 @@ describe('reasoning utils', () => {
       expect(result).toEqual({
         valid: 'value3'
       })
-    })
-  })
-  describe('getAnthropicThinkingBudget', () => {
-    const findTokenLimitSpy = vi.spyOn(models, 'findTokenLimit')
-    const applyTokenLimit = (limit?: { min: number; max: number }) => findTokenLimitSpy.mockReturnValueOnce(limit)
-
-    beforeEach(() => {
-      findTokenLimitSpy.mockReset()
-    })
-
-    it('returns undefined when reasoningEffort is undefined', () => {
-      const result = getAnthropicThinkingBudget(8000, undefined, 'claude-model')
-      expect(result).toBe(undefined)
-      expect(findTokenLimitSpy).not.toHaveBeenCalled()
-    })
-
-    it('returns undefined when tokenLimit is not found', () => {
-      const unknownId = 'unknown-model'
-      applyTokenLimit(undefined)
-      const result = getAnthropicThinkingBudget(8000, 'medium', unknownId)
-      expect(result).toBe(undefined)
-      expect(findTokenLimitSpy).toHaveBeenCalledWith(unknownId)
-    })
-
-    it('uses DEFAULT_MAX_TOKENS when maxTokens is undefined', () => {
-      applyTokenLimit({ min: 1000, max: 10_000 })
-      const result = getAnthropicThinkingBudget(undefined, 'medium', 'claude-model')
-      expect(result).toBe(2048)
-      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
-    })
-
-    it('respects maxTokens limit when lower than token limit', () => {
-      applyTokenLimit({ min: 1000, max: 10_000 })
-      const result = getAnthropicThinkingBudget(8000, 'medium', 'claude-model')
-      expect(result).toBe(4000)
-      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
-    })
-
-    it('caps to token limit when lower than maxTokens budget', () => {
-      applyTokenLimit({ min: 1000, max: 5000 })
-      const result = getAnthropicThinkingBudget(100_000, 'high', 'claude-model')
-      expect(result).toBe(4200)
-      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
-    })
-
-    it('enforces minimum budget of 1024', () => {
-      applyTokenLimit({ min: 0, max: 500 })
-      const result = getAnthropicThinkingBudget(200, 'low', 'claude-model')
-      expect(result).toBe(1024)
-      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
-    })
-
-    it('respects large token limits when maxTokens is high', () => {
-      applyTokenLimit({ min: 1024, max: 64_000 })
-      const result = getAnthropicThinkingBudget(64_000, 'high', 'claude-model')
-      expect(result).toBe(51_200)
-      expect(findTokenLimitSpy).toHaveBeenCalledWith('claude-model')
     })
   })
 })

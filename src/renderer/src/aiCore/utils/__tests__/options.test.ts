@@ -87,6 +87,15 @@ vi.mock('@renderer/store/settings', () => ({
   default: (state = { settings: {} }) => state
 }))
 
+vi.mock('@renderer/hooks/useSettings', () => ({
+  getStoreSetting: vi.fn((key) => {
+    if (key === 'openAI') {
+      return { summaryText: 'off', verbosity: 'medium' } as any
+    }
+    return {}
+  })
+}))
+
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
     id: 'default',
@@ -159,7 +168,7 @@ describe('options utils', () => {
       const openaiProvider: Provider = {
         id: SystemProviderIds.openai,
         name: 'OpenAI',
-        type: 'openai',
+        type: 'openai-response',
         apiKey: 'test-key',
         apiHost: 'https://api.openai.com/v1',
         isSystem: true
