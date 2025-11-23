@@ -91,12 +91,16 @@ const IMAGE_ENHANCEMENT_MODELS = [
 
 const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
 
+const DEDICATED_IMAGE_MODELS_REGEX = new RegExp(DEDICATED_IMAGE_MODELS.join('|'), 'i')
+
 // Models that should auto-enable image generation button when selected
 const AUTO_ENABLE_IMAGE_MODELS = [
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-3.0-pro-image(?:-[\\w-]+)?',
   ...DEDICATED_IMAGE_MODELS
 ]
+
+const AUTO_ENABLE_IMAGE_MODELS_REGEX = new RegExp(AUTO_ENABLE_IMAGE_MODELS.join('|'), 'i')
 
 const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
   'o3',
@@ -123,14 +127,14 @@ export const isDedicatedImageGenerationModel = (model: Model): boolean => {
   if (!model) return false
 
   const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS.some((m) => modelId.includes(m))
+  return DEDICATED_IMAGE_MODELS_REGEX.test(modelId)
 }
 
 export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
   if (!model) return false
 
   const modelId = getLowerBaseModelName(model.id)
-  return AUTO_ENABLE_IMAGE_MODELS.some((m) => modelId.includes(m))
+  return AUTO_ENABLE_IMAGE_MODELS_REGEX.test(modelId)
 }
 
 /**

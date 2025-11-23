@@ -1,9 +1,8 @@
 import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
-import { isAzureOpenAIProvider } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
-import { isAzureResponsesEndpoint } from '@renderer/utils/provider'
+import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import type { providerToAiSdkConfig } from './providerConfig'

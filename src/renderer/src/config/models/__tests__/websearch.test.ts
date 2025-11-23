@@ -26,7 +26,8 @@ const isGenerateImageModel = vi.hoisted(() => vi.fn())
 vi.mock('../vision', () => ({
   isPureGenerateImageModel: (...args: any[]) => isPureGenerateImageModel(...args),
   isTextToImageModel: (...args: any[]) => isTextToImageModel(...args),
-  isGenerateImageModel: (...args: any[]) => isGenerateImageModel(...args)
+  isGenerateImageModel: (...args: any[]) => isGenerateImageModel(...args),
+  isModernGenerateImageModel: vi.fn()
 }))
 
 const providerMocks = vi.hoisted(() => ({
@@ -35,7 +36,8 @@ const providerMocks = vi.hoisted(() => ({
   isOpenAICompatibleProvider: vi.fn(),
   isOpenAIProvider: vi.fn(),
   isVertexProvider: vi.fn(),
-  isAwsBedrockProvider: vi.fn()
+  isAwsBedrockProvider: vi.fn(),
+  isAzureOpenAIProvider: vi.fn()
 }))
 
 vi.mock('@renderer/utils/provider', () => providerMocks)

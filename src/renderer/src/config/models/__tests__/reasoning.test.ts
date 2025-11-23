@@ -68,7 +68,9 @@ vi.mock('../embedding', () => ({
 }))
 
 vi.mock('../vision', () => ({
-  isTextToImageModel: vi.fn()
+  isTextToImageModel: vi.fn(),
+  isPureGenerateImageModel: vi.fn(),
+  isModernGenerateImageModel: vi.fn()
 }))
 
 describe('Doubao Models', () => {
