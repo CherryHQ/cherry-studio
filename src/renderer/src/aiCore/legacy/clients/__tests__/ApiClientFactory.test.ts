@@ -58,10 +58,27 @@ vi.mock('../aws/AwsBedrockAPIClient', () => ({
   AwsBedrockAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
 
+vi.mock('@renderer/services/AssistantService.ts', () => ({
+  getDefaultAssistant: () => {
+    return {
+      id: 'default',
+      name: 'default',
+      emoji: '😀',
+      prompt: '',
+      topics: [],
+      messages: [],
+      type: 'assistant',
+      regularPhrases: [],
+      settings: {}
+    }
+  }
+}))
+
 // Mock the models config to prevent circular dependency issues
 vi.mock('@renderer/config/models', () => ({
   findTokenLimit: vi.fn(),
   isReasoningModel: vi.fn(),
+  isOpenAILLMModel: vi.fn(),
   SYSTEM_MODELS: {
     silicon: [],
     defaultModel: []

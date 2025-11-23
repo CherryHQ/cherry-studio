@@ -1,3 +1,8 @@
+import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
+import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
+import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
+import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
+import type { XaiProviderOptions } from '@ai-sdk/xai'
 import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
@@ -7,17 +12,27 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
-import type { Assistant, Model, Provider } from '@renderer/types'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
 import {
+  type Assistant,
+  type GroqServiceTier,
   GroqServiceTiers,
+  type GroqSystemProvider,
   isGroqServiceTier,
+  isGroqSystemProvider,
   isOpenAIServiceTier,
   isTranslateAssistant,
+  type Model,
+  type NotGroqProvider,
+  type OpenAIServiceTier,
   OpenAIServiceTiers,
-  SystemProviderIds
+  type Provider,
+  type ServiceTier
 } from '@renderer/types'
+import type { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
+import type { JSONValue } from 'ai'
 import { t } from 'i18next'
 
 import { getAiSdkProviderId } from '../provider/factory'
@@ -35,8 +50,31 @@ import { getWebSearchParams } from './websearch'
 
 const logger = loggerService.withContext('aiCore.utils.options')
 
-// copy from BaseApiClient.ts
-const getServiceTier = (model: Model, provider: Provider) => {
+function toOpenAIServiceTier(model: Model, serviceTier: ServiceTier): OpenAIServiceTier {
+  if (
+    !isOpenAIServiceTier(serviceTier) ||
+    (serviceTier === OpenAIServiceTiers.flex && !isSupportFlexServiceTierModel(model))
+  ) {
+    return undefined
+  } else {
+    return serviceTier
+  }
+}
+
+function toGroqServiceTier(model: Model, serviceTier: ServiceTier): GroqServiceTier {
+  if (
+    !isGroqServiceTier(serviceTier) ||
+    (serviceTier === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
+  ) {
+    return undefined
+  } else {
+    return serviceTier
+  }
+}
+
+function getServiceTier<T extends GroqSystemProvider>(model: Model, provider: T): GroqServiceTier
+function getServiceTier<T extends NotGroqProvider>(model: Model, provider: T): OpenAIServiceTier
+function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAIServiceTier | GroqServiceTier {
   const serviceTierSetting = provider.serviceTier
 
   if (!isSupportServiceTierProvider(provider) || !isOpenAIModel(model) || !serviceTierSetting) {
@@ -44,24 +82,17 @@ const getServiceTier = (model: Model, provider: Provider) => {
   }
 
   // 处理不同供应商需要 fallback 到默认值的情况
-  if (provider.id === SystemProviderIds.groq) {
-    if (
-      !isGroqServiceTier(serviceTierSetting) ||
-      (serviceTierSetting === GroqServiceTiers.flex && !isSupportFlexServiceTierModel(model))
-    ) {
-      return undefined
-    }
+  if (isGroqSystemProvider(provider)) {
+    return toGroqServiceTier(model, serviceTierSetting)
   } else {
     // 其他 OpenAI 供应商，假设他们的服务层级设置和 OpenAI 完全相同
-    if (
-      !isOpenAIServiceTier(serviceTierSetting) ||
-      (serviceTierSetting === OpenAIServiceTiers.flex && !isSupportFlexServiceTierModel(model))
-    ) {
-      return undefined
-    }
+    return toOpenAIServiceTier(model, serviceTierSetting)
   }
+}
 
-  return serviceTierSetting
+function getVerbosity(): OpenAIVerbosity {
+  const openAI = getStoreSetting('openAI')
+  return openAI.verbosity
 }
 
 /**
@@ -78,13 +109,13 @@ export function buildProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): Record<string, Record<string, JSONValue>> {
   logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
-  const serviceTierSetting = getServiceTier(model, actualProvider)
-  providerSpecificOptions.serviceTier = serviceTierSetting
+  const serviceTier = getServiceTier(model, actualProvider)
+  const textVerbosity = getVerbosity()
   // 根据 provider 类型分离构建逻辑
   const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(rawProviderId)
   if (success) {
@@ -94,9 +125,14 @@ export function buildProviderOptions(
       case 'openai-chat':
       case 'azure':
       case 'azure-responses':
-        providerSpecificOptions = {
-          ...buildOpenAIProviderOptions(assistant, model, capabilities),
-          serviceTier: serviceTierSetting
+        {
+          const options: OpenAIResponsesProviderOptions = buildOpenAIProviderOptions(
+            assistant,
+            model,
+            capabilities,
+            serviceTier
+          )
+          providerSpecificOptions = options
         }
         break
       case 'anthropic':
@@ -116,12 +152,19 @@ export function buildProviderOptions(
         // 对于其他 provider，使用通用的构建逻辑
         providerSpecificOptions = {
           ...buildGenericProviderOptions(assistant, model, capabilities),
-          serviceTier: serviceTierSetting
+          serviceTier,
+          textVerbosity
         }
         break
       }
       case 'cherryin':
-        providerSpecificOptions = buildCherryInProviderOptions(assistant, model, capabilities, actualProvider)
+        providerSpecificOptions = buildCherryInProviderOptions(
+          assistant,
+          model,
+          capabilities,
+          actualProvider,
+          serviceTier
+        )
         break
       default:
         throw new Error(`Unsupported base provider ${baseProviderId}`)
@@ -143,13 +186,14 @@ export function buildProviderOptions(
           providerSpecificOptions = buildBedrockProviderOptions(assistant, model, capabilities)
           break
         case 'huggingface':
-          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities)
+          providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = {
             ...buildGenericProviderOptions(assistant, model, capabilities),
-            serviceTier: serviceTierSetting
+            serviceTier,
+            textVerbosity
           }
       }
     } else {
@@ -191,10 +235,11 @@ function buildOpenAIProviderOptions(
     enableReasoning: boolean
     enableWebSearch: boolean
     enableGenerateImage: boolean
-  }
-): Record<string, any> {
+  },
+  serviceTier: OpenAIServiceTier
+): OpenAIResponsesProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: OpenAIResponsesProviderOptions = {}
   // OpenAI 推理参数
   if (enableReasoning) {
     const reasoningParams = getOpenAIReasoningParams(assistant, model)
@@ -205,8 +250,8 @@ function buildOpenAIProviderOptions(
   }
 
   if (isSupportVerbosityModel(model)) {
-    const state = window.store?.getState()
-    const userVerbosity = state?.settings?.openAI?.verbosity
+    const openAI = getStoreSetting<'openAI'>('openAI')
+    const userVerbosity = openAI?.verbosity
 
     if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
       const supportedVerbosity = getModelSupportedVerbosity(model)
@@ -218,6 +263,11 @@ function buildOpenAIProviderOptions(
         textVerbosity: verbosity
       }
     }
+  }
+
+  providerOptions = {
+    ...providerOptions,
+    serviceTier
   }
 
   return providerOptions
@@ -234,9 +284,9 @@ function buildAnthropicProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): AnthropicProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: AnthropicProviderOptions = {}
 
   // Anthropic 推理参数
   if (enableReasoning) {
@@ -261,9 +311,9 @@ function buildGeminiProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): GoogleGenerativeAIProviderOptions {
   const { enableReasoning, enableGenerateImage } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: GoogleGenerativeAIProviderOptions = {}
 
   // Gemini 推理参数
   if (enableReasoning) {
@@ -292,7 +342,7 @@ function buildXAIProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): XaiProviderOptions {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
@@ -315,16 +365,12 @@ function buildCherryInProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   },
-  actualProvider: Provider
-): Record<string, any> {
-  const serviceTierSetting = getServiceTier(model, actualProvider)
-
+  actualProvider: Provider,
+  serviceTier: OpenAIServiceTier
+): OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions {
   switch (actualProvider.type) {
     case 'openai':
-      return {
-        ...buildOpenAIProviderOptions(assistant, model, capabilities),
-        serviceTier: serviceTierSetting
-      }
+      return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
 
     case 'anthropic':
       return buildAnthropicProviderOptions(assistant, model, capabilities)
@@ -346,9 +392,9 @@ function buildBedrockProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, any> {
+): BedrockProviderOptions {
   const { enableReasoning } = capabilities
-  let providerOptions: Record<string, any> = {}
+  let providerOptions: BedrockProviderOptions = {}
 
   if (enableReasoning) {
     const reasoningParams = getBedrockReasoningParams(assistant, model)

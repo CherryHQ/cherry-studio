@@ -872,10 +872,6 @@ export interface StoreSyncAction {
   }
 }
 
-export type OpenAIVerbosity = 'high' | 'medium' | 'low'
-
-export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-
 export type S3Config = {
   endpoint: string
   region: string
@@ -1092,7 +1088,7 @@ export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
 
-export type FetchChatCompletionOptions = {
+export type FetchChatCompletionRequestOptions = {
   signal?: AbortSignal
   timeout?: number
   headers?: Record<string, string>
@@ -1100,7 +1096,7 @@ export type FetchChatCompletionOptions = {
 
 type BaseParams = {
   assistant: Assistant
-  options?: FetchChatCompletionOptions
+  requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
   uiMessages?: Message[]
@@ -1120,3 +1116,7 @@ type PromptParams = BaseParams & {
 }
 
 export type FetchChatCompletionParams = MessagesParams | PromptParams
+
+// More specific than NonNullable
+export type NotUndefined<T> = Exclude<T, undefined>
+export type NotNull<T> = Exclude<T, null>

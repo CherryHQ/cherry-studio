@@ -27,8 +27,17 @@
         "null_id": "L'ID de l'agent est nul."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Git Bash est requis pour exécuter des agents sur Windows. L'agent ne peut pas fonctionner sans. Veuillez installer Git pour Windows depuis",
+        "recheck": "Revérifier l'installation de Git Bash",
+        "title": "Git Bash requis"
+      },
+      "notFound": "Git Bash introuvable. Veuillez l’installer d’abord.",
+      "success": "Git Bash détecté avec succès !"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
     },
     "list": {
       "error": {
@@ -257,6 +266,7 @@
       "error": {
         "sendFailed": "Échec de l'envoi de votre décision. Veuillez réessayer."
       },
+      "executing": "Exécution en cours...",
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",
@@ -1149,6 +1159,7 @@
     "name": "Nom",
     "no_results": "Aucun résultat",
     "none": "Aucun",
+    "off": "Désactivé",
     "open": "Ouvrir",
     "paste": "Coller",
     "placeholders": {
@@ -1375,6 +1386,36 @@
     "generating": "Génération",
     "preview": "Aperçu",
     "split": "Diviser"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Importation de ChatGPT",
+      "button": "Sélectionner le fichier",
+      "description": "Importe uniquement le texte de la conversation, n'inclut pas les images et les pièces jointes",
+      "error": {
+        "invalid_json": "Format de fichier JSON invalide",
+        "no_conversations": "Aucune conversation trouvée dans le fichier",
+        "no_valid_conversations": "Aucune conversation valide à importer",
+        "unknown": "L'importation a échoué, veuillez vérifier le format du fichier"
+      },
+      "help": {
+        "step1": "1. Connectez-vous à ChatGPT, allez dans Paramètres > Contrôles des données > Exporter les données",
+        "step2": "2. Attendez le fichier d’exportation par e-mail",
+        "step3": "3. Extrayez le fichier téléchargé et recherchez conversations.json",
+        "title": "Comment exporter les conversations de ChatGPT ?"
+      },
+      "importing": "Importation des conversations...",
+      "selecting": "Sélection du fichier...",
+      "success": "Importation réussie de {{topics}} conversations avec {{messages}} messages",
+      "title": "Importer les conversations de ChatGPT",
+      "untitled_conversation": "Conversation sans titre"
+    },
+    "confirm": {
+      "button": "Sélectionner le fichier à importer",
+      "label": "Êtes-vous sûr de vouloir importer des données externes ?"
+    },
+    "content": "Sélectionnez le fichier de conversation de l'application externe à importer, actuellement uniquement les fichiers au format JSON de ChatGPT sont pris en charge",
+    "title": "Importer des conversations externes"
   },
   "knowledge": {
     "add": {
@@ -3085,6 +3126,7 @@
         "basic": "Paramètres de base",
         "cloud_storage": "Paramètres de sauvegarde cloud",
         "export_settings": "Paramètres d'exportation",
+        "import_settings": "Importer les paramètres",
         "third_party": "Connexion tierce"
       },
       "export_menu": {
@@ -3143,6 +3185,11 @@
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
+      "import_settings": {
+        "button": "Importer le fichier JSON",
+        "chatgpt": "Importer depuis ChatGPT",
+        "title": "Importer des données d'applications externes"
+      },
       "joplin": {
         "check": {
           "button": "Vérifier",
@@ -4214,7 +4261,6 @@
         "default": "Par défaut",
         "flex": "Flexible",
         "on_demand": "à la demande",
-        "performance": "performance",
         "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"
