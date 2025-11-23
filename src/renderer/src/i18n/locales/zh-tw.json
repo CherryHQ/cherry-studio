@@ -37,7 +37,7 @@
       "success": "成功偵測到 Git Bash！"
     },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
     },
     "list": {
       "error": {
@@ -266,7 +266,7 @@
       "error": {
         "sendFailed": "傳送您的決定失敗，請重試。"
       },
-      "executing": "[to be translated]:Executing...",
+      "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
       "pending": "等待中 ({{seconds}}秒)",
