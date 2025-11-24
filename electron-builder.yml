@@ -134,58 +134,66 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.1
-
-    🎉 MAJOR NEW FEATURE: AI Agents
-    - Create and manage custom AI agents with specialized tools and permissions
-    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
-    - Real-time tool approval system - review and approve agent actions dynamically
-    - MCP (Model Context Protocol) integration for connecting external tools
-    - Slash commands support for quick agent interactions
-    - OpenAI-compatible REST API for agent access
+    What's New in v1.7.0-rc.2
 
     ✨ New Features:
-    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
-    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
-    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
-    - MCP Management: Redesigned interface with dual-column layout for easier management
-    - Languages: Added German language support
-
-    ⚡ Improvements:
-    - Upgraded to Electron 38.7.0
-    - Enhanced system shutdown handling and automatic update checks
-    - Improved proxy bypass rules
+    - AI Models: Added support for Gemini 3, Gemini 3 Pro with image preview, and GPT-5.1
+    - Import: ChatGPT conversation import feature
+    - Agent: Git Bash detection and requirement check for Windows agents
+    - Search: Native language emoji search with CLDR data format
+    - Provider: Endpoint type support for cherryin provider
+    - Debug: Local crash mini dump file for better diagnostics
 
     🐛 Important Bug Fixes:
-    - Fixed streaming response issues across multiple AI providers
-    - Fixed session list scrolling problems
-    - Fixed knowledge base deletion errors
+    - Error Handling: Improved error display in AiSdkToChunkAdapter
+    - Database: Optimized DatabaseManager and fixed libsql crash issues
+    - Memory: Fixed EventEmitter memory leak in useApiServer hook
+    - Messages: Fixed adjacent user messages appearing when assistant message contains error only
+    - Tools: Fixed missing execution state for approved tool permissions
+    - File Processing: Fixed "no such file" error for non-English filenames in open-mineru
+    - PDF: Fixed mineru PDF validation and 403 errors
+    - Images: Fixed base64 image save issues
+    - Search: Fixed URL context and web search capability
+    - Models: Added verbosity parameter support for GPT-5 models
+    - UI: Improved todo tool status icon visibility and colors
+    - Providers: Fixed api-host for vercel ai-gateway and gitcode update config
+
+    ⚡ Improvements:
+    - SDK: Updated Google and OpenAI SDKs with new features
+    - UI: Simplified knowledge base creation modal and agent creation form
+    - Tools: Replaced renderToolContent function with ToolContent component
+    - Architecture: Namespace tool call IDs with session ID to prevent conflicts
+    - Config: AI SDK configuration refactoring
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.1 新特性
-
-    🎉 重大更新：AI Agent 智能体系统
-    - 创建和管理专属 AI Agent，配置专用工具和权限
-    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
-    - 实时工具审批系统 - 动态审查和批准 Agent 操作
-    - MCP（模型上下文协议）集成，连接外部工具
-    - 支持斜杠命令快速交互
-    - 兼容 OpenAI 的 REST API 访问
+    v1.7.0-rc.2 新特性
 
     ✨ 新功能:
-    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
-    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
-    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
-    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
-    - 语言：新增德语支持
-
-    ⚡ 改进:
-    - 升级到 Electron 38.7.0
-    - 增强的系统关机处理和自动更新检查
-    - 改进的代理绕过规则
+    - AI 模型：新增 Gemini 3、Gemini 3 Pro 图像预览支持，以及 GPT-5.1
+    - 导入：ChatGPT 对话导入功能
+    - Agent：Windows Agent 的 Git Bash 检测和要求检查
+    - 搜索：支持本地语言 emoji 搜索（CLDR 数据格式）
+    - 提供商：cherryin provider 的端点类型支持
+    - 调试：启用本地崩溃 mini dump 文件，方便诊断
 
     🐛 重要修复:
-    - 修复多个 AI 提供商的流式响应问题
-    - 修复会话列表滚动问题
-    - 修复知识库删除错误
+    - 错误处理：改进 AiSdkToChunkAdapter 的错误显示
+    - 数据库：优化 DatabaseManager 并修复 libsql 崩溃问题
+    - 内存：修复 useApiServer hook 中的 EventEmitter 内存泄漏
+    - 消息：修复当助手消息仅包含错误时相邻用户消息出现的问题
+    - 工具：修复批准工具权限缺少执行状态的问题
+    - 文件处理：修复 open-mineru 处理非英文文件名时的"无此文件"错误
+    - PDF：修复 mineru PDF 验证和 403 错误
+    - 图片：修复 base64 图片保存问题
+    - 搜索：修复 URL 上下文和网络搜索功能
+    - 模型：为 GPT-5 模型添加 verbosity 参数支持
+    - UI：改进 todo 工具状态图标可见性和颜色
+    - 提供商：修复 vercel ai-gateway 和 gitcode 更新配置的 api-host
+
+    ⚡ 改进:
+    - SDK：更新 Google 和 OpenAI SDK，新增功能和修复
+    - UI：简化知识库创建模态框和 agent 创建表单
+    - 工具：用 ToolContent 组件替换 renderToolContent 函数，提升可读性
+    - 架构：用会话 ID 命名工具调用 ID 以防止冲突
+    - 配置：AI SDK 配置重构
     <!--LANG:END-->
