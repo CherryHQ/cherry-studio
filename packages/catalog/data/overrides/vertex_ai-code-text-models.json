@@ -1,0 +1,28 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "vertex_ai-code-text-models",
+      "modelId": "code-bison",
+      "disabled": false,
+      "reason": "Provider-specific implementation of code-bison",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 6144,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

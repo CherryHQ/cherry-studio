@@ -1,0 +1,363 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "oci",
+      "modelId": "oci/cohere.command-a-03-2025",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/cohere.command-a-03-2025",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.56,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.56,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/cohere.command-latest",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/cohere.command-latest",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.56,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.56,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/cohere.command-plus-latest",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/cohere.command-plus-latest",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.56,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.56,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/meta.llama-3.1-405b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/meta.llama-3.1-405b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10.68,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10.68,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/meta.llama-3.2-90b-vision-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/meta.llama-3.2-90b-vision-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/meta.llama-3.3-70b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/meta.llama-3.3-70b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/meta.llama-4-maverick-17b-128e-instruct-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/meta.llama-4-maverick-17b-128e-instruct-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 512000,
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/meta.llama-4-scout-17b-16e-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/meta.llama-4-scout-17b-16e-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 192000,
+        "maxOutputTokens": 4000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/xai.grok-3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/xai.grok-3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/xai.grok-3-fast",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/xai.grok-3-fast",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 25,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/xai.grok-3-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/xai.grok-3-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/xai.grok-3-mini-fast",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/xai.grok-3-mini-fast",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "oci",
+      "modelId": "oci/xai.grok-4",
+      "disabled": false,
+      "reason": "Provider-specific implementation of oci/xai.grok-4",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

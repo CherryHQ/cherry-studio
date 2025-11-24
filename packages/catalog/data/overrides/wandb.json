@@ -1,0 +1,322 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/Qwen/Qwen3-235B-A22B-Instruct-2507",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/Qwen/Qwen3-235B-A22B-Thinking-2507",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/Qwen/Qwen3-235B-A22B-Thinking-2507",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/Qwen/Qwen3-Coder-480B-A35B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/Qwen/Qwen3-Coder-480B-A35B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 100000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 150000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/deepseek-ai/DeepSeek-R1-0528",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/deepseek-ai/DeepSeek-R1-0528",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 161000,
+        "maxOutputTokens": 161000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 135000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 540000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/deepseek-ai/DeepSeek-V3-0324",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/deepseek-ai/DeepSeek-V3-0324",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 161000,
+        "maxOutputTokens": 161000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 114000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 275000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/deepseek-ai/DeepSeek-V3.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/deepseek-ai/DeepSeek-V3.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 55000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 165000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/meta-llama/Llama-3.1-8B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/meta-llama/Llama-3.1-8B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 22000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 22000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/meta-llama/Llama-3.3-70B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/meta-llama/Llama-3.3-70B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 71000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 71000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 64000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 17000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 66000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/microsoft/Phi-4-mini-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/microsoft/Phi-4-mini-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 8000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 35000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/moonshotai/Kimi-K2-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/moonshotai/Kimi-K2-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 135000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 400000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/openai/gpt-oss-120b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/openai/gpt-oss-120b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/openai/gpt-oss-20b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/openai/gpt-oss-20b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 20000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "wandb",
+      "modelId": "wandb/zai-org/GLM-4.5",
+      "disabled": false,
+      "reason": "Provider-specific implementation of wandb/zai-org/GLM-4.5",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 55000,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 200000,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

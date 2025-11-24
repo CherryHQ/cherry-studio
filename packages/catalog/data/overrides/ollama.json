@@ -1,0 +1,313 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "ollama",
+      "modelId": "codegeex4",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codegeex4",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32768,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "deepseek-coder-v2-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of deepseek-coder-v2-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 32768,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "deepseek-coder-v2-lite-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of deepseek-coder-v2-lite-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 32768,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "deepseek-v3.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of deepseek-v3.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 163840,
+        "maxOutputTokens": 163840
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "gpt-oss",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-oss",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "gpt-oss",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-oss",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "internlm2_5-20b-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of internlm2_5-20b-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 32768,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama3.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama3.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "llama3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of llama3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "mistral-7B-Instruct-v0.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistral-7B-Instruct-v0.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "mistral-7B-Instruct-v0.2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistral-7B-Instruct-v0.2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 32768,
+        "maxOutputTokens": 32768
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "mistral-large-instruct-2407",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistral-large-instruct-2407",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 65536,
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "mixtral-8x22B-Instruct-v0.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mixtral-8x22B-Instruct-v0.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 65536,
+        "maxOutputTokens": 65536
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "mixtral-8x7B-Instruct-v0.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mixtral-8x7B-Instruct-v0.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 32768,
+        "maxOutputTokens": 32768
+      }
+    },
+    {
+      "providerId": "ollama",
+      "modelId": "qwen3-coder",
+      "disabled": false,
+      "reason": "Provider-specific implementation of qwen3-coder",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 262144
+      }
+    }
+  ]
+}

@@ -1,0 +1,285 @@
+{
+  "version": "2025.11.24",
+  "models": [
+    {
+      "id": "deepseek-chat",
+      "name": "deepseek-chat",
+      "ownedBy": "deepseek",
+      "capabilities": ["FUNCTION_CALL", "STRUCTURED_OUTPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 131072,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 131072,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.7,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": true,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "deepseek-reasoner",
+      "name": "deepseek-reasoner",
+      "ownedBy": "deepseek",
+      "capabilities": ["STRUCTURED_OUTPUT"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 131072,
+      "maxOutputTokens": 65536,
+      "maxInputTokens": 131072,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.7,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": true,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "deepseek/deepseek-chat",
+      "name": "deepseek/deepseek-chat",
+      "ownedBy": "deepseek",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 65536,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 65536,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.27,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "deepseek/deepseek-coder",
+      "name": "deepseek/deepseek-coder",
+      "ownedBy": "deepseek",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 128000,
+      "maxOutputTokens": 4096,
+      "maxInputTokens": 128000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.14,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.28,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "deepseek/deepseek-r1",
+      "name": "deepseek/deepseek-r1",
+      "ownedBy": "deepseek",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 65536,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 65536,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.55,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.19,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "deepseek/deepseek-reasoner",
+      "name": "deepseek/deepseek-reasoner",
+      "ownedBy": "deepseek",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 65536,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 65536,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.55,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.19,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "deepseek/deepseek-v3",
+      "name": "deepseek/deepseek-v3",
+      "ownedBy": "deepseek",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 65536,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 65536,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.27,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "deepseek",
+        "supportsCaching": true
+      }
+    }
+  ]
+}

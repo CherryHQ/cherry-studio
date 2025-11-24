@@ -1,0 +1,94 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "lemonade",
+      "modelId": "lemonade/Gemma-3-4b-it-GGUF",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lemonade/Gemma-3-4b-it-GGUF",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 8192
+      }
+    },
+    {
+      "providerId": "lemonade",
+      "modelId": "lemonade/Qwen3-4B-Instruct-2507-GGUF",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lemonade/Qwen3-4B-Instruct-2507-GGUF",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
+      }
+    },
+    {
+      "providerId": "lemonade",
+      "modelId": "lemonade/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lemonade/Qwen3-Coder-30B-A3B-Instruct-GGUF",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 32768
+      }
+    },
+    {
+      "providerId": "lemonade",
+      "modelId": "lemonade/gpt-oss-120b-mxfp-GGUF",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lemonade/gpt-oss-120b-mxfp-GGUF",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 32768
+      }
+    },
+    {
+      "providerId": "lemonade",
+      "modelId": "lemonade/gpt-oss-20b-mxfp4-GGUF",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lemonade/gpt-oss-20b-mxfp4-GGUF",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 32768
+      }
+    }
+  ]
+}

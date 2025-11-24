@@ -1,0 +1,108 @@
+{
+  "version": "2025.11.24",
+  "providers": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic (`anthropic`)",
+      "description": "Provider: Anthropic (`anthropic`)",
+      "authentication": "API_KEY",
+      "pricingModel": "PER_MODEL",
+      "modelRouting": "DIRECT",
+      "behaviors": {
+        "supportsCustomModels": true,
+        "providesModelMapping": false,
+        "supportsModelVersioning": true,
+        "providesFallbackRouting": false,
+        "hasAutoRetry": false,
+        "supportsHealthCheck": true,
+        "hasRealTimeMetrics": true,
+        "providesUsageAnalytics": true,
+        "supportsWebhookEvents": false,
+        "requiresApiKeyValidation": true,
+        "supportsRateLimiting": true,
+        "providesUsageLimits": true,
+        "supportsStreaming": true,
+        "supportsBatchProcessing": true,
+        "supportsModelFineTuning": false
+      },
+      "supportedEndpoints": ["CHAT_COMPLETIONS", "MESSAGES", "RESPONSES"],
+      "apiCompatibility": {
+        "supportsArrayContent": true,
+        "supportsStreamOptions": true,
+        "supportsDeveloperRole": false,
+        "supportsServiceTier": false,
+        "supportsThinkingControl": false,
+        "supportsApiVersion": false,
+        "supportsParallelTools": true,
+        "supportsMultimodal": true
+      },
+      "specialConfig": {},
+      "documentation": "https://docs.litellm.ai/docs/providers/anthropic",
+      "website": "https://docs.litellm.ai/docs/providers/anthropic",
+      "deprecated": false,
+      "maintenanceMode": false,
+      "configVersion": "1.0.0",
+      "metadata": {
+        "source": "litellm-endpoints",
+        "tags": ["official"],
+        "reliability": "high"
+      }
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI (`openai`)",
+      "description": "Provider: OpenAI (`openai`)",
+      "authentication": "API_KEY",
+      "pricingModel": "PER_MODEL",
+      "modelRouting": "DIRECT",
+      "behaviors": {
+        "supportsCustomModels": true,
+        "providesModelMapping": false,
+        "supportsModelVersioning": true,
+        "providesFallbackRouting": false,
+        "hasAutoRetry": false,
+        "supportsHealthCheck": true,
+        "hasRealTimeMetrics": true,
+        "providesUsageAnalytics": true,
+        "supportsWebhookEvents": false,
+        "requiresApiKeyValidation": true,
+        "supportsRateLimiting": true,
+        "providesUsageLimits": true,
+        "supportsStreaming": true,
+        "supportsBatchProcessing": true,
+        "supportsModelFineTuning": true
+      },
+      "supportedEndpoints": [
+        "AUDIO_GENERATION",
+        "AUDIO_TRANSCRIPT",
+        "CHAT_COMPLETIONS",
+        "EMBEDDINGS",
+        "IMAGE_GENERATION",
+        "MESSAGES",
+        "MODERATIONS",
+        "RESPONSES"
+      ],
+      "apiCompatibility": {
+        "supportsArrayContent": true,
+        "supportsStreamOptions": true,
+        "supportsDeveloperRole": true,
+        "supportsServiceTier": true,
+        "supportsThinkingControl": false,
+        "supportsApiVersion": true,
+        "supportsParallelTools": true,
+        "supportsMultimodal": true
+      },
+      "specialConfig": {},
+      "documentation": "https://docs.litellm.ai/docs/providers/openai",
+      "website": "https://docs.litellm.ai/docs/providers/openai",
+      "deprecated": false,
+      "maintenanceMode": false,
+      "configVersion": "1.0.0",
+      "metadata": {
+        "source": "litellm-endpoints",
+        "tags": ["official"],
+        "reliability": "high"
+      }
+    }
+  ]
+}

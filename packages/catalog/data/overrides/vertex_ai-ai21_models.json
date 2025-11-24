@@ -1,0 +1,120 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "vertex_ai-ai21_models",
+      "modelId": "jamba-1.5",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jamba-1.5",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-ai21_models",
+      "modelId": "jamba-1.5-large",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jamba-1.5-large",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-ai21_models",
+      "modelId": "jamba-1.5-large@001",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jamba-1.5-large@001",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-ai21_models",
+      "modelId": "jamba-1.5-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jamba-1.5-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-ai21_models",
+      "modelId": "jamba-1.5-mini@001",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jamba-1.5-mini@001",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

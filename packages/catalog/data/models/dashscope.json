@@ -1,0 +1,775 @@
+{
+  "version": "2025.11.24",
+  "models": [
+    {
+      "id": "dashscope/qwen-coder",
+      "name": "dashscope/qwen-coder",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 1000000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.5,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-flash",
+      "name": "dashscope/qwen-flash",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 32768,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-flash-2025-07-28",
+      "name": "dashscope/qwen-flash-2025-07-28",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 32768,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-max",
+      "name": "dashscope/qwen-max",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 30720,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 30720,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 6.4,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus",
+      "name": "dashscope/qwen-plus",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 129024,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 129024,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus-2025-01-25",
+      "name": "dashscope/qwen-plus-2025-01-25",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 129024,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 129024,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus-2025-04-28",
+      "name": "dashscope/qwen-plus-2025-04-28",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 129024,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 129024,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus-2025-07-14",
+      "name": "dashscope/qwen-plus-2025-07-14",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 129024,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 129024,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus-2025-07-28",
+      "name": "dashscope/qwen-plus-2025-07-28",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 32768,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus-2025-09-11",
+      "name": "dashscope/qwen-plus-2025-09-11",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 32768,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-plus-latest",
+      "name": "dashscope/qwen-plus-latest",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 32768,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-turbo",
+      "name": "dashscope/qwen-turbo",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 129024,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 129024,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-turbo-2024-11-01",
+      "name": "dashscope/qwen-turbo-2024-11-01",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 1000000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-turbo-2025-04-28",
+      "name": "dashscope/qwen-turbo-2025-04-28",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 1000000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen-turbo-latest",
+      "name": "dashscope/qwen-turbo-latest",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 1000000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen3-30b-a3b",
+      "name": "dashscope/qwen3-30b-a3b",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 129024,
+      "maxOutputTokens": 16384,
+      "maxInputTokens": 129024,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen3-coder-flash",
+      "name": "dashscope/qwen3-coder-flash",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 65536,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen3-coder-flash-2025-07-28",
+      "name": "dashscope/qwen3-coder-flash-2025-07-28",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 65536,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen3-coder-plus",
+      "name": "dashscope/qwen3-coder-plus",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 65536,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen3-coder-plus-2025-07-22",
+      "name": "dashscope/qwen3-coder-plus-2025-07-22",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 997952,
+      "maxOutputTokens": 65536,
+      "maxInputTokens": 997952,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwen3-max-preview",
+      "name": "dashscope/qwen3-max-preview",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 258048,
+      "maxOutputTokens": 65536,
+      "maxInputTokens": 258048,
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    },
+    {
+      "id": "dashscope/qwq-plus",
+      "name": "dashscope/qwq-plus",
+      "ownedBy": "dashscope",
+      "capabilities": ["FUNCTION_CALL", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 98304,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 98304,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.4,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["CHAT_COMPLETIONS"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "dashscope",
+        "supportsCaching": false
+      }
+    }
+  ]
+}

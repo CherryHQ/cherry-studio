@@ -1,0 +1,566 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/deepseek-llama3.3-70b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/deepseek-llama3.3-70b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/deepseek-r1-0528",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/deepseek-r1-0528",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/deepseek-r1-671b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/deepseek-r1-671b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/deepseek-v3-0324",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/deepseek-v3-0324",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/hermes3-405b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/hermes3-405b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/hermes3-70b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/hermes3-70b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.12,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/hermes3-8b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/hermes3-8b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.025,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.04,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/lfm-40b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/lfm-40b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/lfm-7b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/lfm-7b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.025,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.04,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama-4-maverick-17b-128e-instruct-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama-4-maverick-17b-128e-instruct-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama-4-scout-17b-16e-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama-4-scout-17b-16e-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 16384,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.1-405b-instruct-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.1-405b-instruct-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.1-70b-instruct-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.1-70b-instruct-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.12,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.1-8b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.1-8b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.025,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.04,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.1-nemotron-70b-instruct-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.1-nemotron-70b-instruct-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.12,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.2-11b-vision-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.2-11b-vision-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.015,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.025,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.2-3b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.2-3b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.015,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.025,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/llama3.3-70b-instruct-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/llama3.3-70b-instruct-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.12,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/qwen25-coder-32b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/qwen25-coder-32b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "lambda_ai",
+      "modelId": "lambda_ai/qwen3-32b-fp8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of lambda_ai/qwen3-32b-fp8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

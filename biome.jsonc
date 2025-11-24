@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!*.json", "!**/package.json"]
+    "includes": ["**/*.json", "!*.json", "!**/package.json", "!packages/**/*.json"]
   },
   "css": {
     "formatter": {

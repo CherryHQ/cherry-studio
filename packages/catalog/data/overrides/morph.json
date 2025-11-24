@@ -1,0 +1,51 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "morph",
+      "modelId": "morph/morph-v3-fast",
+      "disabled": false,
+      "reason": "Provider-specific implementation of morph/morph-v3-fast",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16000,
+        "maxOutputTokens": 16000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "morph",
+      "modelId": "morph/morph-v3-large",
+      "disabled": false,
+      "reason": "Provider-specific implementation of morph/morph-v3-large",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16000,
+        "maxOutputTokens": 16000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.9,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.9,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

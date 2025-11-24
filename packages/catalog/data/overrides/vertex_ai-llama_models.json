@@ -1,0 +1,234 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-3.1-405b-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-3.1-405b-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 2048
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 16,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-3.1-70b-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-3.1-70b-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 2048
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-3.1-8b-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-3.1-8b-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 2048
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-3.2-90b-vision-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-3.2-90b-vision-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 2048
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-4-maverick-17b-128e-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-4-maverick-17b-128e-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 1000000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-4-maverick-17b-16e-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-4-maverick-17b-16e-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 1000000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-4-scout-17b-128e-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-4-scout-17b-128e-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 10000000,
+        "maxOutputTokens": 10000000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.7,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama-4-scout-17b-16e-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama-4-scout-17b-16e-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 10000000,
+        "maxOutputTokens": 10000000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.7,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama3-405b-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama3-405b-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama3-70b-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama3-70b-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      }
+    },
+    {
+      "providerId": "vertex_ai-llama_models",
+      "modelId": "meta/llama3-8b-instruct-maas",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta/llama3-8b-instruct-maas",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      }
+    }
+  ]
+}

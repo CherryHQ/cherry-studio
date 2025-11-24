@@ -1,0 +1,1416 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "amazon.nova-lite-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of amazon.nova-lite-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.06,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.24,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "amazon.nova-micro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of amazon.nova-micro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.035,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.14,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "amazon.nova-pro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of amazon.nova-pro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 3.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-3-7-sonnet-20250219-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-3-7-sonnet-20250219-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-haiku-4-5@20251001",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-haiku-4-5@20251001",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-opus-4-1-20250805-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-opus-4-1-20250805-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-opus-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-opus-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-sonnet-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-sonnet-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "anthropic.claude-sonnet-4-5-20250929-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of anthropic.claude-sonnet-4-5-20250929-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "apac.amazon.nova-lite-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of apac.amazon.nova-lite-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.063,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.252,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "apac.amazon.nova-micro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of apac.amazon.nova-micro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.037,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.148,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "apac.amazon.nova-pro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of apac.amazon.nova-pro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.84,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 3.36,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "apac.anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of apac.anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "apac.anthropic.claude-sonnet-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of apac.anthropic.claude-sonnet-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "au.anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of au.anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "au.anthropic.claude-sonnet-4-5-20250929-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of au.anthropic.claude-sonnet-4-5-20250929-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "deepseek.v3-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of deepseek.v3-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 163840,
+        "maxOutputTokens": 81920
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.58,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.68,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.amazon.nova-lite-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.amazon.nova-lite-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.078,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.312,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.amazon.nova-micro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.amazon.nova-micro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.046,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.184,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.amazon.nova-pro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.amazon.nova-pro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.anthropic.claude-opus-4-1-20250805-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.anthropic.claude-opus-4-1-20250805-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.anthropic.claude-opus-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.anthropic.claude-opus-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.anthropic.claude-sonnet-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.anthropic.claude-sonnet-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.anthropic.claude-sonnet-4-5-20250929-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.anthropic.claude-sonnet-4-5-20250929-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "eu.mistral.pixtral-large-2502-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu.mistral.pixtral-large-2502-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "global.anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global.anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "global.anthropic.claude-sonnet-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global.anthropic.claude-sonnet-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "global.anthropic.claude-sonnet-4-5-20250929-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global.anthropic.claude-sonnet-4-5-20250929-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "jp.anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jp.anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "jp.anthropic.claude-sonnet-4-5-20250929-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of jp.anthropic.claude-sonnet-4-5-20250929-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "meta.llama3-3-70b-instruct-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta.llama3-3-70b-instruct-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "meta.llama4-maverick-17b-instruct-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta.llama4-maverick-17b-instruct-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.24,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.97,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "meta.llama4-scout-17b-instruct-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta.llama4-scout-17b-instruct-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.17,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "openai.gpt-oss-120b-1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of openai.gpt-oss-120b-1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "openai.gpt-oss-20b-1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of openai.gpt-oss-20b-1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.07,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "qwen.qwen3-235b-a22b-2507-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of qwen.qwen3-235b-a22b-2507-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.22,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.88,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "qwen.qwen3-32b-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of qwen.qwen3-32b-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "qwen.qwen3-coder-30b-a3b-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of qwen.qwen3-coder-30b-a3b-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 262144,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "qwen.qwen3-coder-480b-a35b-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of qwen.qwen3-coder-480b-a35b-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 262000,
+        "maxOutputTokens": 65536
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.22,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.amazon.nova-lite-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.amazon.nova-lite-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.06,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.24,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.amazon.nova-micro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.amazon.nova-micro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.035,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.14,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.amazon.nova-premier-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.amazon.nova-premier-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 12.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.amazon.nova-pro-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.amazon.nova-pro-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 300000,
+        "maxOutputTokens": 10000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 3.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.anthropic.claude-3-7-sonnet-20250219-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.anthropic.claude-3-7-sonnet-20250219-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.anthropic.claude-haiku-4-5-20251001-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.anthropic.claude-haiku-4-5-20251001-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.anthropic.claude-opus-4-1-20250805-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.anthropic.claude-opus-4-1-20250805-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.anthropic.claude-opus-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.anthropic.claude-opus-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.anthropic.claude-sonnet-4-20250514-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.anthropic.claude-sonnet-4-20250514-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.anthropic.claude-sonnet-4-5-20250929-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.anthropic.claude-sonnet-4-5-20250929-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL", "IMAGE_RECOGNITION"]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 64000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.deepseek.r1-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.deepseek.r1-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.meta.llama3-3-70b-instruct-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.meta.llama3-3-70b-instruct-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.72,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.meta.llama4-maverick-17b-instruct-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.meta.llama4-maverick-17b-instruct-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.24,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.97,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.meta.llama4-scout-17b-instruct-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.meta.llama4-scout-17b-instruct-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.17,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "bedrock_converse",
+      "modelId": "us.mistral.pixtral-large-2502-v1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us.mistral.pixtral-large-2502-v1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 6,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "aleph_alpha",
+      "modelId": "luminous-base-control",
+      "disabled": false,
+      "reason": "Provider-specific implementation of luminous-base-control",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 37.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 41.25,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "aleph_alpha",
+      "modelId": "luminous-extended-control",
+      "disabled": false,
+      "reason": "Provider-specific implementation of luminous-extended-control",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 56.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 61.875,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "aleph_alpha",
+      "modelId": "luminous-supreme-control",
+      "disabled": false,
+      "reason": "Provider-specific implementation of luminous-supreme-control",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 218.75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 240.625,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

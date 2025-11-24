@@ -1,0 +1,805 @@
+{
+  "version": "2025.11.24",
+  "models": [
+    {
+      "id": "claude-3-5-haiku-20241022",
+      "name": "claude-3-5-haiku-20241022",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-5-haiku-latest",
+      "name": "claude-3-5-haiku-latest",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-5-sonnet-20240620",
+      "name": "claude-3-5-sonnet-20240620",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-5-sonnet-20241022",
+      "name": "claude-3-5-sonnet-20241022",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-5-sonnet-latest",
+      "name": "claude-3-5-sonnet-latest",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 8192,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-7-sonnet-20250219",
+      "name": "claude-3-7-sonnet-20250219",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 128000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-7-sonnet-latest",
+      "name": "claude-3-7-sonnet-latest",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 128000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-haiku-20240307",
+      "name": "claude-3-haiku-20240307",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 4096,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-opus-20240229",
+      "name": "claude-3-opus-20240229",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 4096,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-3-opus-latest",
+      "name": "claude-3-opus-latest",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 4096,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-4-opus-20250514",
+      "name": "claude-4-opus-20250514",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-4-sonnet-20250514",
+      "name": "claude-4-sonnet-20250514",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "maxInputTokens": 1000000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-haiku-4-5",
+      "name": "claude-haiku-4-5",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 64000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-haiku-4-5-20251001",
+      "name": "claude-haiku-4-5-20251001",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 64000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-opus-4-1",
+      "name": "claude-opus-4-1",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-opus-4-1-20250805",
+      "name": "claude-opus-4-1-20250805",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-opus-4-20250514",
+      "name": "claude-opus-4-20250514",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 32000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-sonnet-4-20250514",
+      "name": "claude-sonnet-4-20250514",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 1000000,
+      "maxOutputTokens": 64000,
+      "maxInputTokens": 1000000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-sonnet-4-5",
+      "name": "claude-sonnet-4-5",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 64000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    },
+    {
+      "id": "claude-sonnet-4-5-20250929",
+      "name": "claude-sonnet-4-5-20250929",
+      "ownedBy": "anthropic",
+      "capabilities": ["FUNCTION_CALL", "IMAGE_RECOGNITION", "STRUCTURED_OUTPUT", "FILE_INPUT", "FUNCTION_CALL"],
+      "inputModalities": ["TEXT", "VISION"],
+      "outputModalities": ["TEXT"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 64000,
+      "maxInputTokens": 200000,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      },
+      "parameters": {
+        "temperature": {
+          "supported": true,
+          "min": 0,
+          "max": 1,
+          "default": 1
+        },
+        "maxTokens": true,
+        "systemMessage": false,
+        "topP": {
+          "supported": false
+        }
+      },
+      "endpointTypes": ["MESSAGES"],
+      "metadata": {
+        "source": "migration",
+        "originalProvider": "anthropic",
+        "supportsCaching": true
+      }
+    }
+  ]
+}

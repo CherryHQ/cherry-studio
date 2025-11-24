@@ -1,0 +1,51 @@
+{
+  "name": "@cherrystudio/catalog",
+  "version": "0.0.1-alpha.1",
+  "description": "All Model Catalog",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "packageManager": "yarn@4.9.1",
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "files": [
+    "dist/**/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
+  },
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "react-native": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "devDependencies": {
+    "@types/json-schema": "^7.0.15",
+    "tsdown": "^0.16.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.13",
+    "zod": "^4.1.12"
+  },
+  "peerDependencies": {
+    "zod": "^4.1.12"
+  },
+  "dependencies": {
+    "json-schema": "^0.4.0"
+  }
+}

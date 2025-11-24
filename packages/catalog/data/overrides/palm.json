@@ -1,0 +1,49 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "palm",
+      "modelId": "palm/chat-bison",
+      "disabled": false,
+      "reason": "Provider-specific implementation of palm/chat-bison",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "palm",
+      "modelId": "palm/chat-bison-001",
+      "disabled": false,
+      "reason": "Provider-specific implementation of palm/chat-bison-001",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}
