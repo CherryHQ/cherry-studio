@@ -4,21 +4,10 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import {
-  isAIGatewayProvider,
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider,
-  isSupportAPIVersionProvider,
-  PROVIDER_URLS
-} from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
@@ -39,6 +28,17 @@ import {
   validateApiHost
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import {
+  isAIGatewayProvider,
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isSupportAPIVersionProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
 import { Divider, Input, Select, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -287,7 +287,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAzureOpenAIProvider(provider)) {
-      const apiVersion = provider.apiVersion
+      const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
         ? `/v1/chat/completion?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`

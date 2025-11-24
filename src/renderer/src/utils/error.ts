@@ -68,7 +68,7 @@ export function formatErrorMessage(error: unknown): string {
     .split('\n')
     .map((line) => `  ${line}`)
     .join('\n')
-  return `Error Details:\n${formattedJson}`
+  return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
 }
 
 export function getErrorMessage(error: unknown): string {

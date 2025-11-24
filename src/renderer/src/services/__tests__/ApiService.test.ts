@@ -95,9 +95,20 @@ vi.mock('@renderer/services/AssistantService', () => ({
   }))
 }))
 
-vi.mock('@renderer/utils', () => ({
-  getLowerBaseModelName: vi.fn((name) => name.toLowerCase())
-}))
+vi.mock(import('@renderer/utils'), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    getLowerBaseModelName: vi.fn((name) => name.toLowerCase())
+  }
+})
+
+vi.mock(import('@renderer/config/providers'), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual
+  }
+})
 
 vi.mock('@shared/config/prompts', () => ({
   WEB_SEARCH_PROMPT_FOR_OPENROUTER: 'mock-prompt',
@@ -108,10 +119,6 @@ vi.mock('@shared/config/prompts', () => ({
 vi.mock('@renderer/config/systemModels', () => ({
   OPENAI_IMAGE_GENERATION_MODELS: [],
   GENERATE_IMAGE_MODELS: []
-}))
-
-vi.mock('@renderer/config/tools', () => ({
-  getWebSearchTools: vi.fn(() => [])
 }))
 
 // Mock store modules

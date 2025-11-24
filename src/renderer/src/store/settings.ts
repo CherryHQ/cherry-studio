@@ -9,11 +9,11 @@ import type {
   CodeStyleVarious,
   MathEngine,
   OpenAIServiceTier,
-  OpenAISummaryText,
   PaintingProvider,
   S3Config,
   TranslateLanguageCode
 } from '@renderer/types'
+import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -26,7 +26,6 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import type { OpenAIVerbosity } from '@types'
 
 import type { RemoteSyncState } from './backup'
 
@@ -382,7 +381,7 @@ export const initialState: SettingsState = {
   },
   // OpenAI
   openAI: {
-    summaryText: 'off',
+    summaryText: 'auto',
     serviceTier: 'auto',
     verbosity: 'medium'
   },

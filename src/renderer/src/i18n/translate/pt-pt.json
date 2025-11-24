@@ -29,15 +29,15 @@
     },
     "gitBash": {
       "error": {
-        "description": "[to be translated]:Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from",
-        "recheck": "[to be translated]:Recheck Git Bash Installation",
-        "title": "[to be translated]:Git Bash Required"
+        "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
+        "recheck": "Reverificar a Instalação do Git Bash",
+        "title": "Git Bash Necessário"
       },
-      "notFound": "[to be translated]:Git Bash not found. Please install it first.",
-      "success": "[to be translated]:Git Bash detected successfully!"
+      "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
+      "success": "Git Bash detectado com sucesso!"
     },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
     },
     "list": {
       "error": {
@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "Falha ao enviar sua decisão. Por favor, tente novamente."
       },
+      "executing": "Executando...",
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
@@ -1158,6 +1159,7 @@
     "name": "Nome",
     "no_results": "Nenhum resultado",
     "none": "Nenhum",
+    "off": "Desligado",
     "open": "Abrir",
     "paste": "Colar",
     "placeholders": {
@@ -1384,6 +1386,36 @@
     "generating": "Gerando",
     "preview": "Visualizar",
     "split": "Dividir"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Importação do ChatGPT",
+      "button": "Selecionar Arquivo",
+      "description": "Importa apenas o texto da conversa, não inclui imagens e anexos",
+      "error": {
+        "invalid_json": "Formato de arquivo JSON inválido",
+        "no_conversations": "Nenhuma conversa encontrada no arquivo",
+        "no_valid_conversations": "Nenhuma conversa válida para importar",
+        "unknown": "Falha na importação, verifique o formato do arquivo"
+      },
+      "help": {
+        "step1": "1. Faça login no ChatGPT, vá para Configurações > Controles de dados > Exportar dados",
+        "step2": "2. Aguarde o arquivo de exportação por e-mail",
+        "step3": "3. Extraia o arquivo baixado e localize conversations.json",
+        "title": "Como exportar conversas do ChatGPT?"
+      },
+      "importing": "Importando conversas...",
+      "selecting": "Selecionando arquivo...",
+      "success": "Importadas com sucesso {{topics}} conversas com {{messages}} mensagens",
+      "title": "Importar Conversas do ChatGPT",
+      "untitled_conversation": "Conversa Sem Título"
+    },
+    "confirm": {
+      "button": "Selecionar Arquivo de Importação",
+      "label": "Tem certeza de que deseja importar dados externos?"
+    },
+    "content": "Selecione o arquivo de conversa do aplicativo externo para importar; atualmente, apenas arquivos no formato JSON do ChatGPT são suportados.",
+    "title": "Importar Conversas Externas"
   },
   "knowledge": {
     "add": {
@@ -3094,6 +3126,7 @@
         "basic": "Configurações Básicas",
         "cloud_storage": "Configurações de Armazenamento em Nuvem",
         "export_settings": "Configurações de Exportação",
+        "import_settings": "Importar Configurações",
         "third_party": "Conexões de Terceiros"
       },
       "export_menu": {
@@ -3152,6 +3185,11 @@
       },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
+      "import_settings": {
+        "button": "Importar Arquivo Json",
+        "chatgpt": "Importar do ChatGPT",
+        "title": "Importar Dados de Aplicações Externas"
+      },
       "joplin": {
         "check": {
           "button": "Verificar",
@@ -4223,7 +4261,6 @@
         "default": "Padrão",
         "flex": "Flexível",
         "on_demand": "sob demanda",
-        "performance": "desempenho",
         "priority": "prioridade",
         "tip": "Especifique o nível de latência usado para processar a solicitação",
         "title": "Nível de Serviço"

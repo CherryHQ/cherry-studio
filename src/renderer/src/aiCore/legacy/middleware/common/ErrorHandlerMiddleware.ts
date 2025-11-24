@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { isZhipuModel } from '@renderer/config/models'
 import { getStoreProviders } from '@renderer/hooks/useStore'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import type { Chunk } from '@renderer/types/chunk'
 
 import type { CompletionsParams, CompletionsResult } from '../schemas'
@@ -66,7 +67,7 @@ export const ErrorHandlerMiddleware =
   }
 
 function handleError(error: any, params: CompletionsParams): any {
-  if (isZhipuModel(params.assistant.model) && error.status && !params.enableGenerateImage) {
+  if (isZhipuModel(params.assistant.model || getDefaultModel()) && error.status && !params.enableGenerateImage) {
     return handleZhipuError(error)
   }
 
