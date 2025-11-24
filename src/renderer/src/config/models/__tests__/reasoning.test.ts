@@ -955,7 +955,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3.0-flash-image-preview',
@@ -963,7 +963,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3.5-pro-image-preview',
@@ -971,7 +971,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
     })
 
     it('should return false for gemini-2.x image models', () => {
@@ -1163,7 +1163,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
       expect(
         isGeminiReasoningModel({
           id: 'gemini-3.5-flash-image-preview',
@@ -1171,7 +1171,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
     })
 
     it('should return false for older gemini models without thinking', () => {

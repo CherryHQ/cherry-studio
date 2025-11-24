@@ -36,7 +36,7 @@ import {
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
-import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { OpenAISummaryText } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
@@ -467,18 +467,18 @@ export function getAnthropicReasoningParams(
 
 type GoogelThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
 
-function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogelThinkingLevel {
-  switch (reasoningEffort) {
-    case 'low':
-      return 'low'
-    case 'medium':
-      return 'medium'
-    case 'high':
-      return 'high'
-    default:
-      return 'medium'
-  }
-}
+// function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogelThinkingLevel {
+//   switch (reasoningEffort) {
+//     case 'low':
+//       return 'low'
+//     case 'medium':
+//       return 'medium'
+//     case 'high':
+//       return 'high'
+//     default:
+//       return 'medium'
+//   }
+// }
 
 /**
  * 获取 Gemini 推理参数
