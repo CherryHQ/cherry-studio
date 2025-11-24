@@ -1,0 +1,222 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/alibaba-qwen3-32b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/alibaba-qwen3-32b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/anthropic-claude-3-opus",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/anthropic-claude-3-opus",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/anthropic-claude-3.5-haiku",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/anthropic-claude-3.5-haiku",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/anthropic-claude-3.5-sonnet",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/anthropic-claude-3.5-sonnet",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/anthropic-claude-3.7-sonnet",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/anthropic-claude-3.7-sonnet",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/deepseek-r1-distill-llama-70b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/deepseek-r1-distill-llama-70b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.99,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.99,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/llama3-8b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/llama3-8b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/llama3.3-70b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/llama3.3-70b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.65,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.65,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/mistral-nemo-instruct-2407",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/mistral-nemo-instruct-2407",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/openai-gpt-4o",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/openai-gpt-4o",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/openai-gpt-4o-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/openai-gpt-4o-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/openai-o3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/openai-o3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "gradient_ai",
+      "modelId": "gradient_ai/openai-o3-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gradient_ai/openai-o3-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.4,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

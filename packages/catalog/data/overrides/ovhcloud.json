@@ -1,0 +1,395 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/DeepSeek-R1-Distill-Llama-70B",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/DeepSeek-R1-Distill-Llama-70B",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131000,
+        "maxOutputTokens": 131000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.67,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.67,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Llama-3.1-8B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Llama-3.1-8B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131000,
+        "maxOutputTokens": 131000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Meta-Llama-3_1-70B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Meta-Llama-3_1-70B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131000,
+        "maxOutputTokens": 131000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.67,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.67,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Meta-Llama-3_3-70B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Meta-Llama-3_3-70B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131000,
+        "maxOutputTokens": 131000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.67,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.67,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Mistral-7B-Instruct-v0.3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Mistral-7B-Instruct-v0.3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 127000,
+        "maxOutputTokens": 127000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Mistral-Nemo-Instruct-2407",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Mistral-Nemo-Instruct-2407",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 118000,
+        "maxOutputTokens": 118000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.13,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.13,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Mistral-Small-3.2-24B-Instruct-2506",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Mistral-Small-3.2-24B-Instruct-2506",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.09,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.28,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Mixtral-8x7B-Instruct-v0.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Mixtral-8x7B-Instruct-v0.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.63,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.63,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Qwen2.5-Coder-32B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Qwen2.5-Coder-32B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.87,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.87,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Qwen2.5-VL-72B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Qwen2.5-VL-72B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.91,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.91,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/Qwen3-32B",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/Qwen3-32B",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.08,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.23,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/gpt-oss-120b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/gpt-oss-120b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131000,
+        "maxOutputTokens": 131000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.08,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/gpt-oss-20b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/gpt-oss-20b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131000,
+        "maxOutputTokens": 131000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.04,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/llava-v1.6-mistral-7b-hf",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/llava-v1.6-mistral-7b-hf",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.29,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.29,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "ovhcloud",
+      "modelId": "ovhcloud/mamba-codestral-7B-v0.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ovhcloud/mamba-codestral-7B-v0.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 256000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.19,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.19,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

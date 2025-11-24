@@ -1,0 +1,166 @@
+{
+  "version": "2025.11.24",
+  "providers": [
+    {
+      "id": "litellm_proxy",
+      "name": "LiteLLM Proxy (`litellm_proxy`)",
+      "description": "Provider: LiteLLM Proxy (`litellm_proxy`)",
+      "authentication": "API_KEY",
+      "pricingModel": "PER_MODEL",
+      "modelRouting": "DIRECT",
+      "behaviors": {
+        "supportsCustomModels": false,
+        "providesModelMapping": false,
+        "supportsModelVersioning": true,
+        "providesFallbackRouting": false,
+        "hasAutoRetry": false,
+        "supportsHealthCheck": false,
+        "hasRealTimeMetrics": false,
+        "providesUsageAnalytics": false,
+        "supportsWebhookEvents": false,
+        "requiresApiKeyValidation": true,
+        "supportsRateLimiting": false,
+        "providesUsageLimits": false,
+        "supportsStreaming": true,
+        "supportsBatchProcessing": false,
+        "supportsModelFineTuning": false
+      },
+      "supportedEndpoints": [
+        "CHAT_COMPLETIONS",
+        "EMBEDDINGS",
+        "IMAGE_GENERATION",
+        "MESSAGES",
+        "RESPONSES"
+      ],
+      "apiCompatibility": {
+        "supportsArrayContent": true,
+        "supportsStreamOptions": true,
+        "supportsDeveloperRole": false,
+        "supportsServiceTier": false,
+        "supportsThinkingControl": false,
+        "supportsApiVersion": false,
+        "supportsParallelTools": true,
+        "supportsMultimodal": true
+      },
+      "specialConfig": {},
+      "documentation": "https://docs.litellm.ai/docs/providers/litellm_proxy",
+      "website": "https://docs.litellm.ai/docs/providers/litellm_proxy",
+      "deprecated": false,
+      "maintenanceMode": false,
+      "configVersion": "1.0.0",
+      "metadata": {
+        "source": "litellm-endpoints",
+        "tags": [
+          "cloud"
+        ],
+        "reliability": "medium"
+      }
+    },
+    {
+      "id": "openrouter",
+      "name": "OpenRouter (`openrouter`)",
+      "description": "Provider: OpenRouter (`openrouter`)",
+      "authentication": "API_KEY",
+      "pricingModel": "UNIFIED",
+      "modelRouting": "INTELLIGENT",
+      "behaviors": {
+        "supportsCustomModels": false,
+        "providesModelMapping": true,
+        "supportsModelVersioning": true,
+        "providesFallbackRouting": true,
+        "hasAutoRetry": true,
+        "supportsHealthCheck": false,
+        "hasRealTimeMetrics": true,
+        "providesUsageAnalytics": false,
+        "supportsWebhookEvents": false,
+        "requiresApiKeyValidation": true,
+        "supportsRateLimiting": false,
+        "providesUsageLimits": false,
+        "supportsStreaming": true,
+        "supportsBatchProcessing": false,
+        "supportsModelFineTuning": false
+      },
+      "supportedEndpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES",
+        "RESPONSES"
+      ],
+      "apiCompatibility": {
+        "supportsArrayContent": true,
+        "supportsStreamOptions": true,
+        "supportsDeveloperRole": false,
+        "supportsServiceTier": false,
+        "supportsThinkingControl": false,
+        "supportsApiVersion": false,
+        "supportsParallelTools": true,
+        "supportsMultimodal": true
+      },
+      "specialConfig": {},
+      "documentation": "https://docs.litellm.ai/docs/providers/openrouter",
+      "website": "https://docs.litellm.ai/docs/providers/openrouter",
+      "deprecated": false,
+      "maintenanceMode": false,
+      "configVersion": "1.0.0",
+      "metadata": {
+        "source": "litellm-endpoints",
+        "tags": [
+          "proxy"
+        ],
+        "reliability": "medium"
+      }
+    },
+    {
+      "id": "together_ai",
+      "name": "Together AI (`together_ai`)",
+      "description": "Provider: Together AI (`together_ai`)",
+      "authentication": "API_KEY",
+      "pricingModel": "UNIFIED",
+      "modelRouting": "INTELLIGENT",
+      "behaviors": {
+        "supportsCustomModels": false,
+        "providesModelMapping": true,
+        "supportsModelVersioning": true,
+        "providesFallbackRouting": true,
+        "hasAutoRetry": true,
+        "supportsHealthCheck": false,
+        "hasRealTimeMetrics": true,
+        "providesUsageAnalytics": false,
+        "supportsWebhookEvents": false,
+        "requiresApiKeyValidation": true,
+        "supportsRateLimiting": false,
+        "providesUsageLimits": false,
+        "supportsStreaming": true,
+        "supportsBatchProcessing": false,
+        "supportsModelFineTuning": false
+      },
+      "supportedEndpoints": [
+        "CHAT_COMPLETIONS",
+        "MESSAGES",
+        "RESPONSES"
+      ],
+      "apiCompatibility": {
+        "supportsArrayContent": true,
+        "supportsStreamOptions": true,
+        "supportsDeveloperRole": false,
+        "supportsServiceTier": false,
+        "supportsThinkingControl": false,
+        "supportsApiVersion": false,
+        "supportsParallelTools": true,
+        "supportsMultimodal": true
+      },
+      "specialConfig": {},
+      "documentation": "https://docs.litellm.ai/docs/providers/togetherai",
+      "website": "https://docs.litellm.ai/docs/providers/togetherai",
+      "deprecated": false,
+      "maintenanceMode": false,
+      "configVersion": "1.0.0",
+      "metadata": {
+        "source": "litellm-endpoints",
+        "tags": [
+          "proxy"
+        ],
+        "reliability": "medium"
+      }
+    }
+  ]
+}

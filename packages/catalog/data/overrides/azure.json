@@ -1,0 +1,3038 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "azure",
+      "modelId": "command-r-plus",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-r-plus",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "computer-use-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of computer-use-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 12,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "container",
+      "disabled": false,
+      "reason": "Provider-specific implementation of container",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-4o-2024-08-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-4o-2024-08-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-4o-2024-11-20",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-4o-2024-11-20",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-4o-mini-2024-07-18",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-4o-mini-2024-07-18",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.165,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-4o-mini-realtime-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-4o-mini-realtime-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.64,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-4o-realtime-preview-2024-10-01",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-4o-realtime-preview-2024-10-01",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 22,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-4o-realtime-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-4o-realtime-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 22,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-5-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-5-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.375,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-5-mini-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-5-mini-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.275,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-5-nano-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-5-nano-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.055,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.44,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-5.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-5.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/gpt-5.1-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/gpt-5.1-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/o1-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/o1-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/o1-mini-2024-09-12",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/o1-mini-2024-09-12",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 65536
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.21,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.84,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/o1-preview-2024-09-12",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/o1-preview-2024-09-12",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "eu/o3-mini-2025-01-31",
+      "disabled": false,
+      "reason": "Provider-specific implementation of eu/o3-mini-2025-01-31",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.21,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.84,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global-standard/gpt-4o-2024-08-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global-standard/gpt-4o-2024-08-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global-standard/gpt-4o-2024-11-20",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global-standard/gpt-4o-2024-11-20",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global-standard/gpt-4o-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global-standard/gpt-4o-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global/gpt-4o-2024-08-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global/gpt-4o-2024-08-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global/gpt-4o-2024-11-20",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global/gpt-4o-2024-11-20",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global/gpt-5.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global/gpt-5.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "global/gpt-5.1-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of global/gpt-5.1-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-3.5-turbo",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-3.5-turbo",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 4097
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-3.5-turbo-0125",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-3.5-turbo-0125",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 4097
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo-0125",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo-0125",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo-0301",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo-0301",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 4097
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo-0613",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo-0613",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 4097
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo-1106",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo-1106",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo-16k",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo-16k",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16385
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-35-turbo-16k-0613",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-35-turbo-16k-0613",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 16385
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-0125-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-0125-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-0613",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-0613",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-1106-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-1106-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-32k",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-32k",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 120,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-32k-0613",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-32k-0613",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 120,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-turbo",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-turbo",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-turbo-2024-04-09",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-turbo-2024-04-09",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4-turbo-vision-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4-turbo-vision-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 30,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.1-2025-04-14",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.1-2025-04-14",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.1-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.1-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.1-mini-2025-04-14",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.1-mini-2025-04-14",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.1-nano",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.1-nano",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.1-nano-2025-04-14",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.1-nano-2025-04-14",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4.5-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4.5-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 150,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-2024-05-13",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-2024-05-13",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-2024-08-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-2024-08-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-2024-11-20",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-2024-11-20",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-audio-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-audio-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.165,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-mini-2024-07-18",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-mini-2024-07-18",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.165,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-mini-audio-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-mini-audio-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-mini-realtime-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-mini-realtime-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-realtime-preview-2024-10-01",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-realtime-preview-2024-10-01",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 20,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-4o-realtime-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-4o-realtime-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 20,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-chat-latest",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-chat-latest",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-mini-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-mini-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-nano",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-nano",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5-nano-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5-nano-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.05,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5.1-2025-11-13",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5.1-2025-11-13",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5.1-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5.1-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-5.1-chat-2025-11-13",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-5.1-chat-2025-11-13",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-audio-2025-08-28",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-audio-2025-08-28",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-audio-mini-2025-10-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-audio-mini-2025-10-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-realtime-2025-08-28",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-realtime-2025-08-28",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 16,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "gpt-realtime-mini-2025-10-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of gpt-realtime-mini-2025-10-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "mistral-large-2402",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistral-large-2402",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 24,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "mistral-large-latest",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistral-large-latest",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 24,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o1-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o1-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o1-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o1-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 65536
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.21,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.84,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o1-mini-2024-09-12",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o1-mini-2024-09-12",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 65536
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o1-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o1-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o1-preview-2024-09-12",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o1-preview-2024-09-12",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 60,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o3",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o3",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o3-2025-04-16",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o3-2025-04-16",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o3-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o3-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o3-mini-2025-01-31",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o3-mini-2025-01-31",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o4-mini",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o4-mini",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "o4-mini-2025-04-16",
+      "disabled": false,
+      "reason": "Provider-specific implementation of o4-mini-2025-04-16",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4.1-2025-04-14",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4.1-2025-04-14",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4.1-mini-2025-04-14",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4.1-mini-2025-04-14",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.44,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.76,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4.1-nano-2025-04-14",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4.1-nano-2025-04-14",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1047576,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.11,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.44,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4o-2024-08-06",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4o-2024-08-06",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4o-2024-11-20",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4o-2024-11-20",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.75,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4o-mini-2024-07-18",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4o-mini-2024-07-18",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.165,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4o-mini-realtime-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4o-mini-realtime-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.66,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.64,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4o-realtime-preview-2024-10-01",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4o-realtime-preview-2024-10-01",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 22,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-4o-realtime-preview-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-4o-realtime-preview-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 22,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-5-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-5-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.375,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-5-mini-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-5-mini-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.275,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-5-nano-2025-08-07",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-5-nano-2025-08-07",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.055,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.44,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-5.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-5.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/gpt-5.1-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/gpt-5.1-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 272000,
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 11,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/o1-2024-12-17",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/o1-2024-12-17",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/o1-mini-2024-09-12",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/o1-mini-2024-09-12",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 65536
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.21,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.84,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/o1-preview-2024-09-12",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/o1-preview-2024-09-12",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 16.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 66,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/o3-2025-04-16",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/o3-2025-04-16",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/o3-mini-2025-01-31",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/o3-mini-2025-01-31",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.21,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.84,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "us/o4-mini-2025-04-16",
+      "disabled": false,
+      "reason": "Provider-specific implementation of us/o4-mini-2025-04-16",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 100000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.21,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 4.84,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "azure",
+      "modelId": "computer-use-preview",
+      "disabled": false,
+      "reason": "Provider-specific implementation of computer-use-preview",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 12,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

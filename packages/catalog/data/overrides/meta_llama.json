@@ -1,0 +1,75 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "meta_llama",
+      "modelId": "meta_llama/Llama-3.3-70B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta_llama/Llama-3.3-70B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4028
+      }
+    },
+    {
+      "providerId": "meta_llama",
+      "modelId": "meta_llama/Llama-3.3-8B-Instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta_llama/Llama-3.3-8B-Instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 4028
+      }
+    },
+    {
+      "providerId": "meta_llama",
+      "modelId": "meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta_llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 4028
+      }
+    },
+    {
+      "providerId": "meta_llama",
+      "modelId": "meta_llama/Llama-4-Scout-17B-16E-Instruct-FP8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta_llama/Llama-4-Scout-17B-16E-Instruct-FP8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 10000000,
+        "maxOutputTokens": 4028
+      }
+    }
+  ]
+}

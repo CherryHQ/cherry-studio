@@ -1,0 +1,175 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-a-03-2025",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-a-03-2025",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 256000,
+        "maxOutputTokens": 8000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-light",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-light",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-r",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-r",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-r-08-2024",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-r-08-2024",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-r-plus",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-r-plus",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-r-plus-08-2024",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-r-plus-08-2024",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cohere_chat",
+      "modelId": "command-r7b-12-2024",
+      "disabled": false,
+      "reason": "Provider-specific implementation of command-r7b-12-2024",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.038,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

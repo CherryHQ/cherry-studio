@@ -1,0 +1,722 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "watsonx",
+      "modelId": "bigscience/mt0-xxl-13b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of bigscience/mt0-xxl-13b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 500,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "core42/jais-13b-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of core42/jais-13b-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 500,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2000,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "google/flan-t5-xl-3b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of google/flan-t5-xl-3b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-13b-chat-v2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-13b-chat-v2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-13b-instruct-v2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-13b-instruct-v2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-3-3-8b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-3-3-8b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-3-8b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-3-8b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-4-h-small",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-4-h-small",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 20480,
+        "maxOutputTokens": 20480
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.06,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-guardian-3-2-2b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-guardian-3-2-2b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-guardian-3-3-8b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-guardian-3-3-8b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-ttm-1024-96-r2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-ttm-1024-96-r2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 512,
+        "maxOutputTokens": 512
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.38,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-ttm-1536-96-r2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-ttm-1536-96-r2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 512,
+        "maxOutputTokens": 512
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.38,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-ttm-512-96-r2",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-ttm-512-96-r2",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 512,
+        "maxOutputTokens": 512
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.38,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.38,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "ibm/granite-vision-3-2-2b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of ibm/granite-vision-3-2-2b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-3-2-11b-vision-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-3-2-11b-vision-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-3-2-1b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-3-2-1b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-3-2-3b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-3-2-3b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-3-2-90b-vision-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-3-2-90b-vision-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL",
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-3-3-70b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-3-3-70b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.71,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.71,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-4-maverick-17b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-4-maverick-17b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "meta-llama/llama-guard-3-11b-vision",
+      "disabled": false,
+      "reason": "Provider-specific implementation of meta-llama/llama-guard-3-11b-vision",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "mistralai/mistral-large",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistralai/mistral-large",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "mistralai/mistral-medium-2505",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistralai/mistral-medium-2505",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 10,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "mistralai/mistral-small-2503",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistralai/mistral-small-2503",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "mistralai/mistral-small-3-1-24b-instruct-2503",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistralai/mistral-small-3-1-24b-instruct-2503",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "FUNCTION_CALL"
+        ]
+      },
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 32000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.3,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "mistralai/pixtral-12b-2409",
+      "disabled": false,
+      "reason": "Provider-specific implementation of mistralai/pixtral-12b-2409",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": [
+          "IMAGE_RECOGNITION"
+        ]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "openai/gpt-oss-120b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of openai/gpt-oss-120b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.15,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "watsonx",
+      "modelId": "sdaia/allam-1-13b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of sdaia/allam-1-13b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.8,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.8,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

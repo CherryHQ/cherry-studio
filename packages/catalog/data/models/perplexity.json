@@ -1,0 +1,518 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/codellama-34b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/codellama-34b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16384,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.35,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.4,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/codellama-70b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/codellama-70b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16384,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.7,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-2-70b-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-2-70b-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.7,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-70b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-70b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-8b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-8b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-sonar-huge-128k-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-sonar-huge-128k-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 127072,
+        "maxOutputTokens": 127072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-sonar-large-128k-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-sonar-large-128k-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-sonar-large-128k-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-sonar-large-128k-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 127072,
+        "maxOutputTokens": 127072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-sonar-small-128k-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-sonar-small-128k-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 131072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/llama-3.1-sonar-small-128k-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/llama-3.1-sonar-small-128k-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 127072,
+        "maxOutputTokens": 127072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/mistral-7b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/mistral-7b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.07,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.28,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/mixtral-8x7b-instruct",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/mixtral-8x7b-instruct",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.07,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.28,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/pplx-70b-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/pplx-70b-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.7,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 2.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/pplx-70b-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/pplx-70b-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/pplx-7b-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/pplx-7b-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.07,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.28,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/pplx-7b-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/pplx-7b-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-deep-research",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-deep-research",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-medium-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-medium-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16384,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-medium-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-medium-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 12000,
+        "maxOutputTokens": 12000
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-pro",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-pro",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 200000,
+        "maxOutputTokens": 8000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 3,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 15,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-reasoning",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-reasoning",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 5,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-reasoning-pro",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-reasoning-pro",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "pricing": {
+        "input": {
+          "perMillionTokens": 2,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 8,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-small-chat",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-small-chat",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16384,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.07,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.28,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "perplexity",
+      "modelId": "perplexity/sonar-small-online",
+      "disabled": false,
+      "reason": "Provider-specific implementation of perplexity/sonar-small-online",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 12000,
+        "maxOutputTokens": 12000
+      }
+    }
+  ]
+}

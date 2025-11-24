@@ -39,36 +39,36 @@
 
 ```
 packages/catalog/
-├── schemas/                     # Schema 定义
-│   ├── index.ts                # 统一导出
-│   ├── model.schema.ts         # 模型配置 Schema + Zod
-│   ├── provider.schema.ts      # 供应商配置 Schema + Zod
-│   ├── override.schema.ts      # 覆盖配置 Schema + Zod
-│   └── common.types.ts         # 通用类型定义
-├── data/                       # 配置数据
-│   ├── models/                 # 模型配置（按供应商分组）
-│   │   ├── anthropic.json      # Anthropic 模型
-│   │   ├── openai.json         # OpenAI 模型
-│   │   ├── google.json         # Google 模型
-│   │   ├── deepseek.json       # DeepSeek 模型
-│   │   ├── qwen.json           # 通义千问模型
-│   │   ├── doubao.json         # 豆包模型
-│   │   ├── mistral.json        # Mistral 模型
-│   │   ├── meta.json           # Meta 模型
-│   │   └── community.json      # 社区模型
-│   ├── providers/              # 供应商配置
-│   │   ├── direct-providers.json   # 直接供应商 (anthropic, openai, google)
-│   │   ├── cloud-platforms.json    # 云平台 (aws, gcp, azure)
-│   │   ├── unified-gateways.json   # 统一网关 (openrouter, litellm)
-│   │   ├── api-proxies.json        # API 代理 (new-api, one-api)
-│   │   └── self-hosted.json        # 自托管 (ollama, lmstudio)
-│   └── overrides/              # 供应商模型覆盖
-│       ├── openrouter.json     # OpenRouter 特殊配置
-│       ├── aws-bedrock.json    # AWS Bedrock 覆盖
-│       ├── azure-openai.json   # Azure OpenAI 覆盖
-│       └── custom.json         # 用户自定义覆盖
-├── src/                        # 核心实现
+├── src/                        # 所有源代码和数据
 │   ├── index.ts                # 主导出文件
+│   ├── schemas/                # Schema 定义
+│   │   ├── index.ts            # 统一导出
+│   │   ├── model.schema.ts     # 模型配置 Schema + Zod
+│   │   ├── provider.schema.ts  # 供应商配置 Schema + Zod
+│   │   ├── override.schema.ts  # 覆盖配置 Schema + Zod
+│   │   └── common.types.ts     # 通用类型定义
+│   ├── data/                   # 配置数据
+│   │   ├── models/             # 模型配置（按供应商分组）
+│   │   │   ├── anthropic.json  # Anthropic 模型
+│   │   │   ├── openai.json     # OpenAI 模型
+│   │   │   ├── google.json     # Google 模型
+│   │   │   ├── deepseek.json   # DeepSeek 模型
+│   │   │   ├── qwen.json       # 通义千问模型
+│   │   │   ├── doubao.json     # 豆包模型
+│   │   │   ├── mistral.json    # Mistral 模型
+│   │   │   ├── meta.json       # Meta 模型
+│   │   │   └── community.json  # 社区模型
+│   │   ├── providers/          # 供应商配置
+│   │   │   ├── direct-providers.json   # 直接供应商 (anthropic, openai, google)
+│   │   │   ├── cloud-platforms.json    # 云平台 (aws, gcp, azure)
+│   │   │   ├── unified-gateways.json   # 统一网关 (openrouter, litellm)
+│   │   │   ├── api-proxies.json        # API 代理 (new-api, one-api)
+│   │   │   └── self-hosted.json        # 自托管 (ollama, lmstudio)
+│   │   └── overrides/          # 供应商模型覆盖
+│   │       ├── openrouter.json # OpenRouter 特殊配置
+│   │       ├── aws-bedrock.json    # AWS Bedrock 覆盖
+│   │       ├── azure-openai.json   # Azure OpenAI 覆盖
+│   │       └── custom.json         # 用户自定义覆盖
 │   ├── catalog/                # 目录服务
 │   │   ├── ModelCatalog.ts     # 模型目录服务
 │   │   ├── ProviderCatalog.ts  # 供应商目录服务
@@ -81,26 +81,28 @@ packages/catalog/
 │   │   ├── SchemaValidator.ts  # Schema 验证
 │   │   └── ZodValidator.ts     # Zod 验证器
 │   ├── matcher/                # 匹配逻辑
-│   │   ├── ModelMatcher.ts     # 模型匹配
+��   │   ├── ModelMatcher.ts     # 模型匹配
 │   │   └── PatternMatcher.ts   # 模式匹配
 │   ├── resolver/               # 配置解析
 │   │   ├── ConfigResolver.ts   # 配置解析器
 │   │   └── OverrideResolver.ts # 覆盖解析器
-│   └── utils/                  # 工具函数
-│       ├── migration.ts        # 从旧代码迁移
-│       ├── compatibility.ts    # 兼容性检查
-│       ├── helpers.ts          # 辅助函数
-│       └── behaviors.ts        # 行为特征分析工具
-├── tests/                      # 测试文件
-│   ├── schemas/                # Schema 测试
-│   ├── catalog/                # 目录服务测试
-│   ├── integration/            # 集成测试
-│   └── fixtures/               # 测试数据
+│   ├── utils/                  # 工具函数
+│   │   ├── migration.ts        # 从旧代码迁移
+│   │   ├── migrate.ts          # 迁移脚本
+│   │   ├── compatibility.ts    # 兼容性检查
+│   │   ├── helpers.ts          # 辅助函数
+│   │   └── behaviors.ts        # 行为特征分析工具
+│   └── __tests__/              # 测试文件
+│       ├── fixtures/           # 测试数据
+│       ├── __snapshots__/      # 快照文件
+│       ├── schemas/            # Schema 测试
+│       ├── catalog/            # 目录服务测试
+│       └── integration/        # 集成测试
 ├── docs/                       # 文档
 │   ├── schema-guide.md         # Schema 使用指南
 │   ├── migration-guide.md      # 迁移指南
 │   └── contribution-guide.md   # 贡献指南
-└── utils/                      # 构建工具
+└── scripts/                    # 构建和工具脚本
     ├── schema-generator.ts     # Schema 生成工具
     ├── validator-cli.ts        # 命令行验证工具
     └── migration-cli.ts        # 迁移命令行工具
@@ -635,7 +637,7 @@ export const isVisionModel = (model: Model): boolean =>
 ### 模型配置示例
 
 ```json
-// packages/catalog/data/models/anthropic.json
+// packages/catalog/src/data/models/anthropic.json
 {
   "version": "2025.11.24",
   "models": [
@@ -730,7 +732,7 @@ export const isVisionModel = (model: Model): boolean =>
 ### 供应商配置示例
 
 ```json
-// packages/catalog/data/providers/direct-providers.json
+// packages/catalog/src/data/providers/direct-providers.json
 {
   "version": "2025.11.24",
   "providers": [
@@ -844,7 +846,7 @@ export const isVisionModel = (model: Model): boolean =>
 ### 统一网关示例
 
 ```json
-// packages/catalog/data/providers/unified-gateways.json
+// packages/catalog/src/data/providers/unified-gateways.json
 {
   "version": "2025.11.24",
   "providers": [
@@ -916,7 +918,7 @@ export const isVisionModel = (model: Model): boolean =>
 ### 覆盖配置示例
 
 ```json
-// packages/catalog/data/overrides/openrouter.json
+// packages/catalog/src/data/overrides/openrouter.json
 {
   "version": "2025.11.24",
   "overrides": [
@@ -1328,10 +1330,10 @@ await catalog.applyOverride({
 1. **确定模型归属**
    ```bash
    # 如果是已知供应商的模型，编辑对应文件
-   vim packages/catalog/data/models/openai.json
+   vim packages/catalog/src/data/models/openai.json
 
    # 如果是新供应商，创建新文件
-   vim packages/catalog/data/models/newprovider.json
+   vim packages/catalog/src/data/models/newprovider.json
    ```
 
 2. **添加模型配置**
@@ -1357,7 +1359,7 @@ await catalog.applyOverride({
 
 4. **提交 PR**
    ```bash
-   git add packages/catalog/data/models/
+   git add packages/catalog/src/data/models/
    git commit -m "feat: add New Model v1 to catalog"
    git push origin feat/add-new-model
    ```
@@ -1366,7 +1368,7 @@ await catalog.applyOverride({
 
 1. **创建供应商配置**
    ```bash
-   vim packages/catalog/data/providers/newprovider.json
+   vim packages/catalog/src/data/providers/newprovider.json
    ```
 
 2. **添加供应商信息**
@@ -1384,7 +1386,7 @@ await catalog.applyOverride({
 
 3. **添加模型覆盖**（如果需要）
    ```bash
-   vim packages/catalog/data/overrides/newprovider.json
+   vim packages/catalog/src/data/overrides/newprovider.json
    ```
 
 ### 配置更新流程
@@ -1392,7 +1394,7 @@ await catalog.applyOverride({
 1. **本地开发**
    ```bash
    # 修改配置文件
-   vim packages/catalog/data/models/anthropic.json
+   vim packages/catalog/src/data/models/anthropic.json
 
    # 验证更改
    yarn catalog:validate
@@ -1404,7 +1406,7 @@ await catalog.applyOverride({
 2. **发布更新**
    ```bash
    # 更新版本号
-   vim packages/catalog/data/models/anthropic.json # 更新 version 字段
+   vim packages/catalog/src/data/models/anthropic.json # 更新 version 字段
 
    # 生成变更日志
    yarn catalog:changelog
@@ -1594,12 +1596,12 @@ export const getRecommendedProviders = (requirements: {
    {
      "json.schemas": [
        {
-         "fileMatch": ["packages/catalog/data/models/*.json"],
-         "schema": "./packages/catalog/schemas/model.schema.json"
+         "fileMatch": ["packages/catalog/src/data/models/*.json"],
+         "schema": "./packages/catalog/src/schemas/model.schema.json"
        },
        {
-         "fileMatch": ["packages/catalog/data/providers/*.json"],
-         "schema": "./packages/catalog/schemas/provider.schema.json"
+         "fileMatch": ["packages/catalog/src/data/providers/*.json"],
+         "schema": "./packages/catalog/src/schemas/provider.schema.json"
        }
      ]
    }

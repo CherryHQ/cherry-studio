@@ -1,0 +1,143 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "vertex_ai-code-chat-models",
+      "modelId": "codechat-bison",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codechat-bison",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 6144,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-code-chat-models",
+      "modelId": "codechat-bison-32k",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codechat-bison-32k",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-code-chat-models",
+      "modelId": "codechat-bison-32k@002",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codechat-bison-32k@002",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32000,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-code-chat-models",
+      "modelId": "codechat-bison@001",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codechat-bison@001",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 6144,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-code-chat-models",
+      "modelId": "codechat-bison@002",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codechat-bison@002",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 6144,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "vertex_ai-code-chat-models",
+      "modelId": "codechat-bison@latest",
+      "disabled": false,
+      "reason": "Provider-specific implementation of codechat-bison@latest",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 6144,
+        "maxOutputTokens": 1024
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.125,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

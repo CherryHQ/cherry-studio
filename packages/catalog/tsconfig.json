@@ -17,5 +17,5 @@
     "target": "ES2020"
   },
   "exclude": ["node_modules", "dist"],
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "scripts"]
 }

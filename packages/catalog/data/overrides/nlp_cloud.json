@@ -1,0 +1,28 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "nlp_cloud",
+      "modelId": "chatdolphin",
+      "disabled": false,
+      "reason": "Provider-specific implementation of chatdolphin",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 16384,
+        "maxOutputTokens": 16384
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.5,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

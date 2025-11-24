@@ -1,0 +1,29 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "featherless_ai",
+      "modelId": "featherless_ai/featherless-ai/Qwerky-72B",
+      "disabled": false,
+      "reason": "Provider-specific implementation of featherless_ai/featherless-ai/Qwerky-72B",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32768
+      }
+    },
+    {
+      "providerId": "featherless_ai",
+      "modelId": "featherless_ai/featherless-ai/Qwerky-QwQ-32B",
+      "disabled": false,
+      "reason": "Provider-specific implementation of featherless_ai/featherless-ai/Qwerky-QwQ-32B",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 32768
+      }
+    }
+  ]
+}

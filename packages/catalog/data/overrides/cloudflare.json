@@ -1,0 +1,96 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "cloudflare",
+      "modelId": "cloudflare/@cf/meta/llama-2-7b-chat-fp16",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cloudflare/@cf/meta/llama-2-7b-chat-fp16",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 3072,
+        "maxOutputTokens": 3072
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cloudflare",
+      "modelId": "cloudflare/@cf/meta/llama-2-7b-chat-int8",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cloudflare/@cf/meta/llama-2-7b-chat-int8",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 2048,
+        "maxOutputTokens": 2048
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cloudflare",
+      "modelId": "cloudflare/@cf/mistral/mistral-7b-instruct-v0.1",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cloudflare/@cf/mistral/mistral-7b-instruct-v0.1",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 8192,
+        "maxOutputTokens": 8192
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cloudflare",
+      "modelId": "cloudflare/@hf/thebloke/codellama-7b-instruct-awq",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cloudflare/@hf/thebloke/codellama-7b-instruct-awq",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "limits": {
+        "contextWindow": 4096
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.923,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}

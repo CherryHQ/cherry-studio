@@ -1,0 +1,131 @@
+{
+  "version": "2025.11.24",
+  "overrides": [
+    {
+      "providerId": "cerebras",
+      "modelId": "cerebras/gpt-oss-120b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cerebras/gpt-oss-120b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "contextWindow": 131072,
+        "maxOutputTokens": 32768
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.25,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.69,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cerebras",
+      "modelId": "cerebras/llama-3.3-70b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cerebras/llama-3.3-70b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.85,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 1.2,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cerebras",
+      "modelId": "cerebras/llama3.1-70b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cerebras/llama3.1-70b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.6,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cerebras",
+      "modelId": "cerebras/llama3.1-8b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cerebras/llama3.1-8b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.1,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "providerId": "cerebras",
+      "modelId": "cerebras/qwen-3-32b",
+      "disabled": false,
+      "reason": "Provider-specific implementation of cerebras/qwen-3-32b",
+      "lastUpdated": "2025-11-23",
+      "updatedBy": "migration-tool",
+      "priority": 100,
+      "capabilities": {
+        "add": ["FUNCTION_CALL"]
+      },
+      "limits": {
+        "maxOutputTokens": 128000
+      },
+      "pricing": {
+        "input": {
+          "perMillionTokens": 0.4,
+          "currency": "USD"
+        },
+        "output": {
+          "perMillionTokens": 0.8,
+          "currency": "USD"
+        }
+      }
+    }
+  ]
+}
