@@ -1824,6 +1824,13 @@
         "preparing": "Préparation pour l'exportation vers Notion..."
       }
     },
+    "mcp": {
+      "ui": {
+        "error": "[to be translated]:UI Render Error",
+        "intent_received": "[to be translated]:Intent received from UI",
+        "notification": "[to be translated]:Notification from UI"
+      }
+    },
     "mention": {
       "title": "Changer le modèle de réponse"
     },
@@ -3851,6 +3858,7 @@
         "fetch": "serveur MCP utilisé pour récupérer le contenu des pages web URL",
         "filesystem": "Serveur Node.js implémentant le protocole de contexte de modèle (MCP) pour les opérations de système de fichiers. Nécessite une configuration des répertoires autorisés à être accédés.",
         "mcp_auto_install": "Installation automatique du service MCP (version bêta)",
+        "mcp_ui_demo": "[to be translated]:MCP UI Demo server with interactive UI resources showcase. Demonstrates HTML-based UI resources with buttons, forms, and tool call integration",
         "memory": "Implémentation de base de mémoire persistante basée sur un graphe de connaissances local. Cela permet au modèle de se souvenir des informations relatives à l'utilisateur entre différentes conversations. Nécessite la configuration de la variable d'environnement MEMORY_FILE_PATH.",
         "no": "sans description",
         "python": "Exécutez du code Python dans un environnement bac à sable sécurisé. Utilisez Pyodide pour exécuter Python, prenant en charge la plupart des bibliothèques standard et des packages de calcul scientifique.",

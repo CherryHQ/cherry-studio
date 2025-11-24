@@ -1824,6 +1824,13 @@
         "preparing": "Подготовка к экспорту в Notion..."
       }
     },
+    "mcp": {
+      "ui": {
+        "error": "[to be translated]:UI Render Error",
+        "intent_received": "[to be translated]:Intent received from UI",
+        "notification": "[to be translated]:Notification from UI"
+      }
+    },
     "mention": {
       "title": "Переключить модель ответа"
     },
@@ -3851,6 +3858,7 @@
         "fetch": "MCP-сервер для получения содержимого веб-страниц по URL",
         "filesystem": "Node.js-сервер протокола контекста модели (MCP) для реализации операций файловой системы. Требуется настройка каталогов, к которым разрешён доступ",
         "mcp_auto_install": "Автоматическая установка службы MCP (бета-версия)",
+        "mcp_ui_demo": "[to be translated]:MCP UI Demo server with interactive UI resources showcase. Demonstrates HTML-based UI resources with buttons, forms, and tool call integration",
         "memory": "реализация постоянной памяти на основе локального графа знаний. Это позволяет модели запоминать информацию о пользователе между различными диалогами. Требуется настроить переменную среды MEMORY_FILE_PATH.",
         "no": "без описания",
         "python": "Выполняйте код Python в безопасной песочнице. Запускайте Python с помощью Pyodide, поддерживается большинство стандартных библиотек и пакетов для научных вычислений",

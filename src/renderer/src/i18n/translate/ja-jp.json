@@ -1824,6 +1824,13 @@
         "preparing": "Notionへのエクスポートを準備中..."
       }
     },
+    "mcp": {
+      "ui": {
+        "error": "[to be translated]:UI Render Error",
+        "intent_received": "[to be translated]:Intent received from UI",
+        "notification": "[to be translated]:Notification from UI"
+      }
+    },
     "mention": {
       "title": "モデルを切り替える"
     },
@@ -3851,6 +3858,7 @@
         "fetch": "URLのウェブページコンテンツを取得するためのMCPサーバー",
         "filesystem": "Node.jsサーバーによるファイルシステム操作を実現するモデルコンテキストプロトコル（MCP）。アクセスを許可するディレクトリの設定が必要です",
         "mcp_auto_install": "MCPサービスの自動インストール（ベータ版）",
+        "mcp_ui_demo": "[to be translated]:MCP UI Demo server with interactive UI resources showcase. Demonstrates HTML-based UI resources with buttons, forms, and tool call integration",
         "memory": "ローカルのナレッジグラフに基づく永続的なメモリの基本的な実装です。これにより、モデルは異なる会話間でユーザーの関連情報を記憶できるようになります。MEMORY_FILE_PATH 環境変数の設定が必要です。",
         "no": "説明なし",
         "python": "安全なサンドボックス環境でPythonコードを実行します。Pyodideを使用してPythonを実行し、ほとんどの標準ライブラリと科学計算パッケージをサポートしています。",

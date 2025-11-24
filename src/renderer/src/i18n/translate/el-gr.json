@@ -1824,6 +1824,13 @@
         "preparing": "Ετοιμάζεται η εξαγωγή στο Notion..."
       }
     },
+    "mcp": {
+      "ui": {
+        "error": "[to be translated]:UI Render Error",
+        "intent_received": "[to be translated]:Intent received from UI",
+        "notification": "[to be translated]:Notification from UI"
+      }
+    },
     "mention": {
       "title": "Εναλλαγή απάντησης αστρόναυτη"
     },
@@ -3851,6 +3858,7 @@
         "fetch": "Εξυπηρετητής MCP για λήψη περιεχομένου ιστοσελίδας URL",
         "filesystem": "Εξυπηρετητής Node.js για το πρωτόκολλο περιβάλλοντος μοντέλου (MCP) που εφαρμόζει λειτουργίες συστήματος αρχείων. Απαιτείται διαμόρφωση για την επιτροπή πρόσβασης σε καταλόγους",
         "mcp_auto_install": "Αυτόματη εγκατάσταση υπηρεσίας MCP (προβολή)",
+        "mcp_ui_demo": "[to be translated]:MCP UI Demo server with interactive UI resources showcase. Demonstrates HTML-based UI resources with buttons, forms, and tool call integration",
         "memory": "Βασική υλοποίηση μόνιμης μνήμης με βάση τοπικό γράφημα γνώσης. Αυτό επιτρέπει στο μοντέλο να θυμάται πληροφορίες σχετικές με τον χρήστη ανάμεσα σε διαφορετικές συνομιλίες. Απαιτείται η ρύθμιση της μεταβλητής περιβάλλοντος MEMORY_FILE_PATH.",
         "no": "Χωρίς περιγραφή",
         "python": "Εκτελέστε κώδικα Python σε ένα ασφαλές περιβάλλον sandbox. Χρησιμοποιήστε το Pyodide για να εκτελέσετε Python, υποστηρίζοντας την πλειονότητα των βιβλιοθηκών της τυπικής βιβλιοθήκης και των πακέτων επιστημονικού υπολογισμού",

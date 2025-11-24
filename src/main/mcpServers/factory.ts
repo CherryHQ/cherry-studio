@@ -8,6 +8,7 @@ import DiDiMcpServer from './didi-mcp'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
+import MCPUIDemoServer from './mcp-ui-demo'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
@@ -47,6 +48,9 @@ export function createInMemoryMCPServer(
     case BuiltinMCPServerNames.didiMCP: {
       const apiKey = envs.DIDI_API_KEY
       return new DiDiMcpServer(apiKey).server
+    }
+    case BuiltinMCPServerNames.mcpUIDemo: {
+      return new MCPUIDemoServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
+import { MCPUIRenderer } from '@renderer/components/MCPUIRenderer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { MCPToolResponse } from '@renderer/types'
+import { isUIResource, type MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
@@ -342,26 +343,54 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     try {
       logger.debug(`renderPreview: ${content}`)
       const parsedResult = JSON.parse(content)
-      switch (parsedResult.content[0]?.type) {
+
+      // Handle regular MCP tool responses
+      const mcpResponse: any = parsedResult
+      switch (mcpResponse.content?.[0]?.type) {
         case 'text':
           try {
-            return (
-              <CollapsedContent
-                isExpanded={true}
-                resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
-              />
-            )
+            // Try to parse the text content to check if it's a UIResource
+            const textContent = JSON.parse(mcpResponse.content[0].text)
+            if (isUIResource(textContent)) {
+              logger.info('Rendering UI Resource from MCP text response:', { uri: textContent.resource.uri })
+              return (
+                <MCPUIRenderer
+                  resource={textContent.resource}
+                  serverId={tool.serverId}
+                  serverName={tool.serverName}
+                  onToolCall={async (toolName, params) => {
+                    // Handle tool call from UI
+                    logger.info(`Tool call from UI: ${toolName}`, params)
+                    try {
+                      const server = mcpServers.find((s) => s.id === tool.serverId)
+                      if (!server) {
+                        throw new Error('Server not found')
+                      }
+                      const result = await window.api.mcp.callTool({
+                        server,
+                        name: toolName,
+                        args: params
+                      })
+                      return result
+                    } catch (error) {
+                      logger.error('Error calling tool from UI:', error as Error)
+                      throw error
+                    }
+                  }}
+                />
+              )
+            }
+            // Regular JSON text content
+            return <CollapsedContent isExpanded={true} resultString={JSON.stringify(textContent, null, 2)} />
           } catch (e) {
+            // Not JSON or parsing failed, display as string
             return (
-              <CollapsedContent
-                isExpanded={true}
-                resultString={JSON.stringify(parsedResult.content[0].text, null, 2)}
-              />
+              <CollapsedContent isExpanded={true} resultString={JSON.stringify(mcpResponse.content[0].text, null, 2)} />
             )
           }
 
         default:
-          return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
+          return <CollapsedContent isExpanded={true} resultString={JSON.stringify(mcpResponse, null, 2)} />
       }
     } catch (e) {
       logger.error('failed to render the preview of mcp results:', e as Error)

@@ -1824,6 +1824,13 @@
         "preparing": "Preparing to export to Notion..."
       }
     },
+    "mcp": {
+      "ui": {
+        "error": "UI Render Error",
+        "intent_received": "Intent received from UI",
+        "notification": "Notification from UI"
+      }
+    },
     "mention": {
       "title": "Switch model answer"
     },
@@ -3851,6 +3858,7 @@
         "fetch": "MCP server for retrieving URL web content",
         "filesystem": "A Node.js server implementing the Model Context Protocol (MCP) for file system operations. Requires configuration of directories allowed for access.",
         "mcp_auto_install": "Automatically install MCP service (beta)",
+        "mcp_ui_demo": "MCP UI Demo server with interactive UI resources showcase. Demonstrates HTML-based UI resources with buttons, forms, and tool call integration",
         "memory": "Persistent memory implementation based on a local knowledge graph. This enables the model to remember user-related information across different conversations. Requires configuring the MEMORY_FILE_PATH environment variable.",
         "no": "No description",
         "python": "Execute Python code in a secure sandbox environment. Run Python with Pyodide, supporting most standard libraries and scientific computing packages",
