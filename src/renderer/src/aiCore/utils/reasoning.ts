@@ -12,7 +12,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
-  isGemini3Model,
+  isGemini3ThinkingTokenModel,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
@@ -281,7 +281,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // gemini series, openai compatible api
   if (isSupportedThinkingTokenGeminiModel(model)) {
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
-    if (isGemini3Model(model)) {
+    if (isGemini3ThinkingTokenModel(model)) {
       return {
         reasoning_effort: reasoningEffort
       }
@@ -507,14 +507,15 @@ export function getGeminiReasoningParams(
       }
     }
 
+    // TODO: 很多中转还不支持
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
-    if (isGemini3Model(model)) {
-      return {
-        thinkingConfig: {
-          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
-        }
-      }
-    }
+    // if (isGemini3ThinkingTokenModel(model)) {
+    //   return {
+    //     thinkingConfig: {
+    //       thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
+    //     }
+    //   }
+    // }
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 

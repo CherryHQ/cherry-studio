@@ -220,13 +220,12 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
     sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
   }
   // Special handling for image enhancement models
-  // Only keep the last two messages and merge images into the user message
-  // [system?, user, assistant, user]
+  // Only merge images into the user message
+  // [system?, user]
   if (isImageEnhancementModel(model) && messages.length >= 3) {
     const needUpdatedMessages = messages.slice(-2)
     const needUpdatedSdkMessages = sdkMessages.slice(-2)
     const assistantMessage = needUpdatedMessages.filter((m) => m.role === 'assistant')[0]
-    const assistantSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'assistant')[0]
     const userSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'user')[0]
     const systemSdkMessages = sdkMessages.filter((m) => m.role === 'system')
     const imageBlocks = findImageBlocks(assistantMessage)
@@ -240,9 +239,9 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
       userSdkMessage.content.push(...imageParts)
     }
     if (systemSdkMessages.length > 0) {
-      return [systemSdkMessages[0], assistantSdkMessage, userSdkMessage]
+      return [systemSdkMessages[0], userSdkMessage]
     }
-    return [assistantSdkMessage, userSdkMessage]
+    return [userSdkMessage]
   }
 
   return sdkMessages

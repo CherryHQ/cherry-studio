@@ -90,7 +90,10 @@ function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAISe
   }
 }
 
-function getVerbosity(): OpenAIVerbosity {
+function getVerbosity(model: Model): OpenAIVerbosity {
+  if (!isSupportVerbosityModel(model)) {
+    return undefined
+  }
   const openAI = getStoreSetting('openAI')
   return openAI.verbosity
 }
@@ -115,7 +118,7 @@ export function buildProviderOptions(
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
   const serviceTier = getServiceTier(model, actualProvider)
-  const textVerbosity = getVerbosity()
+  const textVerbosity = getVerbosity(model)
   // 根据 provider 类型分离构建逻辑
   const { data: baseProviderId, success } = baseProviderIdSchema.safeParse(rawProviderId)
   if (success) {
