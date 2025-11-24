@@ -32,6 +32,7 @@ import {
   prepareSpecialProviderConfig,
   providerToAiSdkConfig
 } from './provider/providerConfig'
+import type { AiSdkConfig } from './types'
 
 const logger = loggerService.withContext('ModernAiProvider')
 
@@ -44,7 +45,7 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 
 export default class ModernAiProvider {
   private legacyProvider: LegacyAiProvider
-  private config?: ReturnType<typeof providerToAiSdkConfig>
+  private config?: AiSdkConfig
   private actualProvider: Provider
   private model?: Model
   private localProvider: Awaited<AiSdkProvider> | null = null
@@ -89,6 +90,11 @@ export default class ModernAiProvider {
     // 每次请求时重新生成配置以确保API key轮换生效
     this.config = providerToAiSdkConfig(this.actualProvider, this.model)
     logger.debug('Generated provider config for completions', this.config)
+
+    // 检查 config 是否存在
+    if (!this.config) {
+      throw new Error('Provider config is undefined; cannot proceed with completions')
+    }
     if (SUPPORTED_IMAGE_ENDPOINT_LIST.includes(this.config.options.endpoint)) {
       providerConfig.isImageGenerationEndpoint = true
     }
@@ -149,7 +155,8 @@ export default class ModernAiProvider {
     params: StreamTextParams,
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
-    if (config.isImageGenerationEndpoint) {
+    // ai-gateway不是image/generation 端点，所以就先不走legacy了
+    if (config.isImageGenerationEndpoint && config.provider!.id !== SystemProviderIds['ai-gateway']) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
@@ -463,8 +470,13 @@ export default class ModernAiProvider {
     // 如果支持新的 AI SDK，使用现代化实现
     if (isModernSdkSupported(this.actualProvider)) {
       try {
+        // 确保 config 已定义
+        if (!this.config) {
+          throw new Error('Provider config is undefined; cannot proceed with generateImage')
+        }
+
         // 确保本地provider已创建
-        if (!this.localProvider) {
+        if (!this.localProvider && this.config) {
           this.localProvider = await createAiSdkProvider(this.config)
           if (!this.localProvider) {
             throw new Error('Local provider not created')

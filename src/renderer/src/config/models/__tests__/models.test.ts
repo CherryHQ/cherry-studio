@@ -1,33 +1,55 @@
 import {
   isImageEnhancementModel,
-  isPureGenerateImageModel,
   isQwenReasoningModel,
   isSupportedThinkingTokenQwenModel,
-  isVisionModel,
-  isWebSearchModel
+  isVisionModel
 } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
+vi.mock('@renderer/store/llm', () => ({
+  initialState: {}
+}))
+
+vi.mock('@renderer/store', () => ({
+  default: {
+    getState: () => ({
+      llm: {
+        settings: {}
+      }
+    })
+  }
+}))
+
+const getProviderByModelMock = vi.fn()
+const isEmbeddingModelMock = vi.fn()
+const isRerankModelMock = vi.fn()
+
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: (...args: any[]) => getProviderByModelMock(...args),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
+vi.mock('@renderer/config/models/embedding', () => ({
+  isEmbeddingModel: (...args: any[]) => isEmbeddingModelMock(...args),
+  isRerankModel: (...args: any[]) => isRerankModelMock(...args)
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  getProviderByModelMock.mockReturnValue({ type: 'openai-response' } as any)
+  isEmbeddingModelMock.mockReturnValue(false)
+  isRerankModelMock.mockReturnValue(false)
+})
+
 // Suggested test cases
 describe('Qwen Model Detection', () => {
-  beforeEach(() => {
-    vi.mock('@renderer/store/llm', () => ({
-      initialState: {}
-    }))
-    vi.mock('@renderer/services/AssistantService', () => ({
-      getProviderByModel: vi.fn().mockReturnValue({ id: 'cherryai' })
-    }))
-    vi.mock('@renderer/store', () => ({
-      default: {
-        getState: () => ({
-          llm: {
-            settings: {}
-          }
-        })
-      }
-    }))
-  })
   test('isQwenReasoningModel', () => {
     expect(isQwenReasoningModel({ id: 'qwen3-thinking' } as Model)).toBe(true)
     expect(isQwenReasoningModel({ id: 'qwen3-instruct' } as Model)).toBe(false)
@@ -56,14 +78,6 @@ describe('Qwen Model Detection', () => {
 })
 
 describe('Vision Model Detection', () => {
-  beforeEach(() => {
-    vi.mock('@renderer/store/llm', () => ({
-      initialState: {}
-    }))
-    vi.mock('@renderer/services/AssistantService', () => ({
-      getProviderByModel: vi.fn().mockReturnValue({ id: 'cherryai' })
-    }))
-  })
   test('isVisionModel', () => {
     expect(isVisionModel({ id: 'qwen-vl-max' } as Model)).toBe(true)
     expect(isVisionModel({ id: 'qwen-omni-turbo' } as Model)).toBe(true)
@@ -74,26 +88,5 @@ describe('Vision Model Detection', () => {
     expect(isImageEnhancementModel({ id: 'gemini-2.0-flash-preview-image-generation' } as Model)).toBe(true)
     expect(isImageEnhancementModel({ id: 'qwen-image-edit' } as Model)).toBe(true)
     expect(isImageEnhancementModel({ id: 'grok-2-image-latest' } as Model)).toBe(true)
-  })
-  test('isPureGenerateImageModel', () => {
-    expect(isPureGenerateImageModel({ id: 'gpt-image-1' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'gemini-2.5-flash-image-preview' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'gemini-2.0-flash-preview-image-generation' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'grok-2-image-latest' } as Model)).toBe(true)
-    expect(isPureGenerateImageModel({ id: 'gpt-4o' } as Model)).toBe(false)
-  })
-})
-
-describe('Web Search Model Detection', () => {
-  beforeEach(() => {
-    vi.mock('@renderer/store/llm', () => ({
-      initialState: {}
-    }))
-    vi.mock('@renderer/services/AssistantService', () => ({
-      getProviderByModel: vi.fn().mockReturnValue({ id: 'cherryai' })
-    }))
-  })
-  test('isWebSearchModel', () => {
-    expect(isWebSearchModel({ id: 'grok-2-image-latest' } as Model)).toBe(false)
   })
 })

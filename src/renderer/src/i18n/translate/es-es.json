@@ -27,8 +27,17 @@
         "null_id": "El ID del agente es nulo."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Se requiere Git Bash para ejecutar agentes en Windows. El agente no puede funcionar sin él. Instale Git para Windows desde",
+        "recheck": "Volver a verificar la instalación de Git Bash",
+        "title": "Git Bash Requerido"
+      },
+      "notFound": "Git Bash no encontrado. Por favor, instálalo primero.",
+      "success": "¡Git Bash detectado con éxito!"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
     },
     "list": {
       "error": {
@@ -257,6 +266,7 @@
       "error": {
         "sendFailed": "No se pudo enviar tu decisión. Por favor, inténtalo de nuevo."
       },
+      "executing": "Ejecutando...",
       "expired": "Caducado",
       "inputPreview": "Vista previa de entrada de herramienta",
       "pending": "Pendiente ({{seconds}}s)",
@@ -1149,6 +1159,7 @@
     "name": "Nombre",
     "no_results": "Sin resultados",
     "none": "无",
+    "off": "Apagado",
     "open": "Abrir",
     "paste": "Pegar",
     "placeholders": {
@@ -1375,6 +1386,36 @@
     "generating": "Generando",
     "preview": "Vista previa",
     "split": "Dividir"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Importación de ChatGPT",
+      "button": "Seleccionar archivo",
+      "description": "Solo importa el texto de la conversación, no incluye imágenes ni archivos adjuntos",
+      "error": {
+        "invalid_json": "Formato de archivo JSON inválido",
+        "no_conversations": "No se encontraron conversaciones en el archivo",
+        "no_valid_conversations": "No hay conversaciones válidas para importar",
+        "unknown": "Error de importación, por favor verifica el formato del archivo"
+      },
+      "help": {
+        "step1": "1. Inicia sesión en ChatGPT, ve a Configuración > Controles de datos > Exportar datos",
+        "step2": "2. Espera el archivo de exportación por correo electrónico",
+        "step3": "3. Extrae el archivo descargado y busca conversations.json",
+        "title": "Cómo exportar conversaciones de ChatGPT"
+      },
+      "importing": "Importando conversaciones...",
+      "selecting": "Seleccionando archivo...",
+      "success": "Importadas con éxito {{topics}} conversaciones con {{messages}} mensajes",
+      "title": "Importar conversaciones de ChatGPT",
+      "untitled_conversation": "Conversación Sin Título"
+    },
+    "confirm": {
+      "button": "Seleccionar Archivo de Importación",
+      "label": "¿Estás seguro de que quieres importar datos externos?"
+    },
+    "content": "Selecciona el archivo de conversación de la aplicación externa para importar; actualmente solo admite archivos en formato JSON de ChatGPT",
+    "title": "Importar Conversaciones Externas"
   },
   "knowledge": {
     "add": {
@@ -3085,6 +3126,7 @@
         "basic": "Configuración básica",
         "cloud_storage": "Configuración de almacenamiento en la nube",
         "export_settings": "Configuración de exportación",
+        "import_settings": "Importar configuración",
         "third_party": "Conexiones de terceros"
       },
       "export_menu": {
@@ -3143,6 +3185,11 @@
       },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
+      "import_settings": {
+        "button": "Importar archivo Json",
+        "chatgpt": "Importar desde ChatGPT",
+        "title": "Importar datos de aplicaciones externas"
+      },
       "joplin": {
         "check": {
           "button": "Revisar",
@@ -4243,7 +4290,6 @@
         "default": "Predeterminado",
         "flex": "Flexible",
         "on_demand": "según demanda",
-        "performance": "rendimiento",
         "priority": "prioridad",
         "tip": "Especifica el nivel de latencia utilizado para procesar la solicitud",
         "title": "Nivel de servicio"

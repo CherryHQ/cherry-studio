@@ -386,14 +386,13 @@ export class AiSdkToChunkAdapter {
       case 'error':
         this.onChunk({
           type: ChunkType.ERROR,
-          error:
-            chunk.error instanceof AISDKError
-              ? chunk.error
-              : new ProviderSpecificError({
-                  message: formatErrorMessage(chunk.error),
-                  provider: 'unknown',
-                  cause: chunk.error
-                })
+          error: AISDKError.isInstance(chunk.error)
+            ? chunk.error
+            : new ProviderSpecificError({
+                message: formatErrorMessage(chunk.error),
+                provider: 'unknown',
+                cause: chunk.error
+              })
         })
         break
 

@@ -1,7 +1,8 @@
 import { GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
-import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import type { Model, Provider, VertexProvider } from '@renderer/types'
+import { isVertexProvider } from '@renderer/utils/provider'
 import { isEmpty } from 'lodash'
 
 import { AnthropicVertexClient } from '../anthropic/AnthropicVertexClient'

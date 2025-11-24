@@ -175,14 +175,46 @@ export function useAppInit() {
   useEffect(() => {
     if (!window.electron?.ipcRenderer) return
 
-    const requestListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
+    const requestListener = async (_event: Electron.IpcRendererEvent, payload: ToolPermissionRequestPayload) => {
       logger.debug('Renderer received tool permission request', {
         requestId: payload.requestId,
         toolName: payload.toolName,
         expiresAt: payload.expiresAt,
-        suggestionCount: payload.suggestions.length
+        suggestionCount: payload.suggestions.length,
+        autoApprove: payload.autoApprove
       })
       dispatch(toolPermissionsActions.requestReceived(payload))
+
+      // Auto-approve if requested
+      if (payload.autoApprove) {
+        logger.debug('Auto-approving tool permission request', {
+          requestId: payload.requestId,
+          toolName: payload.toolName
+        })
+
+        dispatch(toolPermissionsActions.submissionSent({ requestId: payload.requestId, behavior: 'allow' }))
+
+        try {
+          const response = await window.api.agentTools.respondToPermission({
+            requestId: payload.requestId,
+            behavior: 'allow',
+            updatedInput: payload.input,
+            updatedPermissions: payload.suggestions
+          })
+
+          if (!response?.success) {
+            throw new Error('Auto-approval response rejected by main process')
+          }
+
+          logger.debug('Auto-approval acknowledged by main process', {
+            requestId: payload.requestId,
+            toolName: payload.toolName
+          })
+        } catch (error) {
+          logger.error('Failed to send auto-approval response', error as Error)
+          dispatch(toolPermissionsActions.submissionFailed({ requestId: payload.requestId }))
+        }
+      }
     }
 
     const resultListener = (_event: Electron.IpcRendererEvent, payload: ToolPermissionResultPayload) => {
