@@ -52,20 +52,20 @@ interface ModelPricesData {
 interface ModelConfig {
   id: string
   name?: string
-  ownedBy?: string
+  owned_by?: string
   description?: string
   capabilities: string[]
-  inputModalities: string[]
-  outputModalities: string[]
-  contextWindow: number
-  maxOutputTokens: number
-  maxInputTokens?: number
+  input_modalities: string[]
+  output_modalities: string[]
+  context_window: number
+  max_output_tokens: number
+  max_input_tokens?: number
   pricing?: {
-    input: { perMillionTokens: number; currency: string }
-    output: { perMillionTokens: number; currency: string }
+    input: { per_million_tokens: number; currency: string }
+    output: { per_million_tokens: number; currency: string }
   }
   parameters?: Record<string, any>
-  endpointTypes?: string[]
+  endpoint_types?: string[]
   metadata?: Record<string, any>
 }
 
@@ -74,41 +74,41 @@ interface ProviderConfig {
   name: string
   description?: string
   authentication: string
-  pricingModel: string
-  modelRouting: string
+  pricing_model: string
+  model_routing: string
   behaviors: Record<string, boolean>
-  supportedEndpoints: string[]
-  apiCompatibility?: Record<string, boolean>
-  specialConfig?: Record<string, any>
+  supported_endpoints: string[]
+  api_compatibility?: Record<string, boolean>
+  special_config?: Record<string, any>
   documentation?: string
   website?: string
   deprecated: boolean
-  maintenanceMode: boolean
-  configVersion: string
+  maintenance_mode: boolean
+  config_version: string
   metadata?: Record<string, any>
 }
 
 interface OverrideConfig {
-  providerId: string
-  modelId: string
+  provider_id: string
+  model_id: string
   capabilities?: {
     add?: string[]
     remove?: string[]
     force?: string[]
   }
   limits?: {
-    contextWindow?: number
-    maxOutputTokens?: number
-    maxInputTokens?: number
+    context_window?: number
+    max_output_tokens?: number
+    max_input_tokens?: number
   }
   pricing?: {
-    input: { perMillionTokens: number; currency: string }
-    output: { perMillionTokens: number; currency: string }
+    input: { per_million_tokens: number; currency: string }
+    output: { per_million_tokens: number; currency: string }
   }
   disabled?: boolean
   reason?: string
-  lastUpdated?: string
-  updatedBy?: string
+  last_updated?: string
+  updated_by?: string
   priority?: number
 }
 
@@ -255,22 +255,22 @@ export class MigrationTool {
     const providers: ProviderConfig[] = []
 
     for (const [providerId, providerData] of Object.entries(this.providerEndpointsData.providers)) {
-      const supportedEndpoints = this.privateConvertEndpointsToCapabilities(providerData.endpoints)
+      const supported_endpoints = this.privateConvertEndpointsToCapabilities(providerData.endpoints)
 
       // Determine provider characteristics
       const isDirectProvider = ['anthropic', 'openai', 'google'].includes(providerId)
       const isCloudProvider = ['azure', 'aws', 'gcp'].some((cloud) => providerId.includes(cloud))
       const isProxyProvider = ['openrouter', 'litellm', 'together_ai'].includes(providerId)
 
-      let pricingModel = 'PER_MODEL'
-      let modelRouting = 'DIRECT'
+      let pricing_model = 'PER_MODEL'
+      let model_routing = 'DIRECT'
 
       if (isProxyProvider) {
-        pricingModel = 'UNIFIED'
-        modelRouting = 'INTELLIGENT'
+        pricing_model = 'UNIFIED'
+        model_routing = 'INTELLIGENT'
       } else if (isCloudProvider) {
-        pricingModel = 'PER_MODEL'
-        modelRouting = 'DIRECT'
+        pricing_model = 'PER_MODEL'
+        model_routing = 'DIRECT'
       }
 
       const provider: ProviderConfig = {
@@ -278,42 +278,42 @@ export class MigrationTool {
         name: providerData.display_name,
         description: `Provider: ${providerData.display_name}`,
         authentication: 'API_KEY',
-        pricingModel,
-        modelRouting,
+        pricing_model,
+        model_routing,
         behaviors: {
-          supportsCustomModels: providerData.endpoints.batches || false,
-          providesModelMapping: isProxyProvider,
-          supportsModelVersioning: true,
-          providesFallbackRouting: isProxyProvider,
-          hasAutoRetry: isProxyProvider,
-          supportsHealthCheck: isDirectProvider,
-          hasRealTimeMetrics: isDirectProvider || isProxyProvider,
-          providesUsageAnalytics: isDirectProvider,
-          supportsWebhookEvents: false,
-          requiresApiKeyValidation: true,
-          supportsRateLimiting: isDirectProvider,
-          providesUsageLimits: isDirectProvider,
-          supportsStreaming: providerData.endpoints.chat_completions || providerData.endpoints.messages,
-          supportsBatchProcessing: providerData.endpoints.batches || false,
-          supportsModelFineTuning: providerId === 'openai'
+          supports_custom_models: providerData.endpoints.batches || false,
+          provides_model_mapping: isProxyProvider,
+          supports_model_versioning: true,
+          provides_fallback_routing: isProxyProvider,
+          has_auto_retry: isProxyProvider,
+          supports_health_check: isDirectProvider,
+          has_real_time_metrics: isDirectProvider || isProxyProvider,
+          provides_usage_analytics: isDirectProvider,
+          supports_webhook_events: false,
+          requires_api_key_validation: true,
+          supports_rate_limiting: isDirectProvider,
+          provides_usage_limits: isDirectProvider,
+          supports_streaming: providerData.endpoints.chat_completions || providerData.endpoints.messages,
+          supports_batch_processing: providerData.endpoints.batches || false,
+          supports_model_fine_tuning: providerId === 'openai'
         },
-        supportedEndpoints,
-        apiCompatibility: {
-          supportsArrayContent: providerData.endpoints.chat_completions || false,
-          supportsStreamOptions: providerData.endpoints.chat_completions || false,
-          supportsDeveloperRole: providerId === 'openai',
-          supportsServiceTier: providerId === 'openai',
-          supportsThinkingControl: false,
-          supportsApiVersion: providerId === 'openai',
-          supportsParallelTools: providerData.endpoints.chat_completions || false,
-          supportsMultimodal: providerData.endpoints.chat_completions || false
+        supported_endpoints,
+        api_compatibility: {
+          supports_array_content: providerData.endpoints.chat_completions || false,
+          supports_stream_options: providerData.endpoints.chat_completions || false,
+          supports_developer_role: providerId === 'openai',
+          supports_service_tier: providerId === 'openai',
+          supports_thinking_control: false,
+          supports_api_version: providerId === 'openai',
+          supports_parallel_tools: providerData.endpoints.chat_completions || false,
+          supports_multimodal: providerData.endpoints.chat_completions || false
         },
-        specialConfig: {},
+        special_config: {},
         documentation: providerData.url,
         website: providerData.url,
         deprecated: false,
-        maintenanceMode: false,
-        configVersion: '1.0.0',
+        maintenance_mode: false,
+        config_version: '1.0.0',
         metadata: {
           source: 'litellm-endpoints',
           tags: [isDirectProvider ? 'official' : isProxyProvider ? 'proxy' : 'cloud'],
@@ -350,10 +350,10 @@ export class MigrationTool {
       if (modelData.supports_tool_choice) capabilities.push('FUNCTION_CALL')
 
       // Determine modalities
-      const inputModalities = ['TEXT']
-      const outputModalities = ['TEXT']
+      const input_modalities = ['TEXT']
+      const output_modalities = ['TEXT']
       if (modelData.supports_vision) {
-        inputModalities.push('VISION')
+        input_modalities.push('VISION')
       }
 
       // Convert pricing
@@ -361,11 +361,11 @@ export class MigrationTool {
       if (modelData.input_cost_per_token && modelData.output_cost_per_token) {
         pricing = {
           input: {
-            perMillionTokens: Math.round(modelData.input_cost_per_token * 1000000 * 1000) / 1000,
+            per_million_tokens: Math.round(modelData.input_cost_per_token * 1000000 * 1000) / 1000,
             currency: 'USD'
           },
           output: {
-            perMillionTokens: Math.round(modelData.output_cost_per_token * 1000000 * 1000) / 1000,
+            per_million_tokens: Math.round(modelData.output_cost_per_token * 1000000 * 1000) / 1000,
             currency: 'USD'
           }
         }
@@ -374,25 +374,25 @@ export class MigrationTool {
       const baseModel: ModelConfig = {
         id: baseId,
         name: baseId,
-        ownedBy: modelData.litellm_provider,
+        owned_by: modelData.litellm_provider,
         capabilities,
-        inputModalities,
-        outputModalities,
-        contextWindow: modelData.max_input_tokens || 4096,
-        maxOutputTokens: modelData.max_output_tokens || modelData.max_tokens || 2048,
-        maxInputTokens: modelData.max_input_tokens,
+        input_modalities,
+        output_modalities,
+        context_window: modelData.max_input_tokens || 4096,
+        max_output_tokens: modelData.max_output_tokens || modelData.max_tokens || 2048,
+        max_input_tokens: modelData.max_input_tokens,
         pricing,
         parameters: {
           temperature: { supported: true, min: 0, max: 1, default: 1 },
-          maxTokens: true,
-          systemMessage: modelData.supports_system_messages || false,
-          topP: { supported: false }
+          max_tokens: true,
+          system_message: modelData.supports_system_messages || false,
+          top_p: { supported: false }
         },
-        endpointTypes: ['CHAT_COMPLETIONS'],
+        endpoint_types: ['CHAT_COMPLETIONS'],
         metadata: {
           source: 'migration',
-          originalProvider: modelData.litellm_provider,
-          supportsCaching: !!modelData.supports_prompt_caching
+          original_provider: modelData.litellm_provider,
+          supports_caching: !!modelData.supports_prompt_caching
         }
       }
 
@@ -417,12 +417,12 @@ export class MigrationTool {
       if (isBase) continue // Only generate overrides for non-base models
 
       const override: OverrideConfig = {
-        providerId: modelData.litellm_provider,
-        modelId: baseId,
+        provider_id: modelData.litellm_provider,
+        model_id: baseId,
         disabled: false,
         reason: `Provider-specific implementation of ${baseId}`,
-        lastUpdated: new Date().toISOString().split('T')[0],
-        updatedBy: 'migration-tool',
+        last_updated: new Date().toISOString().split('T')[0],
+        updated_by: 'migration-tool',
         priority: 100
       }
 
@@ -437,10 +437,10 @@ export class MigrationTool {
       // Add limit differences
       const limits: any = {}
       if (modelData.max_input_tokens && modelData.max_input_tokens !== 128000) {
-        limits.contextWindow = modelData.max_input_tokens
+        limits.context_window = modelData.max_input_tokens
       }
       if (modelData.max_output_tokens && modelData.max_output_tokens !== 4096) {
-        limits.maxOutputTokens = modelData.max_output_tokens
+        limits.max_output_tokens = modelData.max_output_tokens
       }
 
       if (Object.keys(limits).length > 0) {
@@ -451,11 +451,11 @@ export class MigrationTool {
       if (modelData.input_cost_per_token && modelData.output_cost_per_token) {
         override.pricing = {
           input: {
-            perMillionTokens: Math.round(modelData.input_cost_per_token * 1000000 * 1000) / 1000,
+            per_million_tokens: Math.round(modelData.input_cost_per_token * 1000000 * 1000) / 1000,
             currency: 'USD'
           },
           output: {
-            perMillionTokens: Math.round(modelData.output_cost_per_token * 1000000 * 1000) / 1000,
+            per_million_tokens: Math.round(modelData.output_cost_per_token * 1000000 * 1000) / 1000,
             currency: 'USD'
           }
         }
@@ -475,10 +475,8 @@ export class MigrationTool {
 
     await this.loadData()
 
-    // Create output directories
-    await fs.mkdir(path.join(this.outputDir, 'models'), { recursive: true })
-    await fs.mkdir(path.join(this.outputDir, 'providers'), { recursive: true })
-    await fs.mkdir(path.join(this.outputDir, 'overrides'), { recursive: true })
+    // Create output directory
+    await fs.mkdir(this.outputDir, { recursive: true })
 
     // Generate configurations
     console.log('📦 Generating provider configurations...')
@@ -490,88 +488,67 @@ export class MigrationTool {
     console.log('📦 Generating override configurations...')
     const overrides = this.generateOverrides()
 
-    // Group providers by category
-    const directProviders = providers.filter((p) => ['anthropic', 'openai', 'google'].includes(p.id))
-    const cloudProviders = providers.filter((p) => ['azure', 'bedrock', 'vertex_ai'].some((c) => p.id.includes(c)))
-    const proxyProviders = providers.filter((p) =>
-      ['openrouter', 'litellm_proxy', 'together_ai'].some((c) => p.id.includes(c))
-    )
-    const selfHostedProviders = providers.filter((p) => ['ollama', 'lm_studio', 'vllm'].some((c) => p.id.includes(c)))
-
-    // Write provider files
-    await this.writeJsonFile('providers/direct-providers.json', {
+    // Write single file for all providers
+    console.log('💾 Writing providers.json...')
+    await this.writeJsonFile('providers.json', {
       version: '2025.11.24',
-      providers: directProviders
+      providers
     })
 
-    await this.writeJsonFile('providers/cloud-platforms.json', {
+    // Write single file for all models
+    console.log('💾 Writing models.json...')
+    await this.writeJsonFile('models.json', {
       version: '2025.11.24',
-      providers: cloudProviders
+      models
     })
 
-    await this.writeJsonFile('providers/unified-gateways.json', {
+    // Write single file for all overrides
+    console.log('💾 Writing overrides.json...')
+    await this.writeJsonFile('overrides.json', {
       version: '2025.11.24',
-      providers: proxyProviders
+      overrides
     })
-
-    await this.writeJsonFile('providers/self-hosted.json', {
-      version: '2025.11.24',
-      providers: selfHostedProviders
-    })
-
-    // Group models by provider
-    const modelsByProvider = new Map<string, ModelConfig[]>()
-    models.forEach((model) => {
-      const provider = model.ownedBy || 'unknown'
-      if (!modelsByProvider.has(provider)) {
-        modelsByProvider.set(provider, [])
-      }
-      modelsByProvider.get(provider)!.push(model)
-    })
-
-    // Write model files
-    for (const [provider, providerModels] of modelsByProvider.entries()) {
-      const filename = provider.includes('/') ? provider.split('/')[1] : provider
-      await this.writeJsonFile(`models/${filename}.json`, {
-        version: '2025.11.24',
-        models: providerModels
-      })
-    }
-
-    // Group overrides by provider
-    const overridesByProvider = new Map<string, OverrideConfig[]>()
-    overrides.forEach((override) => {
-      if (!overridesByProvider.has(override.providerId)) {
-        overridesByProvider.set(override.providerId, [])
-      }
-      overridesByProvider.get(override.providerId)!.push(override)
-    })
-
-    // Write override files
-    for (const [provider, providerOverrides] of overridesByProvider.entries()) {
-      await this.writeJsonFile(`overrides/${provider}.json`, {
-        version: '2025.11.24',
-        overrides: providerOverrides
-      })
-    }
 
     // Generate migration report
+    const providersByType = {
+      direct: providers.filter((p) => ['anthropic', 'openai', 'google'].includes(p.id)).length,
+      cloud: providers.filter((p) => ['azure', 'bedrock', 'vertex_ai'].some((c) => p.id.includes(c))).length,
+      proxy: providers.filter((p) => ['openrouter', 'litellm_proxy', 'together_ai'].some((c) => p.id.includes(c)))
+        .length,
+      self_hosted: providers.filter((p) => ['ollama', 'lm_studio', 'vllm'].some((c) => p.id.includes(c))).length
+    }
+
+    const modelsByProvider = models.reduce(
+      (acc, model) => {
+        const provider = model.owned_by || 'unknown'
+        acc[provider] = (acc[provider] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
+
+    const overridesByProvider = overrides.reduce(
+      (acc, override) => {
+        acc[override.provider_id] = (acc[override.provider_id] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
+
     const report = {
       timestamp: new Date().toISOString(),
       summary: {
-        totalProviders: providers.length,
-        totalBaseModels: models.length,
-        totalOverrides: overrides.length,
-        providerCategories: {
-          direct: directProviders.length,
-          cloud: cloudProviders.length,
-          proxy: proxyProviders.length,
-          selfHosted: selfHostedProviders.length
-        },
-        modelsByProvider: Object.fromEntries(Array.from(modelsByProvider.entries()).map(([k, v]) => [k, v.length])),
-        overridesByProvider: Object.fromEntries(
-          Array.from(overridesByProvider.entries()).map(([k, v]) => [k, v.length])
-        )
+        total_providers: providers.length,
+        total_base_models: models.length,
+        total_overrides: overrides.length,
+        provider_categories: providersByType,
+        models_by_provider: modelsByProvider,
+        overrides_by_provider: overridesByProvider
+      },
+      files: {
+        providers: 'providers.json',
+        models: 'models.json',
+        overrides: 'overrides.json'
       }
     }
 
@@ -579,10 +556,14 @@ export class MigrationTool {
 
     console.log('\n✅ Migration completed successfully!')
     console.log(`📊 Migration Summary:`)
-    console.log(`   Providers: ${providers.length}`)
+    console.log(`   Providers: ${providers.length} (${providersByType.direct} direct, ${providersByType.cloud} cloud, ${providersByType.proxy} proxy, ${providersByType.self_hosted} self-hosted)`)
     console.log(`   Base Models: ${models.length}`)
     console.log(`   Overrides: ${overrides.length}`)
-    console.log(`   Report: migration-report.json`)
+    console.log(`\n📁 Output Files:`)
+    console.log(`   ${this.outputDir}/providers.json`)
+    console.log(`   ${this.outputDir}/models.json`)
+    console.log(`   ${this.outputDir}/overrides.json`)
+    console.log(`   ${this.outputDir}/migration-report.json`)
   }
 
   private async writeJsonFile(filename: string, data: any): Promise<void> {

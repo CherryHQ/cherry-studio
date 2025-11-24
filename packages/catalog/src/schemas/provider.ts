@@ -54,53 +54,53 @@ export const McpSupportSchema = z.object({
   supported: z.boolean().default(false),
   configuration: z
     .object({
-      supportsUrlPassThrough: z.boolean().default(false),
-      supportedServers: z.array(z.string()).optional(),
-      maxConcurrentServers: z.number().optional()
+      supports_url_pass_through: z.boolean().default(false),
+      supported_servers: z.array(z.string()).optional(),
+      max_concurrent_servers: z.number().optional()
     })
     .optional()
 })
 
 // API compatibility configuration
 export const ApiCompatibilitySchema = z.object({
-  supportsArrayContent: z.boolean().default(true),
-  supportsStreamOptions: z.boolean().default(true),
-  supportsDeveloperRole: z.boolean().default(false),
-  supportsServiceTier: z.boolean().default(false),
-  supportsThinkingControl: z.boolean().default(false),
-  supportsApiVersion: z.boolean().default(false),
-  supportsParallelTools: z.boolean().default(false),
-  supportsMultimodal: z.boolean().default(false),
-  maxFileUploadSize: z.number().optional(), // bytes
-  supportedFileTypes: z.array(z.string()).optional()
+  supports_array_content: z.boolean().default(true),
+  supports_stream_options: z.boolean().default(true),
+  supports_developer_role: z.boolean().default(false),
+  supports_service_tier: z.boolean().default(false),
+  supports_thinking_control: z.boolean().default(false),
+  supports_api_version: z.boolean().default(false),
+  supports_parallel_tools: z.boolean().default(false),
+  supports_multimodal: z.boolean().default(false),
+  max_file_upload_size: z.number().optional(), // bytes
+  supported_file_types: z.array(z.string()).optional()
 })
 
 // Behavior characteristics configuration - replaces categorization, describes actual behavior
 export const ProviderBehaviorsSchema = z.object({
   // Model management
-  supportsCustomModels: z.boolean().default(false), // Supports user custom models
-  providesModelMapping: z.boolean().default(false), // Provides model name mapping
-  supportsModelVersioning: z.boolean().default(false), // Supports model version control
+  supports_custom_models: z.boolean().default(false), // Supports user custom models
+  provides_model_mapping: z.boolean().default(false), // Provides model name mapping
+  supports_model_versioning: z.boolean().default(false), // Supports model version control
 
   // Reliability and fault tolerance
-  providesFallbackRouting: z.boolean().default(false), // Provides fallback routing
-  hasAutoRetry: z.boolean().default(false), // Has automatic retry mechanism
-  supportsHealthCheck: z.boolean().default(false), // Supports health checks
+  provides_fallback_routing: z.boolean().default(false), // Provides fallback routing
+  has_auto_retry: z.boolean().default(false), // Has automatic retry mechanism
+  supports_health_check: z.boolean().default(false), // Supports health checks
 
   // Monitoring and metrics
-  hasRealTimeMetrics: z.boolean().default(false), // Has real-time metrics
-  providesUsageAnalytics: z.boolean().default(false), // Provides usage analytics
-  supportsWebhookEvents: z.boolean().default(false), // Supports webhook events
+  has_real_time_metrics: z.boolean().default(false), // Has real-time metrics
+  provides_usage_analytics: z.boolean().default(false), // Provides usage analytics
+  supports_webhook_events: z.boolean().default(false), // Supports webhook events
 
   // Configuration and management
-  requiresApiKeyValidation: z.boolean().default(true), // Requires API key validation
-  supportsRateLimiting: z.boolean().default(false), // Supports rate limiting
-  providesUsageLimits: z.boolean().default(false), // Provides usage limit configuration
+  requires_api_key_validation: z.boolean().default(true), // Requires API key validation
+  supports_rate_limiting: z.boolean().default(false), // Supports rate limiting
+  provides_usage_limits: z.boolean().default(false), // Provides usage limit configuration
 
   // Advanced features
-  supportsStreaming: z.boolean().default(true), // Supports streaming responses
-  supportsBatchProcessing: z.boolean().default(false), // Supports batch processing
-  supportsModelFineTuning: z.boolean().default(false) // Provides model fine-tuning
+  supports_streaming: z.boolean().default(true), // Supports streaming responses
+  supports_batch_processing: z.boolean().default(false), // Supports batch processing
+  supports_model_fine_tuning: z.boolean().default(false) // Provides model fine-tuning
 })
 
 // Provider configuration schema
@@ -112,42 +112,42 @@ export const ProviderConfigSchema = z.object({
 
   // Behavior-related configuration
   authentication: AuthenticationSchema,
-  pricingModel: PricingModelSchema,
-  modelRouting: ModelRoutingSchema,
+  pricing_model: PricingModelSchema,
+  model_routing: ModelRoutingSchema,
   behaviors: ProviderBehaviorsSchema,
 
   // Feature support
-  supportedEndpoints: z.array(EndpointTypeSchema),
-  mcpSupport: McpSupportSchema.optional(),
-  apiCompatibility: ApiCompatibilitySchema.optional(),
+  supported_endpoints: z.array(EndpointTypeSchema),
+  mcp_support: McpSupportSchema.optional(),
+  api_compatibility: ApiCompatibilitySchema.optional(),
 
   // Default configuration
-  defaultApiHost: z.string().optional(),
-  defaultRateLimit: z.number().optional(), // requests per minute
+  default_api_host: z.string().optional(),
+  default_rate_limit: z.number().optional(), // requests per minute
 
   // Model matching assistance
-  modelIdPatterns: z.array(z.string()).optional(),
-  aliasModelIds: z.record(z.string(), z.string()).optional(), // Model alias mapping
+  model_id_patterns: z.array(z.string()).optional(),
+  alias_model_ids: z.record(z.string(), z.string()).optional(), // Model alias mapping
 
   // Special configuration
-  specialConfig: MetadataSchema,
+  special_config: MetadataSchema,
 
   // Metadata and links
   documentation: z.string().url().optional(),
-  statusPage: z.string().url().optional(),
-  pricingPage: z.string().url().optional(),
-  supportEmail: z.string().email().optional(),
+  status_page: z.string().url().optional(),
+  pricing_page: z.string().url().optional(),
+  support_email: z.string().email().optional(),
   website: z.string().url().optional(),
 
   // Status management
   deprecated: z.boolean().default(false),
-  deprecationDate: z.iso.datetime().optional(),
-  maintenanceMode: z.boolean().default(false),
+  deprecation_date: z.iso.datetime().optional(),
+  maintenance_mode: z.boolean().default(false),
 
   // Version and compatibility
-  minAppVersion: VersionSchema.optional(), // Minimum supported app version
-  maxAppVersion: VersionSchema.optional(), // Maximum supported app version
-  configVersion: VersionSchema.default('1.0.0'), // Configuration file version
+  min_app_version: VersionSchema.optional(), // Minimum supported app version
+  max_app_version: VersionSchema.optional(), // Maximum supported app version
+  config_version: VersionSchema.default('1.0.0'), // Configuration file version
 
   // Additional metadata
   metadata: MetadataSchema

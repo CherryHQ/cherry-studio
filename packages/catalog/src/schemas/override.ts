@@ -18,9 +18,9 @@ export const CapabilityOverrideSchema = z.object({
 
 // Limits override configuration
 export const LimitsOverrideSchema = z.object({
-  contextWindow: z.number().optional(),
-  maxOutputTokens: z.number().optional(),
-  maxInputTokens: z.number().optional()
+  context_window: z.number().optional(),
+  max_output_tokens: z.number().optional(),
+  max_input_tokens: z.number().optional()
 })
 
 // Pricing override configuration
@@ -40,8 +40,8 @@ export const MetadataOverrideSchema = z
   .object({
     name: z.string().optional(),
     description: z.string().optional(),
-    deprecationDate: z.iso.datetime().optional(),
-    replacedBy: ModelIdSchema.optional(),
+    deprecation_date: z.iso.datetime().optional(),
+    replaced_by: ModelIdSchema.optional(),
     metadata: MetadataSchema
   })
   .optional()
@@ -49,8 +49,8 @@ export const MetadataOverrideSchema = z
 // Main provider model override schema
 export const ProviderModelOverrideSchema = z.object({
   // Identification
-  providerId: ProviderIdSchema,
-  modelId: ModelIdSchema,
+  provider_id: ProviderIdSchema,
+  model_id: ModelIdSchema,
 
   // Capability overrides
   capabilities: CapabilityOverrideSchema.optional(),
@@ -68,19 +68,19 @@ export const ProviderModelOverrideSchema = z.object({
   parameters: ParameterSupportOverrideSchema.optional(),
 
   // Endpoint type overrides
-  endpointTypes: EndpointTypesOverrideSchema.optional(),
+  endpoint_types: EndpointTypesOverrideSchema.optional(),
 
   // Model metadata overrides
   metadata: MetadataOverrideSchema.optional(),
 
   // Status overrides
   disabled: z.boolean().optional(), // Disable this model for this provider
-  replaceWith: ModelIdSchema.optional(), // Replace with alternative model
+  replace_with: ModelIdSchema.optional(), // Replace with alternative model
 
   // Override tracking
   reason: z.string().optional(), // Reason for override
-  lastUpdated: z.iso.datetime().optional(),
-  updatedBy: z.string().optional(), // Who made the override
+  last_updated: z.iso.datetime().optional(),
+  updated_by: z.string().optional(), // Who made the override
 
   // Override priority (higher number = higher priority)
   priority: z.number().default(0),
@@ -92,19 +92,19 @@ export const ProviderModelOverrideSchema = z.object({
       regions: z.array(z.string()).optional(),
 
       // Apply override only for specific user tiers
-      userTiers: z.array(z.string()).optional(),
+      user_tiers: z.array(z.string()).optional(),
 
       // Apply override only in specific environments
       environments: z.array(z.enum(['development', 'staging', 'production'])).optional(),
 
       // Time-based conditions
-      validFrom: z.iso.datetime().optional(),
-      validUntil: z.iso.datetime().optional()
+      valid_from: z.iso.datetime().optional(),
+      valid_until: z.iso.datetime().optional()
     })
     .optional(),
 
   // Additional override metadata
-  overrideMetadata: MetadataSchema.optional()
+  override_metadata: MetadataSchema.optional()
 })
 
 // Override container schema for JSON files
@@ -115,14 +115,14 @@ export const OverrideListSchema = z.object({
 
 // Override application result schema
 export const OverrideResultSchema = z.object({
-  modelId: ModelIdSchema,
-  providerId: ProviderIdSchema,
+  model_id: ModelIdSchema,
+  provider_id: ProviderIdSchema,
   applied: z.boolean(),
-  appliedOverrides: z.array(z.string()), // List of applied override fields
-  originalValues: z.record(z.string(), z.unknown()), // Original values before override
-  newValues: z.record(z.string(), z.unknown()), // New values after override
-  overrideReason: z.string().optional(),
-  appliedAt: z.iso.datetime().optional()
+  applied_overrides: z.array(z.string()), // List of applied override fields
+  original_values: z.record(z.string(), z.unknown()), // Original values before override
+  new_values: z.record(z.string(), z.unknown()), // New values after override
+  override_reason: z.string().optional(),
+  applied_at: z.iso.datetime().optional()
 })
 
 // Override validation result

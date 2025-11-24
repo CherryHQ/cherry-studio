@@ -1,24 +1,25 @@
 {
-  "timestamp": "2025-11-23T23:57:00.398Z",
+  "timestamp": "2025-11-24T06:41:03.487Z",
   "summary": {
-    "totalProviders": 104,
-    "totalBaseModels": 191,
-    "totalOverrides": 1214,
-    "providerCategories": {
+    "total_providers": 104,
+    "total_base_models": 241,
+    "total_overrides": 1164,
+    "provider_categories": {
       "direct": 2,
       "cloud": 6,
       "proxy": 3,
-      "selfHosted": 5
+      "self_hosted": 5
     },
-    "modelsByProvider": {
+    "models_by_provider": {
       "openai": 79,
       "anthropic": 20,
       "dashscope": 22,
       "deepseek": 7,
+      "gemini": 50,
       "mistral": 31,
       "xai": 32
     },
-    "overridesByProvider": {
+    "overrides_by_provider": {
       "bedrock": 152,
       "bedrock_converse": 56,
       "anyscale": 12,
@@ -40,7 +41,6 @@
       "openai": 8,
       "vertex_ai-language-models": 46,
       "vertex_ai-vision-models": 3,
-      "gemini": 50,
       "gradient_ai": 13,
       "groq": 27,
       "heroku": 4,
@@ -79,5 +79,10 @@
       "wandb": 14,
       "watsonx": 28
     }
+  },
+  "files": {
+    "providers": "providers.json",
+    "models": "models.json",
+    "overrides": "overrides.json"
   }
 }

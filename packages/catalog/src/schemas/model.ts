@@ -171,7 +171,7 @@ export const ModelPricingSchema = z.object({
   output: PricePerTokenSchema,
 
   // Image pricing (optional)
-  perImage: z
+  per_image: z
     .object({
       price: z.number(),
       currency: CurrencySchema.default('USD'),
@@ -180,7 +180,7 @@ export const ModelPricingSchema = z.object({
     .optional(),
 
   // Audio/video pricing (optional)
-  perMinute: z
+  per_minute: z
     .object({
       price: z.number(),
       currency: CurrencySchema.default('USD')
@@ -193,20 +193,20 @@ export const ModelConfigSchema = z.object({
   // Basic information
   id: ModelIdSchema,
   name: z.string().optional(),
-  ownedBy: z.string().optional(),
+  owned_by: z.string().optional(),
   description: z.string().optional(),
 
   // Capabilities (core)
   capabilities: z.array(ModelCapabilityTypeSchema),
 
   // Modalities
-  inputModalities: z.array(ModalitySchema),
-  outputModalities: z.array(ModalitySchema),
+  input_modalities: z.array(ModalitySchema),
+  output_modalities: z.array(ModalitySchema),
 
   // Limits
-  contextWindow: z.number(),
-  maxOutputTokens: z.number(),
-  maxInputTokens: z.number().optional(),
+  context_window: z.number(),
+  max_output_tokens: z.number(),
+  max_input_tokens: z.number().optional(),
 
   // Pricing
   pricing: ModelPricingSchema.optional(),
@@ -218,19 +218,19 @@ export const ModelConfigSchema = z.object({
   parameters: ParameterSupportSchema.optional(),
 
   // Endpoint types (will reference provider schema)
-  endpointTypes: z.array(z.string()).optional(),
+  endpoint_types: z.array(z.string()).optional(),
 
   // Metadata
-  releaseDate: TimestampSchema.optional(),
-  deprecationDate: TimestampSchema.optional(),
-  replacedBy: ModelIdSchema.optional(),
+  release_date: TimestampSchema.optional(),
+  deprecation_date: TimestampSchema.optional(),
+  replaced_by: ModelIdSchema.optional(),
 
   // Version control
   version: VersionSchema.optional(),
   compatibility: z
     .object({
-      minVersion: VersionSchema.optional(),
-      maxVersion: VersionSchema.optional()
+      min_version: VersionSchema.optional(),
+      max_version: VersionSchema.optional()
     })
     .optional(),
 
