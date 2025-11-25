@@ -31,12 +31,14 @@ type PendingPermissionRequest = {
   abortListener?: () => void
   originalInput: Record<string, unknown>
   toolName: string
+  toolCallId?: string
 }
 
 type RendererPermissionRequestPayload = {
   requestId: string
   toolName: string
   toolId: string
+  toolCallId: string
   description?: string
   requiresPermissions: boolean
   input: Record<string, unknown>
@@ -44,6 +46,7 @@ type RendererPermissionRequestPayload = {
   createdAt: number
   expiresAt: number
   suggestions: PermissionUpdate[]
+  autoApprove?: boolean
 }
 
 type RendererPermissionResultPayload = {
@@ -51,6 +54,7 @@ type RendererPermissionResultPayload = {
   behavior: ToolPermissionBehavior
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
+  toolCallId?: string
 }
 
 const pendingRequests = new Map<string, PendingPermissionRequest>()
@@ -144,7 +148,8 @@ const finalizeRequest = (
     requestId,
     behavior: update.behavior,
     message: update.behavior === 'deny' ? update.message : undefined,
-    reason
+    reason,
+    toolCallId: pending.toolCallId
   }
 
   const dispatched = broadcastToRenderer(IpcChannel.AgentToolPermission_Result, resultPayload)
@@ -206,10 +211,20 @@ const ensureIpcHandlersRegistered = () => {
   })
 }
 
+type PromptForToolApprovalOptions = {
+  signal: AbortSignal
+  suggestions?: PermissionUpdate[]
+  autoApprove?: boolean
+
+  // NOTICE: This ID is namespaced with session ID, not the raw SDK tool call ID.
+  // Format: `${sessionId}:${rawToolCallId}`, e.g., `session_123:WebFetch_0`
+  toolCallId: string
+}
+
 export async function promptForToolApproval(
   toolName: string,
   input: Record<string, unknown>,
-  options?: { signal: AbortSignal; suggestions?: PermissionUpdate[] }
+  options: PromptForToolApprovalOptions
 ): Promise<PermissionResult> {
   if (shouldAutoApproveTools) {
     logger.debug('promptForToolApproval auto-approving tool for test', {
@@ -245,6 +260,7 @@ export async function promptForToolApproval(
   logger.info('Requesting user approval for tool usage', {
     requestId,
     toolName,
+    toolCallId: options.toolCallId,
     description: toolMetadata?.description
   })
 
@@ -252,13 +268,15 @@ export async function promptForToolApproval(
     requestId,
     toolName,
     toolId: toolMetadata?.id ?? toolName,
+    toolCallId: options.toolCallId,
     description: toolMetadata?.description,
     requiresPermissions: toolMetadata?.requirePermissions ?? false,
     input: sanitizedInput,
     inputPreview,
     createdAt,
     expiresAt,
-    suggestions: sanitizedSuggestions
+    suggestions: sanitizedSuggestions,
+    autoApprove: options.autoApprove
   }
 
   const defaultDenyUpdate: PermissionResult = { behavior: 'deny', message: 'Tool request aborted before user decision' }
@@ -266,6 +284,7 @@ export async function promptForToolApproval(
   logger.debug('Registering tool permission request', {
     requestId,
     toolName,
+    toolCallId: options.toolCallId,
     requiresPermissions: requestPayload.requiresPermissions,
     timeoutMs: TOOL_APPROVAL_TIMEOUT_MS,
     suggestionCount: sanitizedSuggestions.length
@@ -273,7 +292,11 @@ export async function promptForToolApproval(
 
   return new Promise<PermissionResult>((resolve) => {
     const timeout = setTimeout(() => {
-      logger.info('User tool permission request timed out', { requestId, toolName })
+      logger.info('User tool permission request timed out', {
+        requestId,
+        toolName,
+        toolCallId: options.toolCallId
+      })
       finalizeRequest(requestId, { behavior: 'deny', message: 'Timed out waiting for approval' }, 'timeout')
     }, TOOL_APPROVAL_TIMEOUT_MS)
 
@@ -282,12 +305,17 @@ export async function promptForToolApproval(
       timeout,
       originalInput: sanitizedInput,
       toolName,
-      signal: options?.signal
+      signal: options?.signal,
+      toolCallId: options.toolCallId
     }
 
     if (options?.signal) {
       const abortListener = () => {
-        logger.info('Tool permission request aborted before user responded', { requestId, toolName })
+        logger.info('Tool permission request aborted before user responded', {
+          requestId,
+          toolName,
+          toolCallId: options.toolCallId
+        })
         finalizeRequest(requestId, defaultDenyUpdate, 'aborted')
       }
 

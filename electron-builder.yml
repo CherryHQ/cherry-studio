@@ -98,7 +98,6 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -136,50 +135,66 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-beta.5
+    What's New in v1.7.0-rc.2
 
-    New Features:
-    - MCPRouter Provider: Added MCPRouter provider integration with token management and server synchronization
-    - MCP Marketplace: Enhanced MCP server discovery and management with multi-provider marketplace support
-    - Agent Permission Mode Display: Visual permission mode cards in empty session states
-    - Assistant Subscription Settings: Added subscription URL management in assistant presets
+    ✨ New Features:
+    - AI Models: Added support for Gemini 3, Gemini 3 Pro with image preview, and GPT-5.1
+    - Import: ChatGPT conversation import feature
+    - Agent: Git Bash detection and requirement check for Windows agents
+    - Search: Native language emoji search with CLDR data format
+    - Provider: Endpoint type support for cherryin provider
+    - Debug: Local crash mini dump file for better diagnostics
 
-    Improvements:
-    - UI Optimization: Sidebar tooltip placement improved on macOS to avoid overlapping window controls
-    - MCP Server Logos: Display server logos in Agent settings tooling section
-    - Long Command Handling: Bash command tags now auto-truncate (hover to view full command for commands over 100 chars)
-    - MCP OAuth Callback: Fixed callback page hanging and added multilingual support (10 languages)
-    - Error Display: Improved error block display order for better readability
-    - Plugin Browser: Centered tab alignment for better visual consistency
+    🐛 Important Bug Fixes:
+    - Error Handling: Improved error display in AiSdkToChunkAdapter
+    - Database: Optimized DatabaseManager and fixed libsql crash issues
+    - Memory: Fixed EventEmitter memory leak in useApiServer hook
+    - Messages: Fixed adjacent user messages appearing when assistant message contains error only
+    - Tools: Fixed missing execution state for approved tool permissions
+    - File Processing: Fixed "no such file" error for non-English filenames in open-mineru
+    - PDF: Fixed mineru PDF validation and 403 errors
+    - Images: Fixed base64 image save issues
+    - Search: Fixed URL context and web search capability
+    - Models: Added verbosity parameter support for GPT-5 models
+    - UI: Improved todo tool status icon visibility and colors
+    - Providers: Fixed api-host for vercel ai-gateway and gitcode update config
 
-    Bug Fixes:
-    - Fixed Agent sessions not inheriting allowed_tools configuration
-    - Fixed Gemini endpoint thinking budget spelling error
-    - Fixed MCP card description text overflow
-    - Fixed unnecessary message timestamp updates on UI-only state changes
-    - Updated dependencies: Bun to 1.3.1, uv to 0.9.5
+    ⚡ Improvements:
+    - SDK: Updated Google and OpenAI SDKs with new features
+    - UI: Simplified knowledge base creation modal and agent creation form
+    - Tools: Replaced renderToolContent function with ToolContent component
+    - Architecture: Namespace tool call IDs with session ID to prevent conflicts
+    - Config: AI SDK configuration refactoring
 
     <!--LANG:zh-CN-->
-    v1.7.0-beta.5 新特性
+    v1.7.0-rc.2 新特性
 
-    新功能:
-    - MCPRouter 提供商：新增 MCPRouter 提供商集成，支持 token 管理和服务器同步
-    - MCP 市场：增强 MCP 服务器发现和管理功能，支持多提供商市场
-    - Agent 权限模式展示：空会话状态显示可视化权限模式卡片
-    - 助手订阅设置：在助手预设中添加订阅 URL 管理功能
+    ✨ 新功能:
+    - AI 模型：新增 Gemini 3、Gemini 3 Pro 图像预览支持，以及 GPT-5.1
+    - 导入：ChatGPT 对话导入功能
+    - Agent：Windows Agent 的 Git Bash 检测和要求检查
+    - 搜索：支持本地语言 emoji 搜索（CLDR 数据格式）
+    - 提供商：cherryin provider 的端点类型支持
+    - 调试：启用本地崩溃 mini dump 文件，方便诊断
 
-    改进:
-    - UI 优化：macOS 上侧边栏工具提示位置优化，避免与窗口控制按钮重叠
-    - MCP 服务器标志：在 Agent 设置工具部分显示服务器 logo
-    - 长命令处理：Bash 命令标签自动截断（超过 100 字符时悬停查看完整内容）
-    - MCP OAuth 回调：修复回调页面挂起问题并添加多语言支持（10 种语言）
-    - 错误信息展示：改进错误块显示顺序，提高可读性
-    - 插件浏览器：标签页居中对齐，视觉效果更统一
+    🐛 重要修复:
+    - 错误处理：改进 AiSdkToChunkAdapter 的错误显示
+    - 数据库：优化 DatabaseManager 并修复 libsql 崩溃问题
+    - 内存：修复 useApiServer hook 中的 EventEmitter 内存泄漏
+    - 消息：修复当助手消息仅包含错误时相邻用户消息出现的问题
+    - 工具：修复批准工具权限缺少执行状态的问题
+    - 文件处理：修复 open-mineru 处理非英文文件名时的"无此文件"错误
+    - PDF：修复 mineru PDF 验证和 403 错误
+    - 图片：修复 base64 图片保存问题
+    - 搜索：修复 URL 上下文和网络搜索功能
+    - 模型：为 GPT-5 模型添加 verbosity 参数支持
+    - UI：改进 todo 工具状态图标可见性和颜色
+    - 提供商：修复 vercel ai-gateway 和 gitcode 更新配置的 api-host
 
-    问题修复:
-    - 修复 Agent 会话未继承 allowed_tools 配置
-    - 修复 Gemini 端点 thinking budget 拼写错误
-    - 修复 MCP 卡片描述文本溢出问题
-    - 修复仅 UI 状态变化时消息时间戳不必要的更新
-    - 依赖更新：Bun 升级到 1.3.1，uv 升级到 0.9.5
+    ⚡ 改进:
+    - SDK：更新 Google 和 OpenAI SDK，新增功能和修复
+    - UI：简化知识库创建模态框和 agent 创建表单
+    - 工具：用 ToolContent 组件替换 renderToolContent 函数，提升可读性
+    - 架构：用会话 ID 命名工具调用 ID 以防止冲突
+    - 配置：AI SDK 配置重构
     <!--LANG:END-->

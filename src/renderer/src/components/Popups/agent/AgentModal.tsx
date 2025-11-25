@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TopView } from '@renderer/components/TopView'
 import { permissionModeCards } from '@renderer/config/agent'
@@ -9,7 +8,6 @@ import SelectAgentBaseModelButton from '@renderer/pages/home/components/SelectAg
 import type {
   AddAgentForm,
   AgentEntity,
-  AgentType,
   ApiModel,
   BaseAgentForm,
   PermissionMode,
@@ -17,30 +15,22 @@ import type {
   UpdateAgentForm
 } from '@renderer/types'
 import { AgentConfigurationSchema, isAgentType } from '@renderer/types'
-import { Avatar, Button, Input, Modal, Select } from 'antd'
+import { Alert, Button, Input, Modal, Select } from 'antd'
 import { AlertTriangleIcon } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import type { BaseOption } from './shared'
-
 const { TextArea } = Input
 
 const logger = loggerService.withContext('AddAgentPopup')
-
-interface AgentTypeOption extends BaseOption {
-  type: 'type'
-  key: AgentEntity['type']
-  name: AgentEntity['name']
-}
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 
 const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
-  name: existing?.name ?? 'Claude Code',
+  name: existing?.name ?? 'Agent',
   description: existing?.description,
   instructions: existing?.instructions,
   model: existing?.model ?? '',
@@ -68,12 +58,37 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
   const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
+  const [hasGitBash, setHasGitBash] = useState<boolean>(true)
 
   useEffect(() => {
     if (open) {
       setForm(buildAgentForm(agent))
     }
   }, [agent, open])
+
+  const checkGitBash = useCallback(
+    async (showToast = false) => {
+      try {
+        const gitBashInstalled = await window.api.system.checkGitBash()
+        setHasGitBash(gitBashInstalled)
+        if (showToast) {
+          if (gitBashInstalled) {
+            window.toast.success(t('agent.gitBash.success', 'Git Bash detected successfully!'))
+          } else {
+            window.toast.error(t('agent.gitBash.notFound', 'Git Bash not found. Please install it first.'))
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check Git Bash:', error as Error)
+        setHasGitBash(true) // Default to true on error to avoid false warnings
+      }
+    },
+    [t]
+  )
+
+  useEffect(() => {
+    checkGitBash()
+  }, [checkGitBash])
 
   const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
 
@@ -100,54 +115,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     })
   }, [])
 
-  // add supported agents type here.
-  const agentConfig = useMemo(
-    () =>
-      [
-        {
-          type: 'type',
-          key: 'claude-code',
-          label: 'Claude Code',
-          name: 'Claude Code',
-          avatar: ClaudeIcon
-        }
-      ] as const satisfies AgentTypeOption[],
-    []
-  )
-
-  const agentOptions = useMemo(
-    () =>
-      agentConfig.map((option) => ({
-        value: option.key,
-        label: (
-          <OptionWrapper>
-            <Avatar src={option.avatar} size={24} />
-            <span>{option.label}</span>
-          </OptionWrapper>
-        )
-      })),
-    [agentConfig]
-  )
-
-  const onAgentTypeChange = useCallback(
-    (value: AgentType) => {
-      const prevConfig = agentConfig.find((config) => config.key === form.type)
-      let newName: string | undefined = form.name
-      if (prevConfig && prevConfig.name === form.name) {
-        const newConfig = agentConfig.find((config) => config.key === value)
-        if (newConfig) {
-          newName = newConfig.name
-        }
-      }
-      setForm((prev) => ({
-        ...prev,
-        type: value,
-        name: newName
-      }))
-    },
-    [agentConfig, form.name, form.type]
-  )
-
   const onNameChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({
       ...prev,
@@ -155,12 +122,12 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
     }))
   }, [])
 
-  const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      description: e.target.value
-    }))
-  }, [])
+  // const onDescChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+  //   setForm((prev) => ({
+  //     ...prev,
+  //     description: e.target.value
+  //   }))
+  // }, [])
 
   const onInstChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
     setForm((prev) => ({
@@ -333,17 +300,37 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
         footer={null}>
         <StyledForm onSubmit={onSubmit}>
           <FormContent>
+            {!hasGitBash && (
+              <Alert
+                message={t('agent.gitBash.error.title', 'Git Bash Required')}
+                description={
+                  <div>
+                    <div style={{ marginBottom: 8 }}>
+                      {t(
+                        'agent.gitBash.error.description',
+                        'Git Bash is required to run agents on Windows. The agent cannot function without it. Please install Git for Windows from'
+                      )}{' '}
+                      <a
+                        href="https://git-scm.com/download/win"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.api.openWebsite('https://git-scm.com/download/win')
+                        }}
+                        style={{ textDecoration: 'underline' }}>
+                        git-scm.com
+                      </a>
+                    </div>
+                    <Button size="small" onClick={() => checkGitBash(true)}>
+                      {t('agent.gitBash.error.recheck', 'Recheck Git Bash Installation')}
+                    </Button>
+                  </div>
+                }
+                type="error"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <FormRow>
-              <FormItem style={{ flex: 1 }}>
-                <Label>{t('agent.type.label')}</Label>
-                <Select
-                  value={form.type}
-                  onChange={onAgentTypeChange}
-                  options={agentOptions}
-                  disabled={isEditing(agent)}
-                  style={{ width: '100%' }}
-                />
-              </FormItem>
               <FormItem style={{ flex: 1 }}>
                 <Label>
                   {t('common.name')} <RequiredMark>*</RequiredMark>
@@ -363,7 +350,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 avatarSize={24}
                 iconSize={16}
                 buttonStyle={{
-                  padding: '8px 12px',
+                  padding: '3px 8px',
                   width: '100%',
                   border: '1px solid var(--color-border)',
                   borderRadius: 6,
@@ -382,7 +369,6 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                 onChange={onPermissionModeChange}
                 style={{ width: '100%' }}
                 placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
-                dropdownStyle={{ minWidth: '500px' }}
                 optionLabelProp="label">
                 {permissionModeCards.map((item) => (
                   <Select.Option key={item.mode} value={item.mode} label={t(item.titleKey, item.titleFallback)}>
@@ -438,15 +424,15 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
               <TextArea rows={3} value={form.instructions ?? ''} onChange={onInstChange} />
             </FormItem>
 
-            <FormItem>
+            {/* <FormItem>
               <Label>{t('common.description')}</Label>
-              <TextArea rows={2} value={form.description ?? ''} onChange={onDescChange} />
-            </FormItem>
+              <TextArea rows={1} value={form.description ?? ''} onChange={onDescChange} />
+            </FormItem> */}
           </FormContent>
 
           <FormFooter>
             <Button onClick={onCancel}>{t('common.close')}</Button>
-            <Button type="primary" htmlType="submit" loading={loadingRef.current}>
+            <Button type="primary" htmlType="submit" loading={loadingRef.current} disabled={!hasGitBash}>
               {isEditing(agent) ? t('common.confirm') : t('common.add')}
             </Button>
           </FormFooter>
@@ -575,14 +561,7 @@ const FormFooter = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-border);
-`
-
-const OptionWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  padding: 10px;
 `
 
 const PermissionOptionWrapper = styled.div`

@@ -8,9 +8,16 @@ import type {
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
-import { isGPT5SeriesModel } from './utils'
+import {
+  isGPT5ProModel,
+  isGPT5SeriesModel,
+  isGPT51SeriesModel,
+  isOpenAIDeepResearchModel,
+  isOpenAIReasoningModel,
+  isSupportedReasoningEffortOpenAIModel
+} from './openai'
+import { GEMINI_FLASH_MODEL_REGEX, isGemini3Model } from './utils'
 import { isTextToImageModel } from './vision'
-import { GEMINI_FLASH_MODEL_REGEX, isOpenAIDeepResearchModel } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
@@ -24,9 +31,13 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   openai_deep_research: ['medium'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
+  gpt5_1: ['none', 'low', 'medium', 'high'] as const,
+  gpt5_1_codex: ['none', 'medium', 'high'] as const,
+  gpt5pro: ['high'] as const,
   grok: ['low', 'high'] as const,
   grok4_fast: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
+  gemini3: ['low', 'medium', 'high'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
@@ -41,24 +52,28 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
-  default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
+  default: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
   o: MODEL_SUPPORTED_REASONING_EFFORT.o,
   openai_deep_research: MODEL_SUPPORTED_REASONING_EFFORT.openai_deep_research,
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  gpt5pro: MODEL_SUPPORTED_REASONING_EFFORT.gpt5pro,
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
+  gpt5_1: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1,
+  gpt5_1_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_1_codex,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
-  grok4_fast: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
-  gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
+  grok4_fast: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.grok4_fast] as const,
+  gemini: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
-  qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
+  gemini3: MODEL_SUPPORTED_REASONING_EFFORT.gemini3,
+  qwen: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
-  doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
-  doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
+  doubao: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  doubao_no_auto: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   doubao_after_251015: MODEL_SUPPORTED_REASONING_EFFORT.doubao_after_251015,
-  hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
-  zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
+  hunyuan: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
+  zhipu: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
-  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
+  deepseek_hybrid: ['none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
 } as const
 
 const withModelIdAndNameAsId = <T>(model: Model, fn: (model: Model) => T): { idResult: T; nameResult: T } => {
@@ -75,11 +90,20 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   if (isOpenAIDeepResearchModel(model)) {
     return 'openai_deep_research'
   }
-  if (isGPT5SeriesModel(model)) {
+  if (isGPT51SeriesModel(model)) {
+    if (modelId.includes('codex')) {
+      thinkingModelType = 'gpt5_1_codex'
+    } else {
+      thinkingModelType = 'gpt5_1'
+    }
+  } else if (isGPT5SeriesModel(model)) {
     if (modelId.includes('codex')) {
       thinkingModelType = 'gpt5_codex'
     } else {
       thinkingModelType = 'gpt5'
+      if (isGPT5ProModel(model)) {
+        thinkingModelType = 'gpt5pro'
+      }
     }
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
@@ -90,6 +114,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'gemini'
     } else {
       thinkingModelType = 'gemini_pro'
+    }
+    if (isGemini3Model(model)) {
+      thinkingModelType = 'gemini3'
     }
   } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
   else if (isSupportedThinkingTokenQwenModel(model)) {
@@ -239,11 +266,19 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 
 // Gemini 支持思考模式的模型正则
 export const GEMINI_THINKING_MODEL_REGEX =
-  /gemini-(?:2\.5.*(?:-latest)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
+  /gemini-(?:2\.5.*(?:-latest)?|3(?:\.\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\w-]+)*$/i
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
+    // gemini-3.x 的 image 模型支持思考模式
+    if (isGemini3Model(model)) {
+      if (modelId.includes('tts')) {
+        return false
+      }
+      return true
+    }
+    // gemini-2.x 的 image/tts 模型不支持
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }
@@ -364,6 +399,12 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
 export function isClaude45ReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
   const regex = /claude-(sonnet|opus|haiku)-4(-|.)5(?:-[\w-]+)?$/i
+  return regex.test(modelId)
+}
+
+export function isClaude4SeriesModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:-[\w-]+)?$/i
   return regex.test(modelId)
 }
 
@@ -512,22 +553,6 @@ export function isReasoningModel(model?: Model): boolean {
   }
 
   return REASONING_REGEX.test(modelId) || false
-}
-
-export function isOpenAIReasoningModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
-}
-
-export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return (
-    (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
-    modelId.includes('o3') ||
-    modelId.includes('o4') ||
-    modelId.includes('gpt-oss') ||
-    (isGPT5SeriesModel(model) && !modelId.includes('chat'))
-  )
 }
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {

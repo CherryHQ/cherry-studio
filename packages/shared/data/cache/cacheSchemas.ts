@@ -26,20 +26,6 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'test-hook-memory-1': string
-  'test-ttl-cache': string
-  'test-protected-cache': string
-  'test-deep-equal': { nested: { count: number }; tags: string[] }
-  'test-performance': number
-  'test-multi-hook': string
-  'concurrent-test-1': number
-  'concurrent-test-2': number
-  'large-data-test': Record<string, any>
-  'test-number-cache': number
-  'test-object-cache': { name: string; count: number; active: boolean }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -70,21 +56,7 @@ export const DefaultUseCache: UseCacheSchema = {
   // Topic management
   'topic.active': null,
   'topic.renaming': [],
-  'topic.newly_renamed': [],
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'test-hook-memory-1': 'default-memory-value',
-  'test-ttl-cache': 'test-ttl-cache',
-  'test-protected-cache': 'protected-value',
-  'test-deep-equal': { nested: { count: 0 }, tags: ['initial'] },
-  'test-performance': 0,
-  'test-multi-hook': 'hook-1-default',
-  'concurrent-test-1': 0,
-  'concurrent-test-2': 0,
-  'large-data-test': {},
-  'test-number-cache': 42,
-  'test-object-cache': { name: 'test', count: 0, active: true }
+  'topic.newly_renamed': []
 }
 
 /**
@@ -92,22 +64,10 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type UseSharedCacheSchema = {
   'example-key': string
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'test-hook-shared-1': string
-  'test-multi-hook': string
-  'concurrent-shared': number
 }
 
 export const DefaultUseSharedCache: UseSharedCacheSchema = {
-  'example-key': 'example default value',
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'concurrent-shared': 0,
-  'test-hook-shared-1': 'default-shared-value',
-  'test-multi-hook': 'hook-3-shared'
+  'example-key': 'example default value'
 }
 
 /**
@@ -116,24 +76,10 @@ export const DefaultUseSharedCache: UseSharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'example-key': string
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'example-1': string
-  'example-2': string
-  'example-3': string
-  'example-4': string
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'example-key': 'example default value',
-
-  // Test keys (for dataRefactorTest window)
-  // TODO: remove after testing
-  'example-1': 'example default value',
-  'example-2': 'example default value',
-  'example-3': 'example default value',
-  'example-4': 'example default value'
+  'example-key': 'example default value'
 }
 
 /**

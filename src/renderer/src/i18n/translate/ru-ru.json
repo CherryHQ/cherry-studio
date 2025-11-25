@@ -27,6 +27,18 @@
         "null_id": "ID агента равен null."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Для запуска агентов в Windows требуется Git Bash. Без него агент не может работать. Пожалуйста, установите Git для Windows с",
+        "recheck": "Повторная проверка установки Git Bash",
+        "title": "Требуется Git Bash"
+      },
+      "notFound": "Git Bash не найден. Пожалуйста, сначала установите его.",
+      "success": "Git Bash успешно обнаружен!"
+    },
+    "input": {
+      "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
+    },
     "list": {
       "error": {
         "failed": "Не удалось получить список агентов."
@@ -254,6 +266,7 @@
       "error": {
         "sendFailed": "Не удалось отправить ваше решение. Попробуйте ещё раз."
       },
+      "executing": "Выполнение...",
       "expired": "Истёк",
       "inputPreview": "Предварительный просмотр ввода инструмента",
       "pending": "Ожидание ({{seconds}}с)",
@@ -1146,6 +1159,7 @@
     "name": "Имя",
     "no_results": "Результатов не найдено",
     "none": "без",
+    "off": "Выкл",
     "open": "Открыть",
     "paste": "Вставить",
     "placeholders": {
@@ -1372,6 +1386,36 @@
     "generating": "Генерация",
     "preview": "Предпросмотр",
     "split": "Разделить"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Импорт ChatGPT",
+      "button": "Выбрать файл",
+      "description": "Импортирует только текст переписки, не включает изображения и вложения",
+      "error": {
+        "invalid_json": "Неверный формат файла JSON",
+        "no_conversations": "В файле не найдено ни одной беседы",
+        "no_valid_conversations": "Нет допустимых бесед для импорта",
+        "unknown": "Импорт не удался, проверьте формат файла"
+      },
+      "help": {
+        "step1": "1. Войдите в ChatGPT, перейдите в Настройки > Управление данными > Экспортировать данные",
+        "step2": "2. Дождитесь письма с файлом экспорта",
+        "step3": "3. Распакуйте загруженный файл и найдите conversations.json",
+        "title": "Как экспортировать диалоги с ChatGPT?"
+      },
+      "importing": "Импортирование разговоров...",
+      "selecting": "Выбор файла...",
+      "success": "Успешно импортировано {{topics}} бесед с {{messages}} сообщениями",
+      "title": "Импортировать диалоги ChatGPT",
+      "untitled_conversation": "Безымянный разговор"
+    },
+    "confirm": {
+      "button": "Выберите файл для импорта",
+      "label": "Вы уверены, что хотите импортировать внешние данные?"
+    },
+    "content": "Выберите внешний файл с перепиской для импорта; в настоящее время поддерживаются только файлы в формате JSON ChatGPT",
+    "title": "Импорт внешних бесед"
   },
   "knowledge": {
     "add": {
@@ -2484,6 +2528,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI-шлюз",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2539,7 @@
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
@@ -3080,6 +3126,7 @@
         "basic": "Основные настройки данных",
         "cloud_storage": "Настройки облачного резервирования",
         "export_settings": "Настройки экспорта",
+        "import_settings": "Импорт настроек",
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
@@ -3138,6 +3185,11 @@
       },
       "hour_interval_one": "{{count}} час",
       "hour_interval_other": "{{count}} часов",
+      "import_settings": {
+        "button": "Импортировать файл JSON",
+        "chatgpt": "Импорт из ChatGPT",
+        "title": "Импорт внешних данных приложения"
+      },
       "joplin": {
         "check": {
           "button": "Проверить",
@@ -4209,7 +4261,6 @@
         "default": "По умолчанию",
         "flex": "Гибкий",
         "on_demand": "по требованию",
-        "performance": "производительность",
         "priority": "приоритет",
         "tip": "Указывает уровень задержки, который следует использовать для обработки запроса",
         "title": "Уровень сервиса"
@@ -4341,7 +4392,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию preview"
+          "tip": "Версия API Azure OpenAI. Если вы хотите использовать Response API, введите версию v1"
         }
       },
       "basic_auth": {
@@ -4476,7 +4527,7 @@
       "confirm": "Подтвердить",
       "forward": "Вперед",
       "multiple": "Множественный выбор",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "Результаты не найдены",
       "page": "Страница",
       "select": "Выбрать",
       "title": "Быстрое меню"

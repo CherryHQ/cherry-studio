@@ -104,12 +104,6 @@ const router = express
         logger.warn('No models available from providers', { filter })
       }
 
-      logger.info('Models response ready', {
-        filter,
-        total: response.total,
-        modelIds: response.data.map((m) => m.id)
-      })
-
       return res.json(response satisfies ApiModelsResponse)
     } catch (error: any) {
       logger.error('Error fetching models', { error })

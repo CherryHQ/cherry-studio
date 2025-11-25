@@ -110,7 +110,7 @@ const sdkMessageToProviderMetadata = (message: SDKMessage): ProviderMetadata => 
  * blocks across calls so that incremental deltas can be correlated correctly.
  */
 export function transformSDKMessageToStreamParts(sdkMessage: SDKMessage, state: ClaudeStreamState): AgentStreamPart[] {
-  logger.silly('Transforming SDKMessage', { message: sdkMessage })
+  logger.silly('Transforming SDKMessage', { message: JSON.stringify(sdkMessage) })
   switch (sdkMessage.type) {
     case 'assistant':
       return handleAssistantMessage(sdkMessage, state)
@@ -186,14 +186,13 @@ function handleAssistantMessage(
 
   for (const block of content) {
     switch (block.type) {
-      case 'text':
-        if (!isStreamingActive) {
-          const sanitizedText = stripLocalCommandTags(block.text)
-          if (sanitizedText) {
-            textBlocks.push(sanitizedText)
-          }
+      case 'text': {
+        const sanitizedText = stripLocalCommandTags(block.text)
+        if (sanitizedText) {
+          textBlocks.push(sanitizedText)
         }
         break
+      }
       case 'tool_use':
         handleAssistantToolUse(block as ToolUseContent, providerMetadata, state, chunks)
         break
@@ -203,7 +202,16 @@ function handleAssistantMessage(
     }
   }
 
-  if (!isStreamingActive && textBlocks.length > 0) {
+  if (textBlocks.length === 0) {
+    return chunks
+  }
+
+  const combinedText = textBlocks.join('')
+  if (!combinedText) {
+    return chunks
+  }
+
+  if (!isStreamingActive) {
     const id = message.uuid?.toString() || generateMessageId()
     state.beginStep()
     chunks.push({
@@ -219,7 +227,7 @@ function handleAssistantMessage(
     chunks.push({
       type: 'text-delta',
       id,
-      text: textBlocks.join(''),
+      text: combinedText,
       providerMetadata
     })
     chunks.push({
@@ -230,7 +238,27 @@ function handleAssistantMessage(
     return finalizeNonStreamingStep(message, state, chunks)
   }
 
-  return chunks
+  const existingTextBlock = state.getFirstOpenTextBlock()
+  const fallbackId = existingTextBlock?.id || message.uuid?.toString() || generateMessageId()
+  if (!existingTextBlock) {
+    chunks.push({
+      type: 'text-start',
+      id: fallbackId,
+      providerMetadata
+    })
+  }
+  chunks.push({
+    type: 'text-delta',
+    id: fallbackId,
+    text: combinedText,
+    providerMetadata
+  })
+  chunks.push({
+    type: 'text-end',
+    id: fallbackId,
+    providerMetadata
+  })
+  return finalizeNonStreamingStep(message, state, chunks)
 }
 
 /**
@@ -243,15 +271,16 @@ function handleAssistantToolUse(
   state: ClaudeStreamState,
   chunks: AgentStreamPart[]
 ): void {
+  const toolCallId = state.getNamespacedToolCallId(block.id)
   chunks.push({
     type: 'tool-call',
-    toolCallId: block.id,
+    toolCallId,
     toolName: block.name,
     input: block.input,
     providerExecuted: true,
     providerMetadata
   })
-  state.completeToolBlock(block.id, block.input, providerMetadata)
+  state.completeToolBlock(block.id, block.name, block.input, providerMetadata)
 }
 
 /**
@@ -331,10 +360,11 @@ function handleUserMessage(
     if (block.type === 'tool_result') {
       const toolResult = block as ToolResultContent
       const pendingCall = state.consumePendingToolCall(toolResult.tool_use_id)
+      const toolCallId = pendingCall?.toolCallId ?? state.getNamespacedToolCallId(toolResult.tool_use_id)
       if (toolResult.is_error) {
         chunks.push({
           type: 'tool-error',
-          toolCallId: toolResult.tool_use_id,
+          toolCallId,
           toolName: pendingCall?.toolName ?? 'unknown',
           input: pendingCall?.input,
           error: toolResult.content,
@@ -343,7 +373,7 @@ function handleUserMessage(
       } else {
         chunks.push({
           type: 'tool-result',
-          toolCallId: toolResult.tool_use_id,
+          toolCallId,
           toolName: pendingCall?.toolName ?? 'unknown',
           input: pendingCall?.input,
           output: toolResult.content,
@@ -457,6 +487,9 @@ function handleStreamEvent(
     }
 
     case 'message_stop': {
+      if (!state.hasActiveStep()) {
+        break
+      }
       const pending = state.getPendingUsage()
       chunks.push({
         type: 'finish-step',
@@ -514,7 +547,7 @@ function handleContentBlockStart(
     }
     case 'tool_use': {
       const block = state.openToolBlock(index, {
-        toolCallId: contentBlock.id,
+        rawToolCallId: contentBlock.id,
         toolName: contentBlock.name,
         providerMetadata
       })

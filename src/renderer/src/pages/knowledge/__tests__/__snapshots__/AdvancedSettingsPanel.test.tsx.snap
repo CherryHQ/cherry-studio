@@ -26,6 +26,48 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
+      文档预处理
+      <div>
+        settings.tool.preprocess.tooltip
+      </div>
+    </div>
+    <select
+      data-testid="select"
+    >
+      <option
+        value=""
+      >
+        settings.tool.preprocess.provider_placeholder
+      </option>
+    </select>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      重排模型
+      <div>
+        models.rerank_model_tooltip
+      </div>
+    </div>
+    <select
+      data-testid="model-selector"
+    >
+      <option
+        value=""
+      >
+        未选择
+      </option>
+    </select>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
       分块大小
       <div />
     </div>

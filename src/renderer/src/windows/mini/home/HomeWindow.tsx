@@ -285,7 +285,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         await fetchChatCompletion({
           messages: modelMessages,
           assistant: newAssistant,
-          options: {},
+          requestOptions: {},
           topicId,
           uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {

@@ -97,6 +97,7 @@ export type ReasoningEffortOptionalParams = {
       }
     }
   }
+  disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist
 }
 
@@ -124,6 +125,10 @@ export type OpenAIExtraBody = {
   translation_options?: {
     source_lang: 'auto'
     target_lang: string
+  }
+  // for gpt-5 series models verbosity control
+  text?: {
+    verbosity?: 'low' | 'medium' | 'high'
   }
 }
 // image is for openrouter. audio is ignored for now

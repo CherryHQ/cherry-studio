@@ -144,6 +144,9 @@ export class PreferenceService {
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
 
+  // Saves the reference to the cleanup interval
+  private cleanupInterval: NodeJS.Timeout | null = null
+
   private constructor() {
     this.setupWindowCleanup()
   }
@@ -501,8 +504,9 @@ export class PreferenceService {
       }
     }
 
-    // Run cleanup periodically (every 30 seconds)
-    setInterval(cleanup, 30000)
+    // Run cleanup periodically (every 5 minutes)
+    this.cleanupInterval = setInterval(cleanup, 300 * 1000)
+    this.cleanupInterval.unref()
   }
 
   /**
@@ -523,6 +527,22 @@ export class PreferenceService {
    */
   public getSubscriptions(): Map<number, Set<string>> {
     return new Map(this.subscriptions)
+  }
+
+  /**
+   * Public cleanup method (for app shutdown or test teardown)
+   */
+  public cleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
+      this.cleanupInterval = null
+    }
+
+    this.notifier.removeAllSubscriptions()
+    this.subscriptions.clear()
+    this.initialized = false
+
+    logger.debug('PreferenceService cleanup completed')
   }
 
   /**

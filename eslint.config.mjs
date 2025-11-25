@@ -140,7 +140,7 @@ export default defineConfig([
   {
     // Component Rules - prevent importing antd components when migration completed
     files: ['**/*.{ts,tsx,js,jsx}'],
-    ignores: ['src/renderer/src/windows/dataRefactorTest/**/*.{ts,tsx}'],
+    ignores: [],
     rules: {
       // 'no-restricted-imports': [
       //   'error',

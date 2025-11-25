@@ -123,9 +123,9 @@ export function useAssistant(id: string) {
           }
 
           updateAssistantSettings({
-            reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
-            reasoning_effort_cache: fallbackOption === 'off' ? undefined : fallbackOption,
-            qwenThinkMode: fallbackOption === 'off' ? undefined : true
+            reasoning_effort: fallbackOption === 'none' ? undefined : fallbackOption,
+            reasoning_effort_cache: fallbackOption === 'none' ? undefined : fallbackOption,
+            qwenThinkMode: fallbackOption === 'none' ? undefined : true
           })
         } else {
           // 对于支持的选项, 不再更新 cache.

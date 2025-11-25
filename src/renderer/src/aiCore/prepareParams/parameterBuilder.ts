@@ -4,22 +4,24 @@
  */
 
 import { anthropic } from '@ai-sdk/anthropic'
+import { azure } from '@ai-sdk/azure'
 import { google } from '@ai-sdk/google'
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
-import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import { combineHeaders } from '@ai-sdk/provider-utils'
+import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
+  isAnthropicModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
@@ -32,10 +34,9 @@ import { stepCountIs } from 'ai'
 import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
-import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
-import { supportsTopP } from './modelCapabilities'
-import { getTemperature, getTopP } from './modelParameters'
+import { addAnthropicHeaders } from './header'
+import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
 
@@ -58,7 +59,7 @@ export async function buildStreamTextParams(
       timeout?: number
       headers?: Record<string, string>
     }
-  } = {}
+  }
 ): Promise<{
   params: StreamTextParams
   modelId: string
@@ -74,8 +75,6 @@ export async function buildStreamTextParams(
 
   const model = assistant.model || getDefaultModel()
   const aiSdkProviderId = getAiSdkProviderId(provider)
-
-  let { maxTokens } = getAssistantSettings(assistant)
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
@@ -113,16 +112,6 @@ export async function buildStreamTextParams(
     enableGenerateImage
   })
 
-  // NOTE: ai-sdk会把maxToken和budgetToken加起来
-  if (
-    enableReasoning &&
-    maxTokens !== undefined &&
-    isSupportedThinkingTokenClaudeModel(model) &&
-    (provider.type === 'anthropic' || provider.type === 'aws-bedrock')
-  ) {
-    maxTokens -= getAnthropicThinkingBudget(assistant, model)
-  }
-
   let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
     if (isBaseProvider(aiSdkProviderId)) {
@@ -139,6 +128,17 @@ export async function buildStreamTextParams(
         maxUses: webSearchConfig.maxResults,
         blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'azure-responses') {
+      tools.web_search_preview = azure.tools.webSearchPreview({
+        searchContextSize: webSearchPluginConfig?.openai!.searchContextSize
+      }) as ProviderDefinedTool
+    } else if (aiSdkProviderId === 'azure-anthropic') {
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
+      const anthropicSearchOptions: AnthropicSearchConfig = {
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
+      }
+      tools.web_search = anthropic.tools.webSearch_20250305(anthropicSearchOptions) as ProviderDefinedTool
     }
   }
 
@@ -156,9 +156,10 @@ export async function buildStreamTextParams(
         tools.url_context = google.tools.urlContext({}) as ProviderDefinedTool
         break
       case 'anthropic':
+      case 'azure-anthropic':
       case 'google-vertex-anthropic':
         tools.web_fetch = (
-          aiSdkProviderId === 'anthropic'
+          ['anthropic', 'azure-anthropic'].includes(aiSdkProviderId)
             ? anthropic.tools.webFetch_20250910({
                 maxUses: webSearchConfig.maxResults,
                 blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
@@ -172,20 +173,24 @@ export async function buildStreamTextParams(
     }
   }
 
+  let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
+
+  if (isAnthropicModel(model)) {
+    const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
+    headers = combineHeaders(headers, newBetaHeaders)
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
-    maxOutputTokens: maxTokens,
+    maxOutputTokens: getMaxTokens(assistant, model),
     temperature: getTemperature(assistant, model),
+    topP: getTopP(assistant, model),
     abortSignal: options.requestOptions?.signal,
-    headers: options.requestOptions?.headers,
+    headers,
     providerOptions,
     stopWhen: stepCountIs(20),
     maxRetries: 0
-  }
-
-  if (supportsTopP(model)) {
-    params.topP = getTopP(assistant, model)
   }
 
   if (tools) {
