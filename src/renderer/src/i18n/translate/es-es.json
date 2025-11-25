@@ -3771,6 +3771,9 @@
       },
       "view_webdav_settings": "Ver configuración WebDAV"
     },
+    "groq": {
+      "title": "Configuración de Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "La desactivación de la aceleración por hardware requiere reiniciar la aplicación para que surta efecto, ¿desea reiniciar ahora?",
@@ -4357,6 +4360,10 @@
           "stream_options": {
             "help": "¿Admite el proveedor el parámetro stream_options?",
             "label": "Admite stream_options"
+          },
+          "verbosity": {
+            "help": "Si el proveedor admite el parámetro de verbosidad",
+            "label": "Soporte de verbosidad"
           }
         },
         "url": {

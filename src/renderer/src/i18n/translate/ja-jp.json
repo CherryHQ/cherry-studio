@@ -3771,6 +3771,9 @@
       },
       "view_webdav_settings": "WebDAV設定を表示"
     },
+    "groq": {
+      "title": "Groq設定"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？",
@@ -4357,6 +4360,10 @@
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
+          },
+          "verbosity": {
+            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
+            "label": "冗長性のサポート"
           }
         },
         "url": {

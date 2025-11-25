@@ -3771,6 +3771,9 @@
       },
       "view_webdav_settings": "WebDAV-Einstellungen anzeigen"
     },
+    "groq": {
+      "title": "Groq Einstellungen"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Deaktivierung der Hardwarebeschleunigung erfordert Neustart. Jetzt neu starten?",
@@ -4357,6 +4360,10 @@
           "stream_options": {
             "help": "Unterstützt stream_options",
             "label": "Unterstützt stream_options"
+          },
+          "verbosity": {
+            "help": "Ob der Anbieter den Ausführlichkeitsparameter unterstützt",
+            "label": "Unterstützung der Ausführlichkeit"
           }
         },
         "url": {
