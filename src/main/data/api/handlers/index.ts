@@ -5,6 +5,7 @@
  * TypeScript will error if any endpoint is missing.
  */
 
+import { appStateService } from '@data/services/AppStateService'
 import { TestService } from '@data/services/TestService'
 import type { ApiImplementation } from '@shared/data/api/apiSchemas'
 
@@ -16,6 +17,18 @@ const testService = TestService.getInstance()
  * Must implement every path+method combination from ApiSchemas
  */
 export const apiHandlers: ApiImplementation = {
+  '/app/state/:key': {
+    GET: async ({ params }) => {
+      const state = await appStateService.getState(params.key)
+      return state
+    },
+
+    PUT: async ({ params, body }) => {
+      await appStateService.setState(params.key, body)
+      return { success: true }
+    }
+  },
+
   '/test/items': {
     GET: async ({ query }) => {
       return await testService.getItems({

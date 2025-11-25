@@ -26,6 +26,9 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
+
+  // UI State
+  'ui.activeTabId': string
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -56,7 +59,10 @@ export const DefaultUseCache: UseCacheSchema = {
   // Topic management
   'topic.active': null,
   'topic.renaming': [],
-  'topic.newly_renamed': []
+  'topic.newly_renamed': [],
+
+  // UI State
+  'ui.activeTabId': ''
 }
 
 /**
