@@ -44,7 +44,9 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        models.embedding_model_tooltip
+      </span>
     </div>
     <select
       data-has-providers="true"
@@ -78,7 +80,9 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        knowledge.dimensions_size_tooltip
+      </span>
     </div>
     <input
       data-model="text-embedding-3-small"
@@ -97,15 +101,17 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       <span
         data-placement="right"
         data-testid="info-tooltip"
-      />
+      >
+        knowledge.document_count_help
+      </span>
     </div>
     <input
-      data-marks="{"1":"1","6":"knowledge.document_count_default","30":"30","50":"50"}"
+      data-classname="w-[97%]"
+      data-marks="[{"value":1,"label":"1"},{"value":6,"label":"knowledge.document_count_default"},{"value":30,"label":"30"},{"value":50,"label":"50"}]"
       data-testid="document-count-slider"
       max="50"
       min="1"
       step="1"
-      style="width: 97%;"
       type="range"
       value="6"
     />

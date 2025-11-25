@@ -30,11 +30,30 @@ const mocks = vi.hoisted(() => ({
 
 // Mock InfoTooltip component
 vi.mock('@cherrystudio/ui', () => ({
-  InfoTooltip: ({ title, placement }: { title: string; placement: string }) => (
+  InfoTooltip: ({ content, placement }: { content: string; placement: string }) => (
     <span data-testid="info-tooltip" data-placement={placement}>
-      {title}
+      {content}
     </span>
-  )
+  ),
+  Slider: ({ value = [0], onValueChange, min, max, step, marks, className }: any) => {
+    const sliderValue = Array.isArray(value) ? value[0] : value
+    const isDocumentSlider = Array.isArray(marks) && marks.some((mark) => mark.label === 'knowledge.document_count_default')
+    const testId = isDocumentSlider ? 'document-count-slider' : 'slider'
+
+    return (
+      <input
+        data-testid={testId}
+        type="range"
+        value={sliderValue}
+        onChange={(e) => onValueChange?.([Number(e.target.value)])}
+        min={min}
+        max={max}
+        step={step}
+        data-marks={JSON.stringify(marks)}
+        data-classname={className}
+      />
+    )
+  }
 }))
 
 // Mock ModelSelector component
