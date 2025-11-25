@@ -86,7 +86,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             apiOptions: { ...provider.apiOptions, isNotSupportVerbosity: !checked }
           })
         },
-        checked: !provider.apiOptions?.isNotSupportEnableThinking
+        checked: !provider.apiOptions?.isNotSupportVerbosity
       }
     ],
     [t, provider, updateProviderTransition]
