@@ -10,6 +10,7 @@ import {
   SelectValue,
   Switch
 } from '@cherrystudio/ui'
+import { Slider } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -35,7 +36,6 @@ import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { MultiModelMessageStyle, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Slider } from '@cherrystudio/ui'
 import { Col, InputNumber, Row } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'

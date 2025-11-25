@@ -174,7 +174,9 @@ function Slider({
   }
 
   return (
-    <div data-slot="slider-container" className={cn('relative', isVertical ? 'flex h-full items-stretch' : '', className)}>
+    <div
+      data-slot="slider-container"
+      className={cn('relative', isVertical ? 'flex h-full items-stretch' : '', className)}>
       {sliderElement}
       <div
         data-slot="slider-marks"
