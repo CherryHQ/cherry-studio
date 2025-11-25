@@ -95,7 +95,16 @@ function getVerbosity(model: Model): OpenAIVerbosity {
     return undefined
   }
   const openAI = getStoreSetting('openAI')
-  return openAI.verbosity
+
+  const userVerbosity = openAI.verbosity
+
+  if (userVerbosity) {
+    const supportedVerbosity = getModelSupportedVerbosity(model)
+    // Use user's verbosity if supported, otherwise use the first supported option
+    const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+    return verbosity
+  }
+  return undefined
 }
 
 /**
@@ -133,7 +142,8 @@ export function buildProviderOptions(
             assistant,
             model,
             capabilities,
-            serviceTier
+            serviceTier,
+            textVerbosity
           )
           providerSpecificOptions = options
         }
@@ -166,7 +176,8 @@ export function buildProviderOptions(
           model,
           capabilities,
           actualProvider,
-          serviceTier
+          serviceTier,
+          textVerbosity
         )
         break
       default:
@@ -239,7 +250,8 @@ function buildOpenAIProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   },
-  serviceTier: OpenAIServiceTier
+  serviceTier: OpenAIServiceTier,
+  textVerbosity?: OpenAIVerbosity
 ): OpenAIResponsesProviderOptions {
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
@@ -252,25 +264,10 @@ function buildOpenAIProviderOptions(
     }
   }
 
-  if (isSupportVerbosityModel(model)) {
-    const openAI = getStoreSetting<'openAI'>('openAI')
-    const userVerbosity = openAI?.verbosity
-
-    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
-      const supportedVerbosity = getModelSupportedVerbosity(model)
-      // Use user's verbosity if supported, otherwise use the first supported option
-      const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
-
-      providerOptions = {
-        ...providerOptions,
-        textVerbosity: verbosity
-      }
-    }
-  }
-
   providerOptions = {
     ...providerOptions,
-    serviceTier
+    serviceTier,
+    textVerbosity
   }
 
   return providerOptions
@@ -369,11 +366,12 @@ function buildCherryInProviderOptions(
     enableGenerateImage: boolean
   },
   actualProvider: Provider,
-  serviceTier: OpenAIServiceTier
+  serviceTier: OpenAIServiceTier,
+  textVerbosity: OpenAIVerbosity
 ): OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions {
   switch (actualProvider.type) {
     case 'openai':
-      return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
+      return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
 
     case 'anthropic':
       return buildAnthropicProviderOptions(assistant, model, capabilities)
