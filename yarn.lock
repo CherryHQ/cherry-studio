@@ -278,7 +278,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/provider-utils@npm:3.0.17, @ai-sdk/provider-utils@npm:^3.0.10, @ai-sdk/provider-utils@npm:^3.0.17":
+"@ai-sdk/provider-utils@npm:3.0.17":
   version: 3.0.17
   resolution: "@ai-sdk/provider-utils@npm:3.0.17"
   dependencies:
@@ -288,6 +288,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/1bae6dc4cacd0305b6aa152f9589bbd61c29f150155482c285a77f83d7ed416d52bc2aa7fdaba2e5764530392d9e8f799baea34a63dce6c72ecd3de364dc62d1
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider-utils@patch:@ai-sdk/provider-utils@npm%3A3.0.17#~/.yarn/patches/@ai-sdk-provider-utils-npm-3.0.17-be8b9c7f47.patch":
+  version: 3.0.17
+  resolution: "@ai-sdk/provider-utils@patch:@ai-sdk/provider-utils@npm%3A3.0.17#~/.yarn/patches/@ai-sdk-provider-utils-npm-3.0.17-be8b9c7f47.patch::version=3.0.17&hash=58c31c"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@standard-schema/spec": "npm:^1.0.0"
+    eventsource-parser: "npm:^3.0.6"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/58055b940062040fb1d4d8e557d6c55712b6e93e5c619688953e4c1c8b1cb3e4e674f0bbcb2d33b07210cf48fee85cf51df4dd65362a93cc8b60221567313974
   languageName: node
   linkType: hard
 
@@ -1808,7 +1821,7 @@ __metadata:
     "@ai-sdk/deepseek": "npm:^1.0.29"
     "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch"
     "@ai-sdk/provider": "npm:^2.0.0"
-    "@ai-sdk/provider-utils": "npm:^3.0.17"
+    "@ai-sdk/provider-utils": "patch:@ai-sdk/provider-utils@npm%3A3.0.17#~/.yarn/patches/@ai-sdk-provider-utils-npm-3.0.17-be8b9c7f47.patch"
     "@ai-sdk/xai": "npm:^2.0.34"
     tsdown: "npm:^0.12.9"
     typescript: "npm:^5.0.0"
@@ -1827,7 +1840,7 @@ __metadata:
   resolution: "@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider"
   dependencies:
     "@ai-sdk/provider": "npm:^2.0.0"
-    "@ai-sdk/provider-utils": "npm:^3.0.17"
+    "@ai-sdk/provider-utils": "patch:@ai-sdk/provider-utils@npm%3A3.0.17#~/.yarn/patches/@ai-sdk-provider-utils-npm-3.0.17-be8b9c7f47.patch"
     tsdown: "npm:^0.13.3"
     typescript: "npm:^5.8.2"
     vitest: "npm:^3.2.4"
