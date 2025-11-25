@@ -38,6 +38,14 @@ export type SelectionActionItem = {
   searchEngine?: string
 }
 
+export type BuiltinActionItemId = 'translate' | 'explain' | 'summary' | 'search' | 'copy' | 'refine' | 'quote'
+
+export interface SelectionBuiltinActionItem extends SelectionActionItem {
+  id: BuiltinActionItemId
+  isBuiltIn: true
+  assistantId?: never
+}
+
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
