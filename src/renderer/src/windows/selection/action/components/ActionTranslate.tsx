@@ -17,7 +17,6 @@ import { detectLanguage } from '@renderer/utils/translate'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
-import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,7 +30,7 @@ interface Props {
 
 const logger = loggerService.withContext('ActionTranslate')
 
-const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
+const ActionTranslate = ({ action, scrollToBottom }: Props) => {
   const { t } = useTranslation()
 
   const [language] = usePreference('app.language')
