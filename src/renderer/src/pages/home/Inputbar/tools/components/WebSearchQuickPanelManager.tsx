@@ -19,6 +19,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
+import { isPromptToolUse } from '@renderer/utils/mcp-tools'
 import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -128,7 +129,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
     const items: QuickPanelListItem[] = []
-    if (isFunctionCallingModel(assistant.model)) {
+    if (isFunctionCallingModel(assistant.model) || isPromptToolUse(assistant)) {
       items.push(
         ...providers
           .map((p) => ({
