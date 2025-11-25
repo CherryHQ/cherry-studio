@@ -156,7 +156,7 @@ export default class ModernAiProvider {
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     // ai-gateway不是image/generation 端点，所以就先不走legacy了
-    if (config.isImageGenerationEndpoint && config.provider!.id !== SystemProviderIds['ai-gateway']) {
+    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds['ai-gateway']) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
