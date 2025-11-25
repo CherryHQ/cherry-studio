@@ -57,8 +57,8 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     !model.id.includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
   const isSupportVerbosity = isSupportVerbosityModel(model)
+  const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
-  const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)
 
   const setSummaryText = useCallback(
     (value: OpenAISummaryText) => {
@@ -171,11 +171,11 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     }
     return options.filter((option) => {
       if (option.value === 'flex') {
-        return isSupportedFlexServiceTier
+        return isSupportFlexServiceTier
       }
       return true
     })
-  }, [isSupportedFlexServiceTier, provider.id, t])
+  }, [isSupportFlexServiceTier, provider.id, t])
 
   useEffect(() => {
     if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {

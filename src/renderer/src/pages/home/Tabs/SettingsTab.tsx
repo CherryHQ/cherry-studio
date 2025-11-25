@@ -56,6 +56,7 @@ import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from 
 import { ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -181,7 +182,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   const model = assistant.model || getDefaultModel()
 
-  const isOpenAI = isOpenAIModel(model)
+  const showOpenAiSettings = isOpenAIModel(model) || isSupportServiceTierProvider(provider)
 
   return (
     <Container className="settings-tab">
@@ -332,7 +333,7 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingGroup>
         </CollapsibleSettingGroup>
       )}
-      {isOpenAI && (
+      {showOpenAiSettings && (
         <OpenAISettingsGroup
           model={model}
           providerId={provider.id}
