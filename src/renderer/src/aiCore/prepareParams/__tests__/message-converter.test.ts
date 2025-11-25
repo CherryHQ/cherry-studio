@@ -181,6 +181,10 @@ describe('messageConverter', () => {
 
       expect(result).toEqual([
         {
+          role: 'user',
+          content: [{ type: 'text', text: 'Start editing' }]
+        },
+        {
           role: 'assistant',
           content: [{ type: 'text', text: 'Here is the current preview' }]
         },
@@ -217,6 +221,7 @@ describe('messageConverter', () => {
 
       expect(result).toEqual([
         { role: 'system', content: 'fileid://reference' },
+        { role: 'user', content: [{ type: 'text', text: 'Use this document as inspiration' }] },
         {
           role: 'assistant',
           content: [{ type: 'text', text: 'Generated previews ready' }]

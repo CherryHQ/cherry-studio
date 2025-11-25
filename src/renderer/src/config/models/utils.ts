@@ -156,7 +156,12 @@ export const isMaxTemperatureOneModel = (model: Model): boolean => {
   return false
 }
 
+export const isGemini3Model = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gemini-3')
+}
+
 export const isGemini3ThinkingTokenModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gemini-3') && !modelId.includes('image')
+  return isGemini3Model(model) && !modelId.includes('image')
 }

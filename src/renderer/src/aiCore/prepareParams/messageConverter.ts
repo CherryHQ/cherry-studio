@@ -221,27 +221,24 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
   }
   // Special handling for image enhancement models
   // Only merge images into the user message
-  // [system?, user]
+  // [system?, assistant(image), user] -> [system?, assistant, user(image)]
   if (isImageEnhancementModel(model) && messages.length >= 3) {
     const needUpdatedMessages = messages.slice(-2)
-    const needUpdatedSdkMessages = sdkMessages.slice(-2)
-    const assistantMessage = needUpdatedMessages.filter((m) => m.role === 'assistant')[0]
-    const userSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'user')[0]
-    const systemSdkMessages = sdkMessages.filter((m) => m.role === 'system')
-    const imageBlocks = findImageBlocks(assistantMessage)
-    const imageParts = await convertImageBlockToImagePart(imageBlocks)
-    const parts: Array<TextPart | ImagePart | FilePart> = []
-    if (typeof userSdkMessage.content === 'string') {
-      parts.push({ type: 'text', text: userSdkMessage.content })
-      parts.push(...imageParts)
-      userSdkMessage.content = parts
-    } else {
-      userSdkMessage.content.push(...imageParts)
+    const assistantMessage = needUpdatedMessages.find((m) => m.role === 'assistant')
+    const userSdkMessage = sdkMessages[sdkMessages.length - 1]
+
+    if (assistantMessage && userSdkMessage?.role === 'user') {
+      const imageBlocks = findImageBlocks(assistantMessage)
+      const imageParts = await convertImageBlockToImagePart(imageBlocks)
+
+      if (imageParts.length > 0) {
+        if (typeof userSdkMessage.content === 'string') {
+          userSdkMessage.content = [{ type: 'text', text: userSdkMessage.content }, ...imageParts]
+        } else if (Array.isArray(userSdkMessage.content)) {
+          userSdkMessage.content.push(...imageParts)
+        }
+      }
     }
-    if (systemSdkMessages.length > 0) {
-      return [systemSdkMessages[0], userSdkMessage]
-    }
-    return [userSdkMessage]
   }
 
   return sdkMessages
