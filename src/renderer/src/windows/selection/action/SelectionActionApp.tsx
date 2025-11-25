@@ -229,7 +229,7 @@ const SelectionActionApp: FC = () => {
         )}
         <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
         {model !== undefined && (
-          <span className="text-muted-foreground">
+          <span className="truncate text-muted-foreground">
             {getProviderNameById(model.provider)} | {model.name}
           </span>
         )}
