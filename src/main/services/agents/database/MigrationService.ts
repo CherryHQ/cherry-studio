@@ -52,7 +52,7 @@ export class MigrationService {
 
       // Get applied migrations
       const appliedMigrations = hasMigrationsTable ? await this.getAppliedMigrations() : []
-      const appliedVersions = new Set(appliedMigrations.map((m) => Number(m.version)))
+      const appliedByVersion = new Map(appliedMigrations.map((m) => [Number(m.version), m.tag]))
 
       const latestAppliedVersion = appliedMigrations.reduce(
         (max, migration) => Math.max(max, Number(migration.version)),
@@ -62,10 +62,35 @@ export class MigrationService {
 
       logger.info(`Latest applied migration: v${latestAppliedVersion}, latest available: v${latestJournalVersion}`)
 
-      // Find pending migrations (compare journal idx with stored version, which is the same value)
-      const pendingMigrations = journal.entries
-        .filter((entry) => !appliedVersions.has(entry.idx))
-        .sort((a, b) => a.idx - b.idx)
+      // Find pending migrations and tag mismatches
+      const pendingMigrations: MigrationJournal['entries'] = []
+      const mismatchedMigrations: Array<{ entry: MigrationJournal['entries'][0]; appliedTag: string }> = []
+
+      for (const entry of journal.entries) {
+        const appliedTag = appliedByVersion.get(entry.idx)
+        if (appliedTag === undefined) {
+          // Migration not applied yet
+          pendingMigrations.push(entry)
+        } else if (appliedTag !== entry.tag) {
+          // Migration tag mismatch - different migration was applied for this version
+          mismatchedMigrations.push({ entry, appliedTag })
+        }
+      }
+
+      // Handle tag mismatches by re-applying the correct migration
+      if (mismatchedMigrations.length > 0) {
+        for (const { entry, appliedTag } of mismatchedMigrations) {
+          logger.warn(
+            `Migration tag mismatch for version ${entry.idx}: ` +
+              `applied "${appliedTag}", expected "${entry.tag}". Will re-apply correct migration.`
+          )
+          // Add to pending so it gets executed
+          pendingMigrations.push(entry)
+        }
+      }
+
+      // Sort pending migrations by idx
+      pendingMigrations.sort((a, b) => a.idx - b.idx)
 
       if (pendingMigrations.length === 0) {
         logger.info('Database is up to date')
@@ -149,7 +174,14 @@ export class MigrationService {
         throw new Error('Migrations table missing after executing migration; cannot record progress')
       }
 
-      await this.db.insert(migrations).values(newMigration)
+      // Use upsert to handle tag mismatch case (same version, different tag)
+      await this.db
+        .insert(migrations)
+        .values(newMigration)
+        .onConflictDoUpdate({
+          target: migrations.version,
+          set: { tag: migration.tag, executedAt: Date.now() }
+        })
 
       const executionTime = Date.now() - startTime
       logger.info(`Migration ${migration.tag} completed in ${executionTime}ms`)
