@@ -12,7 +12,7 @@ import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
-import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
+import { OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
 import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import { Tooltip } from 'antd'
@@ -56,7 +56,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const showVerbositySetting = isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
-  const showServiceTierSetting = isSupportFlexServiceTier && providerId !== SystemProviderIds.groq
+  const showServiceTierSetting = isSupportServiceTier && providerId !== SystemProviderIds.groq
 
   const setSummaryText = useCallback(
     (value: OpenAISummaryText) => {
@@ -150,11 +150,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   useEffect(() => {
     if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
-      if (provider.id === SystemProviderIds.groq) {
-        setServiceTierMode(GroqServiceTiers.on_demand)
-      } else {
-        setServiceTierMode(OpenAIServiceTiers.auto)
-      }
+      setServiceTierMode(OpenAIServiceTiers.auto)
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
 

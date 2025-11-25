@@ -4,7 +4,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { GroqServiceTier, Model, ServiceTier } from '@renderer/types'
-import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
+import { GroqServiceTiers, SystemProviderIds } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
@@ -67,11 +67,7 @@ const GroqSettingsGroup: FC<Props> = ({ model, SettingGroup, SettingRowTitleSmal
 
   useEffect(() => {
     if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
-      if (provider.id === SystemProviderIds.groq) {
-        setServiceTierMode(GroqServiceTiers.on_demand)
-      } else {
-        setServiceTierMode(OpenAIServiceTiers.auto)
-      }
+      setServiceTierMode(GroqServiceTiers.on_demand)
     }
   }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
 
