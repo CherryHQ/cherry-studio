@@ -4357,6 +4357,10 @@
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
+          },
+          "verbosity": {
+            "help": "该提供商是否支持 verbosity 参数",
+            "label": "支持 verbosity"
           }
         },
         "url": {
