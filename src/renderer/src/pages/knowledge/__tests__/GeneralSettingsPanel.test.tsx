@@ -37,7 +37,8 @@ vi.mock('@cherrystudio/ui', () => ({
   ),
   Slider: ({ value = [0], onValueChange, min, max, step, marks, className }: any) => {
     const sliderValue = Array.isArray(value) ? value[0] : value
-    const isDocumentSlider = Array.isArray(marks) && marks.some((mark) => mark.label === 'knowledge.document_count_default')
+    const isDocumentSlider =
+      Array.isArray(marks) && marks.some((mark) => mark.label === 'knowledge.document_count_default')
     const testId = isDocumentSlider ? 'document-count-slider' : 'slider'
 
     return (
