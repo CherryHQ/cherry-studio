@@ -60,14 +60,3 @@ export type AiSdkParam = z.infer<typeof AiSdkParamsSchema>
 export const isAiSdkParam = (param: string): param is AiSdkParam => {
   return AiSdkParamsSchema.safeParse(param).success
 }
-
-export const AiSdkParams = {
-  maxOutputTokens: 'maxOutputTokens',
-  temperature: 'temperature',
-  topP: 'topP',
-  topK: 'topK',
-  presencePenalty: 'presencePenalty',
-  frequencyPenalty: 'frequencyPenalty',
-  stopSequences: 'stopSequences',
-  seed: 'seed'
-} as const satisfies Record<AiSdkParam, AiSdkParam>
