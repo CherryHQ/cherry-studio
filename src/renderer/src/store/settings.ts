@@ -376,7 +376,7 @@ export const initialState: SettingsState = {
   openAI: {
     summaryText: 'auto',
     serviceTier: 'auto',
-    verbosity: 'medium'
+    verbosity: undefined
   },
   notification: {
     assistant: false,
