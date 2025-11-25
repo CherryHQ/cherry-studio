@@ -1,10 +1,9 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Slider } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,16 +112,17 @@ const MiniAppSettings: FC = () => {
               </ResetButton>
             </Tooltip>
             <Slider
+              className="flex-1"
               min={1}
               max={10}
-              value={maxKeepAliveMinapps}
-              onChange={handleCacheChange}
-              marks={{
-                1: '1',
-                5: '5',
-                10: 'Max'
-              }}
-              tooltip={{ formatter: (value) => `${value}` }}
+              value={[maxKeepAliveMinapps]}
+              onValueChange={(values) => handleCacheChange(values[0])}
+              marks={[
+                { value: 1, label: '1' },
+                { value: 5, label: '5' },
+                { value: 10, label: 'Max' }
+              ]}
+              showValueLabel
             />
           </SliderWithResetContainer>
         </CacheSettingControls>

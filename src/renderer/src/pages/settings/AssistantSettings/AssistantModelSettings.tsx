@@ -1,4 +1,5 @@
 import { Button, HelpTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Slider } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
@@ -11,7 +12,7 @@ import { SettingRow } from '@renderer/pages/settings'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Col, Divider, Input, InputNumber, Row, Select, Slider } from 'antd'
+import { Col, Divider, Input, InputNumber, Row, Select } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -200,11 +201,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value.toString()
-  }
-
   return (
     <Container>
       <RowFlex className="mb-2.5 items-center justify-between">
@@ -253,11 +249,16 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Slider
               min={0}
               max={2}
-              onChange={setTemperature}
-              onChangeComplete={onTemperatureChange}
-              value={typeof temperature === 'number' ? temperature : 0}
-              marks={{ 0: '0', 0.7: '0.7', 2: '2' }}
+              onValueChange={(values) => setTemperature(values[0])}
+              onValueCommit={(values) => onTemperatureChange(values[0])}
+              value={[typeof temperature === 'number' ? temperature : 0]}
+              marks={[
+                { value: 0, label: '0' },
+                { value: 0.7, label: '0.7' },
+                { value: 2, label: '2' }
+              ]}
               step={0.01}
+              showValueLabel
             />
           </Col>
           <Col span={4}>
@@ -302,11 +303,15 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Slider
               min={0}
               max={1}
-              onChange={setTopP}
-              onChangeComplete={onTopPChange}
-              value={typeof topP === 'number' ? topP : 1}
-              marks={{ 0: '0', 1: '1' }}
+              onValueChange={(values) => setTopP(values[0])}
+              onValueCommit={(values) => onTopPChange(values[0])}
+              value={[typeof topP === 'number' ? topP : 1]}
+              marks={[
+                { value: 0, label: '0' },
+                { value: 1, label: '1' }
+              ]}
               step={0.01}
+              showValueLabel
             />
           </Col>
           <Col span={4}>
@@ -362,12 +367,18 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Slider
             min={0}
             max={MAX_CONTEXT_COUNT}
-            onChange={setContextCount}
-            onChangeComplete={onContextCountChange}
-            value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
+            onValueChange={(values) => setContextCount(values[0])}
+            onValueCommit={(values) => onContextCountChange(values[0])}
+            value={[typeof contextCount === 'number' ? contextCount : 0]}
+            marks={[
+              { value: 0, label: '0' },
+              { value: 25, label: '25' },
+              { value: 50, label: '50' },
+              { value: 75, label: '75' },
+              { value: 100, label: t('chat.settings.max') }
+            ]}
             step={1}
-            tooltip={{ formatter: formatSliderTooltip, open: false }}
+            showValueLabel
           />
         </Col>
       </Row>

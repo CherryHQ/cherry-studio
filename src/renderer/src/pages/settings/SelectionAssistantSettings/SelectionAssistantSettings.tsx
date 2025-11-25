@@ -1,4 +1,4 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Radio, RadioGroup } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
@@ -6,7 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Row, Slider } from 'antd'
+import { Row } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -206,16 +206,19 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
               </SettingLabel>
-              <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
-                style={{ width: 100 }}
+                className="w-[120px]"
                 min={20}
                 max={100}
-                reverse
-                value={opacityValue}
-                onChange={setOpacityValue}
-                onChangeComplete={setActionWindowOpacity}
-                tooltip={{ open: false }}
+                value={[opacityValue]}
+                onValueChange={(values) => setOpacityValue(values[0])}
+                onValueCommit={(values) => setActionWindowOpacity(values[0])}
+                marks={[
+                  { value: 20, label: '20%' },
+                  { value: 100, label: '100%' }
+                ]}
+                showValueLabel
+                formatValueLabel={(v) => `${v}%`}
               />
             </SettingRow>
           </SettingGroup>

@@ -1,4 +1,4 @@
-import { InfoTooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Slider } from '@cherrystudio/ui'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
@@ -6,7 +6,7 @@ import { isEmbeddingModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase } from '@renderer/types'
-import { Input, Slider } from 'antd'
+import { Input } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
@@ -70,13 +70,19 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({ newBase, se
           <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
         </div>
         <Slider
-          style={{ width: '97%' }}
+          className="w-[97%]"
           min={1}
           max={50}
           step={1}
-          value={newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
-          marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30', 50: '50' }}
-          onChange={(value) => setNewBase((prev) => ({ ...prev, documentCount: value }))}
+          value={[newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT]}
+          marks={[
+            { value: 1, label: '1' },
+            { value: 6, label: t('knowledge.document_count_default') },
+            { value: 30, label: '30' },
+            { value: 50, label: '50' }
+          ]}
+          onValueChange={(values) => setNewBase((prev) => ({ ...prev, documentCount: values[0] }))}
+          showValueLabel
         />
       </SettingsItem>
     </SettingsPanel>

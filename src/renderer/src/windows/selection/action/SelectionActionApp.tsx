@@ -1,11 +1,10 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Slider, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
@@ -228,13 +227,14 @@ const SelectionActionApp: FC = () => {
           {showOpacitySlider && (
             <OpacitySlider>
               <Slider
-                vertical
+                orientation="vertical"
                 min={20}
                 max={100}
-                value={opacity}
-                onChange={handleOpacityChange}
-                onChangeComplete={() => setShowOpacitySlider(false)}
-                tooltip={{ formatter: (value) => `${value}%` }}
+                value={[opacity]}
+                onValueChange={(values) => handleOpacityChange(values[0])}
+                onValueCommit={() => setShowOpacitySlider(false)}
+                showValueLabel
+                formatValueLabel={(v) => `${v}%`}
               />
             </OpacitySlider>
           )}

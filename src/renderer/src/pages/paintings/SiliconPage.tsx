@@ -23,7 +23,8 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Input, InputNumber, Radio, Select, Slider } from 'antd'
+import { Slider } from '@cherrystudio/ui'
+import { Input, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -419,7 +420,14 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             <InfoTooltip content={t('paintings.inference_steps_tip')} />
           </SettingTitle>
           <SliderContainer>
-            <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
+            <Slider
+              className="flex-1"
+              min={1}
+              max={50}
+              value={[painting.steps ?? 25]}
+              onValueChange={(values) => updatePaintingState({ steps: values[0] })}
+              showValueLabel
+            />
             <StyledInputNumber
               min={1}
               max={50}
@@ -434,11 +442,13 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SettingTitle>
           <SliderContainer>
             <Slider
+              className="flex-1"
               min={1}
               max={20}
               step={0.1}
-              value={painting.guidanceScale}
-              onChange={(v) => updatePaintingState({ guidanceScale: v })}
+              value={[painting.guidanceScale ?? 4.5]}
+              onValueChange={(values) => updatePaintingState({ guidanceScale: values[0] })}
+              showValueLabel
             />
             <StyledInputNumber
               min={1}

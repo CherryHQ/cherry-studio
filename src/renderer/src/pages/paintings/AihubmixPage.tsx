@@ -19,7 +19,8 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
+import { Slider } from '@cherrystudio/ui'
+import { Input, InputNumber, Radio, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -679,11 +680,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <SliderContainer>
             <Slider
+              className="flex-1"
               min={item.min}
               max={item.max}
               step={item.step}
-              value={(painting[item.key!] || item.initialValue) as number}
-              onChange={(v) => updatePaintingState({ [item.key!]: v })}
+              value={[(painting[item.key!] || item.initialValue) as number]}
+              onValueChange={(values) => updatePaintingState({ [item.key!]: values[0] })}
+              showValueLabel
             />
             <StyledInputNumber
               min={item.min}
