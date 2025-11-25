@@ -1,9 +1,8 @@
 import Selector from '@renderer/components/Selector'
-import { isSupportFlexServiceTierModel } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import type { GroqServiceTier, Model, ServiceTier } from '@renderer/types'
+import type { GroqServiceTier, ServiceTier } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import { Tooltip } from 'antd'
@@ -15,18 +14,14 @@ import { useTranslation } from 'react-i18next'
 type ServiceTierOptions = { value: NonNullable<GroqServiceTier> | 'undefined'; label: string }
 
 interface Props {
-  model: Model
   SettingGroup: FC<{ children: React.ReactNode }>
   SettingRowTitleSmall: FC<{ children: React.ReactNode }>
 }
 
-const GroqSettingsGroup: FC<Props> = ({ model, SettingGroup, SettingRowTitleSmall }) => {
+const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(SystemProviderIds.groq)
   const serviceTierMode = provider.serviceTier
-
-  // I'm not sure if this function applies to Groq, but it should be fine to use
-  const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
 
   const setServiceTierMode = useCallback(
     (value: ServiceTier) => {
@@ -54,13 +49,8 @@ const GroqSettingsGroup: FC<Props> = ({ model, SettingGroup, SettingRowTitleSmal
         label: t('settings.openai.service_tier.flex')
       }
     ] as const satisfies ServiceTierOptions[]
-    return options.filter((option) => {
-      if (option.value === 'flex') {
-        return isSupportFlexServiceTier
-      }
-      return true
-    })
-  }, [isSupportFlexServiceTier, t])
+    return options
+  }, [t])
 
   return (
     <CollapsibleSettingGroup title={t('settings.groq.title')} defaultExpanded={true}>

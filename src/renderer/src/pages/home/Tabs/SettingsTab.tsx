@@ -343,7 +343,7 @@ const SettingsTab: FC<Props> = (props) => {
         />
       )}
       {isGroqSystemProvider(provider) && (
-        <GroqSettingsGroup model={model} SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
+        <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
       )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
