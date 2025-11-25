@@ -2,6 +2,7 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
+import { getAssistantById } from '@renderer/services/AssistantService'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -9,7 +10,7 @@ import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,6 +23,14 @@ const SelectionActionApp: FC = () => {
   const { t } = useTranslation()
 
   const [action, setAction] = useState<SelectionActionItem | null>(null)
+  const assistant = useMemo(() => {
+    if (action?.assistantId) {
+      return getAssistantById(action.assistantId)
+    } else {
+      return null
+    }
+  }, [action?.assistantId])
+
   const isActionLoaded = useRef(false)
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -205,6 +214,7 @@ const SelectionActionApp: FC = () => {
           </TitleBarIcon>
         )}
         <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
+        {assistant?.model !== undefined && <span className="text-muted-foreground">{assistant.model.name}</span>}
         <TitleBarButtons>
           <Tooltip
             content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
