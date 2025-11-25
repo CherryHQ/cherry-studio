@@ -83,6 +83,22 @@ export const isSupportServiceTierProvider = (provider: Provider) => {
   )
 }
 
+const NOT_SUPPORT_VERBOSITY_PROVIDERS = ['groq'] as const satisfies SystemProviderId[]
+
+/**
+ * Determines whether the provider supports the verbosity option.
+ * Only applies to system providers that are not in the exclusion list.
+ * @param provider - The provider to check
+ * @returns true if the provider supports verbosity, false otherwise
+ */
+export const isSupportVerbosityProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isNotSupportVerbosity !== true &&
+    isSystemProvider(provider) &&
+    !NOT_SUPPORT_VERBOSITY_PROVIDERS.some((pid) => pid === provider.id)
+  )
+}
+
 const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
   'gemini',
   'vertexai',

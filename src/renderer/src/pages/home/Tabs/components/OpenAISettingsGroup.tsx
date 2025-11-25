@@ -14,7 +14,7 @@ import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settin
 import type { GroqServiceTier, Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
 import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
 import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
-import { isSupportServiceTierProvider } from '@renderer/utils/provider'
+import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
@@ -56,7 +56,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
     (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isSupportVerbosity = isSupportVerbosityModel(model)
+  const isSupportVerbosity = isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
 
