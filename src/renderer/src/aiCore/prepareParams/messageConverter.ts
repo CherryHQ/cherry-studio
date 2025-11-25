@@ -194,20 +194,20 @@ async function convertMessageToAssistantModelMessage(
  * This function processes messages and transforms them into the format required by the SDK.
  * It handles special cases for vision models and image enhancement models.
  *
- * @param messages - Array of messages to convert. Must contain at least 2 messages when using image enhancement models.
+ * @param messages - Array of messages to convert. Must contain at least 3 messages when using image enhancement models for special handling.
  * @param model - The model configuration that determines conversion behavior
  *
  * @returns A promise that resolves to an array of SDK-compatible model messages
  *
  * @remarks
- * For image enhancement models with 2+ messages:
- * - Expects the second-to-last message (index length-2) to be an assistant message containing image blocks
- * - Expects the last message (index length-1) to be a user message
- * - Extracts images from the assistant message and appends them to the user message content
- * - Returns only the last two processed messages [assistantSdkMessage, userSdkMessage]
+ * For image enhancement models with 3+ messages:
+ * - Examines the last 2 messages to find an assistant message containing image blocks
+ * - If found, extracts images from the assistant message and appends them to the last user message content
+ * - Returns all converted messages (not just the last two) with the images merged into the user message
+ * - Typical pattern: [system?, assistant(image), user] -> [system?, assistant, user(image)]
  *
  * For other models:
- * - Returns all converted messages in order
+ * - Returns all converted messages in order without special image handling
  *
  * The function automatically detects vision model capabilities and adjusts conversion accordingly.
  */
