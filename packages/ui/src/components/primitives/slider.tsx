@@ -8,19 +8,6 @@ type SliderMark = {
   label: React.ReactNode
 }
 
-const sliderVariants = cva('', {
-  variants: {
-    size: {
-      sm: '',
-      default: '',
-      lg: ''
-    }
-  },
-  defaultVariants: {
-    size: 'default'
-  }
-})
-
 const sliderTrackVariants = cva(
   cn(
     'bg-primary/10 relative grow overflow-hidden rounded-full',
@@ -107,28 +94,14 @@ function Slider({
   onValueChange,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
-  VariantProps<typeof sliderVariants> & {
+  VariantProps<typeof sliderTrackVariants> & {
     marks?: SliderMark[]
     showValueLabel?: boolean
     formatValueLabel?: (value: number) => React.ReactNode
   }) {
-  const initialValues = React.useMemo(
+  const _values = React.useMemo(
     () => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
-
-  const [internalValues, setInternalValues] = React.useState(initialValues)
-  const currentValues = value ?? internalValues
-
-  const handleValueChange = React.useCallback(
-    (newValues: number[]) => {
-      if (!value) {
-        setInternalValues(newValues)
-      }
-      onValueChange?.(newValues)
-    },
-    [value, onValueChange]
+    [value, defaultValue, min]
   )
 
   const isVertical = orientation === 'vertical'
@@ -141,10 +114,9 @@ function Slider({
       min={min}
       max={max}
       orientation={orientation}
-      onValueChange={handleValueChange}
+      onValueChange={onValueChange}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
-        sliderVariants({ size }),
         (!marks || marks.length === 0) && className
       )}
       {...props}>
@@ -154,14 +126,14 @@ function Slider({
           className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
-      {Array.from({ length: currentValues.length }, (_, index) => (
+      {Array.from({ length: _values.length }, (_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
             <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>
-              {formatValueLabel ? formatValueLabel(currentValues[index]) : currentValues[index]}
+              {formatValueLabel ? formatValueLabel(_values[index]) : _values[index]}
             </span>
           )}
         </SliderPrimitive.Thumb>
@@ -202,4 +174,4 @@ function Slider({
   )
 }
 
-export { Slider, type SliderMark, sliderVariants }
+export { Slider, type SliderMark }
