@@ -637,3 +637,34 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
     }, {}) || {}
   )
 }
+
+/**
+ * AI SDK standard parameters that should be passed as top-level streamText() parameters
+ * These parameters are used by the AI SDK directly, not by provider-specific options
+ * Reference: https://github.com/vercel/ai/blob/main/packages/google/src/google-generative-ai-language-model.ts
+ */
+const AI_SDK_STANDARD_PARAMS = ['topK', 'frequencyPenalty', 'presencePenalty', 'stopSequences', 'seed'] as const
+
+export type AiSdkStandardParam = (typeof AI_SDK_STANDARD_PARAMS)[number]
+
+/**
+ * Extract AI SDK standard parameters from custom parameters
+ * These parameters should be passed directly to streamText() instead of providerOptions
+ */
+export function extractAiSdkStandardParams(customParams: Record<string, any>): {
+  standardParams: Partial<Record<AiSdkStandardParam, any>>
+  providerParams: Record<string, any>
+} {
+  const standardParams: Partial<Record<AiSdkStandardParam, any>> = {}
+  const providerParams: Record<string, any> = {}
+
+  for (const [key, value] of Object.entries(customParams)) {
+    if ((AI_SDK_STANDARD_PARAMS as readonly string[]).includes(key)) {
+      standardParams[key as AiSdkStandardParam] = value
+    } else {
+      providerParams[key] = value
+    }
+  }
+
+  return { standardParams, providerParams }
+}

@@ -39,6 +39,7 @@ import { t } from 'i18next'
 import { getAiSdkProviderId } from '../provider/factory'
 import { buildGeminiGenerateImageParams } from './image'
 import {
+  extractAiSdkStandardParams,
   getAnthropicReasoningParams,
   getBedrockReasoningParams,
   getCustomParameters,
@@ -97,9 +98,28 @@ function getVerbosity(): OpenAIVerbosity {
 }
 
 /**
+ * AI SDK standard parameters extracted from custom parameters
+ * These should be passed directly to streamText() instead of providerOptions
+ */
+export type ExtractedAiSdkStandardParams = {
+  topK?: number
+  frequencyPenalty?: number
+  presencePenalty?: number
+  stopSequences?: string[]
+  seed?: number
+}
+
+/**
  * 构建 AI SDK 的 providerOptions
  * 按 provider 类型分离，保持类型安全
- * 返回格式：{ 'providerId': providerOptions }
+ * 返回格式：{
+ *   providerOptions: { 'providerId': providerOptions },
+ *   standardParams: { topK, frequencyPenalty, presencePenalty, stopSequences, seed }
+ * }
+ *
+ * Custom parameters are split into two categories:
+ * 1. AI SDK standard parameters (topK, frequencyPenalty, etc.) - returned separately to be passed to streamText()
+ * 2. Provider-specific parameters - merged into providerOptions
  */
 export function buildProviderOptions(
   assistant: Assistant,
@@ -110,7 +130,10 @@ export function buildProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): Record<string, Record<string, JSONValue>> {
+): {
+  providerOptions: Record<string, Record<string, JSONValue>>
+  standardParams: ExtractedAiSdkStandardParams
+} {
   logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
   // 构建 provider 特定的选项
@@ -202,10 +225,14 @@ export function buildProviderOptions(
     }
   }
 
-  // 合并自定义参数到 provider 特定的选项中
+  // 获取自定义参数并分离标准参数和 provider 特定参数
+  const customParams = getCustomParameters(assistant)
+  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
+
+  // 合并 provider 特定的自定义参数到 providerSpecificOptions
   providerSpecificOptions = {
     ...providerSpecificOptions,
-    ...getCustomParameters(assistant)
+    ...providerParams
   }
 
   let rawProviderKey =
@@ -220,9 +247,12 @@ export function buildProviderOptions(
     rawProviderKey = { gemini: 'google' }[actualProvider.type] || actualProvider.type
   }
 
-  // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
+  // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
   return {
-    [rawProviderKey]: providerSpecificOptions
+    providerOptions: {
+      [rawProviderKey]: providerSpecificOptions
+    },
+    standardParams: standardParams as ExtractedAiSdkStandardParams
   }
 }
 
