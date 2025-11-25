@@ -129,8 +129,8 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
     const items: QuickPanelListItem[] = []
     if (isFunctionCallingModel(assistant.model)) {
-      items.concat(
-        providers
+      items.push(
+        ...providers
           .map((p) => ({
             label: p.name,
             description: WebSearchService.isWebSearchEnabled(p.id)

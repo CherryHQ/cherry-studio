@@ -5,7 +5,7 @@ import type { LanguageModelMiddleware } from 'ai'
  * 由于多模型客户端请求的复杂性（可以中途切换其他模型），这里选择通过中间件方式添加跳过所有 Gemini3 思考签名
  * Due to the complexity of multi-model client requests (which can switch to other models mid-process),
  * it was decided to add a skip for all Gemini3 thinking signatures via middleware.
- * @param enableThinking - Whether thinking mode is enabled (based on reasoning_effort !== undefined)
+ * @param aiSdkId AI SDK Provider ID
  * @returns LanguageModelMiddleware
  */
 export function skipGeminiThoughtSignatureMiddleware(aiSdkId: string): LanguageModelMiddleware {
