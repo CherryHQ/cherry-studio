@@ -19,6 +19,7 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
   )
 }
+
 export function isSupportedFlexServiceTier(model: Model): boolean {
   return isSupportFlexServiceTierModel(model)
 }
@@ -111,8 +112,11 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return modelId.startsWith('claude')
 }
 
-export const isNotSupportedTextDelta = (model: Model): boolean => {
-  return isQwenMTModel(model)
+const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')
+
+export const isNotSupportTextDeltaModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id)
+  return NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX.test(modelId)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {

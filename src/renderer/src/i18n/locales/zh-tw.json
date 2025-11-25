@@ -1148,6 +1148,7 @@
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
     "go_to_settings": "前往設定",
     "i_know": "我知道了",
+    "ignore": "忽略",
     "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
@@ -3771,6 +3772,9 @@
       },
       "view_webdav_settings": "檢視 WebDAV 設定"
     },
+    "groq": {
+      "title": "Groq 設定"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？",
@@ -4357,6 +4361,10 @@
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
+          },
+          "verbosity": {
+            "help": "提供者是否支援詳細程度參數",
+            "label": "支援詳細資訊"
           }
         },
         "url": {

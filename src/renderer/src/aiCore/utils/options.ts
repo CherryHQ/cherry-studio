@@ -14,6 +14,7 @@ import {
 } from '@renderer/config/models'
 import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
+import { getProviderById } from '@renderer/services/ProviderService'
 import {
   type Assistant,
   type GroqServiceTier,
@@ -31,7 +32,7 @@ import {
   type ServiceTier
 } from '@renderer/types'
 import type { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
-import { isSupportServiceTierProvider } from '@renderer/utils/provider'
+import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
 
@@ -91,7 +92,7 @@ function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAISe
 }
 
 function getVerbosity(model: Model): OpenAIVerbosity {
-  if (!isSupportVerbosityModel(model)) {
+  if (!isSupportVerbosityModel(model) || !isSupportVerbosityProvider(getProviderById(model.provider)!)) {
     return undefined
   }
   const openAI = getStoreSetting('openAI')
@@ -261,6 +262,27 @@ function buildOpenAIProviderOptions(
     providerOptions = {
       ...providerOptions,
       ...reasoningParams
+    }
+  }
+  const provider = getProviderById(model.provider)
+
+  if (!provider) {
+    throw new Error(`Provider ${model.provider} not found`)
+  }
+
+  if (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
+    const openAI = getStoreSetting<'openAI'>('openAI')
+    const userVerbosity = openAI?.verbosity
+
+    if (userVerbosity && ['low', 'medium', 'high'].includes(userVerbosity)) {
+      const supportedVerbosity = getModelSupportedVerbosity(model)
+      // Use user's verbosity if supported, otherwise use the first supported option
+      const verbosity = supportedVerbosity.includes(userVerbosity) ? userVerbosity : supportedVerbosity[0]
+
+      providerOptions = {
+        ...providerOptions,
+        textVerbosity: verbosity
+      }
     }
   }
 

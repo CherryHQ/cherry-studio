@@ -24,9 +24,9 @@ import {
   isGemmaModel,
   isGenerateImageModels,
   isMaxTemperatureOneModel,
-  isNotSupportedTextDelta,
   isNotSupportSystemMessageModel,
   isNotSupportTemperatureAndTopP,
+  isNotSupportTextDeltaModel,
   isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportFlexServiceTierModel,
@@ -215,10 +215,49 @@ describe('model utils', () => {
 
   it('aggregates boolean helpers based on regex rules', () => {
     expect(isAnthropicModel(createModel({ id: 'claude-3.5' }))).toBe(true)
-    expect(isQwenMTModel(createModel({ id: 'qwen-mt-large' }))).toBe(true)
-    expect(isNotSupportedTextDelta(createModel({ id: 'qwen-mt-large' }))).toBe(true)
+    expect(isQwenMTModel(createModel({ id: 'qwen-mt-plus' }))).toBe(true)
     expect(isNotSupportSystemMessageModel(createModel({ id: 'gemma-moe' }))).toBe(true)
     expect(isOpenAIOpenWeightModel(createModel({ id: 'gpt-oss-free' }))).toBe(true)
+  })
+
+  describe('isNotSupportedTextDelta', () => {
+    it('returns true for qwen-mt-turbo and qwen-mt-plus models', () => {
+      // qwen-mt series that don't support text delta
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-mt-turbo' }))).toBe(true)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-mt-plus' }))).toBe(true)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'Qwen-MT-Turbo' }))).toBe(true)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'QWEN-MT-PLUS' }))).toBe(true)
+    })
+
+    it('returns false for qwen-mt-flash and other models', () => {
+      // qwen-mt-flash supports text delta
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-mt-flash' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'Qwen-MT-Flash' }))).toBe(false)
+
+      // Legacy qwen models without mt prefix (support text delta)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-turbo' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-plus' }))).toBe(false)
+
+      // Other qwen models
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-max' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen2.5-72b' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-vl-plus' }))).toBe(false)
+
+      // Non-qwen models
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'claude-3.5' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'glm-4-plus' }))).toBe(false)
+    })
+
+    it('handles models with version suffixes', () => {
+      // qwen-mt models with version suffixes
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-mt-turbo-1201' }))).toBe(true)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-mt-plus-0828' }))).toBe(true)
+
+      // Legacy qwen models with version suffixes (support text delta)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-turbo-0828' }))).toBe(false)
+      expect(isNotSupportTextDeltaModel(createModel({ id: 'qwen-plus-latest' }))).toBe(false)
+    })
   })
 
   it('evaluates GPT-5 family helpers', () => {
