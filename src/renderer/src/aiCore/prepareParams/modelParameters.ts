@@ -3,7 +3,6 @@
  * 处理温度、TopP、超时等基础参数的获取逻辑
  */
 
-import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
@@ -73,11 +72,19 @@ export function getTimeout(model: Model): number {
 
 export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
   // NOTE: ai-sdk会把maxToken和budgetToken加起来
-  let { maxTokens = DEFAULT_MAX_TOKENS } = getAssistantSettings(assistant)
+  const assistantSettings = getAssistantSettings(assistant)
+  const enabledMaxTokens = assistantSettings.enableMaxTokens ?? false
+  let maxTokens = assistantSettings.maxTokens
+
+  // If user hasn't enabled enableMaxTokens, return undefined to let the API use its default value.
+  // Note: Anthropic API requires max_tokens, but that's handled by the Anthropic client with a fallback.
+  if (!enabledMaxTokens || maxTokens === undefined) {
+    return undefined
+  }
 
   const provider = getProviderByModel(model)
   if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
-    const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
+    const { reasoning_effort: reasoningEffort } = assistantSettings
     const budget = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
     if (budget) {
       maxTokens -= budget
