@@ -12,9 +12,10 @@ import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
-import { OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
 import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
+import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
@@ -23,16 +24,16 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 type VerbosityOption = {
-  value: OpenAIVerbosity
+  value: NonNullable<OpenAIVerbosity> | 'undefined'
   label: string
 }
 
 type SummaryTextOption = {
-  value: OpenAISummaryText
+  value: NonNullable<OpenAISummaryText> | 'undefined'
   label: string
 }
 
-type OpenAIServiceTierOption = { value: OpenAIServiceTier; label: string }
+type OpenAIServiceTierOption = { value: NonNullable<OpenAIServiceTier> | 'null' | 'undefined'; label: string }
 
 interface Props {
   model: Model
@@ -81,8 +82,8 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   const summaryTextOptions = [
     {
-      value: undefined,
-      label: t('common.default')
+      value: 'undefined',
+      label: t('common.ignore')
     },
     {
       value: 'auto',
@@ -101,8 +102,8 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const verbosityOptions = useMemo(() => {
     const allOptions = [
       {
-        value: undefined,
-        label: t('common.default')
+        value: 'undefined',
+        label: t('common.ignore')
       },
       {
         value: 'low',
@@ -117,12 +118,20 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         label: t('settings.openai.verbosity.high')
       }
     ] as const satisfies VerbosityOption[]
-    const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+    const supportedVerbosityLevels = getModelSupportedVerbosity(model).map((v) => toOptionValue(v))
     return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value))
   }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
     const options = [
+      {
+        value: 'undefined',
+        label: t('common.ignore')
+      },
+      {
+        value: 'null',
+        label: t('common.off')
+      },
       {
         value: 'auto',
         label: t('settings.openai.service_tier.auto')
@@ -147,12 +156,6 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       return true
     })
   }, [isSupportFlexServiceTier, t])
-
-  useEffect(() => {
-    if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
-      setServiceTierMode(OpenAIServiceTiers.auto)
-    }
-  }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
 
   useEffect(() => {
     if (verbosity && !verbosityOptions.some((option) => option.value === verbosity)) {
@@ -180,12 +183,11 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 </Tooltip>
               </SettingRowTitleSmall>
               <Selector
-                value={serviceTierMode}
+                value={toOptionValue(serviceTierMode)}
                 onChange={(value) => {
-                  setServiceTierMode(value as OpenAIServiceTier)
+                  setServiceTierMode(toRealValue(value))
                 }}
                 options={serviceTierOptions}
-                placeholder={t('settings.openai.service_tier.auto')}
               />
             </SettingRow>
             {(showSummarySetting || showVerbositySetting) && <SettingDivider />}

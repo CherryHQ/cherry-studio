@@ -63,6 +63,7 @@ export function isOpenAIServiceTier(tier: string | null | undefined): tier is Op
 }
 
 // https://console.groq.com/docs/api-reference#responses
+// null is not used.
 export type GroqServiceTier = 'auto' | 'on_demand' | 'flex' | undefined | null
 
 export const GroqServiceTiers = {

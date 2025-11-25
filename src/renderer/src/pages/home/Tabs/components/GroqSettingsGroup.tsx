@@ -4,14 +4,15 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { GroqServiceTier, Model, ServiceTier } from '@renderer/types'
-import { GroqServiceTiers, SystemProviderIds } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
+import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type ServiceTierOptions = { value: GroqServiceTier; label: string }
+type ServiceTierOptions = { value: NonNullable<GroqServiceTier> | 'undefined'; label: string }
 
 interface Props {
   model: Model
@@ -37,12 +38,8 @@ const GroqSettingsGroup: FC<Props> = ({ model, SettingGroup, SettingRowTitleSmal
   const serviceTierOptions = useMemo(() => {
     const options = [
       {
-        value: null,
-        label: t('common.off')
-      },
-      {
-        value: undefined,
-        label: t('common.default')
+        value: 'undefined',
+        label: t('common.ignore')
       },
       {
         value: 'auto',
@@ -65,12 +62,6 @@ const GroqSettingsGroup: FC<Props> = ({ model, SettingGroup, SettingRowTitleSmal
     })
   }, [isSupportFlexServiceTier, t])
 
-  useEffect(() => {
-    if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
-      setServiceTierMode(GroqServiceTiers.on_demand)
-    }
-  }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
-
   return (
     <CollapsibleSettingGroup title={t('settings.groq.title')} defaultExpanded={true}>
       <SettingGroup>
@@ -82,12 +73,11 @@ const GroqSettingsGroup: FC<Props> = ({ model, SettingGroup, SettingRowTitleSmal
             </Tooltip>
           </SettingRowTitleSmall>
           <Selector
-            value={serviceTierMode}
+            value={toOptionValue(serviceTierMode)}
             onChange={(value) => {
-              setServiceTierMode(value)
+              setServiceTierMode(toRealValue(value))
             }}
             options={serviceTierOptions}
-            placeholder={t('settings.openai.service_tier.auto')}
           />
         </SettingRow>
       </SettingGroup>
