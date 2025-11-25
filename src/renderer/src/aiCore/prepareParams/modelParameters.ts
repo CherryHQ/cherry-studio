@@ -73,11 +73,12 @@ export function getTimeout(model: Model): number {
 export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
   // NOTE: ai-sdk会把maxToken和budgetToken加起来
   const assistantSettings = getAssistantSettings(assistant)
+  const enabledMaxTokens = assistantSettings.enableMaxTokens ?? false
   let maxTokens = assistantSettings.maxTokens
 
   // If user hasn't enabled enableMaxTokens, return undefined to let the API use its default value.
   // Note: Anthropic API requires max_tokens, but that's handled by the Anthropic client with a fallback.
-  if (maxTokens === undefined) {
+  if (!enabledMaxTokens || maxTokens === undefined) {
     return undefined
   }
 
