@@ -1,8 +1,8 @@
 diff --git a/sdk.mjs b/sdk.mjs
-index 8cc6aaf0b25bcdf3c579ec95cde12d419fcb2a71..3b3b8beaea5ad2bbac26a15f792058306d0b059f 100755
+index bf429a344b7d59f70aead16b639f949b07688a81..f77d50cc5d3fb04292cb3ac7fa7085d02dcc628f 100755
 --- a/sdk.mjs
 +++ b/sdk.mjs
-@@ -6213,7 +6213,7 @@ function createAbortController(maxListeners = DEFAULT_MAX_LISTENERS) {
+@@ -6250,7 +6250,7 @@ function createAbortController(maxListeners = DEFAULT_MAX_LISTENERS) {
  }
  
  // ../src/transport/ProcessTransport.ts
@@ -11,16 +11,20 @@ index 8cc6aaf0b25bcdf3c579ec95cde12d419fcb2a71..3b3b8beaea5ad2bbac26a15f79205830
  import { createInterface } from "readline";
  
  // ../src/utils/fsOperations.ts
-@@ -6505,14 +6505,11 @@ class ProcessTransport {
+@@ -6619,18 +6619,11 @@ class ProcessTransport {
          const errorMessage = isNativeBinary(pathToClaudeCodeExecutable) ? `Claude Code native binary not found at ${pathToClaudeCodeExecutable}. Please ensure Claude Code is installed via native installer or specify a valid path with options.pathToClaudeCodeExecutable.` : `Claude Code executable not found at ${pathToClaudeCodeExecutable}. Is options.pathToClaudeCodeExecutable set?`;
          throw new ReferenceError(errorMessage);
        }
 -      const isNative = isNativeBinary(pathToClaudeCodeExecutable);
 -      const spawnCommand = isNative ? pathToClaudeCodeExecutable : executable;
 -      const spawnArgs = isNative ? [...executableArgs, ...args] : [...executableArgs, pathToClaudeCodeExecutable, ...args];
--      this.logForDebugging(isNative ? `Spawning Claude Code native binary: ${spawnCommand} ${spawnArgs.join(" ")}` : `Spawning Claude Code process: ${spawnCommand} ${spawnArgs.join(" ")}`);
-+      this.logForDebugging(`Forking Claude Code Node.js process: ${pathToClaudeCodeExecutable} ${args.join(" ")}`);
-       const stderrMode = env.DEBUG || stderr ? "pipe" : "ignore";
+-      const spawnMessage = isNative ? `Spawning Claude Code native binary: ${spawnCommand} ${spawnArgs.join(" ")}` : `Spawning Claude Code process: ${spawnCommand} ${spawnArgs.join(" ")}`;
+-      logForSdkDebugging(spawnMessage);
+-      if (stderr) {
+-        stderr(spawnMessage);
+-      }
++      logForSdkDebugging(`Forking Claude Code Node.js process: ${pathToClaudeCodeExecutable} ${args.join(" ")}`);
+       const stderrMode = env.DEBUG_CLAUDE_AGENT_SDK || stderr ? "pipe" : "ignore";
 -      this.child = spawn(spawnCommand, spawnArgs, {
 +      this.child = fork(pathToClaudeCodeExecutable, args, {
          cwd,

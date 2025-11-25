@@ -466,15 +466,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anthropic-ai/claude-agent-sdk@npm:0.1.30":
-  version: 0.1.30
-  resolution: "@anthropic-ai/claude-agent-sdk@npm:0.1.30"
+"@anthropic-ai/claude-agent-sdk@npm:0.1.53":
+  version: 0.1.53
+  resolution: "@anthropic-ai/claude-agent-sdk@npm:0.1.53"
   dependencies:
     "@img/sharp-darwin-arm64": "npm:^0.33.5"
     "@img/sharp-darwin-x64": "npm:^0.33.5"
     "@img/sharp-linux-arm": "npm:^0.33.5"
     "@img/sharp-linux-arm64": "npm:^0.33.5"
     "@img/sharp-linux-x64": "npm:^0.33.5"
+    "@img/sharp-linuxmusl-arm64": "npm:^0.33.5"
+    "@img/sharp-linuxmusl-x64": "npm:^0.33.5"
     "@img/sharp-win32-x64": "npm:^0.33.5"
   peerDependencies:
     zod: ^3.24.1
@@ -489,21 +491,27 @@ __metadata:
       optional: true
     "@img/sharp-linux-x64":
       optional: true
+    "@img/sharp-linuxmusl-arm64":
+      optional: true
+    "@img/sharp-linuxmusl-x64":
+      optional: true
     "@img/sharp-win32-x64":
       optional: true
-  checksum: 10c0/644d563e761b7970b5ac973ef04a1b0cb814ceb3cf37d423ab1e453bc42d9b95667e87d229c948a17b586a4d970ccf4a5bc7d03c6820f1b8b0491ee8016dc30a
+  checksum: 10c0/9b8e444f113e1f6a425d87287c653a5a441836c6100e954fdc33ce9149c8d87ca1a7d495563f4fac583cbaf14946fe18c321eb555b3f0e44a5de8433ba06bdaf
   languageName: node
   linkType: hard
 
-"@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.30#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.30-b50a299674.patch":
-  version: 0.1.30
-  resolution: "@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.30#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.30-b50a299674.patch::version=0.1.30&hash=e169d7"
+"@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.53#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.53-4b77f4cf29.patch":
+  version: 0.1.53
+  resolution: "@anthropic-ai/claude-agent-sdk@patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.53#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.53-4b77f4cf29.patch::version=0.1.53&hash=b05505"
   dependencies:
     "@img/sharp-darwin-arm64": "npm:^0.33.5"
     "@img/sharp-darwin-x64": "npm:^0.33.5"
     "@img/sharp-linux-arm": "npm:^0.33.5"
     "@img/sharp-linux-arm64": "npm:^0.33.5"
     "@img/sharp-linux-x64": "npm:^0.33.5"
+    "@img/sharp-linuxmusl-arm64": "npm:^0.33.5"
+    "@img/sharp-linuxmusl-x64": "npm:^0.33.5"
     "@img/sharp-win32-x64": "npm:^0.33.5"
   peerDependencies:
     zod: ^3.24.1
@@ -518,9 +526,13 @@ __metadata:
       optional: true
     "@img/sharp-linux-x64":
       optional: true
+    "@img/sharp-linuxmusl-arm64":
+      optional: true
+    "@img/sharp-linuxmusl-x64":
+      optional: true
     "@img/sharp-win32-x64":
       optional: true
-  checksum: 10c0/72e3db83a8b2adbb1bf45f13f5cd95690ab7f7efd7c6d855457bddfeb1065bd42046daf5c2a7ff6e6be9910240ca12b56aa24fd7a045bb2c129c9484d10e7eaa
+  checksum: 10c0/54abfc37ca1e1617503b1a70d31a165b95cb898e6192637d3ab450be081bc8c89933714d1b150f5c3ef3948b3c481f81b9dfaf45fa1edff745477edf3e3c58e5
   languageName: node
   linkType: hard
 
@@ -3536,10 +3548,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@img/sharp-libvips-linuxmusl-arm64@npm:1.0.4":
+  version: 1.0.4
+  resolution: "@img/sharp-libvips-linuxmusl-arm64@npm:1.0.4"
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
 "@img/sharp-libvips-linuxmusl-arm64@npm:1.2.0":
   version: 1.2.0
   resolution: "@img/sharp-libvips-linuxmusl-arm64@npm:1.2.0"
   conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@img/sharp-libvips-linuxmusl-x64@npm:1.0.4":
+  version: 1.0.4
+  resolution: "@img/sharp-libvips-linuxmusl-x64@npm:1.0.4"
+  conditions: os=linux & cpu=x64 & libc=musl
   languageName: node
   linkType: hard
 
@@ -3622,11 +3648,35 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@img/sharp-linuxmusl-arm64@npm:^0.33.5":
+  version: 0.33.5
+  resolution: "@img/sharp-linuxmusl-arm64@npm:0.33.5"
+  dependencies:
+    "@img/sharp-libvips-linuxmusl-arm64": "npm:1.0.4"
+  dependenciesMeta:
+    "@img/sharp-libvips-linuxmusl-arm64":
+      optional: true
+  conditions: os=linux & cpu=arm64 & libc=musl
+  languageName: node
+  linkType: hard
+
 "@img/sharp-linuxmusl-x64@npm:0.34.3":
   version: 0.34.3
   resolution: "@img/sharp-linuxmusl-x64@npm:0.34.3"
   dependencies:
     "@img/sharp-libvips-linuxmusl-x64": "npm:1.2.0"
+  dependenciesMeta:
+    "@img/sharp-libvips-linuxmusl-x64":
+      optional: true
+  conditions: os=linux & cpu=x64 & libc=musl
+  languageName: node
+  linkType: hard
+
+"@img/sharp-linuxmusl-x64@npm:^0.33.5":
+  version: 0.33.5
+  resolution: "@img/sharp-linuxmusl-x64@npm:0.33.5"
+  dependencies:
+    "@img/sharp-libvips-linuxmusl-x64": "npm:1.0.4"
   dependenciesMeta:
     "@img/sharp-libvips-linuxmusl-x64":
       optional: true
@@ -9940,7 +9990,7 @@ __metadata:
     "@ai-sdk/perplexity": "npm:^2.0.20"
     "@ai-sdk/test-server": "npm:^0.0.1"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
-    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.30#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.30-b50a299674.patch"
+    "@anthropic-ai/claude-agent-sdk": "patch:@anthropic-ai/claude-agent-sdk@npm%3A0.1.53#~/.yarn/patches/@anthropic-ai-claude-agent-sdk-npm-0.1.53-4b77f4cf29.patch"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
     "@aws-sdk/client-bedrock": "npm:^3.910.0"
