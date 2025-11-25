@@ -52,7 +52,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const showSummarySetting =
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
-    (provider.type === 'openai-response' || provider.id === 'aihubmix')
+    (provider.type === 'openai-response' || model.endpoint_type === 'openai-response' || provider.id === 'aihubmix')
   const showVerbositySetting = isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)
   const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
