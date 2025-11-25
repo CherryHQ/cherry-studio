@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "patch:@ai-sdk/provider-utils@npm%3A3.0.17#~/.yarn/patches/@ai-sdk-provider-utils-npm-3.0.17-be8b9c7f47.patch"
+    "@ai-sdk/provider-utils": "^3.0.17"
   },
   "devDependencies": {
     "tsdown": "^0.13.3",
