@@ -3771,6 +3771,9 @@
       },
       "view_webdav_settings": "查看 WebDAV 设置"
     },
+    "groq": {
+      "title": "Groq 设置"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？",

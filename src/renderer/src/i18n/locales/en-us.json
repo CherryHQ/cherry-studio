@@ -3771,6 +3771,9 @@
       },
       "view_webdav_settings": "View WebDAV settings"
     },
+    "groq": {
+      "title": "Groq Settings"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
