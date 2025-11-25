@@ -358,6 +358,208 @@ export const RealWorldExamples: Story = {
   }
 }
 
+// With Marks
+export const WithMarks: Story = {
+  args: {
+    defaultValue: [1],
+    min: 0,
+    max: 2,
+    step: 1,
+    marks: [
+      { value: 0, label: '4GB' },
+      { value: 1, label: '6GB' },
+      { value: 2, label: '8GB' }
+    ]
+  },
+  render: (args) => (
+    <div className="w-96">
+      <Slider {...args} />
+    </div>
+  )
+}
+
+export const MarksWithSizes: Story = {
+  render: () => (
+    <div className="flex flex-col gap-8 w-96">
+      <div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Small</p>
+        <Slider
+          size="sm"
+          defaultValue={[0.7]}
+          min={0}
+          max={2}
+          step={0.1}
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.7, label: '0.7' },
+            { value: 2, label: '2' }
+          ]}
+        />
+      </div>
+      <div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Medium (Default)</p>
+        <Slider
+          size="default"
+          defaultValue={[0.7]}
+          min={0}
+          max={2}
+          step={0.1}
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.7, label: '0.7' },
+            { value: 2, label: '2' }
+          ]}
+        />
+      </div>
+      <div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Large</p>
+        <Slider
+          size="lg"
+          defaultValue={[0.7]}
+          min={0}
+          max={2}
+          step={0.1}
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.7, label: '0.7' },
+            { value: 2, label: '2' }
+          ]}
+        />
+      </div>
+    </div>
+  )
+}
+
+export const VerticalWithMarks: Story = {
+  render: () => (
+    <div className="h-64">
+      <Slider
+        defaultValue={[50]}
+        orientation="vertical"
+        marks={[
+          { value: 0, label: '0%' },
+          { value: 25, label: '25%' },
+          { value: 50, label: '50%' },
+          { value: 75, label: '75%' },
+          { value: 100, label: '100%' }
+        ]}
+      />
+    </div>
+  )
+}
+
+export const TemperatureWithMarks: Story = {
+  render: function TemperatureExample() {
+    const [value, setValue] = useState([0.7])
+    return (
+      <div className="w-96">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-medium">Temperature</p>
+          <p className="text-sm text-muted-foreground">{value[0]}</p>
+        </div>
+        <Slider
+          value={value}
+          onValueChange={setValue}
+          min={0}
+          max={2}
+          step={0.01}
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.7, label: '0.7' },
+            { value: 2, label: '2' }
+          ]}
+        />
+      </div>
+    )
+  }
+}
+
+// With Value Label (hover to see)
+export const WithValueLabel: Story = {
+  args: {
+    defaultValue: [50],
+    showValueLabel: true
+  },
+  render: (args) => (
+    <div className="w-96 pt-8">
+      <p className="mb-3 text-sm text-muted-foreground">Hover over the thumb to see the value</p>
+      <Slider {...args} />
+    </div>
+  )
+}
+
+export const ValueLabelWithFormat: Story = {
+  render: () => (
+    <div className="w-96 pt-8">
+      <p className="mb-3 text-sm text-muted-foreground">Custom format: value + "%"</p>
+      <Slider defaultValue={[30]} showValueLabel formatValueLabel={(v) => `${v}%`} />
+    </div>
+  )
+}
+
+export const ValueLabelSizes: Story = {
+  render: () => (
+    <div className="flex flex-col gap-8 w-96 pt-8">
+      <div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Small</p>
+        <Slider size="sm" defaultValue={[25]} showValueLabel formatValueLabel={(v) => `${v}%`} />
+      </div>
+      <div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Medium (Default)</p>
+        <Slider size="default" defaultValue={[50]} showValueLabel formatValueLabel={(v) => `${v}%`} />
+      </div>
+      <div>
+        <p className="mb-3 text-sm font-medium text-muted-foreground">Large</p>
+        <Slider size="lg" defaultValue={[75]} showValueLabel formatValueLabel={(v) => `${v}%`} />
+      </div>
+    </div>
+  )
+}
+
+export const ValueLabelRange: Story = {
+  render: function RangeExample() {
+    const [value, setValue] = useState([20, 80])
+    return (
+      <div className="w-96 pt-8">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-medium">Price Range</p>
+          <p className="text-sm text-muted-foreground">
+            ${value[0]} - ${value[1]}
+          </p>
+        </div>
+        <Slider value={value} onValueChange={setValue} showValueLabel formatValueLabel={(v) => `$${v}`} />
+      </div>
+    )
+  }
+}
+
+export const ValueLabelWithMarks: Story = {
+  render: function Example() {
+    const [value, setValue] = useState([0.7])
+    return (
+      <div className="w-96 pt-8">
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-sm font-medium">Temperature</p>
+          <p className="text-sm text-muted-foreground">{value[0]}</p>
+        </div>
+        <Slider
+          value={value}
+          onValueChange={setValue}
+          min={0}
+          max={2}
+          step={0.01}
+          showValueLabel
+          marks={[
+            { value: 0, label: '0' },
+            { value: 0.7, label: '0.7' },
+            { value: 2, label: '2' }
+          ]}
+        />
+      </div>
+    )
+  }
+}
+
 // All Variants Display (like Figma)
 export const ShowcaseAllVariants: Story = {
   render: () => (
