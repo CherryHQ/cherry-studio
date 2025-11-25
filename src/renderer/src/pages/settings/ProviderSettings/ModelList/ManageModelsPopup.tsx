@@ -6,7 +6,7 @@ import {
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
-  isNotSupportedTextDelta,
+  isNotSupportTextDeltaModel,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
@@ -136,13 +136,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             addModel({
               ...model,
               endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
-              supported_text_delta: !isNotSupportedTextDelta(model)
+              supported_text_delta: !isNotSupportTextDeltaModel(model)
             })
           } else {
             NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
-          addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
+          addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
         }
       }
     },
