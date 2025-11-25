@@ -91,7 +91,6 @@ function Slider({
   orientation = 'horizontal',
   showValueLabel,
   formatValueLabel,
-  onValueChange,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> &
   VariantProps<typeof sliderTrackVariants> & {
@@ -99,10 +98,15 @@ function Slider({
     showValueLabel?: boolean
     formatValueLabel?: (value: number) => React.ReactNode
   }) {
-  const _values = React.useMemo(
-    () => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min]),
-    [value, defaultValue, min]
+  const [localValues, setLocalValues] = React.useState(() =>
+    Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min]
   )
+
+  React.useEffect(() => {
+    if (Array.isArray(value)) {
+      setLocalValues(value)
+    }
+  }, [value])
 
   const isVertical = orientation === 'vertical'
 
@@ -114,7 +118,7 @@ function Slider({
       min={min}
       max={max}
       orientation={orientation}
-      onValueChange={onValueChange}
+      onValueChange={(newValues) => setLocalValues(newValues)}
       className={cn(
         'relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col',
         (!marks || marks.length === 0) && className
@@ -126,14 +130,14 @@ function Slider({
           className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
-      {Array.from({ length: _values.length }, (_, index) => (
+      {Array.from({ length: localValues.length }, (_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
           className={cn(sliderThumbVariants({ size }), showValueLabel && 'group')}>
           {showValueLabel && (
             <span data-slot="slider-value-label" className={sliderValueLabelVariants({ size })}>
-              {formatValueLabel ? formatValueLabel(_values[index]) : _values[index]}
+              {formatValueLabel ? formatValueLabel(localValues[index]) : localValues[index]}
             </span>
           )}
         </SliderPrimitive.Thumb>
