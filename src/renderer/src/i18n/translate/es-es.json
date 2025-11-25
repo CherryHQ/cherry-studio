@@ -1148,6 +1148,7 @@
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
     "go_to_settings": "Ir a la configuración",
     "i_know": "Entendido",
+    "ignore": "Ignorar",
     "inspect": "Inspeccionar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de conocimiento",
@@ -3771,6 +3772,9 @@
       },
       "view_webdav_settings": "Ver configuración WebDAV"
     },
+    "groq": {
+      "title": "Configuración de Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "La desactivación de la aceleración por hardware requiere reiniciar la aplicación para que surta efecto, ¿desea reiniciar ahora?",
@@ -4357,6 +4361,10 @@
           "stream_options": {
             "help": "¿Admite el proveedor el parámetro stream_options?",
             "label": "Admite stream_options"
+          },
+          "verbosity": {
+            "help": "Si el proveedor admite el parámetro de verbosidad",
+            "label": "Soporte de verbosidad"
           }
         },
         "url": {

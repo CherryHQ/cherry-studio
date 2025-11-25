@@ -1148,6 +1148,7 @@
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",
     "go_to_settings": "Aller aux paramètres",
     "i_know": "J'ai compris",
+    "ignore": "Ignorer",
     "inspect": "Vérifier",
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
@@ -3771,6 +3772,9 @@
       },
       "view_webdav_settings": "Voir les paramètres WebDAV"
     },
+    "groq": {
+      "title": "Paramètres Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "La désactivation de l'accélération matérielle nécessite un redémarrage de l'application pour prendre effet. Voulez-vous redémarrer maintenant ?",
@@ -4357,6 +4361,10 @@
           "stream_options": {
             "help": "Le fournisseur prend-il en charge le paramètre stream_options ?",
             "label": "Prise en charge des options de flux"
+          },
+          "verbosity": {
+            "help": "Si le fournisseur prend en charge le paramètre de verbosité",
+            "label": "Prend en charge la verbosité"
           }
         },
         "url": {

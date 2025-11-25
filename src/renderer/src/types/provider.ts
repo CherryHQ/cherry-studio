@@ -20,28 +20,30 @@ export const ProviderTypeSchema = z.enum([
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>
 
-// undefined 视为支持，默认支持
+// undefined is treated as supported, enabled by default
 export type ProviderApiOptions = {
-  /** 是否不支持 message 的 content 为数组类型 */
+  /** Whether message content of array type is not supported */
   isNotSupportArrayContent?: boolean
-  /** 是否不支持 stream_options 参数 */
+  /** Whether the stream_options parameter is not supported */
   isNotSupportStreamOptions?: boolean
   /**
    * @deprecated
-   * 是否不支持 message 的 role 为 developer */
+   * Whether message role 'developer' is not supported */
   isNotSupportDeveloperRole?: boolean
-  /* 是否支持 message 的 role 为 developer */
+  /* Whether message role 'developer' is supported */
   isSupportDeveloperRole?: boolean
   /**
    * @deprecated
-   * 是否不支持 service_tier 参数. Only for OpenAI Models. */
+   * Whether the service_tier parameter is not supported. Only for OpenAI Models. */
   isNotSupportServiceTier?: boolean
-  /* 是否支持 service_tier 参数. Only for OpenAI Models. */
+  /* Whether the service_tier parameter is supported. Only for OpenAI Models. */
   isSupportServiceTier?: boolean
-  /** 是否不支持 enable_thinking 参数 */
+  /** Whether the enable_thinking parameter is not supported */
   isNotSupportEnableThinking?: boolean
-  /** 是否不支持 APIVersion */
+  /** Whether APIVersion is not supported */
   isNotSupportAPIVersion?: boolean
+  /** Whether verbosity is not supported. For OpenAI API (completions & responses). */
+  isNotSupportVerbosity?: boolean
 }
 
 // scale is not well supported now. It even lacks of docs
@@ -61,6 +63,7 @@ export function isOpenAIServiceTier(tier: string | null | undefined): tier is Op
 }
 
 // https://console.groq.com/docs/api-reference#responses
+// null is not used.
 export type GroqServiceTier = 'auto' | 'on_demand' | 'flex' | undefined | null
 
 export const GroqServiceTiers = {

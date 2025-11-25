@@ -1148,6 +1148,7 @@
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
     "go_to_settings": "Go to settings",
     "i_know": "I know",
+    "ignore": "Ignore",
     "inspect": "Inspect",
     "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
@@ -3771,6 +3772,9 @@
       },
       "view_webdav_settings": "View WebDAV settings"
     },
+    "groq": {
+      "title": "Groq Settings"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Disabling hardware acceleration requires restarting the app to take effect. Do you want to restart now?",
@@ -4357,6 +4361,10 @@
           "stream_options": {
             "help": "Does the provider support the stream_options parameter?",
             "label": "Support stream_options"
+          },
+          "verbosity": {
+            "help": "Whether the provider supports the verbosity parameter",
+            "label": "Support verbosity"
           }
         },
         "url": {
