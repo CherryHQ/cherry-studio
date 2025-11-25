@@ -10,7 +10,6 @@ import { SystemProviderIds } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  extractAiSdkStandardParams,
   getAnthropicReasoningParams,
   getBedrockReasoningParams,
   getCustomParameters,
@@ -962,97 +961,6 @@ describe('reasoning utils', () => {
       const result = getCustomParameters(assistant)
       expect(result).toEqual({
         valid: 'value3'
-      })
-    })
-  })
-
-  describe('extractAiSdkStandardParams', () => {
-    it('should return empty objects when no custom parameters provided', () => {
-      const result = extractAiSdkStandardParams({})
-      expect(result.standardParams).toEqual({})
-      expect(result.providerParams).toEqual({})
-    })
-
-    it('should extract topK as a standard parameter', () => {
-      const result = extractAiSdkStandardParams({ topK: 5, customParam: 'value' })
-      expect(result.standardParams).toEqual({ topK: 5 })
-      expect(result.providerParams).toEqual({ customParam: 'value' })
-    })
-
-    it('should extract frequencyPenalty as a standard parameter', () => {
-      const result = extractAiSdkStandardParams({ frequencyPenalty: 0.5 })
-      expect(result.standardParams).toEqual({ frequencyPenalty: 0.5 })
-      expect(result.providerParams).toEqual({})
-    })
-
-    it('should extract presencePenalty as a standard parameter', () => {
-      const result = extractAiSdkStandardParams({ presencePenalty: 0.3 })
-      expect(result.standardParams).toEqual({ presencePenalty: 0.3 })
-      expect(result.providerParams).toEqual({})
-    })
-
-    it('should extract stopSequences as a standard parameter', () => {
-      const result = extractAiSdkStandardParams({ stopSequences: ['STOP', 'END'] })
-      expect(result.standardParams).toEqual({ stopSequences: ['STOP', 'END'] })
-      expect(result.providerParams).toEqual({})
-    })
-
-    it('should extract seed as a standard parameter', () => {
-      const result = extractAiSdkStandardParams({ seed: 42 })
-      expect(result.standardParams).toEqual({ seed: 42 })
-      expect(result.providerParams).toEqual({})
-    })
-
-    it('should extract all standard parameters at once', () => {
-      const result = extractAiSdkStandardParams({
-        topK: 5,
-        frequencyPenalty: 0.5,
-        presencePenalty: 0.3,
-        stopSequences: ['STOP'],
-        seed: 42
-      })
-      expect(result.standardParams).toEqual({
-        topK: 5,
-        frequencyPenalty: 0.5,
-        presencePenalty: 0.3,
-        stopSequences: ['STOP'],
-        seed: 42
-      })
-      expect(result.providerParams).toEqual({})
-    })
-
-    it('should separate standard params from provider-specific params', () => {
-      const result = extractAiSdkStandardParams({
-        topK: 5,
-        frequencyPenalty: 0.5,
-        thinkingConfig: { budget: 1000 },
-        safetySettings: [{ category: 'HARM', threshold: 'BLOCK_NONE' }],
-        customOption: 'value'
-      })
-
-      expect(result.standardParams).toEqual({
-        topK: 5,
-        frequencyPenalty: 0.5
-      })
-
-      expect(result.providerParams).toEqual({
-        thinkingConfig: { budget: 1000 },
-        safetySettings: [{ category: 'HARM', threshold: 'BLOCK_NONE' }],
-        customOption: 'value'
-      })
-    })
-
-    it('should keep provider-specific Gemini params in providerParams', () => {
-      const result = extractAiSdkStandardParams({
-        responseModalities: ['TEXT', 'IMAGE'],
-        cachedContent: 'cachedContents/123',
-        topK: 10
-      })
-
-      expect(result.standardParams).toEqual({ topK: 10 })
-      expect(result.providerParams).toEqual({
-        responseModalities: ['TEXT', 'IMAGE'],
-        cachedContent: 'cachedContents/123'
       })
     })
   })

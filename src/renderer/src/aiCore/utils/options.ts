@@ -31,7 +31,7 @@ import {
   type Provider,
   type ServiceTier
 } from '@renderer/types'
-import type { OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
@@ -39,7 +39,6 @@ import { t } from 'i18next'
 import { getAiSdkProviderId } from '../provider/factory'
 import { buildGeminiGenerateImageParams } from './image'
 import {
-  extractAiSdkStandardParams,
   getAnthropicReasoningParams,
   getBedrockReasoningParams,
   getCustomParameters,
@@ -98,15 +97,25 @@ function getVerbosity(): OpenAIVerbosity {
 }
 
 /**
- * AI SDK standard parameters extracted from custom parameters
- * These should be passed directly to streamText() instead of providerOptions
+ * Extract AI SDK standard parameters from custom parameters
+ * These parameters should be passed directly to streamText() instead of providerOptions
  */
-export type ExtractedAiSdkStandardParams = {
-  topK?: number
-  frequencyPenalty?: number
-  presencePenalty?: number
-  stopSequences?: string[]
-  seed?: number
+export function extractAiSdkStandardParams(customParams: Record<string, any>): {
+  standardParams: Partial<Record<AiSdkParam, any>>
+  providerParams: Record<string, any>
+} {
+  const standardParams: Partial<Record<AiSdkParam, any>> = {}
+  const providerParams: Record<string, any> = {}
+
+  for (const [key, value] of Object.entries(customParams)) {
+    if (isAiSdkParam(key)) {
+      standardParams[key] = value
+    } else {
+      providerParams[key] = value
+    }
+  }
+
+  return { standardParams, providerParams }
 }
 
 /**
@@ -132,7 +141,7 @@ export function buildProviderOptions(
   }
 ): {
   providerOptions: Record<string, Record<string, JSONValue>>
-  standardParams: ExtractedAiSdkStandardParams
+  standardParams: Partial<Record<AiSdkParam, any>>
 } {
   logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
@@ -252,7 +261,7 @@ export function buildProviderOptions(
     providerOptions: {
       [rawProviderKey]: providerSpecificOptions
     },
-    standardParams: standardParams as ExtractedAiSdkStandardParams
+    standardParams
   }
 }
 
