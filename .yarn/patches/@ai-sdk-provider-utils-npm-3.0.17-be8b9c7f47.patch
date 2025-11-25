@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 5337e905da76181abeb37fd0bc737f29fa80b829..e83a4795d0a0c4a7c6f01dc6f870598240d7136b 100644
+index 5337e905da76181abeb37fd0bc737f29fa80b829..3bd39693b53260ff4ff6aeaf643063257fba966e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -91,14 +91,42 @@ __export(src_exports, {
@@ -32,8 +32,8 @@ index 5337e905da76181abeb37fd0bc737f29fa80b829..e83a4795d0a0c4a7c6f01dc6f8705982
 +        const existingValue = result[key];
 +        if (existingValue) {
 +          // Split, trim, deduplicate, and rejoin
-+          const existingValues = existingValue.split(',').map(v => v.trim());
-+          const newValues = value.split(',').map(v => v.trim());
++          const existingValues = existingValue.split(',').map(v => v.trim()).filter(Boolean);
++          const newValues = value.split(',').map(v => v.trim()).filter(Boolean);;
 +          const uniqueValues = Array.from(
 +            new Set([...existingValues, ...newValues])
 +          );
@@ -53,7 +53,7 @@ index 5337e905da76181abeb37fd0bc737f29fa80b829..e83a4795d0a0c4a7c6f01dc6f8705982
  
  // src/convert-async-iterator-to-readable-stream.ts
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 1e607fa1faf735fe854308d898bf3a21d949d515..d08bc531f22a3ad109aab167bd439360426608c8 100644
+index 1e607fa1faf735fe854308d898bf3a21d949d515..3d72ae62a5c8710410d430f76646e513431ef876 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1,12 +1,40 @@
@@ -84,8 +84,8 @@ index 1e607fa1faf735fe854308d898bf3a21d949d515..d08bc531f22a3ad109aab167bd439360
 +        const existingValue = result[key];
 +        if (existingValue) {
 +          // Split, trim, deduplicate, and rejoin
-+          const existingValues = existingValue.split(',').map(v => v.trim());
-+          const newValues = value.split(',').map(v => v.trim());
++          const existingValues = existingValue.split(',').map(v => v.trim()).filter(Boolean);
++          const newValues = value.split(',').map(v => v.trim()).filter(Boolean);;
 +          const uniqueValues = Array.from(
 +            new Set([...existingValues, ...newValues])
 +          );
