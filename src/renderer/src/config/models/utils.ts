@@ -111,8 +111,11 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return modelId.startsWith('claude')
 }
 
-export const isNotSupportedTextDelta = (model: Model): boolean => {
-  return isQwenMTModel(model)
+const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')
+
+export const isNotSupportTextDeltaModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id)
+  return NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX.test(modelId)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {
