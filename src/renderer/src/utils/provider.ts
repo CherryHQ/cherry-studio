@@ -94,7 +94,6 @@ const NOT_SUPPORT_VERBOSITY_PROVIDERS = ['groq'] as const satisfies SystemProvid
 export const isSupportVerbosityProvider = (provider: Provider) => {
   return (
     provider.apiOptions?.isNotSupportVerbosity !== true &&
-    isSystemProvider(provider) &&
     !NOT_SUPPORT_VERBOSITY_PROVIDERS.some((pid) => pid === provider.id)
   )
 }
