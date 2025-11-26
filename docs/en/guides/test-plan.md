@@ -19,7 +19,7 @@ Users are welcome to submit issues or provide feedback through other channels fo
 
 ### Participating in the Test Plan
 
-Developers should submit `PRs` according to the [Contributor Guide](../CONTRIBUTING.md) (and ensure the target branch is `main`). The repository maintainers will evaluate whether the `PR` should be included in the Test Plan based on factors such as the impact of the feature on the application, its importance, and whether broader testing is needed.
+Developers should submit `PRs` according to the [Contributor Guide](../../CONTRIBUTING.md) (and ensure the target branch is `main`). The repository maintainers will evaluate whether the `PR` should be included in the Test Plan based on factors such as the impact of the feature on the application, its importance, and whether broader testing is needed.
 
 If the `PR` is added to the Test Plan, the repository maintainers will:
 
