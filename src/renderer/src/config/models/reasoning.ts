@@ -555,7 +555,7 @@ export function isReasoningModel(model?: Model): boolean {
   return REASONING_REGEX.test(modelId) || false
 }
 
-export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
   'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
