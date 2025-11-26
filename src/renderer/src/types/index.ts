@@ -320,6 +320,7 @@ export interface GeneratePainting extends PaintingParams {
   safetyTolerance?: number
   width?: number
   height?: number
+  imageSize?: string
 }
 
 export interface EditPainting extends PaintingParams {
