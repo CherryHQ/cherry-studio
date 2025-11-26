@@ -50,7 +50,40 @@ export default class ModernAiProvider {
   private model?: Model
   private localProvider: Awaited<AiSdkProvider> | null = null
 
-  // 构造函数重载签名
+  /**
+   * Constructor for ModernAiProvider
+   *
+   * @param modelOrProvider - Model or Provider object
+   * @param provider - Optional Provider object (only used when first param is Model)
+   *
+   * @remarks
+   * **Important behavior notes**:
+   *
+   * 1. When called with `(model)`:
+   *    - Calls `getActualProvider(model)` to retrieve and format the provider
+   *    - URL will be automatically formatted via `formatProviderApiHost`, adding version suffixes like `/v1`
+   *
+   * 2. When called with `(model, provider)`:
+   *    - **Directly uses the provided provider WITHOUT going through `getActualProvider`**
+   *    - **URL will NOT be automatically formatted, `/v1` suffix will NOT be added**
+   *    - This is legacy behavior kept for backward compatibility
+   *
+   * 3. When called with `(provider)`:
+   *    - Directly uses the provider without requiring a model
+   *    - Used for operations that don't need a model (e.g., fetchModels)
+   *
+   * @example
+   * ```typescript
+   * // Recommended: Auto-format URL
+   * const ai = new ModernAiProvider(model)
+   *
+   * // Not recommended: Skip URL formatting (only for special cases)
+   * const ai = new ModernAiProvider(model, customProvider)
+   *
+   * // For operations that don't need a model
+   * const ai = new ModernAiProvider(provider)
+   * ```
+   */
   constructor(model: Model, provider?: Provider)
   constructor(provider: Provider)
   constructor(modelOrProvider: Model | Provider, provider?: Provider)

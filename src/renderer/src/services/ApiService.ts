@@ -461,7 +461,8 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const ai = new AiProviderNew(model, provider)
+  // Don't pass in provider parameter. We need auto-format URL
+  const ai = new AiProviderNew(model)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
