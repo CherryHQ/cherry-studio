@@ -322,10 +322,10 @@ export default class ModernAiProvider {
     }
   }
 
-  /**
-   * 使用现代化 AI SDK 的图像生成实现，支持流式输出
-   * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
-   */
+  // /**
+  //  * 使用现代化 AI SDK 的图像生成实现，支持流式输出
+  //  * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
+  //  */
   /*
   private async modernImageGeneration(
     model: ImageModel,
