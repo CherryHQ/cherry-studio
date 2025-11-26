@@ -162,15 +162,7 @@ export const useWebSearchPanelController = (assistantId: string, quickPanelContr
     }
 
     return items
-  }, [
-    assistant.enableWebSearch,
-    assistant.model,
-    assistant?.webSearchProviderId,
-    providers,
-    t,
-    updateQuickPanelItem,
-    updateToModelBuiltinWebSearch
-  ])
+  }, [assistant, providers, t, updateQuickPanelItem, updateToModelBuiltinWebSearch])
 
   const openQuickPanel = useCallback(() => {
     quickPanelController.open({
