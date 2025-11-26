@@ -82,7 +82,10 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.grok,
   SystemProviderIds.cherryin,
   SystemProviderIds.longcat,
-  SystemProviderIds.minimax
+  SystemProviderIds.minimax,
+  SystemProviderIds.silicon,
+  SystemProviderIds.qiniu,
+  SystemProviderIds.dmxapi
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 

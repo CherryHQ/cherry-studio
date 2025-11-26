@@ -95,6 +95,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.siliconflow.cn',
+    anthropicApiHost: 'https://api.siliconflow.cn',
     models: SYSTEM_MODELS.silicon,
     isSystem: true,
     enabled: false
@@ -168,6 +169,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://www.dmxapi.cn',
+    anthropicApiHost: 'https://www.dmxapi.cn',
     models: SYSTEM_MODELS.dmxapi,
     isSystem: true,
     enabled: false
