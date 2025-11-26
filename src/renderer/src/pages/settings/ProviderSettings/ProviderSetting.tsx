@@ -295,12 +295,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAnthropicProvider(provider)) {
-      // Anthropic SDK automatically appends /v1 to endpoints, but getSdkClient strips /v1 suffix from baseURL
-      // So the actual URL is: formatApiHost(baseURL, false) with /v1 stripped + /v1/messages
-      // For example: https://api.siliconflow.cn/v2/ -> https://api.siliconflow.cn/v2/messages
+      // Anthropic SDK automatically appends /v1 to endpoints, but getSdkClient strips version suffix from baseURL
+      // So the actual URL is: formatApiHost(baseURL, false) with version stripped + /v1/messages
+      // For example: https://api.siliconflow.cn/v2/ -> https://api.siliconflow.cn/v1/messages
       const normalizedHost = formatApiHost(apiHost, false)
-      const baseWithoutV1 = normalizedHost.replace(/\/v1$/, '')
-      return baseWithoutV1 + '/v1/messages'
+      const baseWithoutVersion = normalizedHost.replace(/\/v\d+(?:alpha|beta)?$/, '')
+      return baseWithoutVersion + '/v1/messages'
     }
 
     if (isGeminiProvider(provider)) {
@@ -353,12 +353,12 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
-    // Anthropic SDK automatically appends /v1 to endpoints, but getSdkClient strips /v1 suffix from baseURL
-    // So the actual URL is: formatApiHost(baseURL, false) with /v1 stripped + /v1/messages
+    // Anthropic SDK automatically appends /v1 to endpoints, but getSdkClient strips version suffix from baseURL
+    // So the actual URL is: formatApiHost(baseURL, false) with version stripped + /v1/messages
     const normalizedHost = formatApiHost(rawHost, false)
-    const baseWithoutV1 = normalizedHost.replace(/\/v1$/, '')
+    const baseWithoutVersion = normalizedHost.replace(/\/v\d+(?:alpha|beta)?$/, '')
 
-    return `${baseWithoutV1}/v1/messages`
+    return `${baseWithoutVersion}/v1/messages`
   }, [anthropicApiHost, provider.anthropicApiHost])
 
   const hostSelectorOptions = useMemo(() => {
