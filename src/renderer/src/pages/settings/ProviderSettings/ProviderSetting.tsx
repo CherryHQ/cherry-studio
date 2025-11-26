@@ -295,11 +295,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAnthropicProvider(provider)) {
-      // For AI SDK (chat/checkApi): uses the formatted baseURL and appends /messages
-      // formatApiHost will add /v1 if no version exists, or keep existing version
-      // Examples:
-      //   https://api.siliconflow.cn -> https://api.siliconflow.cn/v1/messages
-      //   https://api.siliconflow.cn/v2 -> https://api.siliconflow.cn/v2/messages
+      // AI SDK uses the baseURL with /v1, then appends /messages
+      // formatApiHost adds /v1 automatically if not present
       const normalizedHost = formatApiHost(apiHost)
       return normalizedHost + '/messages'
     }
@@ -354,8 +351,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
-    // For AI SDK (chat/checkApi): uses the formatted baseURL and appends /messages
-    // formatApiHost will add /v1 if no version exists, or keep existing version
+    // AI SDK uses the baseURL with /v1, then appends /messages
     const normalizedHost = formatApiHost(rawHost)
 
     return `${normalizedHost}/messages`
