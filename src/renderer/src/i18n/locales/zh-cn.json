@@ -4519,6 +4519,8 @@
         "credentials_required": "请填写 Access Key ID 和 Secret Access Key",
         "credentials_saved": "凭证已保存",
         "description": "火山引擎是字节跳动旗下的云服务平台，提供豆包等大语言模型服务。请使用 IAM 子用户的 Access Key 进行身份验证，不要使用主账号的根用户密钥。",
+        "project_name": "项目名称",
+        "project_name_help": "用于筛选推理接入点的项目名称，默认为 'default'",
         "region": "地域",
         "region_help": "服务地域，例如 cn-beijing",
         "save_credentials": "保存凭证",

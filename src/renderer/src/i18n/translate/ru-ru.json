@@ -4519,6 +4519,8 @@
         "credentials_required": "[to be translated]:Please fill in Access Key ID and Secret Access Key",
         "credentials_saved": "[to be translated]:Credentials saved",
         "description": "[to be translated]:Volcengine is ByteDance's cloud service platform, providing Doubao and other large language model services. Use Access Key for authentication to fetch model list.",
+        "project_name": "[to be translated]:Project Name",
+        "project_name_help": "[to be translated]:Project name for endpoint filtering, default is 'default'",
         "region": "[to be translated]:Region",
         "region_help": "[to be translated]:Service region, e.g., cn-beijing",
         "save_credentials": "[to be translated]:Save Credentials",

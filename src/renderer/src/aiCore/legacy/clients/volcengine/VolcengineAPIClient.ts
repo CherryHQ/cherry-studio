@@ -1,5 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
+import { getVolcengineProjectName } from '@renderer/hooks/useVolcengine'
 import type { Provider } from '@renderer/types'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
@@ -33,7 +34,8 @@ export class VolcengineAPIClient extends OpenAIAPIClient {
 
       logger.info('Fetching models from Volcengine API using signed request')
 
-      const response = await window.api.volcengine.listModels()
+      const projectName = getVolcengineProjectName()
+      const response = await window.api.volcengine.listModels(projectName)
 
       if (!response || !response.models) {
         logger.warn('Empty response from Volcengine listModels')

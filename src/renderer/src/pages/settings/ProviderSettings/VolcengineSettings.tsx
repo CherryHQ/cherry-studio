@@ -10,7 +10,7 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle }
 
 const VolcengineSettings: FC = () => {
   const { t } = useTranslation()
-  const { accessKeyId, secretAccessKey, region, setAccessKeyId, setSecretAccessKey, setRegion } =
+  const { accessKeyId, secretAccessKey, region, projectName, setAccessKeyId, setSecretAccessKey, setRegion, setProjectName } =
     useVolcengineSettings()
 
   const providerConfig = PROVIDER_URLS['doubao']
@@ -19,6 +19,7 @@ const VolcengineSettings: FC = () => {
   const [localAccessKeyId, setLocalAccessKeyId] = useState(accessKeyId)
   const [localSecretAccessKey, setLocalSecretAccessKey] = useState(secretAccessKey)
   const [localRegion, setLocalRegion] = useState(region)
+  const [localProjectName, setLocalProjectName] = useState(projectName)
   const [saving, setSaving] = useState(false)
   const [hasCredentials, setHasCredentials] = useState(false)
 
@@ -32,7 +33,8 @@ const VolcengineSettings: FC = () => {
     setLocalAccessKeyId(accessKeyId)
     setLocalSecretAccessKey(secretAccessKey)
     setLocalRegion(region)
-  }, [accessKeyId, secretAccessKey, region])
+    setLocalProjectName(projectName)
+  }, [accessKeyId, secretAccessKey, region, projectName])
 
   const handleSaveCredentials = useCallback(async () => {
     if (!localAccessKeyId || !localSecretAccessKey) {
@@ -46,6 +48,7 @@ const VolcengineSettings: FC = () => {
       setAccessKeyId(localAccessKeyId)
       setSecretAccessKey(localSecretAccessKey)
       setRegion(localRegion)
+      setProjectName(localProjectName)
 
       // Save to secure storage via IPC
       await window.api.volcengine.saveCredentials(localAccessKeyId, localSecretAccessKey)
@@ -56,7 +59,7 @@ const VolcengineSettings: FC = () => {
     } finally {
       setSaving(false)
     }
-  }, [localAccessKeyId, localSecretAccessKey, localRegion, setAccessKeyId, setSecretAccessKey, setRegion, t])
+  }, [localAccessKeyId, localSecretAccessKey, localRegion, localProjectName, setAccessKeyId, setSecretAccessKey, setRegion, setProjectName, t])
 
   const handleClearCredentials = useCallback(async () => {
     try {
@@ -120,6 +123,18 @@ const VolcengineSettings: FC = () => {
       />
       <SettingHelpTextRow>
         <SettingHelpText>{t('settings.provider.volcengine.region_help')}</SettingHelpText>
+      </SettingHelpTextRow>
+
+      <SettingSubtitle style={{ marginTop: 15 }}>{t('settings.provider.volcengine.project_name')}</SettingSubtitle>
+      <Input
+        value={localProjectName}
+        placeholder="default"
+        onChange={(e) => setLocalProjectName(e.target.value)}
+        onBlur={() => setProjectName(localProjectName)}
+        style={{ marginTop: 5 }}
+      />
+      <SettingHelpTextRow>
+        <SettingHelpText>{t('settings.provider.volcengine.project_name_help')}</SettingHelpText>
       </SettingHelpTextRow>
 
       <Space style={{ marginTop: 15 }}>

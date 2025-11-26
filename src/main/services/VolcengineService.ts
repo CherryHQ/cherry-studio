@@ -34,6 +34,7 @@ const ListFoundationModelsRequestSchema = z.object({
 })
 
 const ListEndpointsRequestSchema = z.object({
+  ProjectName: z.optional(z.string()),
   PageNumber: z.optional(z.number()),
   PageSize: z.optional(z.number())
 })
@@ -544,8 +545,9 @@ class VolcengineService {
   /**
    * List user-created endpoints from Volcengine ARK
    */
-  private async listEndpoints(): Promise<ListEndpointsResponse> {
+  private async listEndpoints(projectName?: string): Promise<ListEndpointsResponse> {
     const requestBody: ListEndpointsRequest = {
+      ProjectName: projectName || 'default',
       PageNumber: 1,
       PageSize: CONFIG.DEFAULT_PAGE_SIZE
     }
@@ -569,11 +571,11 @@ class VolcengineService {
    * List all available models from Volcengine ARK
    * Combines foundation models and user-created endpoints
    */
-  public listModels = async (): Promise<ListModelsResult> => {
+  public listModels = async (_?: Electron.IpcMainInvokeEvent, projectName?: string): Promise<ListModelsResult> => {
     try {
       const [foundationModelsResult, endpointsResult] = await Promise.allSettled([
         this.listFoundationModels(),
-        this.listEndpoints()
+        this.listEndpoints(projectName)
       ])
 
       const models: ModelInfo[] = []

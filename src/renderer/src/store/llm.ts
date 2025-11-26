@@ -35,6 +35,7 @@ type LlmSettings = {
     accessKeyId: string
     secretAccessKey: string
     region: string
+    projectName: string
   }
 }
 
@@ -84,7 +85,8 @@ export const initialState: LlmState = {
     volcengine: {
       accessKeyId: '',
       secretAccessKey: '',
-      region: 'cn-beijing'
+      region: 'cn-beijing',
+      projectName: 'default'
     }
   }
 }
@@ -235,6 +237,9 @@ const llmSlice = createSlice({
     setVolcengineRegion: (state, action: PayloadAction<string>) => {
       state.settings.volcengine.region = action.payload
     },
+    setVolcengineProjectName: (state, action: PayloadAction<string>) => {
+      state.settings.volcengine.projectName = action.payload
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -279,6 +284,7 @@ export const {
   setVolcengineAccessKeyId,
   setVolcengineSecretAccessKey,
   setVolcengineRegion,
+  setVolcengineProjectName,
   updateModel
 } = llmSlice.actions
 
