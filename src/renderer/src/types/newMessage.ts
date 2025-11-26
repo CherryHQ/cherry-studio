@@ -1,5 +1,5 @@
 import type { CompletionUsage } from '@cherrystudio/openai/resources'
-import type { ProviderMetadata } from 'ai'
+import type { FinishReason, ProviderMetadata } from 'ai'
 
 import type {
   Assistant,
@@ -221,6 +221,10 @@ export type Message = {
   // raw data
   // TODO: add this providerMetadata to MessageBlock to save raw provider data for each block
   providerMetadata?: ProviderMetadata
+
+  // Finish reason from AI SDK (e.g., 'stop', 'length', 'content-filter', etc.)
+  // Used to show warnings when generation was truncated or filtered
+  finishReason?: FinishReason
 }
 
 export interface Response {
@@ -232,6 +236,7 @@ export interface Response {
   mcpToolResponse?: MCPToolResponse[]
   generateImage?: GenerateImageResponse
   error?: ResponseError
+  finishReason?: FinishReason
 }
 
 export type ResponseError = Record<string, any>

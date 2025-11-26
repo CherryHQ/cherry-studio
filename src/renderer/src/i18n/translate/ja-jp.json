@@ -1730,6 +1730,9 @@
     },
     "citation": "{{count}}個の引用内容",
     "citations": "引用内容",
+    "continue_generation": {
+      "prompt": "[to be translated]:Please continue your previous response exactly from where you left off. Do not repeat any content that was already generated. Continue directly from:\n\n{{truncatedContent}}"
+    },
     "copied": "コピーしました！",
     "copy": {
       "failed": "コピーに失敗しました",
@@ -1941,6 +1944,14 @@
       }
     },
     "warning": {
+      "finish_reason": {
+        "content-filter": "[to be translated]:Content was blocked by safety filter",
+        "continue": "[to be translated]:Continue generating",
+        "error": "[to be translated]:An error occurred during generation",
+        "length": "[to be translated]:Maximum output length limit reached",
+        "other": "[to be translated]:Generation terminated",
+        "unknown": "[to be translated]:Generation terminated for unknown reason"
+      },
       "rate": {
         "limit": "送信が頻繁すぎます。{{seconds}} 秒待ってから再試行してください。"
       }

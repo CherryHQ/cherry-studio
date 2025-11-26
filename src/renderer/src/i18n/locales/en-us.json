@@ -1730,6 +1730,9 @@
     },
     "citation": "{{count}} citations",
     "citations": "References",
+    "continue_generation": {
+      "prompt": "[CONTINUE EXACTLY FROM CUTOFF POINT]\n\nYour previous response was cut off mid-generation. Continue IMMEDIATELY from where you stopped - do NOT repeat, summarize, or restart. Your next word should be the exact continuation.\n\nYour response ended with: \"{{truncatedContent}}\"\n\nContinue now (first word must follow directly from the above):"
+    },
     "copied": "Copied!",
     "copy": {
       "failed": "Copy failed",
@@ -1941,6 +1944,14 @@
       }
     },
     "warning": {
+      "finish_reason": {
+        "content-filter": "Content was blocked by safety filter",
+        "continue": "Continue generating",
+        "error": "An error occurred during generation",
+        "length": "Maximum output length limit reached",
+        "other": "Generation terminated",
+        "unknown": "Generation terminated for unknown reason"
+      },
       "rate": {
         "limit": "Too many requests. Please wait {{seconds}} seconds before trying again."
       }

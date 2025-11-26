@@ -194,7 +194,12 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         }
       }
 
-      const messageUpdates = { status, metrics: response?.metrics, usage: response?.usage }
+      const messageUpdates = {
+        status,
+        metrics: response?.metrics,
+        usage: response?.usage,
+        finishReason: response?.finishReason
+      }
       dispatch(
         newMessagesActions.updateMessage({
           topicId,

@@ -6,11 +6,30 @@ import React from 'react'
 import styled from 'styled-components'
 
 import MessageBlockRenderer from './Blocks'
+import FinishReasonWarning from './FinishReasonWarning'
+
 interface Props {
   message: Message
+  onContinueGeneration?: (message: Message) => void
+  onDismissWarning?: (message: Message) => void
 }
 
-const MessageContent: React.FC<Props> = ({ message }) => {
+const MessageContent: React.FC<Props> = ({ message, onContinueGeneration, onDismissWarning }) => {
+  // Check if we should show finish reason warning
+  const showFinishReasonWarning =
+    message.role === 'assistant' &&
+    message.finishReason &&
+    message.finishReason !== 'stop' &&
+    message.finishReason !== 'tool-calls'
+
+  const handleContinue = () => {
+    onContinueGeneration?.(message)
+  }
+
+  const handleDismiss = () => {
+    onDismissWarning?.(message)
+  }
+
   return (
     <>
       {!isEmpty(message.mentions) && (
@@ -21,6 +40,13 @@ const MessageContent: React.FC<Props> = ({ message }) => {
         </Flex>
       )}
       <MessageBlockRenderer blocks={message.blocks} message={message} />
+      {showFinishReasonWarning && (
+        <FinishReasonWarning
+          finishReason={message.finishReason!}
+          onContinue={onContinueGeneration ? handleContinue : undefined}
+          onDismiss={onDismissWarning ? handleDismiss : undefined}
+        />
+      )}
     </>
   )
 }

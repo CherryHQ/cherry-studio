@@ -13,7 +13,7 @@ import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateMessageUsage } from '@renderer/services/TokenService'
 import type { Assistant, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message as MessageType, MessageBlock } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { Divider } from 'antd'
@@ -30,7 +30,7 @@ import MessageMenubar from './MessageMenubar'
 import MessageOutline from './MessageOutline'
 
 interface Props {
-  message: Message
+  message: MessageType
   topic: Topic
   assistant?: Assistant
   index?: number
@@ -39,7 +39,7 @@ interface Props {
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
-  onSetMessages?: Dispatch<SetStateAction<Message[]>>
+  onSetMessages?: Dispatch<SetStateAction<MessageType[]>>
   onUpdateUseful?: (msgId: string) => void
   isGroupContextMessage?: boolean
 }
@@ -115,6 +115,26 @@ const MessageItem: FC<Props> = ({
   const handleEditCancel = useCallback(() => {
     stopEditing()
   }, [stopEditing])
+
+  // Handle continue generation when max tokens reached
+  const handleContinueGeneration = useCallback(
+    async (msg: MessageType) => {
+      if (!assistant) return
+      // Clear the finishReason first, then trigger continue generation
+      await editMessage(msg.id, { finishReason: undefined })
+      // Emit event to trigger continue generation
+      EventEmitter.emit(EVENT_NAMES.CONTINUE_GENERATION, { message: msg, assistant, topic })
+    },
+    [assistant, editMessage, topic]
+  )
+
+  // Handle dismiss warning (just clear finishReason)
+  const handleDismissWarning = useCallback(
+    async (msg: MessageType) => {
+      await editMessage(msg.id, { finishReason: undefined })
+    },
+    [editMessage]
+  )
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
@@ -223,7 +243,11 @@ const MessageItem: FC<Props> = ({
                 overflowY: 'visible'
               }}>
               <MessageErrorBoundary>
-                <MessageContent message={message} />
+                <MessageContent
+                  message={message}
+                  onContinueGeneration={handleContinueGeneration}
+                  onDismissWarning={handleDismissWarning}
+                />
               </MessageErrorBoundary>
             </MessageContentContainer>
             {showMenubar && (

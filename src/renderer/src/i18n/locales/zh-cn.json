@@ -1730,6 +1730,9 @@
     },
     "citation": "{{count}} 个引用内容",
     "citations": "引用内容",
+    "continue_generation": {
+      "prompt": "[从截断处精确继续]\n\n你之前的回复在生成过程中被截断了。请立即从停止的地方继续——不要重复、总结或重新开始。你的下一个字必须是精确的接续。\n\n你的回复结尾是：\"{{truncatedContent}}\"\n\n现在继续（第一个字必须直接接上面的内容）："
+    },
     "copied": "已复制",
     "copy": {
       "failed": "复制失败",
@@ -1941,6 +1944,14 @@
       }
     },
     "warning": {
+      "finish_reason": {
+        "content-filter": "内容被安全过滤器拦截",
+        "continue": "继续生成",
+        "error": "生成过程中发生错误",
+        "length": "已达到最大输出长度限制",
+        "other": "生成已终止",
+        "unknown": "生成因未知原因终止"
+      },
       "rate": {
         "limit": "发送过于频繁，请等待 {{seconds}} 秒后再尝试"
       }

@@ -1730,6 +1730,9 @@
     },
     "citation": "{{count}} éléments cités",
     "citations": "Citations",
+    "continue_generation": {
+      "prompt": "[to be translated]:Please continue your previous response exactly from where you left off. Do not repeat any content that was already generated. Continue directly from:\n\n{{truncatedContent}}"
+    },
     "copied": "Copié",
     "copy": {
       "failed": "La copie a échoué",
@@ -1941,6 +1944,14 @@
       }
     },
     "warning": {
+      "finish_reason": {
+        "content-filter": "[to be translated]:Content was blocked by safety filter",
+        "continue": "[to be translated]:Continue generating",
+        "error": "[to be translated]:An error occurred during generation",
+        "length": "[to be translated]:Maximum output length limit reached",
+        "other": "[to be translated]:Generation terminated",
+        "unknown": "[to be translated]:Generation terminated for unknown reason"
+      },
       "rate": {
         "limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"
       }
