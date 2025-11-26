@@ -134,66 +134,56 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.2
+    What's New in v1.7.0-rc.3
 
     ✨ New Features:
-    - AI Models: Added support for Gemini 3, Gemini 3 Pro with image preview, and GPT-5.1
-    - Import: ChatGPT conversation import feature
-    - Agent: Git Bash detection and requirement check for Windows agents
-    - Search: Native language emoji search with CLDR data format
-    - Provider: Endpoint type support for cherryin provider
-    - Debug: Local crash mini dump file for better diagnostics
+    - Provider: Added Silicon provider support for Anthropic API compatibility
+    - Provider: AIHubMix support for nano banana
 
-    🐛 Important Bug Fixes:
-    - Error Handling: Improved error display in AiSdkToChunkAdapter
-    - Database: Optimized DatabaseManager and fixed libsql crash issues
-    - Memory: Fixed EventEmitter memory leak in useApiServer hook
-    - Messages: Fixed adjacent user messages appearing when assistant message contains error only
-    - Tools: Fixed missing execution state for approved tool permissions
-    - File Processing: Fixed "no such file" error for non-English filenames in open-mineru
-    - PDF: Fixed mineru PDF validation and 403 errors
-    - Images: Fixed base64 image save issues
-    - Search: Fixed URL context and web search capability
-    - Models: Added verbosity parameter support for GPT-5 models
-    - UI: Improved todo tool status icon visibility and colors
-    - Providers: Fixed api-host for vercel ai-gateway and gitcode update config
+    🐛 Bug Fixes:
+    - i18n: Clean up translation tags and untranslated strings
+    - Provider: Fixed Silicon provider code list
+    - Provider: Fixed Poe API reasoning parameters for GPT-5 and reasoning models
+    - Provider: Fixed duplicate /v1 in Anthropic API endpoints
+    - Provider: Fixed Azure provider handling in AI SDK integration
+    - Models: Added Claude Opus 4.5 pattern to THINKING_TOKEN_MAP
+    - Models: Improved Gemini reasoning and message handling
+    - Models: Fixed custom parameters for Gemini models
+    - Models: Fixed qwen-mt-flash text delta support
+    - Models: Fixed Groq verbosity setting
+    - UI: Fixed quota display and quota tips
+    - UI: Fixed web search button condition
+    - Settings: Fixed updateAssistantPreset reducer to properly update preset
+    - Settings: Respect enableMaxTokens setting when maxTokens is not configured
+    - SDK: Fixed header merging logic in AI SDK
 
     ⚡ Improvements:
-    - SDK: Updated Google and OpenAI SDKs with new features
-    - UI: Simplified knowledge base creation modal and agent creation form
-    - Tools: Replaced renderToolContent function with ToolContent component
-    - Architecture: Namespace tool call IDs with session ID to prevent conflicts
-    - Config: AI SDK configuration refactoring
+    - SDK: Upgraded @anthropic-ai/claude-agent-sdk to 0.1.53
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.2 新特性
+    v1.7.0-rc.3 更新内容
 
     ✨ 新功能:
-    - AI 模型：新增 Gemini 3、Gemini 3 Pro 图像预览支持，以及 GPT-5.1
-    - 导入：ChatGPT 对话导入功能
-    - Agent：Windows Agent 的 Git Bash 检测和要求检查
-    - 搜索：支持本地语言 emoji 搜索（CLDR 数据格式）
-    - 提供商：cherryin provider 的端点类型支持
-    - 调试：启用本地崩溃 mini dump 文件，方便诊断
+    - 提供商：新增 Silicon 提供商对 Anthropic API 的兼容性支持
+    - 提供商：AIHubMix 支持 nano banana
 
-    🐛 重要修复:
-    - 错误处理：改进 AiSdkToChunkAdapter 的错误显示
-    - 数据库：优化 DatabaseManager 并修复 libsql 崩溃问题
-    - 内存：修复 useApiServer hook 中的 EventEmitter 内存泄漏
-    - 消息：修复当助手消息仅包含错误时相邻用户消息出现的问题
-    - 工具：修复批准工具权限缺少执行状态的问题
-    - 文件处理：修复 open-mineru 处理非英文文件名时的"无此文件"错误
-    - PDF：修复 mineru PDF 验证和 403 错误
-    - 图片：修复 base64 图片保存问题
-    - 搜索：修复 URL 上下文和网络搜索功能
-    - 模型：为 GPT-5 模型添加 verbosity 参数支持
-    - UI：改进 todo 工具状态图标可见性和颜色
-    - 提供商：修复 vercel ai-gateway 和 gitcode 更新配置的 api-host
+    🐛 问题修复:
+    - 国际化：清理翻译标签和未翻译字符串
+    - 提供商：修复 Silicon 提供商代码列表
+    - 提供商：修复 Poe API 对 GPT-5 和推理模型的推理参数
+    - 提供商：修复 Anthropic API 端点重复 /v1 问题
+    - 提供商：修复 Azure 提供商在 AI SDK 集成中的处理
+    - 模型：Claude Opus 4.5 添加到 THINKING_TOKEN_MAP
+    - 模型：改进 Gemini 推理和消息处理
+    - 模型：修复 Gemini 模型自定义参数
+    - 模型：修复 qwen-mt-flash text delta 支持
+    - 模型：修复 Groq verbosity 设置
+    - 界面：修复配额显示和配额提示
+    - 界面：修复 Web 搜索按钮条件
+    - 设置：修复 updateAssistantPreset reducer 正确更新 preset
+    - 设置：尊重 enableMaxTokens 设置
+    - SDK：修复 AI SDK 中 header 合并逻辑
 
     ⚡ 改进:
-    - SDK：更新 Google 和 OpenAI SDK，新增功能和修复
-    - UI：简化知识库创建模态框和 agent 创建表单
-    - 工具：用 ToolContent 组件替换 renderToolContent 函数，提升可读性
-    - 架构：用会话 ID 命名工具调用 ID 以防止冲突
-    - 配置：AI SDK 配置重构
+    - SDK：升级 @anthropic-ai/claude-agent-sdk 到 0.1.53
     <!--LANG:END-->
