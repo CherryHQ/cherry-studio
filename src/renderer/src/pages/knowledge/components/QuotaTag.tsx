@@ -43,28 +43,37 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
       }
     }
     if (_quota !== undefined) {
+      setQuota(_quota)
       updateProvider({ quota: _quota })
       return
     }
     checkQuota()
   }, [_quota, base, provider.id, provider.apiKey, provider, quota, updateProvider])
 
-  return (
-    <>
-      {quota && (
+  const getQuotaDisplay = () => {
+    if (quota === undefined) return null
+    if (quota === -9999) {
+      return (
         <Tag color="orange" style={{ borderRadius: 20, margin: 0 }}>
-          {quota === -9999
-            ? t('knowledge.quota_infinity', {
-                name: provider.name
-              })
-            : t('knowledge.quota', {
-                name: provider.name,
-                quota: quota
-              })}
+          {t('knowledge.quota_infinity', { name: provider.name })}
         </Tag>
-      )}
-    </>
-  )
+      )
+    }
+    if (quota === 0) {
+      return (
+        <Tag color="red" style={{ borderRadius: 20, margin: 0 }}>
+          {t('knowledge.quota_empty', { name: provider.name })}
+        </Tag>
+      )
+    }
+    return (
+      <Tag color="orange" style={{ borderRadius: 20, margin: 0 }}>
+        {t('knowledge.quota', { name: provider.name, quota: quota })}
+      </Tag>
+    )
+  }
+
+  return <>{getQuotaDisplay()}</>
 }
 
 export default QuotaTag
