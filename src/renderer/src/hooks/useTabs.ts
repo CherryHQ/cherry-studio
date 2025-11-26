@@ -7,7 +7,7 @@ export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheSchemas'
 import type { Tab } from '@shared/data/cache/cacheSchemas'
 
 export function useTabs() {
-  const [tabsState, setTabsState] = usePersistCache('tabs_state')
+  const [tabsState, setTabsState] = usePersistCache('ui.tab.state')
 
   const tabs = useMemo(() => tabsState.tabs, [tabsState.tabs])
   const activeTabId = tabsState.activeTabId

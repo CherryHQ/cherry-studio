@@ -48,9 +48,6 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
-
-  // UI State
-  'ui.activeTabId': string
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -81,10 +78,7 @@ export const DefaultUseCache: UseCacheSchema = {
   // Topic management
   'topic.active': null,
   'topic.renaming': [],
-  'topic.newly_renamed': [],
-
-  // UI State
-  'ui.activeTabId': ''
+  'topic.newly_renamed': []
 }
 
 /**
@@ -123,11 +117,11 @@ export interface TabsState {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  tabs_state: TabsState
+  'ui.tab.state': TabsState
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  tabs_state: { tabs: [], activeTabId: '' }
+  'ui.tab.state': { tabs: [], activeTabId: '' }
 }
 
 /**
