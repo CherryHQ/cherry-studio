@@ -19,8 +19,7 @@ const MessageContent: React.FC<Props> = ({ message, onContinueGeneration, onDism
   const showFinishReasonWarning =
     message.role === 'assistant' &&
     message.finishReason &&
-    message.finishReason !== 'stop' &&
-    message.finishReason !== 'tool-calls'
+    !['stop', 'tool-calls', 'error'].includes(message.finishReason)
 
   const handleContinue = () => {
     onContinueGeneration?.(message)
