@@ -19,25 +19,6 @@ export type { ConcreteApiPaths } from './apiPaths'
  */
 export interface ApiSchemas {
   /**
-   * App State storage endpoint
-   * @example GET /app/state/tabs_state
-   * @example PUT /app/state/tabs_state { "value": {...} }
-   */
-  '/app/state/:key': {
-    /** Get app state by key */
-    GET: {
-      params: { key: string }
-      response: any
-    }
-    /** Save app state */
-    PUT: {
-      params: { key: string }
-      body: any
-      response: { success: boolean }
-    }
-  }
-
-  /**
    * Test items collection endpoint
    * @example GET /test/items?page=1&limit=10&search=hello
    * @example POST /test/items { "title": "New Test Item" }

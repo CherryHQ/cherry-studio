@@ -77,15 +77,35 @@ export const DefaultUseSharedCache: UseSharedCacheSchema = {
 }
 
 /**
+ * Tab type for browser-like tabs
+ */
+export type TabType = 'webview' | 'url' | 'browser'
+
+export interface Tab {
+  id: string
+  type: TabType
+  url: string
+  title: string
+  icon?: string
+  isKeepAlive?: boolean
+  metadata?: Record<string, any>
+}
+
+export interface TabsState {
+  tabs: Tab[]
+  activeTabId: string
+}
+
+/**
  * Persist cache schema defining allowed keys and their value types
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'example-key': string
+  'tabs_state': TabsState
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'example-key': 'example default value'
+  'tabs_state': { tabs: [], activeTabId: '' }
 }
 
 /**

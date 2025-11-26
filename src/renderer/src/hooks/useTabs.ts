@@ -1,78 +1,28 @@
-import { loggerService } from '@logger'
 import { useCallback, useMemo } from 'react'
 
-import { useMutation, useQuery } from '../data/hooks/useDataApi'
+import { usePersistCache } from '../data/hooks/useCache'
 
-const logger = loggerService.withContext('useTabs')
-
-export type TabType = 'webview' | 'url' | 'browser'
-
-export interface Tab {
-  id: string
-  type: TabType
-  url: string
-  title: string
-  icon?: string
-  isKeepAlive?: boolean
-  metadata?: Record<string, any>
-}
-
-interface TabsState {
-  tabs: Tab[]
-  activeTabId: string
-}
-
-const TABS_STORAGE_KEY = 'tabs_state'
-const DEFAULT_STATE: TabsState = { tabs: [], activeTabId: '' }
+// Re-export types from shared schema
+export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheSchemas'
+import type { Tab } from '@shared/data/cache/cacheSchemas'
 
 export function useTabs() {
-  // Load state from DB
-  // We cast the path because we haven't fully updated the concrete path types globally yet
-  const {
-    data: tabsState,
-    mutate: mutateState,
-    loading: isLoading
-  } = useQuery(`/app/state/${TABS_STORAGE_KEY}` as any, {
-    swrOptions: {
-      revalidateOnFocus: false,
-      fallbackData: DEFAULT_STATE
-    }
-  })
+  const [tabsState, setTabsState] = usePersistCache('tabs_state')
 
-  // Ensure we always have a valid object structure
-  const currentState: TabsState = useMemo(
-    () => (tabsState && typeof tabsState === 'object' ? (tabsState as TabsState) : DEFAULT_STATE),
-    [tabsState]
-  )
-  const tabs = useMemo(() => (Array.isArray(currentState.tabs) ? currentState.tabs : []), [currentState.tabs])
-  const activeTabId = currentState.activeTabId || ''
-
-  // Mutation for saving
-  const saveMutation = useMutation('PUT', `/app/state/${TABS_STORAGE_KEY}` as any)
-
-  // Unified update helper
-  const updateState = useCallback(
-    async (newState: TabsState) => {
-      // 1. Optimistic update local cache
-      await mutateState(newState, { revalidate: false })
-
-      // 2. Sync to DB
-      saveMutation.mutate({ body: newState }).catch((err) => logger.error('Failed to save tabs state:', err))
-    },
-    [mutateState, saveMutation]
-  )
+  const tabs = useMemo(() => tabsState.tabs, [tabsState.tabs])
+  const activeTabId = tabsState.activeTabId
 
   const addTab = useCallback(
     (tab: Tab) => {
       const exists = tabs.find((t) => t.id === tab.id)
       if (exists) {
-        updateState({ ...currentState, activeTabId: tab.id })
+        setTabsState({ ...tabsState, activeTabId: tab.id })
         return
       }
       const newTabs = [...tabs, tab]
-      updateState({ tabs: newTabs, activeTabId: tab.id })
+      setTabsState({ tabs: newTabs, activeTabId: tab.id })
     },
-    [tabs, currentState, updateState]
+    [tabs, tabsState, setTabsState]
   )
 
   const closeTab = useCallback(
@@ -81,42 +31,49 @@ export function useTabs() {
       let newActiveId = activeTabId
 
       if (activeTabId === id) {
-        // Activate adjacent tab
         const index = tabs.findIndex((t) => t.id === id)
-        // Try to go left, then right
         const nextTab = newTabs[index - 1] || newTabs[index]
         newActiveId = nextTab ? nextTab.id : ''
       }
 
-      updateState({ tabs: newTabs, activeTabId: newActiveId })
+      setTabsState({ tabs: newTabs, activeTabId: newActiveId })
     },
-    [tabs, activeTabId, updateState]
+    [tabs, activeTabId, setTabsState]
   )
 
   const setActiveTab = useCallback(
     (id: string) => {
       if (id !== activeTabId) {
-        updateState({ ...currentState, activeTabId: id })
+        setTabsState({ ...tabsState, activeTabId: id })
       }
     },
-    [activeTabId, currentState, updateState]
+    [activeTabId, tabsState, setTabsState]
   )
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
       const newTabs = tabs.map((t) => (t.id === id ? { ...t, ...updates } : t))
-      updateState({ ...currentState, tabs: newTabs })
+      setTabsState({ ...tabsState, tabs: newTabs })
     },
-    [tabs, currentState, updateState]
+    [tabs, tabsState, setTabsState]
+  )
+
+  const setTabs = useCallback(
+    (newTabs: Tab[] | ((prev: Tab[]) => Tab[])) => {
+      const resolvedTabs = typeof newTabs === 'function' ? newTabs(tabs) : newTabs
+      setTabsState({ ...tabsState, tabs: resolvedTabs })
+    },
+    [tabs, tabsState, setTabsState]
   )
 
   return {
     tabs,
     activeTabId,
-    isLoading,
+    isLoading: false,
     addTab,
     closeTab,
     setActiveTab,
-    updateTab
+    updateTab,
+    setTabs
   }
 }
