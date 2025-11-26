@@ -893,7 +893,7 @@
         "title": "コード実行"
       },
       "code_fancy_block": {
-        "label": "<translate_input>\n装飾的なコードブロック\n</translate_input>",
+        "label": "装飾的なコードブロック",
         "tip": "より見栄えの良いコードブロックスタイルを使用する、例えばHTMLカード"
       },
       "code_image_tools": {
@@ -1297,7 +1297,7 @@
     "statusCode": "ステータスコード",
     "statusText": "状態テキスト",
     "text": "テキスト",
-    "toolInput": "<translate_input>\nツール入力\n</translate_input>",
+    "toolInput": "ツール入力",
     "toolName": "ツール名",
     "unknown": "不明なエラー",
     "usage": "用量",
