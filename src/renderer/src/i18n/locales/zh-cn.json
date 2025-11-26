@@ -1505,6 +1505,7 @@
     "notes_placeholder": "输入此知识库的附加信息或上下文...",
     "provider_not_found": "未找到服务商",
     "quota": "{{name}} 剩余额度：{{quota}}",
+    "quota_empty": "今日{{name}}额度不足，请前往官网申请",
     "quota_infinity": "{{name}} 剩余额度：无限制",
     "rename": "重命名",
     "search": "搜索知识库",

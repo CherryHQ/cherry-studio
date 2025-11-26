@@ -1505,6 +1505,7 @@
     "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
     "provider_not_found": "未找到服務商",
     "quota": "{{name}} 剩餘配額：{{quota}}",
+    "quota_empty": "今日{{name}}額度不足，請前往官網申請",
     "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
     "search": "搜尋知識庫",
