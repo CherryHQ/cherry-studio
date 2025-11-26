@@ -10,6 +10,7 @@ import AwsProviderLogo from '@renderer/assets/images/providers/aws-bedrock.webp'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
+import BailingProviderLogo from '@renderer/assets/images/providers/bailing.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
 import CerebrasProviderLogo from '@renderer/assets/images/providers/cerebras.webp'
@@ -88,6 +89,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: [],
     isSystem: true,
     enabled: true
+  },
+  bailing: {
+    id: 'bailing',
+    name: 'Bailing',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.tbox.cn/api/llm/v1/chat/completions',
+    models: SYSTEM_MODELS.bailing,
+    isSystem: true,
+    enabled: false
   },
   silicon: {
     id: 'silicon',
@@ -700,6 +711,7 @@ export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS
 
 export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   cherryin: CherryInProviderLogo,
+  bailing: BailingProviderLogo,
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -872,6 +884,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://aistudio.google.com/app/apikey',
       docs: 'https://ai.google.dev/gemini-api/docs',
       models: 'https://ai.google.dev/gemini-api/docs/models/gemini'
+    }
+  },
+  bailing: {
+    api: {
+      url: 'https://api.tbox.cn/api/llm/v1/chat/completions'
+    },
+    websites: {
+      official: 'https://ling.tbox.cn/open',
+      apiKey: 'https://ling.tbox.cn/open',
+      docs: 'https://alipaytbox.yuque.com/sxs0ba/ling/intro',
+      models: 'https://alipaytbox.yuque.com/sxs0ba/ling/intro'
     }
   },
   silicon: {
