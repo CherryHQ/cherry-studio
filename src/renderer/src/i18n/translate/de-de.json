@@ -1505,6 +1505,7 @@
     "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
     "provider_not_found": "Anbieter nicht gefunden",
     "quota": "{{name}} verbleibendes Kontingent: {{quota}}",
+    "quota_empty": "Das heutige {{name}}-Kontingent ist erschöpft. Bitte beantragen Sie es auf der offiziellen Website",
     "quota_infinity": "{{name}} verbleibendes Kontingent: unbegrenzt",
     "rename": "Umbenennen",
     "search": "Wissensdatenbank durchsuchen",

@@ -1505,6 +1505,7 @@
     "notes_placeholder": "Entrez des informations supplémentaires ou un contexte pour cette base de connaissances...",
     "provider_not_found": "Le fournisseur du modèle de la base de connaissances a été perdu, cette base de connaissances ne sera plus supportée, veuillez en créer une nouvelle",
     "quota": "Quota restant pour {{name}} : {{quota}}",
+    "quota_empty": "Le quota {{name}} d'aujourd'hui est épuisé, veuillez en faire la demande sur le site officiel",
     "quota_infinity": "Quota restant pour {{name}} : illimité",
     "rename": "Renommer",
     "search": "Rechercher dans la base de connaissances",

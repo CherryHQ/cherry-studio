@@ -1505,6 +1505,7 @@
     "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
     "provider_not_found": "プロバイダーが見つかりません",
     "quota": "{{name}} 残りクォータ: {{quota}}",
+    "quota_empty": "本日の{{name}}クォータが不足しています。公式サイトで申請してください",
     "quota_infinity": "{{name}} クォータ: 無制限",
     "rename": "名前を変更",
     "search": "ナレッジベースを検索",

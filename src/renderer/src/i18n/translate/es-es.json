@@ -1505,6 +1505,7 @@
     "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
     "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "quota": "Cupo restante de {{name}}: {{quota}}",
+    "quota_empty": "La cuota de {{name}} de hoy está agotada, por favor solicítela en el sitio web oficial",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
     "search": "Buscar en la base de conocimientos",
