@@ -4,7 +4,14 @@ import { type Model, SystemProviderIds } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 
-import { isOpenAIChatCompletionOnlyModel, isOpenAIOpenWeightModel, isOpenAIReasoningModel } from './openai'
+import {
+  isGPT5ProModel,
+  isGPT5SeriesModel,
+  isGPT51SeriesModel,
+  isOpenAIChatCompletionOnlyModel,
+  isOpenAIOpenWeightModel,
+  isOpenAIReasoningModel
+} from './openai'
 import { isQwenMTModel } from './qwen'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
@@ -123,21 +130,41 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => {
   return isQwenMTModel(model) || isGemmaModel(model)
 }
 
-// GPT-5 verbosity configuration
+// Verbosity settings is only supported by GPT-5 and newer models
+// Specifically, GPT-5 and GPT-5.1 for now
 // gpt-5-pro only supports 'high', other GPT-5 models support all levels
-export const MODEL_SUPPORTED_VERBOSITY: Record<string, ValidOpenAIVerbosity[]> = {
-  'gpt-5-pro': ['high'],
-  default: ['low', 'medium', 'high']
-} as const
+const MODEL_SUPPORTED_VERBOSITY: readonly {
+  readonly validator: (model: Model) => boolean
+  readonly values: readonly ValidOpenAIVerbosity[]
+}[] = [
+  // gpt-5-pro
+  { validator: isGPT5ProModel, values: ['high'] },
+  // gpt-5 except gpt-5-pro
+  {
+    validator: (model: Model) => isGPT5SeriesModel(model) && !isGPT5ProModel(model),
+    values: ['low', 'medium', 'high']
+  },
+  // gpt-5.1
+  { validator: (model: Model) => isGPT51SeriesModel(model), values: ['low', 'medium', 'high'] }
+] as const
 
+/**
+ * Returns the list of supported verbosity levels for the given model.
+ * If the model is not recognized as a GPT-5 series model, only `undefined` is returned.
+ * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
+ * @param model - The model to check
+ * @returns An array of supported verbosity levels, always including `undefined` as the first element
+ */
 export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
-  const modelId = getLowerBaseModelName(model.id)
-  let supportedValues: ValidOpenAIVerbosity[]
-  if (modelId.includes('gpt-5-pro')) {
-    supportedValues = MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
-  } else {
-    supportedValues = MODEL_SUPPORTED_VERBOSITY.default
+  let supportedValues: ValidOpenAIVerbosity[] = []
+
+  for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
+    if (validator(model)) {
+      supportedValues = [...values]
+      break
+    }
   }
+
   return [undefined, ...supportedValues]
 }
 
