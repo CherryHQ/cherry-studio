@@ -102,6 +102,7 @@ const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
   'gemini',
   'vertexai',
   'anthropic',
+  'azure-openai',
   'new-api'
 ] as const satisfies ProviderType[]
 
