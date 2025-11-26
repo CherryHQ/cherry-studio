@@ -2890,7 +2890,7 @@ const migrateConfig = {
       state.llm.providers.forEach((provider) => {
         switch (provider.id) {
           case SystemProviderIds.silicon:
-            provider.anthropicApiHost = 'https://api.siliconflow.com'
+            provider.anthropicApiHost = 'https://api.siliconflow.cn'
             break
           case SystemProviderIds.qiniu:
             provider.anthropicApiHost = 'https://api.qnaigc.com'
@@ -2900,6 +2900,7 @@ const migrateConfig = {
             break
         }
       })
+      logger.info('migrate 179 success')
       return state
     } catch (error) {
       logger.error('migrate 179 error', error as Error)
