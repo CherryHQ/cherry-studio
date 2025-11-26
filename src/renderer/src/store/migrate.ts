@@ -2884,6 +2884,27 @@ const migrateConfig = {
       logger.error('migrate 178 error', error as Error)
       return state
     }
+  },
+  '179': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        switch (provider.id) {
+          case SystemProviderIds.silicon:
+            provider.anthropicApiHost = 'https://api.siliconflow.com'
+            break
+          case SystemProviderIds.qiniu:
+            provider.anthropicApiHost = 'https://api.qnaigc.com'
+            break
+          case SystemProviderIds.dmxapi:
+            provider.anthropicApiHost = provider.apiHost
+            break
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 179 error', error as Error)
+      return state
+    }
   }
 }
 

@@ -1,5 +1,6 @@
-import type { EndpointType, Model, Provider } from '@renderer/types'
+import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
+import { isSiliconAnthropicCompatibleModel, SILICON_ANTHROPIC_API_HOST } from '@shared/config/providers'
 
 export interface LaunchValidationResult {
   isValid: boolean
@@ -25,7 +26,17 @@ export const CLI_TOOLS = [
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
-export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
+  'deepseek',
+  'moonshot',
+  'zhipu',
+  'dashscope',
+  'modelscope',
+  SystemProviderIds.silicon,
+  'minimax',
+  'longcat',
+  SystemProviderIds.qiniu
+]
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',
   'dmxapi',
@@ -49,6 +60,14 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
+  // Special handling for silicon provider: only specific models support Anthropic API
+  if (model.provider === SystemProviderIds.silicon && type === 'anthropic') {
+    if (isSiliconAnthropicCompatibleModel(model.id)) {
+      return SILICON_ANTHROPIC_API_HOST
+    }
+    return undefined
+  }
+
   const CODE_TOOLS_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
@@ -78,6 +97,11 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     modelscope: {
       anthropic: {
         api_base_url: 'https://api-inference.modelscope.cn'
+      }
+    },
+    minimax: {
+      anthropic: {
+        api_base_url: 'https://api.minimaxi.com/anthropic'
       }
     }
   }
