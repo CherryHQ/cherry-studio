@@ -10,8 +10,16 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle }
 
 const VolcengineSettings: FC = () => {
   const { t } = useTranslation()
-  const { accessKeyId, secretAccessKey, region, projectName, setAccessKeyId, setSecretAccessKey, setRegion, setProjectName } =
-    useVolcengineSettings()
+  const {
+    accessKeyId,
+    secretAccessKey,
+    region,
+    projectName,
+    setAccessKeyId,
+    setSecretAccessKey,
+    setRegion,
+    setProjectName
+  } = useVolcengineSettings()
 
   const providerConfig = PROVIDER_URLS['doubao']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
@@ -59,7 +67,17 @@ const VolcengineSettings: FC = () => {
     } finally {
       setSaving(false)
     }
-  }, [localAccessKeyId, localSecretAccessKey, localRegion, localProjectName, setAccessKeyId, setSecretAccessKey, setRegion, setProjectName, t])
+  }, [
+    localAccessKeyId,
+    localSecretAccessKey,
+    localRegion,
+    localProjectName,
+    setAccessKeyId,
+    setSecretAccessKey,
+    setRegion,
+    setProjectName,
+    t
+  ])
 
   const handleClearCredentials = useCallback(async () => {
     try {

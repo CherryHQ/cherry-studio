@@ -578,7 +578,9 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Volcengine_SaveCredentials, accessKeyId, secretAccessKey),
     hasCredentials: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Volcengine_HasCredentials),
     clearCredentials: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Volcengine_ClearCredentials),
-    listModels: (projectName?: string): Promise<{
+    listModels: (
+      projectName?: string
+    ): Promise<{
       models: Array<{ id: string; name: string; description?: string; created?: number }>
       total?: number
     }> => ipcRenderer.invoke(IpcChannel.Volcengine_ListModels, projectName),
