@@ -27,8 +27,17 @@
         "null_id": "Agent ID ist leer."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
+        "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "title": "Git Bash erforderlich"
+      },
+      "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
+      "success": "Git Bash erfolgreich erkannt!"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
     },
     "list": {
       "error": {
@@ -257,6 +266,7 @@
       "error": {
         "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
       },
+      "executing": "Ausführen...",
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
@@ -1138,6 +1148,7 @@
     "fullscreen": "Vollbildmodus aktiviert, F11 zum Beenden",
     "go_to_settings": "Zu Einstellungen",
     "i_know": "Verstanden",
+    "ignore": "Ignorieren",
     "inspect": "Prüfen",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
@@ -1149,6 +1160,7 @@
     "name": "Name",
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
+    "off": "Aus",
     "open": "Öffnen",
     "paste": "Einfügen",
     "placeholders": {
@@ -1375,6 +1387,36 @@
     "generating": "Wird generiert",
     "preview": "Vorschau",
     "split": "Geteilte Ansicht"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT-Import",
+      "button": "Datei auswählen",
+      "description": "Importiert nur Gesprächstexte, keine Bilder und Anhänge",
+      "error": {
+        "invalid_json": "Ungültiges JSON-Dateiformat",
+        "no_conversations": "Keine Gespräche in der Datei gefunden",
+        "no_valid_conversations": "Keine gültigen Konversationen zum Importieren",
+        "unknown": "Import fehlgeschlagen, bitte überprüfen Sie das Dateiformat"
+      },
+      "help": {
+        "step1": "1. Melden Sie sich bei ChatGPT an, gehen Sie zu Einstellungen > Dateneinstellungen > Daten exportieren",
+        "step2": "2. Warten Sie auf die Exportdatei per E-Mail",
+        "step3": "3. Extrahiere die heruntergeladene Datei und finde conversations.json",
+        "title": "Wie exportiere ich ChatGPT-Gespräche?"
+      },
+      "importing": "Konversationen werden importiert...",
+      "selecting": "Datei wird ausgewählt...",
+      "success": "Erfolgreich {{topics}} Konversationen mit {{messages}} Nachrichten importiert",
+      "title": "ChatGPT-Unterhaltungen importieren",
+      "untitled_conversation": "Unbenannte Unterhaltung"
+    },
+    "confirm": {
+      "button": "Importdatei auswählen",
+      "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
+    },
+    "content": "Wählen Sie die zu importierende Gesprächsdatei einer externen Anwendung aus; derzeit werden nur ChatGPT-JSON-Formatdateien unterstützt.",
+    "title": "Externe Gespräche importieren"
   },
   "knowledge": {
     "add": {
@@ -3085,6 +3127,7 @@
         "basic": "Grundlegende Dateneinstellungen",
         "cloud_storage": "Cloud-Backup-Einstellungen",
         "export_settings": "Export-Einstellungen",
+        "import_settings": "Importeinstellungen",
         "third_party": "Drittanbieter-Verbindungen"
       },
       "export_menu": {
@@ -3143,6 +3186,11 @@
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
+      "import_settings": {
+        "button": "JSON-Datei importieren",
+        "chatgpt": "Import aus ChatGPT",
+        "title": "Importiere Daten von externen Anwendungen"
+      },
       "joplin": {
         "check": {
           "button": "Erkennen",
@@ -3724,6 +3772,9 @@
       },
       "view_webdav_settings": "WebDAV-Einstellungen anzeigen"
     },
+    "groq": {
+      "title": "Groq Einstellungen"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Deaktivierung der Hardwarebeschleunigung erfordert Neustart. Jetzt neu starten?",
@@ -4214,7 +4265,6 @@
         "default": "Standard",
         "flex": "Flexibel",
         "on_demand": "Auf Anfrage",
-        "performance": "Leistung",
         "priority": "Priorität",
         "tip": "Latenz-Ebene für Anfrageverarbeitung festlegen",
         "title": "Service-Tier"
@@ -4311,6 +4361,10 @@
           "stream_options": {
             "help": "Unterstützt stream_options",
             "label": "Unterstützt stream_options"
+          },
+          "verbosity": {
+            "help": "Ob der Anbieter den Ausführlichkeitsparameter unterstützt",
+            "label": "Unterstützung der Ausführlichkeit"
           }
         },
         "url": {

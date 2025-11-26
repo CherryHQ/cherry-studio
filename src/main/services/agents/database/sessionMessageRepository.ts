@@ -15,25 +15,15 @@ import { sessionMessagesTable } from './schema'
 
 const logger = loggerService.withContext('AgentMessageRepository')
 
-type TxClient = any
-
 export type PersistUserMessageParams = AgentMessageUserPersistPayload & {
   sessionId: string
   agentSessionId?: string
-  tx?: TxClient
 }
 
 export type PersistAssistantMessageParams = AgentMessageAssistantPersistPayload & {
   sessionId: string
   agentSessionId: string
-  tx?: TxClient
 }
-
-type PersistExchangeParams = AgentMessagePersistExchangePayload & {
-  tx?: TxClient
-}
-
-type PersistExchangeResult = AgentMessagePersistExchangeResult
 
 class AgentMessageRepository extends BaseService {
   private static instance: AgentMessageRepository | null = null
@@ -87,17 +77,13 @@ class AgentMessageRepository extends BaseService {
     return deserialized
   }
 
-  private getWriter(tx?: TxClient): TxClient {
-    return tx ?? this.database
-  }
-
   private async findExistingMessageRow(
-    writer: TxClient,
     sessionId: string,
     role: string,
     messageId: string
   ): Promise<SessionMessageRow | null> {
-    const candidateRows: SessionMessageRow[] = await writer
+    const database = await this.getDatabase()
+    const candidateRows: SessionMessageRow[] = await database
       .select()
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.session_id, sessionId), eq(sessionMessagesTable.role, role)))
@@ -122,10 +108,7 @@ class AgentMessageRepository extends BaseService {
   private async upsertMessage(
     params: PersistUserMessageParams | PersistAssistantMessageParams
   ): Promise<AgentSessionMessageEntity> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
-    const { sessionId, agentSessionId = '', payload, metadata, createdAt, tx } = params
+    const { sessionId, agentSessionId = '', payload, metadata, createdAt } = params
 
     if (!payload?.message?.role) {
       throw new Error('Message payload missing role')
@@ -135,18 +118,18 @@ class AgentMessageRepository extends BaseService {
       throw new Error('Message payload missing id')
     }
 
-    const writer = this.getWriter(tx)
+    const database = await this.getDatabase()
     const now = createdAt ?? payload.message.createdAt ?? new Date().toISOString()
     const serializedPayload = this.serializeMessage(payload)
     const serializedMetadata = this.serializeMetadata(metadata)
 
-    const existingRow = await this.findExistingMessageRow(writer, sessionId, payload.message.role, payload.message.id)
+    const existingRow = await this.findExistingMessageRow(sessionId, payload.message.role, payload.message.id)
 
     if (existingRow) {
       const metadataToPersist = serializedMetadata ?? existingRow.metadata ?? undefined
       const agentSessionToPersist = agentSessionId || existingRow.agent_session_id || ''
 
-      await writer
+      await database
         .update(sessionMessagesTable)
         .set({
           content: serializedPayload,
@@ -175,7 +158,7 @@ class AgentMessageRepository extends BaseService {
       updated_at: now
     }
 
-    const [saved] = await writer.insert(sessionMessagesTable).values(insertData).returning()
+    const [saved] = await database.insert(sessionMessagesTable).values(insertData).returning()
 
     return this.deserialize(saved)
   }
@@ -188,49 +171,38 @@ class AgentMessageRepository extends BaseService {
     return this.upsertMessage(params)
   }
 
-  async persistExchange(params: PersistExchangeParams): Promise<PersistExchangeResult> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
+  async persistExchange(params: AgentMessagePersistExchangePayload): Promise<AgentMessagePersistExchangeResult> {
     const { sessionId, agentSessionId, user, assistant } = params
 
-    const result = await this.database.transaction(async (tx) => {
-      const exchangeResult: PersistExchangeResult = {}
+    const exchangeResult: AgentMessagePersistExchangeResult = {}
 
-      if (user?.payload) {
-        exchangeResult.userMessage = await this.persistUserMessage({
-          sessionId,
-          agentSessionId,
-          payload: user.payload,
-          metadata: user.metadata,
-          createdAt: user.createdAt,
-          tx
-        })
-      }
+    if (user?.payload) {
+      exchangeResult.userMessage = await this.persistUserMessage({
+        sessionId,
+        agentSessionId,
+        payload: user.payload,
+        metadata: user.metadata,
+        createdAt: user.createdAt
+      })
+    }
 
-      if (assistant?.payload) {
-        exchangeResult.assistantMessage = await this.persistAssistantMessage({
-          sessionId,
-          agentSessionId,
-          payload: assistant.payload,
-          metadata: assistant.metadata,
-          createdAt: assistant.createdAt,
-          tx
-        })
-      }
+    if (assistant?.payload) {
+      exchangeResult.assistantMessage = await this.persistAssistantMessage({
+        sessionId,
+        agentSessionId,
+        payload: assistant.payload,
+        metadata: assistant.metadata,
+        createdAt: assistant.createdAt
+      })
+    }
 
-      return exchangeResult
-    })
-
-    return result
+    return exchangeResult
   }
 
   async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
     try {
-      const rows = await this.database
+      const database = await this.getDatabase()
+      const rows = await database
         .select()
         .from(sessionMessagesTable)
         .where(eq(sessionMessagesTable.session_id, sessionId))

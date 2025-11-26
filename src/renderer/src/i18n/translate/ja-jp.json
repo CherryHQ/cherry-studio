@@ -27,8 +27,17 @@
         "null_id": "エージェント ID が null です。"
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Windowsでエージェントを実行するにはGit Bashが必要です。これがないとエージェントは動作しません。以下からGit for Windowsをインストールしてください。",
+        "recheck": "Git Bashのインストールを再確認してください",
+        "title": "Git Bashが必要です"
+      },
+      "notFound": "Git Bash が見つかりません。先にインストールしてください。",
+      "success": "Git Bashが正常に検出されました！"
+    },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
     },
     "list": {
       "error": {
@@ -257,6 +266,7 @@
       "error": {
         "sendFailed": "決定の送信に失敗しました。もう一度お試しください。"
       },
+      "executing": "実行中...",
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
       "pending": "保留中（{{seconds}}秒）",
@@ -1138,6 +1148,7 @@
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
     "go_to_settings": "設定に移動",
     "i_know": "わかりました",
+    "ignore": "無視",
     "inspect": "検査",
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
@@ -1149,6 +1160,7 @@
     "name": "名前",
     "no_results": "検索結果なし",
     "none": "無",
+    "off": "オフ",
     "open": "開く",
     "paste": "貼り付け",
     "placeholders": {
@@ -1375,6 +1387,36 @@
     "generating": "生成中",
     "preview": "プレビュー",
     "split": "分割"
+  },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPTインポート",
+      "button": "ファイルを選択",
+      "description": "会話のテキストのみをインポートし、画像や添付ファイルは含まれません",
+      "error": {
+        "invalid_json": "無効なJSONファイル形式",
+        "no_conversations": "ファイルに会話が見つかりません",
+        "no_valid_conversations": "インポートする有効な会話がありません",
+        "unknown": "インポートに失敗しました。ファイル形式を確認してください。"
+      },
+      "help": {
+        "step1": "1. ChatGPTにログインし、設定 > データ管理 > データをエクスポートへ進みます",
+        "step2": "2. エクスポートファイルが届くまでメールでお待ちください",
+        "step3": "3. ダウンロードしたファイルを展開し、conversations.jsonを探してください",
+        "title": "ChatGPTの会話をエクスポートする方法は？"
+      },
+      "importing": "会話をインポートしています...",
+      "selecting": "ファイルを選択中...",
+      "success": "{{topics}}件の会話と{{messages}}件のメッセージを正常にインポートしました",
+      "title": "ChatGPTの会話をインポート",
+      "untitled_conversation": "無題の会話"
+    },
+    "confirm": {
+      "button": "ファイルのインポートを選択",
+      "label": "外部データをインポートしてもよろしいですか？"
+    },
+    "content": "外部アプリケーションの会話ファイルを選択してインポートします。現在、ChatGPT JSON形式ファイルのみサポートしています。",
+    "title": "外部会話をインポート"
   },
   "knowledge": {
     "add": {
@@ -3085,6 +3127,7 @@
         "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
         "export_settings": "エクスポート設定",
+        "import_settings": "設定のインポート",
         "third_party": "サードパーティー連携"
       },
       "export_menu": {
@@ -3143,6 +3186,11 @@
       },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",
+      "import_settings": {
+        "button": "JSONファイルをインポート",
+        "chatgpt": "ChatGPTからインポート",
+        "title": "外部アプリケーションデータをインポート"
+      },
       "joplin": {
         "check": {
           "button": "確認",
@@ -3724,6 +3772,9 @@
       },
       "view_webdav_settings": "WebDAV設定を表示"
     },
+    "groq": {
+      "title": "Groq設定"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？",
@@ -4214,7 +4265,6 @@
         "default": "デフォルト",
         "flex": "フレックス",
         "on_demand": "オンデマンド",
-        "performance": "性能",
         "priority": "優先",
         "tip": "リクエスト処理に使用するレイテンシティアを指定します",
         "title": "サービスティア"
@@ -4311,6 +4361,10 @@
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
+          },
+          "verbosity": {
+            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
+            "label": "冗長性のサポート"
           }
         },
         "url": {

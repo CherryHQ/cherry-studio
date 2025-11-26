@@ -1,43 +1,14 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model } from '@renderer/types'
+import { type Model, SystemProviderIds } from '@renderer/types'
+import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 
-import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from '../prompts'
-import { getWebSearchTools } from '../tools'
-import { isOpenAIReasoningModel } from './reasoning'
+import { isOpenAIChatCompletionOnlyModel, isOpenAIOpenWeightModel, isOpenAIReasoningModel } from './openai'
+import { isQwenMTModel } from './qwen'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
-import { isOpenAIWebSearchChatCompletionOnlyModel } from './websearch'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
-
-export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
-
-export function isOpenAILLMModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-
-  if (modelId.includes('gpt-4o-image')) {
-    return false
-  }
-  if (isOpenAIReasoningModel(model)) {
-    return true
-  }
-  if (modelId.includes('gpt')) {
-    return true
-  }
-  return false
-}
-
-export function isOpenAIModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-
-  return modelId.includes('gpt') || isOpenAIReasoningModel(model)
-}
+export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
 
 export function isSupportFlexServiceTierModel(model: Model): boolean {
   if (!model) {
@@ -48,35 +19,9 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
   )
 }
+
 export function isSupportedFlexServiceTier(model: Model): boolean {
   return isSupportFlexServiceTierModel(model)
-}
-
-export function isSupportVerbosityModel(model: Model): boolean {
-  const modelId = getLowerBaseModelName(model.id)
-  return (isGPT5SeriesModel(model) || isGPT51SeriesModel(model)) && !modelId.includes('chat')
-}
-
-export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-  return (
-    modelId.includes('gpt-4o-search-preview') ||
-    modelId.includes('gpt-4o-mini-search-preview') ||
-    modelId.includes('o1-mini') ||
-    modelId.includes('o1-preview')
-  )
-}
-
-export function isGrokModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('grok')
 }
 
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
@@ -105,53 +50,6 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
   return false
 }
 
-export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
-  if (!isEnableWebSearch) {
-    return {}
-  }
-
-  const webSearchTools = getWebSearchTools(model)
-
-  if (model.provider === 'grok') {
-    return {
-      search_parameters: {
-        mode: 'auto',
-        return_citations: true,
-        sources: [{ type: 'web' }, { type: 'x' }, { type: 'news' }]
-      }
-    }
-  }
-
-  if (model.provider === 'hunyuan') {
-    return { enable_enhancement: true, citation: true, search_info: true }
-  }
-
-  if (model.provider === 'dashscope') {
-    return {
-      enable_search: true,
-      search_options: {
-        forced_search: true
-      }
-    }
-  }
-
-  if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
-    return {
-      web_search_options: {}
-    }
-  }
-
-  if (model.provider === 'openrouter') {
-    return {
-      plugins: [{ id: 'web', search_prompts: WEB_SEARCH_PROMPT_FOR_OPENROUTER }]
-    }
-  }
-
-  return {
-    tools: webSearchTools
-  }
-}
-
 export function isGemmaModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -161,12 +59,14 @@ export function isGemmaModel(model?: Model): boolean {
   return modelId.includes('gemma-') || model.group === 'Gemma'
 }
 
-export function isZhipuModel(model?: Model): boolean {
-  if (!model) {
-    return false
-  }
+export function isZhipuModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('glm') || model.provider === SystemProviderIds.zhipu
+}
 
-  return model.provider === 'zhipu'
+export function isMoonshotModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return ['moonshot', 'kimi'].some((m) => modelId.includes(m))
 }
 
 /**
@@ -212,57 +112,38 @@ export const isAnthropicModel = (model?: Model): boolean => {
   return modelId.startsWith('claude')
 }
 
-export const isQwenMTModel = (model: Model): boolean => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('qwen-mt')
-}
+const NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX = new RegExp('qwen-mt-(?:turbo|plus)')
 
-export const isNotSupportedTextDelta = (model: Model): boolean => {
-  return isQwenMTModel(model)
+export const isNotSupportTextDeltaModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id)
+  return NOT_SUPPORT_TEXT_DELTA_MODEL_REGEX.test(modelId)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {
   return isQwenMTModel(model) || isGemmaModel(model)
 }
 
-export const isGPT5SeriesModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5') && !modelId.includes('gpt-5.1')
-}
-
-export const isGPT5SeriesReasoningModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return isGPT5SeriesModel(model) && !modelId.includes('chat')
-}
-
-export const isGPT51SeriesModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5.1')
-}
-
 // GPT-5 verbosity configuration
 // gpt-5-pro only supports 'high', other GPT-5 models support all levels
-export const MODEL_SUPPORTED_VERBOSITY: Record<string, ('low' | 'medium' | 'high')[]> = {
+export const MODEL_SUPPORTED_VERBOSITY: Record<string, ValidOpenAIVerbosity[]> = {
   'gpt-5-pro': ['high'],
   default: ['low', 'medium', 'high']
-}
+} as const
 
-export const getModelSupportedVerbosity = (model: Model): ('low' | 'medium' | 'high')[] => {
+export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
   const modelId = getLowerBaseModelName(model.id)
+  let supportedValues: ValidOpenAIVerbosity[]
   if (modelId.includes('gpt-5-pro')) {
-    return MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
+    supportedValues = MODEL_SUPPORTED_VERBOSITY['gpt-5-pro']
+  } else {
+    supportedValues = MODEL_SUPPORTED_VERBOSITY.default
   }
-  return MODEL_SUPPORTED_VERBOSITY.default
+  return [undefined, ...supportedValues]
 }
 
 export const isGeminiModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini')
-}
-
-export const isOpenAIOpenWeightModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-oss')
 }
 
 // zhipu 视觉推理模型用这组 special token 标记推理结果
@@ -272,7 +153,19 @@ export const agentModelFilter = (model: Model): boolean => {
   return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
 }
 
-export const isGPT5ProModel = (model: Model) => {
+export const isMaxTemperatureOneModel = (model: Model): boolean => {
+  if (isZhipuModel(model) || isAnthropicModel(model) || isMoonshotModel(model)) {
+    return true
+  }
+  return false
+}
+
+export const isGemini3Model = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
-  return modelId.includes('gpt-5-pro')
+  return modelId.includes('gemini-3')
+}
+
+export const isGemini3ThinkingTokenModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return isGemini3Model(model) && !modelId.includes('image')
 }

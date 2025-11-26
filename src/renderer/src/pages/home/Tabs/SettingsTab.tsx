@@ -53,9 +53,10 @@ import {
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
-import { ThemeMode } from '@renderer/types'
+import { isGroqSystemProvider, ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -63,6 +64,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import GroqSettingsGroup from './components/GroqSettingsGroup'
 import OpenAISettingsGroup from './components/OpenAISettingsGroup'
 
 interface Props {
@@ -181,7 +183,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   const model = assistant.model || getDefaultModel()
 
-  const isOpenAI = isOpenAIModel(model)
+  const showOpenAiSettings = isOpenAIModel(model) || isSupportServiceTierProvider(provider)
 
   return (
     <Container className="settings-tab">
@@ -332,13 +334,16 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingGroup>
         </CollapsibleSettingGroup>
       )}
-      {isOpenAI && (
+      {showOpenAiSettings && (
         <OpenAISettingsGroup
           model={model}
           providerId={provider.id}
           SettingGroup={SettingGroup}
           SettingRowTitleSmall={SettingRowTitleSmall}
         />
+      )}
+      {isGroqSystemProvider(provider) && (
+        <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
       )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>

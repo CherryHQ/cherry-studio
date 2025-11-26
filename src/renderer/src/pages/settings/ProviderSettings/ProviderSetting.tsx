@@ -4,21 +4,10 @@ import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import {
-  isAIGatewayProvider,
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider,
-  isSupportAPIVersionProvider,
-  PROVIDER_URLS
-} from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
@@ -39,6 +28,17 @@ import {
   validateApiHost
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import {
+  isAIGatewayProvider,
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isSupportAPIVersionProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -82,7 +82,10 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.grok,
   SystemProviderIds.cherryin,
   SystemProviderIds.longcat,
-  SystemProviderIds.minimax
+  SystemProviderIds.minimax,
+  SystemProviderIds.silicon,
+  SystemProviderIds.qiniu,
+  SystemProviderIds.dmxapi
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -287,7 +290,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAzureOpenAIProvider(provider)) {
-      const apiVersion = provider.apiVersion
+      const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
         ? `/v1/chat/completion?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
@@ -295,7 +298,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAnthropicProvider(provider)) {
-      return formatApiHost(apiHost) + '/messages'
+      // AI SDK uses the baseURL with /v1, then appends /messages
+      // formatApiHost adds /v1 automatically if not present
+      const normalizedHost = formatApiHost(apiHost)
+      return normalizedHost + '/messages'
     }
 
     if (isGeminiProvider(provider)) {
@@ -348,6 +354,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
+    // AI SDK uses the baseURL with /v1, then appends /messages
     const normalizedHost = formatApiHost(rawHost)
 
     return `${normalizedHost}/messages`
