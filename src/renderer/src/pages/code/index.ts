@@ -31,7 +31,6 @@ export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   'zhipu',
   'dashscope',
   'modelscope',
-  SystemProviderIds.silicon,
   'minimax',
   'longcat',
   SystemProviderIds.qiniu
