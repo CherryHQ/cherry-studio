@@ -1,6 +1,6 @@
 # Cherry Studio 贡献者指南
 
-[**English**](../../CONTRIBUTING.md) | **中文**
+[**English**](../../../CONTRIBUTING.md) | **中文**
 
 欢迎来到 Cherry Studio 的贡献者社区！我们致力于将 Cherry Studio 打造成一个长期提供价值的项目，并希望邀请更多的开发者加入我们的行列。无论您是经验丰富的开发者还是刚刚起步的初学者，您的贡献都将帮助我们更好地服务用户，提升软件质量。
 
@@ -24,7 +24,7 @@
 
 ## 开始之前
 
-请确保阅读了[行为准则](../../CODE_OF_CONDUCT.md)和[LICENSE](../../LICENSE)。
+请确保阅读了[行为准则](../../../CODE_OF_CONDUCT.md)和[LICENSE](../../../LICENSE)。
 
 ## 开始贡献
 
