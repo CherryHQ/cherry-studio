@@ -37,7 +37,7 @@
       "success": "成功偵測到 Git Bash！"
     },
     "input": {
-      "placeholder": "[to be translated]:Enter your message here, send with {{key}} - @ select path, / select command"
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
     },
     "list": {
       "error": {
@@ -266,6 +266,7 @@
       "error": {
         "sendFailed": "傳送您的決定失敗，請重試。"
       },
+      "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
       "pending": "等待中 ({{seconds}}秒)",
@@ -1158,6 +1159,7 @@
     "name": "名稱",
     "no_results": "沒有結果",
     "none": "無",
+    "off": "關閉",
     "open": "開啟",
     "paste": "貼上",
     "placeholders": {
@@ -4259,7 +4261,6 @@
         "default": "預設",
         "flex": "彈性",
         "on_demand": "按需",
-        "performance": "效能",
         "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"

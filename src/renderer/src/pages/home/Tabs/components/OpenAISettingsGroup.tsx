@@ -6,20 +6,35 @@ import {
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
-import type { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier } from '@renderer/types'
+import type { GroqServiceTier, Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
 import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
-import type { OpenAIVerbosity } from '@types'
+import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import { isSupportServiceTierProvider } from '@renderer/utils/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+
+type VerbosityOption = {
+  value: OpenAIVerbosity
+  label: string
+}
+
+type SummaryTextOption = {
+  value: OpenAISummaryText
+  label: string
+}
+
+type OpenAIServiceTierOption = { value: OpenAIServiceTier; label: string }
+type GroqServiceTierOption = { value: GroqServiceTier; label: string }
+
+type ServiceTierOptions = OpenAIServiceTierOption[] | GroqServiceTierOption[]
 
 interface Props {
   model: Model
@@ -67,6 +82,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   const summaryTextOptions = [
     {
+      value: undefined,
+      label: t('common.default')
+    },
+    {
       value: 'auto',
       label: t('settings.openai.summary_text_mode.auto')
     },
@@ -75,13 +94,17 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       label: t('settings.openai.summary_text_mode.detailed')
     },
     {
-      value: 'off',
-      label: t('settings.openai.summary_text_mode.off')
+      value: 'concise',
+      label: t('settings.openai.summary_text_mode.concise')
     }
-  ]
+  ] as const satisfies SummaryTextOption[]
 
   const verbosityOptions = useMemo(() => {
     const allOptions = [
+      {
+        value: undefined,
+        label: t('common.default')
+      },
       {
         value: 'low',
         label: t('settings.openai.verbosity.low')
@@ -94,15 +117,23 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         value: 'high',
         label: t('settings.openai.verbosity.high')
       }
-    ]
+    ] as const satisfies VerbosityOption[]
     const supportedVerbosityLevels = getModelSupportedVerbosity(model)
-    return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value as any))
+    return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value))
   }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
-    let baseOptions: { value: ServiceTier; label: string }[]
+    let options: ServiceTierOptions
     if (provider.id === SystemProviderIds.groq) {
-      baseOptions = [
+      options = [
+        {
+          value: null,
+          label: t('common.off')
+        },
+        {
+          value: undefined,
+          label: t('common.default')
+        },
         {
           value: 'auto',
           label: t('settings.openai.service_tier.auto')
@@ -114,15 +145,11 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         {
           value: 'flex',
           label: t('settings.openai.service_tier.flex')
-        },
-        {
-          value: 'performance',
-          label: t('settings.openai.service_tier.performance')
         }
-      ]
+      ] as const satisfies GroqServiceTierOption[]
     } else {
       // 其他情况默认是和 OpenAI 相同
-      baseOptions = [
+      options = [
         {
           value: 'auto',
           label: t('settings.openai.service_tier.auto')
@@ -139,9 +166,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
           value: 'priority',
           label: t('settings.openai.service_tier.priority')
         }
-      ]
+      ] as const satisfies OpenAIServiceTierOption[]
     }
-    return baseOptions.filter((option) => {
+    return options.filter((option) => {
       if (option.value === 'flex') {
         return isSupportedFlexServiceTier
       }

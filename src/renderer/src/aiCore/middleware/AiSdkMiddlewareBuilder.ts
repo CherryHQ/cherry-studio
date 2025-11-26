@@ -1,10 +1,10 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
-import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
 import type { MCPTool } from '@renderer/types'
-import { type Assistant, type Message, type Model, type Provider } from '@renderer/types'
+import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
+import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 import { isEmpty } from 'lodash'
@@ -12,6 +12,7 @@ import { isEmpty } from 'lodash'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { noThinkMiddleware } from './noThinkMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
+import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
 import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
 import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
@@ -216,6 +217,14 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
       name: 'no-think',
       middleware: noThinkMiddleware()
     })
+  }
+
+  if (config.provider.id === SystemProviderIds.openrouter && config.enableReasoning) {
+    builder.add({
+      name: 'openrouter-reasoning-redaction',
+      middleware: openrouterReasoningMiddleware()
+    })
+    logger.debug('Added OpenRouter reasoning redaction middleware')
   }
 }
 

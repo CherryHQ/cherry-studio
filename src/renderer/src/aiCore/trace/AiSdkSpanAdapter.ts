@@ -133,7 +133,7 @@ export class AiSdkSpanAdapter {
 
     // 详细记录转换过程
     const operationId = attributes['ai.operationId']
-    logger.info('Converting AI SDK span to SpanEntity', {
+    logger.debug('Converting AI SDK span to SpanEntity', {
       spanName: spanName,
       operationId,
       spanTag,
@@ -149,7 +149,7 @@ export class AiSdkSpanAdapter {
     })
 
     if (tokenUsage) {
-      logger.info('Token usage data found', {
+      logger.debug('Token usage data found', {
         spanName: spanName,
         operationId,
         usage: tokenUsage,
@@ -158,7 +158,7 @@ export class AiSdkSpanAdapter {
     }
 
     if (inputs || outputs) {
-      logger.info('Input/Output data extracted', {
+      logger.debug('Input/Output data extracted', {
         spanName: spanName,
         operationId,
         hasInputs: !!inputs,
@@ -170,7 +170,7 @@ export class AiSdkSpanAdapter {
     }
 
     if (Object.keys(typeSpecificData).length > 0) {
-      logger.info('Type-specific data extracted', {
+      logger.debug('Type-specific data extracted', {
         spanName: spanName,
         operationId,
         typeSpecificKeys: Object.keys(typeSpecificData),
@@ -204,7 +204,7 @@ export class AiSdkSpanAdapter {
       modelName: modelName || this.extractModelFromAttributes(attributes)
     }
 
-    logger.info('AI SDK span successfully converted to SpanEntity', {
+    logger.debug('AI SDK span successfully converted to SpanEntity', {
       spanName: spanName,
       operationId,
       spanId: spanContext.spanId,

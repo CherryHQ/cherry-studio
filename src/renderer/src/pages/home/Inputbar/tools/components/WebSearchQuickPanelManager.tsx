@@ -9,7 +9,6 @@ import {
   isOpenAIWebSearchModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
@@ -19,6 +18,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
+import { isGeminiWebSearchProvider } from '@renderer/utils/provider'
 import { Globe } from 'lucide-react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
