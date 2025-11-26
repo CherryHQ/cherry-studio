@@ -576,10 +576,12 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
-  // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64_000 },
-  'claude-opus-4[.-]1.*$': { min: 1024, max: 32_000 },
-  'claude-(:?haiku|sonnet|opus)-4[.-]5.*': { min: 1024, max: 64_000 }
+  // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
+  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },
+  '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

@@ -799,20 +799,6 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
   })
 })
 
-describe('Token limit lookup', () => {
-  it.each([
-    ['gemini-2.5-flash-lite-latest', { min: 512, max: 24576 }],
-    ['qwen-plus-2025-07-14', { min: 0, max: 38912 }],
-    ['claude-haiku-4', { min: 1024, max: 64000 }]
-  ])('returns configured min/max pairs for %s', (id, expected) => {
-    expect(findTokenLimit(id)).toEqual(expected)
-  })
-
-  it('returns undefined when regex misses', () => {
-    expect(findTokenLimit('unknown-model')).toBeUndefined()
-  })
-})
-
 describe('Gemini Models', () => {
   describe('isSupportedThinkingTokenGeminiModel', () => {
     it('should return true for gemini 2.5 models', () => {
@@ -1200,6 +1186,19 @@ describe('Gemini Models', () => {
 })
 
 describe('findTokenLimit', () => {
+  describe('General token limit lookup', () => {
+    it.each([
+      ['gemini-2.5-flash-lite-latest', { min: 512, max: 24576 }],
+      ['qwen-plus-2025-07-14', { min: 0, max: 38912 }]
+    ])('returns configured min/max pairs for %s', (id, expected) => {
+      expect(findTokenLimit(id)).toEqual(expected)
+    })
+
+    it('returns undefined when regex misses', () => {
+      expect(findTokenLimit('unknown-model')).toBeUndefined()
+    })
+  })
+
   const cases: Array<{ modelId: string; expected: { min: number; max: number } }> = [
     { modelId: 'gemini-2.5-flash-lite-exp', expected: { min: 512, max: 24_576 } },
     { modelId: 'gemini-1.5-flash', expected: { min: 0, max: 24_576 } },
@@ -1215,10 +1214,7 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-plus-ultra', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen-turbo-pro', expected: { min: 0, max: 38_912 } },
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
-    { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
-    { modelId: 'claude-3.7-sonnet-extended', expected: { min: 1_024, max: 64_000 } },
-    { modelId: 'claude-opus-4.1-extended', expected: { min: 1_024, max: 32_000 } },
-    { modelId: 'claude-sonnet-4-5-20250929', expected: { min: 1_024, max: 64_000 } }
+    { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } }
   ]
 
   it.each(cases)('returns correct limits for $modelId', ({ modelId, expected }) => {
@@ -1237,13 +1233,63 @@ describe('findTokenLimit', () => {
         'claude-3.7-sonnet-latest',
         'claude-3-7-sonnet-latest',
         'claude-3.7-sonnet-20250201',
-        'claude-3-7-sonnet-20250201'
+        'claude-3-7-sonnet-20250201',
+        // Official Claude API IDs
+        'claude-3-7-sonnet-20250219',
+        // AWS Bedrock format
+        'anthropic.claude-3-7-sonnet-20250219-v1:0',
+        // GCP Vertex AI format
+        'claude-3-7-sonnet@20250219'
       ])('should return { min: 1024, max: 64000 } for %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
 
       it.each(['CLAUDE-3.7-SONNET', 'Claude-3-7-Sonnet-Latest'])('should be case insensitive for %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+    })
+
+    describe('Claude 4.0 series models', () => {
+      it.each([
+        'claude-sonnet-4',
+        'claude-sonnet-4.0',
+        'claude-sonnet-4-0',
+        'claude-sonnet-4-preview',
+        'claude-sonnet-4.0-preview',
+        'claude-sonnet-4-20250101',
+        // Official Claude API IDs
+        'claude-sonnet-4-20250514',
+        // AWS Bedrock format
+        'anthropic.claude-sonnet-4-20250514-v1:0',
+        // GCP Vertex AI format
+        'claude-sonnet-4@20250514'
+      ])('should return { min: 1024, max: 64000 } for Sonnet variant %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+
+      it.each([
+        'claude-opus-4',
+        'claude-opus-4.0',
+        'claude-opus-4-0',
+        'claude-opus-4-preview',
+        'claude-opus-4.0-preview',
+        'claude-opus-4-20250101',
+        // Official Claude API IDs
+        'claude-opus-4-20250514',
+        // AWS Bedrock format
+        'anthropic.claude-opus-4-20250514-v1:0',
+        // GCP Vertex AI format
+        'claude-opus-4@20250514'
+      ])('should return { min: 1024, max: 32000 } for Opus variant %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 32_000 })
+      })
+
+      it.each(['CLAUDE-SONNET-4', 'Claude-Opus-4-Preview'])('should be case insensitive for %s', (modelId) => {
+        const expectedSonnet = { min: 1024, max: 64_000 }
+        const expectedOpus = { min: 1024, max: 32_000 }
+        const result = findTokenLimit(modelId)
+        expect(result).toBeDefined()
+        expect([expectedSonnet, expectedOpus]).toContainEqual(result)
       })
     })
 
@@ -1254,7 +1300,13 @@ describe('findTokenLimit', () => {
         'claude-opus-4.1-preview',
         'claude-opus-4-1-preview',
         'claude-opus-4.1-20250120',
-        'claude-opus-4-1-20250120'
+        'claude-opus-4-1-20250120',
+        // Official Claude API IDs
+        'claude-opus-4-1-20250805',
+        // AWS Bedrock format
+        'anthropic.claude-opus-4-1-20250805-v1:0',
+        // GCP Vertex AI format
+        'claude-opus-4-1@20250805'
       ])('should return { min: 1024, max: 32000 } for %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 32_000 })
       })
@@ -1271,7 +1323,13 @@ describe('findTokenLimit', () => {
         'claude-haiku-4.5-preview',
         'claude-haiku-4-5-preview',
         'claude-haiku-4.5-20250929',
-        'claude-haiku-4-5-20250929'
+        'claude-haiku-4-5-20250929',
+        // Official Claude API IDs
+        'claude-haiku-4-5-20251001',
+        // AWS Bedrock format
+        'anthropic.claude-haiku-4-5-20251001-v1:0',
+        // GCP Vertex AI format
+        'claude-haiku-4-5@20251001'
       ])('should return { min: 1024, max: 64000 } for Haiku variant %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
@@ -1282,7 +1340,13 @@ describe('findTokenLimit', () => {
         'claude-sonnet-4.5-preview',
         'claude-sonnet-4-5-preview',
         'claude-sonnet-4.5-20250929',
-        'claude-sonnet-4-5-20250929'
+        'claude-sonnet-4-5-20250929',
+        // Official Claude API IDs
+        'claude-sonnet-4-5-20250929',
+        // AWS Bedrock format
+        'anthropic.claude-sonnet-4-5-20250929-v1:0',
+        // GCP Vertex AI format
+        'claude-sonnet-4-5@20250929'
       ])('should return { min: 1024, max: 64000 } for Sonnet variant %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
@@ -1293,7 +1357,13 @@ describe('findTokenLimit', () => {
         'claude-opus-4.5-preview',
         'claude-opus-4-5-preview',
         'claude-opus-4.5-20250929',
-        'claude-opus-4-5-20250929'
+        'claude-opus-4-5-20250929',
+        // Official Claude API IDs
+        'claude-opus-4-5-20251101',
+        // AWS Bedrock format
+        'anthropic.claude-opus-4-5-20251101-v1:0',
+        // GCP Vertex AI format
+        'claude-opus-4-5@20251101'
       ])('should return { min: 1024, max: 64000 } for Opus variant %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
@@ -1315,12 +1385,21 @@ describe('findTokenLimit', () => {
         'claude-3-5-sonnet',
         'claude-2.1',
         'claude-instant',
-        'claude-opus-4.0',
-        'claude-opus-4-0',
-        'claude-sonnet-4.0',
-        'claude-sonnet-4-0',
+        'claude-haiku-4',
+        'claude-haiku-4.0',
+        'claude-haiku-4-0',
         'claude-opus-4.2',
-        'claude-opus-4-2'
+        'claude-opus-4-2',
+        'claude-sonnet-4.2',
+        'claude-sonnet-4-2',
+        // Old Haiku models (no Extended thinking support)
+        'claude-3-5-haiku-20241022',
+        'claude-3-5-haiku-latest',
+        'anthropic.claude-3-5-haiku-20241022-v1:0',
+        'claude-3-5-haiku@20241022',
+        'claude-3-haiku-20240307',
+        'anthropic.claude-3-haiku-20240307-v1:0',
+        'claude-3-haiku@20240307'
       ])('should return undefined for older/unsupported model %s', (modelId) => {
         expect(findTokenLimit(modelId)).toBeUndefined()
       })
