@@ -94,9 +94,9 @@ export function getSdkClient(
       : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
 
   // Anthropic SDK automatically appends /v1 to all endpoints (like /v1/messages, /v1/models)
-  // We need to strip /v1 from baseURL to avoid duplication (e.g., /v1/v1/models)
+  // We need to strip api version from baseURL to avoid duplication (e.g., /v3/v1/models)
   // formatProviderApiHost adds /v1 for AI SDK compatibility, but Anthropic SDK needs it removed
-  baseURL = baseURL.replace(/\/v1$/, '')
+  baseURL = baseURL.replace(/\/v\d+(?:alpha|beta)?(?=\/|$)/i, '')
 
   logger.debug('Anthropic API baseURL', { baseURL, providerId: provider.id })
 
