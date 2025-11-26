@@ -1514,7 +1514,7 @@
       "preprocessing_tooltip": "Предварительная обработка документов",
       "title": "Настройки базы знаний"
     },
-    "sitemap_added": "添加成功",
+    "sitemap_added": "Карта сайта добавлена",
     "sitemap_placeholder": "Введите URL карты сайта",
     "sitemaps": "Сайты",
     "source": "Источник",
@@ -2174,12 +2174,12 @@
         "font_size": "Размер шрифта",
         "font_size_description": "Отрегулируйте размер шрифта для лучшего чтения (10–30 пикселей)",
         "font_size_large": "Большой",
-        "font_size_medium": "中",
-        "font_size_small": "<translate_input>\nмаленький\n</translate_input>",
+        "font_size_medium": "Средний",
+        "font_size_small": "маленький",
         "font_title": "Настройки шрифта",
         "serif_font": "Serif Font",
         "show_table_of_contents": "Показать оглавление",
-        "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
+        "show_table_of_contents_description": "Показать боковую панель оглавления для удобной навигации по документу",
         "title": "показывать"
       },
       "editor": {
@@ -4775,7 +4775,7 @@
         }
       },
       "prompt": "Следуйте системному запросу",
-      "title": "翻译设置"
+      "title": "Настройки перевода"
     },
     "tray": {
       "onclose": "Свернуть в трей при закрытии",
