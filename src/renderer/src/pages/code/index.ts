@@ -1,6 +1,5 @@
 import { type EndpointType, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
-import { isSiliconAnthropicCompatibleModel, SILICON_ANTHROPIC_API_HOST } from '@shared/config/providers'
 
 export interface LaunchValidationResult {
   isValid: boolean
@@ -60,14 +59,6 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
-  // Special handling for silicon provider: only specific models support Anthropic API
-  if (model.provider === SystemProviderIds.silicon && type === 'anthropic') {
-    if (isSiliconAnthropicCompatibleModel(model.id)) {
-      return SILICON_ANTHROPIC_API_HOST
-    }
-    return undefined
-  }
-
   const CODE_TOOLS_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
@@ -149,7 +140,8 @@ export const generateToolEnvironment = ({
 
   switch (tool) {
     case codeTools.claudeCode:
-      env.ANTHROPIC_BASE_URL = getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.apiHost
+      env.ANTHROPIC_BASE_URL =
+        getCodeToolsApiBaseUrl(model, 'anthropic') || modelProvider.anthropicApiHost || modelProvider.apiHost
       env.ANTHROPIC_MODEL = model.id
       if (modelProvider.type === 'anthropic') {
         env.ANTHROPIC_API_KEY = apiKey
