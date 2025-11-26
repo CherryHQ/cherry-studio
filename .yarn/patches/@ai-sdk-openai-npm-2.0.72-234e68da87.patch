@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 7481f3b3511078068d87d03855b568b20bb86971..8ac5ec28d2f7ad1b3b0d3f8da945c75674e59637 100644
+index bf900591bf2847a3253fe441aad24c06da19c6c1..c1d9bb6fefa2df1383339324073db0a70ea2b5a2 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -274,6 +274,7 @@ var openaiChatResponseSchema = (0, import_provider_utils3.lazyValidator)(
