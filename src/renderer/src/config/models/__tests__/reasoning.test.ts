@@ -1242,10 +1242,7 @@ describe('findTokenLimit', () => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
 
-      it.each([
-        'CLAUDE-3.7-SONNET',
-        'Claude-3-7-Sonnet-Latest'
-      ])('should be case insensitive for %s', (modelId) => {
+      it.each(['CLAUDE-3.7-SONNET', 'Claude-3-7-Sonnet-Latest'])('should be case insensitive for %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
     })
@@ -1262,10 +1259,7 @@ describe('findTokenLimit', () => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 32_000 })
       })
 
-      it.each([
-        'CLAUDE-OPUS-4.1',
-        'Claude-Opus-4-1-Preview'
-      ])('should be case insensitive for %s', (modelId) => {
+      it.each(['CLAUDE-OPUS-4.1', 'Claude-Opus-4-1-Preview'])('should be case insensitive for %s', (modelId) => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 32_000 })
       })
     })
@@ -1304,13 +1298,12 @@ describe('findTokenLimit', () => {
         expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
       })
 
-      it.each([
-        'CLAUDE-HAIKU-4.5',
-        'Claude-Sonnet-4-5-Preview',
-        'CLAUDE-OPUS-4.5-20250929'
-      ])('should be case insensitive for %s', (modelId) => {
-        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
-      })
+      it.each(['CLAUDE-HAIKU-4.5', 'Claude-Sonnet-4-5-Preview', 'CLAUDE-OPUS-4.5-20250929'])(
+        'should be case insensitive for %s',
+        (modelId) => {
+          expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+        }
+      )
     })
 
     describe('Claude models that should NOT match', () => {
