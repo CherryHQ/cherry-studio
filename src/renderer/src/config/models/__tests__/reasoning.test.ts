@@ -1217,9 +1217,8 @@ describe('findTokenLimit', () => {
     { modelId: 'qwen-flash-lite', expected: { min: 0, max: 81_920 } },
     { modelId: 'qwen3-7b', expected: { min: 1_024, max: 38_912 } },
     { modelId: 'claude-3.7-sonnet-extended', expected: { min: 1_024, max: 64_000 } },
-    { modelId: 'claude-sonnet-4.1', expected: { min: 1_024, max: 64_000 } },
-    { modelId: 'claude-sonnet-4-5-20250929', expected: { min: 1_024, max: 64_000 } },
-    { modelId: 'claude-opus-4-1-extended', expected: { min: 1_024, max: 32_000 } }
+    { modelId: 'claude-opus-4.1-extended', expected: { min: 1_024, max: 32_000 } },
+    { modelId: 'claude-sonnet-4-5-20250929', expected: { min: 1_024, max: 64_000 } }
   ]
 
   it.each(cases)('returns correct limits for $modelId', ({ modelId, expected }) => {
@@ -1228,5 +1227,130 @@ describe('findTokenLimit', () => {
 
   it('returns undefined for unknown models', () => {
     expect(findTokenLimit('unknown-model')).toBeUndefined()
+  })
+
+  describe('Claude models', () => {
+    describe('Claude 3.7 Sonnet models', () => {
+      it.each([
+        'claude-3.7-sonnet',
+        'claude-3-7-sonnet',
+        'claude-3.7-sonnet-latest',
+        'claude-3-7-sonnet-latest',
+        'claude-3.7-sonnet-20250201',
+        'claude-3-7-sonnet-20250201'
+      ])('should return { min: 1024, max: 64000 } for %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+
+      it.each([
+        'CLAUDE-3.7-SONNET',
+        'Claude-3-7-Sonnet-Latest'
+      ])('should be case insensitive for %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+    })
+
+    describe('Claude Opus 4.1 models', () => {
+      it.each([
+        'claude-opus-4.1',
+        'claude-opus-4-1',
+        'claude-opus-4.1-preview',
+        'claude-opus-4-1-preview',
+        'claude-opus-4.1-20250120',
+        'claude-opus-4-1-20250120'
+      ])('should return { min: 1024, max: 32000 } for %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 32_000 })
+      })
+
+      it.each([
+        'CLAUDE-OPUS-4.1',
+        'Claude-Opus-4-1-Preview'
+      ])('should be case insensitive for %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 32_000 })
+      })
+    })
+
+    describe('Claude 4.5 series models (Haiku, Sonnet, Opus)', () => {
+      it.each([
+        'claude-haiku-4.5',
+        'claude-haiku-4-5',
+        'claude-haiku-4.5-preview',
+        'claude-haiku-4-5-preview',
+        'claude-haiku-4.5-20250929',
+        'claude-haiku-4-5-20250929'
+      ])('should return { min: 1024, max: 64000 } for Haiku variant %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+
+      it.each([
+        'claude-sonnet-4.5',
+        'claude-sonnet-4-5',
+        'claude-sonnet-4.5-preview',
+        'claude-sonnet-4-5-preview',
+        'claude-sonnet-4.5-20250929',
+        'claude-sonnet-4-5-20250929'
+      ])('should return { min: 1024, max: 64000 } for Sonnet variant %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+
+      it.each([
+        'claude-opus-4.5',
+        'claude-opus-4-5',
+        'claude-opus-4.5-preview',
+        'claude-opus-4-5-preview',
+        'claude-opus-4.5-20250929',
+        'claude-opus-4-5-20250929'
+      ])('should return { min: 1024, max: 64000 } for Opus variant %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+
+      it.each([
+        'CLAUDE-HAIKU-4.5',
+        'Claude-Sonnet-4-5-Preview',
+        'CLAUDE-OPUS-4.5-20250929'
+      ])('should be case insensitive for %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toEqual({ min: 1024, max: 64_000 })
+      })
+    })
+
+    describe('Claude models that should NOT match', () => {
+      it.each([
+        'claude-3-opus',
+        'claude-3-sonnet',
+        'claude-3-haiku',
+        'claude-3.5-sonnet',
+        'claude-3-5-sonnet',
+        'claude-2.1',
+        'claude-instant',
+        'claude-opus-4.0',
+        'claude-opus-4-0',
+        'claude-sonnet-4.0',
+        'claude-sonnet-4-0',
+        'claude-opus-4.2',
+        'claude-opus-4-2'
+      ])('should return undefined for older/unsupported model %s', (modelId) => {
+        expect(findTokenLimit(modelId)).toBeUndefined()
+      })
+    })
+
+    describe('Edge cases', () => {
+      it('should handle models with custom suffixes', () => {
+        expect(findTokenLimit('claude-3.7-sonnet-custom-variant')).toEqual({ min: 1024, max: 64_000 })
+        expect(findTokenLimit('claude-opus-4.1-custom')).toEqual({ min: 1024, max: 32_000 })
+        expect(findTokenLimit('claude-sonnet-4.5-custom-variant')).toEqual({ min: 1024, max: 64_000 })
+      })
+
+      it('should NOT match non-existent Claude 4.1 variants (only Opus 4.1 exists)', () => {
+        // Claude Sonnet 4.1 and Haiku 4.1 do not exist
+        expect(findTokenLimit('claude-sonnet-4.1')).toBeUndefined()
+        expect(findTokenLimit('claude-haiku-4.1')).toBeUndefined()
+      })
+
+      it('should not match partial model names', () => {
+        expect(findTokenLimit('claude-3.7')).toBeUndefined()
+        expect(findTokenLimit('claude-opus')).toBeUndefined()
+        expect(findTokenLimit('claude-4.5')).toBeUndefined()
+      })
+    })
   })
 })
