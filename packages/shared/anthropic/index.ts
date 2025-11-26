@@ -88,10 +88,14 @@ export function getSdkClient(
       }
     })
   }
-  const baseURL =
+  let baseURL =
     provider.type === 'anthropic'
       ? provider.apiHost
       : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
+
+  // Anthropic SDK automatically appends /v1 to all endpoints (like /v1/messages, /v1/models)
+  // So we need to remove /v1 suffix from baseURL to avoid duplicate /v1 in the final URL
+  baseURL = baseURL.replace(/\/v1$/, '')
 
   logger.debug('Anthropic API baseURL', { baseURL, providerId: provider.id })
 
