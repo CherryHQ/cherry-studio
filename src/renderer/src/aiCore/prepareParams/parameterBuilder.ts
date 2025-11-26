@@ -106,7 +106,7 @@ export async function buildStreamTextParams(
     searchWithTime: store.getState().websearch.searchWithTime
   }
 
-  const providerOptions = buildProviderOptions(assistant, model, provider, {
+  const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
     enableWebSearch,
     enableGenerateImage
@@ -181,11 +181,16 @@ export async function buildStreamTextParams(
   }
 
   // 构建基础参数
+  // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
+  // are extracted from custom parameters and passed directly to streamText()
+  // instead of being placed in providerOptions
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
+    // Include AI SDK standard params extracted from custom parameters
+    ...standardParams,
     abortSignal: options.requestOptions?.signal,
     headers,
     providerOptions,
