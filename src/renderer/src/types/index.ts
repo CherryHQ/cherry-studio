@@ -731,7 +731,8 @@ export const BuiltinMCPServerNames = {
   filesystem: '@cherry/filesystem',
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
-  didiMCP: '@cherry/didi-mcp'
+  didiMCP: '@cherry/didi-mcp',
+  mcpUIDemo: '@cherry/mcp-ui-demo'
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
@@ -840,6 +841,22 @@ export interface MCPResource {
 export interface GetResourceResponse {
   contents: MCPResource[]
 }
+
+// MCP UI Resource types
+export type UIResourceMimeType = 'text/html' | 'text/uri-list' | 'application/vnd.mcp-ui.remote-dom'
+
+export interface UIResource {
+  type: 'resource'
+  resource: {
+    uri: string // starts with 'ui://'
+    mimeType: UIResourceMimeType
+    text?: string
+    blob?: string
+  }
+}
+
+// Re-export isUIResource from @mcp-ui/client
+export { isUIResource } from '@mcp-ui/client'
 
 export interface QuickPhrase {
   id: string
