@@ -34,6 +34,8 @@ export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   'minimax',
   'longcat',
   SystemProviderIds.qiniu
+  // If silicon is in this list, the fallback logic above will return true for all silicon models,
+  // potentially bypassing the specific model filtering you added above.
 ]
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',
