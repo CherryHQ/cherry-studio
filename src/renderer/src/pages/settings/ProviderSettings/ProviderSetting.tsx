@@ -295,7 +295,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAnthropicProvider(provider)) {
-      return formatApiHost(apiHost) + '/messages'
+      // Anthropic SDK automatically appends /v1 to baseURL, so we show the actual URL used
+      return formatApiHost(apiHost, false) + '/v1/messages'
     }
 
     if (isGeminiProvider(provider)) {
@@ -348,9 +349,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
-    const normalizedHost = formatApiHost(rawHost)
+    // Anthropic SDK automatically appends /v1 to baseURL, so we show the actual URL used
+    const normalizedHost = formatApiHost(rawHost, false)
 
-    return `${normalizedHost}/messages`
+    return `${normalizedHost}/v1/messages`
   }, [anthropicApiHost, provider.anthropicApiHost])
 
   const hostSelectorOptions = useMemo(() => {

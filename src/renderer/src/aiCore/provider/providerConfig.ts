@@ -84,13 +84,16 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
  */
 function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
+  // Anthropic SDK automatically appends /v1 to all endpoints, so we should NOT add it
+  // to anthropicApiHost to avoid duplicate /v1 in the URL (e.g., /v1/v1/models)
   if (formatted.anthropicApiHost) {
-    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
+    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost, false)
   }
 
   if (isAnthropicProvider(provider)) {
     const baseHost = formatted.anthropicApiHost || formatted.apiHost
-    formatted.apiHost = formatApiHost(baseHost)
+    // Anthropic SDK automatically appends /v1 to all endpoints, so we should NOT add it here
+    formatted.apiHost = formatApiHost(baseHost, false)
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost
     }
