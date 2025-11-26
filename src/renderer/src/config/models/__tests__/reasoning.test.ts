@@ -33,6 +33,7 @@ import {
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '../reasoning'
+import { isGemini3ThinkingTokenModel } from '../utils'
 import { isTextToImageModel } from '../vision'
 
 vi.mock('@renderer/store', () => ({
@@ -955,7 +956,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3.0-flash-image-preview',
@@ -963,7 +964,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
       expect(
         isSupportedThinkingTokenGeminiModel({
           id: 'gemini-3.5-pro-image-preview',
@@ -971,7 +972,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
     })
 
     it('should return false for gemini-2.x image models', () => {
@@ -1163,7 +1164,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
       expect(
         isGeminiReasoningModel({
           id: 'gemini-3.5-flash-image-preview',
@@ -1171,7 +1172,7 @@ describe('Gemini Models', () => {
           provider: '',
           group: ''
         })
-      ).toBe(true)
+      ).toBe(false)
     })
 
     it('should return false for older gemini models without thinking', () => {
@@ -1228,5 +1229,155 @@ describe('findTokenLimit', () => {
 
   it('returns undefined for unknown models', () => {
     expect(findTokenLimit('unknown-model')).toBeUndefined()
+  })
+})
+
+describe('isGemini3ThinkingTokenModel', () => {
+  it('should return true for Gemini 3 non-image models', () => {
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3-flash',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3-pro',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3-pro-preview',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'google/gemini-3-flash',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3.0-flash',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3.5-pro-preview',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+  })
+
+  it('should return false for Gemini 3 image models', () => {
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3-flash-image',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3-pro-image-preview',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3.0-flash-image-preview',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-3.5-pro-image-preview',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+  })
+
+  it('should return false for non-Gemini 3 models', () => {
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-2.5-flash',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gemini-1.5-pro',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'gpt-4',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'claude-3-opus',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
+  })
+
+  it('should handle case insensitivity', () => {
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'Gemini-3-Flash',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'GEMINI-3-PRO',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(true)
+    expect(
+      isGemini3ThinkingTokenModel({
+        id: 'Gemini-3-Pro-Image',
+        name: '',
+        provider: '',
+        group: ''
+      })
+    ).toBe(false)
   })
 })

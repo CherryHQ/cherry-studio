@@ -43,7 +43,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'gpt-5-chat(?:-[\\w-]+)?',
   'glm-4\\.5v',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
-  'gemini-2.0-flash-preview-image-generation'
+  'gemini-2.0-flash-preview-image-generation',
+  'gemini-3(?:\\.\\d+)?-pro-image(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(

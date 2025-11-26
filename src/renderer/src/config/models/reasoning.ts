@@ -16,7 +16,7 @@ import {
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
-import { GEMINI_FLASH_MODEL_REGEX, isGemini3Model } from './utils'
+import { GEMINI_FLASH_MODEL_REGEX, isGemini3ThinkingTokenModel } from './utils'
 import { isTextToImageModel } from './vision'
 
 // Reasoning models
@@ -115,7 +115,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     } else {
       thinkingModelType = 'gemini_pro'
     }
-    if (isGemini3Model(model)) {
+    if (isGemini3ThinkingTokenModel(model)) {
       thinkingModelType = 'gemini3'
     }
   } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
@@ -271,14 +271,6 @@ export const GEMINI_THINKING_MODEL_REGEX =
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
-    // gemini-3.x 的 image 模型支持思考模式
-    if (isGemini3Model(model)) {
-      if (modelId.includes('tts')) {
-        return false
-      }
-      return true
-    }
-    // gemini-2.x 的 image/tts 模型不支持
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }

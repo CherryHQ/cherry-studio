@@ -164,3 +164,8 @@ export const isGemini3Model = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini-3')
 }
+
+export const isGemini3ThinkingTokenModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return isGemini3Model(model) && !modelId.includes('image')
+}

@@ -12,7 +12,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
-  isGemini3Model,
+  isGemini3ThinkingTokenModel,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
   isGrokReasoningModel,
@@ -36,7 +36,7 @@ import {
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
-import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import type { OpenAISummaryText } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
@@ -281,7 +281,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // gemini series, openai compatible api
   if (isSupportedThinkingTokenGeminiModel(model)) {
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#openai_compatibility
-    if (isGemini3Model(model)) {
+    if (isGemini3ThinkingTokenModel(model)) {
       return {
         reasoning_effort: reasoningEffort
       }
@@ -465,20 +465,20 @@ export function getAnthropicReasoningParams(
   return {}
 }
 
-type GoogelThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
+// type GoogleThinkingLevel = NonNullable<GoogleGenerativeAIProviderOptions['thinkingConfig']>['thinkingLevel']
 
-function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogelThinkingLevel {
-  switch (reasoningEffort) {
-    case 'low':
-      return 'low'
-    case 'medium':
-      return 'medium'
-    case 'high':
-      return 'high'
-    default:
-      return 'medium'
-  }
-}
+// function mapToGeminiThinkingLevel(reasoningEffort: ReasoningEffortOption): GoogelThinkingLevel {
+//   switch (reasoningEffort) {
+//     case 'low':
+//       return 'low'
+//     case 'medium':
+//       return 'medium'
+//     case 'high':
+//       return 'high'
+//     default:
+//       return 'medium'
+//   }
+// }
 
 /**
  * 获取 Gemini 推理参数
@@ -507,14 +507,15 @@ export function getGeminiReasoningParams(
       }
     }
 
+    // TODO: 很多中转还不支持
     // https://ai.google.dev/gemini-api/docs/gemini-3?thinking=high#new_api_features_in_gemini_3
-    if (isGemini3Model(model)) {
-      return {
-        thinkingConfig: {
-          thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
-        }
-      }
-    }
+    // if (isGemini3ThinkingTokenModel(model)) {
+    //   return {
+    //     thinkingConfig: {
+    //       thinkingLevel: mapToGeminiThinkingLevel(reasoningEffort)
+    //     }
+    //   }
+    // }
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
