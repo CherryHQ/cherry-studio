@@ -463,7 +463,7 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const ai = new AiProviderNew(model)
+  const ai = new AiProviderNew(model, provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model

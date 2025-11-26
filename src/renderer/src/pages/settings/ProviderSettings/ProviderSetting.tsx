@@ -295,12 +295,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAnthropicProvider(provider)) {
-      // Anthropic SDK automatically appends /v1 to endpoints, but getSdkClient strips version suffix from baseURL
-      // So the actual URL is: formatApiHost(baseURL, false) with version stripped + /v1/messages
-      // For example: https://api.siliconflow.cn/v2/ -> https://api.siliconflow.cn/v1/messages
-      const normalizedHost = formatApiHost(apiHost, false)
-      const baseWithoutVersion = normalizedHost.replace(/\/v\d+(?:alpha|beta)?$/, '')
-      return baseWithoutVersion + '/v1/messages'
+      // For AI SDK (chat/checkApi): uses the formatted baseURL and appends /messages
+      // formatApiHost will add /v1 if no version exists, or keep existing version
+      // Examples:
+      //   https://api.siliconflow.cn -> https://api.siliconflow.cn/v1/messages
+      //   https://api.siliconflow.cn/v2 -> https://api.siliconflow.cn/v2/messages
+      const normalizedHost = formatApiHost(apiHost)
+      return normalizedHost + '/messages'
     }
 
     if (isGeminiProvider(provider)) {
@@ -353,12 +354,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
-    // Anthropic SDK automatically appends /v1 to endpoints, but getSdkClient strips version suffix from baseURL
-    // So the actual URL is: formatApiHost(baseURL, false) with version stripped + /v1/messages
-    const normalizedHost = formatApiHost(rawHost, false)
-    const baseWithoutVersion = normalizedHost.replace(/\/v\d+(?:alpha|beta)?$/, '')
+    // For AI SDK (chat/checkApi): uses the formatted baseURL and appends /messages
+    // formatApiHost will add /v1 if no version exists, or keep existing version
+    const normalizedHost = formatApiHost(rawHost)
 
-    return `${baseWithoutVersion}/v1/messages`
+    return `${normalizedHost}/messages`
   }, [anthropicApiHost, provider.anthropicApiHost])
 
   const hostSelectorOptions = useMemo(() => {
