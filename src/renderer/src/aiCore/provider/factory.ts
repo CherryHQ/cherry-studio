@@ -60,8 +60,12 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 export function getAiSdkProviderId(provider: Provider): string {
   // 1. 尝试解析provider.id
   const resolvedFromId = tryResolveProviderId(provider.id)
-  if (isAzureOpenAIProvider(provider) && isAzureResponsesEndpoint(provider)) {
-    return 'azure-responses'
+  if (isAzureOpenAIProvider(provider)) {
+    if (isAzureResponsesEndpoint(provider)) {
+      return 'azure-responses'
+    } else {
+      return 'azure'
+    }
   }
   if (resolvedFromId) {
     return resolvedFromId

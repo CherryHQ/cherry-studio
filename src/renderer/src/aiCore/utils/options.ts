@@ -249,7 +249,9 @@ export function buildProviderOptions(
       'google-vertex': 'google',
       'google-vertex-anthropic': 'anthropic',
       'azure-anthropic': 'anthropic',
-      'ai-gateway': 'gateway'
+      'ai-gateway': 'gateway',
+      azure: 'openai',
+      'azure-responses': 'openai'
     }[rawProviderId] || rawProviderId
 
   if (rawProviderKey === 'cherryin') {
