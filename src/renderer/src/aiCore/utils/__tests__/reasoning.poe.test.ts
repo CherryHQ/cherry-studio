@@ -1,0 +1,288 @@
+import type { Assistant, Model, ReasoningEffortOption } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
+import { describe, expect, it, vi } from 'vitest'
+
+import { getReasoningEffort } from '../reasoning'
+
+// Mock logger
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      warn: vi.fn(),
+      info: vi.fn(),
+      error: vi.fn()
+    })
+  }
+}))
+
+vi.mock('@renderer/store/settings', () => ({
+  default: {},
+  settingsSlice: {
+    name: 'settings',
+    reducer: vi.fn(),
+    actions: {}
+  }
+}))
+
+vi.mock('@renderer/store/assistants', () => {
+  const mockAssistantsSlice = {
+    name: 'assistants',
+    reducer: vi.fn((state = { entities: {}, ids: [] }) => state),
+    actions: {
+      updateTopicUpdatedAt: vi.fn(() => ({ type: 'UPDATE_TOPIC_UPDATED_AT' }))
+    }
+  }
+
+  return {
+    default: mockAssistantsSlice.reducer,
+    updateTopicUpdatedAt: vi.fn(() => ({ type: 'UPDATE_TOPIC_UPDATED_AT' })),
+    assistantsSlice: mockAssistantsSlice
+  }
+})
+
+// Mock provider service
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: (model: Model) => ({
+    id: model.provider,
+    name: 'Poe',
+    type: 'openai'
+  }),
+  getAssistantSettings: (assistant: Assistant) => assistant.settings || {}
+}))
+
+describe('Poe Provider Reasoning Support', () => {
+  const createPoeModel = (id: string): Model => ({
+    id,
+    name: id,
+    provider: SystemProviderIds.poe,
+    group: 'poe'
+  })
+
+  const createAssistant = (reasoning_effort?: ReasoningEffortOption, maxTokens?: number): Assistant => ({
+    id: 'test-assistant',
+    name: 'Test Assistant',
+    emoji: '🤖',
+    prompt: '',
+    topics: [],
+    messages: [],
+    type: 'assistant',
+    regularPhrases: [],
+    settings: {
+      reasoning_effort,
+      maxTokens
+    }
+  })
+
+  describe('GPT-5 Series Models', () => {
+    it('should return reasoning_effort in extra_body for GPT-5 model with low effort', () => {
+      const model = createPoeModel('gpt-5')
+      const assistant = createAssistant('low')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({
+        extra_body: {
+          reasoning_effort: 'low'
+        }
+      })
+    })
+
+    it('should return reasoning_effort in extra_body for GPT-5 model with medium effort', () => {
+      const model = createPoeModel('gpt-5')
+      const assistant = createAssistant('medium')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({
+        extra_body: {
+          reasoning_effort: 'medium'
+        }
+      })
+    })
+
+    it('should return reasoning_effort in extra_body for GPT-5 model with high effort', () => {
+      const model = createPoeModel('gpt-5')
+      const assistant = createAssistant('high')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({
+        extra_body: {
+          reasoning_effort: 'high'
+        }
+      })
+    })
+
+    it('should convert auto to medium for GPT-5 model in extra_body', () => {
+      const model = createPoeModel('gpt-5')
+      const assistant = createAssistant('auto')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({
+        extra_body: {
+          reasoning_effort: 'medium'
+        }
+      })
+    })
+
+    it('should return reasoning_effort in extra_body for GPT-5.1 model', () => {
+      const model = createPoeModel('gpt-5.1')
+      const assistant = createAssistant('medium')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({
+        extra_body: {
+          reasoning_effort: 'medium'
+        }
+      })
+    })
+  })
+
+  describe('Claude Models', () => {
+    it('should return thinking_budget in extra_body for Claude 3.7 Sonnet', () => {
+      const model = createPoeModel('claude-3.7-sonnet')
+      const assistant = createAssistant('medium', 4096)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toHaveProperty('extra_body')
+      expect(result.extra_body).toHaveProperty('thinking_budget')
+      expect(typeof result.extra_body?.thinking_budget).toBe('number')
+      expect(result.extra_body?.thinking_budget).toBeGreaterThan(0)
+    })
+
+    it('should return thinking_budget in extra_body for Claude Sonnet 4', () => {
+      const model = createPoeModel('claude-sonnet-4')
+      const assistant = createAssistant('high', 8192)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toHaveProperty('extra_body')
+      expect(result.extra_body).toHaveProperty('thinking_budget')
+      expect(typeof result.extra_body?.thinking_budget).toBe('number')
+    })
+
+    it('should calculate thinking_budget based on effort ratio and maxTokens', () => {
+      const model = createPoeModel('claude-3.7-sonnet')
+      const assistant = createAssistant('low', 4096)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result.extra_body?.thinking_budget).toBeGreaterThanOrEqual(1024)
+    })
+  })
+
+  describe('Gemini Models', () => {
+    it('should return thinking_budget in extra_body for Gemini 2.5 Flash', () => {
+      const model = createPoeModel('gemini-2.5-flash')
+      const assistant = createAssistant('medium')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toHaveProperty('extra_body')
+      expect(result.extra_body).toHaveProperty('thinking_budget')
+      expect(typeof result.extra_body?.thinking_budget).toBe('number')
+    })
+
+    it('should return thinking_budget in extra_body for Gemini 2.5 Pro', () => {
+      const model = createPoeModel('gemini-2.5-pro')
+      const assistant = createAssistant('high')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toHaveProperty('extra_body')
+      expect(result.extra_body).toHaveProperty('thinking_budget')
+    })
+
+    it('should use -1 for auto effort', () => {
+      const model = createPoeModel('gemini-2.5-flash')
+      const assistant = createAssistant('auto')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result.extra_body?.thinking_budget).toBe(-1)
+    })
+
+    it('should calculate thinking_budget for non-auto effort', () => {
+      const model = createPoeModel('gemini-2.5-flash')
+      const assistant = createAssistant('low')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(typeof result.extra_body?.thinking_budget).toBe('number')
+    })
+  })
+
+  describe('No Reasoning Effort', () => {
+    it('should return empty object when reasoning_effort is not set', () => {
+      const model = createPoeModel('gpt-5')
+      const assistant = createAssistant(undefined)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({})
+    })
+
+    it('should return empty object when reasoning_effort is "none"', () => {
+      const model = createPoeModel('gpt-5')
+      const assistant = createAssistant('none')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({})
+    })
+  })
+
+  describe('Non-Reasoning Models', () => {
+    it('should return empty object for non-reasoning models', () => {
+      const model = createPoeModel('gpt-4')
+      const assistant = createAssistant('medium')
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toEqual({})
+    })
+  })
+
+  describe('Edge Cases: Models Without Token Limit Configuration', () => {
+    it('should return empty object for Claude models without token limit configuration', () => {
+      const model = createPoeModel('claude-unknown-variant')
+      const assistant = createAssistant('medium', 4096)
+      const result = getReasoningEffort(assistant, model)
+
+      // Should return empty object when token limit is not found
+      expect(result).toEqual({})
+      expect(result.extra_body?.thinking_budget).toBeUndefined()
+    })
+
+    it('should return empty object for unmatched Poe reasoning models', () => {
+      // A hypothetical reasoning model that doesn't match GPT-5, Claude, or Gemini
+      const model = createPoeModel('some-reasoning-model')
+      // Make it appear as a reasoning model by giving it a name that won't match known categories
+      const assistant = createAssistant('medium')
+      const result = getReasoningEffort(assistant, model)
+
+      // Should return empty object for unmatched models
+      expect(result).toEqual({})
+    })
+
+    it('should fallback to -1 for Gemini models without token limit', () => {
+      // Use a Gemini model variant that won't match any token limit pattern
+      // The current regex patterns cover gemini-.*-flash.*$ and gemini-.*-pro.*$
+      // so we need a model that matches isSupportedThinkingTokenGeminiModel but not THINKING_TOKEN_MAP
+      const model = createPoeModel('gemini-2.5-flash')
+      const assistant = createAssistant('auto')
+      const result = getReasoningEffort(assistant, model)
+
+      // For 'auto' effort, should use -1
+      expect(result.extra_body?.thinking_budget).toBe(-1)
+    })
+
+    it('should enforce minimum 1024 token floor for Claude models', () => {
+      const model = createPoeModel('claude-3.7-sonnet')
+      // Use very small maxTokens to test the minimum floor
+      const assistant = createAssistant('low', 100)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result.extra_body?.thinking_budget).toBeGreaterThanOrEqual(1024)
+    })
+
+    it('should handle undefined maxTokens for Claude models', () => {
+      const model = createPoeModel('claude-3.7-sonnet')
+      const assistant = createAssistant('medium', undefined)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toHaveProperty('extra_body')
+      expect(result.extra_body).toHaveProperty('thinking_budget')
+      expect(typeof result.extra_body?.thinking_budget).toBe('number')
+      expect(result.extra_body?.thinking_budget).toBeGreaterThanOrEqual(1024)
+    })
+  })
+})

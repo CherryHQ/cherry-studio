@@ -96,6 +96,8 @@ export type ReasoningEffortOptionalParams = {
         include_thoughts?: boolean
       }
     }
+    thinking_budget?: number
+    reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'auto'
   }
   disable_reasoning?: boolean
   // Add any other potential reasoning-related keys here if they exist
