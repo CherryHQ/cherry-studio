@@ -6,6 +6,23 @@
  * To update this file, modify classification.json and run:
  * node .claude/data-classify/scripts/generate-preferences.js
  *
+ * ## Key Naming Convention
+ *
+ * All preference keys MUST follow the format: `namespace.sub.key_name`
+ *
+ * Rules:
+ * - At least 2 segments separated by dots (.)
+ * - Each segment uses lowercase letters, numbers, and underscores only
+ * - Pattern: /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+ *
+ * Examples:
+ * - 'app.user.avatar' (valid)
+ * - 'chat.multi_select_mode' (valid)
+ * - 'userAvatar' (invalid - missing dot separator)
+ * - 'App.user' (invalid - uppercase not allowed)
+ *
+ * This convention is enforced by ESLint rule: data-schema-key/valid-key
+ *
  * === AUTO-GENERATED CONTENT START ===
  */
 

@@ -157,4 +157,60 @@ export default defineConfig([
       // ]
     }
   },
+  // Schema key naming convention (cache & preferences)
+  {
+    files: ['packages/shared/data/cache/cacheSchemas.ts', 'packages/shared/data/preference/preferenceSchemas.ts'],
+    plugins: {
+      'data-schema-key': {
+        rules: {
+          'valid-key': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description: 'Enforce schema key naming convention: namespace.sub.key_name',
+                recommended: true
+              },
+              messages: {
+                invalidKey:
+                  'Schema key "{{key}}" must follow format: namespace.sub.key_name (e.g., app.user.avatar).'
+              }
+            },
+            create(context) {
+              const VALID_KEY_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+
+              return {
+                TSPropertySignature(node) {
+                  if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    const key = node.key.value
+                    if (!VALID_KEY_PATTERN.test(key)) {
+                      context.report({
+                        node: node.key,
+                        messageId: 'invalidKey',
+                        data: { key }
+                      })
+                    }
+                  }
+                },
+                Property(node) {
+                  if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    const key = node.key.value
+                    if (!VALID_KEY_PATTERN.test(key)) {
+                      context.report({
+                        node: node.key,
+                        messageId: 'invalidKey',
+                        data: { key }
+                      })
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'data-schema-key/valid-key': 'error'
+    }
+  }
 ])
