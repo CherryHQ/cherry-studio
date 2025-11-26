@@ -230,4 +230,59 @@ describe('Poe Provider Reasoning Support', () => {
       expect(result).toEqual({})
     })
   })
+
+  describe('Edge Cases: Models Without Token Limit Configuration', () => {
+    it('should return empty object for Claude models without token limit configuration', () => {
+      const model = createPoeModel('claude-unknown-variant')
+      const assistant = createAssistant('medium', 4096)
+      const result = getReasoningEffort(assistant, model)
+
+      // Should return empty object when token limit is not found
+      expect(result).toEqual({})
+      expect(result.extra_body?.thinking_budget).toBeUndefined()
+    })
+
+    it('should return empty object for unmatched Poe reasoning models', () => {
+      // A hypothetical reasoning model that doesn't match GPT-5, Claude, or Gemini
+      const model = createPoeModel('some-reasoning-model')
+      // Make it appear as a reasoning model by giving it a name that won't match known categories
+      const assistant = createAssistant('medium')
+      const result = getReasoningEffort(assistant, model)
+
+      // Should return empty object for unmatched models
+      expect(result).toEqual({})
+    })
+
+    it('should fallback to -1 for Gemini models without token limit', () => {
+      // Use a Gemini model variant that won't match any token limit pattern
+      // The current regex patterns cover gemini-.*-flash.*$ and gemini-.*-pro.*$
+      // so we need a model that matches isSupportedThinkingTokenGeminiModel but not THINKING_TOKEN_MAP
+      const model = createPoeModel('gemini-2.5-flash')
+      const assistant = createAssistant('auto')
+      const result = getReasoningEffort(assistant, model)
+
+      // For 'auto' effort, should use -1
+      expect(result.extra_body?.thinking_budget).toBe(-1)
+    })
+
+    it('should enforce minimum 1024 token floor for Claude models', () => {
+      const model = createPoeModel('claude-3.7-sonnet')
+      // Use very small maxTokens to test the minimum floor
+      const assistant = createAssistant('low', 100)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result.extra_body?.thinking_budget).toBeGreaterThanOrEqual(1024)
+    })
+
+    it('should handle undefined maxTokens for Claude models', () => {
+      const model = createPoeModel('claude-3.7-sonnet')
+      const assistant = createAssistant('medium', undefined)
+      const result = getReasoningEffort(assistant, model)
+
+      expect(result).toHaveProperty('extra_body')
+      expect(result.extra_body).toHaveProperty('thinking_budget')
+      expect(typeof result.extra_body?.thinking_budget).toBe('number')
+      expect(result.extra_body?.thinking_budget).toBeGreaterThanOrEqual(1024)
+    })
+  })
 })
