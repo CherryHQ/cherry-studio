@@ -85,7 +85,7 @@ Main responsibilities:
 - **SvgPreview**: SVG image preview
 - **GraphvizPreview**: Graphviz diagram preview
 
-All special view components share a common architecture for consistent user experience and functionality. For detailed information about these components and their implementation, see [Image Preview Components Documentation](./ImagePreview-en.md).
+All special view components share a common architecture for consistent user experience and functionality. For detailed information about these components and their implementation, see [Image Preview Components Documentation](./image-preview.md).
 
 #### StatusBar
 

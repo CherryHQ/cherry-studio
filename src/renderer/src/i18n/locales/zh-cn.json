@@ -1148,6 +1148,7 @@
     "fullscreen": "已进入全屏模式，按 F11 退出",
     "go_to_settings": "前往设置",
     "i_know": "我知道了",
+    "ignore": "忽略",
     "inspect": "检查",
     "invalid_value": "无效值",
     "knowledge_base": "知识库",
@@ -1504,6 +1505,7 @@
     "notes_placeholder": "输入此知识库的附加信息或上下文...",
     "provider_not_found": "未找到服务商",
     "quota": "{{name}} 剩余额度：{{quota}}",
+    "quota_empty": "今日{{name}}额度不足，请前往官网申请",
     "quota_infinity": "{{name}} 剩余额度：无限制",
     "rename": "重命名",
     "search": "搜索知识库",
@@ -3771,6 +3773,9 @@
       },
       "view_webdav_settings": "查看 WebDAV 设置"
     },
+    "groq": {
+      "title": "Groq 设置"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "禁用硬件加速需要重启应用才能生效，是否现在重启？",
@@ -4357,6 +4362,10 @@
           "stream_options": {
             "help": "该提供商是否支持 stream_options 参数",
             "label": "支持 stream_options"
+          },
+          "verbosity": {
+            "help": "该提供商是否支持 verbosity 参数",
+            "label": "支持 verbosity"
           }
         },
         "url": {

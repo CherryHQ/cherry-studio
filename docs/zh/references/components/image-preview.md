@@ -192,4 +192,4 @@ const { containerRef, error, isLoading, triggerRender, cancelRender, clearError,
 - 共享状态管理
 - 响应式布局适应
 
-有关整体 CodeBlockView 架构的更多信息，请参阅 [CodeBlockView 文档](./CodeBlockView-zh.md)。
+有关整体 CodeBlockView 架构的更多信息，请参阅 [CodeBlockView 文档](./code-block-view.md)。

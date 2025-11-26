@@ -128,7 +128,20 @@ vi.mock('../reasoning', () => ({
     reasoningConfig: { type: 'enabled', budgetTokens: 5000 }
   })),
   getReasoningEffort: vi.fn(() => ({ reasoningEffort: 'medium' })),
-  getCustomParameters: vi.fn(() => ({}))
+  getCustomParameters: vi.fn(() => ({})),
+  extractAiSdkStandardParams: vi.fn((customParams: Record<string, any>) => {
+    const AI_SDK_STANDARD_PARAMS = ['topK', 'frequencyPenalty', 'presencePenalty', 'stopSequences', 'seed']
+    const standardParams: Record<string, any> = {}
+    const providerParams: Record<string, any> = {}
+    for (const [key, value] of Object.entries(customParams)) {
+      if (AI_SDK_STANDARD_PARAMS.includes(key)) {
+        standardParams[key] = value
+      } else {
+        providerParams[key] = value
+      }
+    }
+    return { standardParams, providerParams }
+  })
 }))
 
 vi.mock('../image', () => ({
@@ -184,8 +197,9 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('openai')
-        expect(result.openai).toBeDefined()
+        expect(result.providerOptions).toHaveProperty('openai')
+        expect(result.providerOptions.openai).toBeDefined()
+        expect(result.standardParams).toBeDefined()
       })
 
       it('should include reasoning parameters when enabled', () => {
@@ -195,8 +209,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result.openai).toHaveProperty('reasoningEffort')
-        expect(result.openai.reasoningEffort).toBe('medium')
+        expect(result.providerOptions.openai).toHaveProperty('reasoningEffort')
+        expect(result.providerOptions.openai.reasoningEffort).toBe('medium')
       })
 
       it('should include service tier when supported', () => {
@@ -211,8 +225,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result.openai).toHaveProperty('serviceTier')
-        expect(result.openai.serviceTier).toBe(OpenAIServiceTiers.auto)
+        expect(result.providerOptions.openai).toHaveProperty('serviceTier')
+        expect(result.providerOptions.openai.serviceTier).toBe(OpenAIServiceTiers.auto)
       })
     })
 
@@ -239,8 +253,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('anthropic')
-        expect(result.anthropic).toBeDefined()
+        expect(result.providerOptions).toHaveProperty('anthropic')
+        expect(result.providerOptions.anthropic).toBeDefined()
       })
 
       it('should include reasoning parameters when enabled', () => {
@@ -250,8 +264,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result.anthropic).toHaveProperty('thinking')
-        expect(result.anthropic.thinking).toEqual({
+        expect(result.providerOptions.anthropic).toHaveProperty('thinking')
+        expect(result.providerOptions.anthropic.thinking).toEqual({
           type: 'enabled',
           budgetTokens: 5000
         })
@@ -282,8 +296,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('google')
-        expect(result.google).toBeDefined()
+        expect(result.providerOptions).toHaveProperty('google')
+        expect(result.providerOptions.google).toBeDefined()
       })
 
       it('should include reasoning parameters when enabled', () => {
@@ -293,8 +307,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result.google).toHaveProperty('thinkingConfig')
-        expect(result.google.thinkingConfig).toEqual({
+        expect(result.providerOptions.google).toHaveProperty('thinkingConfig')
+        expect(result.providerOptions.google.thinkingConfig).toEqual({
           include_thoughts: true
         })
       })
@@ -306,8 +320,8 @@ describe('options utils', () => {
           enableGenerateImage: true
         })
 
-        expect(result.google).toHaveProperty('responseModalities')
-        expect(result.google.responseModalities).toEqual(['TEXT', 'IMAGE'])
+        expect(result.providerOptions.google).toHaveProperty('responseModalities')
+        expect(result.providerOptions.google.responseModalities).toEqual(['TEXT', 'IMAGE'])
       })
     })
 
@@ -335,8 +349,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('xai')
-        expect(result.xai).toBeDefined()
+        expect(result.providerOptions).toHaveProperty('xai')
+        expect(result.providerOptions.xai).toBeDefined()
       })
 
       it('should include reasoning parameters when enabled', () => {
@@ -346,8 +360,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result.xai).toHaveProperty('reasoningEffort')
-        expect(result.xai.reasoningEffort).toBe('high')
+        expect(result.providerOptions.xai).toHaveProperty('reasoningEffort')
+        expect(result.providerOptions.xai.reasoningEffort).toBe('high')
       })
     })
 
@@ -374,8 +388,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('deepseek')
-        expect(result.deepseek).toBeDefined()
+        expect(result.providerOptions).toHaveProperty('deepseek')
+        expect(result.providerOptions.deepseek).toBeDefined()
       })
     })
 
@@ -402,8 +416,8 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('openrouter')
-        expect(result.openrouter).toBeDefined()
+        expect(result.providerOptions).toHaveProperty('openrouter')
+        expect(result.providerOptions.openrouter).toBeDefined()
       })
 
       it('should include web search parameters when enabled', () => {
@@ -413,12 +427,12 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result.openrouter).toHaveProperty('enable_search')
+        expect(result.providerOptions.openrouter).toHaveProperty('enable_search')
       })
     })
 
     describe('Custom parameters', () => {
-      it('should merge custom parameters', async () => {
+      it('should merge custom provider-specific parameters', async () => {
         const { getCustomParameters } = await import('../reasoning')
 
         vi.mocked(getCustomParameters).mockReturnValue({
@@ -443,10 +457,88 @@ describe('options utils', () => {
           }
         )
 
-        expect(result.openai).toHaveProperty('custom_param')
-        expect(result.openai.custom_param).toBe('custom_value')
-        expect(result.openai).toHaveProperty('another_param')
-        expect(result.openai.another_param).toBe(123)
+        expect(result.providerOptions.openai).toHaveProperty('custom_param')
+        expect(result.providerOptions.openai.custom_param).toBe('custom_value')
+        expect(result.providerOptions.openai).toHaveProperty('another_param')
+        expect(result.providerOptions.openai.another_param).toBe(123)
+      })
+
+      it('should extract AI SDK standard params from custom parameters', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          topK: 5,
+          frequencyPenalty: 0.5,
+          presencePenalty: 0.3,
+          seed: 42,
+          custom_param: 'custom_value'
+        })
+
+        const result = buildProviderOptions(
+          mockAssistant,
+          mockModel,
+          {
+            id: SystemProviderIds.gemini,
+            name: 'Google',
+            type: 'gemini',
+            apiKey: 'test-key',
+            apiHost: 'https://generativelanguage.googleapis.com'
+          } as Provider,
+          {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: false
+          }
+        )
+
+        // Standard params should be extracted and returned separately
+        expect(result.standardParams).toEqual({
+          topK: 5,
+          frequencyPenalty: 0.5,
+          presencePenalty: 0.3,
+          seed: 42
+        })
+
+        // Provider-specific params should still be in providerOptions
+        expect(result.providerOptions.google).toHaveProperty('custom_param')
+        expect(result.providerOptions.google.custom_param).toBe('custom_value')
+
+        // Standard params should NOT be in providerOptions
+        expect(result.providerOptions.google).not.toHaveProperty('topK')
+        expect(result.providerOptions.google).not.toHaveProperty('frequencyPenalty')
+        expect(result.providerOptions.google).not.toHaveProperty('presencePenalty')
+        expect(result.providerOptions.google).not.toHaveProperty('seed')
+      })
+
+      it('should handle stopSequences in custom parameters', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          stopSequences: ['STOP', 'END'],
+          custom_param: 'value'
+        })
+
+        const result = buildProviderOptions(
+          mockAssistant,
+          mockModel,
+          {
+            id: SystemProviderIds.gemini,
+            name: 'Google',
+            type: 'gemini',
+            apiKey: 'test-key',
+            apiHost: 'https://generativelanguage.googleapis.com'
+          } as Provider,
+          {
+            enableReasoning: false,
+            enableWebSearch: false,
+            enableGenerateImage: false
+          }
+        )
+
+        expect(result.standardParams).toEqual({
+          stopSequences: ['STOP', 'END']
+        })
+        expect(result.providerOptions.google).not.toHaveProperty('stopSequences')
       })
     })
 
@@ -474,8 +566,8 @@ describe('options utils', () => {
           enableGenerateImage: true
         })
 
-        expect(result.google).toHaveProperty('thinkingConfig')
-        expect(result.google).toHaveProperty('responseModalities')
+        expect(result.providerOptions.google).toHaveProperty('thinkingConfig')
+        expect(result.providerOptions.google).toHaveProperty('responseModalities')
       })
 
       it('should handle all capabilities enabled', () => {
@@ -485,8 +577,8 @@ describe('options utils', () => {
           enableGenerateImage: true
         })
 
-        expect(result.google).toBeDefined()
-        expect(Object.keys(result.google).length).toBeGreaterThan(0)
+        expect(result.providerOptions.google).toBeDefined()
+        expect(Object.keys(result.providerOptions.google).length).toBeGreaterThan(0)
       })
     })
 
@@ -513,7 +605,7 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('google')
+        expect(result.providerOptions).toHaveProperty('google')
       })
 
       it('should map google-vertex-anthropic to anthropic', () => {
@@ -538,7 +630,7 @@ describe('options utils', () => {
           enableGenerateImage: false
         })
 
-        expect(result).toHaveProperty('anthropic')
+        expect(result.providerOptions).toHaveProperty('anthropic')
       })
     })
   })

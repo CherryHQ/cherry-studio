@@ -16,7 +16,7 @@ import {
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
-import { GEMINI_FLASH_MODEL_REGEX, isGemini3Model } from './utils'
+import { GEMINI_FLASH_MODEL_REGEX, isGemini3ThinkingTokenModel } from './utils'
 import { isTextToImageModel } from './vision'
 
 // Reasoning models
@@ -115,7 +115,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     } else {
       thinkingModelType = 'gemini_pro'
     }
-    if (isGemini3Model(model)) {
+    if (isGemini3ThinkingTokenModel(model)) {
       thinkingModelType = 'gemini3'
     }
   } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
@@ -201,7 +201,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  const providerId = model.provider.toLowerCase()
+  const providerId = model?.provider?.toLowerCase()
   if (modelId.includes('grok-3-mini')) {
     return true
   }
@@ -271,14 +271,6 @@ export const GEMINI_THINKING_MODEL_REGEX =
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
-    // gemini-3.x 的 image 模型支持思考模式
-    if (isGemini3Model(model)) {
-      if (modelId.includes('tts')) {
-        return false
-      }
-      return true
-    }
-    // gemini-2.x 的 image/tts 模型不支持
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }
@@ -555,7 +547,7 @@ export function isReasoningModel(model?: Model): boolean {
   return REASONING_REGEX.test(modelId) || false
 }
 
-export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
   'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
@@ -576,10 +568,18 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
-  // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64_000 },
-  'claude-(:?haiku|sonnet)-4.*$': { min: 1024, max: 64_000 },
-  'claude-opus-4-1.*$': { min: 1024, max: 32_000 }
+  // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
+  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },
+  '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 64_000
+  },
+  '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 32_000
+  }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

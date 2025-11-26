@@ -1148,6 +1148,7 @@
     "fullscreen": "Entrou no modo de tela cheia, pressione F11 para sair",
     "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
+    "ignore": "Pular",
     "inspect": "Verificar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
@@ -1504,6 +1505,7 @@
     "notes_placeholder": "Digite informações adicionais ou contexto para este repositório de conhecimento...",
     "provider_not_found": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
     "quota": "Cota restante de {{name}}: {{quota}}",
+    "quota_empty": "A cota de {{name}} de hoje está esgotada, por favor solicite no site oficial",
     "quota_infinity": "Cota restante de {{name}}: ilimitada",
     "rename": "Renomear",
     "search": "Pesquisar repositório de conhecimento",
@@ -3771,6 +3773,9 @@
       },
       "view_webdav_settings": "Ver configurações WebDAV"
     },
+    "groq": {
+      "title": "Configurações do Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "A desativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
@@ -4357,6 +4362,10 @@
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
+          },
+          "verbosity": {
+            "help": "Se o provedor suporta o parâmetro de verbosidade",
+            "label": "Suportar verbosidade"
           }
         },
         "url": {

@@ -893,7 +893,7 @@
         "title": "コード実行"
       },
       "code_fancy_block": {
-        "label": "<translate_input>\n装飾的なコードブロック\n</translate_input>",
+        "label": "装飾的なコードブロック",
         "tip": "より見栄えの良いコードブロックスタイルを使用する、例えばHTMLカード"
       },
       "code_image_tools": {
@@ -1148,6 +1148,7 @@
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
     "go_to_settings": "設定に移動",
     "i_know": "わかりました",
+    "ignore": "無視",
     "inspect": "検査",
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
@@ -1296,7 +1297,7 @@
     "statusCode": "ステータスコード",
     "statusText": "状態テキスト",
     "text": "テキスト",
-    "toolInput": "<translate_input>\nツール入力\n</translate_input>",
+    "toolInput": "ツール入力",
     "toolName": "ツール名",
     "unknown": "不明なエラー",
     "usage": "用量",
@@ -1504,6 +1505,7 @@
     "notes_placeholder": "このナレッジベースの追加情報やコンテキストを入力...",
     "provider_not_found": "プロバイダーが見つかりません",
     "quota": "{{name}} 残りクォータ: {{quota}}",
+    "quota_empty": "本日の{{name}}クォータが不足しています。公式サイトで申請してください",
     "quota_infinity": "{{name}} クォータ: 無制限",
     "rename": "名前を変更",
     "search": "ナレッジベースを検索",
@@ -3771,6 +3773,9 @@
       },
       "view_webdav_settings": "WebDAV設定を表示"
     },
+    "groq": {
+      "title": "Groq設定"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "ハードウェアアクセラレーションを無効にするには、アプリを再起動する必要があります。再起動しますか？",
@@ -4357,6 +4362,10 @@
           "stream_options": {
             "help": "このプロバイダーは stream_options パラメータをサポートしていますか",
             "label": "stream_options をサポート"
+          },
+          "verbosity": {
+            "help": "プロバイダーが冗長度パラメータをサポートしているかどうか",
+            "label": "冗長性のサポート"
           }
         },
         "url": {

@@ -82,7 +82,10 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.grok,
   SystemProviderIds.cherryin,
   SystemProviderIds.longcat,
-  SystemProviderIds.minimax
+  SystemProviderIds.minimax,
+  SystemProviderIds.silicon,
+  SystemProviderIds.qiniu,
+  SystemProviderIds.dmxapi
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -295,7 +298,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (isAnthropicProvider(provider)) {
-      return formatApiHost(apiHost) + '/messages'
+      // AI SDK uses the baseURL with /v1, then appends /messages
+      // formatApiHost adds /v1 automatically if not present
+      const normalizedHost = formatApiHost(apiHost)
+      return normalizedHost + '/messages'
     }
 
     if (isGeminiProvider(provider)) {
@@ -349,6 +355,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
+    // AI SDK uses the baseURL with /v1, then appends /messages
     const normalizedHost = formatApiHost(rawHost)
 
     return `${normalizedHost}/messages`

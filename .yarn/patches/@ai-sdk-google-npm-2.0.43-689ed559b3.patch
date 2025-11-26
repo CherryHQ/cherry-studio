@@ -1,8 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
-index dc7b74ba55337c491cdf1ab3e39ca68cc4187884..ace8c90591288e42c2957e93c9bf7984f1b22444 100644
+index 51ce7e423934fb717cb90245cdfcdb3dae6780e6..0f7f7009e2f41a79a8669d38c8a44867bbff5e1f 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -472,7 +472,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+@@ -474,7 +474,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {
@@ -12,10 +12,10 @@ index dc7b74ba55337c491cdf1ab3e39ca68cc4187884..ace8c90591288e42c2957e93c9bf7984
  
  // src/google-generative-ai-options.ts
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 8390439c38cb7eaeb52080862cd6f4c58509e67c..a7647f2e11700dff7e1c8d4ae8f99d3637010733 100644
+index f4b77e35c0cbfece85a3ef0d4f4e67aa6dde6271..8d2fecf8155a226006a0bde72b00b6036d4014b6 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -478,7 +478,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+@@ -480,7 +480,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
  
  // src/get-model-path.ts
  function getModelPath(modelId) {

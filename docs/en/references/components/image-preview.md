@@ -192,4 +192,4 @@ Image Preview Components integrate seamlessly with CodeBlockView:
 - Shared state management
 - Responsive layout adaptation
 
-For more information about the overall CodeBlockView architecture, see [CodeBlockView Documentation](./CodeBlockView-en.md).
+For more information about the overall CodeBlockView architecture, see [CodeBlockView Documentation](./code-block-view.md).
