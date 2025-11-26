@@ -31,6 +31,11 @@ type LlmSettings = {
     apiKey: string
     region: string
   }
+  volcengine: {
+    accessKeyId: string
+    secretAccessKey: string
+    region: string
+  }
 }
 
 export interface LlmState {
@@ -75,6 +80,11 @@ export const initialState: LlmState = {
       secretAccessKey: '',
       apiKey: '',
       region: ''
+    },
+    volcengine: {
+      accessKeyId: '',
+      secretAccessKey: '',
+      region: 'cn-beijing'
     }
   }
 }
@@ -216,6 +226,15 @@ const llmSlice = createSlice({
     setAwsBedrockRegion: (state, action: PayloadAction<string>) => {
       state.settings.awsBedrock.region = action.payload
     },
+    setVolcengineAccessKeyId: (state, action: PayloadAction<string>) => {
+      state.settings.volcengine.accessKeyId = action.payload
+    },
+    setVolcengineSecretAccessKey: (state, action: PayloadAction<string>) => {
+      state.settings.volcengine.secretAccessKey = action.payload
+    },
+    setVolcengineRegion: (state, action: PayloadAction<string>) => {
+      state.settings.volcengine.region = action.payload
+    },
     updateModel: (
       state,
       action: PayloadAction<{
@@ -257,6 +276,9 @@ export const {
   setAwsBedrockSecretAccessKey,
   setAwsBedrockApiKey,
   setAwsBedrockRegion,
+  setVolcengineAccessKeyId,
+  setVolcengineSecretAccessKey,
+  setVolcengineRegion,
   updateModel
 } = llmSlice.actions
 

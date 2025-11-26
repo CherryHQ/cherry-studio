@@ -4510,6 +4510,21 @@
           "private_key_placeholder": "请输入 Service Account 私钥",
           "title": "Service Account 配置"
         }
+      },
+      "volcengine": {
+        "access_key_id": "Access Key ID",
+        "access_key_id_help": "您的火山引擎 Access Key ID",
+        "clear_credentials": "清除凭证",
+        "credentials_cleared": "凭证已清除",
+        "credentials_required": "请填写 Access Key ID 和 Secret Access Key",
+        "credentials_saved": "凭证已保存",
+        "description": "火山引擎是字节跳动旗下的云服务平台，提供豆包等大语言模型服务。请使用 IAM 子用户的 Access Key 进行身份验证，不要使用主账号的根用户密钥。",
+        "region": "地域",
+        "region_help": "服务地域，例如 cn-beijing",
+        "save_credentials": "保存凭证",
+        "secret_access_key": "Secret Access Key",
+        "secret_access_key_help": "您的火山引擎 Secret Access Key，请妥善保管",
+        "title": "火山引擎配置"
       }
     },
     "proxy": {

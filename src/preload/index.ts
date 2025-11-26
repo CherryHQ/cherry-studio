@@ -572,6 +572,37 @@ const api = {
     status: () => ipcRenderer.invoke(IpcChannel.WebSocket_Status),
     sendFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.WebSocket_SendFile, filePath),
     getAllCandidates: () => ipcRenderer.invoke(IpcChannel.WebSocket_GetAllCandidates)
+  },
+  volcengine: {
+    saveCredentials: (accessKeyId: string, secretAccessKey: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Volcengine_SaveCredentials, accessKeyId, secretAccessKey),
+    hasCredentials: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Volcengine_HasCredentials),
+    clearCredentials: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Volcengine_ClearCredentials),
+    listModels: (): Promise<{
+      models: Array<{ id: string; name: string; description?: string; created?: number }>
+      total?: number
+    }> => ipcRenderer.invoke(IpcChannel.Volcengine_ListModels),
+    getAuthHeaders: (params: {
+      method: 'GET' | 'POST'
+      host: string
+      path: string
+      query?: Record<string, string>
+      body?: string
+      service?: string
+      region?: string
+    }): Promise<{ Authorization: string; 'X-Date': string; 'X-Content-Sha256': string; Host: string }> =>
+      ipcRenderer.invoke(IpcChannel.Volcengine_GetAuthHeaders, params),
+    makeRequest: (params: {
+      method: 'GET' | 'POST'
+      host: string
+      path: string
+      action: string
+      version: string
+      query?: Record<string, string>
+      body?: Record<string, unknown>
+      service?: string
+      region?: string
+    }): Promise<unknown> => ipcRenderer.invoke(IpcChannel.Volcengine_MakeRequest, params)
   }
 }
 

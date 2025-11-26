@@ -374,5 +374,13 @@ export enum IpcChannel {
   WebSocket_Stop = 'webSocket:stop',
   WebSocket_Status = 'webSocket:status',
   WebSocket_SendFile = 'webSocket:send-file',
-  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates'
+  WebSocket_GetAllCandidates = 'webSocket:get-all-candidates',
+
+  // Volcengine
+  Volcengine_SaveCredentials = 'volcengine:save-credentials',
+  Volcengine_HasCredentials = 'volcengine:has-credentials',
+  Volcengine_ClearCredentials = 'volcengine:clear-credentials',
+  Volcengine_ListModels = 'volcengine:list-models',
+  Volcengine_GetAuthHeaders = 'volcengine:get-auth-headers',
+  Volcengine_MakeRequest = 'volcengine:make-request'
 }
