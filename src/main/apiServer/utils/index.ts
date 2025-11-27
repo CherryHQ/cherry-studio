@@ -295,3 +295,32 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
       return () => true
   }
 }
+
+/**
+ * Check if a specific model is compatible with Anthropic API for a given provider.
+ *
+ * This is used for fine-grained routing decisions at the model level.
+ * For aggregated providers (like Silicon), only certain models support the Anthropic API endpoint.
+ *
+ * @param provider - The provider to check
+ * @param modelId - The model ID to check (without provider prefix)
+ * @returns true if the model supports Anthropic API endpoint
+ */
+export function isModelAnthropicCompatible(provider: Provider, modelId: string): boolean {
+  const checker = getProviderAnthropicModelChecker(provider.id)
+
+  const model = provider.models?.find((m) => m.id === modelId)
+
+  if (model) {
+    return checker(model)
+  }
+
+  const minimalModel: Model = {
+    id: modelId,
+    name: modelId,
+    provider: provider.id,
+    group: ''
+  }
+
+  return checker(minimalModel)
+}

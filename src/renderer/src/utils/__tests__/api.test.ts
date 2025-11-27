@@ -300,18 +300,7 @@ describe('api', () => {
     })
 
     it('uses global endpoint when location equals global', () => {
-      getStateMock.mockReturnValueOnce({
-        llm: {
-          settings: {
-            vertexai: {
-              projectId: 'global-project',
-              location: 'global'
-            }
-          }
-        }
-      })
-
-      expect(formatVertexApiHost(createVertexProvider(''))).toBe(
+      expect(formatVertexApiHost(createVertexProvider(''), 'global-project', 'global')).toBe(
         'https://aiplatform.googleapis.com/v1/projects/global-project/locations/global'
       )
     })

@@ -6,17 +6,34 @@ import express from 'express'
 
 import { messagesService } from '../services/messages'
 import { generateUnifiedMessage, streamUnifiedMessages } from '../services/unified-messages'
-import { getProviderById, validateModelId } from '../utils'
+import { getProviderById, isModelAnthropicCompatible, validateModelId } from '../utils'
 
 /**
- * Check if provider should use direct Anthropic SDK
+ * Check if a specific model on a provider should use direct Anthropic SDK
  *
- * A provider is considered "Anthropic-compatible" if:
+ * A provider+model combination is considered "Anthropic-compatible" if:
  * 1. It's a native Anthropic provider (type === 'anthropic'), OR
- * 2. It has anthropicApiHost configured (aggregated providers routing to Anthropic-compatible endpoints)
+ * 2. It has anthropicApiHost configured AND the specific model supports Anthropic API
+ *    (for aggregated providers like Silicon, only certain models support Anthropic endpoint)
+ *
+ * @param provider - The provider to check
+ * @param modelId - The model ID to check (without provider prefix)
+ * @returns true if should use direct Anthropic SDK, false for unified SDK
  */
-function shouldUseDirectAnthropic(provider: Provider): boolean {
-  return provider.type === 'anthropic' || !!(provider.anthropicApiHost && provider.anthropicApiHost.trim())
+function shouldUseDirectAnthropic(provider: Provider, modelId: string): boolean {
+  // Native Anthropic provider - always use direct SDK
+  if (provider.type === 'anthropic') {
+    return true
+  }
+
+  // No anthropicApiHost configured - use unified SDK
+  if (!provider.anthropicApiHost?.trim()) {
+    return false
+  }
+
+  // Has anthropicApiHost - check model-level compatibility
+  // For aggregated providers, only specific models support Anthropic API
+  return isModelAnthropicCompatible(provider, modelId)
 }
 
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
@@ -169,11 +186,12 @@ async function handleUnifiedProcessing({
 }
 
 /**
- * Handle message processing - routes to appropriate handler based on provider
+ * Handle message processing - routes to appropriate handler based on provider and model
  *
  * Routing logic:
- * - Providers with anthropicApiHost OR type 'anthropic': Direct Anthropic SDK (no conversion)
- * - Other providers: Unified AI SDK with Anthropic SSE conversion
+ * - Native Anthropic providers (type === 'anthropic'): Direct Anthropic SDK
+ * - Providers with anthropicApiHost AND model supports Anthropic API: Direct Anthropic SDK
+ * - Other providers/models: Unified AI SDK with Anthropic SSE conversion
  */
 async function handleMessageProcessing({
   res,
@@ -181,7 +199,8 @@ async function handleMessageProcessing({
   request,
   modelId
 }: HandleMessageProcessingOptions): Promise<void> {
-  if (shouldUseDirectAnthropic(provider)) {
+  const actualModelId = modelId || request.model
+  if (shouldUseDirectAnthropic(provider, actualModelId)) {
     return handleDirectAnthropicProcessing({ res, provider, request, modelId })
   }
   return handleUnifiedProcessing({ res, provider, request, modelId })

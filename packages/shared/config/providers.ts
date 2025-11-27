@@ -41,8 +41,3 @@ const SILICON_ANTHROPIC_COMPATIBLE_MODEL_SET = new Set(SILICON_ANTHROPIC_COMPATI
 export function isSiliconAnthropicCompatibleModel(modelId: string): boolean {
   return SILICON_ANTHROPIC_COMPATIBLE_MODEL_SET.has(modelId)
 }
-
-/**
- * Silicon provider's Anthropic API host URL.
- */
-export const SILICON_ANTHROPIC_API_HOST = 'https://api.siliconflow.cn'

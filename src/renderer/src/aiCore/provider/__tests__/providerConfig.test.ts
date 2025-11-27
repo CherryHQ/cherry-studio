@@ -24,7 +24,17 @@ vi.mock('@renderer/services/AssistantService', () => ({
 
 vi.mock('@renderer/store', () => ({
   default: {
-    getState: () => ({ copilot: { defaultHeaders: {} } })
+    getState: () => ({
+      copilot: { defaultHeaders: {} },
+      llm: {
+        settings: {
+          vertexai: {
+            projectId: 'test-project',
+            location: 'us-central1'
+          }
+        }
+      }
+    })
   }
 }))
 
@@ -33,13 +43,27 @@ vi.mock('@renderer/utils/api', () => ({
     if (isSupportedAPIVersion === false) {
       return host // Return host as-is when isSupportedAPIVersion is false
     }
-    return `${host}/v1` // Default behavior when isSupportedAPIVersion is true
+    return host ? `${host}/v1` : '' // Default behavior when isSupportedAPIVersion is true
   }),
   routeToEndpoint: vi.fn((host) => ({
     baseURL: host,
     endpoint: '/chat/completions'
   }))
 }))
+
+// Also mock @shared/api since formatProviderApiHost uses it directly
+vi.mock('@shared/api', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    formatApiHost: vi.fn((host, isSupportedAPIVersion = true) => {
+      if (isSupportedAPIVersion === false) {
+        return host || '' // Return host as-is when isSupportedAPIVersion is false
+      }
+      return host ? `${host}/v1` : '' // Default behavior when isSupportedAPIVersion is true
+    })
+  }
+})
 
 vi.mock('@renderer/utils/provider', async (importOriginal) => {
   const actual = (await importOriginal()) as any
@@ -73,8 +97,8 @@ vi.mock('@renderer/services/AssistantService', () => ({
 
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
 import { isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
+import { formatApiHost } from '@shared/api'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'
