@@ -145,7 +145,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
     values: ['low', 'medium', 'high']
   },
   // gpt-5.1
-  { validator: (model: Model) => isGPT51SeriesModel(model), values: ['low', 'medium', 'high'] }
+  { validator: isGPT51SeriesModel, values: ['low', 'medium', 'high'] }
 ]
 
 /**
