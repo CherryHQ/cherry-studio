@@ -18,11 +18,11 @@ export const endpointIs =
  * @param provider 原始provider对象
  * @returns 解析出的provider对象
  */
-export function provider2Provider<
-  M extends MinimalModel,
-  R extends MinimalProvider,
-  P extends R = R
->(ruleSet: RuleSet<M, R>, model: M, provider: P): P {
+export function provider2Provider<M extends MinimalModel, R extends MinimalProvider, P extends R = R>(
+  ruleSet: RuleSet<M, R>,
+  model: M,
+  provider: P
+): P {
   for (const rule of ruleSet.rules) {
     if (rule.match(model)) {
       return rule.provider(provider) as P

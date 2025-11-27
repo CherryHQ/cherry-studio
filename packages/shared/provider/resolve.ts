@@ -25,8 +25,7 @@ export function resolveActualProvider<M extends MinimalModel, P extends MinimalP
     resolvedProvider = newApiResolverCreator(model, resolvedProvider)
   }
 
-  const isSystemProvider =
-    options.isSystemProvider?.(resolvedProvider) ?? defaultIsSystemProvider(resolvedProvider)
+  const isSystemProvider = options.isSystemProvider?.(resolvedProvider) ?? defaultIsSystemProvider(resolvedProvider)
 
   if (isSystemProvider && resolvedProvider.id === 'aihubmix') {
     resolvedProvider = aihubmixProviderCreator(model, resolvedProvider)

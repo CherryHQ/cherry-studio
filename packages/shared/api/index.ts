@@ -53,12 +53,16 @@ export function formatAzureOpenAIApiHost(host: string): string {
   return formatApiHost(normalizedHost + '/openai', false)
 }
 
-export function formatVertexApiHost(provider: MinimalProvider, project: string, location: string): string {
+export function formatVertexApiHost(
+  provider: MinimalProvider,
+  project: string = 'test-project',
+  location: string = 'us-central1'
+): string {
   const { apiHost } = provider
   const trimmedHost = withoutTrailingSlash(trim(apiHost))
   if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
     const host =
-      location == 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
+      location === 'global' ? 'https://aiplatform.googleapis.com' : `https://${location}-aiplatform.googleapis.com`
     return `${formatApiHost(host)}/projects/${project}/locations/${location}`
   }
   return formatApiHost(trimmedHost)
