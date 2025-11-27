@@ -24,6 +24,6 @@ export function NotebookEditTool({
         </Tag>
       </>
     ),
-    children: <ReactMarkdown>{typeof output === 'string' ? output : ''}</ReactMarkdown>
+    children: <ReactMarkdown>{output ?? ''}</ReactMarkdown>
   }
 }

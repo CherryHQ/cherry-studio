@@ -12,7 +12,7 @@ export function SearchTool({
   output?: SearchToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果数量
-  const resultCount = typeof output === 'string' ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
 
   return {
     key: 'tool',
@@ -26,8 +26,8 @@ export function SearchTool({
     ),
     children: (
       <div>
-        {typeof input === 'string' && <StringInputTool input={input} label="Search Query" />}
-        {typeof output === 'string' && (
+        {input && <StringInputTool input={input} label="Search Query" />}
+        {output && (
           <div>
             <StringOutputTool output={output} label="Search Results" textColor="text-yellow-600 dark:text-yellow-400" />
           </div>

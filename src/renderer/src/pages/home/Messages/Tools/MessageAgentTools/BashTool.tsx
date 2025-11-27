@@ -15,7 +15,7 @@ export function BashTool({
   output?: BashToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算输出行数
-  const outputLines = typeof output === 'string' ? output.split('\n').length : 0
+  const outputLines = output ? output.split('\n').length : 0
 
   // 处理命令字符串的截断，添加空值检查
   const command = input?.command ?? ''
@@ -47,6 +47,6 @@ export function BashTool({
         </div>
       </>
     ),
-    children: <div className="whitespace-pre-line">{typeof output === 'string' ? output : ''}</div>
+    children: <div className="whitespace-pre-line">{output}</div>
   }
 }

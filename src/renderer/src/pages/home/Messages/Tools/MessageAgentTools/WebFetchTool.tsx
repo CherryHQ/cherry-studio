@@ -14,6 +14,6 @@ export function WebFetchTool({
   return {
     key: 'tool',
     label: <ToolTitle icon={<Globe className="h-4 w-4" />} label="Web Fetch" params={input?.url} />,
-    children: <div>{typeof output === 'string' ? output : ''}</div>
+    children: <div>{output}</div>
   }
 }

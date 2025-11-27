@@ -12,7 +12,7 @@ export function GrepTool({
   output?: GrepToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果行数
-  const resultLines = typeof output === 'string' ? output.split('\n').filter((line) => line.trim()).length : 0
+  const resultLines = output ? output.split('\n').filter((line) => line.trim()).length : 0
 
   return {
     key: 'tool',
@@ -29,6 +29,6 @@ export function GrepTool({
         stats={output ? `${resultLines} ${resultLines === 1 ? 'line' : 'lines'}` : undefined}
       />
     ),
-    children: <div>{typeof output === 'string' ? output : ''}</div>
+    children: <div>{output}</div>
   }
 }

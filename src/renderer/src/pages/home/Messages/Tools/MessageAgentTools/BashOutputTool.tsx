@@ -16,7 +16,7 @@ interface ParsedBashOutput {
 }
 
 const parseBashOutput = (output?: BashOutputToolOutput): ParsedBashOutput | null => {
-  if (!output || typeof output !== 'string') return null
+  if (!output) return null
 
   try {
     const parser = new DOMParser()
