@@ -204,7 +204,7 @@ const CodeViewer = ({
         charOffset = textBefore.length
       }
 
-      logger.info('findLineAndOffset result', {
+      logger.debug('findLineAndOffset result', {
         lineIndex,
         charOffset
       })
@@ -223,7 +223,7 @@ const CodeViewer = ({
       return null
     }
 
-    logger.info('saveSelection success', {
+    logger.debug('saveSelection success', {
       startLine: start.line,
       startOffset: start.offset,
       endLine: end.line,
@@ -246,7 +246,7 @@ const CodeViewer = ({
     const saved = saveSelection()
     if (saved) {
       savedSelectionRef.current = saved
-      logger.info('Selection saved for copy', {
+      logger.debug('Selection saved for copy', {
         startLine: saved.startLine,
         endLine: saved.endLine
       })
@@ -282,7 +282,7 @@ const CodeViewer = ({
       const isMultiLine = endLine > startLine
       const needsCustomCopy = !expanded || isMultiLine
 
-      logger.info('Copy event', {
+      logger.debug('Copy event', {
         startLine,
         endLine,
         startOffset,
@@ -316,7 +316,7 @@ const CodeViewer = ({
 
           const fullText = selectedLines.join('\n')
 
-          logger.info('Custom copy success', {
+          logger.debug('Custom copy success', {
             linesCount: selectedLines.length,
             totalLength: fullText.length,
             firstLine: selectedLines[0]?.slice(0, 30),
@@ -372,27 +372,24 @@ const CodeViewer = ({
   useEffect(() => {
     const handleSelectionChange = () => {
       const selection = window.getSelection()
-      // Clear saved selection if current selection does not belong to this viewer
-      if (selection && selection.rangeCount > 0 && !selection.isCollapsed && !selectionBelongsToViewer(selection)) {
-        savedSelectionRef.current = null
-        return
-      }
 
-      // 如果没有选择或选择已清空，清除保存的状态
+      // 无有效选区：清空并返回
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         savedSelectionRef.current = null
         return
       }
 
-      // 如果在折叠状态下检测到跨行选择，自动展开
+      // 仅处理当前 CodeViewer 的选区
+      if (!selectionBelongsToViewer(selection)) {
+        savedSelectionRef.current = null
+        return
+      }
+
+      // 折叠状态下，检测跨行选择则请求展开
       if (!expanded && onRequestExpand) {
-        if (!selectionBelongsToViewer(selection)) {
-          savedSelectionRef.current = null
-          return
-        }
         const saved = saveSelection()
         if (saved && saved.endLine > saved.startLine) {
-          logger.info('Multi-line selection detected in collapsed state, requesting expand', {
+          logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
             startLine: saved.startLine,
             endLine: saved.endLine
           })
@@ -405,7 +402,7 @@ const CodeViewer = ({
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange)
     }
-  }, [expanded, onRequestExpand, saveSelection])
+  }, [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer])
 
   // 监听 copy 事件
   useEffect(() => {
