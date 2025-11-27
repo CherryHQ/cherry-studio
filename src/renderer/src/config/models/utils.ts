@@ -152,12 +152,12 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * Returns the list of supported verbosity levels for the given model.
  * If the model is not recognized as a GPT-5 series model, only `undefined` is returned.
  * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
+ * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
  * @param model - The model to check
  * @returns An array of supported verbosity levels, always including `undefined` as the first element
  */
-export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
+export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
   if (!model) {
-    // defensive
     return [undefined]
   }
 

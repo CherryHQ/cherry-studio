@@ -242,9 +242,7 @@ describe('model utils', () => {
       })
 
       it('returns only undefined for undefiend/null input', () => {
-        // @ts-expect-error
         expect(getModelSupportedVerbosity(undefined)).toEqual([undefined])
-        // @ts-expect-error
         expect(getModelSupportedVerbosity(null)).toEqual([undefined])
       })
     })
