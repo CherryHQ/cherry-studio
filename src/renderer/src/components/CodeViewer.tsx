@@ -372,6 +372,11 @@ const CodeViewer = ({
   useEffect(() => {
     const handleSelectionChange = () => {
       const selection = window.getSelection()
+      // Clear saved selection if current selection does not belong to this viewer
+      if (selection && selection.rangeCount > 0 && !selection.isCollapsed && !selectionBelongsToViewer(selection)) {
+        savedSelectionRef.current = null
+        return
+      }
 
       // 如果没有选择或选择已清空，清除保存的状态
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
