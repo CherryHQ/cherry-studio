@@ -91,6 +91,76 @@ describe('buildFunctionCallToolName', () => {
 
       expect(result).not.toMatch(/[_-]$/)
     })
+
+    it('should preserve serverId suffix even with long server/tool names', () => {
+      const longServerName = 'a'.repeat(50)
+      const longToolName = 'b'.repeat(50)
+      const serverId = 'server-id-xyz789'
+
+      const result = buildFunctionCallToolName(longServerName, longToolName, serverId)
+
+      // The suffix should be preserved and not truncated
+      expect(result).toContain('xyz789')
+      expect(result.length).toBeLessThanOrEqual(63)
+    })
+
+    it('should ensure two long-named servers with different IDs produce different results', () => {
+      const longServerName = 'a'.repeat(50)
+      const longToolName = 'b'.repeat(50)
+      const serverId1 = 'server-id-abc123'
+      const serverId2 = 'server-id-def456'
+
+      const result1 = buildFunctionCallToolName(longServerName, longToolName, serverId1)
+      const result2 = buildFunctionCallToolName(longServerName, longToolName, serverId2)
+
+      // Both should be within limit
+      expect(result1.length).toBeLessThanOrEqual(63)
+      expect(result2.length).toBeLessThanOrEqual(63)
+
+      // They should be different due to preserved suffix
+      expect(result1).not.toBe(result2)
+    })
+  })
+
+  describe('edge cases with serverId', () => {
+    it('should handle serverId with only non-alphanumeric characters', () => {
+      const serverId = '------' // All dashes
+      const result = buildFunctionCallToolName('server', 'tool', serverId)
+
+      // Should still produce a valid unique suffix via fallback hash
+      expect(result).toBeTruthy()
+      expect(result.length).toBeLessThanOrEqual(63)
+      expect(result).toMatch(/^[a-zA-Z][a-zA-Z0-9_-]*$/)
+      // Should have a suffix (underscore followed by something)
+      expect(result).toMatch(/_[a-z0-9]+$/)
+    })
+
+    it('should produce different results for different non-alphanumeric serverIds', () => {
+      const serverId1 = '------'
+      const serverId2 = '!!!!!!'
+
+      const result1 = buildFunctionCallToolName('server', 'tool', serverId1)
+      const result2 = buildFunctionCallToolName('server', 'tool', serverId2)
+
+      // Should be different because the hash fallback produces different values
+      expect(result1).not.toBe(result2)
+    })
+
+    it('should handle empty string serverId differently from undefined', () => {
+      const resultWithEmpty = buildFunctionCallToolName('server', 'tool', '')
+      const resultWithUndefined = buildFunctionCallToolName('server', 'tool', undefined)
+
+      // Empty string is falsy, so both should behave the same (no suffix)
+      expect(resultWithEmpty).toBe(resultWithUndefined)
+    })
+
+    it('should handle serverId with mixed alphanumeric and special chars', () => {
+      const serverId = 'ab@#cd' // Mixed chars, last 6 chars contain some alphanumeric
+      const result = buildFunctionCallToolName('server', 'tool', serverId)
+
+      // Should extract alphanumeric chars: 'abcd' from 'ab@#cd'
+      expect(result).toContain('abcd')
+    })
   })
 
   describe('real-world scenarios', () => {
