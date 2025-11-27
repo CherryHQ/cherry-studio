@@ -405,6 +405,9 @@ export abstract class BaseApiClient<
         if (!param.name?.trim()) {
           return acc
         }
+        // Parse JSON type parameters (Legacy API clients)
+        // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
+        // The UI stores JSON type params as strings, this function parses them before sending to API
         if (param.type === 'json') {
           const value = param.value as string
           if (value === 'undefined') {
