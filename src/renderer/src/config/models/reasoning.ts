@@ -400,7 +400,7 @@ export function isClaude4SeriesModel(model: Model): boolean {
   // - Direct API: claude-sonnet-4, claude-opus-4-20250514
   // - GCP Vertex AI: claude-sonnet-4@20250514
   // - AWS Bedrock: anthropic.claude-sonnet-4-20250514-v1:0
-  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:[@-][\w-]+)?$/i
+  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
 

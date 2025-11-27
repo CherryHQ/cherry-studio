@@ -316,6 +316,7 @@ describe('Claude & regional providers', () => {
   it('identifies claude 4 variants', () => {
     expect(isClaude4SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(true)
     expect(isClaude4SeriesModel(createModel({ id: 'claude-sonnet-4@20250514' }))).toBe(true)
+    expect(isClaude4SeriesModel(createModel({ id: 'anthropic.claude-sonnet-4-20250514-v1:0' }))).toBe(true)
     expect(isClaude4SeriesModel(createModel({ id: 'claude-4.2-sonnet-variant' }))).toBe(false)
     expect(isClaude4SeriesModel(createModel({ id: 'claude-3-haiku' }))).toBe(false)
   })
