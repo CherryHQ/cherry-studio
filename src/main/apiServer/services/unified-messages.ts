@@ -186,7 +186,7 @@ IANA media type.
     }
     return {
       type: 'content',
-      value: []
+      value: values
     }
   }
 }
@@ -313,17 +313,24 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
       }
 
       // Build the message based on role
+      // Only push user/assistant message if there's actual content (avoid empty messages)
       if (msg.role === 'user') {
-        messages.push({
-          role: 'user',
-          content: [...textParts, ...imageParts]
-        })
+        const userContent = [...textParts, ...imageParts]
+        if (userContent.length > 0) {
+          messages.push({
+            role: 'user',
+            content: userContent
+          })
+        }
       } else {
         // Assistant messages contain tool calls, not tool results
-        messages.push({
-          role: 'assistant',
-          content: [...reasoningParts, ...textParts, ...toolCallParts]
-        })
+        const assistantContent = [...reasoningParts, ...textParts, ...toolCallParts]
+        if (assistantContent.length > 0) {
+          messages.push({
+            role: 'assistant',
+            content: assistantContent
+          })
+        }
       }
     }
   }

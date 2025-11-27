@@ -28,10 +28,9 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
 
-    // Support OpenAI and Anthropic type providers for API server
-    const supportedProviders = providers.filter(
-      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
-    )
+    // Support all provider types that AI SDK can handle
+    // The unified-messages service uses AI SDK which supports many providers
+    const supportedProviders = providers.filter((p: Provider) => p.enabled)
 
     // Cache the filtered results
     CacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
@@ -160,7 +159,7 @@ export async function validateModelId(model: string): Promise<{
         valid: false,
         error: {
           type: 'provider_not_found',
-          message: `Provider '${providerId}' not found, not enabled, or not supported. Only OpenAI providers are currently supported.`,
+          message: `Provider '${providerId}' not found or not enabled.`,
           code: 'provider_not_found'
         }
       }
@@ -262,14 +261,8 @@ export function validateProvider(provider: Provider): boolean {
       return false
     }
 
-    // Support OpenAI and Anthropic type providers
-    if (provider.type !== 'openai' && provider.type !== 'anthropic') {
-      logger.debug('Provider type not supported', {
-        providerId: provider.id,
-        providerType: provider.type
-      })
-      return false
-    }
+    // AI SDK supports many provider types, no longer need to filter by type
+    // The unified-messages service handles all supported types
 
     return true
   } catch (error: any) {
