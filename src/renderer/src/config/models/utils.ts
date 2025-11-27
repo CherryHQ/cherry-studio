@@ -146,7 +146,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
   },
   // gpt-5.1
   { validator: (model: Model) => isGPT51SeriesModel(model), values: ['low', 'medium', 'high'] }
-] as const
+]
 
 /**
  * Returns the list of supported verbosity levels for the given model.
