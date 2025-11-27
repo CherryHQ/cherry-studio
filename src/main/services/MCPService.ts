@@ -620,7 +620,7 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          id: buildFunctionCallToolName(server.name, tool.name),
+          id: buildFunctionCallToolName(server.name, tool.name, server.id),
           serverId: server.id,
           serverName: server.name,
           type: 'mcp'
