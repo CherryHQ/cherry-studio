@@ -684,6 +684,10 @@ export function getCustomParameters(assistant: Assistant): Record<string, any> {
       if (!param.name?.trim()) {
         return acc
       }
+      // Parse JSON type parameters
+      // Related: src/renderer/src/pages/settings/AssistantSettings/AssistantModelSettings.tsx:133-148
+      // The UI stores JSON type params as strings (e.g., '{"key":"value"}')
+      // This function parses them into objects before sending to the API
       if (param.type === 'json') {
         const value = param.value as string
         if (value === 'undefined') {
