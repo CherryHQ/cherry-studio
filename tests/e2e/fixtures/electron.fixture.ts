@@ -1,12 +1,9 @@
-/* eslint-disable react-hooks/rules-of-hooks */
 import type { ElectronApplication, Page } from '@playwright/test'
 import { _electron as electron, test as base } from '@playwright/test'
 
 /**
  * Custom fixtures for Electron e2e testing.
  * Provides electronApp and mainWindow to all tests.
- *
- * Note: The `use` function is from Playwright's fixture API, not a React Hook.
  */
 export type ElectronFixtures = {
   electronApp: ElectronApplication
@@ -14,7 +11,7 @@ export type ElectronFixtures = {
 }
 
 export const test = base.extend<ElectronFixtures>({
-  electronApp: async (_, use) => {
+  electronApp: async ({}, use) => {
     // Launch Electron app from project root
     // The args ['.'] tells Electron to load the app from current directory
     const electronApp = await electron.launch({
