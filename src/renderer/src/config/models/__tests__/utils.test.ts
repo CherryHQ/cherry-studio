@@ -222,8 +222,8 @@ describe('model utils', () => {
 
     describe('getModelSupportedVerbosity', () => {
       it('returns only "high" for GPT-5 Pro models', () => {
-        const proModel = createModel({ id: 'gpt-5-pro' })
-        expect(getModelSupportedVerbosity(proModel)).toEqual([undefined, 'high'])
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([undefined, 'high'])
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro-2025-10-06' }))).toEqual([undefined, 'high'])
       })
 
       it('returns all levels for non-Pro GPT-5 models', () => {
