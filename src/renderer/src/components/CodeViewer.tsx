@@ -1,4 +1,4 @@
-﻿import { loggerService } from '@logger'
+import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
