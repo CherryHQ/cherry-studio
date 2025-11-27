@@ -1,4 +1,4 @@
-import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
+import { hasProviderConfig } from '@cherrystudio/ai-core/provider'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
 import {
   getAwsBedrockAccessKeyId,
@@ -10,22 +10,17 @@ import {
 import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
+import { isSystemProvider, type Model, type Provider } from '@renderer/types'
 import {
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isCherryAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isPerplexityProvider,
-  isVertexProvider
-} from '@renderer/utils/provider'
+  type AiSdkConfigContext,
+  formatProviderApiHost as sharedFormatProviderApiHost,
+  type ProviderFormatContext,
+  providerToAiSdkConfig as sharedProviderToAiSdkConfig,
+  resolveActualProvider
+} from '@shared/provider'
 import { cloneDeep } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
-import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
-import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -56,61 +51,51 @@ function getRotatedApiKey(provider: Provider): string {
 }
 
 /**
- * 处理特殊provider的转换逻辑
+ * Renderer-specific context for providerToAiSdkConfig
+ * Provides implementations using browser APIs, store, and hooks
  */
-function handleSpecialProviders(model: Model, provider: Provider): Provider {
-  if (isNewApiProvider(provider)) {
-    return newApiResolverCreator(model, provider)
+function createRendererSdkContext(model: Model): AiSdkConfigContext {
+  return {
+    getRotatedApiKey: (provider) => getRotatedApiKey(provider as Provider),
+    isOpenAIChatCompletionOnlyModel: () => isOpenAIChatCompletionOnlyModel(model),
+    getCopilotDefaultHeaders: () => COPILOT_DEFAULT_HEADERS,
+    getCopilotStoredHeaders: () => store.getState().copilot.defaultHeaders ?? {},
+    getAwsBedrockConfig: () => {
+      const authType = getAwsBedrockAuthType()
+      return {
+        authType,
+        region: getAwsBedrockRegion(),
+        apiKey: authType === 'apiKey' ? getAwsBedrockApiKey() : undefined,
+        accessKeyId: authType === 'iam' ? getAwsBedrockAccessKeyId() : undefined,
+        secretAccessKey: authType === 'iam' ? getAwsBedrockSecretAccessKey() : undefined
+      }
+    },
+    getVertexConfig: (provider) => {
+      if (!isVertexAIConfigured()) {
+        return undefined
+      }
+      return createVertexProvider(provider as Provider)
+    },
+    getEndpointType: () => model.endpoint_type
   }
-
-  if (isSystemProvider(provider)) {
-    if (provider.id === 'aihubmix') {
-      return aihubmixProviderCreator(model, provider)
-    }
-    if (provider.id === 'vertexai') {
-      return vertexAnthropicProviderCreator(model, provider)
-    }
-  }
-  if (isAzureOpenAIProvider(provider)) {
-    return azureAnthropicProviderCreator(model, provider)
-  }
-  return provider
 }
 
 /**
  * 主要用来对齐AISdk的BaseURL格式
- * @param provider
- * @returns
+ * Uses shared implementation with renderer-specific context
  */
-function formatProviderApiHost(provider: Provider): Provider {
-  const formatted = { ...provider }
-  if (formatted.anthropicApiHost) {
-    formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
-  }
-
-  if (isAnthropicProvider(provider)) {
-    const baseHost = formatted.anthropicApiHost || formatted.apiHost
-    // AI SDK needs /v1 in baseURL, Anthropic SDK will strip it in getSdkClient
-    formatted.apiHost = formatApiHost(baseHost)
-    if (!formatted.anthropicApiHost) {
-      formatted.anthropicApiHost = formatted.apiHost
+function getRendererFormatContext(): ProviderFormatContext {
+  const vertexSettings = store.getState().llm.settings.vertexai
+  return {
+    vertex: {
+      project: vertexSettings.projectId || 'default-project',
+      location: vertexSettings.location || 'us-central1'
     }
-  } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, false)
-  } else if (isGeminiProvider(formatted)) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
-  } else if (isAzureOpenAIProvider(formatted)) {
-    formatted.apiHost = formatAzureOpenAIApiHost(formatted.apiHost)
-  } else if (isVertexProvider(formatted)) {
-    formatted.apiHost = formatVertexApiHost(formatted)
-  } else if (isCherryAIProvider(formatted)) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, false)
-  } else if (isPerplexityProvider(formatted)) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, false)
-  } else {
-    formatted.apiHost = formatApiHost(formatted.apiHost)
   }
-  return formatted
+}
+
+function formatProviderApiHost(provider: Provider): Provider {
+  return sharedFormatProviderApiHost(provider, getRendererFormatContext())
 }
 
 /**
@@ -122,7 +107,9 @@ export function getActualProvider(model: Model): Provider {
 
   // 按顺序处理各种转换
   let actualProvider = cloneDeep(baseProvider)
-  actualProvider = handleSpecialProviders(model, actualProvider)
+  actualProvider = resolveActualProvider(actualProvider, model, {
+    isSystemProvider
+  }) as Provider
   actualProvider = formatProviderApiHost(actualProvider)
 
   return actualProvider
@@ -130,121 +117,11 @@ export function getActualProvider(model: Model): Provider {
 
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
- * 简化版：利用新的别名映射系统
+ * Uses shared implementation with renderer-specific context
  */
 export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfig {
-  const aiSdkProviderId = getAiSdkProviderId(actualProvider)
-
-  // 构建基础配置
-  const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
-  const baseConfig = {
-    baseURL: baseURL,
-    apiKey: getRotatedApiKey(actualProvider)
-  }
-
-  const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
-  if (isCopilotProvider) {
-    const storedHeaders = store.getState().copilot.defaultHeaders ?? {}
-    const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
-      headers: {
-        ...COPILOT_DEFAULT_HEADERS,
-        ...storedHeaders,
-        ...actualProvider.extra_headers
-      },
-      name: actualProvider.id,
-      includeUsage: true
-    })
-
-    return {
-      providerId: 'github-copilot-openai-compatible',
-      options
-    }
-  }
-
-  // 处理OpenAI模式
-  const extraOptions: any = {}
-  extraOptions.endpoint = endpoint
-  if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
-    extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
-    extraOptions.mode = 'chat'
-  }
-
-  // 添加额外headers
-  if (actualProvider.extra_headers) {
-    extraOptions.headers = actualProvider.extra_headers
-    // copy from openaiBaseClient/openaiResponseApiClient
-    if (aiSdkProviderId === 'openai') {
-      extraOptions.headers = {
-        ...extraOptions.headers,
-        'HTTP-Referer': 'https://cherry-ai.com',
-        'X-Title': 'Cherry Studio',
-        'X-Api-Key': baseConfig.apiKey
-      }
-    }
-  }
-  // azure
-  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
-  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
-  if (aiSdkProviderId === 'azure-responses') {
-    extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'azure') {
-    extraOptions.mode = 'chat'
-  }
-
-  // bedrock
-  if (aiSdkProviderId === 'bedrock') {
-    const authType = getAwsBedrockAuthType()
-    extraOptions.region = getAwsBedrockRegion()
-
-    if (authType === 'apiKey') {
-      extraOptions.apiKey = getAwsBedrockApiKey()
-    } else {
-      extraOptions.accessKeyId = getAwsBedrockAccessKeyId()
-      extraOptions.secretAccessKey = getAwsBedrockSecretAccessKey()
-    }
-  }
-  // google-vertex
-  if (aiSdkProviderId === 'google-vertex' || aiSdkProviderId === 'google-vertex-anthropic') {
-    if (!isVertexAIConfigured()) {
-      throw new Error('VertexAI is not configured. Please configure project, location and service account credentials.')
-    }
-    const { project, location, googleCredentials } = createVertexProvider(actualProvider)
-    extraOptions.project = project
-    extraOptions.location = location
-    extraOptions.googleCredentials = {
-      ...googleCredentials,
-      privateKey: formatPrivateKey(googleCredentials.privateKey)
-    }
-    baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
-  }
-
-  // cherryin
-  if (aiSdkProviderId === 'cherryin') {
-    if (model.endpoint_type) {
-      extraOptions.endpointType = model.endpoint_type
-    }
-  }
-
-  if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
-    const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
-    return {
-      providerId: aiSdkProviderId,
-      options
-    }
-  }
-
-  // 否则fallback到openai-compatible
-  const options = ProviderConfigFactory.createOpenAICompatible(baseConfig.baseURL, baseConfig.apiKey)
-  return {
-    providerId: 'openai-compatible',
-    options: {
-      ...options,
-      name: actualProvider.id,
-      ...extraOptions,
-      includeUsage: true
-    }
-  }
+  const context = createRendererSdkContext(model)
+  return sharedProviderToAiSdkConfig(actualProvider, model.id, context) as AiSdkConfig
 }
 
 /**
@@ -287,13 +164,13 @@ export async function prepareSpecialProviderConfig(
       break
     }
     case 'cherryai': {
-      config.options.fetch = async (url, options) => {
+      config.options.fetch = async (url: RequestInfo | URL, options: RequestInit) => {
         // 在这里对最终参数进行签名
         const signature = await window.api.cherryai.generateSignature({
           method: 'POST',
           path: '/chat/completions',
           query: '',
-          body: JSON.parse(options.body)
+          body: JSON.parse(options.body as string)
         })
         return fetch(url, {
           ...options,

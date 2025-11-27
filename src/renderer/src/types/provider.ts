@@ -1,24 +1,14 @@
 import type OpenAI from '@cherrystudio/openai'
+import type { MinimalProvider } from '@shared/provider'
+import type { ProviderType, SystemProviderId, SystemProviderIdTypeMap } from '@shared/provider/types'
+import { isSystemProviderId, SystemProviderIds } from '@shared/provider/types'
 import type { Model } from '@types'
-import * as z from 'zod'
 
 import type { OpenAIVerbosity } from './aiCoreTypes'
 
-export const ProviderTypeSchema = z.enum([
-  'openai',
-  'openai-response',
-  'anthropic',
-  'gemini',
-  'azure-openai',
-  'vertexai',
-  'mistral',
-  'aws-bedrock',
-  'vertex-anthropic',
-  'new-api',
-  'ai-gateway'
-])
-
-export type ProviderType = z.infer<typeof ProviderTypeSchema>
+export type { ProviderType } from '@shared/provider'
+export type { SystemProviderId, SystemProviderIdTypeMap } from '@shared/provider/types'
+export { isSystemProviderId, ProviderTypeSchema, SystemProviderIds } from '@shared/provider/types'
 
 // undefined is treated as supported, enabled by default
 export type ProviderApiOptions = {
@@ -93,7 +83,7 @@ export function isAwsBedrockAuthType(type: string): type is AwsBedrockAuthType {
   return Object.hasOwn(AwsBedrockAuthTypes, type)
 }
 
-export type Provider = {
+export type Provider = MinimalProvider & {
   id: string
   type: ProviderType
   name: string
@@ -127,140 +117,6 @@ export type Provider = {
   notes?: string
   extra_headers?: Record<string, string>
 }
-
-export const SystemProviderIdSchema = z.enum([
-  'cherryin',
-  'silicon',
-  'aihubmix',
-  'ocoolai',
-  'deepseek',
-  'ppio',
-  'alayanew',
-  'qiniu',
-  'dmxapi',
-  'burncloud',
-  'tokenflux',
-  '302ai',
-  'cephalon',
-  'lanyun',
-  'ph8',
-  'openrouter',
-  'ollama',
-  'ovms',
-  'new-api',
-  'lmstudio',
-  'anthropic',
-  'openai',
-  'azure-openai',
-  'gemini',
-  'vertexai',
-  'github',
-  'copilot',
-  'zhipu',
-  'yi',
-  'moonshot',
-  'baichuan',
-  'dashscope',
-  'stepfun',
-  'doubao',
-  'infini',
-  'minimax',
-  'groq',
-  'together',
-  'fireworks',
-  'nvidia',
-  'grok',
-  'hyperbolic',
-  'mistral',
-  'jina',
-  'perplexity',
-  'modelscope',
-  'xirang',
-  'hunyuan',
-  'tencent-cloud-ti',
-  'baidu-cloud',
-  'gpustack',
-  'voyageai',
-  'aws-bedrock',
-  'poe',
-  'aionly',
-  'longcat',
-  'huggingface',
-  'sophnet',
-  'ai-gateway',
-  'cerebras'
-])
-
-export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
-
-export const isSystemProviderId = (id: string): id is SystemProviderId => {
-  return SystemProviderIdSchema.safeParse(id).success
-}
-
-export const SystemProviderIds = {
-  cherryin: 'cherryin',
-  silicon: 'silicon',
-  aihubmix: 'aihubmix',
-  ocoolai: 'ocoolai',
-  deepseek: 'deepseek',
-  ppio: 'ppio',
-  alayanew: 'alayanew',
-  qiniu: 'qiniu',
-  dmxapi: 'dmxapi',
-  burncloud: 'burncloud',
-  tokenflux: 'tokenflux',
-  '302ai': '302ai',
-  cephalon: 'cephalon',
-  lanyun: 'lanyun',
-  ph8: 'ph8',
-  sophnet: 'sophnet',
-  openrouter: 'openrouter',
-  ollama: 'ollama',
-  ovms: 'ovms',
-  'new-api': 'new-api',
-  lmstudio: 'lmstudio',
-  anthropic: 'anthropic',
-  openai: 'openai',
-  'azure-openai': 'azure-openai',
-  gemini: 'gemini',
-  vertexai: 'vertexai',
-  github: 'github',
-  copilot: 'copilot',
-  zhipu: 'zhipu',
-  yi: 'yi',
-  moonshot: 'moonshot',
-  baichuan: 'baichuan',
-  dashscope: 'dashscope',
-  stepfun: 'stepfun',
-  doubao: 'doubao',
-  infini: 'infini',
-  minimax: 'minimax',
-  groq: 'groq',
-  together: 'together',
-  fireworks: 'fireworks',
-  nvidia: 'nvidia',
-  grok: 'grok',
-  hyperbolic: 'hyperbolic',
-  mistral: 'mistral',
-  jina: 'jina',
-  perplexity: 'perplexity',
-  modelscope: 'modelscope',
-  xirang: 'xirang',
-  hunyuan: 'hunyuan',
-  'tencent-cloud-ti': 'tencent-cloud-ti',
-  'baidu-cloud': 'baidu-cloud',
-  gpustack: 'gpustack',
-  voyageai: 'voyageai',
-  'aws-bedrock': 'aws-bedrock',
-  poe: 'poe',
-  aionly: 'aionly',
-  longcat: 'longcat',
-  huggingface: 'huggingface',
-  'ai-gateway': 'ai-gateway',
-  cerebras: 'cerebras'
-} as const satisfies Record<SystemProviderId, SystemProviderId>
-
-type SystemProviderIdTypeMap = typeof SystemProviderIds
 
 export type SystemProvider = Provider & {
   id: SystemProviderId

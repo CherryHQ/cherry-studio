@@ -84,18 +84,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
       return aiStream
     }
-    if (
-      (modelInfo.provider?.type !== 'anthropic' &&
-        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
-      modelInfo.provider.apiKey === ''
-    ) {
-      logger.error('Anthropic provider configuration is missing', {
-        modelInfo
-      })
-
+    // Validate provider has required configuration
+    // Note: We no longer restrict to anthropic type only - the API Server's unified adapter
+    // handles format conversion for any provider type (OpenAI, Gemini, etc.)
+    if (!modelInfo.provider?.apiKey) {
+      logger.error('Provider API key is missing', { modelInfo })
       aiStream.emit('data', {
         type: 'error',
-        error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
+        error: new Error(`Provider '${modelInfo.provider?.id}' is missing API key configuration.`)
       })
       return aiStream
     }
@@ -106,15 +102,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
     ) as Record<string, string>
 
+    // Route through local API Server which handles format conversion via unified adapter
+    // This enables Claude Code Agent to work with any provider (OpenAI, Gemini, etc.)
+    // The API Server converts AI SDK responses to Anthropic SSE format transparently
     const env = {
       ...loginShellEnvWithoutProxies,
-      // TODO: fix the proxy api server
-      // ANTHROPIC_API_KEY: apiConfig.apiKey,
-      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
-      ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
-      ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
-      ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
+      ANTHROPIC_API_KEY: apiConfig.apiKey,
+      ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
+      ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
       ANTHROPIC_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
       ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,

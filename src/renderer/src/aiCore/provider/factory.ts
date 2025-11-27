@@ -1,8 +1,7 @@
-import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } from '@cherrystudio/ai-core/provider'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import type { Provider } from '@renderer/types'
-import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
+import { getAiSdkProviderId as sharedGetAiSdkProviderId } from '@shared/provider'
 import type { Provider as AiSdkProvider } from 'ai'
 
 import type { AiSdkConfig } from '../types'
@@ -23,67 +22,11 @@ const logger = loggerService.withContext('ProviderFactory')
 })()
 
 /**
- * 静态Provider映射表
- * 处理Cherry Studio特有的provider ID到AI SDK标准ID的映射
- */
-const STATIC_PROVIDER_MAPPING: Record<string, ProviderId> = {
-  gemini: 'google', // Google Gemini -> google
-  'azure-openai': 'azure', // Azure OpenAI -> azure
-  'openai-response': 'openai', // OpenAI Responses -> openai
-  grok: 'xai', // Grok -> xai
-  copilot: 'github-copilot-openai-compatible'
-}
-
-/**
- * 尝试解析provider标识符（支持静态映射和别名）
- */
-function tryResolveProviderId(identifier: string): ProviderId | null {
-  // 1. 检查静态映射
-  const staticMapping = STATIC_PROVIDER_MAPPING[identifier]
-  if (staticMapping) {
-    return staticMapping
-  }
-
-  // 2. 检查AiCore是否支持（包括别名支持）
-  if (hasProviderConfigByAlias(identifier)) {
-    // 解析为真实的Provider ID
-    return resolveProviderConfigId(identifier) as ProviderId
-  }
-
-  return null
-}
-
-/**
  * 获取AI SDK Provider ID
- * 简化版：减少重复逻辑，利用通用解析函数
+ * Uses shared implementation with renderer-specific config checker
  */
 export function getAiSdkProviderId(provider: Provider): string {
-  // 1. 尝试解析provider.id
-  const resolvedFromId = tryResolveProviderId(provider.id)
-  if (isAzureOpenAIProvider(provider)) {
-    if (isAzureResponsesEndpoint(provider)) {
-      return 'azure-responses'
-    } else {
-      return 'azure'
-    }
-  }
-  if (resolvedFromId) {
-    return resolvedFromId
-  }
-
-  // 2. 尝试解析provider.type
-  // 会把所有类型为openai的自定义provider解析到aisdk的openaiProvider上
-  if (provider.type !== 'openai') {
-    const resolvedFromType = tryResolveProviderId(provider.type)
-    if (resolvedFromType) {
-      return resolvedFromType
-    }
-  }
-  if (provider.apiHost.includes('api.openai.com')) {
-    return 'openai-chat'
-  }
-  // 3. 最后的fallback（使用provider本身的id）
-  return provider.id
+  return sharedGetAiSdkProviderId(provider)
 }
 
 export async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider | null> {

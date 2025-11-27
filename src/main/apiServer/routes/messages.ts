@@ -5,6 +5,7 @@ import type { Request, Response } from 'express'
 import express from 'express'
 
 import { messagesService } from '../services/messages'
+import { generateUnifiedMessage, streamUnifiedMessages } from '../services/unified-messages'
 import { getProviderById, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
@@ -33,21 +34,35 @@ async function validateRequestBody(req: Request): Promise<{ valid: boolean; erro
 }
 
 interface HandleMessageProcessingOptions {
-  req: Request
   res: Response
   provider: Provider
   request: MessageCreateParams
   modelId?: string
 }
 
+/**
+ * Handle message processing using unified AI SDK
+ * All providers (including Anthropic) are handled through AI SDK:
+ * - Anthropic providers use @ai-sdk/anthropic which outputs native Anthropic SSE
+ * - Other providers use their respective AI SDK adapters, with output converted to Anthropic SSE
+ */
 async function handleMessageProcessing({
-  req,
   res,
   provider,
   request,
   modelId
 }: HandleMessageProcessingOptions): Promise<void> {
+  const actualModelId = modelId || request.model
+
+  logger.info('Processing message via unified AI SDK', {
+    providerId: provider.id,
+    providerType: provider.type,
+    modelId: actualModelId,
+    stream: !!request.stream
+  })
+
   try {
+    // Validate request
     const validation = messagesService.validateRequest(request)
     if (!validation.isValid) {
       res.status(400).json({
@@ -60,21 +75,23 @@ async function handleMessageProcessing({
       return
     }
 
-    const extraHeaders = messagesService.prepareHeaders(req.headers)
-    const { client, anthropicRequest } = await messagesService.processMessage({
-      provider,
-      request,
-      extraHeaders,
-      modelId
-    })
-
     if (request.stream) {
-      await messagesService.handleStreaming(client, anthropicRequest, { response: res }, provider)
-      return
+      await streamUnifiedMessages({
+        response: res,
+        provider,
+        modelId: actualModelId,
+        params: request,
+        onError: (error) => {
+          logger.error('Stream error', error as Error)
+        },
+        onComplete: () => {
+          logger.debug('Stream completed')
+        }
+      })
+    } else {
+      const response = await generateUnifiedMessage(provider, actualModelId, request)
+      res.json(response)
     }
-
-    const response = await client.messages.create(anthropicRequest)
-    res.json(response)
   } catch (error: any) {
     logger.error('Message processing error', { error })
     const { statusCode, errorResponse } = messagesService.transformError(error)
@@ -235,7 +252,7 @@ router.post('/', async (req: Request, res: Response) => {
     const provider = modelValidation.provider!
     const modelId = modelValidation.modelId!
 
-    return handleMessageProcessing({ req, res, provider, request, modelId })
+    return handleMessageProcessing({ res, provider, request, modelId })
   } catch (error: any) {
     logger.error('Message processing error', { error })
     const { statusCode, errorResponse } = messagesService.transformError(error)
@@ -393,11 +410,201 @@ providerRouter.post('/', async (req: Request, res: Response) => {
 
     const request: MessageCreateParams = req.body
 
-    return handleMessageProcessing({ req, res, provider, request })
+    return handleMessageProcessing({ res, provider, request })
   } catch (error: any) {
     logger.error('Message processing error', { error })
     const { statusCode, errorResponse } = messagesService.transformError(error)
     return res.status(statusCode).json(errorResponse)
+  }
+})
+
+/**
+ * @swagger
+ * /v1/messages/count_tokens:
+ *   post:
+ *     summary: Count tokens for messages
+ *     description: Count tokens for Anthropic Messages API format (required by Claude Code SDK)
+ *     tags: [Messages]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - model
+ *               - messages
+ *             properties:
+ *               model:
+ *                 type: string
+ *                 description: Model ID
+ *               messages:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *               system:
+ *                 type: string
+ *                 description: System message
+ *     responses:
+ *       200:
+ *         description: Token count response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 input_tokens:
+ *                   type: integer
+ *       400:
+ *         description: Bad request
+ */
+router.post('/count_tokens', async (req: Request, res: Response) => {
+  try {
+    const { model, messages, system } = req.body
+
+    if (!model) {
+      return res.status(400).json({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: 'model parameter is required'
+        }
+      })
+    }
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: 'messages parameter is required'
+        }
+      })
+    }
+
+    // Simple token estimation based on character count
+    // This is a rough approximation: ~4 characters per token for English text
+    let totalChars = 0
+
+    // Count system message tokens
+    if (system) {
+      if (typeof system === 'string') {
+        totalChars += system.length
+      } else if (Array.isArray(system)) {
+        for (const block of system) {
+          if (block.type === 'text' && block.text) {
+            totalChars += block.text.length
+          }
+        }
+      }
+    }
+
+    // Count message tokens
+    for (const msg of messages) {
+      if (typeof msg.content === 'string') {
+        totalChars += msg.content.length
+      } else if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.type === 'text' && block.text) {
+            totalChars += block.text.length
+          }
+        }
+      }
+      // Add overhead for role
+      totalChars += 10
+    }
+
+    // Estimate tokens (~4 chars per token, with some overhead)
+    const estimatedTokens = Math.ceil(totalChars / 4) + messages.length * 3
+
+    logger.debug('Token count estimated', {
+      model,
+      messageCount: messages.length,
+      totalChars,
+      estimatedTokens
+    })
+
+    return res.json({
+      input_tokens: estimatedTokens
+    })
+  } catch (error: any) {
+    logger.error('Token counting error', { error })
+    return res.status(500).json({
+      type: 'error',
+      error: {
+        type: 'api_error',
+        message: error.message || 'Internal server error'
+      }
+    })
+  }
+})
+
+/**
+ * Provider-specific count_tokens endpoint
+ */
+providerRouter.post('/count_tokens', async (req: Request, res: Response) => {
+  try {
+    const { model, messages, system } = req.body
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: 'messages parameter is required'
+        }
+      })
+    }
+
+    // Simple token estimation
+    let totalChars = 0
+
+    if (system) {
+      if (typeof system === 'string') {
+        totalChars += system.length
+      } else if (Array.isArray(system)) {
+        for (const block of system) {
+          if (block.type === 'text' && block.text) {
+            totalChars += block.text.length
+          }
+        }
+      }
+    }
+
+    for (const msg of messages) {
+      if (typeof msg.content === 'string') {
+        totalChars += msg.content.length
+      } else if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.type === 'text' && block.text) {
+            totalChars += block.text.length
+          }
+        }
+      }
+      totalChars += 10
+    }
+
+    const estimatedTokens = Math.ceil(totalChars / 4) + messages.length * 3
+
+    logger.debug('Token count estimated (provider route)', {
+      providerId: req.params.provider,
+      model,
+      messageCount: messages.length,
+      estimatedTokens
+    })
+
+    return res.json({
+      input_tokens: estimatedTokens
+    })
+  } catch (error: any) {
+    logger.error('Token counting error', { error })
+    return res.status(500).json({
+      type: 'error',
+      error: {
+        type: 'api_error',
+        message: error.message || 'Internal server error'
+      }
+    })
   }
 })
 

@@ -1,10 +1,20 @@
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code'
-import type { AzureOpenAIProvider, ProviderType, VertexProvider } from '@renderer/types'
+import type { ProviderType } from '@renderer/types'
 import { isSystemProvider, type Provider, type SystemProviderId, SystemProviderIds } from '@renderer/types'
-
-export const isAzureResponsesEndpoint = (provider: AzureOpenAIProvider) => {
-  return provider.apiVersion === 'preview' || provider.apiVersion === 'v1'
-}
+export {
+  isAIGatewayProvider,
+  isAnthropicProvider,
+  isAwsBedrockProvider,
+  isAzureOpenAIProvider,
+  isAzureResponsesEndpoint,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isPerplexityProvider,
+  isVertexProvider
+} from '@shared/provider'
 
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
   return providers.filter(
@@ -117,55 +127,6 @@ const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as con
 /** 判断是否是使用 Gemini 原生搜索工具的 provider. 目前假设只有官方 API 使用原生工具 */
 export const isGeminiWebSearchProvider = (provider: Provider) => {
   return SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS.some((id) => id === provider.id)
-}
-
-export const isNewApiProvider = (provider: Provider) => {
-  return ['new-api', 'cherryin'].includes(provider.id) || provider.type === 'new-api'
-}
-
-export function isCherryAIProvider(provider: Provider): boolean {
-  return provider.id === 'cherryai'
-}
-
-export function isPerplexityProvider(provider: Provider): boolean {
-  return provider.id === 'perplexity'
-}
-
-/**
- * 判断是否为 OpenAI 兼容的提供商
- * @param {Provider} provider 提供商对象
- * @returns {boolean} 是否为 OpenAI 兼容提供商
- */
-export function isOpenAICompatibleProvider(provider: Provider): boolean {
-  return ['openai', 'new-api', 'mistral'].includes(provider.type)
-}
-
-export function isAzureOpenAIProvider(provider: Provider): provider is AzureOpenAIProvider {
-  return provider.type === 'azure-openai'
-}
-
-export function isOpenAIProvider(provider: Provider): boolean {
-  return provider.type === 'openai-response'
-}
-
-export function isVertexProvider(provider: Provider): provider is VertexProvider {
-  return provider.type === 'vertexai'
-}
-
-export function isAwsBedrockProvider(provider: Provider): boolean {
-  return provider.type === 'aws-bedrock'
-}
-
-export function isAnthropicProvider(provider: Provider): boolean {
-  return provider.type === 'anthropic'
-}
-
-export function isGeminiProvider(provider: Provider): boolean {
-  return provider.type === 'gemini'
-}
-
-export function isAIGatewayProvider(provider: Provider): boolean {
-  return provider.type === 'ai-gateway'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
