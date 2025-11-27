@@ -192,14 +192,15 @@ export const mockStreamingChunks = {
 
 /**
  * Mock complete responses for non-streaming scenarios
+ * Note: AI SDK v5 uses inputTokens/outputTokens instead of promptTokens/completionTokens
  */
 export const mockCompleteResponses = {
   simple: {
     text: 'This is a simple response.',
     finishReason: 'stop' as const,
     usage: {
-      promptTokens: 15,
-      completionTokens: 8,
+      inputTokens: 15,
+      outputTokens: 8,
       totalTokens: 23
     }
   },
@@ -215,8 +216,8 @@ export const mockCompleteResponses = {
     ],
     finishReason: 'tool-calls' as const,
     usage: {
-      promptTokens: 25,
-      completionTokens: 12,
+      inputTokens: 25,
+      outputTokens: 12,
       totalTokens: 37
     }
   },
@@ -225,8 +226,8 @@ export const mockCompleteResponses = {
     text: 'Response with warnings.',
     finishReason: 'stop' as const,
     usage: {
-      promptTokens: 10,
-      completionTokens: 5,
+      inputTokens: 10,
+      outputTokens: 5,
       totalTokens: 15
     },
     warnings: [
