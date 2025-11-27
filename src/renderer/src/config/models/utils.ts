@@ -156,6 +156,11 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * @returns An array of supported verbosity levels, always including `undefined` as the first element
  */
 export const getModelSupportedVerbosity = (model: Model): OpenAIVerbosity[] => {
+  if (!model) {
+    // defensive
+    return [undefined]
+  }
+
   let supportedValues: ValidOpenAIVerbosity[] = []
 
   for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
