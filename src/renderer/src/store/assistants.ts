@@ -216,7 +216,7 @@ const assistantsSlice = createSlice({
         if (agent.id === action.payload.assistantId) {
           for (const key in settings) {
             if (!agent.settings) {
-              agent.settings = DEFAULT_ASSISTANT_SETTINGS
+              agent.settings = { ...DEFAULT_ASSISTANT_SETTINGS }
             }
             agent.settings[key] = settings[key]
           }
