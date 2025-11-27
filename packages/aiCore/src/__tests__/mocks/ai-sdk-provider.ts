@@ -8,7 +8,9 @@ export type CherryInProviderSettings = {
   baseURL?: string
 }
 
+// oxlint-disable-next-line no-unused-vars
 export const createCherryIn = (_options?: CherryInProviderSettings) => ({
+  // oxlint-disable-next-line no-unused-vars
   languageModel: (_modelId: string) => ({
     specificationVersion: 'v1',
     provider: 'cherryin',
@@ -16,6 +18,7 @@ export const createCherryIn = (_options?: CherryInProviderSettings) => ({
     doGenerate: async () => ({ text: 'mock response' }),
     doStream: async () => ({ stream: (async function* () {})() })
   }),
+  // oxlint-disable-next-line no-unused-vars
   chat: (_modelId: string) => ({
     specificationVersion: 'v1',
     provider: 'cherryin-chat',
@@ -23,6 +26,7 @@ export const createCherryIn = (_options?: CherryInProviderSettings) => ({
     doGenerate: async () => ({ text: 'mock response' }),
     doStream: async () => ({ stream: (async function* () {})() })
   }),
+  // oxlint-disable-next-line no-unused-vars
   textEmbeddingModel: (_modelId: string) => ({
     specificationVersion: 'v1',
     provider: 'cherryin',
