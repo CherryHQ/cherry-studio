@@ -58,6 +58,7 @@ export default defineConfig([
       'dist/**',
       'out/**',
       'local/**',
+      'tests/**',
       '.yarn/**',
       '.gitignore',
       'scripts/cloudflare-worker.js',
