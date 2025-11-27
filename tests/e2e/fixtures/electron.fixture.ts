@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import type { ElectronApplication, Page} from '@playwright/test';
+import type { ElectronApplication, Page } from '@playwright/test'
 import { _electron as electron, test as base } from '@playwright/test'
 
 /**

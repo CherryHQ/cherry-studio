@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 
 /**
  * Wait for the application to be fully ready.
@@ -45,12 +45,7 @@ export async function waitForNavigation(page: Page, path: string, timeout: numbe
  */
 export async function waitForChatReady(page: Page, timeout: number = 30000): Promise<void> {
   await page.waitForSelector(
-    [
-      '#home-page',
-      '[class*="Chat"]',
-      '[class*="Inputbar"]',
-      '[class*="home-tabs"]'
-    ].join(', '),
+    ['#home-page', '[class*="Chat"]', '[class*="Inputbar"]', '[class*="home-tabs"]'].join(', '),
     { state: 'visible', timeout }
   )
 }
@@ -59,14 +54,10 @@ export async function waitForChatReady(page: Page, timeout: number = 30000): Pro
  * Wait for the settings page to load.
  */
 export async function waitForSettingsLoad(page: Page, timeout: number = 30000): Promise<void> {
-  await page.waitForSelector(
-    [
-      '[class*="SettingsPage"]',
-      '[class*="Settings"]',
-      'a[href*="/settings/"]'
-    ].join(', '),
-    { state: 'visible', timeout }
-  )
+  await page.waitForSelector(['[class*="SettingsPage"]', '[class*="Settings"]', 'a[href*="/settings/"]'].join(', '), {
+    state: 'visible',
+    timeout
+  })
 }
 
 /**

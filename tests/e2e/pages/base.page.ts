@@ -1,6 +1,6 @@
-import { Page, Locator } from '@playwright/test'
-import * as path from 'path'
+import type { Locator, Page } from '@playwright/test'
 import * as fs from 'fs'
+import * as path from 'path'
 
 /**
  * Base Page Object class.

@@ -1,4 +1,3 @@
-import type { FullConfig } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -6,7 +5,7 @@ import * as path from 'path'
  * Global setup for Playwright e2e tests.
  * This runs once before all tests.
  */
-async function globalSetup(_config: FullConfig) {
+async function globalSetup() {
   console.log('Running global setup...')
 
   // Create test results directories

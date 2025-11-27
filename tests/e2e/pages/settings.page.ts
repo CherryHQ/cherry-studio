@@ -1,4 +1,5 @@
-import { Page, Locator } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+
 import { BasePage } from './base.page'
 
 /**
@@ -144,10 +145,7 @@ export class SettingsPage extends BasePage {
    * Toggle a switch setting by its label.
    */
   async toggleSwitch(label: string): Promise<void> {
-    const switchElement = this.page
-      .locator(`text=${label}`)
-      .locator('..')
-      .locator('button[role="switch"], .ant-switch')
+    const switchElement = this.page.locator(`text=${label}`).locator('..').locator('button[role="switch"], .ant-switch')
     await switchElement.first().click()
   }
 

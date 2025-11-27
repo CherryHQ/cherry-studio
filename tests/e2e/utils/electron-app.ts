@@ -1,4 +1,5 @@
-import { _electron as electron, ElectronApplication, Page } from '@playwright/test'
+import type { ElectronApplication, Page } from '@playwright/test'
+import { _electron as electron } from '@playwright/test'
 import * as path from 'path'
 
 /**

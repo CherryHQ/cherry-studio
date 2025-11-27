@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures/electron.fixture'
+import { expect, test } from '../fixtures/electron.fixture'
 import { SidebarPage } from '../pages/sidebar.page'
 import { waitForAppReady } from '../utils/wait-helpers'
 

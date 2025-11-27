@@ -1,4 +1,5 @@
-import { Page, Locator } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+
 import { BasePage } from './base.page'
 
 /**
@@ -38,7 +39,10 @@ export class ChatPage extends BasePage {
    */
   async goto(): Promise<void> {
     await this.navigateTo('/')
-    await this.chatContainer.first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {})
+    await this.chatContainer
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => {})
   }
 
   /**
