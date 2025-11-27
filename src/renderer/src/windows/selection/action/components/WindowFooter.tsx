@@ -183,6 +183,10 @@ const WindowFooter: FC<FooterProps> = ({
             </>
           )}
         </OpButton>
+        <OpButton onClick={() => window.api?.openMainWindow?.()} $isWindowFocus={isWindowFocus}>
+          <CircleX size={14} className="btn-icon" />
+          打开主窗口
+        </OpButton>
         {onRegenerate && (
           <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
             <RefreshIcon size={14} className="btn-icon" />
