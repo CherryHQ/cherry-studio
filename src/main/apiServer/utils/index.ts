@@ -1,7 +1,7 @@
 import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { isPpioAnthropicCompatibleModel, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
@@ -290,6 +290,8 @@ export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model
       return (m: Model) => m.id.includes('claude')
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
+    case 'ppio':
+      return (m: Model) => isPpioAnthropicCompatibleModel(m.id)
     default:
       // allow all models when checker not configured
       return () => true
