@@ -71,10 +71,11 @@ describe('mcp utils', () => {
       const result = setupToolsConfig(mcpTools)
 
       expect(result).not.toBeUndefined()
-      expect(Object.keys(result!)).toEqual(['test-tool'])
-      expect(result!['test-tool']).toHaveProperty('description')
-      expect(result!['test-tool']).toHaveProperty('inputSchema')
-      expect(result!['test-tool']).toHaveProperty('execute')
+      // Tools are now keyed by id (which includes serverId suffix) for uniqueness
+      expect(Object.keys(result!)).toEqual(['test-tool-1'])
+      expect(result!['test-tool-1']).toHaveProperty('description')
+      expect(result!['test-tool-1']).toHaveProperty('inputSchema')
+      expect(result!['test-tool-1']).toHaveProperty('execute')
     })
 
     it('should handle multiple MCP tools', () => {
@@ -109,7 +110,8 @@ describe('mcp utils', () => {
 
       expect(result).not.toBeUndefined()
       expect(Object.keys(result!)).toHaveLength(2)
-      expect(Object.keys(result!)).toEqual(['tool1', 'tool2'])
+      // Tools are keyed by id for uniqueness
+      expect(Object.keys(result!)).toEqual(['tool1-id', 'tool2-id'])
     })
   })
 
@@ -135,9 +137,10 @@ describe('mcp utils', () => {
 
       const result = convertMcpToolsToAiSdkTools(mcpTools)
 
-      expect(Object.keys(result)).toEqual(['get-weather'])
+      // Tools are keyed by id for uniqueness when multiple server instances exist
+      expect(Object.keys(result)).toEqual(['get-weather-id'])
 
-      const tool = result['get-weather'] as Tool
+      const tool = result['get-weather-id'] as Tool
       expect(tool.description).toBe('Get weather information')
       expect(tool.inputSchema).toBeDefined()
       expect(typeof tool.execute).toBe('function')
@@ -160,8 +163,8 @@ describe('mcp utils', () => {
 
       const result = convertMcpToolsToAiSdkTools(mcpTools)
 
-      expect(Object.keys(result)).toEqual(['no-desc-tool'])
-      const tool = result['no-desc-tool'] as Tool
+      expect(Object.keys(result)).toEqual(['no-desc-tool-id'])
+      const tool = result['no-desc-tool-id'] as Tool
       expect(tool.description).toBe('Tool from test-server')
     })
 
@@ -202,13 +205,13 @@ describe('mcp utils', () => {
 
       const result = convertMcpToolsToAiSdkTools(mcpTools)
 
-      expect(Object.keys(result)).toEqual(['complex-tool'])
-      const tool = result['complex-tool'] as Tool
+      expect(Object.keys(result)).toEqual(['complex-tool-id'])
+      const tool = result['complex-tool-id'] as Tool
       expect(tool.inputSchema).toBeDefined()
       expect(typeof tool.execute).toBe('function')
     })
 
-    it('should preserve tool names with special characters', () => {
+    it('should preserve tool id with special characters', () => {
       const mcpTools: MCPTool[] = [
         {
           id: 'special-tool-id',
@@ -225,7 +228,8 @@ describe('mcp utils', () => {
       ]
 
       const result = convertMcpToolsToAiSdkTools(mcpTools)
-      expect(Object.keys(result)).toEqual(['tool_with-special.chars'])
+      // Tools are keyed by id for uniqueness
+      expect(Object.keys(result)).toEqual(['special-tool-id'])
     })
 
     it('should handle multiple tools with different schemas', () => {
@@ -276,10 +280,11 @@ describe('mcp utils', () => {
 
       const result = convertMcpToolsToAiSdkTools(mcpTools)
 
-      expect(Object.keys(result).sort()).toEqual(['boolean-tool', 'number-tool', 'string-tool'])
-      expect(result['string-tool']).toBeDefined()
-      expect(result['number-tool']).toBeDefined()
-      expect(result['boolean-tool']).toBeDefined()
+      // Tools are keyed by id for uniqueness
+      expect(Object.keys(result).sort()).toEqual(['boolean-tool-id', 'number-tool-id', 'string-tool-id'])
+      expect(result['string-tool-id']).toBeDefined()
+      expect(result['number-tool-id']).toBeDefined()
+      expect(result['boolean-tool-id']).toBeDefined()
     })
   })
 
@@ -310,7 +315,7 @@ describe('mcp utils', () => {
       ]
 
       const tools = convertMcpToolsToAiSdkTools(mcpTools)
-      const tool = tools['test-exec-tool'] as Tool
+      const tool = tools['test-exec-tool-id'] as Tool
       const result = await tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'test-call-123' })
 
       expect(requestToolConfirmation).toHaveBeenCalled()
@@ -343,7 +348,7 @@ describe('mcp utils', () => {
       ]
 
       const tools = convertMcpToolsToAiSdkTools(mcpTools)
-      const tool = tools['cancelled-tool'] as Tool
+      const tool = tools['cancelled-tool-id'] as Tool
       const result = await tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'cancel-call-123' })
 
       expect(requestToolConfirmation).toHaveBeenCalled()
@@ -385,7 +390,7 @@ describe('mcp utils', () => {
       ]
 
       const tools = convertMcpToolsToAiSdkTools(mcpTools)
-      const tool = tools['error-tool'] as Tool
+      const tool = tools['error-tool-id'] as Tool
 
       await expect(
         tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'error-call-123' })
@@ -421,7 +426,7 @@ describe('mcp utils', () => {
       ]
 
       const tools = convertMcpToolsToAiSdkTools(mcpTools)
-      const tool = tools['auto-approve-tool'] as Tool
+      const tool = tools['auto-approve-tool-id'] as Tool
       const result = await tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'auto-call-123' })
 
       expect(requestToolConfirmation).not.toHaveBeenCalled()
