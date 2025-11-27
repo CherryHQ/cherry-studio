@@ -12,7 +12,6 @@ tests/e2e/
 ├── fixtures/
 │   └── electron.fixture.ts   # Electron 应用启动 fixture
 ├── utils/
-│   ├── electron-app.ts       # 应用启动辅助函数
 │   ├── wait-helpers.ts       # 等待辅助函数
 │   └── index.ts              # 工具导出
 ├── pages/                    # Page Object Model

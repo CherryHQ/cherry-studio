@@ -30,8 +30,15 @@ export const test = base.extend<ElectronFixtures>({
   },
 
   mainWindow: async ({ electronApp }, use) => {
-    // Wait for the main window to be created
-    const mainWindow = await electronApp.firstWindow()
+    // Wait for the main window (title: "Cherry Studio", not "Quick Assistant")
+    // On Mac, the app may create miniWindow for QuickAssistant with different title
+    const mainWindow = await electronApp.waitForEvent('window', {
+      predicate: async (window) => {
+        const title = await window.title()
+        return title === 'Cherry Studio'
+      },
+      timeout: 60000
+    })
 
     // Wait for React app to mount
     await mainWindow.waitForSelector('#root', { state: 'attached', timeout: 60000 })
