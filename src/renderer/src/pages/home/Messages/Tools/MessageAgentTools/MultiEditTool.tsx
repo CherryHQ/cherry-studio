@@ -12,12 +12,13 @@ export function MultiEditTool({
   input?: MultiEditToolInput
   output?: MultiEditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
+  const edits = Array.isArray(input?.edits) ? input.edits : []
   return {
     key: AgentToolsType.MultiEdit,
     label: <ToolTitle icon={<FileText className="h-4 w-4" />} label="MultiEdit" params={input?.file_path} />,
     children: (
       <div>
-        {input?.edits?.map((edit, index) => (
+        {edits.map((edit, index) => (
           <div key={index}>
             {renderCodeBlock(edit.old_string ?? '', 'old')}
             {renderCodeBlock(edit.new_string ?? '', 'new')}

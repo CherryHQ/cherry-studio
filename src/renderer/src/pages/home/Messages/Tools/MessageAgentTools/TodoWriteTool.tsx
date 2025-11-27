@@ -40,7 +40,7 @@ export function TodoWriteTool({
 }: {
   input?: TodoWriteToolInputType
 }): NonNullable<CollapseProps['items']>[number] {
-  const todos = input?.todos ?? []
+  const todos = Array.isArray(input?.todos) ? input.todos : []
   const doneCount = todos.filter((todo) => todo.status === 'completed').length
 
   return {

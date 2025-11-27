@@ -17,11 +17,12 @@ export function TaskTool({
     label: <ToolTitle icon={<Bot className="h-4 w-4" />} label="Task" params={input?.description} />,
     children: (
       <div>
-        {output?.map((item) => (
-          <div key={item.type}>
-            <div>{item.type === 'text' ? <Markdown>{item.text}</Markdown> : item.text}</div>
-          </div>
-        ))}
+        {Array.isArray(output) &&
+          output.map((item) => (
+            <div key={item.type}>
+              <div>{item.type === 'text' ? <Markdown>{item.text}</Markdown> : item.text}</div>
+            </div>
+          ))}
       </div>
     )
   }
