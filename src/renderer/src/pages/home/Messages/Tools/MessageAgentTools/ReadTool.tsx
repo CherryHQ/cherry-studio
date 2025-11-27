@@ -22,7 +22,11 @@ const normalizeOutputString = (output?: ReadToolOutputType): string | null => {
       .join('')
   }
 
-  return removeSystemReminderTags(output)
+  if (typeof output === 'string') {
+    return removeSystemReminderTags(output)
+  }
+
+  return null
 }
 
 const getOutputStats = (outputString: string | null) => {

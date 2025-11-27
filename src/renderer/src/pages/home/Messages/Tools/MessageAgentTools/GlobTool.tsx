@@ -12,7 +12,7 @@ export function GlobTool({
   output?: GlobToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算文件数量
-  const lineCount = output ? output.split('\n').filter((line) => line.trim()).length : 0
+  const lineCount = typeof output === 'string' ? output.split('\n').filter((line) => line.trim()).length : 0
 
   return {
     key: 'tool',
@@ -24,6 +24,6 @@ export function GlobTool({
         stats={output ? `${lineCount} ${lineCount === 1 ? 'file' : 'files'}` : undefined}
       />
     ),
-    children: <div>{output}</div>
+    children: <div>{typeof output === 'string' ? output : ''}</div>
   }
 }
