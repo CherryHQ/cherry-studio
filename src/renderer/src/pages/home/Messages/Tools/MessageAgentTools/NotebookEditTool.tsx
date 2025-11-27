@@ -11,7 +11,7 @@ export function NotebookEditTool({
   input,
   output
 }: {
-  input: NotebookEditToolInput
+  input?: NotebookEditToolInput
   output?: NotebookEditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   return {
@@ -20,7 +20,7 @@ export function NotebookEditTool({
       <>
         <ToolTitle icon={<FileText className="h-4 w-4" />} label="NotebookEdit" />
         <Tag className="mt-1" color="blue">
-          {input.notebook_path}{' '}
+          {input?.notebook_path}{' '}
         </Tag>
       </>
     ),

@@ -38,9 +38,10 @@ const getStatusConfig = (status: TodoItem['status']) => {
 export function TodoWriteTool({
   input
 }: {
-  input: TodoWriteToolInputType
+  input?: TodoWriteToolInputType
 }): NonNullable<CollapseProps['items']>[number] {
-  const doneCount = input.todos.filter((todo) => todo.status === 'completed').length
+  const todos = input?.todos ?? []
+  const doneCount = todos.filter((todo) => todo.status === 'completed').length
 
   return {
     key: AgentToolsType.TodoWrite,
@@ -49,12 +50,12 @@ export function TodoWriteTool({
         icon={<ListTodo className="h-4 w-4" />}
         label="Todo Write"
         params={`${doneCount} Done`}
-        stats={`${input.todos.length} ${input.todos.length === 1 ? 'item' : 'items'}`}
+        stats={`${todos.length} ${todos.length === 1 ? 'item' : 'items'}`}
       />
     ),
     children: (
       <div className="space-y-3">
-        {input.todos.map((todo, index) => {
+        {todos.map((todo, index) => {
           const statusConfig = getStatusConfig(todo.status)
           return (
             <div key={index}>
