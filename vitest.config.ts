@@ -51,7 +51,10 @@ export default defineConfig({
         test: {
           name: 'aiCore',
           environment: 'jsdom',
-          include: ['packages/aiCore/**/*.{test,spec}.{ts,tsx}', 'packages/aiCore/**/__tests__/**/*.{test,spec}.{ts,tsx}']
+          include: [
+            'packages/aiCore/**/*.{test,spec}.{ts,tsx}',
+            'packages/aiCore/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
         }
       }
     ],
