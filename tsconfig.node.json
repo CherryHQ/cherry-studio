@@ -7,9 +7,11 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*",
+    "packages/aiCore/src/**/*",
     "scripts",
     "packages/mcp-trace/**/*",
-    "src/renderer/src/services/traceApi.ts"
+    "src/renderer/src/services/traceApi.ts",
+    "packages/ai-sdk-provider/**/*"
   ],
   "compilerOptions": {
     "composite": true,
