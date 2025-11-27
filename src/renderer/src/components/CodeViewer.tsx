@@ -1,4 +1,4 @@
-import { loggerService } from '@logger'
+﻿import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -94,6 +94,13 @@ const CodeViewer = ({
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const isRestoringSelectionRef = useRef(false)
+  // Ensure the active selection actually belongs to this CodeViewer instance
+  const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
+    const scroller = scrollerRef.current
+    if (!scroller || !sel || sel.rangeCount === 0) return false
+    const { anchorNode, focusNode } = sel
+    return !!(anchorNode && focusNode && scroller.contains(anchorNode) && scroller.contains(focusNode))
+  }, [])
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
@@ -133,6 +140,11 @@ const CodeViewer = ({
   const saveSelection = useCallback((): SavedSelection | null => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return null
+    }
+
+    // Only capture selections within this viewer's scroller
+    if (!selectionBelongsToViewer(selection)) {
       return null
     }
 
@@ -245,6 +257,10 @@ const CodeViewer = ({
   const handleCopy = useCallback(
     (event: ClipboardEvent) => {
       const selection = window.getSelection()
+      // Ignore copies for selections outside this viewer
+      if (!selectionBelongsToViewer(selection)) {
+        return
+      }
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         return
       }
@@ -365,6 +381,10 @@ const CodeViewer = ({
 
       // 如果在折叠状态下检测到跨行选择，自动展开
       if (!expanded && onRequestExpand) {
+        if (!selectionBelongsToViewer(selection)) {
+          savedSelectionRef.current = null
+          return
+        }
         const saved = saveSelection()
         if (saved && saved.endLine > saved.startLine) {
           logger.info('Multi-line selection detected in collapsed state, requesting expand', {
