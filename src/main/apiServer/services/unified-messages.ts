@@ -1,6 +1,11 @@
 import type { LanguageModelV2ToolResultOutput } from '@ai-sdk/provider'
 import type { ReasoningPart, ToolCallPart, ToolResultPart } from '@ai-sdk/provider-utils'
-import type { ImageBlockParam, MessageCreateParams, TextBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import type {
+  ImageBlockParam,
+  MessageCreateParams,
+  TextBlockParam,
+  Tool as AnthropicTool
+} from '@anthropic-ai/sdk/resources/messages'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
@@ -16,8 +21,8 @@ import {
 } from '@shared/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import type { Provider } from '@types'
-import type { ImagePart, LanguageModel, ModelMessage, Provider as AiSdkProvider, TextPart } from 'ai'
-import { stepCountIs, streamText } from 'ai'
+import type { ImagePart, LanguageModel, ModelMessage, Provider as AiSdkProvider, TextPart, Tool } from 'ai'
+import { jsonSchema, stepCountIs, streamText, tool } from 'ai'
 import { net } from 'electron'
 import type { Response } from 'express'
 
@@ -191,6 +196,39 @@ IANA media type.
 }
 
 /**
+ * Convert Anthropic tools format to AI SDK tools format
+ */
+function convertAnthropicToolsToAiSdk(tools: MessageCreateParams['tools']): Record<string, Tool> | undefined {
+  if (!tools || tools.length === 0) {
+    return undefined
+  }
+
+  const aiSdkTools: Record<string, Tool> = {}
+
+  for (const anthropicTool of tools) {
+    // Handle different tool types
+    if (anthropicTool.type === 'bash_20250124') {
+      // Skip computer use and bash tools - these are Anthropic-specific
+      continue
+    }
+
+    // Regular tool (type === 'custom' or no type)
+    const toolDef = anthropicTool as AnthropicTool
+    const parameters = toolDef.input_schema as Parameters<typeof jsonSchema>[0]
+
+    aiSdkTools[toolDef.name] = tool({
+      description: toolDef.description || '',
+      inputSchema: jsonSchema(parameters),
+      execute: async (input: Record<string, unknown>) => {
+        return input
+      }
+    })
+  }
+
+  return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
+}
+
+/**
  * Convert Anthropic MessageCreateParams to AI SDK message format
  */
 function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage[] {
@@ -271,6 +309,13 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
         }
       }
 
+      if (toolResultParts.length > 0) {
+        messages.push({
+          role: 'tool',
+          content: [...toolResultParts]
+        })
+      }
+
       // Build the message based on role
       if (msg.role === 'user') {
         messages.push({
@@ -278,13 +323,11 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
           content: [...textParts, ...imageParts]
         })
       } else {
-        // Assistant messages can only have text
-        if (textParts.length > 0) {
-          messages.push({
-            role: 'assistant',
-            content: [...reasoningParts, ...textParts, ...toolCallParts, ...toolResultParts]
-          })
-        }
+        // Assistant messages contain tool calls, not tool results
+        messages.push({
+          role: 'assistant',
+          content: [...reasoningParts, ...textParts, ...toolCallParts]
+        })
       }
     }
   }
@@ -315,10 +358,29 @@ export async function streamUnifiedMessages(config: UnifiedStreamConfig): Promis
 
     const coreMessages = convertAnthropicToAiMessages(params)
 
+    // Convert tools if present
+    const tools = convertAnthropicToolsToAiSdk(params.tools)
+
     logger.debug('Converted messages', {
       originalCount: params.messages.length,
       convertedCount: coreMessages.length,
-      hasSystem: !!params.system
+      hasSystem: !!params.system,
+      hasTools: !!tools,
+      toolCount: tools ? Object.keys(tools).length : 0,
+      toolNames: tools ? Object.keys(tools).slice(0, 10) : [],
+      paramsToolCount: params.tools?.length || 0
+    })
+
+    // Debug: Log message structure to understand tool_result handling
+    logger.silly('Message structure for debugging', {
+      messages: coreMessages.map((m) => ({
+        role: m.role,
+        contentTypes: Array.isArray(m.content)
+          ? m.content.map((c: { type: string }) => c.type)
+          : typeof m.content === 'string'
+            ? ['string']
+            : ['unknown']
+      }))
     })
 
     // Create the adapter
@@ -340,6 +402,7 @@ export async function streamUnifiedMessages(config: UnifiedStreamConfig): Promis
       stopSequences: params.stop_sequences,
       stopWhen: stepCountIs(100),
       headers: defaultAppHeaders(),
+      tools,
       providerOptions: {}
     })
 
@@ -404,8 +467,9 @@ export async function generateUnifiedMessage(
     // Create language model (async - uses @cherrystudio/ai-core)
     const model = await createLanguageModel(provider, modelId)
 
-    // Convert messages
+    // Convert messages and tools
     const coreMessages = convertAnthropicToAiMessages(params)
+    const tools = convertAnthropicToolsToAiSdk(params.tools)
 
     // Create adapter to collect the response
     let finalResponse: ReturnType<typeof AiSdkToAnthropicSSE.prototype.buildNonStreamingResponse> | null = null
@@ -425,6 +489,7 @@ export async function generateUnifiedMessage(
       topP: params.top_p,
       stopSequences: params.stop_sequences,
       headers: defaultAppHeaders(),
+      tools,
       stopWhen: stepCountIs(100)
     })
 

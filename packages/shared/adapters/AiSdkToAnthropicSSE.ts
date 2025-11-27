@@ -59,7 +59,9 @@ interface AdapterState {
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>
   textBlockIndex: number | null
-  thinkingBlockIndex: number | null
+  // Track multiple thinking blocks by their reasoning ID
+  thinkingBlocks: Map<string, number> // reasoningId -> blockIndex
+  currentThinkingId: string | null // Currently active thinking block ID
   toolBlocks: Map<string, number> // toolCallId -> blockIndex
   stopReason: StopReason | null
   hasEmittedMessageStart: boolean
@@ -95,7 +97,8 @@ export class AiSdkToAnthropicSSE {
       currentBlockIndex: 0,
       blocks: new Map(),
       textBlockIndex: null,
-      thinkingBlockIndex: null,
+      thinkingBlocks: new Map(),
+      currentThinkingId: null,
       toolBlocks: new Map(),
       stopReason: null,
       hasEmittedMessageStart: false
@@ -133,7 +136,7 @@ export class AiSdkToAnthropicSSE {
    * Process a single AI SDK chunk and emit corresponding Anthropic events
    */
   private processChunk(chunk: TextStreamPart<ToolSet>): void {
-    logger.silly('AiSdkToAnthropicSSE - Processing chunk:', chunk)
+    logger.silly('AiSdkToAnthropicSSE - Processing chunk:', { chunk: JSON.stringify(chunk) })
     switch (chunk.type) {
       // === Text Events ===
       case 'text-start':
@@ -149,17 +152,23 @@ export class AiSdkToAnthropicSSE {
         break
 
       // === Reasoning/Thinking Events ===
-      case 'reasoning-start':
-        this.startThinkingBlock()
+      case 'reasoning-start': {
+        const reasoningId = (chunk as { id?: string }).id || `reasoning_${Date.now()}`
+        this.startThinkingBlock(reasoningId)
         break
+      }
 
-      case 'reasoning-delta':
-        this.emitThinkingDelta(chunk.text || '')
+      case 'reasoning-delta': {
+        const reasoningId = (chunk as { id?: string }).id
+        this.emitThinkingDelta(chunk.text || '', reasoningId)
         break
+      }
 
-      case 'reasoning-end':
-        this.stopThinkingBlock()
+      case 'reasoning-end': {
+        const reasoningId = (chunk as { id?: string }).id
+        this.stopThinkingBlock(reasoningId)
         break
+      }
 
       // === Tool Events ===
       case 'tool-call':
@@ -190,9 +199,7 @@ export class AiSdkToAnthropicSSE {
 
       // === Error Events ===
       case 'error':
-        // Anthropic doesn't have a standard error event in the stream
-        // Errors are typically sent as separate HTTP responses
-        // For now, we'll just log and continue
+        this.handleError(chunk.error)
         break
 
       // Ignore other event types
@@ -303,11 +310,13 @@ export class AiSdkToAnthropicSSE {
     this.state.textBlockIndex = null
   }
 
-  private startThinkingBlock(): void {
-    if (this.state.thinkingBlockIndex !== null) return
+  private startThinkingBlock(reasoningId: string): void {
+    // Check if this thinking block already exists
+    if (this.state.thinkingBlocks.has(reasoningId)) return
 
     const index = this.state.currentBlockIndex++
-    this.state.thinkingBlockIndex = index
+    this.state.thinkingBlocks.set(reasoningId, index)
+    this.state.currentThinkingId = reasoningId
     this.state.blocks.set(index, {
       type: 'thinking',
       index,
@@ -330,15 +339,25 @@ export class AiSdkToAnthropicSSE {
     this.onEvent(event)
   }
 
-  private emitThinkingDelta(text: string): void {
+  private emitThinkingDelta(text: string, reasoningId?: string): void {
     if (!text) return
 
-    // Auto-start thinking block if not started
-    if (this.state.thinkingBlockIndex === null) {
-      this.startThinkingBlock()
+    // Determine which thinking block to use
+    const targetId = reasoningId || this.state.currentThinkingId
+    if (!targetId) {
+      // Auto-start thinking block if not started
+      const newId = `reasoning_${Date.now()}`
+      this.startThinkingBlock(newId)
+      return this.emitThinkingDelta(text, newId)
     }
 
-    const index = this.state.thinkingBlockIndex!
+    const index = this.state.thinkingBlocks.get(targetId)
+    if (index === undefined) {
+      // If the block doesn't exist, create it
+      this.startThinkingBlock(targetId)
+      return this.emitThinkingDelta(text, targetId)
+    }
+
     const block = this.state.blocks.get(index)
     if (block) {
       block.content += text
@@ -358,10 +377,12 @@ export class AiSdkToAnthropicSSE {
     this.onEvent(event)
   }
 
-  private stopThinkingBlock(): void {
-    if (this.state.thinkingBlockIndex === null) return
+  private stopThinkingBlock(reasoningId?: string): void {
+    const targetId = reasoningId || this.state.currentThinkingId
+    if (!targetId) return
 
-    const index = this.state.thinkingBlockIndex
+    const index = this.state.thinkingBlocks.get(targetId)
+    if (index === undefined) return
 
     const event: RawContentBlockStopEvent = {
       type: 'content_block_stop',
@@ -369,7 +390,14 @@ export class AiSdkToAnthropicSSE {
     }
 
     this.onEvent(event)
-    this.state.thinkingBlockIndex = null
+    this.state.thinkingBlocks.delete(targetId)
+
+    // Update currentThinkingId if we just closed the current one
+    if (this.state.currentThinkingId === targetId) {
+      // Set to the most recent remaining thinking block, or null if none
+      const remaining = Array.from(this.state.thinkingBlocks.keys())
+      this.state.currentThinkingId = remaining.length > 0 ? remaining[remaining.length - 1] : null
+    }
   }
 
   private handleToolCall(chunk: { type: 'tool-call'; toolCallId: string; toolName: string; args: unknown }): void {
@@ -471,13 +499,41 @@ export class AiSdkToAnthropicSSE {
     }
   }
 
+  private handleError(error: unknown): void {
+    // Log the error for debugging
+    logger.warn('AiSdkToAnthropicSSE - Provider error received:', { error })
+
+    // Extract error message
+    let errorMessage = 'Unknown error from provider'
+    if (error && typeof error === 'object') {
+      const err = error as { message?: string; metadata?: { raw?: string } }
+      if (err.metadata?.raw) {
+        errorMessage = `Provider error: ${err.metadata.raw}`
+      } else if (err.message) {
+        errorMessage = err.message
+      }
+    } else if (typeof error === 'string') {
+      errorMessage = error
+    }
+
+    // Emit error as a text block so the user can see it
+    // First close any open thinking blocks to maintain proper event order
+    for (const reasoningId of Array.from(this.state.thinkingBlocks.keys())) {
+      this.stopThinkingBlock(reasoningId)
+    }
+
+    // Emit the error as text
+    this.emitTextDelta(`\n\n[Error: ${errorMessage}]\n`)
+  }
+
   private finalize(): void {
     // Close any open blocks
     if (this.state.textBlockIndex !== null) {
       this.stopTextBlock()
     }
-    if (this.state.thinkingBlockIndex !== null) {
-      this.stopThinkingBlock()
+    // Close all open thinking blocks
+    for (const reasoningId of this.state.thinkingBlocks.keys()) {
+      this.stopThinkingBlock(reasoningId)
     }
 
     // Emit message_delta with final stop reason and usage

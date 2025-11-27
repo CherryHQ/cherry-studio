@@ -193,6 +193,30 @@ function handleAssistantMessage(
         }
         break
       }
+      case 'thinking':
+      case 'redacted_thinking': {
+        const thinkingText = block.type === 'thinking' ? block.thinking : block.data
+        if (thinkingText) {
+          const id = generateMessageId()
+          chunks.push({
+            type: 'reasoning-start',
+            id,
+            providerMetadata
+          })
+          chunks.push({
+            type: 'reasoning-delta',
+            id,
+            text: thinkingText,
+            providerMetadata
+          })
+          chunks.push({
+            type: 'reasoning-end',
+            id,
+            providerMetadata
+          })
+        }
+        break
+      }
       case 'tool_use':
         handleAssistantToolUse(block as ToolUseContent, providerMetadata, state, chunks)
         break
@@ -445,7 +469,11 @@ function handleStreamEvent(
     case 'content_block_stop': {
       const block = state.closeBlock(event.index)
       if (!block) {
-        logger.warn('Received content_block_stop for unknown index', { index: event.index })
+        // Some providers (e.g., Gemini) send content via assistant message before stream events,
+        // so the block may not exist in state. This is expected behavior, not an error.
+        logger.debug('Received content_block_stop for unknown index (may be from non-streaming content)', {
+          index: event.index
+        })
         break
       }
 
