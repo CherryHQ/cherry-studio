@@ -26,13 +26,46 @@ export function createGenericProviderOptions<T extends string>(
   return { [provider]: options } as Record<T, Record<string, any>>
 }
 
+type PlainObject = Record<string, any>
+
+const isPlainObject = (value: unknown): value is PlainObject => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function deepMergeObjects<T extends PlainObject>(target: T, source: PlainObject): T {
+  const result: PlainObject = { ...target }
+  Object.entries(source).forEach(([key, value]) => {
+    if (isPlainObject(value) && isPlainObject(result[key])) {
+      result[key] = deepMergeObjects(result[key], value)
+    } else {
+      result[key] = value
+    }
+  })
+  return result as T
+}
+
 /**
  * 合并多个供应商的options
  * @param optionsMap 包含多个供应商选项的对象
  * @returns 合并后的TypedProviderOptions
  */
 export function mergeProviderOptions(...optionsMap: Partial<TypedProviderOptions>[]): TypedProviderOptions {
-  return Object.assign({}, ...optionsMap)
+  return optionsMap.reduce<TypedProviderOptions>((acc, options) => {
+    if (!options) {
+      return acc
+    }
+    Object.entries(options).forEach(([providerId, providerOptions]) => {
+      if (!providerOptions) {
+        return
+      }
+      if (acc[providerId]) {
+        acc[providerId] = deepMergeObjects(acc[providerId] as PlainObject, providerOptions as PlainObject)
+      } else {
+        acc[providerId] = providerOptions as any
+      }
+    })
+    return acc
+  }, {} as TypedProviderOptions)
 }
 
 /**
