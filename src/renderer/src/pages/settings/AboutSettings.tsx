@@ -404,11 +404,11 @@ const UpdateNotesWrapper = styled.div`
   margin: 8px 0;
   background-color: var(--color-bg-2);
   border-radius: 6px;
+  color: var(--color-text-2);
+  font-size: 14px;
 
   p {
     margin: 0;
-    color: var(--color-text-2);
-    font-size: 14px;
   }
 `
 
