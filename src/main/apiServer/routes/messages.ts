@@ -1,5 +1,7 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
+import { buildSharedMiddlewares, type SharedMiddlewareConfig } from '@shared/middleware'
+import { getAiSdkProviderId } from '@shared/provider'
 import type { Provider } from '@types'
 import type { Request, Response } from 'express'
 import express from 'express'
@@ -206,12 +208,26 @@ async function handleUnifiedProcessing({
       return
     }
 
+    const middlewareConfig: SharedMiddlewareConfig = {
+      modelId: actualModelId,
+      providerId: provider.id,
+      aiSdkProviderId: getAiSdkProviderId(provider)
+    }
+    const middlewares = buildSharedMiddlewares(middlewareConfig)
+
+    logger.debug('Built middlewares for unified processing', {
+      middlewareCount: middlewares.length,
+      modelId: actualModelId,
+      providerId: provider.id
+    })
+
     if (request.stream) {
       await streamUnifiedMessages({
         response: res,
         provider,
         modelId: actualModelId,
         params: request,
+        middlewares,
         onError: (error) => {
           logger.error('Stream error', error as Error)
         },
@@ -220,7 +236,12 @@ async function handleUnifiedProcessing({
         }
       })
     } else {
-      const response = await generateUnifiedMessage(provider, actualModelId, request)
+      const response = await generateUnifiedMessage({
+        provider,
+        modelId: actualModelId,
+        params: request,
+        middlewares
+      })
       res.json(response)
     }
   } catch (error: any) {

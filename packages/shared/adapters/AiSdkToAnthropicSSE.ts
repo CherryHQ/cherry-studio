@@ -36,7 +36,7 @@ import type {
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
 import { loggerService } from '@logger'
-import type { TextStreamPart, ToolSet } from 'ai'
+import type { FinishReason, LanguageModelUsage, TextStreamPart, ToolSet } from 'ai'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSSE')
 
@@ -56,6 +56,7 @@ interface AdapterState {
   model: string
   inputTokens: number
   outputTokens: number
+  cacheInputTokens: number
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>
   textBlockIndex: number | null
@@ -66,10 +67,6 @@ interface AdapterState {
   stopReason: StopReason | null
   hasEmittedMessageStart: boolean
 }
-
-// ============================================================================
-// Adapter Class
-// ============================================================================
 
 export type SSEEventCallback = (event: RawMessageStreamEvent) => void
 
@@ -94,6 +91,7 @@ export class AiSdkToAnthropicSSE {
       model: options.model,
       inputTokens: options.inputTokens || 0,
       outputTokens: 0,
+      cacheInputTokens: 0,
       currentBlockIndex: 0,
       blocks: new Map(),
       textBlockIndex: null,
@@ -153,19 +151,19 @@ export class AiSdkToAnthropicSSE {
 
       // === Reasoning/Thinking Events ===
       case 'reasoning-start': {
-        const reasoningId = (chunk as { id?: string }).id || `reasoning_${Date.now()}`
+        const reasoningId = chunk.id
         this.startThinkingBlock(reasoningId)
         break
       }
 
       case 'reasoning-delta': {
-        const reasoningId = (chunk as { id?: string }).id
+        const reasoningId = chunk.id
         this.emitThinkingDelta(chunk.text || '', reasoningId)
         break
       }
 
       case 'reasoning-end': {
-        const reasoningId = (chunk as { id?: string }).id
+        const reasoningId = chunk.id
         this.stopThinkingBlock(reasoningId)
         break
       }
@@ -176,14 +174,18 @@ export class AiSdkToAnthropicSSE {
           type: 'tool-call',
           toolCallId: chunk.toolCallId,
           toolName: chunk.toolName,
-          // AI SDK uses 'args' in some versions and 'input' in others
-          args: 'args' in chunk ? chunk.args : (chunk as any).input
+          args: chunk.input
         })
         break
 
       case 'tool-result':
-        // Tool results are handled separately in Anthropic API
-        // They come from user messages, not assistant stream
+        // this.handleToolResult({
+        //   type: 'tool-result',
+        //   toolCallId: chunk.toolCallId,
+        //   toolName: chunk.toolName,
+        //   args: chunk.input,
+        //   result: chunk.output
+        // })
         break
 
       // === Completion Events ===
@@ -465,33 +467,28 @@ export class AiSdkToAnthropicSSE {
     this.state.stopReason = 'tool_use'
   }
 
-  private handleFinish(chunk: {
-    type: 'finish'
-    finishReason?: string
-    totalUsage?: {
-      inputTokens?: number
-      outputTokens?: number
-    }
-  }): void {
+  private handleFinish(chunk: { type: 'finish'; finishReason?: FinishReason; totalUsage?: LanguageModelUsage }): void {
     // Update usage
     if (chunk.totalUsage) {
       this.state.inputTokens = chunk.totalUsage.inputTokens || 0
       this.state.outputTokens = chunk.totalUsage.outputTokens || 0
+      this.state.cacheInputTokens = chunk.totalUsage.cachedInputTokens || 0
     }
 
     // Determine finish reason
     if (!this.state.stopReason) {
       switch (chunk.finishReason) {
         case 'stop':
-        case 'end_turn':
           this.state.stopReason = 'end_turn'
           break
         case 'length':
-        case 'max_tokens':
           this.state.stopReason = 'max_tokens'
           break
         case 'tool-calls':
           this.state.stopReason = 'tool_use'
+          break
+        case 'content-filter':
+          this.state.stopReason = 'refusal'
           break
         default:
           this.state.stopReason = 'end_turn'
@@ -539,8 +536,8 @@ export class AiSdkToAnthropicSSE {
     // Emit message_delta with final stop reason and usage
     const usage: MessageDeltaUsage = {
       output_tokens: this.state.outputTokens,
-      input_tokens: null,
-      cache_creation_input_tokens: null,
+      input_tokens: this.state.inputTokens,
+      cache_creation_input_tokens: this.state.cacheInputTokens,
       cache_read_input_tokens: null,
       server_tool_use: null
     }

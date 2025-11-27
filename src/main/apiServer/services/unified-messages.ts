@@ -1,5 +1,5 @@
 import type { LanguageModelV2Middleware, LanguageModelV2ToolResultOutput } from '@ai-sdk/provider'
-import type { ReasoningPart, ToolCallPart, ToolResultPart } from '@ai-sdk/provider-utils'
+import type { ProviderOptions, ReasoningPart, ToolCallPart, ToolResultPart } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
   MessageCreateParams,
@@ -7,9 +7,11 @@ import type {
   Tool as AnthropicTool
 } from '@anthropic-ai/sdk/resources/messages'
 import { type AiPlugin, createExecutor } from '@cherrystudio/ai-core'
+import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import { reduxService } from '@main/services/ReduxService'
 import { AiSdkToAnthropicSSE, formatSSEDone, formatSSEEvent } from '@shared/adapters'
+import { isGemini3ModelId } from '@shared/middleware'
 import {
   type AiSdkConfig,
   type AiSdkConfigContext,
@@ -21,12 +23,14 @@ import {
 } from '@shared/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import type { Provider } from '@types'
-import type { ImagePart, ModelMessage, TextPart, Tool } from 'ai'
-import { jsonSchema, simulateStreamingMiddleware, stepCountIs, tool } from 'ai'
+import type { ImagePart, ModelMessage, Provider as AiSdkProvider, TextPart, Tool } from 'ai'
+import { jsonSchema, simulateStreamingMiddleware, stepCountIs, tool, wrapLanguageModel } from 'ai'
 import { net } from 'electron'
 import type { Response } from 'express'
 
 const logger = loggerService.withContext('UnifiedMessagesService')
+
+const MAGIC_STRING = 'skip_thought_signature_validator'
 
 initializeSharedProviders({
   warn: (message) => logger.warn(message),
@@ -63,10 +67,6 @@ export interface GenerateUnifiedMessageConfig {
   middlewares?: LanguageModelV2Middleware[]
   plugins?: AiPlugin[]
 }
-
-// ============================================================================
-// Internal Utilities
-// ============================================================================
 
 function getMainProcessFormatContext(): ProviderFormatContext {
   const vertexSettings = reduxService.selectSync<{ projectId: string; location: string }>('state.llm.settings.vertexai')
@@ -154,6 +154,19 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
     }
   }
 
+  // Build a map of tool_use_id -> toolName from all messages first
+  // This is needed because tool_result references tool_use from previous assistant messages
+  const toolCallIdToName = new Map<string, string>()
+  for (const msg of params.messages) {
+    if (Array.isArray(msg.content)) {
+      for (const block of msg.content) {
+        if (block.type === 'tool_use') {
+          toolCallIdToName.set(block.id, block.name)
+        }
+      }
+    }
+  }
+
   // User/assistant messages
   for (const msg of params.messages) {
     if (typeof msg.content === 'string') {
@@ -190,10 +203,12 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
             input: block.input
           })
         } else if (block.type === 'tool_result') {
+          // Look up toolName from the pre-built map (covers cross-message references)
+          const toolName = toolCallIdToName.get(block.tool_use_id) || 'unknown'
           toolResultParts.push({
             type: 'tool-result',
             toolCallId: block.tool_use_id,
-            toolName: toolCallParts.find((t) => t.toolCallId === block.tool_use_id)?.toolName || 'unknown',
+            toolName,
             output: block.content ? convertAnthropicToolResultToAiSdk(block.content) : { type: 'text', value: '' }
           })
         }
@@ -211,7 +226,18 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
       } else {
         const assistantContent = [...reasoningParts, ...textParts, ...toolCallParts]
         if (assistantContent.length > 0) {
-          messages.push({ role: 'assistant', content: assistantContent })
+          let providerOptions: ProviderOptions | undefined = undefined
+          if (isGemini3ModelId(params.model)) {
+            providerOptions = {
+              google: {
+                thoughtSignature: MAGIC_STRING
+              },
+              openrouter: {
+                reasoning_details: []
+              }
+            }
+          }
+          messages.push({ role: 'assistant', content: assistantContent, providerOptions })
         }
       }
     }
@@ -230,6 +256,32 @@ interface ExecuteStreamConfig {
 }
 
 /**
+ * Create AI SDK provider instance from config
+ * Similar to renderer's createAiSdkProvider
+ */
+async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider> {
+  let providerId = config.providerId
+
+  // Handle special provider modes (same as renderer)
+  if (providerId === 'openai' && config.options?.mode === 'chat') {
+    providerId = 'openai-chat'
+  } else if (providerId === 'azure' && config.options?.mode === 'responses') {
+    providerId = 'azure-responses'
+  } else if (providerId === 'cherryin' && config.options?.mode === 'chat') {
+    providerId = 'cherryin-chat'
+  }
+
+  const provider = await createProviderCore(providerId, config.options)
+
+  logger.debug('AI SDK provider created', {
+    providerId,
+    hasOptions: !!config.options
+  })
+
+  return provider
+}
+
+/**
  * Core stream execution function - single source of truth for AI SDK calls
  */
 async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthropicSSE> {
@@ -240,8 +292,19 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
 
   logger.debug('Created AI SDK config', {
     providerId: sdkConfig.providerId,
-    hasOptions: !!sdkConfig.options
+    hasOptions: !!sdkConfig.options,
+    message: params.messages
   })
+
+  // Create provider instance and get language model
+  const aiSdkProvider = await createAiSdkProvider(sdkConfig)
+  const baseModel = aiSdkProvider.languageModel(modelId)
+
+  // Apply middlewares if present
+  const model =
+    middlewares.length > 0 && typeof baseModel === 'object'
+      ? (wrapLanguageModel({ model: baseModel, middleware: middlewares }) as typeof baseModel)
+      : baseModel
 
   // Create executor with plugins
   const executor = createExecutor(sdkConfig.providerId, sdkConfig.options, plugins)
@@ -250,36 +313,25 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
   const coreMessages = convertAnthropicToAiMessages(params)
   const tools = convertAnthropicToolsToAiSdk(params.tools)
 
-  logger.debug('Converted messages', {
-    originalCount: params.messages.length,
-    convertedCount: coreMessages.length,
-    hasSystem: !!params.system,
-    hasTools: !!tools,
-    toolCount: tools ? Object.keys(tools).length : 0
-  })
-
   // Create the adapter
   const adapter = new AiSdkToAnthropicSSE({
     model: `${provider.id}:${modelId}`,
     onEvent: onEvent || (() => {})
   })
 
-  // Execute stream
-  const result = await executor.streamText(
-    {
-      model: modelId,
-      messages: coreMessages,
-      maxOutputTokens: params.max_tokens,
-      temperature: params.temperature,
-      topP: params.top_p,
-      stopSequences: params.stop_sequences,
-      stopWhen: stepCountIs(100),
-      headers: defaultAppHeaders(),
-      tools,
-      providerOptions: {}
-    },
-    { middlewares }
-  )
+  // Execute stream - pass model object instead of string
+  const result = await executor.streamText({
+    model, // Now passing LanguageModel object, not string
+    messages: coreMessages,
+    maxOutputTokens: params.max_tokens,
+    temperature: params.temperature,
+    topP: params.top_p,
+    stopSequences: params.stop_sequences,
+    stopWhen: stepCountIs(100),
+    headers: defaultAppHeaders(),
+    tools,
+    providerOptions: {}
+  })
 
   // Process the stream through the adapter
   await adapter.processStream(result.fullStream)

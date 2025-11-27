@@ -50,7 +50,7 @@ export interface SharedMiddlewareConfig {
 export function isGemini3ModelId(modelId?: string): boolean {
   if (!modelId) return false
   const lowerModelId = modelId.toLowerCase()
-  return lowerModelId.includes('gemini-2.5') || lowerModelId.includes('gemini-exp') || lowerModelId.includes('gemini-3')
+  return lowerModelId.includes('gemini-3')
 }
 
 /**
