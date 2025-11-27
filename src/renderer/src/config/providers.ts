@@ -28,6 +28,7 @@ import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import IntelOvmsLogo from '@renderer/assets/images/providers/intel.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
+import KwaiKATProviderLogo from '@renderer/assets/images/providers/kwaikat.svg'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import LongCatProviderLogo from '@renderer/assets/images/providers/longcat.png'
@@ -676,6 +677,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  kwaikat: {
+    id: 'kwaikat',
+    name: 'KwaiKAT',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://wanqing.streamlakeapi.com/api/gateway/v1/endpoints/',
+    models: SYSTEM_MODELS.kwaikat,
+    isSystem: true,
+    enabled: false
+  },
   'ai-gateway': {
     id: 'ai-gateway',
     name: 'AI Gateway',
@@ -762,6 +773,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   longcat: LongCatProviderLogo,
   huggingface: HuggingfaceProviderLogo,
   sophnet: SophnetProviderLogo,
+  kwaikat: KwaiKATProviderLogo,
   'ai-gateway': AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo
 } as const
@@ -1411,6 +1423,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://huggingface.co/settings/tokens',
       docs: 'https://huggingface.co/docs',
       models: 'https://huggingface.co/models'
+    }
+  },
+  kwaikat: {
+    api: {
+      url: 'https://www.streamlake.com/document/WANQING/me6yi4shauyxx5fhdtv'
+    },
+    websites: {
+      official: 'https://www.streamlake.com/product/kat-coder',
+      apiKey: 'https://console.streamlake.com/console/wanqing/api-key',
+      docs: 'https://streamlake.com/document/WANQING/me6ymdjrqv8lp4iq0o9',
+      models: 'https://www.streamlake.com/document/WANQING/mdrax1ixkgpgh1ms1na'
     }
   },
   'ai-gateway': {
