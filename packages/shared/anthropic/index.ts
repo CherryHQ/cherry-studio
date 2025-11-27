@@ -16,6 +16,20 @@ import type { ModelMessage } from 'ai'
 
 const logger = loggerService.withContext('anthropic-sdk')
 
+/**
+ * Context for Anthropic SDK client creation.
+ * This allows the shared module to be used in different environments
+ * by providing environment-specific implementations.
+ */
+export interface AnthropicSdkContext {
+  /**
+   * Custom fetch function to use for HTTP requests.
+   * In Electron main process, this should be `net.fetch`.
+   * In other environments, can use the default fetch or a custom implementation.
+   */
+  fetch?: typeof globalThis.fetch
+}
+
 const defaultClaudeCodeSystemPrompt = `You are Claude Code, Anthropic's official CLI for Claude.`
 
 const defaultClaudeCodeSystem: Array<TextBlockParam> = [
@@ -58,8 +72,11 @@ const defaultClaudeCodeSystem: Array<TextBlockParam> = [
 export function getSdkClient(
   provider: Provider,
   oauthToken?: string | null,
-  extraHeaders?: Record<string, string | string[]>
+  extraHeaders?: Record<string, string | string[]>,
+  context?: AnthropicSdkContext
 ): Anthropic {
+  const customFetch = context?.fetch
+
   if (provider.authType === 'oauth') {
     if (!oauthToken) {
       throw new Error('OAuth token is not available')
@@ -85,7 +102,8 @@ export function getSdkClient(
         'x-stainless-runtime': 'node',
         'x-stainless-runtime-version': 'v22.18.0',
         ...extraHeaders
-      }
+      },
+      fetch: customFetch
     })
   }
   let baseURL =
@@ -110,7 +128,8 @@ export function getSdkClient(
         'APP-Code': 'MLTG2087',
         ...provider.extra_headers,
         ...extraHeaders
-      }
+      },
+      fetch: customFetch
     })
   }
 
@@ -122,7 +141,8 @@ export function getSdkClient(
     defaultHeaders: {
       'anthropic-beta': 'output-128k-2025-02-19',
       ...provider.extra_headers
-    }
+    },
+    fetch: customFetch
   })
 }
 

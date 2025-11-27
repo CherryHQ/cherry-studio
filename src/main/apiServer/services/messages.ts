@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import anthropicService from '@main/services/AnthropicService'
 import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
 import type { Provider } from '@types'
+import { net } from 'electron'
 import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
@@ -98,11 +99,30 @@ export class MessagesService {
 
   async getClient(provider: Provider, extraHeaders?: Record<string, string | string[]>): Promise<Anthropic> {
     // Create Anthropic client for the provider
+    // Wrap net.fetch to handle compatibility issues:
+    // 1. net.fetch expects string URLs, not Request objects
+    // 2. net.fetch doesn't support 'agent' option from Node.js http module
+    const electronFetch: typeof globalThis.fetch = async (input: URL | RequestInfo, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      // Remove unsupported options for Electron's net.fetch
+      if (init) {
+        const initWithAgent = init as RequestInit & { agent?: unknown }
+        delete initWithAgent.agent
+        const headers = new Headers(initWithAgent.headers)
+        if (headers.has('content-length')) {
+          headers.delete('content-length')
+        }
+        initWithAgent.headers = headers
+        return net.fetch(url, initWithAgent)
+      }
+      return net.fetch(url)
+    }
+    const context = { fetch: electronFetch }
     if (provider.authType === 'oauth') {
       const oauthToken = await anthropicService.getValidAccessToken()
-      return getSdkClient(provider, oauthToken, extraHeaders)
+      return getSdkClient(provider, oauthToken, extraHeaders, context)
     }
-    return getSdkClient(provider, null, extraHeaders)
+    return getSdkClient(provider, null, extraHeaders, context)
   }
 
   prepareHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string | string[]> {

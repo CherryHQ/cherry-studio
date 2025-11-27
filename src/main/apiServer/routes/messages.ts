@@ -8,6 +8,17 @@ import { messagesService } from '../services/messages'
 import { generateUnifiedMessage, streamUnifiedMessages } from '../services/unified-messages'
 import { getProviderById, validateModelId } from '../utils'
 
+/**
+ * Check if provider should use direct Anthropic SDK
+ *
+ * A provider is considered "Anthropic-compatible" if:
+ * 1. It's a native Anthropic provider (type === 'anthropic'), OR
+ * 2. It has anthropicApiHost configured (aggregated providers routing to Anthropic-compatible endpoints)
+ */
+function shouldUseDirectAnthropic(provider: Provider): boolean {
+  return provider.type === 'anthropic' || !!(provider.anthropicApiHost && provider.anthropicApiHost.trim())
+}
+
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
 
 const router = express.Router()
@@ -41,12 +52,70 @@ interface HandleMessageProcessingOptions {
 }
 
 /**
- * Handle message processing using unified AI SDK
- * All providers (including Anthropic) are handled through AI SDK:
- * - Anthropic providers use @ai-sdk/anthropic which outputs native Anthropic SSE
- * - Other providers use their respective AI SDK adapters, with output converted to Anthropic SSE
+ * Handle message processing using direct Anthropic SDK
+ * Used for providers with anthropicApiHost or native Anthropic providers
+ * This bypasses AI SDK conversion and uses native Anthropic protocol
  */
-async function handleMessageProcessing({
+async function handleDirectAnthropicProcessing({
+  res,
+  provider,
+  request,
+  modelId,
+  extraHeaders
+}: HandleMessageProcessingOptions & { extraHeaders?: Record<string, string | string[]> }): Promise<void> {
+  const actualModelId = modelId || request.model
+
+  logger.info('Processing message via direct Anthropic SDK', {
+    providerId: provider.id,
+    providerType: provider.type,
+    modelId: actualModelId,
+    stream: !!request.stream,
+    anthropicApiHost: provider.anthropicApiHost
+  })
+
+  try {
+    // Validate request
+    const validation = messagesService.validateRequest(request)
+    if (!validation.isValid) {
+      res.status(400).json({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: validation.errors.join('; ')
+        }
+      })
+      return
+    }
+
+    // Process message using messagesService (native Anthropic SDK)
+    const { client, anthropicRequest } = await messagesService.processMessage({
+      provider,
+      request,
+      extraHeaders,
+      modelId: actualModelId
+    })
+
+    if (request.stream) {
+      // Use native Anthropic streaming
+      await messagesService.handleStreaming(client, anthropicRequest, { response: res }, provider)
+    } else {
+      // Use native Anthropic non-streaming
+      const response = await client.messages.create(anthropicRequest)
+      res.json(response)
+    }
+  } catch (error: any) {
+    logger.error('Direct Anthropic processing error', { error })
+    const { statusCode, errorResponse } = messagesService.transformError(error)
+    res.status(statusCode).json(errorResponse)
+  }
+}
+
+/**
+ * Handle message processing using unified AI SDK
+ * Used for non-Anthropic providers that need format conversion
+ * - Uses AI SDK adapters with output converted to Anthropic SSE format
+ */
+async function handleUnifiedProcessing({
   res,
   provider,
   request,
@@ -93,10 +162,29 @@ async function handleMessageProcessing({
       res.json(response)
     }
   } catch (error: any) {
-    logger.error('Message processing error', { error })
+    logger.error('Unified processing error', { error })
     const { statusCode, errorResponse } = messagesService.transformError(error)
     res.status(statusCode).json(errorResponse)
   }
+}
+
+/**
+ * Handle message processing - routes to appropriate handler based on provider
+ *
+ * Routing logic:
+ * - Providers with anthropicApiHost OR type 'anthropic': Direct Anthropic SDK (no conversion)
+ * - Other providers: Unified AI SDK with Anthropic SSE conversion
+ */
+async function handleMessageProcessing({
+  res,
+  provider,
+  request,
+  modelId
+}: HandleMessageProcessingOptions): Promise<void> {
+  if (shouldUseDirectAnthropic(provider)) {
+    return handleDirectAnthropicProcessing({ res, provider, request, modelId })
+  }
+  return handleUnifiedProcessing({ res, provider, request, modelId })
 }
 
 /**

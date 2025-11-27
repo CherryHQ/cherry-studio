@@ -42,10 +42,6 @@ export interface UnifiedStreamConfig {
   onComplete?: () => void
 }
 
-// ============================================================================
-// Provider Factory
-// ============================================================================
-
 /**
  * Main process format context for formatProviderApiHost
  * Unlike renderer, main process doesn't have direct access to store getters, so use reduxService cache
@@ -338,6 +334,7 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
 /**
  * Stream a message request using AI SDK and convert to Anthropic SSE format
  */
+// TODO: 使用ai-core executor集成中间件和transformstream进来
 export async function streamUnifiedMessages(config: UnifiedStreamConfig): Promise<void> {
   const { response, provider, modelId, params, onError, onComplete } = config
 
