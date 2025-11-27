@@ -120,7 +120,7 @@ describe('model utils', () => {
     rerankMock.mockReturnValue(false)
     visionMock.mockReturnValue(true)
     textToImageMock.mockReturnValue(false)
-    generateImageMock.mockReturnValue(true)
+    generateImageMock.mockReturnValue(false)
     reasoningMock.mockReturnValue(false)
     openAIWebSearchOnlyMock.mockReturnValue(false)
   })
@@ -274,6 +274,7 @@ describe('model utils', () => {
     visionMock.mockReturnValueOnce(true).mockReturnValueOnce(false)
     expect(isVisionModels(models)).toBe(false)
 
+    generateImageMock.mockReturnValue(true)
     expect(isGenerateImageModels(models)).toBe(true)
     generateImageMock.mockReturnValueOnce(true).mockReturnValueOnce(false)
     expect(isGenerateImageModels(models)).toBe(false)
@@ -292,6 +293,10 @@ describe('model utils', () => {
     rerankMock.mockReturnValue(false)
     textToImageMock.mockReturnValueOnce(true)
     expect(agentModelFilter(createModel({ id: 'gpt-image-1' }))).toBe(false)
+
+    textToImageMock.mockReturnValue(false)
+    generateImageMock.mockReturnValueOnce(true)
+    expect(agentModelFilter(createModel({ id: 'dall-e-3' }))).toBe(false)
   })
 
   it('identifies models with maximum temperature of 1.0', () => {
