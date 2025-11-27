@@ -240,6 +240,13 @@ describe('model utils', () => {
         expect(getModelSupportedVerbosity(createModel({ id: 'gpt-4o' }))).toEqual([undefined])
         expect(getModelSupportedVerbosity(createModel({ id: 'claude-3.5' }))).toEqual([undefined])
       })
+
+      it('returns only undefined for undefiend/null input', () => {
+        // @ts-expect-error
+        expect(getModelSupportedVerbosity(undefined)).toEqual([undefined])
+        // @ts-expect-error
+        expect(getModelSupportedVerbosity(null)).toEqual([undefined])
+      })
     })
   })
 
