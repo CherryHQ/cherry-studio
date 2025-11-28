@@ -301,11 +301,24 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
             imageParts.push({ type: 'image', image: source.url })
           }
         } else if (block.type === 'tool_use') {
+          const options: ProviderOptions = {}
+          if (isGemini3ModelId(params.model)) {
+            if (reasoningCache.get('google')) {
+              options.google = {
+                thoughtSignature: MAGIC_STRING
+              }
+            } else if (reasoningCache.get('openrouter')) {
+              options.openrouter = {
+                reasoning_details: (reasoningCache.get('openrouter') as JSONValue[]) || []
+              }
+            }
+          }
           toolCallParts.push({
             type: 'tool-call',
             toolName: block.name,
             toolCallId: block.id,
-            input: block.input
+            input: block.input,
+            providerOptions: options
           })
         } else if (block.type === 'tool_result') {
           // Look up toolName from the pre-built map (covers cross-message references)

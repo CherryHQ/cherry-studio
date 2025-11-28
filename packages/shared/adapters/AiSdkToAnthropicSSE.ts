@@ -36,6 +36,8 @@ import type {
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
 import { loggerService } from '@logger'
+import { reasoningCache } from '@main/apiServer/services/cache'
+import type { JSONValue } from 'ai'
 import { type FinishReason, type LanguageModelUsage, type TextStreamPart, type ToolSet } from 'ai'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSSE')
@@ -74,7 +76,7 @@ export type SSEEventCallback = (event: RawMessageStreamEvent) => void
  * Interface for a simple cache that stores reasoning details
  */
 export interface ReasoningCacheInterface {
-  set(signature: string, details: unknown[]): void
+  set(signature: string, details: JSONValue): void
 }
 
 export interface AiSdkToAnthropicSSEOptions {
@@ -82,9 +84,6 @@ export interface AiSdkToAnthropicSSEOptions {
   messageId?: string
   inputTokens?: number
   onEvent: SSEEventCallback
-  /**
-   * Optional cache for storing reasoning details from providers like OpenRouter
-   */
   reasoningCache?: ReasoningCacheInterface
 }
 
@@ -186,6 +185,17 @@ export class AiSdkToAnthropicSSE {
 
       // === Tool Events ===
       case 'tool-call':
+        if (this.reasoningCache && chunk.providerMetadata?.google?.thoughtSignature) {
+          this.reasoningCache.set('google', chunk.providerMetadata?.google?.thoughtSignature)
+        }
+        // FIXME: 按toolcall id绑定
+        if (
+          this.reasoningCache &&
+          chunk.providerMetadata?.openrouter?.reasoning_details &&
+          Array.isArray(chunk.providerMetadata.openrouter.reasoning_details)
+        ) {
+          this.reasoningCache.set('openrouter', chunk.providerMetadata.openrouter.reasoning_details)
+        }
         this.handleToolCall({
           type: 'tool-call',
           toolCallId: chunk.toolCallId,
@@ -205,13 +215,6 @@ export class AiSdkToAnthropicSSE {
         break
 
       case 'finish-step':
-        if (
-          this.reasoningCache &&
-          chunk.providerMetadata?.openrouter?.reasoning_details &&
-          Array.isArray(chunk.providerMetadata.openrouter.reasoning_details)
-        ) {
-          this.reasoningCache.set('openrouter', chunk.providerMetadata.openrouter.reasoning_details)
-        }
         if (chunk.finishReason === 'tool-calls') {
           this.state.stopReason = 'tool_use'
         }
@@ -552,6 +555,7 @@ export class AiSdkToAnthropicSSE {
     }
 
     this.onEvent(messageStopEvent)
+    reasoningCache.destroy()
   }
 
   /**

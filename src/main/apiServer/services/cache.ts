@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
+import type { JSONValue } from 'ai'
 
 const logger = loggerService.withContext('Cache')
 /**
  * Cache entry with TTL support
  */
 interface CacheEntry<T> {
-  details: T[]
+  details: T
   timestamp: number
 }
 
@@ -28,24 +29,19 @@ export class ReasoningCache<T> {
   /**
    * Store reasoning details by signature
    */
-  set(signature: string, details: T[]): void {
-    if (!signature || !details.length) return
+  set(signature: string, details: T): void {
+    if (!signature || !details) return
 
     this.cache.set(signature, {
       details,
       timestamp: Date.now()
-    })
-
-    logger.debug('Cached reasoning details', {
-      signature: signature.substring(0, 20) + '...',
-      detailsCount: details.length
     })
   }
 
   /**
    * Retrieve reasoning details by signature
    */
-  get(signature: string): T[] | undefined {
+  get(signature: string): T | undefined {
     const entry = this.cache.get(signature)
     if (!entry) return undefined
 
@@ -54,11 +50,6 @@ export class ReasoningCache<T> {
       this.cache.delete(signature)
       return undefined
     }
-
-    logger.debug('Retrieved reasoning details from cache', {
-      signature: signature.substring(0, 20) + '...',
-      detailsCount: entry.details.length
-    })
 
     return entry.details
   }
@@ -113,4 +104,4 @@ export class ReasoningCache<T> {
 }
 
 // Singleton cache instance
-export const reasoningCache = new ReasoningCache()
+export const reasoningCache = new ReasoningCache<JSONValue>()
