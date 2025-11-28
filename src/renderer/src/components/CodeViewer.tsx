@@ -98,8 +98,10 @@ const CodeViewer = ({
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
     if (!scroller || !sel || sel.rangeCount === 0) return false
-    const { anchorNode, focusNode } = sel
-    return !!(anchorNode && focusNode && scroller.contains(anchorNode) && scroller.contains(focusNode))
+
+    // Check if selection intersects with scroller
+    const range = sel.getRangeAt(0)
+    return scroller.contains(range.commonAncestorContainer)
   }, [])
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
@@ -185,7 +187,7 @@ const CodeViewer = ({
       const lineIndex = parseInt(element.getAttribute('data-index') || '0', 10)
       const lineContent = element.querySelector('.line-content') || element
 
-      // 计算在该行内的字符偏移量
+      // Calculate character offset within the line
       let charOffset = 0
       if (node.nodeType === Node.TEXT_NODE) {
         // 遍历该行的所有文本节点，找到当前节点的位置
@@ -265,7 +267,7 @@ const CodeViewer = ({
         return
       }
 
-      // 优先使用滚动时保存的选择状态，如果没有则实时获取
+      // Prefer saved selection from scroll, otherwise get it in real-time
       let saved = savedSelectionRef.current
       if (!saved) {
         saved = saveSelection()
@@ -278,9 +280,8 @@ const CodeViewer = ({
 
       const { startLine, startOffset, endLine, endOffset } = saved
 
-      // 在折叠状态或跨行选择时，使用自定义复制
-      const isMultiLine = endLine > startLine
-      const needsCustomCopy = !expanded || isMultiLine
+      // Always use custom copy in collapsed state to handle virtual scroll edge cases
+      const needsCustomCopy = !expanded
 
       logger.debug('Copy event', {
         startLine,
@@ -368,43 +369,48 @@ const CodeViewer = ({
     }
   }, [virtualItems, debouncedHighlightLines])
 
-  // 监听选择变化，清除过期的选择状态，并在折叠状态下自动展开
-  useEffect(() => {
-    const handleSelectionChange = () => {
-      const selection = window.getSelection()
+  // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
+  const handleSelectionChange = useMemo(
+    () =>
+      debounce(() => {
+        const selection = window.getSelection()
 
-      // 无有效选区：清空并返回
-      if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        savedSelectionRef.current = null
-        return
-      }
-
-      // 仅处理当前 CodeViewer 的选区
-      if (!selectionBelongsToViewer(selection)) {
-        savedSelectionRef.current = null
-        return
-      }
-
-      // 折叠状态下，检测跨行选择则请求展开
-      if (!expanded && onRequestExpand) {
-        const saved = saveSelection()
-        if (saved && saved.endLine > saved.startLine) {
-          logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
-            startLine: saved.startLine,
-            endLine: saved.endLine
-          })
-          onRequestExpand()
+        // No valid selection: clear and return
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+          savedSelectionRef.current = null
+          return
         }
-      }
-    }
 
+        // Only handle selections within this CodeViewer
+        if (!selectionBelongsToViewer(selection)) {
+          savedSelectionRef.current = null
+          return
+        }
+
+        // In collapsed state, detect multi-line selection and request expand
+        if (!expanded && onRequestExpand) {
+          const saved = saveSelection()
+          if (saved && saved.endLine > saved.startLine) {
+            logger.debug('Multi-line selection detected in collapsed state, requesting expand', {
+              startLine: saved.startLine,
+              endLine: saved.endLine
+            })
+            onRequestExpand()
+          }
+        }
+      }, 100),
+    [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer]
+  )
+
+  useEffect(() => {
     document.addEventListener('selectionchange', handleSelectionChange)
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange)
+      handleSelectionChange.cancel()
     }
-  }, [expanded, onRequestExpand, saveSelection, selectionBelongsToViewer])
+  }, [handleSelectionChange])
 
-  // 监听 copy 事件
+  // Listen for copy events
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
