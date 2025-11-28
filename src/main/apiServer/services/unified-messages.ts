@@ -9,6 +9,8 @@ import type {
 import { type AiPlugin, createExecutor } from '@cherrystudio/ai-core'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import anthropicService from '@main/services/AnthropicService'
+import copilotService from '@main/services/CopilotService'
 import { reduxService } from '@main/services/ReduxService'
 import { AiSdkToAnthropicSSE, formatSSEDone, formatSSEEvent } from '@shared/adapters'
 import { isGemini3ModelId } from '@shared/middleware'
@@ -21,6 +23,7 @@ import {
   providerToAiSdkConfig as sharedProviderToAiSdkConfig,
   resolveActualProvider
 } from '@shared/provider'
+import { COPILOT_DEFAULT_HEADERS } from '@shared/provider/constant'
 import { defaultAppHeaders } from '@shared/utils'
 import type { Provider } from '@types'
 import type { ImagePart, JSONValue, ModelMessage, Provider as AiSdkProvider, TextPart, Tool } from 'ai'
@@ -285,13 +288,78 @@ async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider> 
 }
 
 /**
+ * Prepare special provider configuration for providers that need dynamic tokens
+ * Similar to renderer's prepareSpecialProviderConfig
+ */
+async function prepareSpecialProviderConfig(provider: Provider, config: AiSdkConfig): Promise<AiSdkConfig> {
+  switch (provider.id) {
+    case 'copilot': {
+      const storedHeaders =
+        ((await reduxService.select('state.copilot.defaultHeaders')) as Record<string, string> | null) ?? {}
+      const headers: Record<string, string> = {
+        ...COPILOT_DEFAULT_HEADERS,
+        ...storedHeaders
+      }
+
+      try {
+        const { token } = await copilotService.getToken(null as any, headers)
+        config.options.apiKey = token
+        const existingHeaders = (config.options.headers as Record<string, string> | undefined) ?? {}
+        config.options.headers = {
+          ...headers,
+          ...existingHeaders
+        }
+        logger.debug('Copilot token retrieved successfully')
+      } catch (error) {
+        logger.error('Failed to get Copilot token', error as Error)
+        throw new Error('Failed to get Copilot token. Please re-authorize Copilot.')
+      }
+      break
+    }
+    case 'anthropic': {
+      if (provider.authType === 'oauth') {
+        try {
+          const oauthToken = await anthropicService.getValidAccessToken()
+          if (!oauthToken) {
+            throw new Error('Anthropic OAuth token not available. Please re-authorize.')
+          }
+          config.options = {
+            ...config.options,
+            headers: {
+              ...(config.options.headers ? config.options.headers : {}),
+              'Content-Type': 'application/json',
+              'anthropic-version': '2023-06-01',
+              'anthropic-beta': 'oauth-2025-04-20',
+              Authorization: `Bearer ${oauthToken}`
+            },
+            baseURL: 'https://api.anthropic.com/v1',
+            apiKey: ''
+          }
+          logger.debug('Anthropic OAuth token retrieved successfully')
+        } catch (error) {
+          logger.error('Failed to get Anthropic OAuth token', error as Error)
+          throw new Error('Failed to get Anthropic OAuth token. Please re-authorize.')
+        }
+      }
+      break
+    }
+    // Note: cherryai requires request-level signing which is not easily supported here
+    // It would need custom fetch implementation similar to renderer
+  }
+  return config
+}
+
+/**
  * Core stream execution function - single source of truth for AI SDK calls
  */
 async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthropicSSE> {
   const { provider, modelId, params, middlewares = [], plugins = [], onEvent } = config
 
   // Convert provider config to AI SDK config
-  const sdkConfig = providerToAiSdkConfig(provider, modelId)
+  let sdkConfig = providerToAiSdkConfig(provider, modelId)
+
+  // Prepare special provider config (Copilot, Anthropic OAuth, etc.)
+  sdkConfig = await prepareSpecialProviderConfig(provider, sdkConfig)
 
   logger.debug('Created AI SDK config', {
     providerId: sdkConfig.providerId,

@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import anthropicService from '@main/services/AnthropicService'
 import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
 import type { Provider } from '@types'
-import { APICallError } from 'ai'
+import { APICallError, RetryError } from 'ai'
 import { net } from 'electron'
 import type { Response } from 'express'
 
@@ -265,6 +265,41 @@ export class MessagesService {
       404: 'not_found_error',
       429: 'rate_limit_error',
       500: 'internal_server_error'
+    }
+
+    // Handle AI SDK RetryError - extract the last error for better error messages
+    if (RetryError.isInstance(error)) {
+      const lastError = error.lastError
+      // If the last error is an APICallError, extract its details
+      if (APICallError.isInstance(lastError)) {
+        statusCode = lastError.statusCode || 502
+        errorMessage = lastError.message
+        return {
+          statusCode,
+          errorResponse: {
+            type: 'error',
+            error: {
+              type: errorMap[statusCode] || 'api_error',
+              message: `${error.reason}: ${errorMessage}`,
+              requestId: lastError.name
+            }
+          }
+        }
+      }
+      // Fallback for other retry errors
+      errorMessage = error.message
+      statusCode = 502
+      return {
+        statusCode,
+        errorResponse: {
+          type: 'error',
+          error: {
+            type: 'api_error',
+            message: errorMessage,
+            requestId: error.name
+          }
+        }
+      }
     }
 
     if (APICallError.isInstance(error)) {

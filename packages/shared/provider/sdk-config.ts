@@ -127,7 +127,7 @@ export function providerToAiSdkConfig(
   if (provider.id === SystemProviderIds.copilot) {
     const defaultHeaders = context.getCopilotDefaultHeaders?.() ?? {}
     const storedHeaders = context.getCopilotStoredHeaders?.() ?? {}
-    const options = ProviderConfigFactory.fromProvider('github-copilot-openai-compatible', baseConfig, {
+    const copilotExtraOptions: Record<string, unknown> = {
       headers: {
         ...defaultHeaders,
         ...storedHeaders,
@@ -135,7 +135,15 @@ export function providerToAiSdkConfig(
       },
       name: provider.id,
       includeUsage: true
-    })
+    }
+    if (context.fetch) {
+      copilotExtraOptions.fetch = context.fetch
+    }
+    const options = ProviderConfigFactory.fromProvider(
+      'github-copilot-openai-compatible',
+      baseConfig,
+      copilotExtraOptions
+    )
 
     return {
       providerId: 'github-copilot-openai-compatible',
