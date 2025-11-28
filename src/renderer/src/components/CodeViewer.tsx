@@ -236,7 +236,7 @@ const CodeViewer = ({
       endLine: end.line,
       endOffset: end.offset
     }
-  }, [])
+  }, [selectionBelongsToViewer])
 
   // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
   const handleScroll = useCallback(() => {
@@ -330,7 +330,7 @@ const CodeViewer = ({
         }
       }
     },
-    [saveSelection, rawLines, expanded]
+    [selectionBelongsToViewer, expanded, saveSelection, rawLines]
   )
 
   // Virtualizer 配置
