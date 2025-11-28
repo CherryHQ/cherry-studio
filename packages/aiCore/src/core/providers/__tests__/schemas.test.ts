@@ -19,15 +19,20 @@ describe('Provider Schemas', () => {
       expect(Array.isArray(baseProviders)).toBe(true)
       expect(baseProviders.length).toBeGreaterThan(0)
 
+      // These are the actual base providers defined in schemas.ts
       const expectedIds = [
         'openai',
-        'openai-responses',
+        'openai-chat',
         'openai-compatible',
         'anthropic',
         'google',
         'xai',
         'azure',
-        'deepseek'
+        'azure-responses',
+        'deepseek',
+        'openrouter',
+        'cherryin',
+        'cherryin-chat'
       ]
       const actualIds = baseProviders.map((p) => p.id)
       expectedIds.forEach((id) => {

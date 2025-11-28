@@ -11,10 +11,14 @@ import type { AiPlugin } from '../../plugins'
 import { globalRegistryManagement } from '../../providers/RegistryManagement'
 import { RuntimeExecutor } from '../executor'
 
-// Mock AI SDK
-vi.mock('ai', () => ({
-  streamText: vi.fn()
-}))
+// Mock AI SDK - use importOriginal to keep jsonSchema and other non-mocked exports
+vi.mock('ai', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    streamText: vi.fn()
+  }
+})
 
 vi.mock('../../providers/RegistryManagement', () => ({
   globalRegistryManagement: {
@@ -153,7 +157,7 @@ describe('RuntimeExecutor.streamText', () => {
   describe('Max Tokens Parameter', () => {
     const maxTokensValues = [10, 50, 100, 500, 1000, 2000, 4000]
 
-    it.each(maxTokensValues)('should support maxTokens=%s', async (maxTokens) => {
+    it.each(maxTokensValues)('should support maxOutputTokens=%s', async (maxOutputTokens) => {
       const mockStream = {
         textStream: (async function* () {
           yield 'Response'
@@ -168,12 +172,13 @@ describe('RuntimeExecutor.streamText', () => {
       await executor.streamText({
         model: 'gpt-4',
         messages: testMessages.simple,
-        maxOutputTokens: maxTokens
+        maxOutputTokens
       })
 
+      // Parameters are passed through without transformation
       expect(streamText).toHaveBeenCalledWith(
         expect.objectContaining({
-          maxTokens
+          maxOutputTokens
         })
       )
     })
@@ -513,11 +518,12 @@ describe('RuntimeExecutor.streamText', () => {
         })
       ).rejects.toThrow('Stream error')
 
+      // onError receives the original error and context with core fields
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          modelId: 'gpt-4'
+          model: 'gpt-4'
         })
       )
     })

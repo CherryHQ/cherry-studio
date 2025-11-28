@@ -232,11 +232,13 @@ describe('RuntimeExecutor.generateImage', () => {
 
       expect(pluginCallOrder).toEqual(['onRequestStart', 'transformParams', 'transformResult', 'onRequestEnd'])
 
+      // transformParams receives params without model (model is handled separately)
+      // and context with core fields + dynamic fields (requestId, startTime, etc.)
       expect(testPlugin.transformParams).toHaveBeenCalledWith(
-        { prompt: 'A test image' },
+        expect.objectContaining({ prompt: 'A test image' }),
         expect.objectContaining({
           providerId: 'openai',
-          modelId: 'dall-e-3'
+          model: 'dall-e-3'
         })
       )
 
@@ -273,11 +275,12 @@ describe('RuntimeExecutor.generateImage', () => {
 
       await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
 
+      // resolveModel receives model id and context with core fields
       expect(modelResolutionPlugin.resolveModel).toHaveBeenCalledWith(
         'dall-e-3',
         expect.objectContaining({
           providerId: 'openai',
-          modelId: 'dall-e-3'
+          model: 'dall-e-3'
         })
       )
 
@@ -339,12 +342,11 @@ describe('RuntimeExecutor.generateImage', () => {
         .generateImage({ model: 'invalid-model', prompt: 'A test image' })
         .catch((error) => error)
 
-      expect(thrownError).toBeInstanceOf(ImageGenerationError)
-      expect(thrownError.message).toContain('Failed to generate image:')
+      // Error is thrown from pluginEngine directly as ImageModelResolutionError
+      expect(thrownError).toBeInstanceOf(ImageModelResolutionError)
+      expect(thrownError.message).toContain('Failed to resolve image model: invalid-model')
       expect(thrownError.providerId).toBe('openai')
       expect(thrownError.modelId).toBe('invalid-model')
-      expect(thrownError.cause).toBeInstanceOf(ImageModelResolutionError)
-      expect(thrownError.cause.message).toContain('Failed to resolve image model: invalid-model')
     })
 
     it('should handle ImageModelResolutionError without provider', async () => {
@@ -362,8 +364,9 @@ describe('RuntimeExecutor.generateImage', () => {
       const apiError = new Error('API request failed')
       vi.mocked(aiGenerateImage).mockRejectedValue(apiError)
 
+      // Error propagates directly from pluginEngine without wrapping
       await expect(executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'Failed to generate image:'
+        'API request failed'
       )
     })
 
@@ -376,8 +379,9 @@ describe('RuntimeExecutor.generateImage', () => {
       vi.mocked(aiGenerateImage).mockRejectedValue(noImageError)
       vi.mocked(NoImageGeneratedError.isInstance).mockReturnValue(true)
 
+      // Error propagates directly from pluginEngine
       await expect(executor.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'Failed to generate image:'
+        'No image generated'
       )
     })
 
@@ -398,15 +402,17 @@ describe('RuntimeExecutor.generateImage', () => {
         [errorPlugin]
       )
 
+      // Error propagates directly from pluginEngine
       await expect(executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })).rejects.toThrow(
-        'Failed to generate image:'
+        'Generation failed'
       )
 
+      // onError receives the original error and context with core fields
       expect(errorPlugin.onError).toHaveBeenCalledWith(
         error,
         expect.objectContaining({
           providerId: 'openai',
-          modelId: 'dall-e-3'
+          model: 'dall-e-3'
         })
       )
     })
@@ -419,9 +425,10 @@ describe('RuntimeExecutor.generateImage', () => {
       const abortController = new AbortController()
       setTimeout(() => abortController.abort(), 10)
 
+      // Error propagates directly from pluginEngine
       await expect(
         executor.generateImage({ model: 'dall-e-3', prompt: 'A test image', abortSignal: abortController.signal })
-      ).rejects.toThrow('Failed to generate image:')
+      ).rejects.toThrow('Operation was aborted')
     })
   })
 
