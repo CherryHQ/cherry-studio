@@ -9,7 +9,7 @@
     "src/renderer/src/services/traceApi.ts",
     "src/renderer/src/types/*",
     "packages/mcp-trace/**/*",
-    "packages/shared/**/*",,
+    "packages/shared/**/*",
     "tests/__mocks__/**/*"
   ],
   "compilerOptions": {
