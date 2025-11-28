@@ -18,7 +18,7 @@ export const COPILOT_DEFAULT_HEADERS = {
 } as const
 
 // Models that require the OpenAI Responses endpoint when routed through GitHub Copilot (#10560)
-const COPILOT_RESPONSES_MODEL_IDS = ['gpt-5-codex']
+const COPILOT_RESPONSES_MODEL_IDS = ['gpt-5-codex', 'gpt-5.1-codex', 'gpt-5.1-codex-mini']
 
 export function isCopilotResponsesModel<M extends MinimalModel>(model: M): boolean {
   const normalizedId = getLowerBaseModelName(model.id)
