@@ -4052,6 +4052,10 @@
       "user": "用戶"
     },
     "messages": {
+      "auto_localize_images": {
+        "label": "自動本地化圖片",
+        "tooltip": "開啟後，訊息中的遠端圖片會自動下載並儲存為本地圖片。"
+      },
       "divider": {
         "label": "訊息間顯示分隔線",
         "tooltip": "不適用於氣泡樣式消息"

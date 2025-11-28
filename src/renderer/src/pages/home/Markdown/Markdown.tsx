@@ -7,6 +7,9 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
+import store, { useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type {
   CompactMessageBlock,
   MainTextMessageBlock,
@@ -51,6 +54,7 @@ interface Props {
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
   const { mathEngine, mathEnableSingleDollar } = useSettings()
+  const dispatch = useAppDispatch()
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
@@ -127,13 +131,35 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     }
     return plugins
   }, [mathEngine, messageContent, block.id])
+  const onImageLocalized = useCallback(
+    async (localizedUrl: string, originalUrl: string) => {
+      const state = store.getState()
+      const originalBlock = messageBlocksSelectors.selectById(state, block.id) as
+        | MainTextMessageBlock
+        | TranslationMessageBlock
+        | ThinkingMessageBlock
+      const updatedBlock = {
+        ...originalBlock,
+        content: originalBlock.content.replaceAll(originalUrl, localizedUrl),
+        updatedAt: new Date().toISOString()
+      }
+      const updatedMessage = {
+        ...state.messages.entities[originalBlock.messageId],
+        updatedAt: new Date().toISOString()
+      }
+      await dispatch(updateMessageAndBlocksThunk(updatedMessage.topicId, updatedMessage, [updatedBlock]))
+    },
+    [block.id, dispatch]
+  )
 
   const components = useMemo(() => {
     return {
       a: (props: any) => <Link {...props} />,
       code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
-      img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
+      img: (props: any) => (
+        <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} onImageLocalized={onImageLocalized} {...props} />
+      ),
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
       p: (props) => {
         const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
@@ -142,7 +168,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       },
       svg: MarkdownSvgRenderer
     } as Partial<Components>
-  }, [block.id])
+  }, [block.id, onImageLocalized])
 
   if (/<style\b[^>]*>/i.test(messageContent)) {
     components.style = MarkdownShadowDOMRenderer as any

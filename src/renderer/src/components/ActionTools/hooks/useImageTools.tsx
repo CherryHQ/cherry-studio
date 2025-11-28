@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
-import { download as downloadFile } from '@renderer/utils/download'
+import { triggerClientDownload as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useRef } from 'react'

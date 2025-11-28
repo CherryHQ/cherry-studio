@@ -9,13 +9,16 @@ import {
   ZoomOutOutlined
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { download } from '@renderer/utils/download'
+import { useSettings } from '@renderer/hooks/useSettings'
+import FileManager from '@renderer/services/FileManager'
+import store from '@renderer/store'
+import { downloadImagesToFileStorage, triggerClientDownload } from '@renderer/utils/download'
 import type { ImageProps as AntImageProps } from 'antd'
 import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
 import { DownloadIcon, ImageIcon } from 'lucide-react'
 import mime from 'mime'
-import React from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,12 +26,44 @@ import { CopyIcon } from './Icons'
 
 interface ImageViewerProps extends AntImageProps {
   src: string
+  onImageLocalized?: (localizedUrl: string, originalUrl: string) => Promise<void>
 }
 
 const logger = loggerService.withContext('ImageViewer')
 
-const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
+const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, onImageLocalized, ...props }) => {
   const { t } = useTranslation()
+  const { autoLocalizeImages } = useSettings()
+  const processedImageUrlsRef = useRef<Set<string>>(new Set())
+  const filesPathRef = useRef(store.getState().runtime.filesPath)
+
+  const localizeImage = useCallback(
+    async (imageUrl: string) => {
+      const processedImageUrls = processedImageUrlsRef.current
+      if (processedImageUrls.has(imageUrl)) return
+      processedImageUrls.add(imageUrl)
+
+      const [downloadedFile] = await downloadImagesToFileStorage([imageUrl])
+
+      if (downloadedFile?.path) {
+        await FileManager.addFiles([downloadedFile])
+        const localFileUrl = `http://file/${downloadedFile.name}`
+        onImageLocalized?.(localFileUrl, imageUrl)
+        processedImageUrls.delete(imageUrl)
+      }
+    },
+    [onImageLocalized]
+  )
+
+  const imageSrc = src.startsWith('http://file/')
+    ? `file://${filesPathRef.current}/${src.replace('http://file/', '')}`
+    : src
+
+  useEffect(() => {
+    if (autoLocalizeImages && onImageLocalized && imageSrc.startsWith('http')) {
+      localizeImage(imageSrc)
+    }
+  }, [imageSrc, autoLocalizeImages, localizeImage, onImageLocalized])
 
   // 复制图片到剪贴板
   const handleCopyImage = async (src: string) => {
@@ -85,7 +120,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         key: 'download',
         label: t('common.download'),
         icon: <DownloadIcon size={size} />,
-        onClick: () => download(src)
+        onClick: () => triggerClientDownload(src)
       },
       {
         key: 'copy-image',
@@ -97,9 +132,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
   }
 
   return (
-    <Dropdown menu={{ items: getContextMenuItems(src) }} trigger={['contextMenu']}>
+    <Dropdown menu={{ items: getContextMenuItems(imageSrc) }} trigger={['contextMenu']}>
       <AntImage
-        src={src}
+        src={imageSrc}
         style={style}
         onContextMenu={(e) => e.stopPropagation()}
         {...props}
@@ -121,8 +156,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
               <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
               <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
               <UndoOutlined onClick={onReset} />
-              <CopyOutlined onClick={() => handleCopyImage(src)} />
-              <DownloadOutlined onClick={() => download(src)} />
+              <CopyOutlined onClick={() => handleCopyImage(imageSrc)} />
+              <DownloadOutlined onClick={() => triggerClientDownload(imageSrc)} />
             </ToolbarWrapper>
           )
         }}

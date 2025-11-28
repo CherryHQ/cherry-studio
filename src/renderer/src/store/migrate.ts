@@ -2695,6 +2695,7 @@ const migrateConfig = {
           state.llm.settings.awsBedrock.apiKey = ''
         }
       }
+      state.settings.autoLocalizeImages = settingsInitialState.autoLocalizeImages
       return state
     } catch (error) {
       logger.error('migrate 171 error', error as Error)
