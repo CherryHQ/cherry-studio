@@ -154,6 +154,10 @@ vi.mock('../websearch', () => ({
   getWebSearchParams: vi.fn(() => ({ enable_search: true }))
 }))
 
+vi.mock('../../prepareParams/header', () => ({
+  addAnthropicHeaders: vi.fn(() => ['context-1m-2025-08-07'])
+}))
+
 const ensureWindowApi = () => {
   const globalWindow = window as any
   globalWindow.api = globalWindow.api || {}
@@ -631,6 +635,65 @@ describe('options utils', () => {
         })
 
         expect(result.providerOptions).toHaveProperty('anthropic')
+      })
+    })
+
+    describe('AWS Bedrock provider', () => {
+      const bedrockProvider = {
+        id: 'bedrock',
+        name: 'AWS Bedrock',
+        type: 'aws-bedrock',
+        apiKey: 'test-key',
+        apiHost: 'https://bedrock.us-east-1.amazonaws.com',
+        models: [] as Model[]
+      } as Provider
+
+      const bedrockModel: Model = {
+        id: 'anthropic.claude-sonnet-4-20250514-v1:0',
+        name: 'Claude Sonnet 4',
+        provider: 'bedrock'
+      } as Model
+
+      it('should build basic Bedrock options', () => {
+        const result = buildProviderOptions(mockAssistant, bedrockModel, bedrockProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions).toHaveProperty('bedrock')
+        expect(result.providerOptions.bedrock).toBeDefined()
+      })
+
+      it('should include anthropicBeta when Anthropic headers are needed', async () => {
+        const { addAnthropicHeaders } = await import('../../prepareParams/header')
+        vi.mocked(addAnthropicHeaders).mockReturnValue(['interleaved-thinking-2025-05-14', 'context-1m-2025-08-07'])
+
+        const result = buildProviderOptions(mockAssistant, bedrockModel, bedrockProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions.bedrock).toHaveProperty('anthropicBeta')
+        expect(result.providerOptions.bedrock.anthropicBeta).toEqual([
+          'interleaved-thinking-2025-05-14',
+          'context-1m-2025-08-07'
+        ])
+      })
+
+      it('should include reasoning parameters when enabled', () => {
+        const result = buildProviderOptions(mockAssistant, bedrockModel, bedrockProvider, {
+          enableReasoning: true,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions.bedrock).toHaveProperty('reasoningConfig')
+        expect(result.providerOptions.bedrock.reasoningConfig).toEqual({
+          type: 'enabled',
+          budgetTokens: 5000
+        })
       })
     })
   })

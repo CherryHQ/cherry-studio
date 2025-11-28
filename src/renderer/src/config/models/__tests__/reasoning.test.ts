@@ -309,11 +309,14 @@ describe('Ling Models', () => {
 describe('Claude & regional providers', () => {
   it('identifies claude 4.5 variants', () => {
     expect(isClaude45ReasoningModel(createModel({ id: 'claude-sonnet-4.5-preview' }))).toBe(true)
+    expect(isClaude4SeriesModel(createModel({ id: 'claude-sonnet-4-5@20250929' }))).toBe(true)
     expect(isClaude45ReasoningModel(createModel({ id: 'claude-3-sonnet' }))).toBe(false)
   })
 
   it('identifies claude 4 variants', () => {
     expect(isClaude4SeriesModel(createModel({ id: 'claude-opus-4' }))).toBe(true)
+    expect(isClaude4SeriesModel(createModel({ id: 'claude-sonnet-4@20250514' }))).toBe(true)
+    expect(isClaude4SeriesModel(createModel({ id: 'anthropic.claude-sonnet-4-20250514-v1:0' }))).toBe(true)
     expect(isClaude4SeriesModel(createModel({ id: 'claude-4.2-sonnet-variant' }))).toBe(false)
     expect(isClaude4SeriesModel(createModel({ id: 'claude-3-haiku' }))).toBe(false)
   })

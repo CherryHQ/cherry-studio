@@ -36,6 +36,7 @@ import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@rende
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
 
+import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
 import { buildGeminiGenerateImageParams } from './image'
 import {
@@ -467,6 +468,11 @@ function buildBedrockProviderOptions(
       ...providerOptions,
       ...reasoningParams
     }
+  }
+
+  const betaHeaders = addAnthropicHeaders(assistant, model)
+  if (betaHeaders.length > 0) {
+    providerOptions.anthropicBeta = betaHeaders
   }
 
   return providerOptions
