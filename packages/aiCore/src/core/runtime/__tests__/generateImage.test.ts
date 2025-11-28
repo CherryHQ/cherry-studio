@@ -275,7 +275,7 @@ describe('RuntimeExecutor.generateImage', () => {
 
       await executorWithPlugin.generateImage({ model: 'dall-e-3', prompt: 'A test image' })
 
-      // resolveModel receives modelId and context with core fields
+      // resolveModel receives model id and context with core fields
       expect(modelResolutionPlugin.resolveModel).toHaveBeenCalledWith(
         'dall-e-3',
         expect.objectContaining({
