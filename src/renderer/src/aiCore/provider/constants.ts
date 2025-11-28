@@ -1,1 +1,1 @@
-export { COPILOT_DEFAULT_HEADERS, isCopilotResponsesModel } from '@shared/provider/constant'
+export { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '@shared/provider/constant'

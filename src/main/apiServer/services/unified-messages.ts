@@ -387,7 +387,8 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
   // Create the adapter
   const adapter = new AiSdkToAnthropicSSE({
     model: `${provider.id}:${modelId}`,
-    onEvent: onEvent || (() => {})
+    onEvent: onEvent || (() => {}),
+    reasoningCache
   })
 
   // Execute stream - pass model object instead of string

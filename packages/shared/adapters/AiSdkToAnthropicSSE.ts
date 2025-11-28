@@ -36,7 +36,6 @@ import type {
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
 import { loggerService } from '@logger'
-import { reasoningCache } from '@main/apiServer/services/cache'
 import { type FinishReason, type LanguageModelUsage, type TextStreamPart, type ToolSet } from 'ai'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSSE')
@@ -71,11 +70,22 @@ interface AdapterState {
 
 export type SSEEventCallback = (event: RawMessageStreamEvent) => void
 
+/**
+ * Interface for a simple cache that stores reasoning details
+ */
+export interface ReasoningCacheInterface {
+  set(signature: string, details: unknown[]): void
+}
+
 export interface AiSdkToAnthropicSSEOptions {
   model: string
   messageId?: string
   inputTokens?: number
   onEvent: SSEEventCallback
+  /**
+   * Optional cache for storing reasoning details from providers like OpenRouter
+   */
+  reasoningCache?: ReasoningCacheInterface
 }
 
 /**
@@ -84,9 +94,11 @@ export interface AiSdkToAnthropicSSEOptions {
 export class AiSdkToAnthropicSSE {
   private state: AdapterState
   private onEvent: SSEEventCallback
+  private reasoningCache?: ReasoningCacheInterface
 
   constructor(options: AiSdkToAnthropicSSEOptions) {
     this.onEvent = options.onEvent
+    this.reasoningCache = options.reasoningCache
     this.state = {
       messageId: options.messageId || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       model: options.model,
@@ -194,10 +206,11 @@ export class AiSdkToAnthropicSSE {
 
       case 'finish-step':
         if (
+          this.reasoningCache &&
           chunk.providerMetadata?.openrouter?.reasoning_details &&
           Array.isArray(chunk.providerMetadata.openrouter.reasoning_details)
         ) {
-          reasoningCache.set('openrouter', chunk.providerMetadata?.openrouter?.reasoning_details)
+          this.reasoningCache.set('openrouter', chunk.providerMetadata.openrouter.reasoning_details)
         }
         if (chunk.finishReason === 'tool-calls') {
           this.state.stopReason = 'tool_use'
