@@ -8,7 +8,7 @@ export function GrepTool({
   input,
   output
 }: {
-  input: GrepToolInput
+  input?: GrepToolInput
   output?: GrepToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算结果行数
@@ -22,8 +22,8 @@ export function GrepTool({
         label="Grep"
         params={
           <>
-            {input.pattern}
-            {input.output_mode && <span className="ml-1">({input.output_mode})</span>}
+            {input?.pattern}
+            {input?.output_mode && <span className="ml-1">({input.output_mode})</span>}
           </>
         }
         stats={output ? `${resultLines} ${resultLines === 1 ? 'line' : 'lines'}` : undefined}

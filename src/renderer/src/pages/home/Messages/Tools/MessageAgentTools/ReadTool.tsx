@@ -46,7 +46,7 @@ export function ReadTool({
   input,
   output
 }: {
-  input: ReadToolInputType
+  input?: ReadToolInputType
   output?: ReadToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   const outputString = normalizeOutputString(output)
@@ -58,7 +58,7 @@ export function ReadTool({
       <ToolTitle
         icon={<FileText className="h-4 w-4" />}
         label="Read File"
-        params={input.file_path.split('/').pop()}
+        params={input?.file_path?.split('/').pop()}
         stats={stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
       />
     ),

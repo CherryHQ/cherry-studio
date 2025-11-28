@@ -32,19 +32,19 @@ export function EditTool({
   input,
   output
 }: {
-  input: EditToolInput
+  input?: EditToolInput
   output?: EditToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   return {
     key: AgentToolsType.Edit,
-    label: <ToolTitle icon={<FileEdit className="h-4 w-4" />} label="Edit" params={input.file_path} />,
+    label: <ToolTitle icon={<FileEdit className="h-4 w-4" />} label="Edit" params={input?.file_path} />,
     children: (
       <>
         {/* Diff View */}
         {/* Old Content */}
-        {renderCodeBlock(input.old_string, 'old')}
+        {renderCodeBlock(input?.old_string ?? '', 'old')}
         {/* New Content */}
-        {renderCodeBlock(input.new_string, 'new')}
+        {renderCodeBlock(input?.new_string ?? '', 'new')}
         {/* Output */}
         {output}
       </>

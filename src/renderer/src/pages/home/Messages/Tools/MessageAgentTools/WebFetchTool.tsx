@@ -8,12 +8,12 @@ export function WebFetchTool({
   input,
   output
 }: {
-  input: WebFetchToolInput
+  input?: WebFetchToolInput
   output?: WebFetchToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   return {
     key: 'tool',
-    label: <ToolTitle icon={<Globe className="h-4 w-4" />} label="Web Fetch" params={input.url} />,
+    label: <ToolTitle icon={<Globe className="h-4 w-4" />} label="Web Fetch" params={input?.url} />,
     children: <div>{output}</div>
   }
 }
