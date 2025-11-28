@@ -134,56 +134,108 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.3
+    A New Era of Intelligence with Cherry Studio 1.7.0
 
-    ✨ New Features:
-    - Provider: Added Silicon provider support for Anthropic API compatibility
-    - Provider: AIHubMix support for nano banana
+    Today we're releasing Cherry Studio 1.7.0 — our most ambitious update yet, introducing Agent: autonomous AI that thinks, plans, and acts.
 
-    🐛 Bug Fixes:
-    - i18n: Clean up translation tags and untranslated strings
-    - Provider: Fixed Silicon provider code list
-    - Provider: Fixed Poe API reasoning parameters for GPT-5 and reasoning models
-    - Provider: Fixed duplicate /v1 in Anthropic API endpoints
-    - Provider: Fixed Azure provider handling in AI SDK integration
-    - Models: Added Claude Opus 4.5 pattern to THINKING_TOKEN_MAP
-    - Models: Improved Gemini reasoning and message handling
-    - Models: Fixed custom parameters for Gemini models
-    - Models: Fixed qwen-mt-flash text delta support
-    - Models: Fixed Groq verbosity setting
-    - UI: Fixed quota display and quota tips
-    - UI: Fixed web search button condition
-    - Settings: Fixed updateAssistantPreset reducer to properly update preset
-    - Settings: Respect enableMaxTokens setting when maxTokens is not configured
-    - SDK: Fixed header merging logic in AI SDK
+    For years, AI assistants have been reactive — waiting for your commands, responding to your questions. With Agent, we're changing that. Now, AI can truly work alongside you: understanding complex goals, breaking them into steps, and executing them independently.
 
-    ⚡ Improvements:
-    - SDK: Upgraded @anthropic-ai/claude-agent-sdk to 0.1.53
+    This is what we've been building toward. And it's just the beginning.
+
+    🤖 Meet Agent
+    Imagine having a brilliant colleague who never sleeps. Give Agent a goal — write a report, analyze data, refactor code — and watch it work. It reasons through problems, breaks them into steps, calls the right tools, and adapts when things change.
+
+    - **Think → Plan → Act**: From goal to execution, fully autonomous
+    - **Deep Reasoning**: Multi-turn thinking that solves real problems
+    - **Tool Mastery**: File operations, web search, code execution, and more
+    - **Skill Plugins**: Extend with custom commands and capabilities
+    - **You Stay in Control**: Real-time approval for sensitive actions
+    - **Full Visibility**: Every thought, every decision, fully transparent
+
+    🌐 Expanding Ecosystem
+    - **New Providers**: HuggingFace, Mistral, CherryIN, AI Gateway, Intel OVMS, Didi MCP
+    - **New Models**: Claude 4.5 Haiku, DeepSeek v3.2, GLM-4.6, Doubao, Ling series
+    - **MCP Integration**: Alibaba Cloud, ModelScope, Higress, MCP.so, TokenFlux and more
+
+    📚 Smarter Knowledge Base
+    - **OpenMinerU**: Self-hosted document processing
+    - **Full-Text Search**: Find anything instantly across your notes
+    - **Enhanced Tool Selection**: Smarter configuration for better AI assistance
+
+    📝 Notes, Reimagined
+    - Full-text search with highlighted results
+    - AI-powered smart rename
+    - Export as image
+    - Auto-wrap for tables
+
+    🖼️ Image & OCR
+    - Intel OVMS painting capabilities
+    - Intel OpenVINO NPU-accelerated OCR
+
+    🌍 Now in 10+ Languages
+    - Added German support
+    - Enhanced internationalization
+
+    ⚡ Faster & More Polished
+    - Electron 38 upgrade
+    - New MCP management interface
+    - Dozens of UI refinements
+
+    ❤️ Fully Open Source
+    Commercial restrictions removed. Cherry Studio now follows standard AGPL v3 — free for teams of any size.
+
+    The Agent Era is here. We can't wait to see what you'll create.
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.3 更新内容
+    Cherry Studio 1.7.0：开启智能新纪元
 
-    ✨ 新功能:
-    - 提供商：新增 Silicon 提供商对 Anthropic API 的兼容性支持
-    - 提供商：AIHubMix 支持 nano banana
+    今天，我们正式发布 Cherry Studio 1.7.0 —— 迄今最具雄心的版本，带来全新的 Agent：能够自主思考、规划和行动的 AI。
 
-    🐛 问题修复:
-    - 国际化：清理翻译标签和未翻译字符串
-    - 提供商：修复 Silicon 提供商代码列表
-    - 提供商：修复 Poe API 对 GPT-5 和推理模型的推理参数
-    - 提供商：修复 Anthropic API 端点重复 /v1 问题
-    - 提供商：修复 Azure 提供商在 AI SDK 集成中的处理
-    - 模型：Claude Opus 4.5 添加到 THINKING_TOKEN_MAP
-    - 模型：改进 Gemini 推理和消息处理
-    - 模型：修复 Gemini 模型自定义参数
-    - 模型：修复 qwen-mt-flash text delta 支持
-    - 模型：修复 Groq verbosity 设置
-    - 界面：修复配额显示和配额提示
-    - 界面：修复 Web 搜索按钮条件
-    - 设置：修复 updateAssistantPreset reducer 正确更新 preset
-    - 设置：尊重 enableMaxTokens 设置
-    - SDK：修复 AI SDK 中 header 合并逻辑
+    多年来，AI 助手一直是被动的——等待你的指令，回应你的问题。Agent 改变了这一切。现在，AI 能够真正与你并肩工作：理解复杂目标，将其拆解为步骤，并独立执行。
 
-    ⚡ 改进:
-    - SDK：升级 @anthropic-ai/claude-agent-sdk 到 0.1.53
+    这是我们一直在构建的未来。而这，仅仅是开始。
+
+    🤖 认识 Agent
+    想象一位永不疲倦的得力伙伴。给 Agent 一个目标——撰写报告、分析数据、重构代码——然后看它工作。它会推理问题、拆解步骤、调用工具，并在情况变化时灵活应对。
+
+    - **思考 → 规划 → 行动**：从目标到执行，全程自主
+    - **深度推理**：多轮思考，解决真实问题
+    - **工具大师**：文件操作、网络搜索、代码执行，样样精通
+    - **技能插件**：自定义命令，无限扩展
+    - **你掌控全局**：敏感操作，实时审批
+    - **完全透明**：每一步思考，每一个决策，清晰可见
+
+    🌐 生态持续壮大
+    - **新增服务商**：Hugging Face、Mistral、Perplexity、SophNet、AI Gateway、Cerebras AI
+    - **新增模型**：Gemini 3、Gemini 3 Pro（支持图像预览）、GPT-5.1、Claude Opus 4.5
+    - **MCP 集成**：百炼、魔搭、Higress、MCP.so、TokenFlux 等平台
+
+    📚 更智能的知识库
+    - **OpenMinerU**：本地自部署文档处理
+    - **全文搜索**：笔记内容一搜即达
+    - **增强工具选择**：更智能的配置，更好的 AI 协助
+
+    📝 笔记，焕然一新
+    - 全文搜索，结果高亮
+    - AI 智能重命名
+    - 导出为图片
+    - 表格自动换行
+
+    🖼️ 图像与 OCR
+    - Intel OVMS 绘图能力
+    - Intel OpenVINO NPU 加速 OCR
+
+    🌍 支持 10+ 种语言
+    - 新增德语支持
+    - 全面增强国际化
+
+    ⚡ 更快、更精致
+    - 升级 Electron 38
+    - 新的 MCP 管理界面
+    - 数十处 UI 细节打磨
+
+    ❤️ 完全开源
+    商用限制已移除。Cherry Studio 现遵循标准 AGPL v3 协议——任意规模团队均可自由使用。
+
+    Agent 纪元已至。期待你的创造。
     <!--LANG:END-->
