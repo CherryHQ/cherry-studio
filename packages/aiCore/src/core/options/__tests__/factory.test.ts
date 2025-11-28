@@ -98,4 +98,12 @@ describe('mergeProviderOptions', () => {
       user: 'user-456' // overwritten by second
     })
   })
+
+  it('replaces arrays instead of merging them', () => {
+    const first = createOpenRouterOptions({ plugins: [{ id: 'old' }] })
+    const second = createOpenRouterOptions({ plugins: [{ id: 'new' }] })
+    const merged = mergeProviderOptions(first, second)
+    // @ts-expect-error type-check for openrouter options is skipped. see function signature of createOpenRouterOptions
+    expect(merged.openrouter?.plugins).toEqual([{ id: 'new' }])
+  })
 })
