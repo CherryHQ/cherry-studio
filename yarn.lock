@@ -5044,15 +5044,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openrouter/ai-sdk-provider@npm:^1.2.5":
-  version: 1.2.5
-  resolution: "@openrouter/ai-sdk-provider@npm:1.2.5"
+"@openrouter/ai-sdk-provider@npm:^1.2.8":
+  version: 1.2.8
+  resolution: "@openrouter/ai-sdk-provider@npm:1.2.8"
   dependencies:
     "@openrouter/sdk": "npm:^0.1.8"
   peerDependencies:
     ai: ^5.0.0
     zod: ^3.24.1 || ^v4
-  checksum: 10c0/f422f767ff8fcba2bb2fca32e5e2df163abae3c754f98416830654c5135db3aed5d4f941bfa0005109d202053a2e6a4a6b997940eb154ac964c87dd85dbe82e1
+  checksum: 10c0/a1508d8d538f601f0b7f5f96da32ddbd3c156742a20b427742963d8ac2cee26ce857ad7c64df743efce632b1602b19c81dcd03ebc24ae5a371211a65ead1c181
   languageName: node
   linkType: hard
 
@@ -10050,7 +10050,7 @@ __metadata:
     "@mozilla/readability": "npm:^0.6.0"
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch"
     "@notionhq/client": "npm:^2.2.15"
-    "@openrouter/ai-sdk-provider": "npm:^1.2.5"
+    "@openrouter/ai-sdk-provider": "npm:^1.2.8"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/core": "npm:2.0.0"
     "@opentelemetry/exporter-trace-otlp-http": "npm:^0.200.0"
