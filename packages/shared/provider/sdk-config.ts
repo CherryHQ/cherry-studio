@@ -88,6 +88,12 @@ export interface AiSdkConfigContext {
    * Renderer process: use browser fetch (default)
    */
   fetch?: typeof globalThis.fetch
+
+  /**
+   * Get CherryAI signed fetch wrapper
+   * Returns a fetch function that adds signature headers to requests
+   */
+  getCherryAISignedFetch?: () => typeof globalThis.fetch
 }
 
 /**
@@ -220,8 +226,13 @@ export function providerToAiSdkConfig(
     }
   }
 
-  // Inject custom fetch if provided
-  if (context.fetch) {
+  // Handle cherryai signed fetch
+  if (provider.id === 'cherryai') {
+    const signedFetch = context.getCherryAISignedFetch?.()
+    if (signedFetch) {
+      extraOptions.fetch = signedFetch
+    }
+  } else if (context.fetch) {
     extraOptions.fetch = context.fetch
   }
 
