@@ -71,15 +71,21 @@ export const isSupportEnableThinkingProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot', 'cerebras'] as const satisfies SystemProviderId[]
+const SUPPORT_SERVICE_TIER_PROVIDERS = [
+  SystemProviderIds.openai,
+  SystemProviderIds['azure-openai'],
+  SystemProviderIds.groq
+  // TODO: 等待上游支持aws-bedrock
+]
 
 /**
- * 判断提供商是否支持 service_tier 设置。 Only for OpenAI API.
+ * 判断提供商是否支持 service_tier 设置
  */
 export const isSupportServiceTierProvider = (provider: Provider) => {
   return (
     provider.apiOptions?.isSupportServiceTier === true ||
-    (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
+    provider.type === 'azure-openai' ||
+    (isSystemProvider(provider) && SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
 }
 
@@ -102,6 +108,7 @@ const SUPPORT_URL_CONTEXT_PROVIDER_TYPES = [
   'gemini',
   'vertexai',
   'anthropic',
+  'azure-openai',
   'new-api'
 ] as const satisfies ProviderType[]
 

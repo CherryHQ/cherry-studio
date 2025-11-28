@@ -17,7 +17,7 @@ export function addAnthropicHeaders(assistant: Assistant, model: Model): string[
   if (
     isClaude45ReasoningModel(model) &&
     isToolUseModeFunction(assistant) &&
-    !(isVertexProvider(provider) && isAwsBedrockProvider(provider))
+    !(isVertexProvider(provider) || isAwsBedrockProvider(provider))
   ) {
     anthropicHeaders.push(INTERLEAVED_THINKING_HEADER)
   }

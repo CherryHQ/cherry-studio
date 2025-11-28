@@ -11,14 +11,14 @@ export function BashTool({
   input,
   output
 }: {
-  input: BashToolInputType
+  input?: BashToolInputType
   output?: BashToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算输出行数
   const outputLines = output ? output.split('\n').length : 0
 
-  // 处理命令字符串的截断
-  const command = input.command
+  // 处理命令字符串的截断，添加空值检查
+  const command = input?.command ?? ''
   const needsTruncate = command.length > MAX_TAG_LENGTH
   const displayCommand = needsTruncate ? `${command.slice(0, MAX_TAG_LENGTH)}...` : command
 
@@ -31,7 +31,7 @@ export function BashTool({
         <ToolTitle
           icon={<Terminal className="h-4 w-4" />}
           label="Bash"
-          params={input.description}
+          params={input?.description}
           stats={output ? `${outputLines} ${outputLines === 1 ? 'line' : 'lines'}` : undefined}
         />
         <div className="mt-1">
