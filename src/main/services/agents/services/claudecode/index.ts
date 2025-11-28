@@ -529,6 +529,19 @@ class ClaudeCodeService implements AgentServiceInterface {
         return
       }
 
+      // Skip emitting error if stream already finished (error was handled via result message)
+      if (streamState.isFinished()) {
+        logger.debug('SDK process exited after stream finished, skipping duplicate error event', {
+          duration,
+          error: errorObj instanceof Error ? { name: errorObj.name, message: errorObj.message } : String(errorObj)
+        })
+        // Still emit complete to signal stream end
+        stream.emit('data', {
+          type: 'complete'
+        })
+        return
+      }
+
       errorChunks.push(errorObj instanceof Error ? errorObj.message : String(errorObj))
       const errorMessage = errorChunks.join('\n\n')
       logger.error('SDK query failed', {

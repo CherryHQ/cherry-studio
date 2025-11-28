@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import anthropicService from '@main/services/AnthropicService'
 import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
 import type { Provider } from '@types'
+import { APICallError } from 'ai'
 import { net } from 'electron'
 import type { Response } from 'express'
 
@@ -253,9 +254,36 @@ export class MessagesService {
   }
 
   transformError(error: any): { statusCode: number; errorResponse: ErrorResponse } {
-    let statusCode = 500
-    let errorType = 'api_error'
-    let errorMessage = 'Internal server error'
+    let statusCode: number | undefined = undefined
+    let errorType: string | undefined = undefined
+    let errorMessage: string | undefined = undefined
+
+    const errorMap: Record<number, string> = {
+      400: 'invalid_request_error',
+      401: 'authentication_error',
+      403: 'forbidden_error',
+      404: 'not_found_error',
+      429: 'rate_limit_error',
+      500: 'internal_server_error'
+    }
+
+    if (APICallError.isInstance(error)) {
+      statusCode = error.statusCode
+      errorMessage = error.message
+      if (statusCode) {
+        return {
+          statusCode,
+          errorResponse: {
+            type: 'error',
+            error: {
+              type: errorMap[statusCode] || 'api_error',
+              message: errorMessage,
+              requestId: error.name
+            }
+          }
+        }
+      }
+    }
 
     const anthropicStatus = typeof error?.status === 'number' ? error.status : undefined
     const anthropicError = error?.error
@@ -297,11 +325,11 @@ export class MessagesService {
       typeof errorMessage === 'string' && errorMessage.length > 0 ? errorMessage : 'Internal server error'
 
     return {
-      statusCode,
+      statusCode: statusCode ?? 500,
       errorResponse: {
         type: 'error',
         error: {
-          type: errorType,
+          type: errorType || 'api_error',
           message: safeErrorMessage,
           requestId: error?.request_id
         }

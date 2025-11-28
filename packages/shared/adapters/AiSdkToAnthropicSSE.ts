@@ -36,7 +36,8 @@ import type {
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
 import { loggerService } from '@logger'
-import type { FinishReason, LanguageModelUsage, TextStreamPart, ToolSet } from 'ai'
+import { reasoningCache } from '@main/apiServer/services/cache'
+import { type FinishReason, type LanguageModelUsage, type TextStreamPart, type ToolSet } from 'ai'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSSE')
 
@@ -125,6 +126,9 @@ export class AiSdkToAnthropicSSE {
 
       // Ensure all blocks are closed and emit final events
       this.finalize()
+    } catch (error) {
+      await reader.cancel()
+      throw error
     } finally {
       reader.releaseLock()
     }
@@ -188,8 +192,13 @@ export class AiSdkToAnthropicSSE {
         // })
         break
 
-      // === Completion Events ===
       case 'finish-step':
+        if (
+          chunk.providerMetadata?.openrouter?.reasoning_details &&
+          Array.isArray(chunk.providerMetadata.openrouter.reasoning_details)
+        ) {
+          reasoningCache.set('openrouter', chunk.providerMetadata?.openrouter?.reasoning_details)
+        }
         if (chunk.finishReason === 'tool-calls') {
           this.state.stopReason = 'tool_use'
         }
@@ -199,10 +208,8 @@ export class AiSdkToAnthropicSSE {
         this.handleFinish(chunk)
         break
 
-      // === Error Events ===
       case 'error':
-        this.handleError(chunk.error)
-        break
+        throw chunk.error
 
       // Ignore other event types
       default:
@@ -494,33 +501,6 @@ export class AiSdkToAnthropicSSE {
           this.state.stopReason = 'end_turn'
       }
     }
-  }
-
-  private handleError(error: unknown): void {
-    // Log the error for debugging
-    logger.warn('AiSdkToAnthropicSSE - Provider error received:', { error })
-
-    // Extract error message
-    let errorMessage = 'Unknown error from provider'
-    if (error && typeof error === 'object') {
-      const err = error as { message?: string; metadata?: { raw?: string } }
-      if (err.metadata?.raw) {
-        errorMessage = `Provider error: ${err.metadata.raw}`
-      } else if (err.message) {
-        errorMessage = err.message
-      }
-    } else if (typeof error === 'string') {
-      errorMessage = error
-    }
-
-    // Emit error as a text block so the user can see it
-    // First close any open thinking blocks to maintain proper event order
-    for (const reasoningId of Array.from(this.state.thinkingBlocks.keys())) {
-      this.stopThinkingBlock(reasoningId)
-    }
-
-    // Emit the error as text
-    this.emitTextDelta(`\n\n[Error: ${errorMessage}]\n`)
   }
 
   private finalize(): void {

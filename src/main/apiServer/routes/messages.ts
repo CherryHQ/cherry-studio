@@ -245,7 +245,6 @@ async function handleUnifiedProcessing({
       res.json(response)
     }
   } catch (error: any) {
-    logger.error('Unified processing error', { error })
     const { statusCode, errorResponse } = messagesService.transformError(error)
     res.status(statusCode).json(errorResponse)
   }

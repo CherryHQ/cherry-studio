@@ -23,10 +23,12 @@ import {
 } from '@shared/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import type { Provider } from '@types'
-import type { ImagePart, ModelMessage, Provider as AiSdkProvider, TextPart, Tool } from 'ai'
+import type { ImagePart, JSONValue, ModelMessage, Provider as AiSdkProvider, TextPart, Tool } from 'ai'
 import { jsonSchema, simulateStreamingMiddleware, stepCountIs, tool, wrapLanguageModel } from 'ai'
 import { net } from 'electron'
 import type { Response } from 'express'
+
+import { reasoningCache } from './cache'
 
 const logger = loggerService.withContext('UnifiedMessagesService')
 
@@ -154,8 +156,6 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
     }
   }
 
-  // Build a map of tool_use_id -> toolName from all messages first
-  // This is needed because tool_result references tool_use from previous assistant messages
   const toolCallIdToName = new Map<string, string>()
   for (const msg of params.messages) {
     if (Array.isArray(msg.content)) {
@@ -227,13 +227,16 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
         const assistantContent = [...reasoningParts, ...textParts, ...toolCallParts]
         if (assistantContent.length > 0) {
           let providerOptions: ProviderOptions | undefined = undefined
-          if (isGemini3ModelId(params.model)) {
+          if (reasoningCache.get('openrouter')) {
+            providerOptions = {
+              openrouter: {
+                reasoning_details: (reasoningCache.get('openrouter') as JSONValue[]) || []
+              }
+            }
+          } else if (isGemini3ModelId(params.model)) {
             providerOptions = {
               google: {
                 thoughtSignature: MAGIC_STRING
-              },
-              openrouter: {
-                reasoning_details: []
               }
             }
           }
@@ -367,6 +370,7 @@ export async function streamUnifiedMessages(config: UnifiedStreamConfig): Promis
       middlewares,
       plugins,
       onEvent: (event) => {
+        logger.silly('Streaming event', { eventType: event.type })
         const sseData = formatSSEEvent(event)
         response.write(sseData)
       }
@@ -380,22 +384,6 @@ export async function streamUnifiedMessages(config: UnifiedStreamConfig): Promis
     onComplete?.()
   } catch (error) {
     logger.error('Error in unified message stream', error as Error, { providerId: provider.id, modelId })
-
-    if (!response.writableEnded) {
-      try {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        response.write(
-          `event: error\ndata: ${JSON.stringify({
-            type: 'error',
-            error: { type: 'api_error', message: errorMessage }
-          })}\n\n`
-        )
-        response.end()
-      } catch {
-        // Response already ended
-      }
-    }
-
     onError?.(error)
     throw error
   }
