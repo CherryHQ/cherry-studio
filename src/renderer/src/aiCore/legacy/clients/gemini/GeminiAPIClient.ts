@@ -46,7 +46,7 @@ import type {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
-import { getLastApiVersion, withoutTrailingApiVersion } from '@renderer/utils'
+import { getTrailingApiVersion, withoutTrailingApiVersion } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
@@ -192,13 +192,15 @@ export class GeminiAPIClient extends BaseApiClient<
   protected getApiVersion(): string {
     if (this.provider.isVertex) {
       return 'v1'
-    } else {
-      const lastApiVersion = getLastApiVersion(this.provider.apiHost)
-      if (lastApiVersion) {
-        return lastApiVersion
-      }
-      return 'v1beta'
     }
+
+    // Extract trailing API version from the URL
+    const trailingVersion = getTrailingApiVersion(this.provider.apiHost || '')
+    if (trailingVersion) {
+      return trailingVersion
+    }
+
+    return 'v1beta'
   }
 
   /**
