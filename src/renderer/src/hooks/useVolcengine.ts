@@ -1,10 +1,5 @@
 import store, { useAppSelector } from '@renderer/store'
-import {
-  setVolcengineAccessKeyId,
-  setVolcengineProjectName,
-  setVolcengineRegion,
-  setVolcengineSecretAccessKey
-} from '@renderer/store/llm'
+import { setVolcengineProjectName, setVolcengineRegion } from '@renderer/store/llm'
 import { useDispatch } from 'react-redux'
 
 export function useVolcengineSettings() {
@@ -13,8 +8,6 @@ export function useVolcengineSettings() {
 
   return {
     ...settings,
-    setAccessKeyId: (accessKeyId: string) => dispatch(setVolcengineAccessKeyId(accessKeyId)),
-    setSecretAccessKey: (secretAccessKey: string) => dispatch(setVolcengineSecretAccessKey(secretAccessKey)),
     setRegion: (region: string) => dispatch(setVolcengineRegion(region)),
     setProjectName: (projectName: string) => dispatch(setVolcengineProjectName(projectName))
   }
@@ -22,14 +15,6 @@ export function useVolcengineSettings() {
 
 export function getVolcengineSettings() {
   return store.getState().llm.settings.volcengine
-}
-
-export function getVolcengineAccessKeyId() {
-  return store.getState().llm.settings.volcengine.accessKeyId
-}
-
-export function getVolcengineSecretAccessKey() {
-  return store.getState().llm.settings.volcengine.secretAccessKey
 }
 
 export function getVolcengineRegion() {

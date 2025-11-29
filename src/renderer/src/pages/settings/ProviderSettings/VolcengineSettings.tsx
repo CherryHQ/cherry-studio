@@ -10,22 +10,13 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle }
 
 const VolcengineSettings: FC = () => {
   const { t } = useTranslation()
-  const {
-    accessKeyId,
-    secretAccessKey,
-    region,
-    projectName,
-    setAccessKeyId,
-    setSecretAccessKey,
-    setRegion,
-    setProjectName
-  } = useVolcengineSettings()
+  const { region, projectName, setRegion, setProjectName } = useVolcengineSettings()
 
   const providerConfig = PROVIDER_URLS['doubao']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
-  const [localAccessKeyId, setLocalAccessKeyId] = useState(accessKeyId)
-  const [localSecretAccessKey, setLocalSecretAccessKey] = useState(secretAccessKey)
+  const [localAccessKeyId, setLocalAccessKeyId] = useState('')
+  const [localSecretAccessKey, setLocalSecretAccessKey] = useState('')
   const [localRegion, setLocalRegion] = useState(region)
   const [localProjectName, setLocalProjectName] = useState(projectName)
   const [saving, setSaving] = useState(false)
@@ -36,13 +27,11 @@ const VolcengineSettings: FC = () => {
     window.api.volcengine.hasCredentials().then(setHasCredentials)
   }, [])
 
-  // Sync local state with store
+  // Sync local state with store (only for region and projectName)
   useEffect(() => {
-    setLocalAccessKeyId(accessKeyId)
-    setLocalSecretAccessKey(secretAccessKey)
     setLocalRegion(region)
     setLocalProjectName(projectName)
-  }, [accessKeyId, secretAccessKey, region, projectName])
+  }, [region, projectName])
 
   const handleSaveCredentials = useCallback(async () => {
     if (!localAccessKeyId || !localSecretAccessKey) {
@@ -52,38 +41,28 @@ const VolcengineSettings: FC = () => {
 
     setSaving(true)
     try {
-      // Save to Redux store
-      setAccessKeyId(localAccessKeyId)
-      setSecretAccessKey(localSecretAccessKey)
+      // Save credentials to secure storage via IPC first
+      await window.api.volcengine.saveCredentials(localAccessKeyId, localSecretAccessKey)
+
+      // Only update Redux after IPC success (for region and projectName only)
       setRegion(localRegion)
       setProjectName(localProjectName)
 
-      // Save to secure storage via IPC
-      await window.api.volcengine.saveCredentials(localAccessKeyId, localSecretAccessKey)
       setHasCredentials(true)
+      // Clear local credential state after successful save (they're now in secure storage)
+      setLocalAccessKeyId('')
+      setLocalSecretAccessKey('')
       window.toast.success(t('settings.provider.volcengine.credentials_saved'))
     } catch (error) {
       window.toast.error(String(error))
     } finally {
       setSaving(false)
     }
-  }, [
-    localAccessKeyId,
-    localSecretAccessKey,
-    localRegion,
-    localProjectName,
-    setAccessKeyId,
-    setSecretAccessKey,
-    setRegion,
-    setProjectName,
-    t
-  ])
+  }, [localAccessKeyId, localSecretAccessKey, localRegion, localProjectName, setRegion, setProjectName, t])
 
   const handleClearCredentials = useCallback(async () => {
     try {
       await window.api.volcengine.clearCredentials()
-      setAccessKeyId('')
-      setSecretAccessKey('')
       setLocalAccessKeyId('')
       setLocalSecretAccessKey('')
       setHasCredentials(false)
@@ -91,7 +70,7 @@ const VolcengineSettings: FC = () => {
     } catch (error) {
       window.toast.error(String(error))
     }
-  }, [setAccessKeyId, setSecretAccessKey, t])
+  }, [t])
 
   return (
     <>
@@ -103,7 +82,6 @@ const VolcengineSettings: FC = () => {
         value={localAccessKeyId}
         placeholder="Access Key ID"
         onChange={(e) => setLocalAccessKeyId(e.target.value)}
-        onBlur={() => setAccessKeyId(localAccessKeyId)}
         style={{ marginTop: 5 }}
         spellCheck={false}
       />
@@ -116,7 +94,6 @@ const VolcengineSettings: FC = () => {
         value={localSecretAccessKey}
         placeholder="Secret Access Key"
         onChange={(e) => setLocalSecretAccessKey(e.target.value)}
-        onBlur={() => setSecretAccessKey(localSecretAccessKey)}
         style={{ marginTop: 5 }}
         spellCheck={false}
       />

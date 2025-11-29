@@ -1,6 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
-import { getVolcengineProjectName } from '@renderer/hooks/useVolcengine'
+import { getVolcengineProjectName, getVolcengineRegion } from '@renderer/hooks/useVolcengine'
 import type { Provider } from '@renderer/types'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
@@ -35,11 +35,20 @@ export class VolcengineAPIClient extends OpenAIAPIClient {
       logger.info('Fetching models from Volcengine API using signed request')
 
       const projectName = getVolcengineProjectName()
-      const response = await window.api.volcengine.listModels(projectName)
+      const region = getVolcengineRegion()
+      const response = await window.api.volcengine.listModels(projectName, region)
 
       if (!response || !response.models) {
         logger.warn('Empty response from Volcengine listModels')
         return []
+      }
+
+      // Notify user of any partial failures
+      if (response.warnings && response.warnings.length > 0) {
+        for (const warning of response.warnings) {
+          logger.warn(warning)
+        }
+        window.toast?.warning('Some Volcengine models could not be fetched. Check logs for details.')
       }
 
       const models: OpenAI.Models.Model[] = response.models.map((model) => ({
@@ -55,6 +64,8 @@ export class VolcengineAPIClient extends OpenAIAPIClient {
       return models
     } catch (error) {
       logger.error('Failed to list Volcengine models:', error as Error)
+      // Notify user before falling back
+      window.toast?.warning('Failed to fetch Volcengine models. Check credentials if this persists.')
       // Fall back to standard OpenAI-compatible API on error
       logger.info('Falling back to OpenAI-compatible model list')
       return super.listModels()

@@ -244,8 +244,6 @@ vi.mock('@renderer/store/llm.ts', () => {
         region: ''
       },
       volcengine: {
-        accessKeyId: '',
-        secretAccessKey: '',
         region: 'cn-beijing',
         projectName: 'default'
       }

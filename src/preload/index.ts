@@ -579,11 +579,13 @@ const api = {
     hasCredentials: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Volcengine_HasCredentials),
     clearCredentials: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Volcengine_ClearCredentials),
     listModels: (
-      projectName?: string
+      projectName?: string,
+      region?: string
     ): Promise<{
       models: Array<{ id: string; name: string; description?: string; created?: number }>
       total?: number
-    }> => ipcRenderer.invoke(IpcChannel.Volcengine_ListModels, projectName),
+      warnings?: string[]
+    }> => ipcRenderer.invoke(IpcChannel.Volcengine_ListModels, projectName, region),
     getAuthHeaders: (params: {
       method: 'GET' | 'POST'
       host: string

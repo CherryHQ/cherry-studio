@@ -118,6 +118,7 @@ interface ModelInfo {
 interface ListModelsResult {
   models: ModelInfo[]
   total?: number
+  warnings?: string[]
 }
 
 // Custom error class
@@ -401,19 +402,23 @@ class VolcengineService {
 
   /**
    * Load credentials from encrypted storage
+   * @throws VolcengineServiceError if credentials file exists but is corrupted
    */
   private async loadCredentials(): Promise<VolcengineCredentials | null> {
-    try {
-      if (!fs.existsSync(this.credentialsFilePath)) {
-        return null
-      }
+    if (!fs.existsSync(this.credentialsFilePath)) {
+      return null
+    }
 
+    try {
       const encryptedData = await fs.promises.readFile(this.credentialsFilePath)
       const decryptedJson = safeStorage.decryptString(Buffer.from(encryptedData))
       return JSON.parse(decryptedJson) as VolcengineCredentials
     } catch (error) {
       logger.error('Failed to load Volcengine credentials:', error as Error)
-      return null
+      throw new VolcengineServiceError(
+        'Credentials file exists but could not be loaded. Please re-enter your credentials.',
+        error
+      )
     }
   }
 
@@ -521,7 +526,7 @@ class VolcengineService {
   /**
    * List foundation models from Volcengine ARK
    */
-  private async listFoundationModels(): Promise<ListFoundationModelsResponse> {
+  private async listFoundationModels(region: string = CONFIG.DEFAULT_REGION): Promise<ListFoundationModelsResponse> {
     const requestBody: ListFoundationModelsRequest = {
       PageNumber: 1,
       PageSize: CONFIG.DEFAULT_PAGE_SIZE
@@ -536,7 +541,7 @@ class VolcengineService {
       {},
       requestBody,
       CONFIG.SERVICE_NAME,
-      CONFIG.DEFAULT_REGION
+      region
     )
 
     return ListFoundationModelsResponseSchema.parse(response)
@@ -545,7 +550,10 @@ class VolcengineService {
   /**
    * List user-created endpoints from Volcengine ARK
    */
-  private async listEndpoints(projectName?: string): Promise<ListEndpointsResponse> {
+  private async listEndpoints(
+    projectName?: string,
+    region: string = CONFIG.DEFAULT_REGION
+  ): Promise<ListEndpointsResponse> {
     const requestBody: ListEndpointsRequest = {
       ProjectName: projectName || 'default',
       PageNumber: 1,
@@ -561,7 +569,7 @@ class VolcengineService {
       {},
       requestBody,
       CONFIG.SERVICE_NAME,
-      CONFIG.DEFAULT_REGION
+      region
     )
 
     return ListEndpointsResponseSchema.parse(response)
@@ -571,14 +579,20 @@ class VolcengineService {
    * List all available models from Volcengine ARK
    * Combines foundation models and user-created endpoints
    */
-  public listModels = async (_?: Electron.IpcMainInvokeEvent, projectName?: string): Promise<ListModelsResult> => {
+  public listModels = async (
+    _?: Electron.IpcMainInvokeEvent,
+    projectName?: string,
+    region?: string
+  ): Promise<ListModelsResult> => {
     try {
+      const effectiveRegion = region || CONFIG.DEFAULT_REGION
       const [foundationModelsResult, endpointsResult] = await Promise.allSettled([
-        this.listFoundationModels(),
-        this.listEndpoints(projectName)
+        this.listFoundationModels(effectiveRegion),
+        this.listEndpoints(projectName, effectiveRegion)
       ])
 
       const models: ModelInfo[] = []
+      const warnings: string[] = []
 
       if (foundationModelsResult.status === 'fulfilled') {
         const foundationModels = foundationModelsResult.value
@@ -591,7 +605,9 @@ class VolcengineService {
         }
         logger.info(`Found ${foundationModels.Result.Items.length} foundation models`)
       } else {
-        logger.warn('Failed to fetch foundation models:', foundationModelsResult.reason)
+        const errorMsg = `Failed to fetch foundation models: ${foundationModelsResult.reason}`
+        logger.warn(errorMsg)
+        warnings.push(errorMsg)
       }
 
       // Process endpoints
@@ -618,7 +634,9 @@ class VolcengineService {
         }
         logger.info(`Found ${endpoints.Result.Items.length} endpoints`)
       } else {
-        logger.warn('Failed to fetch endpoints:', endpointsResult.reason)
+        const errorMsg = `Failed to fetch endpoints: ${endpointsResult.reason}`
+        logger.warn(errorMsg)
+        warnings.push(errorMsg)
       }
 
       // If both failed, throw error
@@ -634,7 +652,8 @@ class VolcengineService {
 
       return {
         models,
-        total
+        total,
+        warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
       logger.error('Failed to list Volcengine models:', error as Error)
