@@ -7,6 +7,7 @@ import {
   formatApiKeys,
   formatAzureOpenAIApiHost,
   formatVertexApiHost,
+  getLastApiVersion,
   hasAPIVersion,
   maskApiKey,
   routeToEndpoint,
@@ -314,6 +315,51 @@ describe('api', () => {
       expect(formatVertexApiHost(createVertexProvider(''))).toBe(
         'https://aiplatform.googleapis.com/v1/projects/global-project/locations/global'
       )
+    })
+  })
+
+  describe('getLastApiVersion', () => {
+    it('returns the last API version when multiple versions exist in URL', () => {
+      // Note: Current implementation finds all matches and returns the last one
+      const result = getLastApiVersion('https://gateway.ai.cloudflare.com/v1/xxxxxx/google-ai-studio/google-ai-studio/v1beta')
+      expect(result).toBe('v1beta')
+    })
+
+    it('returns the only API version when one version exists', () => {
+      expect(getLastApiVersion('https://api.example.com/v1')).toBe('v1')
+    })
+
+    it('returns undefined when no API version exists', () => {
+      expect(getLastApiVersion('https://api.example.com/api')).toBeUndefined()
+      expect(getLastApiVersion('https://api.example.com')).toBeUndefined()
+    })
+
+    it('handles alpha and beta versions', () => {
+      expect(getLastApiVersion('https://api.example.com/v2alpha')).toBe('v2alpha')
+      expect(getLastApiVersion('https://api.example.com/v3beta')).toBe('v3beta')
+    })
+
+    it('returns the last API version when multiple versions are in the path', () => {
+      expect(getLastApiVersion('https://example.com/v1/resource/v2/data')).toBe('v2')
+      expect(getLastApiVersion('https://example.com/v1/v2alpha/v3beta')).toBe('v3beta')
+    })
+
+    it('handles API version in path with trailing slash', () => {
+      expect(getLastApiVersion('https://api.example.com/v1/')).toBe('v1')
+      expect(getLastApiVersion('https://api.example.com/v2beta/')).toBe('v2beta')
+    })
+
+    it('returns undefined for empty or invalid input', () => {
+      expect(getLastApiVersion('')).toBeUndefined()
+    })
+
+    it('returns the last version when version appears in the middle of path', () => {
+      expect(getLastApiVersion('https://api.example.com/v1/users/v2/profile')).toBe('v2')
+    })
+
+    it('does not match version-like strings without leading slash', () => {
+      expect(getLastApiVersion('https://api.example.com/version1')).toBeUndefined()
+      expect(getLastApiVersion('https://api.example.com/apiv1')).toBeUndefined()
     })
   })
 })

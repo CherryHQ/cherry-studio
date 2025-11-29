@@ -1,6 +1,6 @@
 import store from '@renderer/store'
 import type { VertexProvider } from '@renderer/types'
-import { trim } from 'lodash'
+import { last, trim } from 'lodash'
 
 /**
  * 格式化 API key 字符串。
@@ -217,4 +217,38 @@ export function splitApiKeyString(keyStr: string): string[] {
     .map((k) => k.trim())
     .map((k) => k.replace(/\\,/g, ','))
     .filter((k) => k)
+}
+
+/**
+ * Extracts the last API version segment from a URL path.
+ *
+ * When multiple API version segments exist in the URL (e.g., `/v1/service/v2beta`),
+ * this function returns the last one found. The returned version string does not
+ * include the leading slash.
+ *
+ * @param {string} url - The URL string to parse.
+ * @returns {string | undefined} The last API version found (e.g., 'v1', 'v2beta'), or undefined if none found.
+ *
+ * @example
+ * getLastApiVersion('https://api.example.com/v1/chat/completions') // 'v1'
+ * getLastApiVersion('https://api.example.com/v2alpha/predict')    // 'v2alpha'
+ * getLastApiVersion('https://gateway.ai.cloudflare.com/v1/xxx/v1beta') // 'v1beta'
+ * getLastApiVersion('https://api.example.com')                    // undefined
+ */
+export function getLastApiVersion(url: string): string | undefined {
+  const regex = new RegExp(VERSION_REGEX_PATTERN, 'ig')
+  const matches: string[] = []
+  let match: RegExpExecArray | null
+
+  while ((match = regex.exec(url)) !== null) {
+    matches.push(match[0])
+  }
+
+  if (matches.length > 0) {
+    const lastMatch = last(matches)
+    // Remove leading slash
+    return lastMatch?.replace(/^\//, '')
+  } else {
+    return undefined
+  }
 }
