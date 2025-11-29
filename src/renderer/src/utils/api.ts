@@ -1,6 +1,6 @@
 import store from '@renderer/store'
 import type { VertexProvider } from '@renderer/types'
-import { last, trim } from 'lodash'
+import { trim } from 'lodash'
 
 /**
  * 格式化 API key 字符串。
@@ -18,6 +18,12 @@ export function formatApiKeys(value: string): string {
  * of the string (useful for cases like `/v3alpha/resources`).
  */
 const VERSION_REGEX_PATTERN = '\\/v\\d+(?:alpha|beta)?(?=\\/|$)'
+
+/**
+ * Matches an API version at the end of a URL (with optional trailing slash).
+ * Used to detect and extract versions only from the trailing position.
+ */
+const TRAILING_VERSION_REGEX = /\/v\d+(?:alpha|beta)?\/?$/i
 
 /**
  * 判断 host 的 path 中是否包含形如版本的字符串（例如 /v1、/v2beta 等），
@@ -220,40 +226,6 @@ export function splitApiKeyString(keyStr: string): string[] {
 }
 
 /**
- * Extracts the last API version segment from a URL path.
- *
- * When multiple API version segments exist in the URL (e.g., `/v1/service/v2beta`),
- * this function returns the last one found. The returned version string does not
- * include the leading slash.
- *
- * @param {string} url - The URL string to parse.
- * @returns {string | undefined} The last API version found (e.g., 'v1', 'v2beta'), or undefined if none found.
- *
- * @example
- * getLastApiVersion('https://api.example.com/v1/chat/completions') // 'v1'
- * getLastApiVersion('https://api.example.com/v2alpha/predict')    // 'v2alpha'
- * getLastApiVersion('https://gateway.ai.cloudflare.com/v1/xxx/v1beta') // 'v1beta'
- * getLastApiVersion('https://api.example.com')                    // undefined
- */
-export function getLastApiVersion(url: string): string | undefined {
-  const regex = new RegExp(VERSION_REGEX_PATTERN, 'ig')
-  const matches: string[] = []
-  let match: RegExpExecArray | null
-
-  while ((match = regex.exec(url)) !== null) {
-    matches.push(match[0])
-  }
-
-  if (matches.length > 0) {
-    const lastMatch = last(matches)
-    // Remove leading slash
-    return lastMatch?.replace(/^\//, '')
-  } else {
-    return undefined
-  }
-}
-
-/**
  * Extracts the trailing API version segment from a URL path.
  *
  * This function extracts API version patterns (e.g., `v1`, `v2beta`) from the end of a URL.
@@ -271,9 +243,7 @@ export function getLastApiVersion(url: string): string | undefined {
  * getTrailingApiVersion('https://api.example.com') // undefined
  */
 export function getTrailingApiVersion(url: string): string | undefined {
-  // Match API version at the end of the URL (with optional trailing slash)
-  const trailingVersionRegex = /\/v\d+(?:alpha|beta)?\/?$/i
-  const match = url.match(trailingVersionRegex)
+  const match = url.match(TRAILING_VERSION_REGEX)
 
   if (match) {
     // Extract version without leading slash and trailing slash
@@ -299,7 +269,5 @@ export function getTrailingApiVersion(url: string): string | undefined {
  * withoutTrailingApiVersion('https://api.example.com') // 'https://api.example.com'
  */
 export function withoutTrailingApiVersion(url: string): string {
-  // Match API version at the end of the URL (with optional trailing slash)
-  const trailingVersionRegex = /\/v\d+(?:alpha|beta)?\/?$/i
-  return url.replace(trailingVersionRegex, '')
+  return url.replace(TRAILING_VERSION_REGEX, '')
 }
