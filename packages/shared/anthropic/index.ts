@@ -9,7 +9,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import type { TextBlockParam } from '@anthropic-ai/sdk/resources'
+import type { MessageCreateParams, TextBlockParam, Tool as AnthropicTool } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import type { Provider } from '@types'
 import type { ModelMessage } from 'ai'
@@ -192,4 +192,32 @@ export function buildClaudeCodeSystemModelMessage(system?: string | Array<TextBl
     role: 'system',
     content: block.text
   }))
+}
+
+/**
+ * Sanitize tool definitions for Anthropic API.
+ *
+ * Removes non-standard fields like `input_examples` from tool definitions
+ * that Anthropic's API doesn't support. This prevents validation errors when
+ * tools with extended fields are passed to the Anthropic SDK.
+ *
+ * @param tools - Array of tool definitions from MessageCreateParams
+ * @returns Sanitized tools array with non-standard fields removed
+ *
+ * @example
+ * ```typescript
+ * const sanitizedTools = sanitizeToolsForAnthropic(request.tools)
+ * ```
+ */
+export function sanitizeToolsForAnthropic(tools?: MessageCreateParams['tools']): MessageCreateParams['tools'] {
+  if (!tools || tools.length === 0) return tools
+
+  return tools.map((tool) => {
+    if ('type' in tool && tool.type !== 'custom') return tool
+
+    // oxlint-disable-next-line no-unused-vars
+    const { input_examples, ...sanitizedTool } = tool as AnthropicTool & { input_examples?: unknown }
+
+    return sanitizedTool as typeof tool
+  })
 }

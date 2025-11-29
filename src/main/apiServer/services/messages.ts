@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import anthropicService from '@main/services/AnthropicService'
-import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
+import { buildClaudeCodeSystemMessage, getSdkClient, sanitizeToolsForAnthropic } from '@shared/anthropic'
 import type { Provider } from '@types'
 import { APICallError, RetryError } from 'ai'
 import { net } from 'electron'
@@ -148,7 +148,8 @@ export class MessagesService {
   createAnthropicRequest(request: MessageCreateParams, provider: Provider, modelId?: string): MessageCreateParams {
     const anthropicRequest: MessageCreateParams = {
       ...request,
-      stream: !!request.stream
+      stream: !!request.stream,
+      tools: sanitizeToolsForAnthropic(request.tools)
     }
 
     // Override model if provided
