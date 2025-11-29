@@ -36,7 +36,6 @@ import type {
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
 import { loggerService } from '@logger'
-import { reasoningCache } from '@main/apiServer/services/cache'
 import type { JSONValue } from 'ai'
 import { type FinishReason, type LanguageModelUsage, type TextStreamPart, type ToolSet } from 'ai'
 
@@ -77,6 +76,7 @@ export type SSEEventCallback = (event: RawMessageStreamEvent) => void
  */
 export interface ReasoningCacheInterface {
   set(signature: string, details: JSONValue): void
+  destroy?(): void
 }
 
 export interface AiSdkToAnthropicSSEOptions {
@@ -555,7 +555,7 @@ export class AiSdkToAnthropicSSE {
     }
 
     this.onEvent(messageStopEvent)
-    reasoningCache.destroy()
+    this.reasoningCache?.destroy?.()
   }
 
   /**
