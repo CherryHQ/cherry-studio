@@ -2509,7 +2509,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copiar como imagen"
+      "image": "Copiar como imagen",
+      "src": "Copia la fuente de la imagen"
     },
     "dialog": "Abrir la ventana de vista previa",
     "label": "Vista previa",

@@ -2509,7 +2509,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copy as image"
+      "image": "Copy as image",
+      "src": "Copy Image Source"
     },
     "dialog": "Open Dialog",
     "label": "Preview",
