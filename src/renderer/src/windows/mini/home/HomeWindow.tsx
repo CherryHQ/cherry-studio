@@ -351,6 +351,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                     )
                   }
                   thinkingStartTime = null
+                  thinkingBlockId = null
                 }
                 break
               case ChunkType.TEXT_START:
@@ -423,6 +424,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                   throw new Error(chunk.error.message)
                 }
                 thinkingStartTime = null
+                thinkingBlockId = null
               }
               //fall through
               case ChunkType.BLOCK_COMPLETE:
