@@ -8,6 +8,7 @@ import {
   formatAzureOpenAIApiHost,
   formatVertexApiHost,
   getLastApiVersion,
+  getTrailingApiVersion,
   hasAPIVersion,
   maskApiKey,
   routeToEndpoint,
@@ -322,7 +323,9 @@ describe('api', () => {
   describe('getLastApiVersion', () => {
     it('returns the last API version when multiple versions exist in URL', () => {
       // Note: Current implementation finds all matches and returns the last one
-      const result = getLastApiVersion('https://gateway.ai.cloudflare.com/v1/xxxxxx/google-ai-studio/google-ai-studio/v1beta')
+      const result = getLastApiVersion(
+        'https://gateway.ai.cloudflare.com/v1/xxxxxx/google-ai-studio/google-ai-studio/v1beta'
+      )
       expect(result).toBe('v1beta')
     })
 
@@ -361,6 +364,49 @@ describe('api', () => {
     it('does not match version-like strings without leading slash', () => {
       expect(getLastApiVersion('https://api.example.com/version1')).toBeUndefined()
       expect(getLastApiVersion('https://api.example.com/apiv1')).toBeUndefined()
+    })
+  })
+
+  describe('getTrailingApiVersion', () => {
+    it('extracts trailing API version from URL', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1')).toBe('v1')
+      expect(getTrailingApiVersion('https://api.example.com/v2')).toBe('v2')
+    })
+
+    it('extracts trailing API version with alpha/beta suffix', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v2alpha')).toBe('v2alpha')
+      expect(getTrailingApiVersion('https://api.example.com/v3beta')).toBe('v3beta')
+    })
+
+    it('extracts trailing API version with trailing slash', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1/')).toBe('v1')
+      expect(getTrailingApiVersion('https://api.example.com/v2beta/')).toBe('v2beta')
+    })
+
+    it('returns undefined when API version is in the middle of path', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1/chat')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/v1/completions')).toBeUndefined()
+    })
+
+    it('returns undefined when no trailing version exists', () => {
+      expect(getTrailingApiVersion('https://api.example.com')).toBeUndefined()
+      expect(getTrailingApiVersion('https://api.example.com/api')).toBeUndefined()
+    })
+
+    it('extracts trailing version from complex URLs', () => {
+      expect(getTrailingApiVersion('https://api.example.com/service/v1')).toBe('v1')
+      expect(getTrailingApiVersion('https://gateway.ai.cloudflare.com/v1/xxx/google-ai-studio/v1beta')).toBe('v1beta')
+    })
+
+    it('only extracts the trailing version when multiple versions exist', () => {
+      expect(getTrailingApiVersion('https://api.example.com/v1/service/v2')).toBe('v2')
+      expect(
+        getTrailingApiVersion('https://gateway.ai.cloudflare.com/v1/xxxxxx/google-ai-studio/google-ai-studio/v1beta')
+      ).toBe('v1beta')
+    })
+
+    it('returns undefined for empty string', () => {
+      expect(getTrailingApiVersion('')).toBeUndefined()
     })
   })
 

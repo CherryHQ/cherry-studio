@@ -254,6 +254,36 @@ export function getLastApiVersion(url: string): string | undefined {
 }
 
 /**
+ * Extracts the trailing API version segment from a URL path.
+ *
+ * This function extracts API version patterns (e.g., `v1`, `v2beta`) from the end of a URL.
+ * Only versions at the end of the path are extracted, not versions in the middle.
+ * The returned version string does not include leading or trailing slashes.
+ *
+ * @param {string} url - The URL string to parse.
+ * @returns {string | undefined} The trailing API version found (e.g., 'v1', 'v2beta'), or undefined if none found.
+ *
+ * @example
+ * getTrailingApiVersion('https://api.example.com/v1') // 'v1'
+ * getTrailingApiVersion('https://api.example.com/v2beta/') // 'v2beta'
+ * getTrailingApiVersion('https://api.example.com/v1/chat') // undefined (version not at end)
+ * getTrailingApiVersion('https://gateway.ai.cloudflare.com/v1/xxx/v1beta') // 'v1beta'
+ * getTrailingApiVersion('https://api.example.com') // undefined
+ */
+export function getTrailingApiVersion(url: string): string | undefined {
+  // Match API version at the end of the URL (with optional trailing slash)
+  const trailingVersionRegex = /\/v\d+(?:alpha|beta)?\/?$/i
+  const match = url.match(trailingVersionRegex)
+
+  if (match) {
+    // Extract version without leading slash and trailing slash
+    return match[0].replace(/^\//, '').replace(/\/$/, '')
+  }
+
+  return undefined
+}
+
+/**
  * Removes the trailing API version segment from a URL path.
  *
  * This function removes API version patterns (e.g., `/v1`, `/v2beta`) from the end of a URL.
