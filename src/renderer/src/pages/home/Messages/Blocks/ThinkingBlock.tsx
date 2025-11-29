@@ -102,10 +102,12 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   )
 }
 
+const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-    const [displayTime, setDisplayTime] = useState(blockThinkingTime)
+    const [displayTime, setDisplayTime] = useState(normalizeThinkingTime(blockThinkingTime))
 
     const timer = useRef<NodeJS.Timeout | null>(null)
 
@@ -121,7 +123,7 @@ const ThinkingTimeSeconds = memo(
           clearInterval(timer.current)
           timer.current = null
         }
-        setDisplayTime(blockThinkingTime)
+        setDisplayTime(normalizeThinkingTime(blockThinkingTime))
       }
 
       return () => {
@@ -132,10 +134,10 @@ const ThinkingTimeSeconds = memo(
       }
     }, [isThinking, blockThinkingTime])
 
-    const thinkingTimeSeconds = useMemo(
-      () => ((displayTime < 1000 ? 100 : displayTime) / 1000).toFixed(1),
-      [displayTime]
-    )
+    const thinkingTimeSeconds = useMemo(() => {
+      const safeTime = normalizeThinkingTime(displayTime)
+      return ((safeTime < 1000 ? 100 : safeTime) / 1000).toFixed(1)
+    }, [displayTime])
 
     return isThinking
       ? t('chat.thinking', {

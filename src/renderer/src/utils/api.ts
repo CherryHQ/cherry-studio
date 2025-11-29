@@ -3,11 +3,13 @@ export {
   formatAzureOpenAIApiHost,
   formatVertexApiHost,
   getAiSdkBaseUrl,
+  getTrailingApiVersion,
   hasAPIVersion,
   routeToEndpoint,
   SUPPORTED_ENDPOINT_LIST,
   SUPPORTED_IMAGE_ENDPOINT_LIST,
   validateApiHost,
+  withoutTrailingApiVersion,
   withoutTrailingSlash
 } from '@shared/api'
 
