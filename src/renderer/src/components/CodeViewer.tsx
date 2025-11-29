@@ -93,7 +93,6 @@ const CodeViewer = ({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
-  const isRestoringSelectionRef = useRef(false)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -242,8 +241,6 @@ const CodeViewer = ({
 
   // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
   const handleScroll = useCallback(() => {
-    if (isRestoringSelectionRef.current) return
-
     // 只保存选择状态用于复制，不在滚动时恢复选择
     const saved = saveSelection()
     if (saved) {
@@ -324,7 +321,11 @@ const CodeViewer = ({
             lastLine: selectedLines[selectedLines.length - 1]?.slice(0, 30)
           })
 
-          event.clipboardData?.setData('text/plain', fullText)
+          if (!event.clipboardData) {
+            logger.warn('clipboardData unavailable, using browser default copy')
+            return
+          }
+          event.clipboardData.setData('text/plain', fullText)
           event.preventDefault()
         } catch (error) {
           logger.error('Custom copy failed', { error })
