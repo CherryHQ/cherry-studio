@@ -12,7 +12,8 @@ import {
   maskApiKey,
   routeToEndpoint,
   splitApiKeyString,
-  validateApiHost
+  validateApiHost,
+  withoutTrailingApiVersion
 } from '../api'
 
 vi.mock('@renderer/store', () => {
@@ -360,6 +361,49 @@ describe('api', () => {
     it('does not match version-like strings without leading slash', () => {
       expect(getLastApiVersion('https://api.example.com/version1')).toBeUndefined()
       expect(getLastApiVersion('https://api.example.com/apiv1')).toBeUndefined()
+    })
+  })
+
+  describe('withoutTrailingApiVersion', () => {
+    it('removes trailing API version from URL', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com/v1')).toBe('https://api.example.com')
+      expect(withoutTrailingApiVersion('https://api.example.com/v2')).toBe('https://api.example.com')
+    })
+
+    it('removes trailing API version with alpha/beta suffix', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com/v2alpha')).toBe('https://api.example.com')
+      expect(withoutTrailingApiVersion('https://api.example.com/v3beta')).toBe('https://api.example.com')
+    })
+
+    it('removes trailing API version with trailing slash', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com/v1/')).toBe('https://api.example.com')
+      expect(withoutTrailingApiVersion('https://api.example.com/v2beta/')).toBe('https://api.example.com')
+    })
+
+    it('does not remove API version in the middle of path', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com/v1/chat')).toBe('https://api.example.com/v1/chat')
+      expect(withoutTrailingApiVersion('https://api.example.com/v1/completions')).toBe(
+        'https://api.example.com/v1/completions'
+      )
+    })
+
+    it('returns URL unchanged when no trailing version exists', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com')).toBe('https://api.example.com')
+      expect(withoutTrailingApiVersion('https://api.example.com/api')).toBe('https://api.example.com/api')
+    })
+
+    it('handles complex URLs with version at the end', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com/service/v1')).toBe('https://api.example.com/service')
+    })
+
+    it('handles URLs with multiple versions but only removes the trailing one', () => {
+      expect(withoutTrailingApiVersion('https://api.example.com/v1/service/v2')).toBe(
+        'https://api.example.com/v1/service'
+      )
+    })
+
+    it('returns empty string unchanged', () => {
+      expect(withoutTrailingApiVersion('')).toBe('')
     })
   })
 })

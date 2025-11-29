@@ -252,3 +252,24 @@ export function getLastApiVersion(url: string): string | undefined {
     return undefined
   }
 }
+
+/**
+ * Removes the trailing API version segment from a URL path.
+ *
+ * This function removes API version patterns (e.g., `/v1`, `/v2beta`) from the end of a URL.
+ * Only versions at the end of the path are removed, not versions in the middle.
+ *
+ * @param {string} url - The URL string to process.
+ * @returns {string} The URL with the trailing API version removed, or the original URL if no trailing version found.
+ *
+ * @example
+ * withoutTrailingApiVersion('https://api.example.com/v1') // 'https://api.example.com'
+ * withoutTrailingApiVersion('https://api.example.com/v2beta/') // 'https://api.example.com'
+ * withoutTrailingApiVersion('https://api.example.com/v1/chat') // 'https://api.example.com/v1/chat' (no change)
+ * withoutTrailingApiVersion('https://api.example.com') // 'https://api.example.com'
+ */
+export function withoutTrailingApiVersion(url: string): string {
+  // Match API version at the end of the URL (with optional trailing slash)
+  const trailingVersionRegex = /\/v\d+(?:alpha|beta)?\/?$/i
+  return url.replace(trailingVersionRegex, '')
+}
