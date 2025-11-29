@@ -17,7 +17,7 @@ export function formatApiKeys(value: string): string {
  * continues with `alpha` or `beta`. The segment may be followed by `/` or the end
  * of the string (useful for cases like `/v3alpha/resources`).
  */
-const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?=\/|$)/i
+const VERSION_REGEX_PATTERN = '\\/v\\d+(?:alpha|beta)?(?=\\/|$)'
 
 /**
  * 判断 host 的 path 中是否包含形如版本的字符串（例如 /v1、/v2beta 等），
@@ -28,12 +28,14 @@ const VERSION_REGEX = /\/v\d+(?:alpha|beta)?(?=\/|$)/i
 export function hasAPIVersion(host?: string): boolean {
   if (!host) return false
 
+  const regex = new RegExp(VERSION_REGEX_PATTERN, 'i')
+
   try {
     const url = new URL(host)
-    return VERSION_REGEX.test(url.pathname)
+    return regex.test(url.pathname)
   } catch {
     // 若无法作为完整 URL 解析，则当作路径直接检测
-    return VERSION_REGEX.test(host)
+    return regex.test(host)
   }
 }
 
