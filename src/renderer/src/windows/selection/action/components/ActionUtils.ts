@@ -41,7 +41,18 @@ export const processMessages = async (
 
     let textBlockId: string | null = null
     let thinkingBlockId: string | null = null
+    let thinkingStartTime: number | null = null
     let textBlockContent: string = ''
+
+    const resolveThinkingDuration = (duration?: number) => {
+      if (typeof duration === 'number' && Number.isFinite(duration)) {
+        return duration
+      }
+      if (thinkingStartTime !== null) {
+        return Math.max(0, performance.now() - thinkingStartTime)
+      }
+      return 0
+    }
 
     const assistantMessage = getAssistantMessage({
       assistant,
@@ -79,6 +90,7 @@ export const processMessages = async (
         switch (chunk.type) {
           case ChunkType.THINKING_START:
             {
+              thinkingStartTime = performance.now()
               if (thinkingBlockId) {
                 store.dispatch(
                   updateOneBlock({ id: thinkingBlockId, changes: { status: MessageBlockStatus.STREAMING } })
@@ -102,9 +114,13 @@ export const processMessages = async (
           case ChunkType.THINKING_DELTA:
             {
               if (thinkingBlockId) {
+                if (thinkingStartTime === null) {
+                  thinkingStartTime = performance.now()
+                }
+                const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                 throttledBlockUpdate(thinkingBlockId, {
                   content: chunk.text,
-                  thinking_millsec: chunk.thinking_millsec
+                  thinking_millsec: thinkingDuration
                 })
               }
               onStream()
@@ -113,6 +129,7 @@ export const processMessages = async (
           case ChunkType.THINKING_COMPLETE:
             {
               if (thinkingBlockId) {
+                const thinkingDuration = resolveThinkingDuration(chunk.thinking_millsec)
                 cancelThrottledBlockUpdate(thinkingBlockId)
                 store.dispatch(
                   updateOneBlock({
@@ -120,12 +137,13 @@ export const processMessages = async (
                     changes: {
                       content: chunk.text,
                       status: MessageBlockStatus.SUCCESS,
-                      thinking_millsec: chunk.thinking_millsec
+                      thinking_millsec: thinkingDuration
                     }
                   })
                 )
                 thinkingBlockId = null
               }
+              thinkingStartTime = null
             }
             break
           case ChunkType.TEXT_START:
@@ -190,6 +208,7 @@ export const processMessages = async (
           case ChunkType.ERROR:
             {
               const blockId = textBlockId || thinkingBlockId
+              thinkingStartTime = null
               if (blockId) {
                 store.dispatch(
                   updateOneBlock({
