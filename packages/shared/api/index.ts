@@ -27,18 +27,35 @@ export function withoutTrailingSlash<T extends string>(url: T): T {
 }
 
 /**
- * Checks if the host path contains a version string (e.g., /v1, /v2beta).
+ * Matches a version segment in a path that starts with `/v<number>` and optionally
+ * continues with `alpha` or `beta`. The segment may be followed by `/` or the end
+ * of the string (useful for cases like `/v3alpha/resources`).
+ */
+const VERSION_REGEX_PATTERN = '\\/v\\d+(?:alpha|beta)?(?=\\/|$)'
+
+/**
+ * Matches an API version at the end of a URL (with optional trailing slash).
+ * Used to detect and extract versions only from the trailing position.
+ */
+const TRAILING_VERSION_REGEX = /\/v\d+(?:alpha|beta)?\/?$/i
+
+/**
+ * 判断 host 的 path 中是否包含形如版本的字符串（例如 /v1、/v2beta 等），
+ *
+ * @param host - 要检查的 host 或 path 字符串
+ * @returns 如果 path 中包含版本字符串则返回 true，否则 false
  */
 export function hasAPIVersion(host?: string): boolean {
   if (!host) return false
 
-  const versionRegex = /\/v\d+(?:alpha|beta)?(?=\/|$)/i
+  const regex = new RegExp(VERSION_REGEX_PATTERN, 'i')
 
   try {
     const url = new URL(host)
-    return versionRegex.test(url.pathname)
+    return regex.test(url.pathname)
   } catch {
-    return versionRegex.test(host)
+    // 若无法作为完整 URL 解析，则当作路径直接检测
+    return regex.test(host)
   }
 }
 
@@ -71,22 +88,26 @@ export function formatVertexApiHost(
 /**
  * Formats an API host URL by normalizing it and optionally appending an API version.
  *
- * @param host - The API host URL to format
- * @param isSupportedAPIVersion - Whether the API version is supported. Defaults to `true`.
+ * @param host - The API host URL to format. Leading/trailing whitespace will be trimmed and trailing slashes removed.
+ * @param supportApiVersion - Whether the API version is supported. Defaults to `true`.
  * @param apiVersion - The API version to append if needed. Defaults to `'v1'`.
+ *
+ * @returns The formatted API host URL. If the host is empty after normalization, returns an empty string.
+ *          If the host ends with '#', API version is not supported, or the host already contains a version, returns the normalized host as-is.
+ *          Otherwise, returns the host with the API version appended.
  *
  * @example
  * formatApiHost('https://api.example.com/') // Returns 'https://api.example.com/v1'
  * formatApiHost('https://api.example.com#') // Returns 'https://api.example.com#'
  * formatApiHost('https://api.example.com/v2', true, 'v1') // Returns 'https://api.example.com/v2'
  */
-export function formatApiHost(host?: string, isSupportedAPIVersion: boolean = true, apiVersion: string = 'v1'): string {
-  const normalizedHost = withoutTrailingSlash((host || '').trim())
+export function formatApiHost(host?: string, supportApiVersion: boolean = true, apiVersion: string = 'v1'): string {
+  const normalizedHost = withoutTrailingSlash(trim(host))
   if (!normalizedHost) {
     return ''
   }
 
-  if (normalizedHost.endsWith('#') || !isSupportedAPIVersion || hasAPIVersion(normalizedHost)) {
+  if (normalizedHost.endsWith('#') || !supportApiVersion || hasAPIVersion(normalizedHost)) {
     return normalizedHost
   }
   return `${normalizedHost}/${apiVersion}`
@@ -174,4 +195,51 @@ export function validateApiHost(apiHost: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Extracts the trailing API version segment from a URL path.
+ *
+ * This function extracts API version patterns (e.g., `v1`, `v2beta`) from the end of a URL.
+ * Only versions at the end of the path are extracted, not versions in the middle.
+ * The returned version string does not include leading or trailing slashes.
+ *
+ * @param {string} url - The URL string to parse.
+ * @returns {string | undefined} The trailing API version found (e.g., 'v1', 'v2beta'), or undefined if none found.
+ *
+ * @example
+ * getTrailingApiVersion('https://api.example.com/v1') // 'v1'
+ * getTrailingApiVersion('https://api.example.com/v2beta/') // 'v2beta'
+ * getTrailingApiVersion('https://api.example.com/v1/chat') // undefined (version not at end)
+ * getTrailingApiVersion('https://gateway.ai.cloudflare.com/v1/xxx/v1beta') // 'v1beta'
+ * getTrailingApiVersion('https://api.example.com') // undefined
+ */
+export function getTrailingApiVersion(url: string): string | undefined {
+  const match = url.match(TRAILING_VERSION_REGEX)
+
+  if (match) {
+    // Extract version without leading slash and trailing slash
+    return match[0].replace(/^\//, '').replace(/\/$/, '')
+  }
+
+  return undefined
+}
+
+/**
+ * Removes the trailing API version segment from a URL path.
+ *
+ * This function removes API version patterns (e.g., `/v1`, `/v2beta`) from the end of a URL.
+ * Only versions at the end of the path are removed, not versions in the middle.
+ *
+ * @param {string} url - The URL string to process.
+ * @returns {string} The URL with the trailing API version removed, or the original URL if no trailing version found.
+ *
+ * @example
+ * withoutTrailingApiVersion('https://api.example.com/v1') // 'https://api.example.com'
+ * withoutTrailingApiVersion('https://api.example.com/v2beta/') // 'https://api.example.com'
+ * withoutTrailingApiVersion('https://api.example.com/v1/chat') // 'https://api.example.com/v1/chat' (no change)
+ * withoutTrailingApiVersion('https://api.example.com') // 'https://api.example.com'
+ */
+export function withoutTrailingApiVersion(url: string): string {
+  return url.replace(TRAILING_VERSION_REGEX, '')
 }

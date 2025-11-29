@@ -186,7 +186,7 @@ export class AiSdkToAnthropicSSE {
       // === Tool Events ===
       case 'tool-call':
         if (this.reasoningCache && chunk.providerMetadata?.google?.thoughtSignature) {
-          this.reasoningCache.set('google', chunk.providerMetadata?.google?.thoughtSignature)
+          this.reasoningCache.set(`google-${chunk.toolName}`, chunk.providerMetadata?.google?.thoughtSignature)
         }
         // FIXME: 按toolcall id绑定
         if (
@@ -555,7 +555,6 @@ export class AiSdkToAnthropicSSE {
     }
 
     this.onEvent(messageStopEvent)
-    this.reasoningCache?.destroy?.()
   }
 
   /**

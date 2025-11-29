@@ -54,6 +54,18 @@ export class ReasoningCache<T> {
     return entry.details
   }
 
+  listKeys(): string[] {
+    return Array.from(this.cache.keys())
+  }
+
+  listEntries(): Array<{ key: string; entry: CacheEntry<T> }> {
+    const entries: Array<{ key: string; entry: CacheEntry<T> }> = []
+    for (const [key, entry] of this.cache.entries()) {
+      entries.push({ key, entry })
+    }
+    return entries
+  }
+
   /**
    * Clear expired entries
    */

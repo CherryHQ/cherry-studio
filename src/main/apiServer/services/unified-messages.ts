@@ -237,7 +237,6 @@ function convertAnthropicToolsToAiSdk(tools: MessageCreateParams['tools']): Reco
       inputSchema: zodSchema(schema)
     })
 
-    logger.debug('Converted Anthropic tool to AI SDK tool', aiTool)
     aiSdkTools[toolDef.name] = aiTool
   }
   return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
@@ -302,8 +301,9 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
           }
         } else if (block.type === 'tool_use') {
           const options: ProviderOptions = {}
+
           if (isGemini3ModelId(params.model)) {
-            if (reasoningCache.get('google')) {
+            if (reasoningCache.get(`google-${block.name}`)) {
               options.google = {
                 thoughtSignature: MAGIC_STRING
               }
@@ -394,11 +394,6 @@ async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider> 
 
   const provider = await createProviderCore(providerId, config.options)
 
-  logger.debug('AI SDK provider created', {
-    providerId,
-    hasOptions: !!config.options
-  })
-
   return provider
 }
 
@@ -424,7 +419,6 @@ async function prepareSpecialProviderConfig(provider: Provider, config: AiSdkCon
           ...headers,
           ...existingHeaders
         }
-        logger.debug('Copilot token retrieved successfully')
       } catch (error) {
         logger.error('Failed to get Copilot token', error as Error)
         throw new Error('Failed to get Copilot token. Please re-authorize Copilot.')
@@ -450,7 +444,6 @@ async function prepareSpecialProviderConfig(provider: Provider, config: AiSdkCon
             baseURL: 'https://api.anthropic.com/v1',
             apiKey: ''
           }
-          logger.debug('Anthropic OAuth token retrieved successfully')
         } catch (error) {
           logger.error('Failed to get Anthropic OAuth token', error as Error)
           throw new Error('Failed to get Anthropic OAuth token. Please re-authorize.')
@@ -479,7 +472,6 @@ async function prepareSpecialProviderConfig(provider: Provider, config: AiSdkCon
           }
         })
       }
-      logger.debug('CherryAI signed fetch configured')
       break
     }
   }
@@ -497,12 +489,6 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
 
   // Prepare special provider config (Copilot, Anthropic OAuth, etc.)
   sdkConfig = await prepareSpecialProviderConfig(provider, sdkConfig)
-
-  logger.debug('Created AI SDK config', {
-    providerId: sdkConfig.providerId,
-    hasOptions: !!sdkConfig.options,
-    message: params.messages
-  })
 
   // Create provider instance and get language model
   const aiSdkProvider = await createAiSdkProvider(sdkConfig)
