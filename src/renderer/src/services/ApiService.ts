@@ -8,8 +8,8 @@ import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingMod
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import type { FetchChatCompletionParams } from '@renderer/types'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import { type FetchChatCompletionParams, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
@@ -22,7 +22,8 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { isEmpty, takeRight } from 'lodash'
+import { NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import { cloneDeep, isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
 import AiProviderNew from '../aiCore/index_new'
@@ -42,6 +43,8 @@ import {
 //   filterUserRoleStartMessages
 // } from './MessagesService'
 // import WebSearchService from './WebSearchService'
+
+// FIXME: 这里太多重复逻辑，需要重构
 
 const logger = loggerService.withContext('ApiService')
 
@@ -95,7 +98,15 @@ export async function fetchChatCompletion({
     modelId: assistant.model?.id,
     modelName: assistant.model?.name
   })
-  const AI = new AiProviderNew(assistant.model || getDefaultModel())
+
+  // Get base provider and apply API key rotation
+  const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
+  const providerWithRotatedKey = {
+    ...cloneDeep(baseProvider),
+    apiKey: getRotatedApiKey(baseProvider)
+  }
+
+  const AI = new AiProviderNew(assistant.model || getDefaultModel(), providerWithRotatedKey)
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
@@ -172,7 +183,13 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     return null
   }
 
-  const AI = new AiProviderNew(model)
+  // Apply API key rotation
+  const providerWithRotatedKey = {
+    ...cloneDeep(provider),
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
 
   const topicId = messages?.find((message) => message.topicId)?.topicId || ''
 
@@ -271,7 +288,13 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
     return null
   }
 
-  const AI = new AiProviderNew(model)
+  // Apply API key rotation
+  const providerWithRotatedKey = {
+    ...cloneDeep(provider),
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
 
   // only 2000 char and no images
   const truncatedContent = content.substring(0, 2000)
@@ -359,7 +382,13 @@ export async function fetchGenerate({
     return ''
   }
 
-  const AI = new AiProviderNew(model)
+  // Apply API key rotation
+  const providerWithRotatedKey = {
+    ...cloneDeep(provider),
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(model, providerWithRotatedKey)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
@@ -404,28 +433,44 @@ export async function fetchGenerate({
 
 export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (['ollama', 'lmstudio', 'vertexai', 'cherryai'].includes(provider.id)) return true
+  if (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 
 /**
- * Get the first available embedding model from enabled providers
+ * 获取轮询的API key
+ * 复用legacy架构的多key轮询逻辑
  */
-// function getFirstEmbeddingModel() {
-//   const providers = store.getState().llm.providers.filter((p) => p.enabled)
+function getRotatedApiKey(provider: Provider): string {
+  const keys = provider.apiKey.split(',').map((key) => key.trim())
+  const keyName = `provider:${provider.id}:last_used_key`
 
-//   for (const provider of providers) {
-//     const embeddingModel = provider.models.find((model) => isEmbeddingModel(model))
-//     if (embeddingModel) {
-//       return embeddingModel
-//     }
-//   }
+  if (keys.length === 1) {
+    return keys[0]
+  }
 
-//   return undefined
-// }
+  const lastUsedKey = window.keyv.get(keyName)
+  if (!lastUsedKey) {
+    window.keyv.set(keyName, keys[0])
+    return keys[0]
+  }
+
+  const currentIndex = keys.indexOf(lastUsedKey)
+  const nextIndex = (currentIndex + 1) % keys.length
+  const nextKey = keys[nextIndex]
+  window.keyv.set(keyName, nextKey)
+
+  return nextKey
+}
 
 export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
-  const AI = new AiProviderNew(provider)
+  // Apply API key rotation
+  const providerWithRotatedKey = {
+    ...cloneDeep(provider),
+    apiKey: getRotatedApiKey(provider)
+  }
+
+  const AI = new AiProviderNew(providerWithRotatedKey)
 
   try {
     return await AI.models()
@@ -435,12 +480,7 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export function checkApiProvider(provider: Provider): void {
-  if (
-    provider.id !== 'ollama' &&
-    provider.id !== 'lmstudio' &&
-    provider.type !== 'vertexai' &&
-    provider.id !== 'copilot'
-  ) {
+  if (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) {
     if (!provider.apiKey) {
       window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
@@ -461,8 +501,7 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  // Don't pass in provider parameter. We need auto-format URL
-  const ai = new AiProviderNew(model)
+  const ai = new AiProviderNew(model, provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model

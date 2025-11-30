@@ -91,8 +91,13 @@ export default class ModernAiProvider {
     if (this.isModel(modelOrProvider)) {
       // 传入的是 Model
       this.model = modelOrProvider
-      this.actualProvider = provider || getActualProvider(modelOrProvider)
-      // 只保存配置，不预先创建executor
+      if (provider) {
+        // 使用传入的 provider（可能包含轮换后的 key）
+        this.actualProvider = provider
+      } else {
+        // 获取默认 provider 并生成配置
+        this.actualProvider = getActualProvider(modelOrProvider)
+      }
       this.config = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {
       // 传入的是 Provider
@@ -120,9 +125,12 @@ export default class ModernAiProvider {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
     }
 
-    // 每次请求时重新生成配置以确保API key轮换生效
-    this.config = providerToAiSdkConfig(this.actualProvider, this.model)
-    logger.debug('Generated provider config for completions', this.config)
+    // Config is now set in constructor, ApiService handles key rotation before passing provider
+    if (!this.config) {
+      // If config wasn't set in constructor (when provider only), generate it now
+      this.config = providerToAiSdkConfig(this.actualProvider, this.model!)
+    }
+    logger.debug('Using provider config for completions', this.config)
 
     // 检查 config 是否存在
     if (!this.config) {

@@ -30,32 +30,6 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
 /**
- * 获取轮询的API key
- * 复用legacy架构的多key轮询逻辑
- */
-function getRotatedApiKey(provider: Provider): string {
-  const keys = provider.apiKey.split(',').map((key) => key.trim())
-  const keyName = `provider:${provider.id}:last_used_key`
-
-  if (keys.length === 1) {
-    return keys[0]
-  }
-
-  const lastUsedKey = window.keyv.get(keyName)
-  if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
-    return keys[0]
-  }
-
-  const currentIndex = keys.indexOf(lastUsedKey)
-  const nextIndex = (currentIndex + 1) % keys.length
-  const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
-
-  return nextKey
-}
-
-/**
  * 处理特殊provider的转换逻辑
  */
 function handleSpecialProviders(model: Model, provider: Provider): Provider {
@@ -139,7 +113,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   const { baseURL, endpoint } = routeToEndpoint(actualProvider.apiHost)
   const baseConfig = {
     baseURL: baseURL,
-    apiKey: getRotatedApiKey(actualProvider)
+    apiKey: actualProvider.apiKey
   }
 
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot

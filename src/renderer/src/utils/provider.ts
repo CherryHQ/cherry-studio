@@ -183,3 +183,11 @@ export const isSupportAPIVersionProvider = (provider: Provider) => {
   }
   return provider.apiOptions?.isNotSupportAPIVersion !== false
 }
+
+export const NOT_SUPPORT_API_KEY_PROVIDERS: readonly SystemProviderId[] = [
+  'ollama',
+  'lmstudio',
+  'vertexai',
+  'aws-bedrock',
+  'copilot'
+]
