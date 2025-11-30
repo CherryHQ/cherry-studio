@@ -3,6 +3,7 @@ import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Message } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
+import { scrollIntoView } from '@renderer/utils/dom'
 import type { FC } from 'react'
 import React, { useMemo, useRef } from 'react'
 import { useSelector } from 'react-redux'
@@ -72,10 +73,10 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
     const parent = messageOutlineContainerRef.current?.parentElement
     const messageContentContainer = parent?.querySelector('.message-content-container')
     if (messageContentContainer) {
-      const headingElement = messageContentContainer.querySelector(`#${id}`)
+      const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
         const scrollBlock = ['horizontal', 'grid'].includes(message.multiModelMessageStyle ?? '') ? 'nearest' : 'start'
-        headingElement.scrollIntoView({ behavior: 'smooth', block: scrollBlock })
+        scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
       }
     }
   }
