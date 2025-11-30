@@ -36,8 +36,9 @@ import type {
   Usage
 } from '@anthropic-ai/sdk/resources/messages'
 import { loggerService } from '@logger'
-import type { JSONValue } from 'ai'
 import { type FinishReason, type LanguageModelUsage, type TextStreamPart, type ToolSet } from 'ai'
+
+import { googleReasoningCache, openRouterReasoningCache } from '../../services/CacheService'
 
 const logger = loggerService.withContext('AiSdkToAnthropicSSE')
 
@@ -71,20 +72,11 @@ interface AdapterState {
 
 export type SSEEventCallback = (event: RawMessageStreamEvent) => void
 
-/**
- * Interface for a simple cache that stores reasoning details
- */
-export interface ReasoningCacheInterface {
-  set(signature: string, details: JSONValue): void
-  destroy?(): void
-}
-
 export interface AiSdkToAnthropicSSEOptions {
   model: string
   messageId?: string
   inputTokens?: number
   onEvent: SSEEventCallback
-  reasoningCache?: ReasoningCacheInterface
 }
 
 /**
@@ -93,11 +85,9 @@ export interface AiSdkToAnthropicSSEOptions {
 export class AiSdkToAnthropicSSE {
   private state: AdapterState
   private onEvent: SSEEventCallback
-  private reasoningCache?: ReasoningCacheInterface
 
   constructor(options: AiSdkToAnthropicSSEOptions) {
     this.onEvent = options.onEvent
-    this.reasoningCache = options.reasoningCache
     this.state = {
       messageId: options.messageId || `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       model: options.model,
@@ -185,16 +175,22 @@ export class AiSdkToAnthropicSSE {
 
       // === Tool Events ===
       case 'tool-call':
-        if (this.reasoningCache && chunk.providerMetadata?.google?.thoughtSignature) {
-          this.reasoningCache.set(`google-${chunk.toolName}`, chunk.providerMetadata?.google?.thoughtSignature)
+        if (googleReasoningCache && chunk.providerMetadata?.google?.thoughtSignature) {
+          googleReasoningCache.set(
+            `google-${chunk.toolName}`,
+            chunk.providerMetadata?.google?.thoughtSignature as string
+          )
         }
         // FIXME: 按toolcall id绑定
         if (
-          this.reasoningCache &&
+          openRouterReasoningCache &&
           chunk.providerMetadata?.openrouter?.reasoning_details &&
           Array.isArray(chunk.providerMetadata.openrouter.reasoning_details)
         ) {
-          this.reasoningCache.set('openrouter', chunk.providerMetadata.openrouter.reasoning_details)
+          openRouterReasoningCache.set(
+            'openrouter',
+            JSON.parse(JSON.stringify(chunk.providerMetadata.openrouter.reasoning_details))
+          )
         }
         this.handleToolCall({
           type: 'tool-call',

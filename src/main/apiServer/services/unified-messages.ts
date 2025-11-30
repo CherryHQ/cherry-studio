@@ -9,11 +9,11 @@ import type {
 import { type AiPlugin, createExecutor } from '@cherrystudio/ai-core'
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import { AiSdkToAnthropicSSE, formatSSEDone, formatSSEEvent } from '@main/apiServer/adapters'
 import { generateSignature as cherryaiGenerateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import copilotService from '@main/services/CopilotService'
 import { reduxService } from '@main/services/ReduxService'
-import { AiSdkToAnthropicSSE, formatSSEDone, formatSSEEvent } from '@shared/adapters'
 import { isGemini3ModelId } from '@shared/middleware'
 import {
   type AiSdkConfig,
@@ -33,11 +33,15 @@ import { net } from 'electron'
 import type { Response } from 'express'
 import * as z from 'zod'
 
-import { reasoningCache } from './cache'
+import { googleReasoningCache, openRouterReasoningCache } from '../../services/CacheService'
 
 const logger = loggerService.withContext('UnifiedMessagesService')
 
 const MAGIC_STRING = 'skip_thought_signature_validator'
+
+function sanitizeJson(value: unknown): JSONValue {
+  return JSON.parse(JSON.stringify(value))
+}
 
 initializeSharedProviders({
   warn: (message) => logger.warn(message),
@@ -303,13 +307,13 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
           const options: ProviderOptions = {}
 
           if (isGemini3ModelId(params.model)) {
-            if (reasoningCache.get(`google-${block.name}`)) {
+            if (googleReasoningCache.get(`google-${block.name}`)) {
               options.google = {
                 thoughtSignature: MAGIC_STRING
               }
-            } else if (reasoningCache.get('openrouter')) {
+            } else if (openRouterReasoningCache.get('openrouter')) {
               options.openrouter = {
-                reasoning_details: (reasoningCache.get('openrouter') as JSONValue[]) || []
+                reasoning_details: (sanitizeJson(openRouterReasoningCache.get('openrouter')) as JSONValue[]) || []
               }
             }
           }
@@ -345,10 +349,10 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
         const assistantContent = [...reasoningParts, ...textParts, ...toolCallParts]
         if (assistantContent.length > 0) {
           let providerOptions: ProviderOptions | undefined = undefined
-          if (reasoningCache.get('openrouter')) {
+          if (openRouterReasoningCache.get('openrouter')) {
             providerOptions = {
               openrouter: {
-                reasoning_details: (reasoningCache.get('openrouter') as JSONValue[]) || []
+                reasoning_details: (sanitizeJson(openRouterReasoningCache.get('openrouter')) as JSONValue[]) || []
               }
             }
           } else if (isGemini3ModelId(params.model)) {
@@ -510,8 +514,7 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
   // Create the adapter
   const adapter = new AiSdkToAnthropicSSE({
     model: `${provider.id}:${modelId}`,
-    onEvent: onEvent || (() => {}),
-    reasoningCache
+    onEvent: onEvent || (() => {})
   })
 
   // Execute stream - pass model object instead of string
