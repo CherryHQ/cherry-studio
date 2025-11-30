@@ -57,6 +57,12 @@ const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
 const getMentionedModelsCacheKey = (assistantId: string) => `inputbar-mentioned-models-${assistantId}`
 
+const getValidatedCachedModels = (assistantId: string): Model[] => {
+  const cached = CacheService.get<Model[]>(getMentionedModelsCacheKey(assistantId))
+  if (!Array.isArray(cached)) return []
+  return cached.filter((model) => model?.id && model?.name)
+}
+
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
@@ -86,16 +92,18 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
     toggleExpanded: () => {}
   })
 
+  const [initialMentionedModels] = useState(() => getValidatedCachedModels(initialAssistant.id))
+
   const initialState = useMemo(
     () => ({
       files: [] as FileType[],
-      mentionedModels: CacheService.get<Model[]>(getMentionedModelsCacheKey(initialAssistant.id)) ?? [],
+      mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    [initialAssistant.id, initialAssistant.knowledge_bases]
+    [initialMentionedModels, initialAssistant.knowledge_bases]
   )
 
   return (
