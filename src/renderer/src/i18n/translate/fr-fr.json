@@ -280,7 +280,7 @@
         "denied": "La demande d'outil a été refusée.",
         "timeout": "La demande d'outil a expiré avant d'obtenir l'approbation."
       },
-      "toolPendingFallback": "[to be translated]:Tool",
+      "toolPendingFallback": "Outil",
       "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "type": {

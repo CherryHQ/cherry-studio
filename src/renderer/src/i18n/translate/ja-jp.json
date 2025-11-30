@@ -280,7 +280,7 @@
         "denied": "ツールリクエストは拒否されました。",
         "timeout": "ツールリクエストは承認を受ける前にタイムアウトしました。"
       },
-      "toolPendingFallback": "[to be translated]:Tool",
+      "toolPendingFallback": "ツール",
       "waiting": "ツールの許可決定を待っています..."
     },
     "type": {

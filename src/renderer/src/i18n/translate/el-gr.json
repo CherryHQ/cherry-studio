@@ -280,7 +280,7 @@
         "denied": "Το αίτημα για εργαλείο απορρίφθηκε.",
         "timeout": "Το αίτημα για το εργαλείο έληξε πριν λάβει έγκριση."
       },
-      "toolPendingFallback": "[to be translated]:Tool",
+      "toolPendingFallback": "Εργαλείο",
       "waiting": "Αναμονή για απόφαση άδειας εργαλείου..."
     },
     "type": {

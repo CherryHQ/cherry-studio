@@ -280,7 +280,7 @@
         "denied": "工具请求已被拒绝。",
         "timeout": "工具请求在收到批准前超时。"
       },
-      "toolPendingFallback": "[to be translated]:Tool",
+      "toolPendingFallback": "工具",
       "waiting": "等待工具权限决定..."
     },
     "type": {
