@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
+import { cacheService } from '@renderer/data/CacheService'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -41,19 +42,10 @@ import { getInputbarConfig } from './registry'
 import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
-const agentSessionDraftCache = new Map<string, string>()
 
-const readDraftFromCache = (key: string): string => {
-  return agentSessionDraftCache.get(key) ?? ''
-}
+const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
-const writeDraftToCache = (key: string, value: string) => {
-  if (!value) {
-    agentSessionDraftCache.delete(key)
-  } else {
-    agentSessionDraftCache.set(key, value)
-  }
-}
+const getAgentDraftCacheKey = (agentId: string) => `agent.session.draft.${agentId}`
 
 type Props = {
   agentId: string
@@ -170,16 +162,15 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
 
-  // Use shared hooks for text and textarea management
-  const initialDraft = useMemo(() => readDraftFromCache(agentId), [agentId])
-  const persistDraft = useCallback((next: string) => writeDraftToCache(agentId, next), [agentId])
+  // Use shared hooks for text and textarea management with draft persistence
+  const draftCacheKey = getAgentDraftCacheKey(agentId)
   const {
     text,
     setText,
     isEmpty: inputEmpty
   } = useInputText({
-    initialValue: initialDraft,
-    onChange: persistDraft
+    initialValue: cacheService.get<string>(draftCacheKey) ?? '',
+    onChange: (value) => cacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,

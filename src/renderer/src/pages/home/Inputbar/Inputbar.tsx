@@ -9,6 +9,7 @@ import {
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
+import { cacheService } from '@renderer/data/CacheService'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
@@ -39,7 +40,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { debounce } from 'lodash'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputbarCore } from './components/InputbarCore'
@@ -50,6 +51,17 @@ import { getInputbarConfig } from './registry'
 import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
+
+const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar.draft.text'
+const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+
+const getMentionedModelsCacheKey = (assistantId: string) => `inputbar.mentioned.models.${assistantId}`
+
+const getValidatedCachedModels = (assistantId: string): Model[] => {
+  const cached = cacheService.get<Model[]>(getMentionedModelsCacheKey(assistantId))
+  if (!Array.isArray(cached)) return []
+  return cached.filter((model) => model?.id && model?.name)
+}
 
 interface Props {
   assistant: Assistant
@@ -80,16 +92,18 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
     toggleExpanded: () => {}
   })
 
+  const [initialMentionedModels] = useState(() => getValidatedCachedModels(initialAssistant.id))
+
   const initialState = useMemo(
     () => ({
       files: [] as FileType[],
-      mentionedModels: [] as Model[],
+      mentionedModels: initialMentionedModels,
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    [initialAssistant.knowledge_bases]
+    [initialMentionedModels, initialAssistant.knowledge_bases]
   )
 
   return (
@@ -121,7 +135,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
-  const { text, setText } = useInputText()
+  const { text, setText } = useInputText({
+    initialValue: cacheService.get<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
+    onChange: (value) => cacheService.set(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
+  })
   const {
     textareaRef,
     resize: resizeTextArea,
@@ -191,6 +208,14 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   useEffect(() => {
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
+
+  const onUnmount = useEffectEvent((id: string) => {
+    cacheService.set(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
+  })
+
+  useEffect(() => {
+    return () => onUnmount(assistant.id)
+  }, [assistant.id, onUnmount])
 
   const placeholderText = enableQuickPanelTriggers
     ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
