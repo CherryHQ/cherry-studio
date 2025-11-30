@@ -1,3 +1,6 @@
+import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
+import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
+import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { LanguageModelV2Middleware, LanguageModelV2ToolResultOutput } from '@ai-sdk/provider'
 import type { ProviderOptions, ReasoningPart, ToolCallPart, ToolResultPart } from '@ai-sdk/provider-utils'
 import type {
@@ -20,6 +23,9 @@ import {
   type AiSdkConfigContext,
   formatProviderApiHost,
   initializeSharedProviders,
+  isAnthropicProvider,
+  isGeminiProvider,
+  isOpenAIProvider,
   type ProviderFormatContext,
   providerToAiSdkConfig as sharedProviderToAiSdkConfig,
   resolveActualProvider
@@ -482,6 +488,63 @@ async function prepareSpecialProviderConfig(provider: Provider, config: AiSdkCon
   return config
 }
 
+function mapAnthropicThinkToAISdkProviderOptions(
+  provider: Provider,
+  config: MessageCreateParams['thinking']
+): ProviderOptions | undefined {
+  if (!config) return undefined
+  if (isAnthropicProvider(provider)) {
+    return {
+      anthropic: {
+        ...mapToAnthropicProviderOptions(config)
+      }
+    }
+  }
+  if (isGeminiProvider(provider)) {
+    return {
+      google: {
+        ...mapToGeminiProviderOptions(config)
+      }
+    }
+  }
+  if (isOpenAIProvider(provider)) {
+    return {
+      openai: {
+        ...mapToOpenAIProviderOptions(config)
+      }
+    }
+  }
+  return undefined
+}
+
+function mapToAnthropicProviderOptions(config: NonNullable<MessageCreateParams['thinking']>): AnthropicProviderOptions {
+  return {
+    thinking: {
+      type: config.type,
+      budgetTokens: config.type === 'enabled' ? config.budget_tokens : undefined
+    }
+  }
+}
+
+function mapToGeminiProviderOptions(
+  config: NonNullable<MessageCreateParams['thinking']>
+): GoogleGenerativeAIProviderOptions {
+  return {
+    thinkingConfig: {
+      thinkingBudget: config.type === 'enabled' ? config.budget_tokens : -1,
+      includeThoughts: config.type === 'enabled'
+    }
+  }
+}
+
+function mapToOpenAIProviderOptions(
+  config: NonNullable<MessageCreateParams['thinking']>
+): OpenAIResponsesProviderOptions {
+  return {
+    reasoningEffort: config.type === 'enabled' ? 'high' : 'none'
+  }
+}
+
 /**
  * Core stream execution function - single source of truth for AI SDK calls
  */
@@ -521,14 +584,17 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
   const result = await executor.streamText({
     model, // Now passing LanguageModel object, not string
     messages: coreMessages,
+    // FIXME: Claude Code传入的maxToken会超出有些模型限制，需做特殊处理，可能在v2好修复一点，现在维护的成本有点高
+    // 已知: 豆包
     maxOutputTokens: params.max_tokens,
     temperature: params.temperature,
     topP: params.top_p,
+    topK: params.top_k,
     stopSequences: params.stop_sequences,
     stopWhen: stepCountIs(100),
     headers: defaultAppHeaders(),
     tools,
-    providerOptions: {}
+    providerOptions: mapAnthropicThinkToAISdkProviderOptions(provider, params.thinking)
   })
 
   // Process the stream through the adapter
