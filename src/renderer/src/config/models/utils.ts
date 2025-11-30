@@ -13,6 +13,7 @@ import {
   isOpenAIReasoningModel
 } from './openai'
 import { isQwenMTModel } from './qwen'
+import { isFunctionCallingModel } from './tooluse'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
@@ -181,8 +182,15 @@ export const isGeminiModel = (model: Model) => {
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
+// TODO: 支持提示词模式的工具调用
 export const agentModelFilter = (model: Model): boolean => {
-  return !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model) && !isGenerateImageModel(model)
+  return (
+    !isEmbeddingModel(model) &&
+    !isRerankModel(model) &&
+    !isTextToImageModel(model) &&
+    !isGenerateImageModel(model) &&
+    isFunctionCallingModel(model)
+  )
 }
 
 export const isMaxTemperatureOneModel = (model: Model): boolean => {
