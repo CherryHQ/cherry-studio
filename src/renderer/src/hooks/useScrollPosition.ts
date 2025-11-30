@@ -1,5 +1,5 @@
 import { throttle } from 'lodash'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { useTimer } from './useTimer'
 
@@ -12,7 +12,7 @@ import { useTimer } from './useTimer'
  */
 export default function useScrollPosition(key: string, throttleWait?: number) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const scrollKey = `scroll:${key}`
+  const scrollKey = useMemo(() => `scroll:${key}`, [key])
   const { setTimeoutTimer } = useTimer()
 
   const handleScroll = throttle(() => {
