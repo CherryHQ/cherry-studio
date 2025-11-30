@@ -8,7 +8,6 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { CacheService } from '@renderer/services/CacheService'
 import PasteService from '@renderer/services/PasteService'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -66,9 +65,6 @@ export interface InputbarCoreProps {
 
   // Override the user preference for quick panel triggers
   forceEnableQuickPanelTriggers?: boolean
-
-  // Draft persistence
-  draftKey?: string
 }
 
 const TextareaStyle: CSSProperties = {
@@ -115,8 +111,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   leftToolbar,
   rightToolbar,
   topContent,
-  forceEnableQuickPanelTriggers,
-  draftKey
+  forceEnableQuickPanelTriggers
 }) => {
   const config = useMemo(() => getInputbarConfig(scope), [scope])
   const { files, isExpanded } = useInputbarToolsState()
@@ -159,32 +154,12 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     textRef.current = text
   }, [text])
 
-  const initializedDraftRef = useRef(false)
-
-  useEffect(() => {
-    if (draftKey && !initializedDraftRef.current) {
-      const cacheKey = `inputbar-draft-${draftKey}`
-      const draftText = CacheService.get<string>(cacheKey)
-      if (draftText && draftText !== text) {
-        onTextChange(draftText)
-      }
-      initializedDraftRef.current = true
-    }
-  }, [draftKey, onTextChange, text])
-
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
       const newText = typeof value === 'function' ? value(textRef.current) : value
       onTextChange(newText)
-
-      // Save draft to CacheService if draftKey is provided
-      if (draftKey && initializedDraftRef.current) {
-        const cacheKey = `inputbar-draft-${draftKey}`
-        // Cache for 24 hours
-        CacheService.set(cacheKey, newText, 24 * 60 * 60 * 1000)
-      }
     },
-    [onTextChange, draftKey]
+    [onTextChange]
   )
 
   const { handlePaste } = usePasteHandler(text, setText, {

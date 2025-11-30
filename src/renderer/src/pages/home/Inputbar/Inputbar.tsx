@@ -52,6 +52,11 @@ import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
 
+const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
+const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+
+const getMentionedModelsCacheKey = (assistantId: string) => `inputbar-mentioned-models-${assistantId}`
+
 interface Props {
   assistant: Assistant
   setActiveTopic: (topic: Topic) => void
@@ -84,13 +89,13 @@ const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topi
   const initialState = useMemo(
     () => ({
       files: [] as FileType[],
-      mentionedModels: [] as Model[],
+      mentionedModels: CacheService.get<Model[]>(getMentionedModelsCacheKey(initialAssistant.id)) ?? [],
       selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    [initialAssistant.knowledge_bases]
+    [initialAssistant.id, initialAssistant.knowledge_bases]
   )
 
   return (
@@ -122,7 +127,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
-  const { text, setText } = useInputText()
+  const { text, setText } = useInputText({
+    initialValue: CacheService.get<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
+    onChange: (value) => CacheService.set(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
+  })
   const {
     textareaRef,
     resize: resizeTextArea,
@@ -191,6 +199,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
 
+  // Save mentionedModels to cache when changed
+  useEffect(() => {
+    CacheService.set(getMentionedModelsCacheKey(assistant.id), mentionedModels, DRAFT_CACHE_TTL)
+  }, [assistant.id, mentionedModels])
+
   const placeholderText = enableQuickPanelTriggers
     ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
     : t('chat.input.placeholder_without_triggers', {
@@ -199,23 +212,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
           key: getSendMessageShortcutLabel(sendMessageShortcut)
         })
       })
-
-  const mentionedModelsCacheKey = `inputbar-mentioned-models-${assistant.id}`
-  const mentionedModelsCacheInitializedRef = useRef(false)
-
-  useEffect(() => {
-    const cachedMentionedModels = CacheService.get<Model[]>(mentionedModelsCacheKey)
-    setMentionedModels(cachedMentionedModels ?? [])
-    mentionedModelsCacheInitializedRef.current = true
-  }, [mentionedModelsCacheKey, setMentionedModels])
-
-  useEffect(() => {
-    if (!mentionedModelsCacheInitializedRef.current) {
-      return
-    }
-
-    CacheService.set(mentionedModelsCacheKey, mentionedModels, 24 * 60 * 60 * 1000)
-  }, [mentionedModelsCacheKey, mentionedModels])
 
   const sendMessage = useCallback(async () => {
     if (checkRateLimit(assistant)) {
@@ -480,7 +476,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       leftToolbar={leftToolbar}
       rightToolbar={rightToolbar}
       topContent={topContent}
-      draftKey={`assistant-${assistant.id}`}
     />
   )
 }

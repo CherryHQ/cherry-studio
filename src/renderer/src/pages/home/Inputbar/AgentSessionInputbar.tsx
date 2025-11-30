@@ -43,6 +43,10 @@ import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
 
+const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
+
+const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
+
 type Props = {
   agentId: string
   sessionId: string
@@ -158,9 +162,16 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
 
-  // Use shared hooks for text and textarea management
-  // Note: We don't use initialValue here since InputbarCore will handle draft loading
-  const { text, setText, isEmpty: inputEmpty } = useInputText()
+  // Use shared hooks for text and textarea management with draft persistence
+  const draftCacheKey = getAgentDraftCacheKey(agentId)
+  const {
+    text,
+    setText,
+    isEmpty: inputEmpty
+  } = useInputText({
+    initialValue: CacheService.get<string>(draftCacheKey) ?? '',
+    onChange: (value) => CacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
+  })
   const {
     textareaRef,
     resize: resizeTextArea,
@@ -411,12 +422,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         })
       )
 
-      // Clear text and draft after successful send
+      // Clear text after successful send (draft is cleared automatically via onChange)
       setText('')
-
-      // Clear the draft from CacheService
-      CacheService.remove(`inputbar-draft-${agentId}`)
-
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
@@ -476,7 +483,6 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
       forceEnableQuickPanelTriggers
-      draftKey={agentId}
     />
   )
 }
