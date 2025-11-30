@@ -11,7 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, TextBlockParam, Tool as AnthropicTool } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import type { Provider } from '@types'
+import { type Provider, SystemProviderIds } from '@types'
 import type { ModelMessage } from 'ai'
 
 const logger = loggerService.withContext('anthropic-sdk')
@@ -124,7 +124,7 @@ export function getSdkClient(
       baseURL,
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
-        'anthropic-beta': 'output-128k-2025-02-19',
+        'anthropic-beta': 'interleaved-thinking-2025-05-14',
         'APP-Code': 'MLTG2087',
         ...provider.extra_headers,
         ...extraHeaders
@@ -139,7 +139,8 @@ export function getSdkClient(
     baseURL,
     dangerouslyAllowBrowser: true,
     defaultHeaders: {
-      'anthropic-beta': 'output-128k-2025-02-19',
+      'anthropic-beta': 'interleaved-thinking-2025-05-14',
+      Authorization: provider.id === SystemProviderIds.longcat ? `Bearer ${provider.apiKey}` : undefined,
       ...provider.extra_headers
     },
     fetch: customFetch
