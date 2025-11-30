@@ -69,6 +69,7 @@ export interface CherryInProviderSettings {
   headers?: HeadersInput
   /**
    * Optional endpoint type to distinguish different endpoint behaviors.
+   * "image-generation" is also openai endpoint, but specifically for image generation.
    */
   endpointType?: 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 }
