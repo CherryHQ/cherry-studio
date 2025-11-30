@@ -13,12 +13,17 @@ import { useTimer } from './useTimer'
 export default function useScrollPosition(key: string, throttleWait?: number) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollKey = useMemo(() => `scroll:${key}`, [key])
+  const scrollKeyRef = useRef(scrollKey)
   const { setTimeoutTimer } = useTimer()
+
+  useEffect(() => {
+    scrollKeyRef.current = scrollKey
+  }, [scrollKey])
 
   const handleScroll = throttle(() => {
     const position = containerRef.current?.scrollTop ?? 0
     window.requestAnimationFrame(() => {
-      window.keyv.set(scrollKey, position)
+      window.keyv.set(scrollKeyRef.current, position)
     })
   }, throttleWait ?? 100)
 
