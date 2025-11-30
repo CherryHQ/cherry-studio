@@ -33,5 +33,9 @@ export default function useScrollPosition(key: string, throttleWait?: number) {
     setTimeoutTimer('scrollEffect', scroll, 50)
   }, [scrollKey, setTimeoutTimer])
 
+  useEffect(() => {
+    return () => handleScroll.cancel()
+  }, [handleScroll])
+
   return { containerRef, handleScroll }
 }
