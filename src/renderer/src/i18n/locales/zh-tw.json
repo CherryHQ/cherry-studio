@@ -280,6 +280,7 @@
         "denied": "工具請求已被拒絕。",
         "timeout": "工具請求在收到核准前逾時。"
       },
+      "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
     },
     "type": {

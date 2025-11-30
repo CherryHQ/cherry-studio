@@ -1,6 +1,7 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import type {
   CanUseTool,
@@ -116,7 +117,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       // TODO: support set small model in UI
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
-      ELECTRON_NO_ATTACH_CONSOLE: '1'
+      ELECTRON_NO_ATTACH_CONSOLE: '1',
+      // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
+      // This prevents the SDK from using the user's home directory which may have encoding problems
+      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude')
     }
 
     const errorChunks: string[] = []
