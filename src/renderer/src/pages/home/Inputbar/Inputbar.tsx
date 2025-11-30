@@ -40,7 +40,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { debounce } from 'lodash'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { InputbarCore } from './components/InputbarCore'
@@ -199,10 +199,14 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     setCouldAddImageFile(canAddImageFile)
   }, [canAddImageFile, setCouldAddImageFile])
 
-  // Save mentionedModels to cache when changed
+  const onUnmount = useEffectEvent((id: string) => {
+    CacheService.set(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
+  })
+
   useEffect(() => {
-    CacheService.set(getMentionedModelsCacheKey(assistant.id), mentionedModels, DRAFT_CACHE_TTL)
-  }, [assistant.id, mentionedModels])
+    return () => onUnmount(assistant.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistant.id])
 
   const placeholderText = enableQuickPanelTriggers
     ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
