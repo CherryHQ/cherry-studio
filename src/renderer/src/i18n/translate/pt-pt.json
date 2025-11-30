@@ -280,6 +280,7 @@
         "denied": "Solicitação de ferramenta foi negada.",
         "timeout": "A solicitação da ferramenta expirou antes de receber aprovação."
       },
+      "toolPendingFallback": "Ferramenta",
       "waiting": "Aguardando decisão de permissão da ferramenta..."
     },
     "type": {

@@ -18,9 +18,9 @@ export function ToolTitle({
 }) {
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      {icon}
-      {label && <span className="font-medium text-sm">{label}</span>}
-      {params && <span className="flex-shrink-0 text-muted-foreground text-xs">{params}</span>}
+      {icon && <span className="flex flex-shrink-0">{icon}</span>}
+      {label && <span className="flex-shrink-0 font-medium text-sm">{label}</span>}
+      {params && <span className="min-w-0 truncate text-muted-foreground text-xs">{params}</span>}
       {stats && <span className="flex-shrink-0 text-muted-foreground text-xs">{stats}</span>}
     </div>
   )
