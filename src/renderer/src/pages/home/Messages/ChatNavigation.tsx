@@ -10,6 +10,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { Button, Drawer, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -118,7 +119,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   }
 
   const scrollToMessage = (element: HTMLElement) => {
-    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // container is supported in Chrome. container is necessary, see #11565, #11567
+    scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
   }
 
   const scrollToTop = () => {
