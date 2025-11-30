@@ -18,7 +18,7 @@ import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/Model
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
-import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
+import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
@@ -183,25 +183,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     setLoadingModels(true)
     try {
       const models = await fetchModels(provider)
-      // TODO: More robust conversion
-      const filteredModels = models
-        .map((model) => ({
-          // @ts-ignore modelId
-          id: model?.id || model?.name,
-          // @ts-ignore name
-          name: model?.display_name || model?.displayName || model?.name || model?.id,
-          provider: provider.id,
-          // @ts-ignore group
-          group: getDefaultGroupName(model?.id || model?.name, provider.id),
-          // @ts-ignore description
-          description: model?.description || '',
-          // @ts-ignore owned_by
-          owned_by: model?.owned_by || '',
-          // @ts-ignore supported_endpoint_types
-          supported_endpoint_types: model?.supported_endpoint_types
-        }))
-        .filter((model) => !isEmpty(model.name))
-
+      const filteredModels = models.filter((model) => !isEmpty(model.name))
       setListModels(filteredModels)
     } catch (error) {
       logger.error(`Failed to load models for provider ${getFancyProviderName(provider)}`, error as Error)
