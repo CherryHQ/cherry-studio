@@ -480,7 +480,7 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export function checkApiProvider(provider: Provider): void {
-  if (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) {
+  if (isSystemProvider(provider) && !NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) {
     if (!provider.apiKey) {
       window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
