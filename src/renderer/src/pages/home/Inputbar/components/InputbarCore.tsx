@@ -156,11 +156,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
-      if (typeof value === 'function') {
-        onTextChange(value(textRef.current))
-      } else {
-        onTextChange(value)
-      }
+      const newText = typeof value === 'function' ? value(textRef.current) : value
+      onTextChange(newText)
     },
     [onTextChange]
   )
