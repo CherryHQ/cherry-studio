@@ -1,3 +1,7 @@
+import { loggerService } from '@logger'
+
+const logger = loggerService.withContext('utils/dom')
+
 interface ChromiumScrollIntoViewOptions extends ScrollIntoViewOptions {
   /**
    * @see https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoView#container
@@ -14,6 +18,11 @@ interface ChromiumScrollIntoViewOptions extends ScrollIntoViewOptions {
  * @param options - Scroll options. If not provided, uses { behavior: 'smooth', block: 'center', inline: 'nearest' }
  */
 export function scrollIntoView(element: HTMLElement, options?: ChromiumScrollIntoViewOptions): void {
+  if (!element) {
+    logger.warn('[scrollIntoView] Unexpected falsy element. Do nothing as fallback.')
+    return
+  }
+
   const defaultOptions: ScrollIntoViewOptions = {
     behavior: 'smooth',
     block: 'center',
