@@ -245,8 +245,8 @@ export class AiSdkSpanAdapter {
       'gen_ai.usage.output_tokens'
     ]
 
-    const completionTokens = attributes[inputsTokenKeys.find((key) => attributes[key]) || '']
-    const promptTokens = attributes[outputTokenKeys.find((key) => attributes[key]) || '']
+    const promptTokens = attributes[inputsTokenKeys.find((key) => attributes[key]) || '']
+    const completionTokens = attributes[outputTokenKeys.find((key) => attributes[key]) || '']
 
     if (completionTokens !== undefined || promptTokens !== undefined) {
       const usage: TokenUsage = {
