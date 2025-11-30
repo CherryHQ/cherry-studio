@@ -280,6 +280,7 @@
         "denied": "Tool request was denied.",
         "timeout": "Tool request timed out before receiving approval."
       },
+      "toolPendingFallback": "Tool",
       "waiting": "Waiting for tool permission decision..."
     },
     "type": {

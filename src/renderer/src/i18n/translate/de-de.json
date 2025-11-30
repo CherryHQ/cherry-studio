@@ -280,6 +280,7 @@
         "denied": "Tool-Anfrage wurde abgelehnt.",
         "timeout": "Tool-Anfrage ist abgelaufen, bevor eine Genehmigung eingegangen ist."
       },
+      "toolPendingFallback": "[to be translated]:Tool",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "type": {

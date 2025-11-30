@@ -280,6 +280,7 @@
         "denied": "La solicitud de herramienta fue denegada.",
         "timeout": "La solicitud de herramienta expiró antes de recibir la aprobación."
       },
+      "toolPendingFallback": "[to be translated]:Tool",
       "waiting": "Esperando la decisión de permiso de la herramienta..."
     },
     "type": {
