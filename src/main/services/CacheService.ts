@@ -1,19 +1,9 @@
+import type { ReasoningDetailUnion } from '@main/apiServer/adapters/openrouter'
+
 interface CacheItem<T> {
   data: T
   timestamp: number
   duration: number
-}
-
-// Import the reasoning detail type from openrouter adapter
-type ReasoningDetailUnion = {
-  id?: string | null
-  format?: 'unknown' | 'openai-responses-v1' | 'xai-responses-v1' | 'anthropic-claude-v1' | 'google-gemini-v1' | null
-  index?: number
-  type: 'reasoning.summary' | 'reasoning.encrypted' | 'reasoning.text'
-  summary?: string
-  data?: string
-  text?: string | null
-  signature?: string | null
 }
 
 /**
