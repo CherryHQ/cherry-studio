@@ -12,7 +12,7 @@ import type { FetchChatCompletionParams } from '@renderer/types'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, ResponseError } from '@renderer/types/newMessage'
 import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
@@ -476,7 +476,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
   } else {
     const abortId = uuid()
     const signal = readyToAbort(abortId)
-    let chunkError
+    let streamError: ResponseError | undefined
     const params: StreamTextParams = {
       system: assistant.prompt,
       prompt: 'hi',
@@ -495,19 +495,18 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       callType: 'check',
       onChunk: (chunk: Chunk) => {
         if (chunk.type === ChunkType.ERROR) {
-          chunkError = chunk.error
+          streamError = chunk.error
         } else {
           abortCompletion(abortId)
         }
       }
     }
 
-    // Try streaming check
     try {
       await ai.completions(model.id, params, config)
     } catch (e) {
-      if (!isAbortError(e) && !isAbortError(chunkError)) {
-        throw e
+      if (!isAbortError(e) && !isAbortError(streamError)) {
+        throw streamError ?? e
       }
     }
   }

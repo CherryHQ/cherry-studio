@@ -234,6 +234,7 @@ export interface Response {
   error?: ResponseError
 }
 
+// FIXME: Weak type safety. It may be a specific class instance which inherits Error in runtime.
 export type ResponseError = Record<string, any>
 
 export interface MessageInputBaseParams {
