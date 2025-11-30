@@ -119,7 +119,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   }
 
   const scrollToMessage = (element: HTMLElement) => {
-    // container is supported in Chrome. container is necessary, see #11565, #11567
+    // Use container: 'nearest' to keep scroll within the chat pane (Chromium-only, see #11565, #11567)
     scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
   }
 
