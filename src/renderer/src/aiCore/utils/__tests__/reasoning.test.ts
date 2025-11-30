@@ -144,7 +144,7 @@ describe('reasoning utils', () => {
       expect(result).toEqual({})
     })
 
-    it('should disable reasoning for OpenRouter when no reasoning effort set', async () => {
+    it('should not override reasoning for OpenRouter when reasoning effort undefined', async () => {
       const { isReasoningModel } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
@@ -159,6 +159,29 @@ describe('reasoning utils', () => {
         id: 'test',
         name: 'Test',
         settings: {}
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({})
+    })
+
+    it('should disable reasoning for OpenRouter when reasoning effort explicitly none', async () => {
+      const { isReasoningModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'anthropic/claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        provider: SystemProviderIds.openrouter
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
       } as Assistant
 
       const result = getReasoningEffort(assistant, model)
@@ -269,7 +292,9 @@ describe('reasoning utils', () => {
       const assistant: Assistant = {
         id: 'test',
         name: 'Test',
-        settings: {}
+        settings: {
+          reasoning_effort: 'none'
+        }
       } as Assistant
 
       const result = getReasoningEffort(assistant, model)
