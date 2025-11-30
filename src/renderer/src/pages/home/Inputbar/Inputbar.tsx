@@ -24,6 +24,7 @@ import {
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -198,6 +199,23 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
           key: getSendMessageShortcutLabel(sendMessageShortcut)
         })
       })
+
+  const mentionedModelsCacheKey = `inputbar-mentioned-models-${assistant.id}`
+  const mentionedModelsCacheInitializedRef = useRef(false)
+
+  useEffect(() => {
+    const cachedMentionedModels = CacheService.get<Model[]>(mentionedModelsCacheKey)
+    setMentionedModels(cachedMentionedModels ?? [])
+    mentionedModelsCacheInitializedRef.current = true
+  }, [mentionedModelsCacheKey, setMentionedModels])
+
+  useEffect(() => {
+    if (!mentionedModelsCacheInitializedRef.current) {
+      return
+    }
+
+    CacheService.set(mentionedModelsCacheKey, mentionedModels, 24 * 60 * 60 * 1000)
+  }, [mentionedModelsCacheKey, mentionedModels])
 
   const sendMessage = useCallback(async () => {
     if (checkRateLimit(assistant)) {
@@ -462,6 +480,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       leftToolbar={leftToolbar}
       rightToolbar={rightToolbar}
       topContent={topContent}
+      draftKey={`assistant-${assistant.id}`}
     />
   )
 }

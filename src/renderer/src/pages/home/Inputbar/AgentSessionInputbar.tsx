@@ -9,6 +9,7 @@ import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { CacheService } from '@renderer/services/CacheService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -41,19 +42,6 @@ import { getInputbarConfig } from './registry'
 import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
-const agentSessionDraftCache = new Map<string, string>()
-
-const readDraftFromCache = (key: string): string => {
-  return agentSessionDraftCache.get(key) ?? ''
-}
-
-const writeDraftToCache = (key: string, value: string) => {
-  if (!value) {
-    agentSessionDraftCache.delete(key)
-  } else {
-    agentSessionDraftCache.set(key, value)
-  }
-}
 
 type Props = {
   agentId: string
@@ -171,16 +159,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const config = getInputbarConfig(scope)
 
   // Use shared hooks for text and textarea management
-  const initialDraft = useMemo(() => readDraftFromCache(agentId), [agentId])
-  const persistDraft = useCallback((next: string) => writeDraftToCache(agentId, next), [agentId])
-  const {
-    text,
-    setText,
-    isEmpty: inputEmpty
-  } = useInputText({
-    initialValue: initialDraft,
-    onChange: persistDraft
-  })
+  // Note: We don't use initialValue here since InputbarCore will handle draft loading
+  const { text, setText, isEmpty: inputEmpty } = useInputText()
   const {
     textareaRef,
     resize: resizeTextArea,
@@ -431,7 +411,12 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         })
       )
 
+      // Clear text and draft after successful send
       setText('')
+
+      // Clear the draft from CacheService
+      CacheService.remove(`inputbar-draft-${agentId}`)
+
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
@@ -491,6 +476,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       handleSendMessage={sendMessage}
       leftToolbar={leftToolbar}
       forceEnableQuickPanelTriggers
+      draftKey={agentId}
     />
   )
 }
