@@ -12,6 +12,7 @@ import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
   StreamableHTTPClientTransport,
@@ -346,7 +347,7 @@ class McpService {
               removeEnvProxy(loginShellEnv)
             }
 
-            const transportOptions: any = {
+            const transportOptions: StdioServerParameters = {
               command: cmd,
               args,
               env: {

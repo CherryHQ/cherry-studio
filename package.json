@@ -207,6 +207,7 @@
     "@types/content-type": "^1.1.9",
     "@types/cors": "^2.8.19",
     "@types/diff": "^7",
+    "@types/dotenv": "^8.2.3",
     "@types/express": "^5",
     "@types/fs-extra": "^11",
     "@types/he": "^1",
