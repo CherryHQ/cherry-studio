@@ -50,7 +50,40 @@ export default class ModernAiProvider {
   private model?: Model
   private localProvider: Awaited<AiSdkProvider> | null = null
 
-  // 构造函数重载签名
+  /**
+   * Constructor for ModernAiProvider
+   *
+   * @param modelOrProvider - Model or Provider object
+   * @param provider - Optional Provider object (only used when first param is Model)
+   *
+   * @remarks
+   * **Important behavior notes**:
+   *
+   * 1. When called with `(model)`:
+   *    - Calls `getActualProvider(model)` to retrieve and format the provider
+   *    - URL will be automatically formatted via `formatProviderApiHost`, adding version suffixes like `/v1`
+   *
+   * 2. When called with `(model, provider)`:
+   *    - **Directly uses the provided provider WITHOUT going through `getActualProvider`**
+   *    - **URL will NOT be automatically formatted, `/v1` suffix will NOT be added**
+   *    - This is legacy behavior kept for backward compatibility
+   *
+   * 3. When called with `(provider)`:
+   *    - Directly uses the provider without requiring a model
+   *    - Used for operations that don't need a model (e.g., fetchModels)
+   *
+   * @example
+   * ```typescript
+   * // Recommended: Auto-format URL
+   * const ai = new ModernAiProvider(model)
+   *
+   * // Not recommended: Skip URL formatting (only for special cases)
+   * const ai = new ModernAiProvider(model, customProvider)
+   *
+   * // For operations that don't need a model
+   * const ai = new ModernAiProvider(provider)
+   * ```
+   */
   constructor(model: Model, provider?: Provider)
   constructor(provider: Provider)
   constructor(modelOrProvider: Model | Provider, provider?: Provider)
@@ -156,7 +189,7 @@ export default class ModernAiProvider {
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     // ai-gateway不是image/generation 端点，所以就先不走legacy了
-    if (config.isImageGenerationEndpoint && config.provider!.id !== SystemProviderIds['ai-gateway']) {
+    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds['ai-gateway']) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
@@ -322,10 +355,10 @@ export default class ModernAiProvider {
     }
   }
 
-  /**
-   * 使用现代化 AI SDK 的图像生成实现，支持流式输出
-   * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
-   */
+  // /**
+  //  * 使用现代化 AI SDK 的图像生成实现，支持流式输出
+  //  * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
+  //  */
   /*
   private async modernImageGeneration(
     model: ImageModel,

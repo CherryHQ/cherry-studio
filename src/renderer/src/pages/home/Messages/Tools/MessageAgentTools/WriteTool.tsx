@@ -7,12 +7,12 @@ import type { WriteToolInput, WriteToolOutput } from './types'
 export function WriteTool({
   input
 }: {
-  input: WriteToolInput
+  input?: WriteToolInput
   output?: WriteToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   return {
     key: 'tool',
-    label: <ToolTitle icon={<FileText className="h-4 w-4" />} label="Write" params={input.file_path} />,
-    children: <div>{input.content}</div>
+    label: <ToolTitle icon={<FileText className="h-4 w-4" />} label="Write" params={input?.file_path} />,
+    children: <div>{input?.content}</div>
   }
 }

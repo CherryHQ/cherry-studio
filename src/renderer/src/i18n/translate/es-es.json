@@ -280,6 +280,7 @@
         "denied": "La solicitud de herramienta fue denegada.",
         "timeout": "La solicitud de herramienta expiró antes de recibir la aprobación."
       },
+      "toolPendingFallback": "Herramienta",
       "waiting": "Esperando la decisión de permiso de la herramienta..."
     },
     "type": {
@@ -1148,6 +1149,7 @@
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
     "go_to_settings": "Ir a la configuración",
     "i_know": "Entendido",
+    "ignore": "Ignorar",
     "inspect": "Inspeccionar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de conocimiento",
@@ -1207,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Generación de imágenes",
+    "image-generation": "Generación de Imágenes (OpenAI)",
     "jina-rerank": "Reordenamiento Jina",
     "openai": "OpenAI",
     "openai-response": "Respuesta de OpenAI"
@@ -1504,6 +1506,7 @@
     "notes_placeholder": "Ingrese información adicional o contexto para esta base de conocimientos...",
     "provider_not_found": "El proveedor del modelo de la base de conocimientos ha sido perdido, esta base de conocimientos ya no es compatible, por favor cree una nueva base de conocimientos",
     "quota": "Cupo restante de {{name}}: {{quota}}",
+    "quota_empty": "La cuota de {{name}} de hoy está agotada, por favor solicítela en el sitio web oficial",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
     "search": "Buscar en la base de conocimientos",
@@ -3771,6 +3774,9 @@
       },
       "view_webdav_settings": "Ver configuración WebDAV"
     },
+    "groq": {
+      "title": "Configuración de Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "La desactivación de la aceleración por hardware requiere reiniciar la aplicación para que surta efecto, ¿desea reiniciar ahora?",
@@ -4357,6 +4363,10 @@
           "stream_options": {
             "help": "¿Admite el proveedor el parámetro stream_options?",
             "label": "Admite stream_options"
+          },
+          "verbosity": {
+            "help": "Si el proveedor admite el parámetro de verbosidad",
+            "label": "Soporte de verbosidad"
           }
         },
         "url": {

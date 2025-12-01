@@ -15,6 +15,7 @@ import { estimateMessageUsage } from '@renderer/services/TokenService'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames, cn } from '@renderer/utils'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { Divider } from 'antd'
 import type { Dispatch, FC, SetStateAction } from 'react'
@@ -84,9 +85,10 @@ const MessageItem: FC<Props> = ({
 
   useEffect(() => {
     if (isEditing && messageContainerRef.current) {
-      messageContainerRef.current.scrollIntoView({
+      scrollIntoView(messageContainerRef.current, {
         behavior: 'smooth',
-        block: 'center'
+        block: 'center',
+        container: 'nearest'
       })
     }
   }, [isEditing])
@@ -129,7 +131,7 @@ const MessageItem: FC<Props> = ({
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
       if (messageContainerRef.current) {
-        messageContainerRef.current.scrollIntoView({ behavior: 'smooth' })
+        scrollIntoView(messageContainerRef.current, { behavior: 'smooth', block: 'center', container: 'nearest' })
         if (highlight) {
           setTimeoutTimer(
             'messageHighlightHandler',

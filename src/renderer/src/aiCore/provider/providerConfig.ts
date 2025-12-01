@@ -91,6 +91,7 @@ function formatProviderApiHost(provider: Provider): Provider {
 
   if (isAnthropicProvider(provider)) {
     const baseHost = formatted.anthropicApiHost || formatted.apiHost
+    // AI SDK needs /v1 in baseURL, Anthropic SDK will strip it in getSdkClient
     formatted.apiHost = formatApiHost(baseHost)
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost

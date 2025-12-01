@@ -239,6 +239,7 @@ export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'functio
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
+// "image-generation" is also openai endpoint, but specifically for image generation.
 export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
@@ -320,6 +321,7 @@ export interface GeneratePainting extends PaintingParams {
   safetyTolerance?: number
   width?: number
   height?: number
+  imageSize?: string
 }
 
 export interface EditPainting extends PaintingParams {

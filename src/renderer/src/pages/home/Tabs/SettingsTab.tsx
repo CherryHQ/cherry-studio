@@ -20,7 +20,7 @@ import {
   DEFAULT_TEMPERATURE,
   MAX_CONTEXT_COUNT
 } from '@renderer/config/constant'
-import { isOpenAIModel } from '@renderer/config/models'
+import { isOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -32,8 +32,10 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
+import { isGroqSystemProvider } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { MultiModelMessageStyle, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Col, InputNumber, Row } from 'antd'
@@ -43,6 +45,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import GroqSettingsGroup from './components/GroqSettingsGroup'
 import OpenAISettingsGroup from './components/OpenAISettingsGroup'
 
 // Type definition for select items
@@ -240,7 +243,10 @@ const SettingsTab: FC<Props> = (props) => {
 
   const model = assistant.model || getDefaultModel()
 
-  const isOpenAI = isOpenAIModel(model)
+  const showOpenAiSettings =
+    isOpenAIModel(model) ||
+    isSupportServiceTierProvider(provider) ||
+    (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
 
   return (
     <Container className="settings-tab">
@@ -392,13 +398,16 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingGroup>
         </CollapsibleSettingGroup>
       )}
-      {isOpenAI && (
+      {showOpenAiSettings && (
         <OpenAISettingsGroup
           model={model}
           providerId={provider.id}
           SettingGroup={SettingGroup}
           SettingRowTitleSmall={SettingRowTitleSmall}
         />
+      )}
+      {isGroqSystemProvider(provider) && (
+        <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
       )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>

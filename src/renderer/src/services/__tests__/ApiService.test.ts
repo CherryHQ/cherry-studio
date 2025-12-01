@@ -113,7 +113,9 @@ vi.mock(import('@renderer/config/providers'), async (importOriginal) => {
 vi.mock('@shared/config/prompts', () => ({
   WEB_SEARCH_PROMPT_FOR_OPENROUTER: 'mock-prompt',
   TRANSLATE_PROMPT:
-    'You are a translation expert. Your only task is to translate text enclosed with <translate_input> from input language to {{target_language}}, provide the translation result directly without any explanation, without `TRANSLATE` and keep original format.'
+    'You are a translation expert. Your only task is to translate text enclosed with <translate_input> from input language to {{target_language}}, provide the translation result directly without any explanation, without `TRANSLATE` and keep original format.',
+  MEMORY_FACT_EXTRACTION_PROMPT: 'mock-memory-fact-extraction-prompt',
+  MEMORY_UPDATE_SYSTEM_PROMPT: 'mock-memory-update-system-prompt'
 }))
 
 vi.mock('@renderer/config/systemModels', () => ({

@@ -76,7 +76,7 @@ export function BashOutputTool({
   input,
   output
 }: {
-  input: BashOutputToolInput
+  input?: BashOutputToolInput
   output?: BashOutputToolOutput
 }): NonNullable<CollapseProps['items']>[number] {
   const parsedOutput = parseBashOutput(output)
@@ -144,7 +144,7 @@ export function BashOutputTool({
           label="Bash Output"
           params={
             <div className="flex items-center gap-2">
-              <Tag className="py-0 font-mono text-xs">{input.bash_id}</Tag>
+              <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
               {statusConfig && (
                 <Tag
                   color={statusConfig.color}
