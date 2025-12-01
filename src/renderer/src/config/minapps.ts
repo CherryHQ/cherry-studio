@@ -6,7 +6,6 @@ import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
-import BloomAppLogo from '@renderer/assets/images/apps/bloom.png?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
@@ -36,6 +35,7 @@ import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
+import PowerdrillAppLogo from '@renderer/assets/images/apps/powerdrill.png?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
@@ -245,9 +245,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     url: 'https://poe.com'
   },
   {
-    id: 'bloom',
-    name: 'Bloom',
-    logo: BloomAppLogo,
+    id: 'powerdrill',
+    name: 'Powerdrill',
+    logo: PowerdrillAppLogo,
     url: 'https://powerdrill.ai/',
     bodered: true
   },
