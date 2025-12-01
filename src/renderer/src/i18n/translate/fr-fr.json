@@ -280,6 +280,7 @@
         "denied": "La demande d'outil a été refusée.",
         "timeout": "La demande d'outil a expiré avant d'obtenir l'approbation."
       },
+      "toolPendingFallback": "Outil",
       "waiting": "En attente de la décision d'autorisation de l'outil..."
     },
     "type": {
@@ -1208,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Génération d'images",
+    "image-generation": "Génération d'images (OpenAI)",
     "jina-rerank": "Reclassement Jina",
     "openai": "OpenAI",
     "openai-response": "Réponse OpenAI"

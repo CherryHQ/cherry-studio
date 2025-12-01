@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
@@ -9,13 +10,11 @@ import {
   isVisionModels,
   isWebSearchModel
 } from '@renderer/config/models'
-import { cacheService } from '@renderer/data/CacheService'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
@@ -139,6 +138,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     initialValue: cacheService.get<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
     onChange: (value) => cacheService.set(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
   })
+  const { text, setText } = useInputText({
+    initialValue: cacheService.get<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
+    onChange: (value) => cacheService.set(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
+  })
   const {
     textareaRef,
     resize: resizeTextArea,
@@ -150,7 +153,6 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     minHeight: 30
   })
 
-  const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(initialAssistant.id)
   const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -408,9 +410,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     focusTextarea
   ])
 
+  // TODO: Just use assistant.knowledge_bases as selectedKnowledgeBases. context state is overdesigned.
   useEffect(() => {
-    setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
-  }, [assistant.knowledge_bases, setSelectedKnowledgeBases, showKnowledgeIcon])
+    setSelectedKnowledgeBases(assistant.knowledge_bases ?? [])
+  }, [assistant.knowledge_bases, setSelectedKnowledgeBases])
 
   useEffect(() => {
     // Disable web search if model doesn't support it

@@ -16,10 +16,8 @@ import {
   isGPT5SeriesModel,
   isGPT51SeriesModel,
   isGrok4FastReasoningModel,
-  isGrokReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
-  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
@@ -64,29 +62,21 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
   const reasoningEffort = assistant?.settings?.reasoning_effort
 
-  // Handle undefined and 'none' reasoningEffort.
-  // TODO: They should be separated.
-  if (!reasoningEffort || reasoningEffort === 'none') {
+  // reasoningEffort is not set, no extra reasoning setting
+  // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
+  // It's for some reasoning models that don't support reasoning control, such as deepseek reasoner.
+  if (!reasoningEffort) {
+    return {}
+  }
+
+  // Handle 'none' reasoningEffort. It's explicitly off.
+  if (reasoningEffort === 'none') {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
-      // Don't disable reasoning for Gemini models that support thinking tokens
-      if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-        return {}
-      }
       // 'none' is not an available value for effort for now.
       // I think they should resolve this issue soon, so I'll just go ahead and use this value.
       if (isGPT51SeriesModel(model) && reasoningEffort === 'none') {
         return { reasoning: { effort: 'none' } }
-      }
-      // Don't disable reasoning for models that require it
-      if (
-        isGrokReasoningModel(model) ||
-        isOpenAIReasoningModel(model) ||
-        isQwenAlwaysThinkModel(model) ||
-        model.id.includes('seed-oss') ||
-        model.id.includes('minimax-m2')
-      ) {
-        return {}
       }
       return { reasoning: { enabled: false, exclude: true } }
     }
@@ -101,11 +91,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       return { enable_thinking: false }
     }
 
-    // claude
-    if (isSupportedThinkingTokenClaudeModel(model)) {
-      return {}
-    }
-
     // gemini
     if (isSupportedThinkingTokenGeminiModel(model)) {
       if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -118,8 +103,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             }
           }
         }
+      } else {
+        logger.warn(`Model ${model.id} cannot disable reasoning. Fallback to empty reasoning param.`)
+        return {}
       }
-      return {}
     }
 
     // use thinking, doubao, zhipu, etc.
@@ -139,6 +126,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
 
+    logger.warn(`Model ${model.id} doesn't match any disable reasoning behavior. Fallback to empty reasoning param.`)
     return {}
   }
 
@@ -293,6 +281,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   // OpenRouter models, use reasoning
+  // FIXME: duplicated openrouter handling. remove one
   if (model.provider === SystemProviderIds.openrouter) {
     if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
       return {

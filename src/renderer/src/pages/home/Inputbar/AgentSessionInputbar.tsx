@@ -1,8 +1,8 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
-import { cacheService } from '@renderer/data/CacheService'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -422,6 +422,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         })
       )
 
+      // Clear text after successful send (draft is cleared automatically via onChange)
       setText('')
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
     } catch (error) {

@@ -280,6 +280,7 @@
         "denied": "Запрос на инструмент был отклонён.",
         "timeout": "Запрос на инструмент превысил время ожидания до получения подтверждения."
       },
+      "toolPendingFallback": "Инструмент",
       "waiting": "Ожидание решения о разрешении на использование инструмента..."
     },
     "type": {
@@ -1208,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Изображение",
+    "image-generation": "Генерация изображений (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"

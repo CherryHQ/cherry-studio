@@ -16,7 +16,7 @@
       "error": {
         "failed": "Falha ao excluir o agente"
       },
-      "title": "删除代理"
+      "title": "Excluir Agente"
     },
     "edit": {
       "title": "Agent Editor"
@@ -111,7 +111,7 @@
           "label": "Modo de permissão",
           "options": {
             "acceptEdits": "Aceitar edições automaticamente",
-            "bypassPermissions": "忽略检查 de permissão",
+            "bypassPermissions": "Ignorar verificações de permissão",
             "default": "Padrão (perguntar antes de continuar)",
             "plan": "Modo de planejamento (plano sujeito a aprovação)"
           },
@@ -150,7 +150,7 @@
         },
         "success": {
           "install": "Plugin instalado com sucesso",
-          "uninstall": "插件 desinstalado com sucesso"
+          "uninstall": "Plugin desinstalado com sucesso"
         },
         "tab": "plug-in",
         "type": {
@@ -280,6 +280,7 @@
         "denied": "Solicitação de ferramenta foi negada.",
         "timeout": "A solicitação da ferramenta expirou antes de receber aprovação."
       },
+      "toolPendingFallback": "Ferramenta",
       "waiting": "Aguardando decisão de permissão da ferramenta..."
     },
     "type": {
@@ -1134,7 +1135,7 @@
     "duplicate": "Duplicar",
     "edit": "Editar",
     "enabled": "Ativado",
-    "error": "错误",
+    "error": "Erro",
     "errors": {
       "create_message": "Falha ao criar mensagem",
       "validation": "Falha na verificação"
@@ -1208,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Geração de Imagem",
+    "image-generation": "Geração de Imagens (OpenAI)",
     "jina-rerank": "Jina Reordenar",
     "openai": "OpenAI",
     "openai-response": "Resposta OpenAI"
