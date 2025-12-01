@@ -35,18 +35,15 @@ const ExportMenuOptions: FC = () => {
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.image')}</SettingRowTitle>
-        <Switch
-          isSelected={exportMenuOptions.image}
-          onValueChange={(checked) => handleToggleOption('image', checked)}
-        />
+        <Switch checked={exportMenuOptions.image} onCheckedChange={(checked) => handleToggleOption('image', checked)} />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.markdown')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.markdown}
-          onValueChange={(checked) => handleToggleOption('markdown', checked)}
+          checked={exportMenuOptions.markdown}
+          onCheckedChange={(checked) => handleToggleOption('markdown', checked)}
         />
       </SettingRow>
       <SettingDivider />
@@ -54,8 +51,8 @@ const ExportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.markdown_reason')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.markdown_reason}
-          onValueChange={(checked) => handleToggleOption('markdown_reason', checked)}
+          checked={exportMenuOptions.markdown_reason}
+          onCheckedChange={(checked) => handleToggleOption('markdown_reason', checked)}
         />
       </SettingRow>
       <SettingDivider />
@@ -63,26 +60,23 @@ const ExportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.notion')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.notion}
-          onValueChange={(checked) => handleToggleOption('notion', checked)}
+          checked={exportMenuOptions.notion}
+          onCheckedChange={(checked) => handleToggleOption('notion', checked)}
         />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.yuque')}</SettingRowTitle>
-        <Switch
-          isSelected={exportMenuOptions.yuque}
-          onValueChange={(checked) => handleToggleOption('yuque', checked)}
-        />
+        <Switch checked={exportMenuOptions.yuque} onCheckedChange={(checked) => handleToggleOption('yuque', checked)} />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.joplin}
-          onValueChange={(checked) => handleToggleOption('joplin', checked)}
+          checked={exportMenuOptions.joplin}
+          onCheckedChange={(checked) => handleToggleOption('joplin', checked)}
         />
       </SettingRow>
       <SettingDivider />
@@ -90,8 +84,8 @@ const ExportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.obsidian}
-          onValueChange={(checked) => handleToggleOption('obsidian', checked)}
+          checked={exportMenuOptions.obsidian}
+          onCheckedChange={(checked) => handleToggleOption('obsidian', checked)}
         />
       </SettingRow>
       <SettingDivider />
@@ -99,23 +93,23 @@ const ExportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.siyuan')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.siyuan}
-          onValueChange={(checked) => handleToggleOption('siyuan', checked)}
+          checked={exportMenuOptions.siyuan}
+          onCheckedChange={(checked) => handleToggleOption('siyuan', checked)}
         />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
-        <Switch isSelected={exportMenuOptions.docx} onValueChange={(checked) => handleToggleOption('docx', checked)} />
+        <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.plain_text')}</SettingRowTitle>
         <Switch
-          isSelected={exportMenuOptions.plain_text}
-          onValueChange={(checked) => handleToggleOption('plain_text', checked)}
+          checked={exportMenuOptions.plain_text}
+          onCheckedChange={(checked) => handleToggleOption('plain_text', checked)}
         />
       </SettingRow>
     </SettingGroup>

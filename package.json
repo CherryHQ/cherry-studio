@@ -179,6 +179,7 @@
     "@opeoginni/github-copilot-openai-compatible": "^0.1.21",
     "@playwright/test": "^1.55.1",
     "@radix-ui/react-context-menu": "^2.2.16",
+    "@radix-ui/react-switch": "^1.2.6",
     "@reduxjs/toolkit": "^2.2.5",
     "@shikijs/markdown-it": "^3.12.0",
     "@swc/plugin-styled-components": "^8.0.4",
