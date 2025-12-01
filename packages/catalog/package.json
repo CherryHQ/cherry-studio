@@ -47,5 +47,8 @@
   },
   "dependencies": {
     "json-schema": "^0.4.0"
-  }
+  },
+  "workspaces": [
+    "web"
+  ]
 }

@@ -33,8 +33,9 @@
       "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"],
       "@cherrystudio/ui/icons": ["./packages/ui/src/components/icons/index.ts"],
       "@cherrystudio/ui": ["./packages/ui/src/index.ts"],
-      "@cherrystudio/ui/*": ["./packages/ui/src/*"]
-
+      "@cherrystudio/ui/*": ["./packages/ui/src/*"],
+      "@cherrystudio/catalog": ["./packages/catalog/src/index.ts"],
+      "@cherrystudio/catalog/*": ["./packages/catalog/src/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

@@ -1,0 +1,627 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cherry Studio Catalog API",
+    "description": "REST API for managing AI models and providers catalog",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Cherry Studio Team"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/catalog/models": {
+      "get": {
+        "summary": "List models with pagination and filtering",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "capabilities",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "providers",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedModels"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update models configuration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelsConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Models updated successfully"
+          }
+        }
+      }
+    },
+    "/catalog/models/{modelId}": {
+      "get": {
+        "summary": "Get specific model details",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update specific model",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Model"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model updated successfully"
+          }
+        }
+      }
+    },
+    "/catalog/providers": {
+      "get": {
+        "summary": "List providers with pagination and filtering",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "authentication",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of providers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedProviders"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update providers configuration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvidersConfig"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Providers updated successfully"
+          }
+        }
+      }
+    },
+    "/catalog/providers/{providerId}": {
+      "get": {
+        "summary": "Get specific provider details",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/models/{modelId}/overrides": {
+      "get": {
+        "summary": "Get provider-specific overrides for a model",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider overrides for the model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/Model"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/models/{modelId}/providers/{providerId}": {
+      "get": {
+        "summary": "Get model configuration as seen by specific provider",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model configuration with provider-specific overrides applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Update model configuration for specific provider (auto-detects if override is needed)",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "providerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Model"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model configuration updated (override created/updated if needed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "updated": {
+                      "type": "string",
+                      "enum": ["base_model", "override", "both"]
+                    },
+                    "model": {
+                      "$ref": "#/components/schemas/Model"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/stats": {
+      "get": {
+        "summary": "Get catalog statistics",
+        "responses": {
+          "200": {
+            "description": "Catalog statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogStats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalog/validate": {
+      "post": {
+        "summary": "Validate catalog configuration",
+        "responses": {
+          "200": {
+            "description": "Validation results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "owned_by": { "type": "string" },
+          "capabilities": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "input_modalities": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "output_modalities": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "context_window": { "type": "integer" },
+          "max_output_tokens": { "type": "integer" },
+          "max_input_tokens": { "type": "integer" },
+          "pricing": {
+            "$ref": "#/components/schemas/Pricing"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/Parameters"
+          },
+          "endpoint_types": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metadata": { "type": "object" }
+        }
+      },
+      "Provider": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "authentication": { "type": "string" },
+          "pricing_model": { "type": "string" },
+          "model_routing": { "type": "string" },
+          "behaviors": { "type": "object" },
+          "supported_endpoints": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "api_compatibility": { "type": "object" },
+          "special_config": { "type": "object" },
+          "documentation": { "type": "string" },
+          "website": { "type": "string" },
+          "deprecated": { "type": "boolean" },
+          "maintenance_mode": { "type": "boolean" },
+          "config_version": { "type": "string" },
+          "metadata": { "type": "object" }
+        }
+      },
+      "Override": {
+        "type": "object",
+        "properties": {
+          "provider_id": { "type": "string" },
+          "model_id": { "type": "string" },
+          "disabled": { "type": "boolean" },
+          "reason": { "type": "string" },
+          "last_updated": { "type": "string" },
+          "updated_by": { "type": "string" },
+          "priority": { "type": "integer" },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "context_window": { "type": "integer" },
+              "max_output_tokens": { "type": "integer" }
+            }
+          },
+          "pricing": {
+            "$ref": "#/components/schemas/Pricing"
+          }
+        }
+      },
+      "Pricing": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "object",
+            "properties": {
+              "per_million_tokens": { "type": "number" },
+              "currency": { "type": "string" }
+            }
+          },
+          "output": {
+            "type": "object",
+            "properties": {
+              "per_million_tokens": { "type": "number" },
+              "currency": { "type": "string" }
+            }
+          }
+        }
+      },
+      "Parameters": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "PaginatedModels": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "PaginatedProviders": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Provider"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "PaginatedOverrides": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Override"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "totalPages": { "type": "integer" }
+        }
+      },
+      "ModelsConfig": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        }
+      },
+      "ProvidersConfig": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Provider"
+            }
+          }
+        }
+      },
+      "OverridesConfig": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "string" },
+          "overrides": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Override"
+            }
+          }
+        }
+      },
+      "CatalogStats": {
+        "type": "object",
+        "properties": {
+          "total_models": { "type": "integer" },
+          "total_providers": { "type": "integer" },
+          "total_overrides": { "type": "integer" },
+          "models_by_provider": { "type": "object" },
+          "overrides_by_provider": { "type": "object" },
+          "last_updated": { "type": "string" }
+        }
+      },
+      "ValidationResult": {
+        "type": "object",
+        "properties": {
+          "valid": { "type": "boolean" },
+          "errors": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

@@ -74,9 +74,6 @@ interface ProviderConfig {
   name: string
   description?: string
   authentication: string
-  pricing_model: string
-  model_routing: string
-  behaviors: Record<string, boolean>
   supported_endpoints: string[]
   api_compatibility?: Record<string, boolean>
   special_config?: Record<string, any>
@@ -257,46 +254,11 @@ export class MigrationTool {
     for (const [providerId, providerData] of Object.entries(this.providerEndpointsData.providers)) {
       const supported_endpoints = this.privateConvertEndpointsToCapabilities(providerData.endpoints)
 
-      // Determine provider characteristics
-      const isDirectProvider = ['anthropic', 'openai', 'google'].includes(providerId)
-      const isCloudProvider = ['azure', 'aws', 'gcp'].some((cloud) => providerId.includes(cloud))
-      const isProxyProvider = ['openrouter', 'litellm', 'together_ai'].includes(providerId)
-
-      let pricing_model = 'PER_MODEL'
-      let model_routing = 'DIRECT'
-
-      if (isProxyProvider) {
-        pricing_model = 'UNIFIED'
-        model_routing = 'INTELLIGENT'
-      } else if (isCloudProvider) {
-        pricing_model = 'PER_MODEL'
-        model_routing = 'DIRECT'
-      }
-
       const provider: ProviderConfig = {
         id: providerId,
         name: providerData.display_name,
         description: `Provider: ${providerData.display_name}`,
         authentication: 'API_KEY',
-        pricing_model,
-        model_routing,
-        behaviors: {
-          supports_custom_models: providerData.endpoints.batches || false,
-          provides_model_mapping: isProxyProvider,
-          supports_model_versioning: true,
-          provides_fallback_routing: isProxyProvider,
-          has_auto_retry: isProxyProvider,
-          supports_health_check: isDirectProvider,
-          has_real_time_metrics: isDirectProvider || isProxyProvider,
-          provides_usage_analytics: isDirectProvider,
-          supports_webhook_events: false,
-          requires_api_key_validation: true,
-          supports_rate_limiting: isDirectProvider,
-          provides_usage_limits: isDirectProvider,
-          supports_streaming: providerData.endpoints.chat_completions || providerData.endpoints.messages,
-          supports_batch_processing: providerData.endpoints.batches || false,
-          supports_model_fine_tuning: providerId === 'openai'
-        },
         supported_endpoints,
         api_compatibility: {
           supports_array_content: providerData.endpoints.chat_completions || false,
@@ -313,12 +275,7 @@ export class MigrationTool {
         website: providerData.url,
         deprecated: false,
         maintenance_mode: false,
-        config_version: '1.0.0',
-        metadata: {
-          source: 'litellm-endpoints',
-          tags: [isDirectProvider ? 'official' : isProxyProvider ? 'proxy' : 'cloud'],
-          reliability: isDirectProvider ? 'high' : 'medium'
-        }
+        config_version: '1.0.0'
       }
 
       providers.push(provider)
@@ -556,7 +513,9 @@ export class MigrationTool {
 
     console.log('\n✅ Migration completed successfully!')
     console.log(`📊 Migration Summary:`)
-    console.log(`   Providers: ${providers.length} (${providersByType.direct} direct, ${providersByType.cloud} cloud, ${providersByType.proxy} proxy, ${providersByType.self_hosted} self-hosted)`)
+    console.log(
+      `   Providers: ${providers.length} (${providersByType.direct} direct, ${providersByType.cloud} cloud, ${providersByType.proxy} proxy, ${providersByType.self_hosted} self-hosted)`
+    )
     console.log(`   Base Models: ${models.length}`)
     console.log(`   Overrides: ${overrides.length}`)
     console.log(`\n📁 Output Files:`)

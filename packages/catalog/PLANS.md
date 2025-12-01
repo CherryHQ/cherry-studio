@@ -72,7 +72,7 @@ packages/catalog/
 ```typescript
 // packages/catalog/src/schemas/model.schema.ts
 
-import { z } from 'zod'
+import * as z from 'zod'
 import { EndpointTypeSchema } from './provider.schema'
 
 // 模态类型
@@ -206,7 +206,7 @@ export type ModelConfig = z.infer<typeof ModelConfigSchema>
 ```typescript
 // packages/catalog/src/schemas/provider.schema.ts
 
-import { z } from 'zod'
+import * as z from 'zod'
 
 // 端点类型
 export const EndpointTypeSchema = z.enum([
@@ -311,7 +311,7 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 ```typescript
 // packages/catalog/src/schemas/override.schema.ts
 
-import { z } from 'zod'
+import * as z from 'zod'
 import { ModelCapabilityTypeSchema, ModelPricingSchema, ParameterSupportSchema } from './model.schema'
 
 export const ProviderModelOverrideSchema = z.object({
