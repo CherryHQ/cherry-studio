@@ -85,47 +85,23 @@ interface TextareaInputProps extends Omit<React.ComponentPropsWithoutRef<'textar
   value?: string
   defaultValue?: string
   onValueChange?: (value: string) => void
-  autoSize?: boolean
-  ref?: React.Ref<HTMLTextAreaElement>
 }
 
-function TextareaInput({
+const TextareaInput = function TextareaInput({
+  ref,
   value: valueProp,
   defaultValue,
   onValueChange,
-  autoSize = false,
   className,
-  ref,
   ...props
-}: TextareaInputProps) {
+}: TextareaInputProps & { ref?: React.RefObject<HTMLTextAreaElement | null> }) {
   const context = useTextareaContext(INPUT_NAME)
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
-
-  // Compose refs using React 19 pattern
-  React.useEffect(() => {
-    if (!ref || !textareaRef.current) return
-
-    if (typeof ref === 'function') {
-      ref(textareaRef.current)
-    } else if (typeof ref === 'object' && ref !== null) {
-      ref.current = textareaRef.current
-    }
-  }, [ref])
 
   const [value = '', setValue] = useControllableState({
     prop: valueProp,
     defaultProp: defaultValue ?? '',
     onChange: onValueChange
   })
-
-  // Auto resize
-  React.useEffect(() => {
-    if (autoSize && textareaRef.current) {
-      const textarea = textareaRef.current
-      textarea.style.height = 'auto'
-      textarea.style.height = `${textarea.scrollHeight}px`
-    }
-  }, [value, autoSize])
 
   const handleChange = useCallbackRef((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = event.target.value
@@ -140,13 +116,12 @@ function TextareaInput({
       data-slot="textarea-input"
       id={context.textareaId}
       {...props}
-      ref={textareaRef}
+      ref={ref}
       value={value}
       onChange={composeEventHandlers(props.onChange, handleChange)}
       disabled={context.disabled}
       aria-invalid={context.hasError}
       className={cn(textareaVariants({ hasError: context.hasError }), className)}
-      style={autoSize ? { resize: 'none', overflow: 'hidden' } : undefined}
     />
   )
 }

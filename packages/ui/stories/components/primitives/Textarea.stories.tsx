@@ -11,7 +11,7 @@ const meta: Meta<typeof Textarea.Root> = {
     docs: {
       description: {
         component:
-          'A composable multi-line text input built with Radix primitives. Supports controlled/uncontrolled modes, auto-resize, character counting, and error states.'
+          'A composable multi-line text input built with Radix primitives. Supports controlled/uncontrolled modes, auto-resize (via field-sizing-content), character counting, and error states.'
       }
     }
   },
@@ -111,7 +111,7 @@ export const WithCharacterCount: Story = {
   }
 }
 
-// Auto Resize
+// Auto Resize (built-in via field-sizing-content)
 export const AutoResize: Story = {
   render: function AutoResizeExample() {
     const [value, setValue] = useState('')
@@ -122,7 +122,6 @@ export const AutoResize: Story = {
         <Textarea.Input
           value={value}
           onValueChange={setValue}
-          autoSize
           placeholder="This textarea grows with your content..."
         />
         <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
@@ -409,7 +408,6 @@ export const CompositionExample: Story = {
             onValueChange={setBio}
             placeholder="Tell us about yourself..."
             maxLength={500}
-            autoSize
           />
           <Textarea.CharCount value={bio} maxLength={500} />
         </div>
