@@ -68,9 +68,9 @@ export const WithCaption: Story = {
 // Error State
 export const ErrorState: Story = {
   render: () => (
-    <Textarea.Root error="This field cannot be empty" className="w-[400px]">
+    <Textarea.Root className="w-[400px]">
       <div className="text-lg font-bold leading-[22px]">Message</div>
-      <Textarea.Input placeholder="Enter your message..." />
+      <Textarea.Input placeholder="Enter your message..." hasError />
       <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -135,9 +135,9 @@ export const AutoResize: Story = {
 // Disabled State
 export const Disabled: Story = {
   render: () => (
-    <Textarea.Root disabled className="w-[400px]">
+    <Textarea.Root className="w-[400px]">
       <div className="text-lg font-bold leading-[22px] cursor-not-allowed opacity-70">Disabled Field</div>
-      <Textarea.Input defaultValue="This textarea is disabled" />
+      <Textarea.Input defaultValue="This textarea is disabled" disabled />
     </Textarea.Root>
   )
 }
@@ -193,17 +193,17 @@ export const AllStates: Story = {
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Disabled State</p>
-          <Textarea.Root disabled className="w-[400px]">
+          <Textarea.Root className="w-[400px]">
             <div className="text-lg font-bold leading-[22px] cursor-not-allowed opacity-70">Disabled</div>
-            <Textarea.Input defaultValue="Disabled textarea with content" />
+            <Textarea.Input defaultValue="Disabled textarea with content" disabled />
           </Textarea.Root>
         </div>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Error State</p>
-          <Textarea.Root error="This field is required" className="w-[400px]">
+          <Textarea.Root className="w-[400px]">
             <div className="text-lg font-bold leading-[22px]">Error</div>
-            <Textarea.Input value={value4} onValueChange={setValue4} />
+            <Textarea.Input value={value4} onValueChange={setValue4} hasError />
             <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -253,7 +253,7 @@ export const RealWorldExamples: Story = {
         {/* Tweet Composer */}
         <div>
           <h3 className="mb-3 text-sm font-semibold">Tweet Composer</h3>
-          <Textarea.Root error={tweetError} className="w-[500px]">
+          <Textarea.Root className="w-[500px]">
             <div className="text-lg font-bold leading-[22px]">What's happening?</div>
             <div className="relative">
               <Textarea.Input
@@ -261,6 +261,7 @@ export const RealWorldExamples: Story = {
                 onValueChange={setTweet}
                 maxLength={280}
                 placeholder="Share your thoughts..."
+                hasError={!!tweetError}
               />
               <Textarea.CharCount value={tweet} maxLength={280} />
             </div>
@@ -309,11 +310,11 @@ export const RealWorldExamples: Story = {
         {/* Contact Form */}
         <div>
           <h3 className="mb-3 text-sm font-semibold">Contact Us</h3>
-          <Textarea.Root error={messageError} className="w-[500px]">
+          <Textarea.Root className="w-[500px]">
             <div className="text-lg font-bold leading-[22px]">
               <span className="text-destructive mr-1">*</span>Message
             </div>
-            <Textarea.Input value={message} onValueChange={setMessage} placeholder="How can we help you?" rows={6} />
+            <Textarea.Input value={message} onValueChange={setMessage} placeholder="How can we help you?" rows={6} hasError={!!messageError} />
             {messageError ? (
               <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
                 <svg
@@ -360,9 +361,9 @@ export const DarkMode: Story = {
           <Textarea.Input defaultValue="This is some content in dark mode" />
         </Textarea.Root>
 
-        <Textarea.Root error="Error in dark mode" className="w-[400px]">
+        <Textarea.Root className="w-[400px]">
           <div className="text-lg font-bold leading-[22px]">Error (Dark)</div>
-          <Textarea.Input />
+          <Textarea.Input hasError />
           <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -383,9 +384,9 @@ export const DarkMode: Story = {
           </div>
         </Textarea.Root>
 
-        <Textarea.Root disabled className="w-[400px]">
+        <Textarea.Root className="w-[400px]">
           <div className="text-lg font-bold leading-[22px] cursor-not-allowed opacity-70">Disabled (Dark)</div>
-          <Textarea.Input defaultValue="Disabled in dark mode" />
+          <Textarea.Input defaultValue="Disabled in dark mode" disabled />
         </Textarea.Root>
       </div>
     </div>

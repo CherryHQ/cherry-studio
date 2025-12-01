@@ -1,27 +1,9 @@
 import { cn } from '@cherrystudio/ui/utils/index'
 import { composeEventHandlers } from '@radix-ui/primitive'
-import { createContext } from '@radix-ui/react-context'
 import { useCallbackRef } from '@radix-ui/react-use-callback-ref'
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
 import { cva } from 'class-variance-authority'
 import * as React from 'react'
-
-/* -------------------------------------------------------------------------------------------------
- * Textarea Context
- * -----------------------------------------------------------------------------------------------*/
-
-type TextareaContextValue = {
-  textareaId: string
-  hasError: boolean
-  disabled?: boolean
-}
-
-// eslint-disable-next-line @eslint-react/naming-convention/context-name
-const [TextareaContext, useTextareaContext] = createContext<TextareaContextValue>('Textarea.TextareaContext', {
-  textareaId: '',
-  hasError: false,
-  disabled: false
-})
 
 /* -------------------------------------------------------------------------------------------------
  * Variants
@@ -55,21 +37,13 @@ const textareaVariants = cva(
 
 const ROOT_NAME = 'TextareaRoot'
 
-interface TextareaRootProps extends React.ComponentPropsWithoutRef<'div'> {
-  error?: string
-  disabled?: boolean
-}
+interface TextareaRootProps extends React.ComponentPropsWithoutRef<'div'> {}
 
-function TextareaRoot({ error, disabled, className, children, ...props }: TextareaRootProps) {
-  const textareaId = React.useId()
-  const hasError = !!error
-
+function TextareaRoot({ className, children, ...props }: TextareaRootProps) {
   return (
-    <TextareaContext textareaId={textareaId} hasError={hasError} disabled={disabled}>
-      <div data-slot="textarea-root" {...props} className={cn('flex w-full flex-col gap-2', className)}>
-        {children}
-      </div>
-    </TextareaContext>
+    <div data-slot="textarea-root" {...props} className={cn('flex w-full flex-col gap-2', className)}>
+      {children}
+    </div>
   )
 }
 
@@ -85,18 +59,19 @@ interface TextareaInputProps extends Omit<React.ComponentPropsWithoutRef<'textar
   value?: string
   defaultValue?: string
   onValueChange?: (value: string) => void
+  hasError?: boolean
+  ref?: React.Ref<HTMLTextAreaElement>
 }
 
-const TextareaInput = function TextareaInput({
-  ref,
+function TextareaInput({
   value: valueProp,
   defaultValue,
   onValueChange,
+  hasError = false,
   className,
+  ref,
   ...props
-}: TextareaInputProps & { ref?: React.RefObject<HTMLTextAreaElement | null> }) {
-  const context = useTextareaContext(INPUT_NAME)
-
+}: TextareaInputProps) {
   const [value = '', setValue] = useControllableState({
     prop: valueProp,
     defaultProp: defaultValue ?? '',
@@ -114,14 +89,12 @@ const TextareaInput = function TextareaInput({
   return (
     <textarea
       data-slot="textarea-input"
-      id={context.textareaId}
       {...props}
       ref={ref}
       value={value}
       onChange={composeEventHandlers(props.onChange, handleChange)}
-      disabled={context.disabled}
-      aria-invalid={context.hasError}
-      className={cn(textareaVariants({ hasError: context.hasError }), className)}
+      aria-invalid={hasError}
+      className={cn(textareaVariants({ hasError }), className)}
     />
   )
 }
