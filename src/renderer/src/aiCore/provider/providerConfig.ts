@@ -11,7 +11,13 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
+import {
+  formatApiHost,
+  formatAzureOpenAIApiHost,
+  formatOllamaApiHost,
+  formatVertexApiHost,
+  routeToEndpoint
+} from '@renderer/utils/api'
 import {
   isAnthropicProvider,
   isAzureOpenAIProvider,
@@ -100,7 +106,7 @@ export function formatProviderApiHost(provider: Provider): Provider {
   } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else if (formatted.id === SystemProviderIds.ollama) {
-    formatted.apiHost = formatApiHost(formatted.apiHost, false)
+    formatted.apiHost = formatOllamaApiHost(formatted.apiHost)
   } else if (isGeminiProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
   } else if (isAzureOpenAIProvider(formatted)) {

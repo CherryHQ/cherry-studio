@@ -239,7 +239,7 @@ export function buildProviderOptions(
           providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
           break
         case SystemProviderIds.ollama:
-          providerSpecificOptions = buildOllamaProviderOptions(capabilities)
+          providerSpecificOptions = buildOllamaProviderOptions(assistant, capabilities)
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
@@ -483,14 +483,19 @@ function buildBedrockProviderOptions(
   return providerOptions
 }
 
-function buildOllamaProviderOptions(capabilities: {
-  enableReasoning: boolean
-  enableWebSearch: boolean
-  enableGenerateImage: boolean
-}): OllamaCompletionProviderOptions {
+function buildOllamaProviderOptions(
+  assistant: Assistant,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  }
+): OllamaCompletionProviderOptions {
   const { enableReasoning } = capabilities
-  const providerOptions: OllamaCompletionProviderOptions = {
-    think: enableReasoning
+  const providerOptions: OllamaCompletionProviderOptions = {}
+  const reasoningEffort = assistant.settings?.reasoning_effort
+  if (enableReasoning) {
+    providerOptions.think = !['none', undefined].includes(reasoningEffort)
   }
   return providerOptions
 }

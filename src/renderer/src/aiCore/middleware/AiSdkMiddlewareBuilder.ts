@@ -240,6 +240,7 @@ function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: Ai
   // Use /think or /no_think suffix to control thinking mode
   if (
     config.provider &&
+    config.provider.id !== SystemProviderIds.ollama &&
     isSupportedThinkingTokenQwenModel(config.model) &&
     !isSupportEnableThinkingProvider(config.provider)
   ) {

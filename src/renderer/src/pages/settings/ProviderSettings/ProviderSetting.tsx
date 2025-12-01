@@ -277,6 +277,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const hostPreview = () => {
     const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
 
+    if (provider.id === SystemProviderIds.ollama) {
+      return formattedApiHost + '/chat'
+    }
+
     if (isOpenAICompatibleProvider(provider)) {
       return formattedApiHost + '/chat/completions'
     }
