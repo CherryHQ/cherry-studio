@@ -4372,7 +4372,7 @@
         "url": {
           "preview": "Pré-visualização: {{url}}",
           "reset": "Redefinir",
-          "tip": "e forçar o uso do endereço original quando terminar com '#'"
+          "tip": "Adicione # no final para desativar a versão da API adicionada automaticamente."
         }
       },
       "api_host": "Endereço API",

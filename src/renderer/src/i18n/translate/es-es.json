@@ -4372,7 +4372,7 @@
         "url": {
           "preview": "Vista previa: {{url}}",
           "reset": "Restablecer",
-          "tip": "forzar uso de dirección de entrada con # al final"
+          "tip": "Añada # al final para deshabilitar la versión de la API que se añade automáticamente."
         }
       },
       "api_host": "Dirección API",
