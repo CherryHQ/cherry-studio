@@ -4,6 +4,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -482,16 +483,21 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           {!isDmxapi && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
-                  <Selector
-                    size={14}
-                    value={activeHostField}
-                    onChange={(value) => setActiveHostField(value as HostField)}
-                    options={hostSelectorOptions}
-                    style={{ paddingLeft: 1, fontWeight: 'bold' }}
-                    placement="bottomLeft"
-                  />
-                </Tooltip>
+                <div className="flex items-center gap-1">
+                  <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
+                    <div>
+                      <Selector
+                        size={14}
+                        value={activeHostField}
+                        onChange={(value) => setActiveHostField(value as HostField)}
+                        options={hostSelectorOptions}
+                        style={{ paddingLeft: 1, fontWeight: 'bold' }}
+                        placement="bottomLeft"
+                      />
+                    </div>
+                  </Tooltip>
+                  <HelpTooltip title={t('settings.provider.api.url.tip')}></HelpTooltip>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Button
                     type="text"
