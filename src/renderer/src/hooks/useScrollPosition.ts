@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { throttle } from 'lodash'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { useTimer } from './useTimer'
 
@@ -13,13 +13,18 @@ import { useTimer } from './useTimer'
  */
 export default function useScrollPosition(key: string, throttleWait?: number) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const scrollKey = `scroll:${key}`
+  const scrollKey = useMemo(() => `scroll:${key}`, [key])
+  const scrollKeyRef = useRef(scrollKey)
   const { setTimeoutTimer } = useTimer()
+
+  useEffect(() => {
+    scrollKeyRef.current = scrollKey
+  }, [scrollKey])
 
   const handleScroll = throttle(() => {
     const position = containerRef.current?.scrollTop ?? 0
     window.requestAnimationFrame(() => {
-      cacheService.set(scrollKey, position)
+      cacheService.set(scrollKeyRef.current, position)
     })
   }, throttleWait ?? 100)
 
@@ -28,6 +33,10 @@ export default function useScrollPosition(key: string, throttleWait?: number) {
     scroll()
     setTimeoutTimer('scrollEffect', scroll, 50)
   }, [scrollKey, setTimeoutTimer])
+
+  useEffect(() => {
+    return () => handleScroll.cancel()
+  }, [handleScroll])
 
   return { containerRef, handleScroll }
 }

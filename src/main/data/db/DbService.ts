@@ -45,7 +45,6 @@ class DbService {
         connection: { url: pathToFileURL(path.join(app.getPath('userData'), DB_NAME)).href },
         casing: 'snake_case'
       })
-      this.isInitialized = true
       logger.info('Database connection initialized', {
         dbPath: path.join(app.getPath('userData'), DB_NAME)
       })
@@ -66,6 +65,26 @@ class DbService {
       DbService.instance = new DbService()
     }
     return DbService.instance
+  }
+
+  /**
+   * Initialize the database
+   * @throws {Error} If database initialization fails
+   */
+  public async init(): Promise<void> {
+    if (this.isInitialized) {
+      logger.warn('Database already initialized, do not need initialize again!')
+      return
+    }
+
+    try {
+      // Configure WAL mode on first database operation
+      await this.configureWAL()
+      this.isInitialized = true
+    } catch (error) {
+      logger.error('Database initialization failed', error as Error)
+      throw error
+    }
   }
 
   /**
@@ -93,10 +112,11 @@ class DbService {
    * @throws {Error} If migration fails
    */
   public async migrateDb(): Promise<void> {
-    try {
-      // Configure WAL mode on first database operation
-      await this.configureWAL()
+    if (!this.isInitialized) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
 
+    try {
       const migrationsFolder = this.getMigrationsFolder()
       await migrate(this.db, { migrationsFolder })
 
@@ -113,7 +133,7 @@ class DbService {
    */
   public getDb(): DbType {
     if (!this.isInitialized) {
-      throw new Error('Database is not initialized')
+      throw new Error('Database is not initialized, please call init() first!')
     }
     return this.db
   }
@@ -131,6 +151,10 @@ class DbService {
    * @throws {Error} If seed migration fails
    */
   public async migrateSeed(seedName: keyof typeof Seeding): Promise<void> {
+    if (!this.isInitialized) {
+      throw new Error('Database is not initialized, please call init() first!')
+    }
+
     try {
       const Seed = Seeding[seedName]
       if (!Seed) {

@@ -1,6 +1,28 @@
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
+ * Cache Schema Definitions
+ *
+ * ## Key Naming Convention
+ *
+ * All cache keys MUST follow the format: `namespace.sub.key_name`
+ *
+ * Rules:
+ * - At least 2 segments separated by dots (.)
+ * - Each segment uses lowercase letters, numbers, and underscores only
+ * - Pattern: /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+ *
+ * Examples:
+ * - 'app.user.avatar' (valid)
+ * - 'chat.multi_select_mode' (valid)
+ * - 'minapp.opened_keep_alive' (valid)
+ * - 'userAvatar' (invalid - missing dot separator)
+ * - 'App.user' (invalid - uppercase not allowed)
+ *
+ * This convention is enforced by ESLint rule: data-schema-key/valid-key
+ */
+
+/**
  * Use cache schema for renderer hook
  */
 
@@ -63,11 +85,11 @@ export const DefaultUseCache: UseCacheSchema = {
  * Use shared cache schema for renderer hook
  */
 export type UseSharedCacheSchema = {
-  'example-key': string
+  'example_scope.example_key': string
 }
 
 export const DefaultUseSharedCache: UseSharedCacheSchema = {
-  'example-key': 'example default value'
+  'example_scope.example_key': 'example default value'
 }
 
 /**
@@ -75,11 +97,11 @@ export const DefaultUseSharedCache: UseSharedCacheSchema = {
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'example-key': string
+  'example_scope.example_key': string
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'example-key': 'example default value'
+  'example_scope.example_key': 'example default value'
 }
 
 /**

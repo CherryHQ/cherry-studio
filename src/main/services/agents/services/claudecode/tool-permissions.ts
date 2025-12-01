@@ -31,6 +31,7 @@ type PendingPermissionRequest = {
   abortListener?: () => void
   originalInput: Record<string, unknown>
   toolName: string
+  toolCallId?: string
 }
 
 type RendererPermissionRequestPayload = {
@@ -45,6 +46,7 @@ type RendererPermissionRequestPayload = {
   createdAt: number
   expiresAt: number
   suggestions: PermissionUpdate[]
+  autoApprove?: boolean
 }
 
 type RendererPermissionResultPayload = {
@@ -52,6 +54,7 @@ type RendererPermissionResultPayload = {
   behavior: ToolPermissionBehavior
   message?: string
   reason: 'response' | 'timeout' | 'aborted' | 'no-window'
+  toolCallId?: string
 }
 
 const pendingRequests = new Map<string, PendingPermissionRequest>()
@@ -145,7 +148,8 @@ const finalizeRequest = (
     requestId,
     behavior: update.behavior,
     message: update.behavior === 'deny' ? update.message : undefined,
-    reason
+    reason,
+    toolCallId: pending.toolCallId
   }
 
   const dispatched = broadcastToRenderer(IpcChannel.AgentToolPermission_Result, resultPayload)
@@ -210,6 +214,7 @@ const ensureIpcHandlersRegistered = () => {
 type PromptForToolApprovalOptions = {
   signal: AbortSignal
   suggestions?: PermissionUpdate[]
+  autoApprove?: boolean
 
   // NOTICE: This ID is namespaced with session ID, not the raw SDK tool call ID.
   // Format: `${sessionId}:${rawToolCallId}`, e.g., `session_123:WebFetch_0`
@@ -270,7 +275,8 @@ export async function promptForToolApproval(
     inputPreview,
     createdAt,
     expiresAt,
-    suggestions: sanitizedSuggestions
+    suggestions: sanitizedSuggestions,
+    autoApprove: options.autoApprove
   }
 
   const defaultDenyUpdate: PermissionResult = { behavior: 'deny', message: 'Tool request aborted before user decision' }
@@ -299,7 +305,8 @@ export async function promptForToolApproval(
       timeout,
       originalInput: sanitizedInput,
       toolName,
-      signal: options?.signal
+      signal: options?.signal,
+      toolCallId: options.toolCallId
     }
 
     if (options?.signal) {

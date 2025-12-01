@@ -215,6 +215,10 @@
   border-top: none !important;
 }
 
+.ant-collapse-header-text {
+  overflow-x: hidden;
+}
+
 .ant-slider .ant-slider-handle::after {
   box-shadow: 0 1px 4px 0px rgb(128 128 128 / 50%) !important;
 }

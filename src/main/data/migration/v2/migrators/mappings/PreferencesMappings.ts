@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2025-09-02T06:27:50.213Z
+ * Generated at: 2025-11-29T03:45:07.227Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in packages/shared/data/preferences.ts
@@ -31,48 +31,16 @@ export const ELECTRON_STORE_MAPPINGS = [
 export const REDUX_STORE_MAPPINGS = {
   settings: [
     {
-      originalKey: 'autoCheckUpdate',
-      targetKey: 'app.dist.auto_update.enabled'
-    },
-    {
-      originalKey: 'clickTrayToShowQuickAssistant',
-      targetKey: 'feature.quick_assistant.click_tray_to_show'
-    },
-    {
-      originalKey: 'disableHardwareAcceleration',
-      targetKey: 'app.disable_hardware_acceleration'
-    },
-    {
-      originalKey: 'enableDataCollection',
-      targetKey: 'app.privacy.data_collection.enabled'
-    },
-    {
-      originalKey: 'enableDeveloperMode',
-      targetKey: 'app.developer_mode.enabled'
-    },
-    {
-      originalKey: 'enableQuickAssistant',
-      targetKey: 'feature.quick_assistant.enabled'
-    },
-    {
       originalKey: 'language',
       targetKey: 'app.language'
     },
     {
-      originalKey: 'launchToTray',
-      targetKey: 'app.tray.on_launch'
-    },
-    {
-      originalKey: 'testChannel',
-      targetKey: 'app.dist.test_plan.channel'
-    },
-    {
-      originalKey: 'testPlan',
-      targetKey: 'app.dist.test_plan.enabled'
-    },
-    {
       originalKey: 'theme',
       targetKey: 'ui.theme_mode'
+    },
+    {
+      originalKey: 'launchToTray',
+      targetKey: 'app.tray.on_launch'
     },
     {
       originalKey: 'tray',
@@ -81,6 +49,38 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'trayOnClose',
       targetKey: 'app.tray.on_close'
+    },
+    {
+      originalKey: 'clickTrayToShowQuickAssistant',
+      targetKey: 'feature.quick_assistant.click_tray_to_show'
+    },
+    {
+      originalKey: 'enableQuickAssistant',
+      targetKey: 'feature.quick_assistant.enabled'
+    },
+    {
+      originalKey: 'autoCheckUpdate',
+      targetKey: 'app.dist.auto_update.enabled'
+    },
+    {
+      originalKey: 'testPlan',
+      targetKey: 'app.dist.test_plan.enabled'
+    },
+    {
+      originalKey: 'testChannel',
+      targetKey: 'app.dist.test_plan.channel'
+    },
+    {
+      originalKey: 'enableDataCollection',
+      targetKey: 'app.privacy.data_collection.enabled'
+    },
+    {
+      originalKey: 'disableHardwareAcceleration',
+      targetKey: 'app.disable_hardware_acceleration'
+    },
+    {
+      originalKey: 'enableDeveloperMode',
+      targetKey: 'app.developer_mode.enabled'
     },
     {
       originalKey: 'showAssistants',
@@ -147,6 +147,14 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'ui.theme_user.color_primary'
     },
     {
+      originalKey: 'userTheme.userFontFamily',
+      targetKey: 'ui.theme_user.font_family'
+    },
+    {
+      originalKey: 'userTheme.userCodeFontFamily',
+      targetKey: 'ui.theme_user.code_font_family'
+    },
+    {
       originalKey: 'windowStyle',
       targetKey: 'ui.window_style'
     },
@@ -181,6 +189,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'clickAssistantToShowTopic',
       targetKey: 'assistant.click_to_show_topic'
+    },
+    {
+      originalKey: 'renderInputMessageAsMarkdown',
+      targetKey: 'chat.message.render_as_markdown'
     },
     {
       originalKey: 'codeExecution.enabled',
@@ -251,8 +263,16 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.code.image_tools'
     },
     {
+      originalKey: 'codeFancyBlock',
+      targetKey: 'chat.code.fancy_block'
+    },
+    {
       originalKey: 'mathEngine',
-      targetKey: 'chat.message.math_engine'
+      targetKey: 'chat.message.math.engine'
+    },
+    {
+      originalKey: 'mathEnableSingleDollar',
+      targetKey: 'chat.message.math.single_dollar'
     },
     {
       originalKey: 'messageStyle',
@@ -336,7 +356,23 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'topicNamingPrompt',
-      targetKey: 'topic.naming.prompt'
+      targetKey: 'topic.naming_prompt'
+    },
+    {
+      originalKey: 'confirmDeleteMessage',
+      targetKey: 'chat.message.confirm_delete'
+    },
+    {
+      originalKey: 'confirmRegenerateMessage',
+      targetKey: 'chat.message.confirm_regenerate'
+    },
+    {
+      originalKey: 'sidebarIcons.visible',
+      targetKey: 'ui.sidebar.icons.visible'
+    },
+    {
+      originalKey: 'sidebarIcons.disabled',
+      targetKey: 'ui.sidebar.icons.invisible'
     },
     {
       originalKey: 'narrowMode',
@@ -507,6 +543,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.export.menus.plain_text'
     },
     {
+      originalKey: 'exportMenuOptions.notes',
+      targetKey: 'data.export.menus.notes'
+    },
+    {
       originalKey: 'notification.assistant',
       targetKey: 'app.notification.assistant.enabled'
     },
@@ -597,6 +637,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'apiServer.apiKey',
       targetKey: 'feature.csaas.api_key'
+    },
+    {
+      originalKey: 'showMessageOutline',
+      targetKey: 'chat.message.show_outline'
     }
   ],
   selectionStore: [
@@ -605,12 +649,8 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.enabled'
     },
     {
-      originalKey: 'filterList',
-      targetKey: 'feature.selection.filter_list'
-    },
-    {
-      originalKey: 'filterMode',
-      targetKey: 'feature.selection.filter_mode'
+      originalKey: 'triggerMode',
+      targetKey: 'feature.selection.trigger_mode'
     },
     {
       originalKey: 'isFollowToolbar',
@@ -621,8 +661,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.remember_win_size'
     },
     {
-      originalKey: 'triggerMode',
-      targetKey: 'feature.selection.trigger_mode'
+      originalKey: 'filterMode',
+      targetKey: 'feature.selection.filter_mode'
+    },
+    {
+      originalKey: 'filterList',
+      targetKey: 'feature.selection.filter_list'
     },
     {
       originalKey: 'isCompact',
@@ -645,6 +689,32 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.selection.action_items'
     }
   ],
+  memory: [
+    {
+      originalKey: 'memoryConfig.embedderDimensions',
+      targetKey: 'feature.memory.embedder_dimensions'
+    },
+    {
+      originalKey: 'memoryConfig.isAutoDimensions',
+      targetKey: 'feature.memory.auto_dimensions'
+    },
+    {
+      originalKey: 'memoryConfig.customFactExtractionPrompt',
+      targetKey: 'feature.memory.fact_extraction_prompt'
+    },
+    {
+      originalKey: 'memoryConfig.customUpdateMemoryPrompt',
+      targetKey: 'feature.memory.update_memory_prompt'
+    },
+    {
+      originalKey: 'currentUserId',
+      targetKey: 'feature.memory.current_user_id'
+    },
+    {
+      originalKey: 'globalMemoryEnabled',
+      targetKey: 'feature.memory.enabled'
+    }
+  ],
   nutstore: [
     {
       originalKey: 'nutstoreToken',
@@ -663,12 +733,12 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.nutstore.sync_interval'
     },
     {
-      originalKey: 'nutstoreSyncState',
-      targetKey: 'data.backup.nutstore.sync_state'
-    },
-    {
       originalKey: 'nutstoreSkipBackupFile',
       targetKey: 'data.backup.nutstore.skip_backup_file'
+    },
+    {
+      originalKey: 'nutstoreMaxBackups',
+      targetKey: 'data.backup.nutstore.max_backups'
     }
   ],
   shortcuts: [
@@ -736,6 +806,48 @@ export const REDUX_STORE_MAPPINGS = {
       originalKey: 'shortcuts.exit_fullscreen',
       targetKey: 'shortcut.app.exit_fullscreen'
     }
+  ],
+  note: [
+    {
+      originalKey: 'settings.isFullWidth',
+      targetKey: 'feature.notes.full_width'
+    },
+    {
+      originalKey: 'settings.fontFamily',
+      targetKey: 'feature.notes.font_family'
+    },
+    {
+      originalKey: 'settings.fontSize',
+      targetKey: 'feature.notes.font_size'
+    },
+    {
+      originalKey: 'settings.showTableOfContents',
+      targetKey: 'feature.notes.show_table_of_contents'
+    },
+    {
+      originalKey: 'settings.defaultViewMode',
+      targetKey: 'feature.notes.default_view_mode'
+    },
+    {
+      originalKey: 'settings.defaultEditMode',
+      targetKey: 'feature.notes.default_edit_mode'
+    },
+    {
+      originalKey: 'settings.showTabStatus',
+      targetKey: 'feature.notes.show_tab_status'
+    },
+    {
+      originalKey: 'settings.showWorkspace',
+      targetKey: 'feature.notes.show_workspace'
+    },
+    {
+      originalKey: 'notesPath',
+      targetKey: 'feature.notes.path'
+    },
+    {
+      originalKey: 'sortType',
+      targetKey: 'feature.notes.sort_type'
+    }
   ]
 } as const
 
@@ -744,9 +856,9 @@ export const REDUX_STORE_MAPPINGS = {
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 175
- * - Redux分类: settings, selectionStore, nutstore, shortcuts
- * - 总配置项: 176
+ * - Redux Store项: 202
+ * - Redux分类: settings, selectionStore, memory, nutstore, shortcuts, note
+ * - 总配置项: 203
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

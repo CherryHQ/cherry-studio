@@ -586,9 +586,11 @@ const fetchAndProcessAgentResponseImpl = async (
         return
       }
 
+      // Only mark as cleared if there was a previous session ID (not initial assignment)
+      sessionWasCleared = !!latestAgentSessionId
+
       latestAgentSessionId = sessionId
       agentSession.agentSessionId = sessionId
-      sessionWasCleared = true
 
       logger.debug(`Agent session ID updated`, {
         topicId,

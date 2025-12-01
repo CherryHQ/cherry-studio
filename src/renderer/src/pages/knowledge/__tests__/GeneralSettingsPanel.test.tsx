@@ -1,4 +1,4 @@
-import type { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
+import type { KnowledgeBase, Model } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,9 +24,7 @@ const mocks = vi.hoisted(() => ({
   ],
   handlers: {
     handleEmbeddingModelChange: vi.fn(),
-    handleDimensionChange: vi.fn(),
-    handleRerankModelChange: vi.fn(),
-    handleDocPreprocessChange: vi.fn()
+    handleDimensionChange: vi.fn()
   }
 }))
 
@@ -41,11 +39,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 // Mock ModelSelector component
 vi.mock('@renderer/components/ModelSelector', () => ({
-  default: ({ value, onChange, placeholder, allowClear, providers, predicate }: any) => {
-    // Determine if this is for embedding or rerank models based on predicate
-    const isEmbedding = predicate?.toString().includes('embedding')
-    const isRerank = predicate?.toString().includes('rerank')
-
+  default: ({ value, onChange, placeholder, allowClear, providers }: any) => {
     // Use providers parameter to avoid lint error
     const hasProviders = providers && providers.length > 0
 
@@ -56,21 +50,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
         onChange={(e) => onChange?.(e.target.value)}
         data-placeholder={placeholder}
         data-allow-clear={allowClear}
-        data-model-type={isEmbedding ? 'embedding' : isRerank ? 'rerank' : 'unknown'}
         data-has-providers={hasProviders}>
         <option value="">Select model</option>
-        {isEmbedding && (
-          <>
-            <option value="openai/text-embedding-3-small">text-embedding-3-small</option>
-            <option value="openai/text-embedding-ada-002">text-embedding-ada-002</option>
-          </>
-        )}
-        {isRerank && (
-          <>
-            <option value="openai/rerank-model">rerank-model</option>
-            <option value="cohere/rerank-english-v2.0">rerank-english-v2.0</option>
-          </>
-        )}
+        <option value="openai/text-embedding-3-small">text-embedding-3-small</option>
+        <option value="openai/text-embedding-ada-002">text-embedding-ada-002</option>
       </select>
     )
   }
@@ -102,8 +85,7 @@ vi.mock('@renderer/services/ModelService', () => ({
 
 // Mock model predicates
 vi.mock('@renderer/config/models', () => ({
-  isEmbeddingModel: (model: Model) => model.group === 'embedding',
-  isRerankModel: (model: Model) => model.group === 'rerank'
+  isEmbeddingModel: (model: Model) => model.group === 'embedding'
 }))
 
 // Mock constant
@@ -120,22 +102,6 @@ vi.mock('react-i18next', () => ({
 vi.mock('antd', () => ({
   Input: ({ value, onChange, placeholder }: any) => (
     <input data-testid="name-input" value={value} onChange={onChange} placeholder={placeholder} />
-  ),
-  Select: ({ value, onChange, placeholder, options, allowClear, children }: any) => (
-    <select
-      data-testid="preprocess-select"
-      value={value || ''}
-      onChange={(e) => onChange?.(e.target.value)}
-      data-placeholder={placeholder}
-      data-allow-clear={allowClear}>
-      <option value="">Select option</option>
-      {options?.map((option: any) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-      {children}
-    </select>
   ),
   Slider: ({ value, onChange, min, max, step, marks, style }: any) => {
     // Determine test ID based on slider characteristics
@@ -183,40 +149,14 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   }
 }
 
-/**
- * 创建测试用的 PreprocessProvider 对象
- * @param overrides - 可选的属性覆盖
- * @returns 完整的 PreprocessProvider 对象
- */
-function createPreprocessProvider(overrides: Partial<PreprocessProvider> = {}): PreprocessProvider {
-  return {
-    id: 'doc2x',
-    name: 'Doc2X',
-    apiKey: 'test-api-key',
-    ...overrides
-  }
-}
-
 describe('GeneralSettingsPanel', () => {
   const mockBase = createKnowledgeBase()
   const mockSetNewBase = vi.fn()
-  const mockSelectedDocPreprocessProvider = createPreprocessProvider()
-  const mockDocPreprocessSelectOptions = [
-    { value: 'doc2x', label: 'Doc2X' },
-    { value: 'mistral', label: 'Mistral' }
-  ]
 
   // 提取公共渲染函数
   const renderComponent = (props: Partial<any> = {}) => {
     return render(
-      <GeneralSettingsPanel
-        newBase={mockBase}
-        setNewBase={mockSetNewBase}
-        selectedDocPreprocessProvider={mockSelectedDocPreprocessProvider}
-        docPreprocessSelectOptions={mockDocPreprocessSelectOptions}
-        handlers={mocks.handlers}
-        {...props}
-      />
+      <GeneralSettingsPanel newBase={mockBase} setNewBase={mockSetNewBase} handlers={mocks.handlers} {...props} />
     )
   }
 
@@ -228,17 +168,6 @@ describe('GeneralSettingsPanel', () => {
     it('should match snapshot', () => {
       const { container } = renderComponent()
       expect(container.firstChild).toMatchSnapshot()
-    })
-
-    it('should render without selectedDocPreprocessProvider', () => {
-      renderComponent({ selectedDocPreprocessProvider: undefined })
-      expect(screen.getByTestId('preprocess-select')).toHaveValue('')
-    })
-
-    it('should render with empty docPreprocessSelectOptions', () => {
-      renderComponent({ docPreprocessSelectOptions: [] })
-      const preprocessSelect = screen.getByTestId('preprocess-select')
-      expect(preprocessSelect.children).toHaveLength(1)
     })
   })
 
@@ -254,29 +183,14 @@ describe('GeneralSettingsPanel', () => {
       expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function))
     })
 
-    it('should handle preprocess provider change', async () => {
-      renderComponent()
-
-      const preprocessSelect = screen.getByTestId('preprocess-select')
-      await user.selectOptions(preprocessSelect, 'mistral')
-
-      expect(mocks.handlers.handleDocPreprocessChange).toHaveBeenCalledWith('mistral')
-    })
-
     it('should handle model selection changes', async () => {
       renderComponent()
 
-      const modelSelectors = screen.getAllByTestId('model-selector')
+      const modelSelector = screen.getByTestId('model-selector')
 
       // Test embedding model change
-      const embeddingModelSelector = modelSelectors[0]
-      await user.selectOptions(embeddingModelSelector, 'openai/text-embedding-ada-002')
+      await user.selectOptions(modelSelector, 'openai/text-embedding-ada-002')
       expect(mocks.handlers.handleEmbeddingModelChange).toHaveBeenCalledWith('openai/text-embedding-ada-002')
-
-      // Test rerank model change
-      const rerankModelSelector = modelSelectors[1]
-      await user.selectOptions(rerankModelSelector, 'openai/rerank-model')
-      expect(mocks.handlers.handleRerankModelChange).toHaveBeenCalledWith('openai/rerank-model')
     })
 
     it('should handle dimension change', async () => {

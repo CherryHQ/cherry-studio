@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-sdk-provider",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Cherry Studio AI SDK provider bundle with CherryIN routing.",
   "keywords": [
     "ai-sdk",
@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.12"
+    "@ai-sdk/provider-utils": "^3.0.17"
   },
   "devDependencies": {
     "tsdown": "^0.13.3",

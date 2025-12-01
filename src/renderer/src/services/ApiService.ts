@@ -3,8 +3,6 @@
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
-import type { CompletionsParams } from '@renderer/aiCore/legacy/middleware/schemas'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
@@ -14,7 +12,7 @@ import type { FetchChatCompletionParams } from '@renderer/types'
 import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, ResponseError } from '@renderer/types/newMessage'
 import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
@@ -83,7 +81,7 @@ export async function fetchChatCompletion({
   messages,
   prompt,
   assistant,
-  options,
+  requestOptions,
   onChunkReceived,
   topicId,
   uiMessages
@@ -124,7 +122,7 @@ export async function fetchChatCompletion({
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     webSearchProviderId: assistant.webSearchProviderId,
-    requestOptions: options
+    requestOptions
   })
 
   // Safely fallback to prompt tool use when function calling is not supported by model.
@@ -463,76 +461,54 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
+  // Don't pass in provider parameter. We need auto-format URL
   const ai = new AiProviderNew(model)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
   assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
-  try {
-    if (isEmbeddingModel(model)) {
-      // race 超时 15s
-      logger.silly("it's a embedding model")
-      const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
-      await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
-    } else {
-      const abortId = uuid()
-      const signal = readyToAbort(abortId)
-      let chunkError
-      const params: StreamTextParams = {
-        system: assistant.prompt,
-        prompt: 'hi',
-        abortSignal: signal
-      }
-      const config: ModernAiProviderConfig = {
-        streamOutput: true,
-        enableReasoning: false,
-        isSupportedToolUse: false,
-        isImageGenerationEndpoint: false,
-        enableWebSearch: false,
-        enableGenerateImage: false,
-        isPromptToolUse: false,
-        enableUrlContext: false,
-        assistant,
-        callType: 'check',
-        onChunk: (chunk: Chunk) => {
-          if (chunk.type === ChunkType.ERROR) {
-            chunkError = chunk.error
-          } else {
-            abortCompletion(abortId)
-          }
-        }
-      }
 
-      // Try streaming check first
-      try {
-        await ai.completions(model.id, params, config)
-      } catch (e) {
-        if (!isAbortError(e) && !isAbortError(chunkError)) {
-          throw e
+  if (isEmbeddingModel(model)) {
+    // race 超时 15s
+    logger.silly("it's a embedding model")
+    const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+    await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+  } else {
+    const abortId = uuid()
+    const signal = readyToAbort(abortId)
+    let streamError: ResponseError | undefined
+    const params: StreamTextParams = {
+      system: assistant.prompt,
+      prompt: 'hi',
+      abortSignal: signal
+    }
+    const config: ModernAiProviderConfig = {
+      streamOutput: true,
+      enableReasoning: false,
+      isSupportedToolUse: false,
+      isImageGenerationEndpoint: false,
+      enableWebSearch: false,
+      enableGenerateImage: false,
+      isPromptToolUse: false,
+      enableUrlContext: false,
+      assistant,
+      callType: 'check',
+      onChunk: (chunk: Chunk) => {
+        if (chunk.type === ChunkType.ERROR) {
+          streamError = chunk.error
+        } else {
+          abortCompletion(abortId)
         }
       }
     }
-  } catch (error: any) {
-    // 失败回退legacy
-    const legacyAi = new AiProvider(provider)
-    if (error.message.includes('stream')) {
-      const params: CompletionsParams = {
-        callType: 'check',
-        messages: 'hi',
-        assistant,
-        streamOutput: false,
-        shouldThrow: true
+
+    try {
+      await ai.completions(model.id, params, config)
+    } catch (e) {
+      if (!isAbortError(e) && !isAbortError(streamError)) {
+        throw streamError ?? e
       }
-      const result = await legacyAi.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
-      }
-    } else {
-      throw error
     }
-    // } finally {
-    //   removeAbortController(taskId, abortFn)
-    // }
   }
 }
 
