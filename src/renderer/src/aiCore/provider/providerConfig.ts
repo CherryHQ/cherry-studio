@@ -78,9 +78,11 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
 }
 
 /**
- * 主要用来对齐AISdk的BaseURL格式
- * @param provider
- * @returns
+ * Format and normalize the API host URL for a provider.
+ * Handles provider-specific URL formatting rules (e.g., appending version paths, Azure formatting).
+ *
+ * @param provider - The provider whose API host is to be formatted.
+ * @returns A new provider instance with the formatted API host.
  */
 function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
