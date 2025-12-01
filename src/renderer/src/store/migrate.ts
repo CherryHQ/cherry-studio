@@ -2906,6 +2906,20 @@ const migrateConfig = {
       logger.error('migrate 179 error', error as Error)
       return state
     }
+  },
+  '180': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 179 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 179 error', error as Error)
+      return state
+    }
   }
 }
 
