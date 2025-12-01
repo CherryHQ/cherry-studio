@@ -49,6 +49,12 @@ export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './
 // ImageToolButton
 export { default as ImageToolButton } from './composites/ImageToolButton'
 // Sortable
+export {
+  CompositeInput,
+  type CompositeInputProps,
+  type SelectGroup as CompositeInputSelectGroup,
+  type SelectItem as CompositeInputSelectItem
+} from './composites/Input'
 export { Sortable } from './composites/Sortable'
 
 /* Shadcn Primitive Components */
@@ -58,6 +64,8 @@ export * from './primitives/checkbox'
 export * from './primitives/combobox'
 export * from './primitives/command'
 export * from './primitives/dialog'
+export * from './primitives/input'
+export * from './primitives/input-group'
 export * from './primitives/kbd'
 export * from './primitives/pagination'
 export * from './primitives/popover'
@@ -65,3 +73,4 @@ export * from './primitives/radioGroup'
 export * from './primitives/select'
 export * from './primitives/shadcn-io/dropzone'
 export * from './primitives/tabs'
+export * from './primitives/textarea'
