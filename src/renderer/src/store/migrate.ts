@@ -2914,10 +2914,10 @@ const migrateConfig = {
           provider.type = 'ollama'
         }
       })
-      logger.info('migrate 179 success')
+      logger.info('migrate 180 success')
       return state
     } catch (error) {
-      logger.error('migrate 179 error', error as Error)
+      logger.error('migrate 180 error', error as Error)
       return state
     }
   }
