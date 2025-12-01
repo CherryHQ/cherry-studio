@@ -6,6 +6,7 @@ import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
+import BloomAppLogo from '@renderer/assets/images/apps/bloom.png?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
@@ -242,6 +243,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Poe',
     logo: PoeAppLogo,
     url: 'https://poe.com'
+  },
+  {
+    id: 'bloom',
+    name: 'Bloom',
+    logo: BloomAppLogo,
+    url: 'https://powerdrill.ai/',
+    bodered: true
   },
   {
     id: 'perplexity',
