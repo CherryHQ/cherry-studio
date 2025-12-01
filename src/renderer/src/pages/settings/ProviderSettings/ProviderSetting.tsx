@@ -410,9 +410,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           )}
         </Flex>
         <Switch
-          isSelected={provider.enabled}
+          checked={provider.enabled}
           key={provider.id}
-          onValueChange={(enabled) => {
+          onCheckedChange={(enabled) => {
             updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)

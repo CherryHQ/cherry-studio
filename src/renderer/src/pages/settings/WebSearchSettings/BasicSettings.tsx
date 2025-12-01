@@ -23,7 +23,7 @@ const BasicSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
-          <Switch isSelected={searchWithTime} onValueChange={(checked) => dispatch(setSearchWithTime(checked))} />
+          <Switch checked={searchWithTime} onCheckedChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>

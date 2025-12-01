@@ -464,8 +464,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SettingTitle>
           <RowFlex>
             <Switch
-              isSelected={painting.promptEnhancement}
-              onValueChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
+              checked={painting.promptEnhancement}
+              onCheckedChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
             />
           </RowFlex>
         </LeftContainer>

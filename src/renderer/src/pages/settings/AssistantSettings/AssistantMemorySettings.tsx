@@ -94,8 +94,8 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
                   : ''
             }>
             <Switch
-              isSelected={assistant.enableMemory || false}
-              onValueChange={handleMemoryToggle}
+              checked={assistant.enableMemory || false}
+              onCheckedChange={handleMemoryToggle}
               disabled={!isMemoryEnabled}
             />
           </Tooltip>

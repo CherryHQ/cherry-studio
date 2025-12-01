@@ -343,10 +343,9 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               label={t('settings.models.add.supported_text_delta.label')}
               tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
               <Switch
-                isSelected={supportedTextDelta}
+                checked={supportedTextDelta}
                 className="ml-auto"
-                size="sm"
-                onValueChange={(checked) => {
+                onCheckedChange={(checked) => {
                   setSupportedTextDelta(checked)
                   // 直接传递新值给autoSave
                   autoSave({ supported_text_delta: checked })
