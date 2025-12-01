@@ -99,6 +99,8 @@ export function formatProviderApiHost(provider: Provider): Provider {
     }
   } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (formatted.id === SystemProviderIds.ollama) {
+    formatted.apiHost = formatApiHost(formatted.apiHost, false)
   } else if (isGeminiProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
   } else if (isAzureOpenAIProvider(formatted)) {
