@@ -23,8 +23,10 @@ export function qwenThinkingMiddleware(enableThinking: boolean): LanguageModelMi
             // Process content array
             if (Array.isArray(message.content)) {
               for (const part of message.content) {
-                if (part.type === 'text' && !part.text.endsWith('/think') && !part.text.endsWith('/no_think')) {
-                  part.text += suffix
+                if (part.type === 'text') {
+                  // Remove any existing thinking suffixes first, then add the correct one
+                  const cleanText = part.text.replace(/\s*\/think\s*$/, '').replace(/\s*\/no_think\s*$/, '')
+                  part.text = cleanText + suffix
                 }
               }
             }
