@@ -280,6 +280,7 @@
         "denied": "ツールリクエストは拒否されました。",
         "timeout": "ツールリクエストは承認を受ける前にタイムアウトしました。"
       },
+      "toolPendingFallback": "ツール",
       "waiting": "ツールの許可決定を待っています..."
     },
     "type": {
@@ -1208,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "画像生成",
+    "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
