@@ -29,12 +29,14 @@ import {
   type OpenAIServiceTier,
   OpenAIServiceTiers,
   type Provider,
-  type ServiceTier
+  type ServiceTier,
+  SystemProviderIds
 } from '@renderer/types'
 import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
+import type { OllamaCompletionProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
@@ -235,6 +237,9 @@ export function buildProviderOptions(
           break
         case 'huggingface':
           providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
+          break
+        case SystemProviderIds.ollama:
+          providerSpecificOptions = buildOllamaProviderOptions(capabilities)
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
@@ -475,6 +480,18 @@ function buildBedrockProviderOptions(
     providerOptions.anthropicBeta = betaHeaders
   }
 
+  return providerOptions
+}
+
+function buildOllamaProviderOptions(capabilities: {
+  enableReasoning: boolean
+  enableWebSearch: boolean
+  enableGenerateImage: boolean
+}): OllamaCompletionProviderOptions {
+  const { enableReasoning } = capabilities
+  const providerOptions: OllamaCompletionProviderOptions = {
+    think: enableReasoning
+  }
   return providerOptions
 }
 
