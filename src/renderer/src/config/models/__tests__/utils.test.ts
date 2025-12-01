@@ -15,6 +15,7 @@ import {
   isSupportVerbosityModel
 } from '../openai'
 import { isQwenMTModel } from '../qwen'
+import { isFunctionCallingModel } from '../tooluse'
 import {
   agentModelFilter,
   getModelSupportedVerbosity,
@@ -112,6 +113,7 @@ const textToImageMock = vi.mocked(isTextToImageModel)
 const generateImageMock = vi.mocked(isGenerateImageModel)
 const reasoningMock = vi.mocked(isOpenAIReasoningModel)
 const openAIWebSearchOnlyMock = vi.mocked(isOpenAIWebSearchChatCompletionOnlyModel)
+const isFunctionCallingModelMock = vi.mocked(isFunctionCallingModel)
 
 describe('model utils', () => {
   beforeEach(() => {
@@ -455,6 +457,12 @@ describe('model utils', () => {
         embeddingMock.mockReturnValue(false)
         rerankMock.mockReturnValueOnce(true)
         expect(agentModelFilter(createModel({ id: 'rerank' }))).toBe(false)
+      })
+
+      it('filters out non-function-call models', () => {
+        rerankMock.mockReturnValue(false)
+        isFunctionCallingModelMock.mockReturnValueOnce(false)
+        expect(agentModelFilter(createModel({ id: 'DeepSeek R1' }))).toBe(false)
       })
 
       it('filters out text-to-image models', () => {

@@ -1,5 +1,6 @@
 import type OpenAI from '@cherrystudio/openai'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { type Model, SystemProviderIds } from '@renderer/types'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
@@ -184,6 +185,12 @@ export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as con
 
 // TODO: 支持提示词模式的工具调用
 export const agentModelFilter = (model: Model): boolean => {
+  const provider = getProviderByModel(model)
+
+  // 需要适配，且容易超出限额
+  if (provider.id === SystemProviderIds.copilot) {
+    return false
+  }
   return (
     !isEmbeddingModel(model) &&
     !isRerankModel(model) &&
