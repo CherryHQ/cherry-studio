@@ -42,11 +42,14 @@ import {
   type MCPPrompt,
   type MCPResource,
   type MCPServer,
-  type MCPTool
+  type MCPTool,
+  MCPToolInputSchema,
+  MCPToolOutputSchema
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import { CacheService } from './CacheService'
 import DxtService from './DxtService'
@@ -620,6 +623,8 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
+          inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
+          outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
           id: buildFunctionCallToolName(server.name, tool.name, server.id),
           serverId: server.id,
           serverName: server.name,
