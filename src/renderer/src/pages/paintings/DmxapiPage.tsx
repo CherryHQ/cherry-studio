@@ -477,6 +477,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             window.toast.warning(t('message.empty_url'))
             return null
           }
+
+          if (url.startsWith('data:image')) {
+            return await window.api.file.saveBase64Image(url)
+          }
+
           return await window.api.file.download(url, true)
         } catch (error) {
           if (

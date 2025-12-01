@@ -32,14 +32,8 @@ export class AgentService extends BaseService {
     return AgentService.instance
   }
 
-  async initialize(): Promise<void> {
-    await BaseService.initialize()
-  }
-
   // Agent Methods
   async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
-    this.ensureInitialized()
-
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
@@ -75,8 +69,9 @@ export class AgentService extends BaseService {
       updated_at: now
     }
 
-    await this.database.insert(agentsTable).values(insertData)
-    const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
+    const database = await this.getDatabase()
+    await database.insert(agentsTable).values(insertData)
+    const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
     if (!result[0]) {
       throw new Error('Failed to create agent')
     }
@@ -86,9 +81,8 @@ export class AgentService extends BaseService {
   }
 
   async getAgent(id: string): Promise<GetAgentResponse | null> {
-    this.ensureInitialized()
-
-    const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
+    const database = await this.getDatabase()
+    const result = await database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
 
     if (!result[0]) {
       return null
@@ -118,9 +112,9 @@ export class AgentService extends BaseService {
   }
 
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
-    this.ensureInitialized() // Build query with pagination
-
-    const totalResult = await this.database.select({ count: count() }).from(agentsTable)
+    // Build query with pagination
+    const database = await this.getDatabase()
+    const totalResult = await database.select({ count: count() }).from(agentsTable)
 
     const sortBy = options.sortBy || 'created_at'
     const orderBy = options.orderBy || 'desc'
@@ -128,7 +122,7 @@ export class AgentService extends BaseService {
     const sortField = agentsTable[sortBy]
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    const baseQuery = this.database.select().from(agentsTable).orderBy(orderFn(sortField))
+    const baseQuery = database.select().from(agentsTable).orderBy(orderFn(sortField))
 
     const result =
       options.limit !== undefined
@@ -151,8 +145,6 @@ export class AgentService extends BaseService {
     updates: UpdateAgentRequest,
     options: { replace?: boolean } = {}
   ): Promise<UpdateAgentResponse | null> {
-    this.ensureInitialized()
-
     // Check if agent exists
     const existing = await this.getAgent(id)
     if (!existing) {
@@ -195,22 +187,21 @@ export class AgentService extends BaseService {
       }
     }
 
-    await this.database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+    const database = await this.getDatabase()
+    await database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
     return await this.getAgent(id)
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    this.ensureInitialized()
-
-    const result = await this.database.delete(agentsTable).where(eq(agentsTable.id, id))
+    const database = await this.getDatabase()
+    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
 
     return result.rowsAffected > 0
   }
 
   async agentExists(id: string): Promise<boolean> {
-    this.ensureInitialized()
-
-    const result = await this.database
+    const database = await this.getDatabase()
+    const result = await database
       .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(eq(agentsTable.id, id))

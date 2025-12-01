@@ -16,7 +16,7 @@
       "error": {
         "failed": "Falha ao excluir o agente"
       },
-      "title": "删除代理"
+      "title": "Excluir Agente"
     },
     "edit": {
       "title": "Agent Editor"
@@ -26,6 +26,18 @@
         "failed": "Falha ao obter o agente.",
         "null_id": "O ID do agente é nulo."
       }
+    },
+    "gitBash": {
+      "error": {
+        "description": "O Git Bash é necessário para executar agentes no Windows. O agente não pode funcionar sem ele. Por favor, instale o Git para Windows a partir de",
+        "recheck": "Reverificar a Instalação do Git Bash",
+        "title": "Git Bash Necessário"
+      },
+      "notFound": "Git Bash não encontrado. Por favor, instale-o primeiro.",
+      "success": "Git Bash detectado com sucesso!"
+    },
+    "input": {
+      "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando"
     },
     "list": {
       "error": {
@@ -99,7 +111,7 @@
           "label": "Modo de permissão",
           "options": {
             "acceptEdits": "Aceitar edições automaticamente",
-            "bypassPermissions": "忽略检查 de permissão",
+            "bypassPermissions": "Ignorar verificações de permissão",
             "default": "Padrão (perguntar antes de continuar)",
             "plan": "Modo de planejamento (plano sujeito a aprovação)"
           },
@@ -138,7 +150,7 @@
         },
         "success": {
           "install": "Plugin instalado com sucesso",
-          "uninstall": "插件 desinstalado com sucesso"
+          "uninstall": "Plugin desinstalado com sucesso"
         },
         "tab": "plug-in",
         "type": {
@@ -254,6 +266,7 @@
       "error": {
         "sendFailed": "Falha ao enviar sua decisão. Por favor, tente novamente."
       },
+      "executing": "Executando...",
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
@@ -267,6 +280,7 @@
         "denied": "Solicitação de ferramenta foi negada.",
         "timeout": "A solicitação da ferramenta expirou antes de receber aprovação."
       },
+      "toolPendingFallback": "Ferramenta",
       "waiting": "Aguardando decisão de permissão da ferramenta..."
     },
     "type": {
@@ -1121,7 +1135,7 @@
     "duplicate": "Duplicar",
     "edit": "Editar",
     "enabled": "Ativado",
-    "error": "错误",
+    "error": "Erro",
     "errors": {
       "create_message": "Falha ao criar mensagem",
       "validation": "Falha na verificação"
@@ -1135,6 +1149,7 @@
     "fullscreen": "Entrou no modo de tela cheia, pressione F11 para sair",
     "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
+    "ignore": "Pular",
     "inspect": "Verificar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
@@ -1146,6 +1161,7 @@
     "name": "Nome",
     "no_results": "Nenhum resultado",
     "none": "Nenhum",
+    "off": "Desligado",
     "open": "Abrir",
     "paste": "Colar",
     "placeholders": {
@@ -1193,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Geração de Imagem",
+    "image-generation": "Geração de Imagens (OpenAI)",
     "jina-rerank": "Jina Reordenar",
     "openai": "OpenAI",
     "openai-response": "Resposta OpenAI"
@@ -1373,6 +1389,36 @@
     "preview": "Visualizar",
     "split": "Dividir"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "Importação do ChatGPT",
+      "button": "Selecionar Arquivo",
+      "description": "Importa apenas o texto da conversa, não inclui imagens e anexos",
+      "error": {
+        "invalid_json": "Formato de arquivo JSON inválido",
+        "no_conversations": "Nenhuma conversa encontrada no arquivo",
+        "no_valid_conversations": "Nenhuma conversa válida para importar",
+        "unknown": "Falha na importação, verifique o formato do arquivo"
+      },
+      "help": {
+        "step1": "1. Faça login no ChatGPT, vá para Configurações > Controles de dados > Exportar dados",
+        "step2": "2. Aguarde o arquivo de exportação por e-mail",
+        "step3": "3. Extraia o arquivo baixado e localize conversations.json",
+        "title": "Como exportar conversas do ChatGPT?"
+      },
+      "importing": "Importando conversas...",
+      "selecting": "Selecionando arquivo...",
+      "success": "Importadas com sucesso {{topics}} conversas com {{messages}} mensagens",
+      "title": "Importar Conversas do ChatGPT",
+      "untitled_conversation": "Conversa Sem Título"
+    },
+    "confirm": {
+      "button": "Selecionar Arquivo de Importação",
+      "label": "Tem certeza de que deseja importar dados externos?"
+    },
+    "content": "Selecione o arquivo de conversa do aplicativo externo para importar; atualmente, apenas arquivos no formato JSON do ChatGPT são suportados.",
+    "title": "Importar Conversas Externas"
+  },
   "knowledge": {
     "add": {
       "title": "Adicionar Base de Conhecimento"
@@ -1460,6 +1506,7 @@
     "notes_placeholder": "Digite informações adicionais ou contexto para este repositório de conhecimento...",
     "provider_not_found": "O provedor do modelo do repositório de conhecimento foi perdido, este repositório de conhecimento não será mais suportado, por favor, crie um novo repositório de conhecimento",
     "quota": "Cota restante de {{name}}: {{quota}}",
+    "quota_empty": "A cota de {{name}} de hoje está esgotada, por favor solicite no site oficial",
     "quota_infinity": "Cota restante de {{name}}: ilimitada",
     "rename": "Renomear",
     "search": "Pesquisar repositório de conhecimento",
@@ -3082,6 +3129,7 @@
         "basic": "Configurações Básicas",
         "cloud_storage": "Configurações de Armazenamento em Nuvem",
         "export_settings": "Configurações de Exportação",
+        "import_settings": "Importar Configurações",
         "third_party": "Conexões de Terceiros"
       },
       "export_menu": {
@@ -3140,6 +3188,11 @@
       },
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
+      "import_settings": {
+        "button": "Importar Arquivo Json",
+        "chatgpt": "Importar do ChatGPT",
+        "title": "Importar Dados de Aplicações Externas"
+      },
       "joplin": {
         "check": {
           "button": "Verificar",
@@ -3721,6 +3774,9 @@
       },
       "view_webdav_settings": "Ver configurações WebDAV"
     },
+    "groq": {
+      "title": "Configurações do Groq"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "A desativação da aceleração de hardware requer a reinicialização do aplicativo para entrar em vigor. Deseja reiniciar agora?",
@@ -4211,7 +4267,6 @@
         "default": "Padrão",
         "flex": "Flexível",
         "on_demand": "sob demanda",
-        "performance": "desempenho",
         "priority": "prioridade",
         "tip": "Especifique o nível de latência usado para processar a solicitação",
         "title": "Nível de Serviço"
@@ -4308,6 +4363,10 @@
           "stream_options": {
             "help": "O fornecedor suporta o parâmetro stream_options?",
             "label": "suporta stream_options"
+          },
+          "verbosity": {
+            "help": "Se o provedor suporta o parâmetro de verbosidade",
+            "label": "Suportar verbosidade"
           }
         },
         "url": {
@@ -4478,7 +4537,7 @@
       "confirm": "Confirmar",
       "forward": "Avançar",
       "multiple": "Múltipla Seleção",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "Nenhum resultado encontrado",
       "page": "Página",
       "select": "Selecionar",
       "title": "Menu de Atalho"

@@ -21,6 +21,7 @@ export function getProviderNameById(pid: string) {
   }
 }
 
+//FIXME: 和 AssistantService.ts 中的同名函数冲突
 export function getProviderByModel(model?: Model) {
   const id = model?.provider
   const provider = getStoreProviders().find((p) => p.id === id)

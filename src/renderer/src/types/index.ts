@@ -83,11 +83,15 @@ const ThinkModelTypes = [
   'o',
   'openai_deep_research',
   'gpt5',
+  'gpt5_1',
   'gpt5_codex',
+  'gpt5_1_codex',
+  'gpt5pro',
   'grok',
   'grok4_fast',
   'gemini',
   'gemini_pro',
+  'gemini3',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -100,7 +104,7 @@ const ThinkModelTypes = [
 ] as const
 
 export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
-export type ThinkingOption = ReasoningEffortOption | 'off'
+export type ThinkingOption = ReasoningEffortOption
 export type ThinkingModelType = (typeof ThinkModelTypes)[number]
 export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
 export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
@@ -111,6 +115,7 @@ export function isThinkModelType(type: string): type is ThinkingModelType {
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  none: 0.01,
   minimal: 0.05,
   low: 0.05,
   medium: 0.5,
@@ -234,6 +239,7 @@ export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'functio
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
+// "image-generation" is also openai endpoint, but specifically for image generation.
 export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
@@ -315,6 +321,7 @@ export interface GeneratePainting extends PaintingParams {
   safetyTolerance?: number
   width?: number
   height?: number
+  imageSize?: string
 }
 
 export interface EditPainting extends PaintingParams {
@@ -852,10 +859,6 @@ export interface StoreSyncAction {
   }
 }
 
-export type OpenAIVerbosity = 'high' | 'medium' | 'low'
-
-export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-
 export type S3Config = {
   endpoint: string
   region: string
@@ -1072,7 +1075,7 @@ export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
 
-export type FetchChatCompletionOptions = {
+export type FetchChatCompletionRequestOptions = {
   signal?: AbortSignal
   timeout?: number
   headers?: Record<string, string>
@@ -1080,7 +1083,7 @@ export type FetchChatCompletionOptions = {
 
 type BaseParams = {
   assistant: Assistant
-  options?: FetchChatCompletionOptions
+  requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
   uiMessages?: Message[]
@@ -1100,3 +1103,7 @@ type PromptParams = BaseParams & {
 }
 
 export type FetchChatCompletionParams = MessagesParams | PromptParams
+
+// More specific than NonNullable
+export type NotUndefined<T> = Exclude<T, undefined>
+export type NotNull<T> = Exclude<T, null>

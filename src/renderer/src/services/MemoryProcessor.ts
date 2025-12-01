@@ -6,9 +6,9 @@ import {
   FactRetrievalSchema,
   getFactRetrievalMessages,
   getUpdateMemoryMessages,
-  MemoryUpdateSchema,
-  updateMemorySystemPrompt
+  MemoryUpdateSchema
 } from '@renderer/utils/memory-prompts'
+import { MEMORY_UPDATE_SYSTEM_PROMPT } from '@shared/config/prompts'
 import type { MemoryConfig, MemoryItem } from '@types'
 import jaison from 'jaison/lib/index.js'
 
@@ -122,7 +122,7 @@ export class MemoryProcessor {
       const updateMemoryUserPrompt = getUpdateMemoryMessages(existingMemories, facts)
 
       const responseContent = await fetchGenerate({
-        prompt: updateMemorySystemPrompt,
+        prompt: MEMORY_UPDATE_SYSTEM_PROMPT,
         content: updateMemoryUserPrompt,
         model: getModel(memoryConfig.llmApiClient.model, memoryConfig.llmApiClient.provider)
       })

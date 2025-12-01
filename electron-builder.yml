@@ -135,58 +135,108 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    What's New in v1.7.0-rc.1
+    A New Era of Intelligence with Cherry Studio 1.7.1
 
-    🎉 MAJOR NEW FEATURE: AI Agents
-    - Create and manage custom AI agents with specialized tools and permissions
-    - Dedicated agent sessions with persistent SQLite storage, separate from regular chats
-    - Real-time tool approval system - review and approve agent actions dynamically
-    - MCP (Model Context Protocol) integration for connecting external tools
-    - Slash commands support for quick agent interactions
-    - OpenAI-compatible REST API for agent access
+    Today we're releasing Cherry Studio 1.7.1 — our most ambitious update yet, introducing Agent: autonomous AI that thinks, plans, and acts.
 
-    ✨ New Features:
-    - AI Providers: Added support for Hugging Face, Mistral, Perplexity, and SophNet
-    - Knowledge Base: OpenMinerU document preprocessor, full-text search in notes, enhanced tool selection
-    - Image & OCR: Intel OVMS painting provider and Intel OpenVINO (NPU) OCR support
-    - MCP Management: Redesigned interface with dual-column layout for easier management
-    - Languages: Added German language support
+    For years, AI assistants have been reactive — waiting for your commands, responding to your questions. With Agent, we're changing that. Now, AI can truly work alongside you: understanding complex goals, breaking them into steps, and executing them independently.
 
-    ⚡ Improvements:
-    - Upgraded to Electron 38.7.0
-    - Enhanced system shutdown handling and automatic update checks
-    - Improved proxy bypass rules
+    This is what we've been building toward. And it's just the beginning.
 
-    🐛 Important Bug Fixes:
-    - Fixed streaming response issues across multiple AI providers
-    - Fixed session list scrolling problems
-    - Fixed knowledge base deletion errors
+    🤖 Meet Agent
+    Imagine having a brilliant colleague who never sleeps. Give Agent a goal — write a report, analyze data, refactor code — and watch it work. It reasons through problems, breaks them into steps, calls the right tools, and adapts when things change.
+
+    - **Think → Plan → Act**: From goal to execution, fully autonomous
+    - **Deep Reasoning**: Multi-turn thinking that solves real problems
+    - **Tool Mastery**: File operations, web search, code execution, and more
+    - **Skill Plugins**: Extend with custom commands and capabilities
+    - **You Stay in Control**: Real-time approval for sensitive actions
+    - **Full Visibility**: Every thought, every decision, fully transparent
+
+    🌐 Expanding Ecosystem
+    - **New Providers**: HuggingFace, Mistral, CherryIN, AI Gateway, Intel OVMS, Didi MCP
+    - **New Models**: Claude 4.5 Haiku, DeepSeek v3.2, GLM-4.6, Doubao, Ling series
+    - **MCP Integration**: Alibaba Cloud, ModelScope, Higress, MCP.so, TokenFlux and more
+
+    📚 Smarter Knowledge Base
+    - **OpenMinerU**: Self-hosted document processing
+    - **Full-Text Search**: Find anything instantly across your notes
+    - **Enhanced Tool Selection**: Smarter configuration for better AI assistance
+
+    📝 Notes, Reimagined
+    - Full-text search with highlighted results
+    - AI-powered smart rename
+    - Export as image
+    - Auto-wrap for tables
+
+    🖼️ Image & OCR
+    - Intel OVMS painting capabilities
+    - Intel OpenVINO NPU-accelerated OCR
+
+    🌍 Now in 10+ Languages
+    - Added German support
+    - Enhanced internationalization
+
+    ⚡ Faster & More Polished
+    - Electron 38 upgrade
+    - New MCP management interface
+    - Dozens of UI refinements
+
+    ❤️ Fully Open Source
+    Commercial restrictions removed. Cherry Studio now follows standard AGPL v3 — free for teams of any size.
+
+    The Agent Era is here. We can't wait to see what you'll create.
 
     <!--LANG:zh-CN-->
-    v1.7.0-rc.1 新特性
+    Cherry Studio 1.7.1：开启智能新纪元
 
-    🎉 重大更新：AI Agent 智能体系统
-    - 创建和管理专属 AI Agent，配置专用工具和权限
-    - 独立的 Agent 会话，使用 SQLite 持久化存储，与普通聊天分离
-    - 实时工具审批系统 - 动态审查和批准 Agent 操作
-    - MCP（模型上下文协议）集成，连接外部工具
-    - 支持斜杠命令快速交互
-    - 兼容 OpenAI 的 REST API 访问
+    今天，我们正式发布 Cherry Studio 1.7.1 —— 迄今最具雄心的版本，带来全新的 Agent：能够自主思考、规划和行动的 AI。
 
-    ✨ 新功能:
-    - AI 提供商：新增 Hugging Face、Mistral、Perplexity 和 SophNet 支持
-    - 知识库：OpenMinerU 文档预处理器、笔记全文搜索、增强的工具选择
-    - 图像与 OCR：Intel OVMS 绘图提供商和 Intel OpenVINO (NPU) OCR 支持
-    - MCP 管理：重构管理界面，采用双列布局，更加方便管理
-    - 语言：新增德语支持
+    多年来，AI 助手一直是被动的——等待你的指令，回应你的问题。Agent 改变了这一切。现在，AI 能够真正与你并肩工作：理解复杂目标，将其拆解为步骤，并独立执行。
 
-    ⚡ 改进:
-    - 升级到 Electron 38.7.0
-    - 增强的系统关机处理和自动更新检查
-    - 改进的代理绕过规则
+    这是我们一直在构建的未来。而这，仅仅是开始。
 
-    🐛 重要修复:
-    - 修复多个 AI 提供商的流式响应问题
-    - 修复会话列表滚动问题
-    - 修复知识库删除错误
+    🤖 认识 Agent
+    想象一位永不疲倦的得力伙伴。给 Agent 一个目标——撰写报告、分析数据、重构代码——然后看它工作。它会推理问题、拆解步骤、调用工具，并在情况变化时灵活应对。
+
+    - **思考 → 规划 → 行动**：从目标到执行，全程自主
+    - **深度推理**：多轮思考，解决真实问题
+    - **工具大师**：文件操作、网络搜索、代码执行，样样精通
+    - **技能插件**：自定义命令，无限扩展
+    - **你掌控全局**：敏感操作，实时审批
+    - **完全透明**：每一步思考，每一个决策，清晰可见
+
+    🌐 生态持续壮大
+    - **新增服务商**：Hugging Face、Mistral、Perplexity、SophNet、AI Gateway、Cerebras AI
+    - **新增模型**：Gemini 3、Gemini 3 Pro（支持图像预览）、GPT-5.1、Claude Opus 4.5
+    - **MCP 集成**：百炼、魔搭、Higress、MCP.so、TokenFlux 等平台
+
+    📚 更智能的知识库
+    - **OpenMinerU**：本地自部署文档处理
+    - **全文搜索**：笔记内容一搜即达
+    - **增强工具选择**：更智能的配置，更好的 AI 协助
+
+    📝 笔记，焕然一新
+    - 全文搜索，结果高亮
+    - AI 智能重命名
+    - 导出为图片
+    - 表格自动换行
+
+    🖼️ 图像与 OCR
+    - Intel OVMS 绘图能力
+    - Intel OpenVINO NPU 加速 OCR
+
+    🌍 支持 10+ 种语言
+    - 新增德语支持
+    - 全面增强国际化
+
+    ⚡ 更快、更精致
+    - 升级 Electron 38
+    - 新的 MCP 管理界面
+    - 数十处 UI 细节打磨
+
+    ❤️ 完全开源
+    商用限制已移除。Cherry Studio 现遵循标准 AGPL v3 协议——任意规模团队均可自由使用。
+
+    Agent 纪元已至。期待你的创造。
     <!--LANG:END-->

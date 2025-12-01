@@ -1,18 +1,21 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
-import { isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
-import { isSupportEnableThinkingProvider } from '@renderer/config/providers'
+import { isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import type { MCPTool } from '@renderer/types'
-import { type Assistant, type Message, type Model, type Provider } from '@renderer/types'
+import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
+import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 import { isEmpty } from 'lodash'
 
+import { getAiSdkProviderId } from '../provider/factory'
 import { isOpenRouterGeminiGenerateImageModel } from '../utils/image'
 import { noThinkMiddleware } from './noThinkMiddleware'
 import { openrouterGenerateImageMiddleware } from './openrouterGenerateImageMiddleware'
+import { openrouterReasoningMiddleware } from './openrouterReasoningMiddleware'
 import { qwenThinkingMiddleware } from './qwenThinkingMiddleware'
+import { skipGeminiThoughtSignatureMiddleware } from './skipGeminiThoughtSignatureMiddleware'
 import { toolChoiceMiddleware } from './toolChoiceMiddleware'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
@@ -217,6 +220,14 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
       middleware: noThinkMiddleware()
     })
   }
+
+  if (config.provider.id === SystemProviderIds.openrouter && config.enableReasoning) {
+    builder.add({
+      name: 'openrouter-reasoning-redaction',
+      middleware: openrouterReasoningMiddleware()
+    })
+    logger.debug('Added OpenRouter reasoning redaction middleware')
+  }
 }
 
 /**
@@ -247,6 +258,15 @@ function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: Ai
       name: 'openrouter-gemini-image-generation',
       middleware: openrouterGenerateImageMiddleware()
     })
+  }
+
+  if (isGemini3Model(config.model)) {
+    const aiSdkId = getAiSdkProviderId(config.provider)
+    builder.add({
+      name: 'skip-gemini3-thought-signature',
+      middleware: skipGeminiThoughtSignatureMiddleware(aiSdkId)
+    })
+    logger.debug('Added skip Gemini3 thought signature middleware')
   }
 }
 
