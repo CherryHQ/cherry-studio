@@ -4372,7 +4372,7 @@
         "url": {
           "preview": "Vorschau: {{url}}",
           "reset": "Zurücksetzen",
-          "tip": "# am Ende erzwingt die Verwendung der Eingabe-Adresse"
+          "tip": "Fügen Sie am Ende ein # hinzu, um die automatisch angehängte API-Version zu deaktivieren."
         }
       },
       "api_host": "API-Adresse",

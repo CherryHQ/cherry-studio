@@ -27,6 +27,7 @@ import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { createAiSdkProvider } from './provider/factory'
 import {
+  adaptProvider,
   getActualProvider,
   isModernSdkSupported,
   prepareSpecialProviderConfig,
@@ -64,12 +65,11 @@ export default class ModernAiProvider {
    *    - URL will be automatically formatted via `formatProviderApiHost`, adding version suffixes like `/v1`
    *
    * 2. When called with `(model, provider)`:
-   *    - **Directly uses the provided provider WITHOUT going through `getActualProvider`**
-   *    - **URL will NOT be automatically formatted, `/v1` suffix will NOT be added**
-   *    - This is legacy behavior kept for backward compatibility
+   *    - The provided provider will be adapted via `adaptProvider`
+   *    - URL formatting behavior depends on the adapted result
    *
    * 3. When called with `(provider)`:
-   *    - Directly uses the provider without requiring a model
+   *    - The provider will be adapted via `adaptProvider`
    *    - Used for operations that don't need a model (e.g., fetchModels)
    *
    * @example
@@ -77,7 +77,7 @@ export default class ModernAiProvider {
    * // Recommended: Auto-format URL
    * const ai = new ModernAiProvider(model)
    *
-   * // Not recommended: Skip URL formatting (only for special cases)
+   * // Provider will be adapted
    * const ai = new ModernAiProvider(model, customProvider)
    *
    * // For operations that don't need a model
@@ -91,17 +91,12 @@ export default class ModernAiProvider {
     if (this.isModel(modelOrProvider)) {
       // 传入的是 Model
       this.model = modelOrProvider
-      if (provider) {
-        // 使用传入的 provider（可能包含轮换后的 key）
-        this.actualProvider = provider
-      } else {
-        // 获取默认 provider 并生成配置
-        this.actualProvider = getActualProvider(modelOrProvider)
-      }
+      this.actualProvider = provider ? adaptProvider({ provider }) : getActualProvider(modelOrProvider)
+      // 只保存配置，不预先创建executor
       this.config = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {
       // 传入的是 Provider
-      this.actualProvider = modelOrProvider
+      this.actualProvider = adaptProvider({ provider: modelOrProvider })
       // model为可选，某些操作（如fetchModels）不需要model
     }
 
