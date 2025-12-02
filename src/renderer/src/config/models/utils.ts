@@ -10,7 +10,8 @@ import {
   isGPT51SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAIOpenWeightModel,
-  isOpenAIReasoningModel
+  isOpenAIReasoningModel,
+  isSupportVerbosityModel
 } from './openai'
 import { isQwenMTModel } from './qwen'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
@@ -157,7 +158,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
 export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
-  if (!model) {
+  if (!model || !isSupportVerbosityModel(model)) {
     return [undefined]
   }
 
