@@ -79,11 +79,13 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
 }
 
 /**
- * 主要用来对齐AISdk的BaseURL格式
- * @param provider
- * @returns
+ * Format and normalize the API host URL for a provider.
+ * Handles provider-specific URL formatting rules (e.g., appending version paths, Azure formatting).
+ *
+ * @param provider - The provider whose API host is to be formatted.
+ * @returns A new provider instance with the formatted API host.
  */
-function formatProviderApiHost(provider: Provider): Provider {
+export function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
   if (formatted.anthropicApiHost) {
     formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
@@ -115,18 +117,38 @@ function formatProviderApiHost(provider: Provider): Provider {
 }
 
 /**
- * 获取实际的Provider配置
- * 简化版：将逻辑分解为小函数
+ * Retrieve the effective Provider configuration for the given model.
+ * Applies all necessary transformations (special-provider handling, URL formatting, etc.).
+ *
+ * @param model - The model whose provider is to be resolved.
+ * @returns A new Provider instance with all adaptations applied.
  */
 export function getActualProvider(model: Model): Provider {
   const baseProvider = getProviderByModel(model)
 
-  // 按顺序处理各种转换
-  let actualProvider = cloneDeep(baseProvider)
-  actualProvider = handleSpecialProviders(model, actualProvider)
-  actualProvider = formatProviderApiHost(actualProvider)
+  return adaptProvider({ provider: baseProvider, model })
+}
 
-  return actualProvider
+/**
+ * Transforms a provider configuration by applying model-specific adaptations and normalizing its API host.
+ * The transformations are applied in the following order:
+ * 1. Model-specific provider handling (e.g., New-API, system providers, Azure OpenAI)
+ * 2. API host formatting (provider-specific URL normalization)
+ *
+ * @param provider - The base provider configuration to transform.
+ * @param model - The model associated with the provider; optional but required for special-provider handling.
+ * @returns A new Provider instance with all transformations applied.
+ */
+export function adaptProvider({ provider, model }: { provider: Provider; model?: Model }): Provider {
+  let adaptedProvider = cloneDeep(provider)
+
+  // Apply transformations in order
+  if (model) {
+    adaptedProvider = handleSpecialProviders(model, adaptedProvider)
+  }
+  adaptedProvider = formatProviderApiHost(adaptedProvider)
+
+  return adaptedProvider
 }
 
 /**
