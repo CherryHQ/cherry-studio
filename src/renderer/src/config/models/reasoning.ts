@@ -472,7 +472,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
     // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
     // TODO: move to utils and add test cases
     return (
-      /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) ||
+      /deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(modelId) ||
       modelId.includes('deepseek-chat-v3.1') ||
       modelId === 'deepseek-chat'
     )
@@ -550,7 +550,8 @@ export function isReasoningModel(model?: Model): boolean {
     isMiniMaxReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
-    modelId.includes('seed-oss')
+    modelId.includes('seed-oss') ||
+    modelId.includes('deepseek-v3.2-speciale')
   ) {
     return true
   }

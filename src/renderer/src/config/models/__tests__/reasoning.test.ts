@@ -356,6 +356,9 @@ describe('DeepSeek & Thinking Tokens', () => {
       )
     ).toBe(true)
     expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v2' }))).toBe(false)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v3.2' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-chat' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v3.2-speciale' }))).toBe(false)
 
     const allowed = createModel({ id: 'deepseek-v3.1', provider: 'doubao' })
     expect(isSupportedThinkingTokenModel(allowed)).toBe(true)
@@ -534,6 +537,26 @@ describe('isReasoningModel', () => {
 
     const magistral = createModel({ id: 'magistral-reasoning' })
     expect(isReasoningModel(magistral)).toBe(true)
+  })
+
+  it('identifies reasoning models that do not support hybrid inference controls', () => {
+    const models = [
+      'deepseek-reasoner',
+      'o1-preview',
+      'o1-mini',
+      'qwq-32b-preview',
+      'step-3-minimax',
+      'generic-reasoning-model',
+      'some-random-model-thinking',
+      'deepseek-v3.2-speciale'
+    ]
+
+    models.forEach((id) => {
+      const model = createModel({ id })
+      expect(isReasoningModel(model), `Model ${id} should be reasoning`).toBe(true)
+      expect(isSupportedThinkingTokenModel(model), `Model ${id} should not support thinking tokens`).toBe(false)
+      expect(isSupportedReasoningEffortModel(model), `Model ${id} should not support reasoning effort`).toBe(false)
+    })
   })
 })
 

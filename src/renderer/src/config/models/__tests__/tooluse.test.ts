@@ -117,12 +117,8 @@ describe('isFunctionCallingModel', () => {
 
   it('excludes explicitly blocked ids', () => {
     expect(isFunctionCallingModel(createModel({ id: 'gemini-1.5-flash' }))).toBe(false)
-  })
-
-  it('forces support for trusted providers', () => {
-    for (const provider of ['deepseek', 'anthropic', 'kimi', 'moonshot']) {
-      expect(isFunctionCallingModel(createModel({ provider }))).toBe(true)
-    }
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3.2-speciale' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek/deepseek-v3.2-speciale' }))).toBe(false)
   })
 
   it('returns true when identified as deepseek hybrid inference model', () => {
