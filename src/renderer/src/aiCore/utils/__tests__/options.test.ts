@@ -37,7 +37,7 @@ vi.mock('@cherrystudio/ai-core/provider', async (importOriginal) => {
     },
     customProviderIdSchema: {
       safeParse: vi.fn((id) => {
-        const customProviders = ['google-vertex', 'google-vertex-anthropic', 'bedrock', 'ai-gateway']
+        const customProviders = ['google-vertex', 'google-vertex-anthropic', 'bedrock']
         if (customProviders.includes(id)) {
           return { success: true, data: id }
         }
@@ -56,8 +56,7 @@ vi.mock('../provider/factory', () => ({
       [SystemProviderIds.anthropic]: 'anthropic',
       [SystemProviderIds.grok]: 'xai',
       [SystemProviderIds.deepseek]: 'deepseek',
-      [SystemProviderIds.openrouter]: 'openrouter',
-      [SystemProviderIds['ai-gateway']]: 'ai-gateway'
+      [SystemProviderIds.openrouter]: 'openrouter'
     }
     return mapping[provider.id] || provider.id
   })
@@ -205,8 +204,6 @@ describe('options utils', () => {
         expect(result.providerOptions).toHaveProperty('openai')
         expect(result.providerOptions.openai).toBeDefined()
         expect(result.standardParams).toBeDefined()
-        expect(result.bodyParams).toBeDefined()
-        expect(result.bodyParams).toEqual({})
       })
 
       it('should include reasoning parameters when enabled', () => {
@@ -697,91 +694,6 @@ describe('options utils', () => {
           type: 'enabled',
           budgetTokens: 5000
         })
-      })
-    })
-
-    describe('AI Gateway provider', () => {
-      const aiGatewayProvider: Provider = {
-        id: SystemProviderIds['ai-gateway'],
-        name: 'AI Gateway',
-        type: 'ai-gateway',
-        apiKey: 'test-key',
-        apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
-        isSystem: true,
-        models: [] as Model[]
-      } as Provider
-
-      const aiGatewayModel: Model = {
-        id: 'openai/gpt-4',
-        name: 'GPT-4',
-        provider: SystemProviderIds['ai-gateway']
-      } as Model
-
-      it('should build basic AI Gateway options with empty bodyParams', () => {
-        const result = buildProviderOptions(mockAssistant, aiGatewayModel, aiGatewayProvider, {
-          enableReasoning: false,
-          enableWebSearch: false,
-          enableGenerateImage: false
-        })
-
-        expect(result.providerOptions).toHaveProperty('gateway')
-        expect(result.providerOptions.gateway).toBeDefined()
-        expect(result.bodyParams).toEqual({})
-      })
-
-      it('should place custom parameters in bodyParams for AI Gateway instead of providerOptions', async () => {
-        const { getCustomParameters } = await import('../reasoning')
-
-        vi.mocked(getCustomParameters).mockReturnValue({
-          tools: [{ id: 'openai.image_generation' }],
-          custom_param: 'custom_value'
-        })
-
-        const result = buildProviderOptions(mockAssistant, aiGatewayModel, aiGatewayProvider, {
-          enableReasoning: false,
-          enableWebSearch: false,
-          enableGenerateImage: false
-        })
-
-        // Custom parameters should be in bodyParams, NOT in providerOptions.gateway
-        expect(result.bodyParams).toHaveProperty('tools')
-        expect(result.bodyParams.tools).toEqual([{ id: 'openai.image_generation' }])
-        expect(result.bodyParams).toHaveProperty('custom_param')
-        expect(result.bodyParams.custom_param).toBe('custom_value')
-
-        // providerOptions.gateway should NOT contain custom parameters
-        expect(result.providerOptions.gateway).not.toHaveProperty('tools')
-        expect(result.providerOptions.gateway).not.toHaveProperty('custom_param')
-      })
-
-      it('should still extract AI SDK standard params from custom parameters for AI Gateway', async () => {
-        const { getCustomParameters } = await import('../reasoning')
-
-        vi.mocked(getCustomParameters).mockReturnValue({
-          topK: 5,
-          frequencyPenalty: 0.5,
-          tools: [{ id: 'openai.image_generation' }]
-        })
-
-        const result = buildProviderOptions(mockAssistant, aiGatewayModel, aiGatewayProvider, {
-          enableReasoning: false,
-          enableWebSearch: false,
-          enableGenerateImage: false
-        })
-
-        // Standard params should be extracted and returned separately
-        expect(result.standardParams).toEqual({
-          topK: 5,
-          frequencyPenalty: 0.5
-        })
-
-        // Custom params (non-standard) should be in bodyParams
-        expect(result.bodyParams).toHaveProperty('tools')
-        expect(result.bodyParams.tools).toEqual([{ id: 'openai.image_generation' }])
-
-        // Neither should be in providerOptions.gateway
-        expect(result.providerOptions.gateway).not.toHaveProperty('topK')
-        expect(result.providerOptions.gateway).not.toHaveProperty('tools')
       })
     })
   })

@@ -155,7 +155,6 @@ export function buildProviderOptions(
 ): {
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
-  bodyParams: Record<string, any>
 } {
   logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
@@ -254,6 +253,12 @@ export function buildProviderOptions(
   const customParams = getCustomParameters(assistant)
   const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
 
+  // 合并 provider 特定的自定义参数到 providerSpecificOptions
+  providerSpecificOptions = {
+    ...providerSpecificOptions,
+    ...providerParams
+  }
+
   let rawProviderKey =
     {
       'google-vertex': 'google',
@@ -268,27 +273,12 @@ export function buildProviderOptions(
     rawProviderKey = { gemini: 'google', ['openai-response']: 'openai' }[actualProvider.type] || actualProvider.type
   }
 
-  // For AI Gateway, custom parameters should be placed at body level, not inside providerOptions.gateway
-  // See: https://github.com/CherryHQ/cherry-studio/issues/4197
-  let bodyParams: Record<string, any> = {}
-  if (rawProviderKey === 'gateway') {
-    // Custom parameters go to body level for AI Gateway
-    bodyParams = providerParams
-  } else {
-    // For other providers, merge custom parameters into providerSpecificOptions
-    providerSpecificOptions = {
-      ...providerSpecificOptions,
-      ...providerParams
-    }
-  }
-
-  // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数和 body 参数
+  // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
   return {
     providerOptions: {
       [rawProviderKey]: providerSpecificOptions
     },
-    standardParams,
-    bodyParams
+    standardParams
   }
 }
 

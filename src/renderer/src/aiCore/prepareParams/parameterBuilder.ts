@@ -107,7 +107,7 @@ export async function buildStreamTextParams(
     searchWithTime: store.getState().websearch.searchWithTime
   }
 
-  const { providerOptions, standardParams, bodyParams } = buildProviderOptions(assistant, model, provider, {
+  const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
     enableWebSearch,
     enableGenerateImage
@@ -189,7 +189,6 @@ export async function buildStreamTextParams(
   // Note: standardParams (topK, frequencyPenalty, presencePenalty, stopSequences, seed)
   // are extracted from custom parameters and passed directly to streamText()
   // instead of being placed in providerOptions
-  // Note: bodyParams are custom parameters for AI Gateway that should be at body level
   const params: StreamTextParams = {
     messages: sdkMessages,
     maxOutputTokens: getMaxTokens(assistant, model),
@@ -197,8 +196,6 @@ export async function buildStreamTextParams(
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
     ...standardParams,
-    // Include body-level params for AI Gateway custom parameters
-    ...bodyParams,
     abortSignal: options.requestOptions?.signal,
     headers,
     providerOptions,
