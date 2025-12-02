@@ -12,6 +12,7 @@ export { DescriptionSwitch, Switch } from './primitives/switch'
 export { Tooltip, type TooltipProps } from './primitives/tooltip'
 
 // Composite Components
+export { ConfirmDialog, type ConfirmDialogProps } from './composites/ConfirmDialog'
 export { default as Ellipsis } from './composites/Ellipsis'
 export { default as ExpandableText } from './composites/ExpandableText'
 export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/Flex'
