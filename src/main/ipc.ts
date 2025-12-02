@@ -553,7 +553,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
             }
           }
 
-          // Verify bash is actually executable by trying to run it
+          // If bash.exe was not found at expected relative paths, try running bash directly
+          // This handles cases where bash might be available through other mechanisms (e.g., PATH configured differently)
           try {
             execSync('bash --version', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
             logger.debug('Git Bash verified via bash --version', { gitPath })
