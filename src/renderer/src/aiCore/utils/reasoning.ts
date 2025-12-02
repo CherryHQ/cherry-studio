@@ -253,6 +253,7 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         case SystemProviderIds.hunyuan:
         case SystemProviderIds['tencent-cloud-ti']:
         case SystemProviderIds.doubao:
+        case SystemProviderIds.deepseek:
           return {
             thinking: {
               type: 'enabled' // auto is invalid
