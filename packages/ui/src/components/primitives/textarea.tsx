@@ -32,24 +32,6 @@ const textareaVariants = cva(
 )
 
 /* -------------------------------------------------------------------------------------------------
- * TextareaRoot
- * -----------------------------------------------------------------------------------------------*/
-
-const ROOT_NAME = 'TextareaRoot'
-
-interface TextareaRootProps extends React.ComponentPropsWithoutRef<'div'> {}
-
-function TextareaRoot({ className, children, ...props }: TextareaRootProps) {
-  return (
-    <div data-slot="textarea-root" {...props} className={cn('flex w-full flex-col gap-2', className)}>
-      {children}
-    </div>
-  )
-}
-
-TextareaRoot.displayName = ROOT_NAME
-
-/* -------------------------------------------------------------------------------------------------
  * TextareaInput
  * -----------------------------------------------------------------------------------------------*/
 
@@ -127,9 +109,8 @@ TextareaCharCount.displayName = CHAR_COUNT_NAME
 
 /* ---------------------------------------------------------------------------------------------- */
 
-const Root = TextareaRoot
 const Input = TextareaInput
 const CharCount = TextareaCharCount
 
-export { CharCount, Input, Root }
-export type { TextareaCharCountProps, TextareaInputProps, TextareaRootProps }
+export { CharCount, Input }
+export type { TextareaCharCountProps, TextareaInputProps }

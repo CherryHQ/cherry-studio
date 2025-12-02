@@ -3,9 +3,9 @@ import { useState } from 'react'
 
 import * as Textarea from '../../../src/components/primitives/textarea'
 
-const meta: Meta<typeof Textarea.Root> = {
+const meta: Meta<typeof Textarea.Input> = {
   title: 'Components/Primitives/Textarea',
-  component: Textarea.Root,
+  component: Textarea.Input,
   parameters: {
     layout: 'centered',
     docs: {
@@ -24,51 +24,51 @@ type Story = StoryObj<typeof meta>
 // Basic Usage
 export const Basic: Story = {
   render: () => (
-    <Textarea.Root className="w-[400px]">
+    <div className="flex w-full flex-col gap-2 w-[400px]">
       <Textarea.Input placeholder="Type your message here..." />
-    </Textarea.Root>
+    </div>
   )
 }
 
 // With Label
 export const WithLabel: Story = {
   render: () => (
-    <Textarea.Root className="w-[400px]">
+    <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px]">Description</div>
       <Textarea.Input placeholder="Tell us about yourself..." />
-    </Textarea.Root>
+    </div>
   )
 }
 
 // Required Field
 export const RequiredField: Story = {
   render: () => (
-    <Textarea.Root className="w-[400px]">
+    <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px]">
         <span className="text-destructive mr-1">*</span>Bio
       </div>
       <Textarea.Input placeholder="This field is required..." />
-    </Textarea.Root>
+    </div>
   )
 }
 
 // With Caption
 export const WithCaption: Story = {
   render: () => (
-    <Textarea.Root className="w-[400px]">
+    <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px]">Comments</div>
       <Textarea.Input placeholder="Enter your comments..." />
       <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
         Please provide detailed feedback
       </div>
-    </Textarea.Root>
+    </div>
   )
 }
 
 // Error State
 export const ErrorState: Story = {
   render: () => (
-    <Textarea.Root className="w-[400px]">
+    <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px]">Message</div>
       <Textarea.Input placeholder="Enter your message..." hasError />
       <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
@@ -89,7 +89,7 @@ export const ErrorState: Story = {
         </svg>
         <span>This field cannot be empty</span>
       </div>
-    </Textarea.Root>
+    </div>
   )
 }
 
@@ -99,14 +99,14 @@ export const WithCharacterCount: Story = {
     const [value, setValue] = useState('')
 
     return (
-      <Textarea.Root className="w-[400px]">
+      <div className="flex w-full flex-col gap-2 w-[400px]">
         <div className="text-lg font-bold leading-[22px]">Tweet</div>
         <div className="relative">
           <Textarea.Input value={value} onValueChange={setValue} maxLength={280} placeholder="What's happening?" />
           <Textarea.CharCount value={value} maxLength={280} />
         </div>
         <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">Maximum 280 characters</div>
-      </Textarea.Root>
+      </div>
     )
   }
 }
@@ -117,17 +117,13 @@ export const AutoResize: Story = {
     const [value, setValue] = useState('')
 
     return (
-      <Textarea.Root className="w-[400px]">
+      <div className="flex w-full flex-col gap-2 w-[400px]">
         <div className="text-lg font-bold leading-[22px]">Auto-resizing Textarea</div>
-        <Textarea.Input
-          value={value}
-          onValueChange={setValue}
-          placeholder="This textarea grows with your content..."
-        />
+        <Textarea.Input value={value} onValueChange={setValue} placeholder="This textarea grows with your content..." />
         <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
           Try typing multiple lines
         </div>
-      </Textarea.Root>
+      </div>
     )
   }
 }
@@ -135,10 +131,10 @@ export const AutoResize: Story = {
 // Disabled State
 export const Disabled: Story = {
   render: () => (
-    <Textarea.Root className="w-[400px]">
+    <div className="flex w-full flex-col gap-2 w-[400px]">
       <div className="text-lg font-bold leading-[22px] cursor-not-allowed opacity-70">Disabled Field</div>
       <Textarea.Input defaultValue="This textarea is disabled" disabled />
-    </Textarea.Root>
+    </div>
   )
 }
 
@@ -149,10 +145,10 @@ export const Controlled: Story = {
 
     return (
       <div className="flex flex-col gap-4">
-        <Textarea.Root className="w-[400px]">
+        <div className="flex w-full flex-col gap-2 w-[400px]">
           <div className="text-lg font-bold leading-[22px]">Controlled Textarea</div>
           <Textarea.Input value={value} onValueChange={setValue} placeholder="Type something..." />
-        </Textarea.Root>
+        </div>
 
         <div className="w-[400px] text-sm text-muted-foreground">
           <div className="rounded-md border border-border bg-muted p-3">
@@ -177,31 +173,31 @@ export const AllStates: Story = {
       <div className="flex flex-col gap-6">
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Default State</p>
-          <Textarea.Root className="w-[400px]">
+          <div className="flex w-full flex-col gap-2 w-[400px]">
             <div className="text-lg font-bold leading-[22px]">Default</div>
             <Textarea.Input value={value1} onValueChange={setValue1} placeholder="Enter text..." />
-          </Textarea.Root>
+          </div>
         </div>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Filled State</p>
-          <Textarea.Root className="w-[400px]">
+          <div className="flex w-full flex-col gap-2 w-[400px]">
             <div className="text-lg font-bold leading-[22px]">Filled</div>
             <Textarea.Input value={value2} onValueChange={setValue2} />
-          </Textarea.Root>
+          </div>
         </div>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Disabled State</p>
-          <Textarea.Root className="w-[400px]">
+          <div className="flex w-full flex-col gap-2 w-[400px]">
             <div className="text-lg font-bold leading-[22px] cursor-not-allowed opacity-70">Disabled</div>
             <Textarea.Input defaultValue="Disabled textarea with content" disabled />
-          </Textarea.Root>
+          </div>
         </div>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Error State</p>
-          <Textarea.Root className="w-[400px]">
+          <div className="flex w-full flex-col gap-2 w-[400px]">
             <div className="text-lg font-bold leading-[22px]">Error</div>
             <Textarea.Input value={value4} onValueChange={setValue4} hasError />
             <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
@@ -222,15 +218,15 @@ export const AllStates: Story = {
               </svg>
               <span>This field is required</span>
             </div>
-          </Textarea.Root>
+          </div>
         </div>
 
         <div>
           <p className="mb-2 text-sm font-semibold text-muted-foreground">Focus State (click to focus)</p>
-          <Textarea.Root className="w-[400px]">
+          <div className="flex w-full flex-col gap-2 w-[400px]">
             <div className="text-lg font-bold leading-[22px]">Focus</div>
             <Textarea.Input placeholder="Click to see focus state" />
-          </Textarea.Root>
+          </div>
         </div>
       </div>
     )
@@ -253,7 +249,7 @@ export const RealWorldExamples: Story = {
         {/* Tweet Composer */}
         <div>
           <h3 className="mb-3 text-sm font-semibold">Tweet Composer</h3>
-          <Textarea.Root className="w-[500px]">
+          <div className="flex w-full flex-col gap-2 w-[500px]">
             <div className="text-lg font-bold leading-[22px]">What's happening?</div>
             <div className="relative">
               <Textarea.Input
@@ -285,13 +281,13 @@ export const RealWorldExamples: Story = {
                 <span>{tweetError}</span>
               </div>
             )}
-          </Textarea.Root>
+          </div>
         </div>
 
         {/* Feedback Form */}
         <div>
           <h3 className="mb-3 text-sm font-semibold">User Feedback</h3>
-          <Textarea.Root className="w-[500px]">
+          <div className="flex w-full flex-col gap-2 w-[500px]">
             <div className="text-lg font-bold leading-[22px]">
               <span className="text-destructive mr-1">*</span>Feedback
             </div>
@@ -304,17 +300,23 @@ export const RealWorldExamples: Story = {
             <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
               Your feedback helps us improve
             </div>
-          </Textarea.Root>
+          </div>
         </div>
 
         {/* Contact Form */}
         <div>
           <h3 className="mb-3 text-sm font-semibold">Contact Us</h3>
-          <Textarea.Root className="w-[500px]">
+          <div className="flex w-full flex-col gap-2 w-[500px]">
             <div className="text-lg font-bold leading-[22px]">
               <span className="text-destructive mr-1">*</span>Message
             </div>
-            <Textarea.Input value={message} onValueChange={setMessage} placeholder="How can we help you?" rows={6} hasError={!!messageError} />
+            <Textarea.Input
+              value={message}
+              onValueChange={setMessage}
+              placeholder="How can we help you?"
+              rows={6}
+              hasError={!!messageError}
+            />
             {messageError ? (
               <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
                 <svg
@@ -339,7 +341,7 @@ export const RealWorldExamples: Story = {
                 Minimum 10 characters required
               </div>
             )}
-          </Textarea.Root>
+          </div>
         </div>
       </div>
     )
@@ -351,17 +353,17 @@ export const DarkMode: Story = {
   render: () => (
     <div className="dark rounded-lg bg-background p-8">
       <div className="flex flex-col gap-6">
-        <Textarea.Root className="w-[400px]">
+        <div className="flex w-full flex-col gap-2 w-[400px]">
           <div className="text-lg font-bold leading-[22px]">Default (Dark)</div>
           <Textarea.Input placeholder="Dark mode textarea..." />
-        </Textarea.Root>
+        </div>
 
-        <Textarea.Root className="w-[400px]">
+        <div className="flex w-full flex-col gap-2 w-[400px]">
           <div className="text-lg font-bold leading-[22px]">With Content (Dark)</div>
           <Textarea.Input defaultValue="This is some content in dark mode" />
-        </Textarea.Root>
+        </div>
 
-        <Textarea.Root className="w-[400px]">
+        <div className="flex w-full flex-col gap-2 w-[400px]">
           <div className="text-lg font-bold leading-[22px]">Error (Dark)</div>
           <Textarea.Input hasError />
           <div className="text-sm flex items-center gap-1.5 leading-4 text-destructive">
@@ -382,12 +384,12 @@ export const DarkMode: Story = {
             </svg>
             <span>Error in dark mode</span>
           </div>
-        </Textarea.Root>
+        </div>
 
-        <Textarea.Root className="w-[400px]">
+        <div className="flex w-full flex-col gap-2 w-[400px]">
           <div className="text-lg font-bold leading-[22px] cursor-not-allowed opacity-70">Disabled (Dark)</div>
           <Textarea.Input defaultValue="Disabled in dark mode" disabled />
-        </Textarea.Root>
+        </div>
       </div>
     </div>
   )
@@ -399,23 +401,18 @@ export const CompositionExample: Story = {
     const [bio, setBio] = useState('')
 
     return (
-      <Textarea.Root className="w-[500px]">
+      <div className="flex w-full flex-col gap-2 w-[500px]">
         <div className="text-lg font-bold leading-[22px]">
           <span className="text-destructive mr-1">*</span>Profile Bio
         </div>
         <div className="relative">
-          <Textarea.Input
-            value={bio}
-            onValueChange={setBio}
-            placeholder="Tell us about yourself..."
-            maxLength={500}
-          />
+          <Textarea.Input value={bio} onValueChange={setBio} placeholder="Tell us about yourself..." maxLength={500} />
           <Textarea.CharCount value={bio} maxLength={500} />
         </div>
         <div className="text-sm flex items-center gap-1.5 leading-4 text-foreground-muted">
           This will be displayed on your profile (max 500 characters)
         </div>
-      </Textarea.Root>
+      </div>
     )
   }
 }
