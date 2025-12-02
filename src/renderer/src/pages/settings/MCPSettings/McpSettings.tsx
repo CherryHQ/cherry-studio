@@ -7,6 +7,7 @@ import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
 import type { TabsProps } from 'antd'
 import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
@@ -62,21 +63,6 @@ const PipRegistry: Registry[] = [
 ]
 
 type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
-
-const parseKeyValueString = (str: string): Record<string, string> => {
-  const result: Record<string, string> = {}
-  str.split('\n').forEach((line) => {
-    if (line.trim()) {
-      const [key, ...value] = line.split('=')
-      const formatValue = value.join('=').trim()
-      const formatKey = key.trim()
-      if (formatKey && formatValue) {
-        result[formatKey] = formatValue
-      }
-    }
-  })
-  return result
-}
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()

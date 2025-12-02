@@ -136,7 +136,10 @@ export async function callMCPTool(
   topicId?: string,
   modelName?: string
 ): Promise<MCPCallToolResponse> {
-  logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+  logger.info(
+    `Calling Tool: ${toolResponse.id} ${toolResponse.tool.serverName} ${toolResponse.tool.name}`,
+    toolResponse.tool
+  )
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
