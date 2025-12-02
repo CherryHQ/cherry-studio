@@ -2,9 +2,9 @@ import { dbService } from '@data/db/DbService'
 import { loggerService } from '@logger'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
-  MultiPreferencesResultType,
   PreferenceDefaultScopeType,
-  PreferenceKeyType
+  PreferenceKeyType,
+  PreferenceMultipleResultType
 } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
@@ -259,26 +259,18 @@ export class PreferenceService {
    * @param keys Array of preference keys to retrieve
    * @returns Object with preference values for requested keys
    */
-  public getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): MultiPreferencesResultType<K> {
+  public getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): PreferenceMultipleResultType<K> {
     if (!this.initialized) {
       logger.warn('Preference cache not initialized, returning defaults for multiple keys')
-      const output: MultiPreferencesResultType<K> = {} as MultiPreferencesResultType<K>
-      for (const key of keys) {
-        if (key in DefaultPreferences.default) {
-          output[key] = DefaultPreferences.default[key]
-        } else {
-          output[key] = undefined as MultiPreferencesResultType<K>[K]
-        }
-      }
-      return output
     }
 
-    const output: MultiPreferencesResultType<K> = {} as MultiPreferencesResultType<K>
+    const output: PreferenceMultipleResultType<K> = {} as PreferenceMultipleResultType<K>
     for (const key of keys) {
-      if (key in this.cache) {
+      // Prefer cache value, fallback to default
+      if (this.initialized && key in this.cache) {
         output[key] = this.cache[key]
       } else {
-        output[key] = undefined
+        output[key] = DefaultPreferences.default[key]
       }
     }
 
@@ -305,7 +297,7 @@ export class PreferenceService {
     const result = {} as { [P in keyof T]: PreferenceDefaultScopeType[T[P]] }
 
     for (const key in keys) {
-      result[key] = values[keys[key]]!
+      result[key] = values[keys[key]]
     }
 
     return result

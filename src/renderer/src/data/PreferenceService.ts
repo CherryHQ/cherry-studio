@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
-  MultiPreferencesResultType,
   PreferenceDefaultScopeType,
   PreferenceKeyType,
+  PreferenceMultipleResultType,
   PreferenceUpdateOptions
 } from '@shared/data/preference/preferenceTypes'
 
@@ -244,7 +244,7 @@ export class PreferenceService {
    * @param keys Array of preference keys to retrieve
    * @returns Promise resolving to object with preference values for requested keys
    */
-  public async getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): Promise<MultiPreferencesResultType<K>> {
+  public async getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> {
     // Check which keys are already cached
     const cachedResults: Partial<PreferenceDefaultScopeType> = {}
     const uncachedKeys: PreferenceKeyType[] = []
@@ -272,7 +272,7 @@ export class PreferenceService {
           await this.subscribeToKeyInternal([key as PreferenceKeyType])
         }
 
-        return { ...cachedResults, ...uncachedResults } as MultiPreferencesResultType<K>
+        return { ...cachedResults, ...uncachedResults } as PreferenceMultipleResultType<K>
       } catch (error) {
         logger.error('Failed to get multiple preferences:', error as Error)
 
@@ -284,11 +284,11 @@ export class PreferenceService {
           }
         }
 
-        return { ...cachedResults, ...defaultResults } as MultiPreferencesResultType<K>
+        return { ...cachedResults, ...defaultResults } as PreferenceMultipleResultType<K>
       }
     }
 
-    return cachedResults as MultiPreferencesResultType<K>
+    return cachedResults as PreferenceMultipleResultType<K>
   }
 
   /**
@@ -303,7 +303,7 @@ export class PreferenceService {
     const result = {} as { [P in keyof T]: PreferenceDefaultScopeType[T[P]] }
 
     for (const key in keys) {
-      result[key] = values[keys[key]]!
+      result[key] = values[keys[key]]
     }
 
     return result

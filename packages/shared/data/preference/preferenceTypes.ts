@@ -4,10 +4,10 @@ export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
 
 /**
- * Result type for getMultipleRaw - maps requested keys to their values or undefined
+ * Result type for getMultipleRaw - maps requested keys to their values
  */
-export type MultiPreferencesResultType<K extends PreferenceKeyType> = {
-  [P in K]: PreferenceDefaultScopeType[P] | undefined
+export type PreferenceMultipleResultType<K extends PreferenceKeyType> = {
+  [P in K]: PreferenceDefaultScopeType[P]
 }
 
 export type PreferenceUpdateOptions = {
