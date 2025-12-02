@@ -177,8 +177,12 @@ export async function buildStreamTextParams(
   let headers: Record<string, string | undefined> = options.requestOptions?.headers ?? {}
 
   if (isAnthropicModel(model) && !isAwsBedrockProvider(provider)) {
-    const newBetaHeaders = { 'anthropic-beta': addAnthropicHeaders(assistant, model).join(',') }
-    headers = combineHeaders(headers, newBetaHeaders)
+    const betaHeaders = addAnthropicHeaders(assistant, model)
+    // Only add the anthropic-beta header if there are actual beta headers to include
+    if (betaHeaders.length > 0) {
+      const newBetaHeaders = { 'anthropic-beta': betaHeaders.join(',') }
+      headers = combineHeaders(headers, newBetaHeaders)
+    }
   }
 
   // 构建基础参数
