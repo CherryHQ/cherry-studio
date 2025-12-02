@@ -101,11 +101,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    const apiConfig = preferenceService.getMultipleRaw([
-      'feature.csaas.host',
-      'feature.csaas.port',
-      'feature.csaas.api_key'
-    ])
+    const apiConfig = preferenceService.getMultiple({
+      host: 'feature.csaas.host',
+      port: 'feature.csaas.port',
+      apiKey: 'feature.csaas.api_key'
+    })
     const loginShellEnv = await getLoginShellEnvironment()
     const loginShellEnvWithoutProxies = Object.fromEntries(
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
@@ -273,9 +273,9 @@ class ClaudeCodeService implements AgentServiceInterface {
       for (const mcpId of session.mcps) {
         mcpList[mcpId] = {
           type: 'http',
-          url: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/v1/mcps/${mcpId}/mcp`,
+          url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
           headers: {
-            Authorization: `Bearer ${apiConfig['feature.csaas.api_key']}`
+            Authorization: `Bearer ${apiConfig.apiKey}`
           }
         }
       }

@@ -61,19 +61,14 @@ export class ApiServerService {
    * Get current API server configuration from preference service
    */
   getCurrentConfig(): ApiServerConfig {
-    const config = preferenceService.getMultipleRaw([
-      'feature.csaas.enabled',
-      'feature.csaas.host',
-      'feature.csaas.port',
-      'feature.csaas.api_key'
-    ])
+    const config = preferenceService.getMultiple({
+      enabled: 'feature.csaas.enabled',
+      host: 'feature.csaas.host',
+      port: 'feature.csaas.port',
+      apiKey: 'feature.csaas.api_key'
+    }) as ApiServerConfig
 
-    return {
-      enabled: config['feature.csaas.enabled'] ?? false,
-      host: config['feature.csaas.host'] ?? 'localhost',
-      port: config['feature.csaas.port'] ?? 23333,
-      apiKey: config['feature.csaas.api_key'] ?? ''
-    }
+    return config
   }
 
   /**
