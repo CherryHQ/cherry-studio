@@ -8,6 +8,8 @@
 /packages/shared/data/ @0xfullex
 /src/main/data/ @0xfullex
 /src/renderer/src/data/ @0xfullex
+/v2-refactor-temp/ @0xfullex
 
 /packages/ui/ @MyPrototypeWhat
 
+/app-upgrade-config.json @kangfenmao

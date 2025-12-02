@@ -477,6 +477,11 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             window.toast.warning(t('message.empty_url'))
             return null
           }
+
+          if (url.startsWith('data:image')) {
+            return await window.api.file.saveBase64Image(url)
+          }
+
           return await window.api.file.download(url, true)
         } catch (error) {
           if (
@@ -933,7 +938,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
           <RowFlex>
-            <Switch isSelected={painting.autoCreate} onValueChange={(checked) => onChangeAutoCreate(checked)} />
+            <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
         </LeftContainer>
         <MainContainer>

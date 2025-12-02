@@ -3,6 +3,13 @@ import type { PreferenceSchemas } from './preferenceSchemas'
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
 
+/**
+ * Result type for getMultipleRaw - maps requested keys to their values
+ */
+export type PreferenceMultipleResultType<K extends PreferenceKeyType> = {
+  [P in K]: PreferenceDefaultScopeType[P]
+}
+
 export type PreferenceUpdateOptions = {
   optimistic: boolean
 }

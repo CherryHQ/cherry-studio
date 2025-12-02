@@ -1,24 +1,38 @@
 import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import {
+  getModelSupportedVerbosity,
   isSupportedReasoningEffortOpenAIModel,
   isSupportFlexServiceTierModel,
   isSupportVerbosityModel
 } from '@renderer/config/models'
-import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
-import type { Model, OpenAIServiceTier, OpenAISummaryText, ServiceTier } from '@renderer/types'
-import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
-import type { OpenAIVerbosity } from '@types'
+import type { Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
+import { SystemProviderIds } from '@renderer/types'
+import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
+import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+
+type VerbosityOption = {
+  value: NonNullable<OpenAIVerbosity> | 'undefined'
+  label: string
+}
+
+type SummaryTextOption = {
+  value: NonNullable<OpenAISummaryText> | 'undefined'
+  label: string
+}
+
+type OpenAIServiceTierOption = { value: NonNullable<OpenAIServiceTier> | 'null' | 'undefined'; label: string }
 
 interface Props {
   model: Model
@@ -35,13 +49,14 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const serviceTierMode = provider.serviceTier
   const dispatch = useAppDispatch()
 
-  const isOpenAIReasoning =
+  const showSummarySetting =
     isSupportedReasoningEffortOpenAIModel(model) &&
     !model.id.includes('o1-pro') &&
-    (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isSupportVerbosity = isSupportVerbosityModel(model)
+    (provider.type === 'openai-response' || model.endpoint_type === 'openai-response' || provider.id === 'aihubmix')
+  const showVerbositySetting = isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)
+  const isSupportFlexServiceTier = isSupportFlexServiceTierModel(model)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
-  const isSupportedFlexServiceTier = isSupportFlexServiceTierModel(model)
+  const showServiceTierSetting = isSupportServiceTier && providerId !== SystemProviderIds.groq
 
   const setSummaryText = useCallback(
     (value: OpenAISummaryText) => {
@@ -66,6 +81,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
 
   const summaryTextOptions = [
     {
+      value: 'undefined',
+      label: t('common.ignore')
+    },
+    {
       value: 'auto',
       label: t('settings.openai.summary_text_mode.auto')
     },
@@ -74,94 +93,86 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       label: t('settings.openai.summary_text_mode.detailed')
     },
     {
-      value: 'off',
-      label: t('settings.openai.summary_text_mode.off')
+      value: 'concise',
+      label: t('settings.openai.summary_text_mode.concise')
     }
-  ]
+  ] as const satisfies SummaryTextOption[]
 
-  const verbosityOptions = [
-    {
-      value: 'low',
-      label: t('settings.openai.verbosity.low')
-    },
-    {
-      value: 'medium',
-      label: t('settings.openai.verbosity.medium')
-    },
-    {
-      value: 'high',
-      label: t('settings.openai.verbosity.high')
-    }
-  ]
+  const verbosityOptions = useMemo(() => {
+    const allOptions = [
+      {
+        value: 'undefined',
+        label: t('common.ignore')
+      },
+      {
+        value: 'low',
+        label: t('settings.openai.verbosity.low')
+      },
+      {
+        value: 'medium',
+        label: t('settings.openai.verbosity.medium')
+      },
+      {
+        value: 'high',
+        label: t('settings.openai.verbosity.high')
+      }
+    ] as const satisfies VerbosityOption[]
+    const supportedVerbosityLevels = getModelSupportedVerbosity(model).map((v) => toOptionValue(v))
+    return allOptions.filter((option) => supportedVerbosityLevels.includes(option.value))
+  }, [model, t])
 
   const serviceTierOptions = useMemo(() => {
-    let baseOptions: { value: ServiceTier; label: string }[]
-    if (provider.id === SystemProviderIds.groq) {
-      baseOptions = [
-        {
-          value: 'auto',
-          label: t('settings.openai.service_tier.auto')
-        },
-        {
-          value: 'on_demand',
-          label: t('settings.openai.service_tier.on_demand')
-        },
-        {
-          value: 'flex',
-          label: t('settings.openai.service_tier.flex')
-        },
-        {
-          value: 'performance',
-          label: t('settings.openai.service_tier.performance')
-        }
-      ]
-    } else {
-      // 其他情况默认是和 OpenAI 相同
-      baseOptions = [
-        {
-          value: 'auto',
-          label: t('settings.openai.service_tier.auto')
-        },
-        {
-          value: 'default',
-          label: t('settings.openai.service_tier.default')
-        },
-        {
-          value: 'flex',
-          label: t('settings.openai.service_tier.flex')
-        },
-        {
-          value: 'priority',
-          label: t('settings.openai.service_tier.priority')
-        }
-      ]
-    }
-    return baseOptions.filter((option) => {
+    const options = [
+      {
+        value: 'undefined',
+        label: t('common.ignore')
+      },
+      {
+        value: 'null',
+        label: t('common.off')
+      },
+      {
+        value: 'auto',
+        label: t('settings.openai.service_tier.auto')
+      },
+      {
+        value: 'default',
+        label: t('settings.openai.service_tier.default')
+      },
+      {
+        value: 'flex',
+        label: t('settings.openai.service_tier.flex')
+      },
+      {
+        value: 'priority',
+        label: t('settings.openai.service_tier.priority')
+      }
+    ] as const satisfies OpenAIServiceTierOption[]
+    return options.filter((option) => {
       if (option.value === 'flex') {
-        return isSupportedFlexServiceTier
+        return isSupportFlexServiceTier
       }
       return true
     })
-  }, [isSupportedFlexServiceTier, provider.id, t])
+  }, [isSupportFlexServiceTier, t])
 
   useEffect(() => {
-    if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
-      if (provider.id === SystemProviderIds.groq) {
-        setServiceTierMode(GroqServiceTiers.on_demand)
-      } else {
-        setServiceTierMode(OpenAIServiceTiers.auto)
-      }
+    if (verbosity && !verbosityOptions.some((option) => option.value === verbosity)) {
+      const supportedVerbosityLevels = getModelSupportedVerbosity(model)
+      // Default to the highest supported verbosity level
+      const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
+      setVerbosity(defaultVerbosity)
     }
-  }, [provider.id, serviceTierMode, serviceTierOptions, setServiceTierMode])
+  }, [model, verbosity, verbosityOptions, setVerbosity])
 
-  if (!isOpenAIReasoning && !isSupportServiceTier && !isSupportVerbosity) {
+  if (!showSummarySetting && !showServiceTierSetting && !showVerbositySetting) {
     return null
   }
 
   return (
     <CollapsibleSettingGroup title={t('settings.openai.title')} defaultExpanded={true}>
       <SettingGroup>
-        {isSupportServiceTier && (
+        {showServiceTierSetting && (
           <>
             <SettingRow>
               <SettingRowTitleSmall>
@@ -169,18 +180,17 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 <HelpTooltip content={t('settings.openai.service_tier.tip')} />
               </SettingRowTitleSmall>
               <Selector
-                value={serviceTierMode}
+                value={toOptionValue(serviceTierMode)}
                 onChange={(value) => {
-                  setServiceTierMode(value as OpenAIServiceTier)
+                  setServiceTierMode(toRealValue(value))
                 }}
                 options={serviceTierOptions}
-                placeholder={t('settings.openai.service_tier.auto')}
               />
             </SettingRow>
-            {(isOpenAIReasoning || isSupportVerbosity) && <SettingDivider />}
+            {(showSummarySetting || showVerbositySetting) && <SettingDivider />}
           </>
         )}
-        {isOpenAIReasoning && (
+        {showSummarySetting && (
           <>
             <SettingRow>
               <SettingRowTitleSmall>
@@ -195,10 +205,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 options={summaryTextOptions}
               />
             </SettingRow>
-            {isSupportVerbosity && <SettingDivider />}
+            {showVerbositySetting && <SettingDivider />}
           </>
         )}
-        {isSupportVerbosity && (
+        {showVerbositySetting && (
           <SettingRow>
             <SettingRowTitleSmall>
               {t('settings.openai.verbosity.title')} <HelpTooltip content={t('settings.openai.verbosity.tip')} />

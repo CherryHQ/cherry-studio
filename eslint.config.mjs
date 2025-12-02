@@ -58,6 +58,7 @@ export default defineConfig([
       'dist/**',
       'out/**',
       'local/**',
+      'tests/**',
       '.yarn/**',
       '.gitignore',
       'scripts/cloudflare-worker.js',
@@ -140,21 +141,89 @@ export default defineConfig([
   {
     // Component Rules - prevent importing antd components when migration completed
     files: ['**/*.{ts,tsx,js,jsx}'],
-    ignores: ['src/renderer/src/windows/dataRefactorTest/**/*.{ts,tsx}'],
+    ignores: [],
     rules: {
-      // 'no-restricted-imports': [
-      //   'error',
-      //   {
-      //     paths: [
-      //       {
-      //         name: 'antd',
-      //         importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
-      //         message:
-      //           '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
-      //       }
-      //     ]
-      //   }
-      // ]
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            // {
+            //   name: 'antd',
+            //   importNames: ['Flex', 'Switch', 'message', 'Button', 'Tooltip'],
+            //   message:
+            //     '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            // },
+            {
+              name: 'antd',
+              importNames: ['Switch'],
+              message:
+                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            },
+            {
+              name: '@heroui/react',
+              importNames: ['Switch'],
+              message:
+                '❌ Do not import the component from heroui directly. It\'s deprecated.'
+            }
+          ]
+        }
+      ]
     }
   },
+  // Schema key naming convention (cache & preferences)
+  {
+    files: ['packages/shared/data/cache/cacheSchemas.ts', 'packages/shared/data/preference/preferenceSchemas.ts'],
+    plugins: {
+      'data-schema-key': {
+        rules: {
+          'valid-key': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description: 'Enforce schema key naming convention: namespace.sub.key_name',
+                recommended: true
+              },
+              messages: {
+                invalidKey:
+                  'Schema key "{{key}}" must follow format: namespace.sub.key_name (e.g., app.user.avatar).'
+              }
+            },
+            create(context) {
+              const VALID_KEY_PATTERN = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/
+
+              return {
+                TSPropertySignature(node) {
+                  if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    const key = node.key.value
+                    if (!VALID_KEY_PATTERN.test(key)) {
+                      context.report({
+                        node: node.key,
+                        messageId: 'invalidKey',
+                        data: { key }
+                      })
+                    }
+                  }
+                },
+                Property(node) {
+                  if (node.key.type === 'Literal' && typeof node.key.value === 'string') {
+                    const key = node.key.value
+                    if (!VALID_KEY_PATTERN.test(key)) {
+                      context.report({
+                        node: node.key,
+                        messageId: 'invalidKey',
+                        data: { key }
+                      })
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'data-schema-key/valid-key': 'error'
+    }
+  }
 ])

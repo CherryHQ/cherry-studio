@@ -10,7 +10,7 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { dbService } from '@data/db/DbService'
 import { preferenceService } from '@data/PreferenceService'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { app, dialog } from 'electron'
+import { app, dialog, crashReporter } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import { isDev, isLinux, isWin } from './constant'
 
@@ -34,12 +34,27 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { versionService } from './services/VersionService'
 import { windowService } from './services/WindowService'
-import { dataRefactorMigrateService } from './data/migrate/dataRefactor/DataRefactorMigrateService'
+import {
+  getAllMigrators,
+  migrationEngine,
+  migrationWindowManager,
+  registerMigrationIpcHandlers,
+  unregisterMigrationIpcHandlers
+} from '@data/migration/v2'
 import { dataApiService } from '@data/DataApiService'
 import { cacheService } from '@data/CacheService'
 import { initWebviewHotkeys } from './services/WebviewService'
+import { runAsyncFunction } from './utils'
 
 const logger = loggerService.withContext('MainEntry')
+
+// enable local crash reports
+crashReporter.start({
+  companyName: 'CherryHQ',
+  productName: 'CherryStudio',
+  submitURL: '',
+  uploadToServer: false
+})
 
 /**
  * Disable hardware acceleration if setting is enabled
@@ -118,26 +133,39 @@ if (!app.requestSingleInstanceLock()) {
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(async () => {
     // First of all, init & migrate the database
+    await dbService.init()
     await dbService.migrateDb()
     await dbService.migrateSeed('preference')
 
-    // Data Refactor Migration
+    // Data Migration v2
     // Check if data migration is needed BEFORE creating any windows
     try {
-      logger.info('Checking if data refactor migration is needed')
-      const isMigrated = await dataRefactorMigrateService.isMigrated()
-      logger.info('Migration status check result', { isMigrated })
+      logger.info('Checking if data migration v2 is needed')
 
-      if (!isMigrated) {
-        logger.info('Data Refactor Migration needed, starting migration process')
+      // Register migration IPC handlers
+      registerMigrationIpcHandlers()
+
+      // Register migrators
+      migrationEngine.registerMigrators(getAllMigrators())
+
+      const needsMigration = await migrationEngine.needsMigration()
+      logger.info('Migration status check result', { needsMigration })
+
+      if (needsMigration) {
+        logger.info('Data Migration v2 needed, starting migration process')
 
         try {
-          await dataRefactorMigrateService.runMigration()
+          // Create and show migration window
+          migrationWindowManager.create()
+          await migrationWindowManager.waitForReady()
           logger.info('Migration window created successfully')
-          // Migration service will handle the migration flow, no need to continue startup
+          // Migration window will handle the flow, no need to continue startup
           return
         } catch (migrationError) {
           logger.error('Failed to start migration process', migrationError as Error)
+
+          // Cleanup IPC handlers on failure
+          unregisterMigrationIpcHandlers()
 
           // Migration is required for this version - show error and exit
           await dialog.showErrorBox(
@@ -176,17 +204,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Initialize CacheService
     await cacheService.initialize()
-
-    // // Create two test windows for cross-window preference sync testing
-    // logger.info('Creating test windows for PreferenceService cross-window sync testing')
-    // const testWindow1 = dataRefactorMigrateService.createTestWindow()
-    // const testWindow2 = dataRefactorMigrateService.createTestWindow()
-
-    // // Position windows to avoid overlap
-    // testWindow1.once('ready-to-show', () => {
-    //   const [x, y] = testWindow1.getPosition()
-    //   testWindow2.setPosition(x + 50, y + 50)
-    // })
 
     /************FOR TESTING ONLY END****************/
 
@@ -240,39 +257,33 @@ if (!app.requestSingleInstanceLock()) {
     //start selection assistant service
     initSelectionService()
 
-    // Initialize Agent Service
-    try {
-      await agentService.initialize()
-      logger.info('Agent service initialized successfully')
-    } catch (error: any) {
-      logger.error('Failed to initialize Agent service:', error)
-    }
+    runAsyncFunction(async () => {
+      // Start API server if enabled or if agents exist
+      try {
+        const config = await apiServerService.getCurrentConfig()
+        logger.info('API server config:', config)
 
-    // Start API server if enabled or if agents exist
-    try {
-      const config = await apiServerService.getCurrentConfig()
-      logger.info('API server config:', config)
-
-      // Check if there are any agents
-      let shouldStart = config.enabled
-      if (!shouldStart) {
-        try {
-          const { total } = await agentService.listAgents({ limit: 1 })
-          if (total > 0) {
-            shouldStart = true
-            logger.info(`Detected ${total} agent(s), auto-starting API server`)
+        // Check if there are any agents
+        let shouldStart = config.enabled
+        if (!shouldStart) {
+          try {
+            const { total } = await agentService.listAgents({ limit: 1 })
+            if (total > 0) {
+              shouldStart = true
+              logger.info(`Detected ${total} agent(s), auto-starting API server`)
+            }
+          } catch (error: any) {
+            logger.warn('Failed to check agent count:', error)
           }
-        } catch (error: any) {
-          logger.warn('Failed to check agent count:', error)
         }
-      }
 
-      if (shouldStart) {
-        await apiServerService.start()
+        if (shouldStart) {
+          await apiServerService.start()
+        }
+      } catch (error: any) {
+        logger.error('Failed to check/start API server:', error)
       }
-    } catch (error: any) {
-      logger.error('Failed to check/start API server:', error)
-    }
+    })
   })
 
   registerProtocolClient(app)

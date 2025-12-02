@@ -1,20 +1,6 @@
-import {
-  formatPrivateKey,
-  hasProviderConfig,
-  ProviderConfigFactory,
-  type ProviderId,
-  type ProviderSettingsMap
-} from '@cherrystudio/ai-core/provider'
+import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
 import { cacheService } from '@data/CacheService'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
-import {
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isCherryAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isPerplexityProvider
-} from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockApiKey,
@@ -22,14 +8,25 @@ import {
   getAwsBedrockRegion,
   getAwsBedrockSecretAccessKey
 } from '@renderer/hooks/useAwsBedrock'
-import { createVertexProvider, isVertexAIConfigured, isVertexProvider } from '@renderer/hooks/useVertexAI'
+import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useVertexAI'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
+import {
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isCherryAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isPerplexityProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
 import { cloneDeep } from 'lodash'
 
+import type { AiSdkConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
+import { azureAnthropicProviderCreator } from './config/azure-anthropic'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
@@ -75,15 +72,20 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
       return vertexAnthropicProviderCreator(model, provider)
     }
   }
+  if (isAzureOpenAIProvider(provider)) {
+    return azureAnthropicProviderCreator(model, provider)
+  }
   return provider
 }
 
 /**
- * 主要用来对齐AISdk的BaseURL格式
- * @param provider
- * @returns
+ * Format and normalize the API host URL for a provider.
+ * Handles provider-specific URL formatting rules (e.g., appending version paths, Azure formatting).
+ *
+ * @param provider - The provider whose API host is to be formatted.
+ * @returns A new provider instance with the formatted API host.
  */
-function formatProviderApiHost(provider: Provider): Provider {
+export function formatProviderApiHost(provider: Provider): Provider {
   const formatted = { ...provider }
   if (formatted.anthropicApiHost) {
     formatted.anthropicApiHost = formatApiHost(formatted.anthropicApiHost)
@@ -91,6 +93,7 @@ function formatProviderApiHost(provider: Provider): Provider {
 
   if (isAnthropicProvider(provider)) {
     const baseHost = formatted.anthropicApiHost || formatted.apiHost
+    // AI SDK needs /v1 in baseURL, Anthropic SDK will strip it in getSdkClient
     formatted.apiHost = formatApiHost(baseHost)
     if (!formatted.anthropicApiHost) {
       formatted.anthropicApiHost = formatted.apiHost
@@ -114,31 +117,45 @@ function formatProviderApiHost(provider: Provider): Provider {
 }
 
 /**
- * 获取实际的Provider配置
- * 简化版：将逻辑分解为小函数
+ * Retrieve the effective Provider configuration for the given model.
+ * Applies all necessary transformations (special-provider handling, URL formatting, etc.).
+ *
+ * @param model - The model whose provider is to be resolved.
+ * @returns A new Provider instance with all adaptations applied.
  */
 export function getActualProvider(model: Model): Provider {
   const baseProvider = getProviderByModel(model)
 
-  // 按顺序处理各种转换
-  let actualProvider = cloneDeep(baseProvider)
-  actualProvider = handleSpecialProviders(model, actualProvider)
-  actualProvider = formatProviderApiHost(actualProvider)
+  return adaptProvider({ provider: baseProvider, model })
+}
 
-  return actualProvider
+/**
+ * Transforms a provider configuration by applying model-specific adaptations and normalizing its API host.
+ * The transformations are applied in the following order:
+ * 1. Model-specific provider handling (e.g., New-API, system providers, Azure OpenAI)
+ * 2. API host formatting (provider-specific URL normalization)
+ *
+ * @param provider - The base provider configuration to transform.
+ * @param model - The model associated with the provider; optional but required for special-provider handling.
+ * @returns A new Provider instance with all transformations applied.
+ */
+export function adaptProvider({ provider, model }: { provider: Provider; model?: Model }): Provider {
+  let adaptedProvider = cloneDeep(provider)
+
+  // Apply transformations in order
+  if (model) {
+    adaptedProvider = handleSpecialProviders(model, adaptedProvider)
+  }
+  adaptedProvider = formatProviderApiHost(adaptedProvider)
+
+  return adaptedProvider
 }
 
 /**
  * 将 Provider 配置转换为新 AI SDK 格式
  * 简化版：利用新的别名映射系统
  */
-export function providerToAiSdkConfig(
-  actualProvider: Provider,
-  model: Model
-): {
-  providerId: ProviderId | 'openai-compatible'
-  options: ProviderSettingsMap[keyof ProviderSettingsMap]
-} {
+export function providerToAiSdkConfig(actualProvider: Provider, model: Model): AiSdkConfig {
   const aiSdkProviderId = getAiSdkProviderId(actualProvider)
 
   // 构建基础配置
@@ -190,13 +207,12 @@ export function providerToAiSdkConfig(
     }
   }
   // azure
-  if (aiSdkProviderId === 'azure' || actualProvider.type === 'azure-openai') {
-    // extraOptions.apiVersion = actualProvider.apiVersion 默认使用v1，不使用azure endpoint
-    if (actualProvider.apiVersion === 'preview') {
-      extraOptions.mode = 'responses'
-    } else {
-      extraOptions.mode = 'chat'
-    }
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/latest
+  // https://learn.microsoft.com/en-us/azure/ai-foundry/openai/how-to/responses?tabs=python-key#responses-api
+  if (aiSdkProviderId === 'azure-responses') {
+    extraOptions.mode = 'responses'
+  } else if (aiSdkProviderId === 'azure') {
+    extraOptions.mode = 'chat'
   }
 
   // bedrock
@@ -226,10 +242,17 @@ export function providerToAiSdkConfig(
     baseConfig.baseURL += aiSdkProviderId === 'google-vertex' ? '/publishers/google' : '/publishers/anthropic/models'
   }
 
+  // cherryin
+  if (aiSdkProviderId === 'cherryin') {
+    if (model.endpoint_type) {
+      extraOptions.endpointType = model.endpoint_type
+    }
+  }
+
   if (hasProviderConfig(aiSdkProviderId) && aiSdkProviderId !== 'openai-compatible') {
     const options = ProviderConfigFactory.fromProvider(aiSdkProviderId, baseConfig, extraOptions)
     return {
-      providerId: aiSdkProviderId as ProviderId,
+      providerId: aiSdkProviderId,
       options
     }
   }

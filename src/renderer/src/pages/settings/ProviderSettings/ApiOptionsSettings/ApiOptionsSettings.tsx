@@ -76,6 +76,17 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           })
         },
         checked: !provider.apiOptions?.isNotSupportEnableThinking
+      },
+      {
+        key: 'openai_verbosity',
+        label: t('settings.provider.api.options.verbosity.label'),
+        tip: t('settings.provider.api.options.verbosity.help'),
+        onChange: (checked: boolean) => {
+          updateProviderTransition({
+            apiOptions: { ...provider.apiOptions, isNotSupportVerbosity: !checked }
+          })
+        },
+        checked: !provider.apiOptions?.isNotSupportVerbosity
       }
     ],
     [t, provider, updateProviderTransition]
@@ -113,7 +124,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             </label>
             <InfoTooltip content={item.tip}></InfoTooltip>
           </RowFlex>
-          <Switch id={item.key} isSelected={item.checked} onValueChange={item.onChange} />
+          <Switch id={item.key} checked={item.checked} onCheckedChange={item.onChange} />
         </RowFlex>
       ))}
     </ColFlex>

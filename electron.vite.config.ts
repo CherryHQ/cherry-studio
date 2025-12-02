@@ -112,6 +112,7 @@ export default defineConfig({
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
         '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src'),
         '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
+        '@cherrystudio/ui/icons': resolve('packages/ui/src/components/icons'),
         '@cherrystudio/ui': resolve('packages/ui/src')
       }
     },
@@ -133,7 +134,7 @@ export default defineConfig({
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
           traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
-          dataRefactorMigrate: resolve(__dirname, 'src/renderer/dataRefactorMigrate.html')
+          migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

@@ -47,6 +47,7 @@ export function buildProviderBuiltinWebSearchConfig(
   model?: Model
 ): WebSearchPluginConfig | undefined {
   switch (providerId) {
+    case 'azure-responses':
     case 'openai': {
       const searchContextSize = isOpenAIDeepResearchModel(model)
         ? 'medium'

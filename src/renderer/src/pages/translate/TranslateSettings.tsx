@@ -67,8 +67,8 @@ const TranslateSettings: FC<{
           <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
             <Switch
-              isSelected={enableMarkdown}
-              onValueChange={(checked) => {
+              checked={enableMarkdown}
+              onCheckedChange={(checked) => {
                 setEnableMarkdown(checked)
                 db.settings.put({ id: 'translate:markdown:enabled', value: checked })
               }}
@@ -80,9 +80,9 @@ const TranslateSettings: FC<{
           <RowFlex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
             <Switch
-              isSelected={autoCopy}
+              checked={autoCopy}
               color="primary"
-              onValueChange={(isSelected) => {
+              onCheckedChange={(isSelected) => {
                 updateSettings({ autoCopy: isSelected })
               }}
             />
@@ -93,9 +93,9 @@ const TranslateSettings: FC<{
           <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.scroll_sync')}</div>
             <Switch
-              isSelected={isScrollSyncEnabled}
+              checked={isScrollSyncEnabled}
               color="primary"
-              onValueChange={(isSelected) => {
+              onCheckedChange={(isSelected) => {
                 setIsScrollSyncEnabled(isSelected)
                 db.settings.put({ id: 'translate:scroll:sync', value: isSelected })
               }}
@@ -145,9 +145,9 @@ const TranslateSettings: FC<{
               </RowFlex>
             </div>
             <Switch
-              isSelected={isBidirectional}
+              checked={isBidirectional}
               color="primary"
-              onValueChange={(isSelected) => {
+              onCheckedChange={(isSelected) => {
                 setIsBidirectional(isSelected)
                 // 双向翻译设置不需要持久化，它只是界面状态
               }}

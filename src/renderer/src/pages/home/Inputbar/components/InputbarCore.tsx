@@ -151,11 +151,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
   const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
     (value) => {
-      if (typeof value === 'function') {
-        onTextChange(value(textRef.current))
-      } else {
-        onTextChange(value)
-      }
+      const newText = typeof value === 'function' ? value(textRef.current) : value
+      onTextChange(newText)
     },
     [onTextChange]
   )
@@ -308,7 +305,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
       const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
       if (isEnterPressed) {
-        if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+        if (isSendMessageKeyPressed(event, sendMessageShortcut) && !cannotSend) {
           handleSendMessage()
           event.preventDefault()
           return
@@ -354,6 +351,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       translate,
       handleToggleExpanded,
       sendMessageShortcut,
+      cannotSend,
       handleSendMessage,
       setText,
       setTimeoutTimer,

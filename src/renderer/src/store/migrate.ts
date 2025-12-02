@@ -8,16 +8,11 @@ import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import {
   glm45FlashModel,
   isFunctionCallingModel,
-  isNotSupportedTextDelta,
+  isNotSupportTextDeltaModel,
   SYSTEM_MODELS
 } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import {
-  isSupportArrayContentProvider,
-  isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider,
-  SYSTEM_PROVIDERS
-} from '@renderer/config/providers'
+import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -34,6 +29,11 @@ import type {
 } from '@renderer/types'
 import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import {
+  isSupportArrayContentProvider,
+  isSupportDeveloperRoleProvider,
+  isSupportStreamOptionsProvider
+} from '@renderer/utils/provider'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -1504,6 +1504,7 @@ const migrateConfig = {
   '102': (state: RootState) => {
     try {
       state.settings.openAI = {
+        // @ts-expect-error it's a removed type. migrated on 177
         summaryText: 'off',
         serviceTier: 'auto',
         verbosity: 'medium'
@@ -1597,6 +1598,7 @@ const migrateConfig = {
       addMiniApp(state, 'google')
       if (!state.settings.openAI) {
         state.settings.openAI = {
+          // @ts-expect-error it's a removed type. migrated on 177
           summaryText: 'off',
           serviceTier: 'auto',
           verbosity: 'medium'
@@ -1991,7 +1993,7 @@ const migrateConfig = {
       const updateModelTextDelta = (model?: Model) => {
         if (model) {
           model.supported_text_delta = true
-          if (isNotSupportedTextDelta(model)) {
+          if (isNotSupportTextDeltaModel(model)) {
             model.supported_text_delta = false
           }
         }
@@ -2805,6 +2807,108 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 173 error', error as Error)
+      return state
+    }
+  },
+  '174': (state: RootState) => {
+    try {
+      addProvider(state, SystemProviderIds.longcat)
+
+      addProvider(state, SystemProviderIds['ai-gateway'])
+      addProvider(state, 'cerebras')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.minimax) {
+          provider.anthropicApiHost = 'https://api.minimaxi.com/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 174 error', error as Error)
+      return state
+    }
+  },
+  '175': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        // @ts-ignore
+        if (assistant.settings?.reasoning_effort === 'off') {
+          // @ts-ignore
+          assistant.settings.reasoning_effort = 'none'
+        }
+        // @ts-ignore
+        if (assistant.settings?.reasoning_effort_cache === 'off') {
+          // @ts-ignore
+          assistant.settings.reasoning_effort_cache = 'none'
+        }
+      })
+      logger.info('migrate 175 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 175 error', error as Error)
+      return state
+    }
+  },
+  '176': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.qiniu) {
+          provider.anthropicApiHost = 'https://api.qnaigc.com'
+        }
+        if (provider.id === SystemProviderIds.longcat) {
+          provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 176 error', error as Error)
+      return state
+    }
+  },
+  '177': (state: RootState) => {
+    try {
+      // @ts-expect-error it's a removed type
+      if (state.settings.openAI.summaryText === 'off') {
+        state.settings.openAI.summaryText = 'auto'
+      }
+      logger.info('migrate 177 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 177 error', error as Error)
+      return state
+    }
+  },
+  '178': (state: RootState) => {
+    try {
+      const groq = state.llm.providers.find((p) => p.id === SystemProviderIds.groq)
+      if (groq) {
+        groq.verbosity = undefined
+      }
+      logger.info('migrate 178 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 178 error', error as Error)
+      return state
+    }
+  },
+  '179': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        switch (provider.id) {
+          case SystemProviderIds.silicon:
+            provider.anthropicApiHost = 'https://api.siliconflow.cn'
+            break
+          case SystemProviderIds.qiniu:
+            provider.anthropicApiHost = 'https://api.qnaigc.com'
+            break
+          case SystemProviderIds.dmxapi:
+            provider.anthropicApiHost = provider.apiHost
+            break
+        }
+      })
+      logger.info('migrate 179 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 179 error', error as Error)
       return state
     }
   }

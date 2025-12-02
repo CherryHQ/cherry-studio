@@ -7,16 +7,17 @@
  * 2. 暂时保持接口兼容性
  */
 
+import type { GatewayLanguageModelEntry } from '@ai-sdk/gateway'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
-import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
+import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { SUPPORTED_IMAGE_ENDPOINT_LIST } from '@renderer/utils'
 import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
-import { type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
+import { gateway, type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
@@ -26,11 +27,13 @@ import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { createAiSdkProvider } from './provider/factory'
 import {
+  adaptProvider,
   getActualProvider,
   isModernSdkSupported,
   prepareSpecialProviderConfig,
   providerToAiSdkConfig
 } from './provider/providerConfig'
+import type { AiSdkConfig } from './types'
 
 const logger = loggerService.withContext('ModernAiProvider')
 
@@ -43,12 +46,44 @@ export type ModernAiProviderConfig = AiSdkMiddlewareConfig & {
 
 export default class ModernAiProvider {
   private legacyProvider: LegacyAiProvider
-  private config?: ReturnType<typeof providerToAiSdkConfig>
+  private config?: AiSdkConfig
   private actualProvider: Provider
   private model?: Model
   private localProvider: Awaited<AiSdkProvider> | null = null
 
-  // 构造函数重载签名
+  /**
+   * Constructor for ModernAiProvider
+   *
+   * @param modelOrProvider - Model or Provider object
+   * @param provider - Optional Provider object (only used when first param is Model)
+   *
+   * @remarks
+   * **Important behavior notes**:
+   *
+   * 1. When called with `(model)`:
+   *    - Calls `getActualProvider(model)` to retrieve and format the provider
+   *    - URL will be automatically formatted via `formatProviderApiHost`, adding version suffixes like `/v1`
+   *
+   * 2. When called with `(model, provider)`:
+   *    - The provided provider will be adapted via `adaptProvider`
+   *    - URL formatting behavior depends on the adapted result
+   *
+   * 3. When called with `(provider)`:
+   *    - The provider will be adapted via `adaptProvider`
+   *    - Used for operations that don't need a model (e.g., fetchModels)
+   *
+   * @example
+   * ```typescript
+   * // Recommended: Auto-format URL
+   * const ai = new ModernAiProvider(model)
+   *
+   * // Provider will be adapted
+   * const ai = new ModernAiProvider(model, customProvider)
+   *
+   * // For operations that don't need a model
+   * const ai = new ModernAiProvider(provider)
+   * ```
+   */
   constructor(model: Model, provider?: Provider)
   constructor(provider: Provider)
   constructor(modelOrProvider: Model | Provider, provider?: Provider)
@@ -56,12 +91,12 @@ export default class ModernAiProvider {
     if (this.isModel(modelOrProvider)) {
       // 传入的是 Model
       this.model = modelOrProvider
-      this.actualProvider = provider || getActualProvider(modelOrProvider)
+      this.actualProvider = provider ? adaptProvider({ provider }) : getActualProvider(modelOrProvider)
       // 只保存配置，不预先创建executor
       this.config = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {
       // 传入的是 Provider
-      this.actualProvider = modelOrProvider
+      this.actualProvider = adaptProvider({ provider: modelOrProvider })
       // model为可选，某些操作（如fetchModels）不需要model
     }
 
@@ -88,6 +123,11 @@ export default class ModernAiProvider {
     // 每次请求时重新生成配置以确保API key轮换生效
     this.config = providerToAiSdkConfig(this.actualProvider, this.model)
     logger.debug('Generated provider config for completions', this.config)
+
+    // 检查 config 是否存在
+    if (!this.config) {
+      throw new Error('Provider config is undefined; cannot proceed with completions')
+    }
     if (SUPPORTED_IMAGE_ENDPOINT_LIST.includes(this.config.options.endpoint)) {
       providerConfig.isImageGenerationEndpoint = true
     }
@@ -148,7 +188,8 @@ export default class ModernAiProvider {
     params: StreamTextParams,
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
-    if (config.isImageGenerationEndpoint) {
+    // ai-gateway不是image/generation 端点，所以就先不走legacy了
+    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds['ai-gateway']) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
@@ -314,10 +355,10 @@ export default class ModernAiProvider {
     }
   }
 
-  /**
-   * 使用现代化 AI SDK 的图像生成实现，支持流式输出
-   * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
-   */
+  // /**
+  //  * 使用现代化 AI SDK 的图像生成实现，支持流式输出
+  //  * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
+  //  */
   /*
   private async modernImageGeneration(
     model: ImageModel,
@@ -439,6 +480,18 @@ export default class ModernAiProvider {
 
   // 代理其他方法到原有实现
   public async models() {
+    if (this.actualProvider.id === SystemProviderIds['ai-gateway']) {
+      const formatModel = function (models: GatewayLanguageModelEntry[]): Model[] {
+        return models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          provider: 'gateway',
+          group: m.id.split('/')[0],
+          description: m.description ?? undefined
+        }))
+      }
+      return formatModel((await gateway.getAvailableModels()).models)
+    }
     return this.legacyProvider.models()
   }
 
@@ -450,8 +503,13 @@ export default class ModernAiProvider {
     // 如果支持新的 AI SDK，使用现代化实现
     if (isModernSdkSupported(this.actualProvider)) {
       try {
+        // 确保 config 已定义
+        if (!this.config) {
+          throw new Error('Provider config is undefined; cannot proceed with generateImage')
+        }
+
         // 确保本地provider已创建
-        if (!this.localProvider) {
+        if (!this.localProvider && this.config) {
           this.localProvider = await createAiSdkProvider(this.config)
           if (!this.localProvider) {
             throw new Error('Local provider not created')

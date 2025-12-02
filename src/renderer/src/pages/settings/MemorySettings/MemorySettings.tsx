@@ -4,6 +4,7 @@ import { Flex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
@@ -11,13 +12,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
-import {
-  selectCurrentUserId,
-  selectGlobalMemoryEnabled,
-  selectMemoryConfig,
-  setCurrentUserId,
-  setGlobalMemoryEnabled
-} from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
 import { Badge, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
@@ -25,7 +20,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import {
@@ -281,9 +276,8 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
 
 const MemorySettings = () => {
   const { t } = useTranslation()
-  const dispatch = useDispatch()
-  const currentUser = useSelector(selectCurrentUserId)
-  const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const [currentUser, setCurrentUserId] = usePreference('feature.memory.current_user_id')
+  const [globalMemoryEnabled, setGlobalMemoryEnabled] = usePreference('feature.memory.enabled')
 
   const [allMemories, setAllMemories] = useState<MemoryItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -436,8 +430,8 @@ const MemorySettings = () => {
   const handleUserSwitch = async (userId: string) => {
     logger.verbose(`Switching to user: ${userId}`)
 
-    // First update Redux state
-    dispatch(setCurrentUserId(userId))
+    // First update preference state
+    setCurrentUserId(userId)
 
     // Clear current memories to show loading state immediately
     setAllMemories([])
@@ -483,7 +477,7 @@ const MemorySettings = () => {
     await memoryService.updateConfig()
     if (cacheService.get('memory.wait.settings')) {
       cacheService.delete('memory.wait.settings')
-      dispatch(setGlobalMemoryEnabled(true))
+      setGlobalMemoryEnabled(true)
     }
   }
 
@@ -560,7 +554,7 @@ const MemorySettings = () => {
       return setSettingsModalVisible(true)
     }
 
-    dispatch(setGlobalMemoryEnabled(enabled))
+    setGlobalMemoryEnabled(enabled)
 
     if (enabled) {
       return window.modal.confirm({
@@ -591,7 +585,7 @@ const MemorySettings = () => {
             <TextBadge text="Beta" />
           </RowFlex>
           <RowFlex className="items-center gap-2.5">
-            <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
+            <Switch checked={globalMemoryEnabled} onCheckedChange={handleGlobalMemoryToggle} />
             <Button variant="ghost" onClick={() => setSettingsModalVisible(true)} size="icon">
               <Settings2 size={16} />
             </Button>

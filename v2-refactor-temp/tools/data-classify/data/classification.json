@@ -1,0 +1,3409 @@
+{
+  "metadata": {
+    "version": "2.0.0",
+    "lastUpdated": "2025-11-29T03:44:52.215Z",
+    "totalItems": 385,
+    "classified": 256,
+    "pending": 123,
+    "deleted": 0
+  },
+  "classifications": {
+    "redux": {
+      "assistants": [
+        {
+          "originalKey": "defaultAssistant",
+          "type": "unknown",
+          "defaultValue": "getDefaultAssistant()",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "assistants",
+          "type": "array",
+          "defaultValue": "[getDefaultAssistant()]",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "tagsOrder",
+          "type": "string",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "collapsedTags",
+          "type": "object",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "presets",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "unifiedListOrder",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "backup": [
+        {
+          "originalKey": "webdavSync",
+          "type": "object",
+          "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }",
+          "status": "classified",
+          "category": "cache",
+          "targetKey": null
+        },
+        {
+          "originalKey": "localBackupSync",
+          "type": "object",
+          "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }",
+          "status": "classified",
+          "category": "cache",
+          "targetKey": null
+        },
+        {
+          "originalKey": "s3Sync",
+          "type": "object",
+          "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }",
+          "status": "classified",
+          "category": "cache",
+          "targetKey": null
+        }
+      ],
+      "copilot": [
+        {
+          "originalKey": "username",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "avatar",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "defaultHeaders",
+          "type": "object",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        }
+      ],
+      "inputTools": [
+        {
+          "originalKey": "toolOrder",
+          "type": "string",
+          "defaultValue": "DEFAULT_TOOL_ORDER",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "sessionToolOrder",
+          "type": "string",
+          "defaultValue": "DEFAULT_TOOL_ORDER_BY_SCOPE[TopicType.Session]",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "knowledge": [
+        {
+          "originalKey": "bases",
+          "type": "array",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "llm": [
+        {
+          "originalKey": "providers",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "defaultModel",
+          "type": "unknown",
+          "defaultValue": "SYSTEM_MODELS.defaultModel[0]",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": "gpt-3.5-turbo",
+              "originalKey": "id",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "GPT-3.5 Turbo",
+              "originalKey": "name",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "topicNamingModel",
+          "type": "unknown",
+          "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": "gpt-4",
+              "originalKey": "id",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "GPT-4",
+              "originalKey": "name",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "quickModel",
+          "type": "unknown",
+          "defaultValue": "SYSTEM_MODELS.defaultModel[1]",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": "gpt-4",
+              "originalKey": "id",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "GPT-4",
+              "originalKey": "name",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "translateModel",
+          "type": "unknown",
+          "defaultValue": "SYSTEM_MODELS.defaultModel[2]",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": "claude-3",
+              "originalKey": "id",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "Claude 3",
+              "originalKey": "name",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "quickAssistantId",
+          "type": "string",
+          "defaultValue": "",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "settings",
+          "type": "unknown",
+          "defaultValue": "{ ollama: { keepAliveTime: 0 }, lmstudio: { keepAliveTime: 0 }, gpustack: { keepAliveTime: 0 }, vertexai: { serviceAccount: { privateKey: '', clientEmail: '' }, projectId: '', location: '' }, awsBedrock: { authType: 'iam', accessKeyId: '', secretAccessKey: '', apiKey: '', region: '' } }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "children": [
+                {
+                  "category": null,
+                  "defaultValue": 0,
+                  "originalKey": "keepAliveTime",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "number"
+                }
+              ],
+              "originalKey": "ollama"
+            },
+            {
+              "children": [
+                {
+                  "category": null,
+                  "defaultValue": 0,
+                  "originalKey": "keepAliveTime",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "number"
+                }
+              ],
+              "originalKey": "lmstudio"
+            },
+            {
+              "children": [
+                {
+                  "category": null,
+                  "defaultValue": 0,
+                  "originalKey": "keepAliveTime",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "number"
+                }
+              ],
+              "originalKey": "gpustack"
+            },
+            {
+              "children": [
+                {
+                  "children": [
+                    {
+                      "category": null,
+                      "defaultValue": "",
+                      "originalKey": "privateKey",
+                      "status": "pending",
+                      "targetKey": null,
+                      "type": "string"
+                    },
+                    {
+                      "category": null,
+                      "defaultValue": "",
+                      "originalKey": "clientEmail",
+                      "status": "pending",
+                      "targetKey": null,
+                      "type": "string"
+                    }
+                  ],
+                  "originalKey": "serviceAccount"
+                },
+                {
+                  "category": null,
+                  "defaultValue": "",
+                  "originalKey": "projectId",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "string"
+                },
+                {
+                  "category": null,
+                  "defaultValue": "",
+                  "originalKey": "location",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "string"
+                }
+              ],
+              "originalKey": "vertexai"
+            },
+            {
+              "children": [
+                {
+                  "category": null,
+                  "defaultValue": "",
+                  "originalKey": "accessKeyId",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "string"
+                },
+                {
+                  "category": null,
+                  "defaultValue": "",
+                  "originalKey": "secretAccessKey",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "string"
+                },
+                {
+                  "category": null,
+                  "defaultValue": "",
+                  "originalKey": "region",
+                  "status": "pending",
+                  "targetKey": null,
+                  "type": "string"
+                }
+              ],
+              "originalKey": "awsBedrock"
+            }
+          ]
+        }
+      ],
+      "mcp": [
+        {
+          "originalKey": "servers",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "isUvInstalled",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "memory": [
+        {
+          "originalKey": "memoryConfig",
+          "type": "unknown",
+          "defaultValue": "defaultMemoryConfig",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": 1536,
+              "originalKey": "embedderDimensions",
+              "status": "classified",
+              "targetKey": "feature.memory.embedder_dimensions",
+              "type": "number"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "isAutoDimensions",
+              "status": "classified",
+              "targetKey": "feature.memory.auto_dimensions",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "VALUE: MEMORY_FACT_EXTRACTION_PROMPT",
+              "originalKey": "customFactExtractionPrompt",
+              "status": "classified",
+              "targetKey": "feature.memory.fact_extraction_prompt",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "VALUE: MEMORY_UPDATE_SYSTEM_PROMPT",
+              "originalKey": "customUpdateMemoryPrompt",
+              "status": "classified",
+              "targetKey": "feature.memory.update_memory_prompt",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "currentUserId",
+          "type": "string",
+          "defaultValue": "default-user",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.current_user_id"
+        },
+        {
+          "originalKey": "globalMemoryEnabled",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.memory.enabled"
+        }
+      ],
+      "messageBlock": [],
+      "migrate": [],
+      "minapps": [
+        {
+          "originalKey": "enabled",
+          "type": "string",
+          "defaultValue": "DEFAULT_MIN_APPS",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "disabled",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "newMessage": [],
+      "nutstore": [
+        {
+          "originalKey": "nutstoreToken",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.token"
+        },
+        {
+          "originalKey": "nutstorePath",
+          "type": "string",
+          "defaultValue": "/cherry-studio",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.path"
+        },
+        {
+          "originalKey": "nutstoreAutoSync",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.auto_sync"
+        },
+        {
+          "originalKey": "nutstoreSyncInterval",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.sync_interval"
+        },
+        {
+          "originalKey": "nutstoreSyncState",
+          "type": "object",
+          "defaultValue": "{ lastSyncTime: null, syncing: false, lastSyncError: null }",
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "nutstoreSkipBackupFile",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.skip_backup_file"
+        },
+        {
+          "originalKey": "nutstoreMaxBackups",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.nutstore.max_backups"
+        }
+      ],
+      "paintings": [
+        {
+          "originalKey": "siliconflow_paintings",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "dmxapi_paintings",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "tokenflux_paintings",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "zhipu_paintings",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "aihubmix_image_generate",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "aihubmix_image_remix",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "aihubmix_image_edit",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "aihubmix_image_upscale",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "openai_image_generate",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "openai_image_edit",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "preprocess": [
+        {
+          "originalKey": "providers",
+          "type": "array",
+          "defaultValue": "[ { id: 'mineru', name: 'MinerU', apiKey: '', apiHost: 'https://mineru.net' }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "defaultProvider",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "runtime": [
+        {
+          "originalKey": "chat",
+          "type": "object",
+          "defaultValue": "{ isMultiSelectMode: false, selectedMessageIds: [], activeTopic: null, activeAgentId: null, activeTopicOrSession: 'topic', activeSessionIdMap: {}, renamingTopics: [], newlyRenamedTopics: [], sessionWaiting: {} }",
+          "status": "classified",
+          "category": "cache",
+          "targetKey": null
+        }
+      ],
+      "selectionStore": [
+        {
+          "originalKey": "selectionEnabled",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.enabled"
+        },
+        {
+          "originalKey": "triggerMode",
+          "type": "PreferenceTypes.SelectionTriggerMode",
+          "defaultValue": "VALUE: PreferenceTypes.SelectionTriggerMode.Selected",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.trigger_mode"
+        },
+        {
+          "originalKey": "isCompact",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.compact"
+        },
+        {
+          "originalKey": "isAutoClose",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.auto_close"
+        },
+        {
+          "originalKey": "isAutoPin",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.auto_pin"
+        },
+        {
+          "originalKey": "isFollowToolbar",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.follow_toolbar"
+        },
+        {
+          "originalKey": "isRemeberWinSize",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.remember_win_size"
+        },
+        {
+          "originalKey": "filterMode",
+          "type": "PreferenceTypes.SelectionFilterMode",
+          "defaultValue": "VALUE: PreferenceTypes.SelectionFilterMode.Default",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.filter_mode"
+        },
+        {
+          "originalKey": "filterList",
+          "type": "string[]",
+          "defaultValue": [],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.filter_list"
+        },
+        {
+          "originalKey": "actionWindowOpacity",
+          "type": "number",
+          "defaultValue": 100,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.action_window_opacity"
+        },
+        {
+          "originalKey": "actionItems",
+          "type": "PreferenceTypes.SelectionActionItem[]",
+          "defaultValue": [
+            {
+              "enabled": true,
+              "icon": "languages",
+              "id": "translate",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.translate"
+            },
+            {
+              "enabled": true,
+              "icon": "file-question",
+              "id": "explain",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.explain"
+            },
+            {
+              "enabled": true,
+              "icon": "scan-text",
+              "id": "summary",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.summary"
+            },
+            {
+              "enabled": true,
+              "icon": "search",
+              "id": "search",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.search",
+              "searchEngine": "Google|https://www.google.com/search?q={{queryString}}"
+            },
+            {
+              "enabled": true,
+              "icon": "clipboard-copy",
+              "id": "copy",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.copy"
+            },
+            {
+              "enabled": false,
+              "icon": "wand-sparkles",
+              "id": "refine",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.refine"
+            },
+            {
+              "enabled": false,
+              "icon": "quote",
+              "id": "quote",
+              "isBuiltIn": true,
+              "name": "selection.action.builtin.quote"
+            }
+          ],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.action_items"
+        }
+      ],
+      "settings": [
+        {
+          "originalKey": "showAssistants",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "assistant.tab.show"
+        },
+        {
+          "originalKey": "showTopics",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.tab.show"
+        },
+        {
+          "originalKey": "assistantsTabSortType",
+          "type": "PreferenceTypes.AssistantTabSortType",
+          "defaultValue": "list",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "assistant.tab.sort_type"
+        },
+        {
+          "originalKey": "sendMessageShortcut",
+          "type": "PreferenceTypes.SendMessageShortcut",
+          "defaultValue": "Enter",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.send_message_shortcut"
+        },
+        {
+          "originalKey": "language",
+          "type": "PreferenceTypes.LanguageVarious",
+          "defaultValue": "VALUE: null",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.language"
+        },
+        {
+          "originalKey": "targetLanguage",
+          "type": "string",
+          "defaultValue": "en-us",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.target_language"
+        },
+        {
+          "originalKey": "proxyMode",
+          "type": "PreferenceTypes.ProxyMode",
+          "defaultValue": "system",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.proxy.mode"
+        },
+        {
+          "originalKey": "proxyUrl",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.proxy.url"
+        },
+        {
+          "originalKey": "proxyBypassRules",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.proxy.bypass_rules"
+        },
+        {
+          "originalKey": "userName",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.user.name"
+        },
+        {
+          "originalKey": "userId",
+          "type": "string",
+          "defaultValue": "uuid()",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.user.id"
+        },
+        {
+          "originalKey": "showPrompt",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.show_prompt"
+        },
+        {
+          "originalKey": "showMessageDivider",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.show_divider"
+        },
+        {
+          "originalKey": "messageFont",
+          "type": "string",
+          "defaultValue": "system",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.font"
+        },
+        {
+          "originalKey": "showInputEstimatedTokens",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.show_estimated_tokens"
+        },
+        {
+          "originalKey": "launchOnBoot",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.launch_on_boot"
+        },
+        {
+          "originalKey": "launchToTray",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.tray.on_launch"
+        },
+        {
+          "originalKey": "trayOnClose",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.tray.on_close"
+        },
+        {
+          "originalKey": "tray",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.tray.enabled"
+        },
+        {
+          "originalKey": "theme",
+          "type": "PreferenceTypes.ThemeMode",
+          "defaultValue": "VALUE: PreferenceTypes.ThemeMode.system",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.theme_mode"
+        },
+        {
+          "originalKey": "userTheme",
+          "type": "unknown",
+          "defaultValue": "{ colorPrimary: '#00b96b', userFontFamily: '', userCodeFontFamily: '' }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": "#00b96b",
+              "originalKey": "colorPrimary",
+              "status": "classified",
+              "targetKey": "ui.theme_user.color_primary",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "userFontFamily",
+              "status": "classified",
+              "targetKey": "ui.theme_user.font_family",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "userCodeFontFamily",
+              "status": "classified",
+              "targetKey": "ui.theme_user.code_font_family",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "windowStyle",
+          "type": "PreferenceTypes.WindowStyle",
+          "defaultValue": "opaque",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.window_style"
+        },
+        {
+          "originalKey": "fontSize",
+          "type": "number",
+          "defaultValue": 14,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.font_size"
+        },
+        {
+          "originalKey": "topicPosition",
+          "type": "string",
+          "defaultValue": "left",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.position"
+        },
+        {
+          "originalKey": "showTopicTime",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.tab.show_time"
+        },
+        {
+          "originalKey": "pinTopicsToTop",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.tab.pin_to_top"
+        },
+        {
+          "originalKey": "assistantIconType",
+          "type": "PreferenceTypes.AssistantIconType",
+          "defaultValue": "emoji",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "assistant.icon_type"
+        },
+        {
+          "originalKey": "pasteLongTextAsFile",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_as_file"
+        },
+        {
+          "originalKey": "pasteLongTextThreshold",
+          "type": "number",
+          "defaultValue": 1500,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_threshold"
+        },
+        {
+          "originalKey": "clickAssistantToShowTopic",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "assistant.click_to_show_topic"
+        },
+        {
+          "originalKey": "autoCheckUpdate",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.dist.auto_update.enabled"
+        },
+        {
+          "originalKey": "testPlan",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.dist.test_plan.enabled"
+        },
+        {
+          "originalKey": "testChannel",
+          "type": "PreferenceTypes.UpgradeChannel",
+          "defaultValue": "VALUE: PreferenceTypes.UpgradeChannel.LATEST",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.dist.test_plan.channel"
+        },
+        {
+          "originalKey": "renderInputMessageAsMarkdown",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.render_as_markdown"
+        },
+        {
+          "originalKey": "codeExecution",
+          "type": "unknown",
+          "defaultValue": "{ enabled: false, timeoutMinutes: 1 }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "enabled",
+              "status": "classified",
+              "targetKey": "chat.code.execution.enabled",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": 1,
+              "originalKey": "timeoutMinutes",
+              "status": "classified",
+              "targetKey": "chat.code.execution.timeout_minutes",
+              "type": "number"
+            }
+          ]
+        },
+        {
+          "originalKey": "enabled",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.execution.enabled"
+        },
+        {
+          "originalKey": "timeoutMinutes",
+          "type": "number",
+          "defaultValue": 1,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.execution.timeout_minutes"
+        },
+        {
+          "originalKey": "codeEditor",
+          "type": "unknown",
+          "defaultValue": "{ enabled: false, themeLight: 'auto', themeDark: 'auto', highlightActiveLine: false, foldGutter: false, autocompletion: true, keymap: false }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "enabled",
+              "status": "classified",
+              "targetKey": "chat.code.editor.enabled",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "themeLight",
+              "status": "classified",
+              "targetKey": "chat.code.editor.theme_light",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "themeDark",
+              "status": "classified",
+              "targetKey": "chat.code.editor.theme_dark",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "highlightActiveLine",
+              "status": "classified",
+              "targetKey": "chat.code.editor.highlight_active_line",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "foldGutter",
+              "status": "classified",
+              "targetKey": "chat.code.editor.fold_gutter",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "autocompletion",
+              "status": "classified",
+              "targetKey": "chat.code.editor.autocompletion",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "keymap",
+              "status": "classified",
+              "targetKey": "chat.code.editor.keymap",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "originalKey": "themeLight",
+          "type": "string",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.theme_light"
+        },
+        {
+          "originalKey": "themeDark",
+          "type": "string",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.theme_dark"
+        },
+        {
+          "originalKey": "highlightActiveLine",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.highlight_active_line"
+        },
+        {
+          "originalKey": "foldGutter",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.fold_gutter"
+        },
+        {
+          "originalKey": "autocompletion",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.autocompletion"
+        },
+        {
+          "originalKey": "keymap",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.keymap"
+        },
+        {
+          "originalKey": "codePreview",
+          "type": "unknown",
+          "defaultValue": "{ themeLight: 'auto', themeDark: 'auto' }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "themeLight",
+              "status": "classified",
+              "targetKey": "chat.code.preview.theme_light",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "themeDark",
+              "status": "classified",
+              "targetKey": "chat.code.preview.theme_dark",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "codeViewer",
+          "type": "unknown",
+          "defaultValue": "{ themeLight: 'auto', themeDark: 'auto' }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "themeLight",
+              "status": "classified",
+              "targetKey": "chat.code.viewer.theme_light",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "themeDark",
+              "status": "classified",
+              "targetKey": "chat.code.viewer.theme_dark",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "codeShowLineNumbers",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.show_line_numbers"
+        },
+        {
+          "originalKey": "codeCollapsible",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.collapsible"
+        },
+        {
+          "originalKey": "codeWrappable",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.wrappable"
+        },
+        {
+          "originalKey": "codeImageTools",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.image_tools"
+        },
+        {
+          "originalKey": "codeFancyBlock",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.fancy_block"
+        },
+        {
+          "originalKey": "mathEngine",
+          "type": "PreferenceTypes.MathEngine",
+          "defaultValue": "KaTeX",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.math.engine"
+        },
+        {
+          "originalKey": "mathEnableSingleDollar",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.math.single_dollar"
+        },
+        {
+          "originalKey": "messageStyle",
+          "type": "PreferenceTypes.ChatMessageStyle",
+          "defaultValue": "plain",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.style"
+        },
+        {
+          "originalKey": "foldDisplayMode",
+          "type": "PreferenceTypes.MultiModelFoldDisplayMode",
+          "defaultValue": "expanded",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.multi_model.fold_display_mode"
+        },
+        {
+          "originalKey": "gridColumns",
+          "type": "number",
+          "defaultValue": 2,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.multi_model.grid_columns"
+        },
+        {
+          "originalKey": "gridPopoverTrigger",
+          "type": "PreferenceTypes.MultiModelGridPopoverTrigger",
+          "defaultValue": "click",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.multi_model.grid_popover_trigger"
+        },
+        {
+          "originalKey": "messageNavigation",
+          "type": "PreferenceTypes.ChatMessageNavigationMode",
+          "defaultValue": "none",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.navigation_mode"
+        },
+        {
+          "originalKey": "skipBackupFile",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.general.skip_backup_file"
+        },
+        {
+          "originalKey": "webdavHost",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.host"
+        },
+        {
+          "originalKey": "webdavUser",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.user"
+        },
+        {
+          "originalKey": "webdavPass",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.pass"
+        },
+        {
+          "originalKey": "webdavPath",
+          "type": "string",
+          "defaultValue": "/cherry-studio",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.path"
+        },
+        {
+          "originalKey": "webdavAutoSync",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.auto_sync"
+        },
+        {
+          "originalKey": "webdavSyncInterval",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.sync_interval"
+        },
+        {
+          "originalKey": "webdavMaxBackups",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.max_backups"
+        },
+        {
+          "originalKey": "webdavSkipBackupFile",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.skip_backup_file"
+        },
+        {
+          "originalKey": "webdavDisableStream",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.webdav.disable_stream"
+        },
+        {
+          "originalKey": "translateModelPrompt",
+          "type": "string",
+          "defaultValue": "VALUE: TRANSLATE_PROMPT",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.model_prompt"
+        },
+        {
+          "originalKey": "autoTranslateWithSpace",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.translate.auto_translate_with_space"
+        },
+        {
+          "originalKey": "showTranslateConfirm",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.translate.show_confirm"
+        },
+        {
+          "originalKey": "enableTopicNaming",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.naming.enabled"
+        },
+        {
+          "originalKey": "customCss",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.custom_css"
+        },
+        {
+          "originalKey": "topicNamingPrompt",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "topic.naming_prompt"
+        },
+        {
+          "originalKey": "confirmDeleteMessage",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.confirm_delete"
+        },
+        {
+          "originalKey": "confirmRegenerateMessage",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.confirm_regenerate"
+        },
+        {
+          "originalKey": "sidebarIcons",
+          "type": "unknown",
+          "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.icons.visible'], disabled: [] }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": [
+                "assistants",
+                "store",
+                "paintings",
+                "translate",
+                "minapp",
+                "knowledge",
+                "files",
+                "code_tools",
+                "notes"
+              ],
+              "originalKey": "visible",
+              "status": "classified",
+              "targetKey": "ui.sidebar.icons.visible",
+              "type": "PreferenceTypes.SidebarIcon[]"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": [],
+              "originalKey": "disabled",
+              "status": "classified",
+              "targetKey": "ui.sidebar.icons.invisible",
+              "type": "PreferenceTypes.SidebarIcon[]"
+            }
+          ]
+        },
+        {
+          "originalKey": "visible",
+          "type": "PreferenceTypes.SidebarIcon[]",
+          "defaultValue": [
+            "assistants",
+            "store",
+            "paintings",
+            "translate",
+            "minapp",
+            "knowledge",
+            "files",
+            "code_tools",
+            "notes"
+          ],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.sidebar.icons.visible"
+        },
+        {
+          "originalKey": "disabled",
+          "type": "PreferenceTypes.SidebarIcon[]",
+          "defaultValue": [],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.sidebar.icons.invisible"
+        },
+        {
+          "originalKey": "narrowMode",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.narrow_mode"
+        },
+        {
+          "originalKey": "enableQuickAssistant",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.enabled"
+        },
+        {
+          "originalKey": "clickTrayToShowQuickAssistant",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.click_tray_to_show"
+        },
+        {
+          "originalKey": "multiModelMessageStyle",
+          "type": "PreferenceTypes.MultiModelMessageStyle",
+          "defaultValue": "horizontal",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.multi_model.style"
+        },
+        {
+          "originalKey": "readClipboardAtStartup",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.read_clipboard_at_startup"
+        },
+        {
+          "originalKey": "notionDatabaseID",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.notion.database_id"
+        },
+        {
+          "originalKey": "notionApiKey",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.notion.api_key"
+        },
+        {
+          "originalKey": "notionPageNameKey",
+          "type": "string",
+          "defaultValue": "Name",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.notion.page_name_key"
+        },
+        {
+          "originalKey": "markdownExportPath",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.path"
+        },
+        {
+          "originalKey": "forceDollarMathInMarkdown",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.force_dollar_math"
+        },
+        {
+          "originalKey": "useTopicNamingForMessageTitle",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.use_topic_naming_for_message_title"
+        },
+        {
+          "originalKey": "showModelNameInMarkdown",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.show_model_name"
+        },
+        {
+          "originalKey": "showModelProviderInMarkdown",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.show_model_provider"
+        },
+        {
+          "originalKey": "thoughtAutoCollapse",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.thought.auto_collapse"
+        },
+        {
+          "originalKey": "notionExportReasoning",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.notion.export_reasoning"
+        },
+        {
+          "originalKey": "excludeCitationsInExport",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.exclude_citations"
+        },
+        {
+          "originalKey": "standardizeCitationsInExport",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.markdown.standardize_citations"
+        },
+        {
+          "originalKey": "yuqueToken",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.yuque.token"
+        },
+        {
+          "originalKey": "yuqueUrl",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.yuque.url"
+        },
+        {
+          "originalKey": "yuqueRepoId",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.yuque.repo_id"
+        },
+        {
+          "originalKey": "joplinToken",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.joplin.token"
+        },
+        {
+          "originalKey": "joplinUrl",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.joplin.url"
+        },
+        {
+          "originalKey": "joplinExportReasoning",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.joplin.export_reasoning"
+        },
+        {
+          "originalKey": "defaultObsidianVault",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.obsidian.default_vault"
+        },
+        {
+          "originalKey": "defaultAgent",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "siyuanApiUrl",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.siyuan.api_url"
+        },
+        {
+          "originalKey": "siyuanToken",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.siyuan.token"
+        },
+        {
+          "originalKey": "siyuanBoxId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.siyuan.box_id"
+        },
+        {
+          "originalKey": "siyuanRootPath",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.integration.siyuan.root_path"
+        },
+        {
+          "originalKey": "agentssubscribeUrl",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "maxKeepAliveMinapps",
+          "type": "number",
+          "defaultValue": 3,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.minapp.max_keep_alive"
+        },
+        {
+          "originalKey": "showOpenedMinappsInSidebar",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.minapp.show_opened_in_sidebar"
+        },
+        {
+          "originalKey": "minappsOpenLinkExternal",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.minapp.open_link_external"
+        },
+        {
+          "originalKey": "enableDataCollection",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.privacy.data_collection.enabled"
+        },
+        {
+          "originalKey": "enableSpellCheck",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.spell_check.enabled"
+        },
+        {
+          "originalKey": "spellCheckLanguages",
+          "type": "string[]",
+          "defaultValue": [],
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.spell_check.languages"
+        },
+        {
+          "originalKey": "enableQuickPanelTriggers",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.input.quick_panel.triggers_enabled"
+        },
+        {
+          "originalKey": "disableHardwareAcceleration",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.disable_hardware_acceleration"
+        },
+        {
+          "originalKey": "exportMenuOptions",
+          "type": "unknown",
+          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "image",
+              "status": "classified",
+              "targetKey": "data.export.menus.image",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "markdown",
+              "status": "classified",
+              "targetKey": "data.export.menus.markdown",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "markdown_reason",
+              "status": "classified",
+              "targetKey": "data.export.menus.markdown_reason",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "notion",
+              "status": "classified",
+              "targetKey": "data.export.menus.notion",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "yuque",
+              "status": "classified",
+              "targetKey": "data.export.menus.yuque",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "joplin",
+              "status": "classified",
+              "targetKey": "data.export.menus.joplin",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "obsidian",
+              "status": "classified",
+              "targetKey": "data.export.menus.obsidian",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "siyuan",
+              "status": "classified",
+              "targetKey": "data.export.menus.siyuan",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "docx",
+              "status": "classified",
+              "targetKey": "data.export.menus.docx",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "plain_text",
+              "status": "classified",
+              "targetKey": "data.export.menus.plain_text",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "notes",
+              "status": "classified",
+              "targetKey": "data.export.menus.notes",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "originalKey": "image",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.image"
+        },
+        {
+          "originalKey": "markdown",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.markdown"
+        },
+        {
+          "originalKey": "markdown_reason",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.markdown_reason"
+        },
+        {
+          "originalKey": "notion",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.notion"
+        },
+        {
+          "originalKey": "yuque",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.yuque"
+        },
+        {
+          "originalKey": "joplin",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.joplin"
+        },
+        {
+          "originalKey": "obsidian",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.obsidian"
+        },
+        {
+          "originalKey": "siyuan",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.siyuan"
+        },
+        {
+          "originalKey": "docx",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.docx"
+        },
+        {
+          "originalKey": "plain_text",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.plain_text"
+        },
+        {
+          "originalKey": "notes",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.notes"
+        },
+        {
+          "originalKey": "openAI",
+          "type": "unknown",
+          "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": "off",
+              "originalKey": "summaryText",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "auto",
+              "originalKey": "serviceTier",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "medium",
+              "originalKey": "verbosity",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "summaryText",
+          "type": "string",
+          "defaultValue": "off",
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "serviceTier",
+          "type": "string",
+          "defaultValue": "auto",
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "verbosity",
+          "type": "string",
+          "defaultValue": "medium",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "notification",
+          "type": "unknown",
+          "defaultValue": "{ assistant: false, backup: false, knowledge: false }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "assistant",
+              "status": "classified",
+              "targetKey": "app.notification.assistant.enabled",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "backup",
+              "status": "classified",
+              "targetKey": "app.notification.backup.enabled",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "knowledge",
+              "status": "classified",
+              "targetKey": "app.notification.knowledge.enabled",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "originalKey": "assistant",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.notification.assistant.enabled"
+        },
+        {
+          "originalKey": "backup",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.notification.backup.enabled"
+        },
+        {
+          "originalKey": "knowledge",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.notification.knowledge.enabled"
+        },
+        {
+          "originalKey": "localBackupDir",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.local.dir"
+        },
+        {
+          "originalKey": "localBackupAutoSync",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.local.auto_sync"
+        },
+        {
+          "originalKey": "localBackupSyncInterval",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.local.sync_interval"
+        },
+        {
+          "originalKey": "localBackupMaxBackups",
+          "type": "number",
+          "defaultValue": 0,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.local.max_backups"
+        },
+        {
+          "originalKey": "localBackupSkipBackupFile",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.backup.local.skip_backup_file"
+        },
+        {
+          "originalKey": "defaultPaintingProvider",
+          "type": "string",
+          "defaultValue": "zhipu",
+          "status": "pending",
+          "category": "cache",
+          "targetKey": null
+        },
+        {
+          "originalKey": "s3",
+          "type": "unknown",
+          "defaultValue": "{ endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '', root: '', autoSync: false, syncInterval: 0, maxBackups: 0, skipBackupFile: false }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "endpoint",
+              "status": "classified",
+              "targetKey": "data.backup.s3.endpoint",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "region",
+              "status": "classified",
+              "targetKey": "data.backup.s3.region",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "bucket",
+              "status": "classified",
+              "targetKey": "data.backup.s3.bucket",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "accessKeyId",
+              "status": "classified",
+              "targetKey": "data.backup.s3.access_key_id",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "secretAccessKey",
+              "status": "classified",
+              "targetKey": "data.backup.s3.secret_access_key",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "",
+              "originalKey": "root",
+              "status": "classified",
+              "targetKey": "data.backup.s3.root",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "autoSync",
+              "status": "classified",
+              "targetKey": "data.backup.s3.auto_sync",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": 0,
+              "originalKey": "syncInterval",
+              "status": "classified",
+              "targetKey": "data.backup.s3.sync_interval",
+              "type": "number"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": 0,
+              "originalKey": "maxBackups",
+              "status": "classified",
+              "targetKey": "data.backup.s3.max_backups",
+              "type": "number"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "skipBackupFile",
+              "status": "classified",
+              "targetKey": "data.backup.s3.skip_backup_file",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "originalKey": "enableDeveloperMode",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.developer_mode.enabled"
+        },
+        {
+          "originalKey": "navbarPosition",
+          "type": "'left' | 'top'",
+          "defaultValue": "top",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.navbar.position"
+        },
+        {
+          "originalKey": "apiServer",
+          "type": "unknown",
+          "defaultValue": "{ enabled: false, host: 'localhost', port: 23333, apiKey: `cs-sk-${uuid()}` }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": false,
+              "originalKey": "enabled",
+              "status": "classified",
+              "targetKey": "feature.csaas.enabled",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "localhost",
+              "originalKey": "host",
+              "status": "classified",
+              "targetKey": "feature.csaas.host",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": 23333,
+              "originalKey": "port",
+              "status": "classified",
+              "targetKey": "feature.csaas.port",
+              "type": "number"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "VALUE: null",
+              "originalKey": "apiKey",
+              "status": "classified",
+              "targetKey": "feature.csaas.api_key",
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "showMessageOutline",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.message.show_outline"
+        }
+      ],
+      "shortcuts": [
+        {
+          "originalKey": "shortcuts",
+          "type": "array",
+          "defaultValue": "[ ...ZOOM_SHORTCUTS",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", "="],
+                "system": true
+              },
+              "originalKey": "zoom_in",
+              "status": "classified",
+              "targetKey": "shortcut.app.zoom_in",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", "-"],
+                "system": true
+              },
+              "originalKey": "zoom_out",
+              "status": "classified",
+              "targetKey": "shortcut.app.zoom_out",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", "0"],
+                "system": true
+              },
+              "originalKey": "zoom_reset",
+              "status": "classified",
+              "targetKey": "shortcut.app.zoom_reset",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": false,
+                "enabled": true,
+                "key": ["CommandOrControl", ","],
+                "system": true
+              },
+              "originalKey": "show_settings",
+              "status": "classified",
+              "targetKey": "shortcut.app.show_settings",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": [],
+                "system": true
+              },
+              "originalKey": "show_app",
+              "status": "classified",
+              "targetKey": "shortcut.app.show_main_window",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "E"],
+                "system": true
+              },
+              "originalKey": "mini_window",
+              "status": "classified",
+              "targetKey": "shortcut.app.show_mini_window",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": false,
+                "key": [],
+                "system": true
+              },
+              "originalKey": "selection_assistant_toggle",
+              "status": "classified",
+              "targetKey": "shortcut.selection.toggle_enabled",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": false,
+                "key": [],
+                "system": true
+              },
+              "originalKey": "selection_assistant_select_text",
+              "status": "classified",
+              "targetKey": "shortcut.selection.get_text",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "N"],
+                "system": false
+              },
+              "originalKey": "new_topic",
+              "status": "classified",
+              "targetKey": "shortcut.topic.new",
+              "type": "object"
+            },
+            {
+              "category": null,
+              "defaultValue": {
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "T"],
+                "system": false
+              },
+              "originalKey": "rename_topic",
+              "status": "pending",
+              "targetKey": null,
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "["],
+                "system": false
+              },
+              "originalKey": "toggle_show_assistants",
+              "status": "classified",
+              "targetKey": "shortcut.app.toggle_show_assistants",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "Shift", "C"],
+                "system": false
+              },
+              "originalKey": "copy_last_message",
+              "status": "classified",
+              "targetKey": "shortcut.chat.copy_last_message",
+              "type": "object"
+            },
+            {
+              "category": null,
+              "defaultValue": {
+                "editable": true,
+                "enabled": false,
+                "key": ["CommandOrControl", "Shift", "E"],
+                "system": false
+              },
+              "originalKey": "edit_last_user_message",
+              "status": "pending",
+              "targetKey": null,
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "F"],
+                "system": false
+              },
+              "originalKey": "search_message_in_chat",
+              "status": "classified",
+              "targetKey": "shortcut.chat.search_message",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "Shift", "F"],
+                "system": false
+              },
+              "originalKey": "search_message",
+              "status": "classified",
+              "targetKey": "shortcut.app.search_message",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "L"],
+                "system": false
+              },
+              "originalKey": "clear_topic",
+              "status": "classified",
+              "targetKey": "shortcut.chat.clear",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": true,
+                "enabled": true,
+                "key": ["CommandOrControl", "K"],
+                "system": false
+              },
+              "originalKey": "toggle_new_context",
+              "status": "classified",
+              "targetKey": "shortcut.chat.toggle_new_context",
+              "type": "object"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": {
+                "editable": false,
+                "enabled": true,
+                "key": ["Escape"],
+                "system": true
+              },
+              "originalKey": "exit_fullscreen",
+              "status": "classified",
+              "targetKey": "shortcut.app.exit_fullscreen",
+              "type": "object"
+            }
+          ]
+        }
+      ],
+      "tabs": [
+        {
+          "originalKey": "tabs",
+          "type": "array",
+          "defaultValue": "[ { id: 'home', path: '/' }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "activeTabId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "toolPermissions": [
+        {
+          "originalKey": "requests",
+          "type": "string",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "translate": [
+        {
+          "originalKey": "translateInput",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "translatedContent",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "settings",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "autoCopy",
+          "type": "boolean",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "websearch": [
+        {
+          "originalKey": "defaultProvider",
+          "type": "string",
+          "defaultValue": "local-bing",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "providers",
+          "type": "string",
+          "defaultValue": "WEB_SEARCH_PROVIDERS",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "searchWithTime",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "maxResults",
+          "type": "number",
+          "defaultValue": 5,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "excludeDomains",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "subscribeSources",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "overwrite",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "compressionConfig",
+          "type": "unknown",
+          "defaultValue": "{ method: 'none', cutoffUnit: 'char' }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": "none",
+              "originalKey": "method",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "char",
+              "originalKey": "cutoffUnit",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "providerConfig",
+          "type": "object",
+          "defaultValue": {},
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "codeTools": [
+        {
+          "originalKey": "selectedCliTool",
+          "type": "string",
+          "defaultValue": "codeTools.qwenCode",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "selectedModels",
+          "type": "string",
+          "defaultValue": "{ [codeTools.qwenCode]: null, [codeTools.claudeCode]: null, [codeTools.geminiCli]: null, [codeTools.openaiCodex]: null, [codeTools.iFlowCli]: null, [codeTools.githubCopilotCli]: null }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": null,
+              "originalKey": "[codeTools.qwenCode]",
+              "status": "pending",
+              "targetKey": null,
+              "type": "null"
+            },
+            {
+              "category": null,
+              "defaultValue": null,
+              "originalKey": "[codeTools.claudeCode]",
+              "status": "pending",
+              "targetKey": null,
+              "type": "null"
+            },
+            {
+              "category": null,
+              "defaultValue": null,
+              "originalKey": "[codeTools.geminiCli]",
+              "status": "pending",
+              "targetKey": null,
+              "type": "null"
+            },
+            {
+              "category": null,
+              "defaultValue": null,
+              "originalKey": "[codeTools.openaiCodex]",
+              "status": "pending",
+              "targetKey": null,
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "originalKey": "environmentVariables",
+          "type": "string",
+          "defaultValue": {
+            "qwen-code": "",
+            "claude-code": "",
+            "gemini-cli": "",
+            "openai-codex": "",
+            "iflow-cli": "",
+            "github-copilot-cli": ""
+          },
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": null,
+              "defaultValue": "",
+              "originalKey": "qwen-code",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "",
+              "originalKey": "claude-code",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            },
+            {
+              "category": null,
+              "defaultValue": "",
+              "originalKey": "gemini-cli",
+              "status": "pending",
+              "targetKey": null,
+              "type": "string"
+            }
+          ]
+        },
+        {
+          "originalKey": "directories",
+          "type": "array",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "currentDirectory",
+          "type": "string",
+          "defaultValue": "",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "selectedTerminal",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "ocr": [
+        {
+          "originalKey": "providers",
+          "type": "array",
+          "defaultValue": "BUILTIN_OCR_PROVIDERS",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "imageProviderId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "note": [
+        {
+          "originalKey": "activeNodeId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "activeFilePath",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "settings",
+          "type": "unknown",
+          "defaultValue": "{ isFullWidth: true, fontFamily: 'default', fontSize: 16, showTableOfContents: true, defaultViewMode: 'edit', defaultEditMode: 'preview', showTabStatus: true, showWorkspace: true }",
+          "status": "pending",
+          "category": null,
+          "targetKey": null,
+          "children": [
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "isFullWidth",
+              "status": "classified",
+              "targetKey": "feature.notes.full_width",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "default",
+              "originalKey": "fontFamily",
+              "status": "classified",
+              "targetKey": "feature.notes.font_family",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": 16,
+              "originalKey": "fontSize",
+              "status": "classified",
+              "targetKey": "feature.notes.font_size",
+              "type": "number"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "showTableOfContents",
+              "status": "classified",
+              "targetKey": "feature.notes.show_table_of_contents",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "edit",
+              "originalKey": "defaultViewMode",
+              "status": "classified",
+              "targetKey": "feature.notes.default_view_mode",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": "preview",
+              "originalKey": "defaultEditMode",
+              "status": "classified",
+              "targetKey": "feature.notes.default_edit_mode",
+              "type": "string"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "showTabStatus",
+              "status": "classified",
+              "targetKey": "feature.notes.show_tab_status",
+              "type": "boolean"
+            },
+            {
+              "category": "preferences",
+              "defaultValue": true,
+              "originalKey": "showWorkspace",
+              "status": "classified",
+              "targetKey": "feature.notes.show_workspace",
+              "type": "boolean"
+            }
+          ]
+        },
+        {
+          "originalKey": "notesPath",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.notes.path"
+        },
+        {
+          "originalKey": "sortType",
+          "type": "string",
+          "defaultValue": "sort_a2z",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.notes.sort_type"
+        },
+        {
+          "originalKey": "starredPaths",
+          "type": "string",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "expandedPaths",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ]
+    },
+    "electronStore": {
+      "Language": [
+        {
+          "originalKey": "Language",
+          "type": "string",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.language"
+        }
+      ],
+      "Theme": [
+        {
+          "originalKey": "Theme",
+          "type": "PreferenceTypes.ThemeMode",
+          "defaultValue": "VALUE: PreferenceTypes.ThemeMode.system",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "ui.theme_mode"
+        }
+      ],
+      "LaunchToTray": [
+        {
+          "originalKey": "LaunchToTray",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.tray.on_launch"
+        }
+      ],
+      "Tray": [
+        {
+          "originalKey": "Tray",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.tray.enabled"
+        }
+      ],
+      "TrayOnClose": [
+        {
+          "originalKey": "TrayOnClose",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.tray.on_close"
+        }
+      ],
+      "ZoomFactor": [
+        {
+          "originalKey": "ZoomFactor",
+          "type": "number",
+          "defaultValue": 1,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.zoom_factor"
+        }
+      ],
+      "Shortcuts": [
+        {
+          "originalKey": "Shortcuts",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        }
+      ],
+      "ClickTrayToShowQuickAssistant": [
+        {
+          "originalKey": "ClickTrayToShowQuickAssistant",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.click_tray_to_show"
+        }
+      ],
+      "EnableQuickAssistant": [
+        {
+          "originalKey": "EnableQuickAssistant",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.quick_assistant.enabled"
+        }
+      ],
+      "AutoUpdate": [
+        {
+          "originalKey": "AutoUpdate",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.dist.auto_update.enabled"
+        }
+      ],
+      "TestPlan": [
+        {
+          "originalKey": "TestPlan",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.dist.test_plan.enabled"
+        }
+      ],
+      "TestChannel": [
+        {
+          "originalKey": "TestChannel",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.dist.test_plan.channel"
+        }
+      ],
+      "EnableDataCollection": [
+        {
+          "originalKey": "EnableDataCollection",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.privacy.data_collection.enabled"
+        }
+      ],
+      "SelectionAssistantEnabled": [
+        {
+          "originalKey": "SelectionAssistantEnabled",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.enabled"
+        }
+      ],
+      "SelectionAssistantTriggerMode": [
+        {
+          "originalKey": "SelectionAssistantTriggerMode",
+          "type": "PreferenceTypes.SelectionTriggerMode",
+          "defaultValue": "VALUE: PreferenceTypes.SelectionTriggerMode.Selected",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.trigger_mode"
+        }
+      ],
+      "SelectionAssistantFollowToolbar": [
+        {
+          "originalKey": "SelectionAssistantFollowToolbar",
+          "type": "boolean",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.follow_toolbar"
+        }
+      ],
+      "SelectionAssistantRemeberWinSize": [
+        {
+          "originalKey": "SelectionAssistantRemeberWinSize",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.remember_win_size"
+        }
+      ],
+      "SelectionAssistantFilterMode": [
+        {
+          "originalKey": "SelectionAssistantFilterMode",
+          "type": "PreferenceTypes.SelectionFilterMode",
+          "defaultValue": "default",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.filter_mode"
+        }
+      ],
+      "SelectionAssistantFilterList": [
+        {
+          "originalKey": "SelectionAssistantFilterList",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.selection.filter_list"
+        }
+      ],
+      "DisableHardwareAcceleration": [
+        {
+          "originalKey": "DisableHardwareAcceleration",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.disable_hardware_acceleration"
+        }
+      ],
+      "Proxy": [
+        {
+          "originalKey": "Proxy",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": null
+        }
+      ],
+      "EnableDeveloperMode": [
+        {
+          "originalKey": "EnableDeveloperMode",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.developer_mode.enabled"
+        }
+      ],
+      "ClientId": [
+        {
+          "originalKey": "ClientId",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ]
+    },
+    "localStorage": {
+      "persist:cherry-studio": [
+        {
+          "originalKey": "persist:cherry-studio",
+          "type": "string",
+          "defaultValue": "data.localStorage['persist:cherry-studio']",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "memory_currentUserId": [
+        {
+          "originalKey": "memory_currentUserId",
+          "type": "string",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ]
+    },
+    "dexie": {
+      "files": [
+        {
+          "originalKey": "files",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "topics": [
+        {
+          "originalKey": "topics",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "settings": [
+        {
+          "originalKey": "settings",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "knowledge_notes": [
+        {
+          "originalKey": "knowledge_notes",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "translate_history": [
+        {
+          "originalKey": "translate_history",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "quick_phrases": [
+        {
+          "originalKey": "quick_phrases",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "message_blocks": [
+        {
+          "originalKey": "message_blocks",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ],
+      "translate_languages": [
+        {
+          "originalKey": "translate_languages",
+          "type": "table",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        }
+      ]
+    }
+  }
+}

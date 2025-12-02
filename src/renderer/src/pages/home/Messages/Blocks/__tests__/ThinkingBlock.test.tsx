@@ -287,6 +287,20 @@ describe('ThinkingBlock', () => {
         unmount()
       })
     })
+
+    it('should clamp invalid thinking times to a safe default', () => {
+      const testCases = [undefined, Number.NaN, Number.POSITIVE_INFINITY]
+
+      testCases.forEach((thinking_millsec) => {
+        const block = createThinkingBlock({
+          thinking_millsec: thinking_millsec as any,
+          status: MessageBlockStatus.SUCCESS
+        })
+        const { unmount } = renderThinkingBlock(block)
+        expect(getThinkingTimeText()).toHaveTextContent('0.1s')
+        unmount()
+      })
+    })
   })
 
   describe('collapse behavior', () => {

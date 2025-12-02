@@ -2,7 +2,7 @@ import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
-import { isNotSupportedTextDelta } from '@renderer/config/models'
+import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { EndpointType, Model, Provider } from '@renderer/types'
@@ -50,7 +50,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       addModel({
         ...model,
         endpoint_type: values.endpointType,
-        supported_text_delta: !isNotSupportedTextDelta(model)
+        supported_text_delta: !isNotSupportTextDeltaModel(model)
       })
     })
     return true

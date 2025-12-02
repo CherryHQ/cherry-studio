@@ -27,6 +27,18 @@
         "null_id": "代理程式 ID 為空。"
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "在 Windows 上執行代理程式需要 Git Bash。沒有它代理程式無法運作。請從以下地址安裝 Git for Windows",
+        "recheck": "重新檢測 Git Bash 安裝",
+        "title": "需要 Git Bash"
+      },
+      "notFound": "找不到 Git Bash。請先安裝。",
+      "success": "成功偵測到 Git Bash！"
+    },
+    "input": {
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
+    },
     "list": {
       "error": {
         "failed": "無法列出代理程式。"
@@ -254,6 +266,7 @@
       "error": {
         "sendFailed": "傳送您的決定失敗，請重試。"
       },
+      "executing": "執行中...",
       "expired": "已過期",
       "inputPreview": "工具輸入預覽",
       "pending": "等待中 ({{seconds}}秒)",
@@ -267,6 +280,7 @@
         "denied": "工具請求已被拒絕。",
         "timeout": "工具請求在收到核准前逾時。"
       },
+      "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
     },
     "type": {
@@ -1135,6 +1149,7 @@
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
     "go_to_settings": "前往設定",
     "i_know": "我知道了",
+    "ignore": "忽略",
     "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
@@ -1146,6 +1161,7 @@
     "name": "名稱",
     "no_results": "沒有結果",
     "none": "無",
+    "off": "關閉",
     "open": "開啟",
     "paste": "貼上",
     "placeholders": {
@@ -1193,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "圖片生成",
+    "image-generation": "圖像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -1373,6 +1389,36 @@
     "preview": "預覽",
     "split": "分屏"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT 匯入",
+      "button": "選擇檔案",
+      "description": "僅匯入對話文字，不攜帶圖片和附件",
+      "error": {
+        "invalid_json": "無效的 JSON 檔案格式",
+        "no_conversations": "檔案中未找到任何對話",
+        "no_valid_conversations": "沒有可匯入的有效對話",
+        "unknown": "匯入失敗，請檢查檔案格式"
+      },
+      "help": {
+        "step1": "1. 登入 ChatGPT，進入設定 > 資料控制 > 匯出資料",
+        "step2": "2. 等待郵件接收匯出檔案",
+        "step3": "3. 解壓下載的檔案，找到 conversations.json",
+        "title": "如何匯出 ChatGPT 對話？"
+      },
+      "importing": "正在匯入對話...",
+      "selecting": "正在選擇檔案...",
+      "success": "成功匯入 {{topics}} 個對話，共 {{messages}} 則訊息",
+      "title": "匯入 ChatGPT 對話",
+      "untitled_conversation": "未命名對話"
+    },
+    "confirm": {
+      "button": "選擇匯入檔案",
+      "label": "確定要匯入外部資料嗎？"
+    },
+    "content": "選擇要匯入的外部應用對話檔案，暫時僅支援 ChatGPT 的 JSON 格式檔案",
+    "title": "匯入外部對話"
+  },
   "knowledge": {
     "add": {
       "title": "新增知識庫"
@@ -1460,6 +1506,7 @@
     "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
     "provider_not_found": "未找到服務商",
     "quota": "{{name}} 剩餘配額：{{quota}}",
+    "quota_empty": "今日{{name}}額度不足，請前往官網申請",
     "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
     "search": "搜尋知識庫",
@@ -2484,6 +2531,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "AI 閘道器",
     "aihubmix": "AiHubMix",
     "aionly": "唯一AI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2494,6 +2542,7 @@
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
@@ -3080,6 +3129,7 @@
         "basic": "基礎數據設定",
         "cloud_storage": "雲備份設定",
         "export_settings": "匯出設定",
+        "import_settings": "匯入設定",
         "third_party": "第三方連接"
       },
       "export_menu": {
@@ -3138,6 +3188,11 @@
       },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
+      "import_settings": {
+        "button": "匯入 Json 檔案",
+        "chatgpt": "匯入 ChatGPT 數據",
+        "title": "匯入外部應用程式數據"
+      },
       "joplin": {
         "check": {
           "button": "檢查",
@@ -3719,6 +3774,9 @@
       },
       "view_webdav_settings": "檢視 WebDAV 設定"
     },
+    "groq": {
+      "title": "Groq 設定"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？",
@@ -4209,7 +4267,6 @@
         "default": "預設",
         "flex": "彈性",
         "on_demand": "按需",
-        "performance": "效能",
         "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
@@ -4306,12 +4363,16 @@
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
+          },
+          "verbosity": {
+            "help": "提供者是否支援詳細程度參數",
+            "label": "支援詳細資訊"
           }
         },
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
-          "tip": "# 結尾強制使用輸入位址"
+          "tip": "在末尾添加 # 以停用自動附加的 API 版本。"
         }
       },
       "api_host": "API 主機地址",
@@ -4341,7 +4402,7 @@
       },
       "azure": {
         "apiversion": {
-          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 preview 版本"
+          "tip": "Azure OpenAI 的 API 版本，如果想要使用 Response API，請輸入 v1 版本"
         }
       },
       "basic_auth": {
@@ -4476,7 +4537,7 @@
       "confirm": "確認",
       "forward": "前進",
       "multiple": "多選",
-      "noResult": "[to be translated]:No results found",
+      "noResult": "未找到結果",
       "page": "翻頁",
       "select": "選擇",
       "title": "快捷選單"

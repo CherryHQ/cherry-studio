@@ -1,18 +1,40 @@
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setApiServerEnabled as setApiServerEnabledAction } from '@renderer/store/settings'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useApiServer')
 
+// Module-level single instance subscription to prevent EventEmitter memory leak
+// Only one IPC listener will be registered regardless of how many components use this hook
+const onReadyCallbacks = new Set<() => void>()
+let removeIpcListener: (() => void) | null = null
+
+const ensureIpcSubscribed = () => {
+  if (!removeIpcListener) {
+    removeIpcListener = window.api.apiServer.onReady(() => {
+      onReadyCallbacks.forEach((cb) => cb())
+    })
+  }
+}
+
+const cleanupIpcIfEmpty = () => {
+  if (onReadyCallbacks.size === 0 && removeIpcListener) {
+    removeIpcListener()
+    removeIpcListener = null
+  }
+}
+
 export const useApiServer = () => {
   const { t } = useTranslation()
-  // FIXME: We currently store two copies of the config data in both the renderer and the main processes,
-  // which carries the risk of data inconsistency. This should be modified so that the main process stores
-  // the data, and the renderer retrieves it.
-  const apiServerConfig = useAppSelector((state) => state.settings.apiServer)
-  const dispatch = useAppDispatch()
+
+  // Use new preference system for API server configuration
+  const [apiServerConfig, setApiServerConfig] = useMultiplePreferences({
+    enabled: 'feature.csaas.enabled',
+    host: 'feature.csaas.host',
+    port: 'feature.csaas.port',
+    apiKey: 'feature.csaas.api_key'
+  })
 
   // Initial state - no longer optimistic, wait for actual status
   const [apiServerRunning, setApiServerRunning] = useState(false)
@@ -20,9 +42,9 @@ export const useApiServer = () => {
 
   const setApiServerEnabled = useCallback(
     (enabled: boolean) => {
-      dispatch(setApiServerEnabledAction(enabled))
+      setApiServerConfig({ enabled })
     },
-    [dispatch]
+    [setApiServerConfig]
   )
 
   // API Server functions
@@ -31,15 +53,15 @@ export const useApiServer = () => {
     try {
       const status = await window.api.apiServer.getStatus()
       setApiServerRunning(status.running)
-      if (status.running && !apiServerConfig.enabled) {
-        setApiServerEnabled(true)
-      }
+      // if (status.running && !apiServerConfig.enabled) {
+      //   setApiServerEnabled(true)
+      // }
     } catch (error: any) {
       logger.error('Failed to check API server status:', error)
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerConfig.enabled, setApiServerEnabled])
+  }, [])
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -102,15 +124,28 @@ export const useApiServer = () => {
     checkApiServerStatus()
   }, [checkApiServerStatus])
 
-  // Listen for API server ready event
+  // Use ref to keep the latest checkApiServerStatus without causing re-subscription
+  const checkStatusRef = useRef(checkApiServerStatus)
   useEffect(() => {
-    const cleanup = window.api.apiServer.onReady(() => {
-      logger.info('API server ready event received, checking status')
-      checkApiServerStatus()
-    })
+    checkStatusRef.current = checkApiServerStatus
+  })
 
-    return cleanup
-  }, [checkApiServerStatus])
+  // Create stable callback for the single instance subscription
+  const handleReady = useCallback(() => {
+    logger.info('API server ready event received, checking status')
+    checkStatusRef.current()
+  }, [])
+
+  // Listen for API server ready event using single instance subscription
+  useEffect(() => {
+    ensureIpcSubscribed()
+    onReadyCallbacks.add(handleReady)
+
+    return () => {
+      onReadyCallbacks.delete(handleReady)
+      cleanupIpcIfEmpty()
+    }
+  }, [handleReady])
 
   return {
     apiServerConfig,
@@ -120,6 +155,7 @@ export const useApiServer = () => {
     stopApiServer,
     restartApiServer,
     checkApiServerStatus,
-    setApiServerEnabled
+    setApiServerEnabled,
+    setApiServerConfig
   }
 }

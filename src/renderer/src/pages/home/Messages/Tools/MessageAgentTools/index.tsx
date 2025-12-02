@@ -1,12 +1,13 @@
 import { loggerService } from '@logger'
+import { useAppSelector } from '@renderer/store'
+import { selectPendingPermission } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
-import { Collapse } from 'antd'
+import { Collapse, Spin } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 // 导出所有类型
 export * from './types'
-
-import { useMemo } from 'react'
 
 // 导入所有渲染器
 import ToolPermissionRequestCard from '../ToolPermissionRequestCard'
@@ -57,22 +58,19 @@ export function isValidAgentToolsType(toolName: unknown): toolName is AgentTools
   return typeof toolName === 'string' && Object.values(AgentToolsType).includes(toolName as AgentToolsType)
 }
 
-// 统一的渲染函数
-function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: ToolOutput) {
+// 统一的渲染组件
+function ToolContent({ toolName, input, output }: { toolName: AgentToolsType; input: ToolInput; output?: ToolOutput }) {
   const Renderer = toolRenderers[toolName]
+  const renderedItem = Renderer
+    ? Renderer({ input: input as any, output: output as any })
+    : UnknownToolRenderer({ input: input as any, output: output as any, toolName })
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const toolContentItem = useMemo(() => {
-    const rendered = Renderer
-      ? Renderer({ input: input as any, output: output as any })
-      : UnknownToolRenderer({ input: input as any, output: output as any, toolName })
-    return {
-      ...rendered,
-      classNames: {
-        body: 'bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 p-2 overflow-scroll'
-      } as NonNullable<CollapseProps['items']>[number]['classNames']
-    } as NonNullable<CollapseProps['items']>[number]
-  }, [Renderer, input, output, toolName])
+  const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
+    ...renderedItem,
+    classNames: {
+      body: 'bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 p-2 overflow-scroll'
+    }
+  }
 
   return (
     <Collapse
@@ -88,15 +86,41 @@ function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: 
 // 统一的组件渲染入口
 export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status } = toolResponse
-  logger.info('Rendering agent tool response', {
+  logger.debug('Rendering agent tool response', {
     tool: tool,
     arguments: args,
+    status,
     response
   })
 
+  const pendingPermission = useAppSelector((state) =>
+    selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
+  )
+
   if (status === 'pending') {
-    return <ToolPermissionRequestCard toolResponse={toolResponse} />
+    if (pendingPermission) {
+      return <ToolPermissionRequestCard toolResponse={toolResponse} />
+    }
+    return <ToolPendingIndicator toolName={tool?.name} description={tool?.description} />
   }
 
-  return renderToolContent(tool.name as AgentToolsType, args as ToolInput, response as ToolOutput)
+  return (
+    <ToolContent toolName={tool.name as AgentToolsType} input={args as ToolInput} output={response as ToolOutput} />
+  )
+}
+
+function ToolPendingIndicator({ toolName, description }: { toolName?: string; description?: string }) {
+  const { t } = useTranslation()
+  const label = toolName || t('agent.toolPermission.toolPendingFallback', 'Tool')
+  const detail = description?.trim() || t('agent.toolPermission.executing')
+
+  return (
+    <div className="flex w-full max-w-xl items-center gap-3 rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
+      <Spin size="small" />
+      <div className="flex flex-col gap-1">
+        <span className="font-semibold text-default-700 text-sm">{label}</span>
+        <span className="text-default-500 text-xs">{detail}</span>
+      </div>
+    </div>
+  )
 }

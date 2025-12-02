@@ -41,6 +41,7 @@ export enum IpcChannel {
   App_SetFullScreen = 'app:set-full-screen',
   App_IsFullScreen = 'app:is-full-screen',
   App_GetSystemFonts = 'app:get-system-fonts',
+  APP_CrashRenderProcess = 'app:crash-render-process',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -250,6 +251,7 @@ export enum IpcChannel {
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
+  System_CheckGitBash = 'system:checkGitBash',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -317,7 +319,7 @@ export enum IpcChannel {
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
-  Preference_GetMultiple = 'preference:get-multiple',
+  Preference_GetMultipleRaw = 'preference:get-multiple-raw',
   Preference_SetMultiple = 'preference:set-multiple',
   Preference_GetAll = 'preference:get-all',
   Preference_Subscribe = 'preference:subscribe',

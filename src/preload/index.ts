@@ -9,6 +9,7 @@ import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
+  PreferenceMultipleResultType,
   SelectionActionItem
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -116,6 +117,7 @@ const api = {
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
+  mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.APP_CrashRenderProcess),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
@@ -126,7 +128,8 @@ const api = {
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
-    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
+    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
+    checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash)
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
@@ -551,8 +554,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
     set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
-    getMultiple: (keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> =>
-      ipcRenderer.invoke(IpcChannel.Preference_GetMultiple, keys),
+    getMultipleRaw: <K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> =>
+      ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
     setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
       ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
     getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
