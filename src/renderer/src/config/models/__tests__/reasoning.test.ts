@@ -12,6 +12,7 @@ import {
   isDeepSeekHybridInferenceModel,
   isDoubaoSeedAfter251015,
   isDoubaoThinkingAutoModel,
+  isFixedReasoningModel,
   isGeminiReasoningModel,
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
@@ -539,7 +540,7 @@ describe('isReasoningModel', () => {
     expect(isReasoningModel(magistral)).toBe(true)
   })
 
-  it('identifies reasoning models that do not support hybrid inference controls', () => {
+  it('identifies fixed reasoning models', () => {
     const models = [
       'deepseek-reasoner',
       'o1-preview',
@@ -548,14 +549,13 @@ describe('isReasoningModel', () => {
       'step-3-minimax',
       'generic-reasoning-model',
       'some-random-model-thinking',
+      'some-random-model-think',
       'deepseek-v3.2-speciale'
     ]
 
     models.forEach((id) => {
       const model = createModel({ id })
-      expect(isReasoningModel(model), `Model ${id} should be reasoning`).toBe(true)
-      expect(isSupportedThinkingTokenModel(model), `Model ${id} should not support thinking tokens`).toBe(false)
-      expect(isSupportedReasoningEffortModel(model), `Model ${id} should not support reasoning effort`).toBe(false)
+      expect(isFixedReasoningModel(model), `Model ${id} should be reasoning`).toBe(true)
     })
   })
 })
