@@ -129,8 +129,6 @@ export async function createProvider(providerId: string, options: any): Promise<
   //  支持通过别名查找配置
   const config = getProviderConfigByAlias(providerId)
 
-  console.debug('Creating provider', JSON.stringify(config))
-
   if (!config) {
     throw new Error(`ProviderConfig not found for id: ${providerId}`)
   }
