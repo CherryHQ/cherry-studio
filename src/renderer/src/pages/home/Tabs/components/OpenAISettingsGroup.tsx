@@ -203,9 +203,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 </Tooltip>
               </SettingRowTitleSmall>
               <Selector
-                value={summaryText}
+                value={toOptionValue(summaryText)}
                 onChange={(value) => {
-                  setSummaryText(value as OpenAISummaryText)
+                  setSummaryText(toRealValue(value))
                 }}
                 options={summaryTextOptions}
               />
@@ -222,9 +222,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
               </Tooltip>
             </SettingRowTitleSmall>
             <Selector
-              value={verbosity}
+              value={toOptionValue(verbosity)}
               onChange={(value) => {
-                setVerbosity(value as OpenAIVerbosity)
+                setVerbosity(toRealValue(value))
               }}
               options={verbosityOptions}
             />

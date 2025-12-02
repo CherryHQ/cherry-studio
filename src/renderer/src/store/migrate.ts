@@ -2906,6 +2906,23 @@ const migrateConfig = {
       logger.error('migrate 179 error', error as Error)
       return state
     }
+  },
+  '180': (state: RootState) => {
+    try {
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      logger.info('migrate 180 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 180 error', error as Error)
+      return state
+    }
   }
 }
 
