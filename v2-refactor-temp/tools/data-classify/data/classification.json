@@ -2392,7 +2392,7 @@
             },
             {
               "category": "preferences",
-              "defaultValue": "`cs-sk-${uuid()}`",
+              "defaultValue": "VALUE: null",
               "originalKey": "apiKey",
               "status": "classified",
               "targetKey": "feature.csaas.api_key",
