@@ -1,5 +1,5 @@
 import type OpenAI from '@cherrystudio/openai'
-import type { NotNull, NotUndefined } from '@types'
+import type { NotUndefined } from '@types'
 import type { ImageModel, LanguageModel } from 'ai'
 import type { generateObject, generateText, ModelMessage, streamObject, streamText } from 'ai'
 import * as z from 'zod'
@@ -32,17 +32,15 @@ export type GenerateObjectParams = Omit<Parameters<typeof generateObject>[0], 'm
 export type AiSdkModel = LanguageModel | ImageModel
 
 // The original type unite both undefined and null.
-// I pick undefined as the unique falsy type since they seem like share the same meaning according to OpenAI API docs.
 // Parameter would not be passed into request if it's undefined.
-export type OpenAIVerbosity = NotNull<OpenAI.Responses.ResponseTextConfig['verbosity']>
+export type OpenAIVerbosity = OpenAI.Responses.ResponseTextConfig['verbosity']
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
 export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
 
 // The original type unite both undefined and null.
-// I pick undefined as the unique falsy type since they seem like share the same meaning according to OpenAI API docs.
 // Parameter would not be passed into request if it's undefined.
-export type OpenAISummaryText = NotNull<OpenAI.Reasoning['summary']>
+export type OpenAISummaryText = OpenAI.Reasoning['summary']
 
 const AiSdkParamsSchema = z.enum([
   'maxOutputTokens',

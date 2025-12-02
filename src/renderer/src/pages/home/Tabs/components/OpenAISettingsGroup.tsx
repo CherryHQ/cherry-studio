@@ -24,12 +24,12 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 type VerbosityOption = {
-  value: NonNullable<OpenAIVerbosity> | 'undefined'
+  value: NonNullable<OpenAIVerbosity> | 'undefined' | 'null'
   label: string
 }
 
 type SummaryTextOption = {
-  value: NonNullable<OpenAISummaryText> | 'undefined'
+  value: NonNullable<OpenAISummaryText> | 'undefined' | 'null'
   label: string
 }
 
@@ -86,6 +86,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       label: t('common.ignore')
     },
     {
+      value: 'null',
+      label: t('common.off')
+    },
+    {
       value: 'auto',
       label: t('settings.openai.summary_text_mode.auto')
     },
@@ -104,6 +108,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       {
         value: 'undefined',
         label: t('common.ignore')
+      },
+      {
+        value: 'null',
+        label: t('common.off')
       },
       {
         value: 'low',

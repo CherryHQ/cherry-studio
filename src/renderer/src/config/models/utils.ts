@@ -154,7 +154,7 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
  * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
  * @param model - The model to check
- * @returns An array of supported verbosity levels, always including `undefined` as the first element
+ * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
 export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
   if (!model) {
@@ -165,7 +165,7 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): Ope
 
   for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
     if (validator(model)) {
-      supportedValues = [...values]
+      supportedValues = [null, ...values]
       break
     }
   }
