@@ -500,6 +500,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
     const { execSync } = require('child_process')
 
+    // Helper function to get first path from `where` command output
+    const getFirstPath = (output: string): string => output.trim().split('\n')[0]
+
     try {
       // Check common Git Bash installation paths
       const commonPaths = [
@@ -520,7 +523,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       try {
         const bashLocation = execSync('where bash.exe', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
         if (bashLocation && bashLocation.trim()) {
-          logger.debug('Git Bash found in PATH', { path: bashLocation.trim().split('\n')[0] })
+          logger.debug('Git Bash found in PATH', { path: getFirstPath(bashLocation) })
           return true
         }
       } catch {
@@ -532,7 +535,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         const gitLocation = execSync('where git.exe', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
         if (gitLocation && gitLocation.trim()) {
           // git.exe is typically in Git/cmd or Git/bin, bash.exe is in Git/bin
-          const gitPath = gitLocation.trim().split('\n')[0]
+          const gitPath = getFirstPath(gitLocation)
           const gitDir = path.dirname(gitPath)
 
           // Try to find bash.exe relative to git.exe location
@@ -550,10 +553,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
             }
           }
 
-          // Even if bash.exe is not found at expected locations, if git is available,
-          // the user likely has a working Git installation that can be used
-          logger.debug('Git found in PATH, assuming Git Bash is available', { gitPath })
-          return true
+          // Verify bash is actually executable by trying to run it
+          try {
+            execSync('bash --version', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
+            logger.debug('Git Bash verified via bash --version', { gitPath })
+            return true
+          } catch {
+            // bash command failed, Git Bash may not be properly configured
+            logger.debug('Git found but bash command failed', { gitPath })
+          }
         }
       } catch {
         // Git not in PATH
