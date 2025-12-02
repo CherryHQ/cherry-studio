@@ -61,7 +61,7 @@ export class ApiServerService {
    * Get current API server configuration from preference service
    */
   getCurrentConfig(): ApiServerConfig {
-    const config = preferenceService.getMultiple([
+    const config = preferenceService.getMultipleRaw([
       'feature.csaas.enabled',
       'feature.csaas.host',
       'feature.csaas.port',

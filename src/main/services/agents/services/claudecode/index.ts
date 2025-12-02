@@ -101,7 +101,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    const apiConfig = preferenceService.getMultiple([
+    const apiConfig = preferenceService.getMultipleRaw([
       'feature.csaas.host',
       'feature.csaas.port',
       'feature.csaas.api_key'

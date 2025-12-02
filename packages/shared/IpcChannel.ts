@@ -319,7 +319,7 @@ export enum IpcChannel {
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
-  Preference_GetMultiple = 'preference:get-multiple',
+  Preference_GetMultipleRaw = 'preference:get-multiple-raw',
   Preference_SetMultiple = 'preference:set-multiple',
   Preference_GetAll = 'preference:get-all',
   Preference_Subscribe = 'preference:subscribe',

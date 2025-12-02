@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
+  MultiPreferencesResultType,
   PreferenceDefaultScopeType,
   PreferenceKeyType,
   PreferenceUpdateOptions
@@ -241,9 +242,9 @@ export class PreferenceService {
   /**
    * Get multiple preferences at once with caching and auto-subscription
    * @param keys Array of preference keys to retrieve
-   * @returns Promise resolving to partial object with preference values
+   * @returns Promise resolving to object with preference values for requested keys
    */
-  public async getMultipleRaw(keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> {
+  public async getMultipleRaw<K extends PreferenceKeyType>(keys: K[]): Promise<MultiPreferencesResultType<K>> {
     // Check which keys are already cached
     const cachedResults: Partial<PreferenceDefaultScopeType> = {}
     const uncachedKeys: PreferenceKeyType[] = []
@@ -260,7 +261,7 @@ export class PreferenceService {
     // Fetch uncached keys from main process
     if (uncachedKeys.length > 0) {
       try {
-        const uncachedResults = await window.api.preference.getMultiple(uncachedKeys)
+        const uncachedResults = await window.api.preference.getMultipleRaw(uncachedKeys)
 
         // Update cache with new results
         for (const [key, value] of Object.entries(uncachedResults)) {
@@ -271,7 +272,7 @@ export class PreferenceService {
           await this.subscribeToKeyInternal([key as PreferenceKeyType])
         }
 
-        return { ...cachedResults, ...uncachedResults }
+        return { ...cachedResults, ...uncachedResults } as MultiPreferencesResultType<K>
       } catch (error) {
         logger.error('Failed to get multiple preferences:', error as Error)
 
@@ -283,11 +284,11 @@ export class PreferenceService {
           }
         }
 
-        return { ...cachedResults, ...defaultResults }
+        return { ...cachedResults, ...defaultResults } as MultiPreferencesResultType<K>
       }
     }
 
-    return cachedResults
+    return cachedResults as MultiPreferencesResultType<K>
   }
 
   /**

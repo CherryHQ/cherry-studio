@@ -57,7 +57,6 @@ const ApiServerSettings: FC = () => {
     return `cs-sk-${uuidv4()}`
   }
 
-
   const regenerateApiKey = () => {
     setApiServerConfig({ apiKey: generateApiKey() })
     window.toast.success(t('apiServer.messages.apiKeyRegenerated'))

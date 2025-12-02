@@ -7,6 +7,7 @@ import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent, WebviewKeyEvent } from '@shared/config/types'
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
+  MultiPreferencesResultType,
   PreferenceDefaultScopeType,
   PreferenceKeyType,
   SelectionActionItem
@@ -553,8 +554,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
     set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
-    getMultiple: (keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> =>
-      ipcRenderer.invoke(IpcChannel.Preference_GetMultiple, keys),
+    getMultipleRaw: <K extends PreferenceKeyType>(keys: K[]): Promise<MultiPreferencesResultType<K>> =>
+      ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
     setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
       ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
     getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
