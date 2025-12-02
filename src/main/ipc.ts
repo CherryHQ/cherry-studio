@@ -498,6 +498,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return true // Non-Windows systems don't need Git Bash
     }
 
+    const { execSync } = require('child_process')
+
     try {
       // Check common Git Bash installation paths
       const commonPaths = [
@@ -509,17 +511,50 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       // Check if any of the common paths exist
       for (const bashPath of commonPaths) {
         if (fs.existsSync(bashPath)) {
-          logger.debug('Git Bash found', { path: bashPath })
+          logger.debug('Git Bash found at common path', { path: bashPath })
           return true
         }
       }
 
-      // Check if git is in PATH
-      const { execSync } = require('child_process')
+      // Check if bash.exe is directly available in PATH (for portable Git installations)
       try {
-        execSync('git --version', { stdio: 'ignore' })
-        logger.debug('Git found in PATH')
-        return true
+        const bashLocation = execSync('where bash.exe', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
+        if (bashLocation && bashLocation.trim()) {
+          logger.debug('Git Bash found in PATH', { path: bashLocation.trim().split('\n')[0] })
+          return true
+        }
+      } catch {
+        // bash.exe not in PATH, continue to other checks
+      }
+
+      // Check if git is in PATH and derive bash.exe location from it
+      try {
+        const gitLocation = execSync('where git.exe', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
+        if (gitLocation && gitLocation.trim()) {
+          // git.exe is typically in Git/cmd or Git/bin, bash.exe is in Git/bin
+          const gitPath = gitLocation.trim().split('\n')[0]
+          const gitDir = path.dirname(gitPath)
+
+          // Try to find bash.exe relative to git.exe location
+          const possibleBashPaths = [
+            path.join(gitDir, '..', 'bin', 'bash.exe'), // Git/cmd/../bin/bash.exe
+            path.join(gitDir, 'bash.exe'), // Git/bin/bash.exe (if git.exe is in bin)
+            path.join(gitDir, '..', 'usr', 'bin', 'bash.exe') // Git/cmd/../usr/bin/bash.exe
+          ]
+
+          for (const bashPath of possibleBashPaths) {
+            const normalizedPath = path.normalize(bashPath)
+            if (fs.existsSync(normalizedPath)) {
+              logger.debug('Git Bash found relative to git.exe', { path: normalizedPath })
+              return true
+            }
+          }
+
+          // Even if bash.exe is not found at expected locations, if git is available,
+          // the user likely has a working Git installation that can be used
+          logger.debug('Git found in PATH, assuming Git Bash is available', { gitPath })
+          return true
+        }
       } catch {
         // Git not in PATH
       }
