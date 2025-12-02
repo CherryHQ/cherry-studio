@@ -270,7 +270,9 @@ export function buildProviderOptions(
     }[rawProviderId] || rawProviderId
 
   if (rawProviderKey === 'cherryin') {
-    rawProviderKey = { gemini: 'google', ['openai-response']: 'openai' }[actualProvider.type] || actualProvider.type
+    rawProviderKey =
+      { gemini: 'google', ['openai-response']: 'openai', openai: 'cherryin' }[actualProvider.type] ||
+      actualProvider.type
   }
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
@@ -435,6 +437,7 @@ function buildCherryInProviderOptions(
 ): OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions {
   switch (actualProvider.type) {
     case 'openai':
+      return buildGenericProviderOptions(assistant, model, capabilities)
     case 'openai-response':
       return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
 

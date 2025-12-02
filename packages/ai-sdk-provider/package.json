@@ -41,6 +41,7 @@
     "ai": "^5.0.26"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^1.0.28",
     "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": "^3.0.17"
   },

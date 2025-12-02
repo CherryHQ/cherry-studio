@@ -242,6 +242,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/openai-compatible@npm:^1.0.28":
+  version: 1.0.28
+  resolution: "@ai-sdk/openai-compatible@npm:1.0.28"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.18"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/f484774e0094a12674f392d925038a296191723b4c76bd833eabf1b334cf3c84fe77a2e2c5fbac974ec5e18340e113c6a81c86d957c9529a7a60e87cd390ada8
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch":
   version: 1.0.27
   resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch::version=1.0.27&hash=c44b76"
@@ -1863,6 +1875,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider"
   dependencies:
+    "@ai-sdk/openai-compatible": "npm:^1.0.28"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.17"
     tsdown: "npm:^0.13.3"
