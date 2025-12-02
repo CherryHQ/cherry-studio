@@ -1,8 +1,7 @@
+import { DescriptionSwitch, Switch } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Moon, Shield, Wifi, Zap } from 'lucide-react'
 import { useState } from 'react'
-
-import { DescriptionSwitch, Switch } from '../../../src/components/primitives/switch'
 
 const meta: Meta<typeof Switch> = {
   title: 'Components/Primitives/Switch',
@@ -158,6 +157,7 @@ export const Controlled: Story = {
         </div>
         <div className="text-sm text-muted-foreground">Current state: {checked ? 'On' : 'Off'}</div>
         <button
+          type="button"
           onClick={() => setChecked(!checked)}
           className="w-fit rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">
           Toggle State
