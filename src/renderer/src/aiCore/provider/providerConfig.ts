@@ -19,6 +19,7 @@ import {
   isGeminiProvider,
   isNewApiProvider,
   isPerplexityProvider,
+  isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
 import { cloneDeep } from 'lodash'
@@ -264,7 +265,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       ...options,
       name: actualProvider.id,
       ...extraOptions,
-      includeUsage: true
+      includeUsage: isSupportStreamOptionsProvider(actualProvider)
     }
   }
 }

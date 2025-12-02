@@ -165,7 +165,9 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
         'deepseek',
         'cherryin',
         'new-api',
-        'aihubmix'
+        'aihubmix',
+        'sophnet',
+        'dmxapi'
       ] satisfies SystemProviderId[]
     ).some((id) => id === model.provider)
   }

@@ -255,6 +255,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
         case SystemProviderIds.doubao:
         case SystemProviderIds.deepseek:
         case SystemProviderIds.aihubmix:
+        case SystemProviderIds.sophnet:
+        case SystemProviderIds.ppio:
+        case SystemProviderIds.dmxapi:
+        case SystemProviderIds.cherryin:
           return {
             thinking: {
               type: 'enabled' // auto is invalid
