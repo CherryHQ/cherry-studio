@@ -1,7 +1,8 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import type { InputProps } from '@cherrystudio/ui/components/primitives/input'
 import { Input } from '@cherrystudio/ui/components/primitives/input'
-import { Textarea } from '@cherrystudio/ui/components/primitives/textarea'
+import type { TextareaInputProps } from '@cherrystudio/ui/components/primitives/textarea'
+import * as Textarea from '@cherrystudio/ui/components/primitives/textarea'
 import { cn } from '@cherrystudio/ui/utils/index'
 import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
@@ -131,9 +132,9 @@ function InputGroupInput({ className, ...props }: InputProps) {
   )
 }
 
-function InputGroupTextarea({ className, ...props }: React.ComponentProps<'textarea'>) {
+function InputGroupTextarea({ className, ...props }: TextareaInputProps) {
   return (
-    <Textarea
+    <Textarea.Input
       data-slot="input-group-control"
       className={cn(
         'flex-1 resize-none rounded-none border-0 bg-transparent py-3 shadow-none focus-visible:ring-0 dark:bg-transparent',
