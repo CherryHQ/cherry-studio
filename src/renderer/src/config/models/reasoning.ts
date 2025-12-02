@@ -162,7 +162,10 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
         'ppio',
         'hunyuan',
         'tencent-cloud-ti',
-        'deepseek'
+        'deepseek',
+        'cherryin',
+        'new-api',
+        'aihubmix'
       ] satisfies SystemProviderId[]
     ).some((id) => id === model.provider)
   }
@@ -472,7 +475,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
     // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
     // TODO: move to utils and add test cases
     return (
-      /deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(modelId) ||
+      /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(modelId) ||
       modelId.includes('deepseek-chat-v3.1') ||
       modelId === 'deepseek-chat'
     )
