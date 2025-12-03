@@ -60,3 +60,113 @@ export async function isBinaryExists(name: string): Promise<boolean> {
   const cmd = await getBinaryPath(name)
   return await fs.existsSync(cmd)
 }
+
+/**
+ * Find executable in common paths or PATH environment variable
+ * Based on Claude Code's implementation with security checks
+ * @param name - Name of the executable to find (without .exe extension)
+ * @returns Full path to the executable or null if not found
+ */
+export function findExecutable(name: string): string | null {
+  const { execFileSync } = require('child_process')
+
+  // Special handling for git - check common installation paths first
+  if (name === 'git') {
+    const commonGitPaths = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
+    ]
+
+    for (const gitPath of commonGitPaths) {
+      if (fs.existsSync(gitPath)) {
+        logger.debug(`Found ${name} at common path`, { path: gitPath })
+        return gitPath
+      }
+    }
+  }
+
+  // Use where.exe to find executable in PATH
+  // Use execFileSync to prevent command injection
+  try {
+    const result = execFileSync('where.exe', [name], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    // Handle both Windows (\r\n) and Unix (\n) line endings
+    const paths = result.trim().split(/\r?\n/).filter(Boolean)
+    const currentDir = process.cwd().toLowerCase()
+
+    // Security check: skip executables in current directory
+    for (const exePath of paths) {
+      // Trim whitespace and carriage returns from where.exe output
+      const cleanPath = exePath.trim()
+      const resolvedPath = path.resolve(cleanPath).toLowerCase()
+      const execDir = path.dirname(resolvedPath).toLowerCase()
+
+      // Skip if in current directory or subdirectory (potential malware)
+      if (execDir === currentDir || resolvedPath.startsWith(currentDir + path.sep)) {
+        logger.warn('Skipping potentially malicious executable in current directory', {
+          path: cleanPath
+        })
+        continue
+      }
+
+      logger.debug(`Found ${name} via where.exe`, { path: cleanPath })
+      return cleanPath
+    }
+
+    return null
+  } catch (error) {
+    logger.debug(`where.exe ${name} failed`, { error })
+    return null
+  }
+}
+
+/**
+ * Find Git Bash executable on Windows
+ * @returns Full path to bash.exe or null if not found
+ */
+export function findGitBash(): string | null {
+  // 1. Find git.exe and derive bash.exe path
+  const gitPath = findExecutable('git')
+  if (gitPath) {
+    // Try multiple possible locations for bash.exe relative to git.exe
+    // Different Git installations have different directory structures
+    const possibleBashPaths = [
+      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard: Git/cmd/git.exe -> Git/bin/bash.exe
+      path.join(gitPath, '..', 'bash.exe'), // Portable: Git/bin/git.exe -> Git/bin/bash.exe
+      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // Git for Windows 2.x: Git/cmd/git.exe -> Git/usr/bin/bash.exe
+    ]
+
+    for (const bashPath of possibleBashPaths) {
+      const resolvedBashPath = path.resolve(bashPath)
+      if (fs.existsSync(resolvedBashPath)) {
+        logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
+        return resolvedBashPath
+      }
+    }
+
+    logger.debug('bash.exe not found at expected locations relative to git.exe', {
+      gitPath,
+      checkedPaths: possibleBashPaths.map((p) => path.resolve(p))
+    })
+  }
+
+  // 2. Fallback: check common Git Bash paths directly
+  const commonBashPaths = [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')] : [])
+  ]
+
+  for (const bashPath of commonBashPaths) {
+    if (fs.existsSync(bashPath)) {
+      logger.debug('Found bash.exe at common path', { path: bashPath })
+      return bashPath
+    }
+  }
+
+  logger.info('Git Bash not found - checked git derivation and common paths')
+  return null
+}
