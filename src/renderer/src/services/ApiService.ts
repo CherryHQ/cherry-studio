@@ -22,7 +22,7 @@ import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import { NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
+import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
 import { cloneDeep, isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
@@ -433,18 +433,37 @@ export async function fetchGenerate({
 
 export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) return true
+  if (provider.id === 'cherryai') return true
+  if (
+    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
+    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
+  )
+    return true
   return !isEmpty(provider.apiKey)
 }
 
 /**
- * 获取轮询的API key
- * 复用legacy架构的多key轮询逻辑
+ * Get rotated API key for providers that support multiple keys
+ * Returns empty string for providers that don't require API keys
  */
 function getRotatedApiKey(provider: Provider): string {
-  const keys = provider.apiKey.split(',').map((key) => key.trim())
+  // Handle providers that don't require API keys
+  if (!provider.apiKey || provider.apiKey.trim() === '') {
+    return ''
+  }
+
+  const keys = provider.apiKey
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean)
+
+  if (keys.length === 0) {
+    return ''
+  }
+
   const keyName = `provider:${provider.id}:last_used_key`
 
+  // If only one key, return it directly
   if (keys.length === 1) {
     return keys[0]
   }
@@ -456,6 +475,15 @@ function getRotatedApiKey(provider: Provider): string {
   }
 
   const currentIndex = keys.indexOf(lastUsedKey)
+
+  // Log when the last used key is no longer in the list
+  if (currentIndex === -1) {
+    logger.debug('Last used API key no longer found in provider keys, falling back to first key', {
+      providerId: provider.id,
+      lastUsedKey: lastUsedKey.substring(0, 8) + '...' // Only log first 8 chars for security
+    })
+  }
+
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
   window.keyv.set(keyName, nextKey)
@@ -475,12 +503,21 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
   try {
     return await AI.models()
   } catch (error) {
+    logger.error('Failed to fetch models from provider', {
+      providerId: provider.id,
+      providerName: provider.name,
+      error: error as Error
+    })
     return []
   }
 }
 
 export function checkApiProvider(provider: Provider): void {
-  if (isSystemProvider(provider) && !NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) {
+  const isExcludedProvider =
+    (isSystemProvider(provider) && NOT_SUPPORT_API_KEY_PROVIDERS.includes(provider.id)) ||
+    NOT_SUPPORT_API_KEY_PROVIDER_TYPES.includes(provider.type)
+
+  if (!isExcludedProvider) {
     if (!provider.apiKey) {
       window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
