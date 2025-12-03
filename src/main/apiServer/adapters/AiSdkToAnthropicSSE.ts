@@ -181,14 +181,13 @@ export class AiSdkToAnthropicSSE {
             chunk.providerMetadata?.google?.thoughtSignature as string
           )
         }
-        // FIXME: 按toolcall id绑定
         if (
           openRouterReasoningCache &&
           chunk.providerMetadata?.openrouter?.reasoning_details &&
           Array.isArray(chunk.providerMetadata.openrouter.reasoning_details)
         ) {
           openRouterReasoningCache.set(
-            'openrouter',
+            `openrouter-${chunk.toolCallId}`,
             JSON.parse(JSON.stringify(chunk.providerMetadata.openrouter.reasoning_details))
           )
         }

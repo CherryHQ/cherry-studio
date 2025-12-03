@@ -17,6 +17,7 @@ import { generateSignature as cherryaiGenerateSignature } from '@main/integratio
 import anthropicService from '@main/services/AnthropicService'
 import copilotService from '@main/services/CopilotService'
 import { reduxService } from '@main/services/ReduxService'
+import type { OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 import { isGemini3ModelId } from '@shared/middleware'
 import {
   type AiSdkConfig,
@@ -28,7 +29,8 @@ import {
   isOpenAIProvider,
   type ProviderFormatContext,
   providerToAiSdkConfig as sharedProviderToAiSdkConfig,
-  resolveActualProvider
+  resolveActualProvider,
+  SystemProviderIds
 } from '@shared/provider'
 import { COPILOT_DEFAULT_HEADERS } from '@shared/provider/constant'
 import { defaultAppHeaders } from '@shared/utils'
@@ -311,17 +313,18 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
           }
         } else if (block.type === 'tool_use') {
           const options: ProviderOptions = {}
-
+          logger.debug('Processing tool call block', { block, msgRole: msg.role, model: params.model })
           if (isGemini3ModelId(params.model)) {
             if (googleReasoningCache.get(`google-${block.name}`)) {
               options.google = {
                 thoughtSignature: MAGIC_STRING
               }
-            } else if (openRouterReasoningCache.get('openrouter')) {
-              options.openrouter = {
-                reasoning_details: (sanitizeJson(openRouterReasoningCache.get('openrouter')) as JSONValue[]) || []
-              }
             }
+          }
+          if (openRouterReasoningCache.get(`openrouter-${block.id}`)) {
+              options.openrouter = {
+                reasoning_details: (sanitizeJson(openRouterReasoningCache.get(`openrouter-${block.id}`)) as JSONValue[]) || []
+              }
           }
           toolCallParts.push({
             type: 'tool-call',
@@ -514,6 +517,13 @@ function mapAnthropicThinkToAISdkProviderOptions(
       }
     }
   }
+  if (provider.id === SystemProviderIds.openrouter) {
+    return {
+      openrouter: {
+        ...mapToOpenRouterProviderOptions(config)
+      }
+    }
+  }
   return undefined
 }
 
@@ -542,6 +552,17 @@ function mapToOpenAIProviderOptions(
 ): OpenAIResponsesProviderOptions {
   return {
     reasoningEffort: config.type === 'enabled' ? 'high' : 'none'
+  }
+}
+
+function mapToOpenRouterProviderOptions(
+  config: NonNullable<MessageCreateParams['thinking']>
+): OpenRouterProviderOptions {
+  return {
+    reasoning: {
+      enabled: config.type === 'enabled',
+      effort: 'high'
+    }
   }
 }
 
@@ -580,9 +601,8 @@ async function executeStream(config: ExecuteStreamConfig): Promise<AiSdkToAnthro
     onEvent: onEvent || (() => {})
   })
 
-  // Execute stream - pass model object instead of string
   const result = await executor.streamText({
-    model, // Now passing LanguageModel object, not string
+    model,
     messages: coreMessages,
     // FIXME: Claude Code传入的maxToken会超出有些模型限制，需做特殊处理，可能在v2好修复一点，现在维护的成本有点高
     // 已知: 豆包
