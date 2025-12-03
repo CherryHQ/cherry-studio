@@ -6,7 +6,7 @@ import { reduxService } from '../services/ReduxService'
 
 const logger = loggerService.withContext('ApiServerConfig')
 
-const defaultHost = 'localhost'
+const defaultHost = '127.0.0.1'
 const defaultPort = 23333
 
 class ConfigManager {

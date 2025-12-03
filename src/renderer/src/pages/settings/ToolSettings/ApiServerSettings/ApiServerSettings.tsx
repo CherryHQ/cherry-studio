@@ -62,9 +62,25 @@ const ApiServerSettings: FC = () => {
     }
   }
 
+  const buildApiServerUrl = () => {
+    const host = apiServerConfig.host || '127.0.0.1'
+    const hasProtocol = host.startsWith('http://') || host.startsWith('https://')
+    const baseHost = hasProtocol ? host : `http://${host}`
+    try {
+      const url = new URL(baseHost)
+      if (!url.port && apiServerConfig.port) {
+        url.port = String(apiServerConfig.port)
+      }
+      return url.origin
+    } catch {
+      const portSegment = apiServerConfig.port ? `:${apiServerConfig.port}` : ''
+      return `${baseHost}${portSegment}`
+    }
+  }
+
   const openApiDocs = () => {
     if (apiServerRunning) {
-      window.open(`http://localhost:${apiServerConfig.port}/api-docs`, '_blank')
+      window.open(`${buildApiServerUrl()}/api-docs`, '_blank')
     }
   }
 
@@ -98,7 +114,7 @@ const ApiServerSettings: FC = () => {
               {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
             </StatusText>
             <StatusSubtext>
-              {apiServerRunning ? `http://localhost:${apiServerConfig.port}` : t('apiServer.fields.port.description')}
+              {apiServerRunning ? buildApiServerUrl() : t('apiServer.fields.port.description')}
             </StatusSubtext>
           </StatusContent>
         </StatusSection>

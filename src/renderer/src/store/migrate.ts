@@ -2032,7 +2032,7 @@ const migrateConfig = {
       if (!state.settings.apiServer) {
         state.settings.apiServer = {
           enabled: false,
-          host: 'localhost',
+          host: '127.0.0.1',
           port: 23333,
           apiKey: `cs-sk-${uuid()}`
         }
