@@ -11,10 +11,14 @@ import { vertex } from '@ai-sdk/google-vertex/edge'
 import { combineHeaders } from '@ai-sdk/provider-utils'
 import type { AnthropicSearchConfig, WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
+import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   isAnthropicModel,
+  isGeminiModel,
   isGenerateImageModel,
+  isGrokModel,
+  isOpenAIModel,
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -24,11 +28,12 @@ import {
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { CherryWebSearchConfig } from '@renderer/store/websearch'
-import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
+import type { Model } from '@renderer/types'
+import { type Assistant, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import { replacePromptVariables } from '@renderer/utils/prompt'
-import { isAwsBedrockProvider } from '@renderer/utils/provider'
+import { isAIGatewayProvider, isAwsBedrockProvider } from '@renderer/utils/provider'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -42,6 +47,22 @@ import { getMaxTokens, getTemperature, getTopP } from './modelParameters'
 const logger = loggerService.withContext('parameterBuilder')
 
 type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
+
+function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | undefined {
+  if (isAnthropicModel(model)) {
+    return 'anthropic'
+  }
+  if (isGeminiModel(model)) {
+    return 'google'
+  }
+  if (isGrokModel(model)) {
+    return 'xai'
+  }
+  if (isOpenAIModel(model)) {
+    return 'openai'
+  }
+  return undefined
+}
 
 /**
  * 构建 AI SDK 流式参数
@@ -117,6 +138,11 @@ export async function buildStreamTextParams(
   if (enableWebSearch) {
     if (isBaseProvider(aiSdkProviderId)) {
       webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+    } else if (isAIGatewayProvider(provider) || SystemProviderIds.gateway === provider.id) {
+      const aiSdkProviderId = mapVertexAIGatewayModelToProviderId(model)
+      if (aiSdkProviderId) {
+        webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig, model)
+      }
     }
     if (!tools) {
       tools = {}

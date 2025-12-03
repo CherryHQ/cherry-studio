@@ -1,5 +1,5 @@
 import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
-import type { AnthropicProviderOptions } from '@ai-sdk/anthropic'
+import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { XaiProviderOptions } from '@ai-sdk/xai'
@@ -7,6 +7,9 @@ import { baseProviderIdSchema, customProviderIdSchema } from '@cherrystudio/ai-c
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
+  isAnthropicModel,
+  isGeminiModel,
+  isGrokModel,
   isOpenAIModel,
   isQwenMTModel,
   isSupportFlexServiceTierModel,
@@ -29,7 +32,8 @@ import {
   type OpenAIServiceTier,
   OpenAIServiceTiers,
   type Provider,
-  type ServiceTier
+  type ServiceTier,
+  SystemProviderIds
 } from '@renderer/types'
 import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
@@ -38,6 +42,7 @@ import { t } from 'i18next'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
+import { registeredNewProviderIdSchema } from '../provider/providerInitialization'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
@@ -156,8 +161,8 @@ export function buildProviderOptions(
   providerOptions: Record<string, Record<string, JSONValue>>
   standardParams: Partial<Record<AiSdkParam, any>>
 } {
-  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities })
   const rawProviderId = getAiSdkProviderId(actualProvider)
+  logger.debug('buildProviderOptions', { assistant, model, actualProvider, capabilities, rawProviderId })
   // 构建 provider 特定的选项
   let providerSpecificOptions: Record<string, any> = {}
   const serviceTier = getServiceTier(model, actualProvider)
@@ -172,14 +177,13 @@ export function buildProviderOptions(
       case 'azure':
       case 'azure-responses':
         {
-          const options: OpenAIResponsesProviderOptions = buildOpenAIProviderOptions(
+          providerSpecificOptions = buildOpenAIProviderOptions(
             assistant,
             model,
             capabilities,
             serviceTier,
             textVerbosity
           )
-          providerSpecificOptions = options
         }
         break
       case 'anthropic':
@@ -198,9 +202,11 @@ export function buildProviderOptions(
       case 'openai-compatible': {
         // 对于其他 provider，使用通用的构建逻辑
         providerSpecificOptions = {
-          ...buildGenericProviderOptions(assistant, model, capabilities),
-          serviceTier,
-          textVerbosity
+          [rawProviderId]: {
+            ...buildGenericProviderOptions(assistant, model, capabilities),
+            serviceTier,
+            textVerbosity
+          }
         }
         break
       }
@@ -236,12 +242,17 @@ export function buildProviderOptions(
         case 'huggingface':
           providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
           break
+        case SystemProviderIds.gateway:
+          providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+          break
         default:
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = {
-            ...buildGenericProviderOptions(assistant, model, capabilities),
-            serviceTier,
-            textVerbosity
+            [rawProviderId]: {
+              ...buildGenericProviderOptions(assistant, model, capabilities),
+              serviceTier,
+              textVerbosity
+            }
           }
       }
     } else {
@@ -249,35 +260,43 @@ export function buildProviderOptions(
     }
   }
 
-  // 获取自定义参数并分离标准参数和 provider 特定参数
+  /**
+   * Retrieve custom parameters and separate standard parameters from provider-specific parameters.
+   */
   const customParams = getCustomParameters(assistant)
-  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
+  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams) // 对于这里提取的providerParams，需要检测key是否是providerId
 
-  // 合并 provider 特定的自定义参数到 providerSpecificOptions
-  providerSpecificOptions = {
-    ...providerSpecificOptions,
-    ...providerParams
-  }
-
-  let rawProviderKey =
-    {
-      'google-vertex': 'google',
-      'google-vertex-anthropic': 'anthropic',
-      'azure-anthropic': 'anthropic',
-      'ai-gateway': 'gateway',
-      azure: 'openai',
-      'azure-responses': 'openai'
-    }[rawProviderId] || rawProviderId
-
-  if (rawProviderKey === 'cherryin') {
-    rawProviderKey = { gemini: 'google', ['openai-response']: 'openai' }[actualProvider.type] || actualProvider.type
+  /**
+   * {
+   *   gateway: { customOption1: value1, customOption2: value2 },
+   *   customKey: customValue,
+   * }
+   */
+  for (const key of Object.keys(providerParams)) {
+    if (baseProviderIdSchema.safeParse(key).success || registeredNewProviderIdSchema.safeParse(key).success) {
+      // Key is a provider ID, merge provider-specific options
+      providerSpecificOptions = {
+        ...providerSpecificOptions,
+        [key]: {
+          ...providerSpecificOptions[key],
+          ...providerParams[key]
+        }
+      }
+    } else {
+      // Key is a custom parameter, add it to the current provider's options
+      providerSpecificOptions = {
+        ...providerSpecificOptions,
+        [rawProviderId]: {
+          ...providerSpecificOptions[rawProviderId],
+          [key]: providerParams[key]
+        }
+      }
+    }
   }
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
   return {
-    providerOptions: {
-      [rawProviderKey]: providerSpecificOptions
-    },
+    providerOptions: providerSpecificOptions,
     standardParams
   }
 }
@@ -295,7 +314,7 @@ function buildOpenAIProviderOptions(
   },
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
-): OpenAIResponsesProviderOptions {
+): Record<string, OpenAIResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: OpenAIResponsesProviderOptions = {}
   // OpenAI 推理参数
@@ -334,7 +353,9 @@ function buildOpenAIProviderOptions(
     textVerbosity
   }
 
-  return providerOptions
+  return {
+    openai: providerOptions
+  }
 }
 
 /**
@@ -348,7 +369,7 @@ function buildAnthropicProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): AnthropicProviderOptions {
+): Record<string, AnthropicProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: AnthropicProviderOptions = {}
 
@@ -361,7 +382,11 @@ function buildAnthropicProviderOptions(
     }
   }
 
-  return providerOptions
+  return {
+    anthropic: {
+      ...providerOptions
+    }
+  }
 }
 
 /**
@@ -375,7 +400,7 @@ function buildGeminiProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): GoogleGenerativeAIProviderOptions {
+): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {}
 
@@ -395,7 +420,11 @@ function buildGeminiProviderOptions(
     }
   }
 
-  return providerOptions
+  return {
+    google: {
+      ...providerOptions
+    }
+  }
 }
 
 function buildXAIProviderOptions(
@@ -406,7 +435,7 @@ function buildXAIProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): XaiProviderOptions {
+): Record<string, XaiProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
@@ -418,7 +447,11 @@ function buildXAIProviderOptions(
     }
   }
 
-  return providerOptions
+  return {
+    xai: {
+      ...providerOptions
+    }
+  }
 }
 
 function buildCherryInProviderOptions(
@@ -432,15 +465,13 @@ function buildCherryInProviderOptions(
   actualProvider: Provider,
   serviceTier: OpenAIServiceTier,
   textVerbosity: OpenAIVerbosity
-): OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions {
+): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions> {
   switch (actualProvider.type) {
     case 'openai':
     case 'openai-response':
       return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
-
     case 'anthropic':
       return buildAnthropicProviderOptions(assistant, model, capabilities)
-
     case 'gemini':
       return buildGeminiProviderOptions(assistant, model, capabilities)
   }
@@ -458,7 +489,7 @@ function buildBedrockProviderOptions(
     enableWebSearch: boolean
     enableGenerateImage: boolean
   }
-): BedrockProviderOptions {
+): Record<string, BedrockProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: BedrockProviderOptions = {}
 
@@ -475,7 +506,9 @@ function buildBedrockProviderOptions(
     providerOptions.anthropicBeta = betaHeaders
   }
 
-  return providerOptions
+  return {
+    bedrock: providerOptions
+  }
 }
 
 /**
@@ -525,4 +558,30 @@ function buildGenericProviderOptions(
   }
 
   return providerOptions
+}
+
+function buildAIGatewayOptions(
+  assistant: Assistant,
+  model: Model,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  },
+  serviceTier: OpenAIServiceTier,
+  textVerbosity?: OpenAIVerbosity
+): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions | any> {
+  if (isAnthropicModel(model)) {
+    return buildAnthropicProviderOptions(assistant, model, capabilities)
+  } else if (isOpenAIModel(model)) {
+    return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
+  } else if (isGeminiModel(model)) {
+    return buildGeminiProviderOptions(assistant, model, capabilities)
+  } else if (isGrokModel(model)) {
+    return buildXAIProviderOptions(assistant, model, capabilities)
+  } else {
+    return {
+      ['openai-compatible']: buildGenericProviderOptions(assistant, model, capabilities)
+    }
+  }
 }

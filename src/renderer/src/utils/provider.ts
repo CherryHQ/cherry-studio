@@ -172,7 +172,7 @@ export function isGeminiProvider(provider: Provider): boolean {
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
-  return provider.type === 'ai-gateway'
+  return provider.type === 'gateway'
 }
 
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]

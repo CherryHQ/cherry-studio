@@ -2809,7 +2809,7 @@ const migrateConfig = {
     try {
       addProvider(state, SystemProviderIds.longcat)
 
-      addProvider(state, SystemProviderIds['ai-gateway'])
+      addProvider(state, SystemProviderIds.gateway)
       addProvider(state, 'cerebras')
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.minimax) {
@@ -2904,6 +2904,20 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 179 error', error as Error)
+      return state
+    }
+  },
+  '180': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'ai-gateway') {
+          provider.id = SystemProviderIds.gateway
+        }
+      })
+      logger.info('migrate 180 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 180 error', error as Error)
       return state
     }
   }
