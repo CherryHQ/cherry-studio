@@ -570,7 +570,13 @@ function buildAIGatewayOptions(
   },
   serviceTier: OpenAIServiceTier,
   textVerbosity?: OpenAIVerbosity
-): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions | any> {
+): Record<
+  string,
+  | OpenAIResponsesProviderOptions
+  | AnthropicProviderOptions
+  | GoogleGenerativeAIProviderOptions
+  | Record<string, unknown>
+> {
   if (isAnthropicModel(model)) {
     return buildAnthropicProviderOptions(assistant, model, capabilities)
   } else if (isOpenAIModel(model)) {

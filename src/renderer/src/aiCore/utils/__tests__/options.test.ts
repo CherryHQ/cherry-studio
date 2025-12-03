@@ -56,7 +56,8 @@ vi.mock('../provider/factory', () => ({
       [SystemProviderIds.anthropic]: 'anthropic',
       [SystemProviderIds.grok]: 'xai',
       [SystemProviderIds.deepseek]: 'deepseek',
-      [SystemProviderIds.openrouter]: 'openrouter'
+      [SystemProviderIds.openrouter]: 'openrouter',
+      [SystemProviderIds.gateway]: 'gateway'
     }
     return mapping[provider.id] || provider.id
   })

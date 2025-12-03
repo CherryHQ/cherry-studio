@@ -61,6 +61,9 @@ function mapVertexAIGatewayModelToProviderId(model: Model): BaseProviderId | und
   if (isOpenAIModel(model)) {
     return 'openai'
   }
+  logger.warn(
+    `[mapVertexAIGatewayModelToProviderId] Unknown model type for AI Gateway: ${model.id}. Web search will not be enabled.`
+  )
   return undefined
 }
 
