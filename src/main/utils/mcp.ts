@@ -27,11 +27,12 @@ export function buildFunctionCallToolName(serverName: string, toolName: string, 
   }
 
   // Replace invalid characters with underscores or dashes
-  // Keep a-z, A-Z, 0-9, underscores and dashes
-  name = name.replace(/[^a-zA-Z0-9_-]/g, '_')
+  // Keep Unicode letters (\p{L}), Unicode numbers (\p{N}), underscores and dashes
+  // This supports international characters (Chinese, Japanese, Korean, etc.)
+  name = name.replace(/[^\p{L}\p{N}_-]/gu, '_')
 
-  // Ensure name starts with a letter or underscore (for valid JavaScript identifier)
-  if (!/^[a-zA-Z]/.test(name)) {
+  // Ensure name starts with a letter or underscore (supports Unicode letters)
+  if (!/^[\p{L}_]/u.test(name)) {
     name = `tool-${name}`
   }
 

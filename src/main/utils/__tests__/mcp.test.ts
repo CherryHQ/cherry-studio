@@ -61,12 +61,12 @@ describe('buildFunctionCallToolName', () => {
     it('should replace invalid characters with underscores', () => {
       const result = buildFunctionCallToolName('test@server', 'tool#name')
       expect(result).not.toMatch(/[@#]/)
-      expect(result).toMatch(/^[a-zA-Z0-9_-]+$/)
+      expect(result).toMatch(/^[\p{L}\p{N}_-]+$/u)
     })
 
-    it('should ensure name starts with a letter', () => {
+    it('should ensure name starts with a letter or underscore', () => {
       const result = buildFunctionCallToolName('123server', '456tool')
-      expect(result).toMatch(/^[a-zA-Z]/)
+      expect(result).toMatch(/^[\p{L}_]/u)
     })
 
     it('should handle consecutive underscores/dashes', () => {
@@ -130,7 +130,7 @@ describe('buildFunctionCallToolName', () => {
       // Should still produce a valid unique suffix via fallback hash
       expect(result).toBeTruthy()
       expect(result.length).toBeLessThanOrEqual(63)
-      expect(result).toMatch(/^[a-zA-Z][a-zA-Z0-9_-]*$/)
+      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
       // Should have a suffix (underscore followed by something)
       expect(result).toMatch(/_[a-z0-9]+$/)
     })
@@ -178,8 +178,8 @@ describe('buildFunctionCallToolName', () => {
       expect(tool1).not.toBe(tool2)
 
       // Both should be valid identifiers
-      expect(tool1).toMatch(/^[a-zA-Z][a-zA-Z0-9_-]*$/)
-      expect(tool2).toMatch(/^[a-zA-Z][a-zA-Z0-9_-]*$/)
+      expect(tool1).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+      expect(tool2).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
 
       // Both should be <= 63 chars
       expect(tool1.length).toBeLessThanOrEqual(63)
@@ -191,6 +191,66 @@ describe('buildFunctionCallToolName', () => {
       expect(result).toBeTruthy()
       // Should not double the server name
       expect(result.split('github').length - 1).toBeLessThanOrEqual(2)
+    })
+  })
+
+  describe('internationalization support', () => {
+    it('should preserve Chinese characters in tool names', () => {
+      const result = buildFunctionCallToolName('ocr', '行驶证OCR_轻盈版')
+      expect(result).toContain('行驶证')
+      expect(result).toContain('OCR')
+      expect(result).toContain('轻盈版')
+    })
+
+    it('should distinguish between different Chinese OCR tools', () => {
+      const tools = [
+        buildFunctionCallToolName('ocr', '行驶证OCR_轻盈版'),
+        buildFunctionCallToolName('ocr', '营业执照OCR_轻盈版'),
+        buildFunctionCallToolName('ocr', '车牌OCR_轻盈版'),
+        buildFunctionCallToolName('ocr', '身份证OCR')
+      ]
+
+      // All tools should be unique
+      const uniqueTools = new Set(tools)
+      expect(uniqueTools.size).toBe(4)
+
+      // Verify each tool contains its distinctive Chinese characters
+      expect(tools[0]).toContain('行驶证')
+      expect(tools[1]).toContain('营业执照')
+      expect(tools[2]).toContain('车牌')
+      expect(tools[3]).toContain('身份证')
+    })
+
+    it('should handle Japanese characters', () => {
+      const result = buildFunctionCallToolName('server', 'ユーザー検索')
+      expect(result).toContain('ユーザー検索')
+      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+    })
+
+    it('should handle Korean characters', () => {
+      const result = buildFunctionCallToolName('server', '사용자검색')
+      expect(result).toContain('사용자검색')
+      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+    })
+
+    it('should handle mixed language tool names', () => {
+      const result = buildFunctionCallToolName('api', 'search用户by名称')
+      expect(result).toContain('search')
+      expect(result).toContain('用户')
+      expect(result).toContain('by')
+      expect(result).toContain('名称')
+      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+    })
+
+    it('should replace only control characters and special symbols, not Unicode letters', () => {
+      const result = buildFunctionCallToolName('test', '文件@上传#工具')
+      // @ and # should be replaced with underscores
+      expect(result).not.toContain('@')
+      expect(result).not.toContain('#')
+      // Chinese characters should be preserved
+      expect(result).toContain('文件')
+      expect(result).toContain('上传')
+      expect(result).toContain('工具')
     })
   })
 })
