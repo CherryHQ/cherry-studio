@@ -11,7 +11,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { SettingsState } from '@renderer/store/settings'
-import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
+import { type Assistant, type GenerateImageParams, type Model, type Provider } from '@renderer/types'
 import type {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
@@ -25,7 +25,8 @@ import type {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, withoutTrailingSlash } from '@renderer/utils/api'
+import { isOllamaProvider } from '@renderer/utils/provider'
 
 import { BaseApiClient } from '../BaseApiClient'
 
@@ -114,6 +115,34 @@ export abstract class OpenAIBaseClient<
             owned_by: model.publisher
           }))
           .filter(isSupportedModel)
+      }
+
+      if (isOllamaProvider(this.provider)) {
+        const baseUrl = withoutTrailingSlash(this.getBaseURL(false))
+          .replace(/\/v1$/, '')
+          .replace(/\/api$/, '')
+        const response = await fetch(`${baseUrl}/api/tags`, {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            ...this.defaultHeaders(),
+            ...this.provider.extra_headers
+          }
+        })
+
+        if (!response.ok) {
+          throw new Error(`Ollama server returned ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        if (!data?.models || !Array.isArray(data.models)) {
+          throw new Error('Invalid response from Ollama API: missing models array')
+        }
+
+        return data.models.map((model) => ({
+          id: model.name,
+          object: 'model',
+          owned_by: 'ollama'
+        }))
       }
       const response = await sdk.models.list()
       if (this.provider.id === 'together') {

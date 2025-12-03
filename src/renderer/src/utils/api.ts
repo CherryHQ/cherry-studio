@@ -111,6 +111,17 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
 }
 
 /**
+ * 格式化 Ollama 的 API 主机地址。
+ */
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
+}
+
+/**
  * 格式化 Azure OpenAI 的 API 主机地址。
  */
 export function formatAzureOpenAIApiHost(host: string): string {

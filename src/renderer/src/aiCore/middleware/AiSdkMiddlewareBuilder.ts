@@ -4,7 +4,7 @@ import { isGemini3Model, isSupportedThinkingTokenQwenModel } from '@renderer/con
 import type { MCPTool } from '@renderer/types'
 import { type Assistant, type Message, type Model, type Provider, SystemProviderIds } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
-import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
+import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 import { isEmpty } from 'lodash'
@@ -240,6 +240,7 @@ function addModelSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config: Ai
   // Use /think or /no_think suffix to control thinking mode
   if (
     config.provider &&
+    !isOllamaProvider(config.provider) &&
     isSupportedThinkingTokenQwenModel(config.model) &&
     !isSupportEnableThinkingProvider(config.provider)
   ) {

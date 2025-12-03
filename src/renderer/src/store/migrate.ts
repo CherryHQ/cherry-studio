@@ -2917,6 +2917,11 @@ const migrateConfig = {
       if (state.settings.openAI.verbosity === 'undefined') {
         state.settings.openAI.verbosity = undefined
       }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
       logger.info('migrate 180 success')
       return state
     } catch (error) {
