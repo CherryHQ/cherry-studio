@@ -2,6 +2,7 @@ import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
+import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -260,7 +261,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <HStack justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
-            {enableSpellCheck && (
+            {enableSpellCheck && !isMac && (
               <Selector<string>
                 size={14}
                 multiple
