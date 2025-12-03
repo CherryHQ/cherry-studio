@@ -404,7 +404,7 @@ export class SelectionService {
       height: toolbarHeight,
       show: false,
       frame: false,
-      transparent: true,
+      transparent: isWin ? false : true,
       alwaysOnTop: true,
       skipTaskbar: true,
       autoHideMenuBar: true,
@@ -1111,7 +1111,7 @@ export class SelectionService {
       minHeight: 200,
       resizable: true,
       frame: false,
-      transparent: true,
+      transparent: isWin ? false : true,
       autoHideMenuBar: true,
       titleBarStyle: 'hidden', // [macOS]
       trafficLightPosition: { x: 12, y: 9 }, // [macOS]

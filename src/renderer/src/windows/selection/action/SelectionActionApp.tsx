@@ -260,9 +260,9 @@ const WindowFrame = styled.div<{ $opacity: number }>`
   position: relative;
   display: flex;
   flex-direction: column;
-  width: calc(100% - 6px);
-  height: calc(100% - 6px);
-  margin: 2px;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   background-color: var(--color-background);
   border: 1px solid var(--color-border);
   box-shadow: 0px 0px 2px var(--color-text-3);
