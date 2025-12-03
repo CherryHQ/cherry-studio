@@ -73,6 +73,7 @@ import {
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
+import VolcengineService from './services/VolcengineService'
 import WebSocketService from './services/WebSocketService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
@@ -1076,6 +1077,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.WebSocket_Status, WebSocketService.getStatus)
   ipcMain.handle(IpcChannel.WebSocket_SendFile, WebSocketService.sendFile)
   ipcMain.handle(IpcChannel.WebSocket_GetAllCandidates, WebSocketService.getAllCandidates)
+
+  // Volcengine
+  ipcMain.handle(IpcChannel.Volcengine_SaveCredentials, VolcengineService.saveCredentials)
+  ipcMain.handle(IpcChannel.Volcengine_HasCredentials, VolcengineService.hasCredentials)
+  ipcMain.handle(IpcChannel.Volcengine_ClearCredentials, VolcengineService.clearCredentials)
+  ipcMain.handle(IpcChannel.Volcengine_ListModels, VolcengineService.listModels)
+  ipcMain.handle(IpcChannel.Volcengine_GetAuthHeaders, VolcengineService.getAuthHeaders)
+  ipcMain.handle(IpcChannel.Volcengine_MakeRequest, VolcengineService.makeRequest)
 
   ipcMain.handle(IpcChannel.APP_CrashRenderProcess, () => {
     mainWindow.webContents.forcefullyCrashRenderer()
