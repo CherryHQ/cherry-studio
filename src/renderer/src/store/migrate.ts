@@ -2915,7 +2915,7 @@ const migrateConfig = {
       }
       // @ts-expect-error
       if (state.settings.openAI.verbosity === 'undefined') {
-        state.settings.openAI.summaryText = undefined
+        state.settings.openAI.verbosity = undefined
       }
       logger.info('migrate 180 success')
       return state
