@@ -151,6 +151,7 @@ class FileStorage {
   private currentWatchPath?: string
   private debounceTimer?: NodeJS.Timeout
   private watcherConfig: Required<FileWatcherConfig> = DEFAULT_WATCHER_CONFIG
+  private isPaused = false
 
   constructor() {
     this.initStorageDir()
@@ -1448,6 +1449,12 @@ class FileStorage {
 
   private createChangeHandler() {
     return (eventType: string, filePath: string) => {
+      // Skip processing if watcher is paused
+      if (this.isPaused) {
+        logger.debug('File change ignored (watcher paused)', { eventType, filePath })
+        return
+      }
+
       if (!this.shouldWatchFile(filePath, eventType)) {
         return
       }
@@ -1744,8 +1751,8 @@ class FileStorage {
   public pauseFileWatcher = async (): Promise<void> => {
     if (this.watcher) {
       logger.debug('Pausing file watcher')
-      // Chokidar doesn't have pause, so we temporarily set a flag
-      // We'll handle this by clearing the debounce timer
+      this.isPaused = true
+      // Clear any pending debounced notifications
       if (this.debounceTimer) {
         clearTimeout(this.debounceTimer)
         this.debounceTimer = undefined
@@ -1759,6 +1766,7 @@ class FileStorage {
   public resumeFileWatcher = async (): Promise<void> => {
     if (this.watcher && this.currentWatchPath) {
       logger.debug('Resuming file watcher')
+      this.isPaused = false
       // Send a synthetic refresh event to trigger tree reload
       this.notifyChange('refresh', this.currentWatchPath)
     }

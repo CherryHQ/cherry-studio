@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useInPlaceEdit')
 export interface UseInPlaceEditOptions {
   onSave: ((value: string) => void) | ((value: string) => Promise<void>)
   onCancel?: () => void
+  onError?: (error: unknown) => void
   autoSelectOnStart?: boolean
   trimOnSave?: boolean
 }
@@ -28,7 +30,8 @@ export interface UseInPlaceEditReturn {
  * @returns An object containing the editing state and handler functions
  */
 export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditReturn {
-  const { onSave, onCancel, autoSelectOnStart = true, trimOnSave = true } = options
+  const { onSave, onCancel, onError, autoSelectOnStart = true, trimOnSave = true } = options
+  const { t } = useTranslation()
 
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -68,9 +71,17 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       setEditValue('')
     } catch (error) {
       logger.error('Error saving in-place edit', { error })
+
+      // Call custom error handler if provided, otherwise show default toast
+      if (onError) {
+        onError(error)
+      } else {
+        window.toast.error(t('common.save_failed') || 'Failed to save')
+      }
+    } finally {
       setIsSaving(false)
     }
-  }, [isSaving, trimOnSave, editValue, onSave])
+  }, [isSaving, trimOnSave, editValue, onSave, onError, t])
 
   const cancelEdit = useCallback(() => {
     setIsEditing(false)
