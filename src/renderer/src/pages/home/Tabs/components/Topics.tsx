@@ -144,15 +144,13 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         await db.topics.add({ id: newTopic.id, messages: [] })
         addTopic(newTopic)
         setActiveTopic(newTopic)
-        removeTopic(topic)
-        setDeletingTopicId(null)
-        return
+      } else {
+        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+        if (topic.id === activeTopic.id) {
+          setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+        }
       }
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      if (topic.id === activeTopic.id) {
-        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
-      }
       removeTopic(topic)
       setDeletingTopicId(null)
     },
