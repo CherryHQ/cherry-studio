@@ -358,7 +358,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       translate,
       handleToggleExpanded,
       sendMessageShortcut,
-      cannotSend,
       isSendDisabled,
       handleSendMessage,
       setText,
