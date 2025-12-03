@@ -264,9 +264,10 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           expanded={shouldExpand}
           wrapped={shouldWrap}
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
+          onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
         />
       ),
-    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+    [children, codeCollapsible, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
   )
 
   // 特殊视图组件映射
