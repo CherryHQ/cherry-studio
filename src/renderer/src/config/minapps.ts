@@ -35,6 +35,7 @@ import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
+import PowerdrillAppLogo from '@renderer/assets/images/apps/powerdrill.png?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
@@ -242,6 +243,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Poe',
     logo: PoeAppLogo,
     url: 'https://poe.com'
+  },
+  {
+    id: 'powerdrill',
+    name: 'Powerdrill',
+    logo: PowerdrillAppLogo,
+    url: 'https://powerdrill.ai/',
+    bodered: true
   },
   {
     id: 'perplexity',
