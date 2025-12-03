@@ -62,15 +62,10 @@ const ApiServerSettings: FC = () => {
     }
   }
 
-  const buildApiServerUrl = () => {
-    const host = apiServerConfig.host || '127.0.0.1'
-    const port = apiServerConfig.port || 23333
-    return `http://${host}:${port}`
-  }
-
   const openApiDocs = () => {
     if (apiServerRunning) {
-      window.open(`${buildApiServerUrl()}/api-docs`, '_blank')
+      const port = apiServerConfig.port || 23333
+      window.open(`http://127.0.0.1:${port}/api-docs`, '_blank')
     }
   }
 
@@ -104,7 +99,9 @@ const ApiServerSettings: FC = () => {
               {apiServerRunning ? t('apiServer.status.running') : t('apiServer.status.stopped')}
             </StatusText>
             <StatusSubtext>
-              {apiServerRunning ? buildApiServerUrl() : t('apiServer.fields.port.description')}
+              {apiServerRunning
+                ? `http://127.0.0.1:${apiServerConfig.port || 23333}`
+                : t('apiServer.fields.port.description')}
             </StatusSubtext>
           </StatusContent>
         </StatusSection>

@@ -2909,18 +2909,8 @@ const migrateConfig = {
   },
   '180': (state: RootState) => {
     try {
-      const apiServer = state.settings.apiServer
-      if (apiServer?.host) {
-        const host = apiServer.host.trim()
-        if (host === 'localhost' || host === 'http://localhost' || host === 'https://localhost') {
-          if (host.startsWith('https://')) {
-            apiServer.host = 'https://127.0.0.1'
-          } else if (host.startsWith('http://')) {
-            apiServer.host = 'http://127.0.0.1'
-          } else {
-            apiServer.host = '127.0.0.1'
-          }
-        }
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = '127.0.0.1'
       }
       logger.info('migrate 180 success')
       return state
