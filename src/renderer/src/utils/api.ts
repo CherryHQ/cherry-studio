@@ -10,6 +10,7 @@ export {
   SUPPORTED_IMAGE_ENDPOINT_LIST,
   validateApiHost,
   withoutTrailingApiVersion,
+  withoutTrailingSharp,
   withoutTrailingSlash
 } from '@shared/api'
 

@@ -322,9 +322,10 @@ function convertAnthropicToAiMessages(params: MessageCreateParams): ModelMessage
             }
           }
           if (openRouterReasoningCache.get(`openrouter-${block.id}`)) {
-              options.openrouter = {
-                reasoning_details: (sanitizeJson(openRouterReasoningCache.get(`openrouter-${block.id}`)) as JSONValue[]) || []
-              }
+            options.openrouter = {
+              reasoning_details:
+                (sanitizeJson(openRouterReasoningCache.get(`openrouter-${block.id}`)) as JSONValue[]) || []
+            }
           }
           toolCallParts.push({
             type: 'tool-call',

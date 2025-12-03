@@ -68,6 +68,29 @@ vi.mock('@renderer/store/settings', () => {
   )
 })
 
+vi.mock('@renderer/i18n', () => ({
+  __esModule: true,
+  default: {
+    t: vi.fn((key: string) => key)
+  }
+}))
+
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn().mockReturnValue({
+    id: 'openai',
+    type: 'openai',
+    name: 'OpenAI',
+    models: []
+  }),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: vi.fn(() => ({})),
   useNavbarPosition: vi.fn(() => ({ navbarPosition: 'left' })),
@@ -98,6 +121,10 @@ vi.mock('../websearch', () => ({
   isOpenAIWebSearchChatCompletionOnlyModel: vi.fn()
 }))
 
+vi.mock('../tooluse', () => ({
+  isFunctionCallingModel: vi.fn()
+}))
+
 const createModel = (overrides: Partial<Model> = {}): Model => ({
   id: 'gpt-4o',
   name: 'gpt-4o',
@@ -125,6 +152,7 @@ describe('model utils', () => {
     generateImageMock.mockReturnValue(false)
     reasoningMock.mockReturnValue(false)
     openAIWebSearchOnlyMock.mockReturnValue(false)
+    isFunctionCallingModelMock.mockReturnValue(true)
   })
 
   describe('OpenAI model detection', () => {
