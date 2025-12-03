@@ -50,6 +50,9 @@ export interface InputbarCoreProps {
   resizeTextArea: (force?: boolean) => void
   focusTextarea: () => void
 
+  height: number | undefined
+  onHeightChange: (height: number) => void
+
   supportedExts: string[]
   isLoading: boolean
 
@@ -104,6 +107,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   textareaRef,
   resizeTextArea,
   focusTextarea,
+  height,
+  onHeightChange,
   supportedExts,
   isLoading,
   onPause,
@@ -130,8 +135,6 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     enableSpellCheck
   } = useSettings()
   const quickPanelTriggersEnabled = forceEnableQuickPanelTriggers ?? enableQuickPanelTriggers
-
-  const [textareaHeight, setTextareaHeight] = useState<number>()
 
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
@@ -538,8 +541,8 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
       const handleMouseMove = (e: MouseEvent) => {
         const deltaY = startDragY.current - e.clientY
-        const newHeight = Math.max(40, Math.min(400, startHeight.current + deltaY))
-        setTextareaHeight(newHeight)
+        const newHeight = Math.max(40, Math.min(500, startHeight.current + deltaY))
+        onHeightChange(newHeight)
       }
 
       const handleMouseUp = () => {
@@ -550,7 +553,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
     },
-    [config.enableDragDrop, setTextareaHeight, textareaRef]
+    [config.enableDragDrop, onHeightChange, textareaRef]
   )
 
   const onQuote = useCallback(
@@ -667,11 +670,11 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
-            autoSize={textareaHeight ? false : { minRows: 2, maxRows: 20 }}
+            autoSize={height ? false : { minRows: 2, maxRows: 20 }}
             styles={{ textarea: TextareaStyle }}
             style={{
               fontSize,
-              height: textareaHeight,
+              height: height,
               minHeight: '30px'
             }}
             disabled={isTranslating || searching}

@@ -143,9 +143,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
     resize: resizeTextArea,
     focus: focusTextarea,
     setExpanded,
-    isExpanded: textareaIsExpanded
+    isExpanded: textareaIsExpanded,
+    customHeight,
+    setCustomHeight
   } = useTextareaResize({
-    maxHeight: 400,
+    maxHeight: 500,
     minHeight: 30
   })
 
@@ -257,7 +259,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       setText('')
       setFiles([])
       setTimeoutTimer('sendMessage_1', () => setText(''), 500)
-      setTimeoutTimer('sendMessage_2', () => resizeTextArea(true), 0)
+      setTimeoutTimer('sendMessage_2', () => resizeTextArea(), 0)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
@@ -478,6 +480,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
       text={text}
       onTextChange={setText}
       textareaRef={textareaRef}
+      height={customHeight}
+      onHeightChange={setCustomHeight}
       resizeTextArea={resizeTextArea}
       focusTextarea={focusTextarea}
       isLoading={loading}
