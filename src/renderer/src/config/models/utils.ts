@@ -97,14 +97,6 @@ export function isSupportTopPModel(model: Model | undefined | null): boolean {
   return true
 }
 
-/**
- * @deprecated Use isSupportTemperatureModel and isSupportTopPModel instead
- * Check if the model doesn't support both temperature and top_p parameters
- */
-export function isNotSupportTemperatureAndTopP(model: Model): boolean {
-  return !isSupportTemperatureModel(model) && !isSupportTopPModel(model)
-}
-
 export function isGemmaModel(model?: Model): boolean {
   if (!model) {
     return false

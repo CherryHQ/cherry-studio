@@ -25,7 +25,6 @@ import {
   isGenerateImageModels,
   isMaxTemperatureOneModel,
   isNotSupportSystemMessageModel,
-  isNotSupportTemperatureAndTopP,
   isNotSupportTextDeltaModel,
   isSupportedFlexServiceTier,
   isSupportedModel,
@@ -334,30 +333,6 @@ describe('model utils', () => {
       it('returns true for regular GPT models', () => {
         const model = createModel({ id: 'gpt-4' })
         expect(isSupportTopPModel(model)).toBe(true)
-      })
-    })
-
-    describe('isNotSupportTemperatureAndTopP (deprecated)', () => {
-      it('returns true for reasoning models', () => {
-        const model = createModel({ id: 'o1' })
-        reasoningMock.mockReturnValue(true)
-        expect(isNotSupportTemperatureAndTopP(model)).toBe(true)
-      })
-
-      it('returns false for open weight models', () => {
-        const openWeight = createModel({ id: 'gpt-oss-debug' })
-        expect(isNotSupportTemperatureAndTopP(openWeight)).toBe(false)
-      })
-
-      it('returns true for chat-only models without reasoning', () => {
-        const chatOnly = createModel({ id: 'o1-preview' })
-        reasoningMock.mockReturnValue(false)
-        expect(isNotSupportTemperatureAndTopP(chatOnly)).toBe(true)
-      })
-
-      it('returns true for Qwen MT models', () => {
-        const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
-        expect(isNotSupportTemperatureAndTopP(qwenMt)).toBe(true)
       })
     })
   })
