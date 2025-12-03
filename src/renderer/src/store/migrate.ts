@@ -2909,9 +2909,13 @@ const migrateConfig = {
   },
   '180': (state: RootState) => {
     try {
-      if (!state.llm?.providers) {
-        logger.warn('migrate 180 skipped: state.llm.providers is undefined')
-        return state
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
       }
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.ollama) {
