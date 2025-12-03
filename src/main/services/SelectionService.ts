@@ -1109,13 +1109,14 @@ export class SelectionService {
       height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT,
       minWidth: 300,
       minHeight: 200,
+      resizable: true,
       frame: false,
       transparent: true,
       autoHideMenuBar: true,
       titleBarStyle: 'hidden', // [macOS]
       trafficLightPosition: { x: 12, y: 9 }, // [macOS]
       hasShadow: false,
-      thickFrame: false,
+      thickFrame: isWin ? true : false,
       show: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
