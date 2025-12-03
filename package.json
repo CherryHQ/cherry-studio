@@ -363,6 +363,7 @@
     "tar": "^7.4.3",
     "tiny-pinyin": "^1.3.2",
     "tokenx": "^1.1.0",
+    "transliteration": "^2.3.5",
     "tsx": "^4.20.3",
     "turndown-plugin-gfm": "^1.0.2",
     "tw-animate-css": "^1.3.8",

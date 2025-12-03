@@ -1,6 +1,51 @@
+import { transliterate } from 'transliteration'
+
+/**
+ * Transliterate non-ASCII characters to ASCII equivalents
+ * - Chinese → Pinyin (e.g., 行驶证 → xingshizheng)
+ * - Japanese → Romaji (e.g., ユーザー → yūzā)
+ * - Korean → Romanization (e.g., 사용자 → sayongja)
+ * - Other special characters → underscores
+ */
+/**
+ * Transliterates non-ASCII text (including CJK characters) to ASCII-compatible format.
+ *
+ * Converts input text to lowercase ASCII representation, replacing spaces with underscores
+ * and removing special characters. Unknown or special characters are replaced with underscores.
+ *
+ * @param text - The input string to transliterate, may contain Unicode characters including CJK
+ * @returns A lowercase ASCII string with spaces converted to underscores and special characters removed,
+ *          preserving only alphanumeric characters, underscores, dots, hyphens, and colons
+ *
+ * @example
+ * ```typescript
+ * transliterateToAscii("Hello World") // returns "hello_world"
+ * transliterateToAscii("你好世界") // returns transliterated version with underscores
+ * transliterateToAscii("Café-123") // returns "cafe_123"
+ * ```
+ */
+function transliterateToAscii(text: string): string {
+  // Use transliteration library which supports CJK (Chinese, Japanese, Korean)
+  const result = transliterate(text, {
+    // Unknown/special characters become underscores
+    unknown: '_',
+    ignore: []
+  })
+
+  // Convert to lowercase, remove spaces, and clean up special chars
+  return result
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_.\-:]/g, '_')
+}
+
 export function buildFunctionCallToolName(serverName: string, toolName: string, serverId?: string) {
-  const sanitizedServer = serverName.trim().replace(/-/g, '_')
-  const sanitizedTool = toolName.trim().replace(/-/g, '_')
+  // First, transliterate non-ASCII characters to ASCII
+  const transliteratedServer = transliterateToAscii(serverName.trim())
+  const transliteratedTool = transliterateToAscii(toolName.trim())
+
+  const sanitizedServer = transliteratedServer.replace(/-/g, '_')
+  const sanitizedTool = transliteratedTool.replace(/-/g, '_')
 
   // Calculate suffix first to reserve space for it
   // Suffix format: "_" + 6 alphanumeric chars = 7 chars total
@@ -26,14 +71,13 @@ export function buildFunctionCallToolName(serverName: string, toolName: string, 
     name = `${sanitizedServer.slice(0, 7) || ''}-${sanitizedTool || ''}`
   }
 
-  // Replace invalid characters with underscores or dashes
-  // Keep Unicode letters (\p{L}), Unicode numbers (\p{N}), underscores and dashes
-  // This supports international characters (Chinese, Japanese, Korean, etc.)
-  name = name.replace(/[^\p{L}\p{N}_-]/gu, '_')
+  // Replace invalid characters with underscores
+  // Keep only a-z, A-Z, 0-9, underscores, dashes, dots, colons (AI model compatible)
+  name = name.replace(/[^a-zA-Z0-9_.\-:]/g, '_')
 
-  // Ensure name starts with a letter or underscore (supports Unicode letters)
-  if (!/^[\p{L}_]/u.test(name)) {
-    name = `tool-${name}`
+  // Ensure name starts with a letter or underscore (AI model requirement)
+  if (!/^[a-zA-Z_]/.test(name)) {
+    name = `tool_${name}`
   }
 
   // Remove consecutive underscores/dashes (optional improvement)

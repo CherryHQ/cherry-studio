@@ -10285,6 +10285,7 @@ __metadata:
     tesseract.js: "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch"
     tiny-pinyin: "npm:^1.3.2"
     tokenx: "npm:^1.1.0"
+    transliteration: "npm:^2.3.5"
     tsx: "npm:^4.20.3"
     turndown: "npm:7.2.0"
     turndown-plugin-gfm: "npm:^1.0.2"
@@ -24604,6 +24605,18 @@ __metadata:
   version: 0.0.3
   resolution: "tr46@npm:0.0.3"
   checksum: 10c0/047cb209a6b60c742f05c9d3ace8fa510bff609995c129a37ace03476a9b12db4dbf975e74600830ef0796e18882b2381fb5fb1f6b4f96b832c374de3ab91a11
+  languageName: node
+  linkType: hard
+
+"transliteration@npm:^2.3.5":
+  version: 2.3.5
+  resolution: "transliteration@npm:2.3.5"
+  dependencies:
+    yargs: "npm:^17.5.1"
+  bin:
+    slugify: dist/bin/slugify
+    transliterate: dist/bin/transliterate
+  checksum: 10c0/68397225c2ca59b8e33206c65f905724e86b64460cbf90576d352dc2366e763ded97e2c7b8b1f140fb36a565d61a97c51080df9fa638e6b1769f6cb24f383756
   languageName: node
   linkType: hard
 

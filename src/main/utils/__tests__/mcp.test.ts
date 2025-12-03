@@ -61,12 +61,13 @@ describe('buildFunctionCallToolName', () => {
     it('should replace invalid characters with underscores', () => {
       const result = buildFunctionCallToolName('test@server', 'tool#name')
       expect(result).not.toMatch(/[@#]/)
-      expect(result).toMatch(/^[\p{L}\p{N}_-]+$/u)
+      // Should only contain ASCII alphanumeric, underscore, dash, dot, colon
+      expect(result).toMatch(/^[a-zA-Z0-9_.\-:]+$/)
     })
 
     it('should ensure name starts with a letter or underscore', () => {
       const result = buildFunctionCallToolName('123server', '456tool')
-      expect(result).toMatch(/^[\p{L}_]/u)
+      expect(result).toMatch(/^[a-zA-Z_]/)
     })
 
     it('should handle consecutive underscores/dashes', () => {
@@ -130,7 +131,7 @@ describe('buildFunctionCallToolName', () => {
       // Should still produce a valid unique suffix via fallback hash
       expect(result).toBeTruthy()
       expect(result.length).toBeLessThanOrEqual(63)
-      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+      expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
       // Should have a suffix (underscore followed by something)
       expect(result).toMatch(/_[a-z0-9]+$/)
     })
@@ -177,9 +178,9 @@ describe('buildFunctionCallToolName', () => {
       // Should be different
       expect(tool1).not.toBe(tool2)
 
-      // Both should be valid identifiers
-      expect(tool1).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
-      expect(tool2).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+      // Both should be valid AI model tool names (ASCII only)
+      expect(tool1).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+      expect(tool2).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
 
       // Both should be <= 63 chars
       expect(tool1.length).toBeLessThanOrEqual(63)
@@ -194,12 +195,14 @@ describe('buildFunctionCallToolName', () => {
     })
   })
 
-  describe('internationalization support', () => {
-    it('should preserve Chinese characters in tool names', () => {
+  describe('internationalization support (CJK to ASCII transliteration)', () => {
+    it('should convert Chinese characters to pinyin', () => {
       const result = buildFunctionCallToolName('ocr', '行驶证OCR_轻盈版')
-      expect(result).toContain('行驶证')
-      expect(result).toContain('OCR')
-      expect(result).toContain('轻盈版')
+      // Chinese characters should be transliterated to pinyin
+      expect(result).not.toMatch(/[\u4e00-\u9fff]/) // No Chinese characters
+      expect(result).toContain('ocr') // OCR is lowercased
+      // Should only contain ASCII characters (lowercase)
+      expect(result).toMatch(/^[a-z_][a-z0-9_.\-:]*$/)
     })
 
     it('should distinguish between different Chinese OCR tools', () => {
@@ -210,47 +213,84 @@ describe('buildFunctionCallToolName', () => {
         buildFunctionCallToolName('ocr', '身份证OCR')
       ]
 
-      // All tools should be unique
+      // All tools should be unique (pinyin transliterations are different)
       const uniqueTools = new Set(tools)
       expect(uniqueTools.size).toBe(4)
 
-      // Verify each tool contains its distinctive Chinese characters
-      expect(tools[0]).toContain('行驶证')
-      expect(tools[1]).toContain('营业执照')
-      expect(tools[2]).toContain('车牌')
-      expect(tools[3]).toContain('身份证')
+      // All should be ASCII-only valid tool names
+      tools.forEach((tool) => {
+        expect(tool).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+        expect(tool).not.toMatch(/[\u4e00-\u9fff]/) // No Chinese characters
+      })
+
+      // Verify they contain transliterated pinyin (with underscores between characters)
+      // 行驶证 = xing_shi_zheng, 营业执照 = ying_ye_zhi_zhao, 车牌 = che_pai, 身份证 = shen_fen_zheng
+      expect(tools[0]).toContain('xing_shi_zheng')
+      expect(tools[1]).toContain('ying_ye_zhi_zhao')
+      expect(tools[2]).toContain('che_pai')
+      expect(tools[3]).toContain('shen_fen_zheng')
     })
 
-    it('should handle Japanese characters', () => {
+    it('should handle Japanese characters with base36 encoding', () => {
       const result = buildFunctionCallToolName('server', 'ユーザー検索')
-      expect(result).toContain('ユーザー検索')
-      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+      // Should be ASCII-only
+      expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+      // Should not contain original Japanese characters
+      expect(result).not.toMatch(/[\u3040-\u309f\u30a0-\u30ff]/)
     })
 
-    it('should handle Korean characters', () => {
+    it('should handle Korean characters with base36 encoding', () => {
       const result = buildFunctionCallToolName('server', '사용자검색')
-      expect(result).toContain('사용자검색')
-      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+      // Should be ASCII-only
+      expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
+      // Should not contain original Korean characters
+      expect(result).not.toMatch(/[\uac00-\ud7af]/)
     })
 
     it('should handle mixed language tool names', () => {
       const result = buildFunctionCallToolName('api', 'search用户by名称')
+      // ASCII parts should be preserved (lowercased)
       expect(result).toContain('search')
-      expect(result).toContain('用户')
       expect(result).toContain('by')
-      expect(result).toContain('名称')
-      expect(result).toMatch(/^[\p{L}_][\p{L}\p{N}_-]*$/u)
+      // Chinese parts should be transliterated (用户 = yong_hu, 名称 = ming_cheng)
+      expect(result).toContain('yong_hu')
+      expect(result).toContain('ming_cheng')
+      // Final result should be ASCII-only (lowercase)
+      expect(result).toMatch(/^[a-z_][a-z0-9_.\-:]*$/)
     })
 
-    it('should replace only control characters and special symbols, not Unicode letters', () => {
+    it('should transliterate Chinese and replace special symbols', () => {
       const result = buildFunctionCallToolName('test', '文件@上传#工具')
       // @ and # should be replaced with underscores
       expect(result).not.toContain('@')
       expect(result).not.toContain('#')
-      // Chinese characters should be preserved
-      expect(result).toContain('文件')
-      expect(result).toContain('上传')
-      expect(result).toContain('工具')
+      // Chinese characters should be transliterated
+      // 文件 = wen_jian, 上传 = shang_chuan, 工具 = gong_ju
+      expect(result).toContain('wen_jian')
+      expect(result).toContain('shang_chuan')
+      expect(result).toContain('gong_ju')
+      // Should be ASCII-only (lowercase)
+      expect(result).toMatch(/^[a-z_][a-z0-9_.\-:]*$/)
+    })
+
+    it('should produce AI model compatible tool names', () => {
+      const testCases = [
+        '行驶证OCR',
+        '营业执照识别',
+        'get用户info',
+        '文件@处理',
+        '数据分析_v2'
+      ]
+
+      testCases.forEach((testCase) => {
+        const result = buildFunctionCallToolName('server', testCase)
+        // Must start with letter or underscore
+        expect(result).toMatch(/^[a-zA-Z_]/)
+        // Must only contain a-z, A-Z, 0-9, _, -, ., :
+        expect(result).toMatch(/^[a-zA-Z0-9_.\-:]+$/)
+        // Must be <= 64 characters
+        expect(result.length).toBeLessThanOrEqual(64)
+      })
     })
   })
 })
