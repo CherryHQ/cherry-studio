@@ -31,6 +31,23 @@ import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
+type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
+
+// Define available spell check languages with display names (only commonly supported languages)
+const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
+  { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { value: 'pt', label: 'Português', flag: '🇵🇹' },
+  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+  { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
+  { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
+]
+
 const GeneralSettings: FC = () => {
   const {
     language,
@@ -139,20 +156,6 @@ const GeneralSettings: FC = () => {
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
   }
-
-  // Define available spell check languages with display names (only commonly supported languages)
-  const spellCheckLanguageOptions = [
-    { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
-    { value: 'es', label: 'Español', flag: '🇪🇸' },
-    { value: 'fr', label: 'Français', flag: '🇫🇷' },
-    { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
-    { value: 'it', label: 'Italiano', flag: '🇮🇹' },
-    { value: 'pt', label: 'Português', flag: '🇵🇹' },
-    { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-    { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-    { value: 'pl', label: 'Polski', flag: '🇵🇱' },
-    { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
-  ]
 
   const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
     dispatch(setSpellCheckLanguages(selectedLanguages))
