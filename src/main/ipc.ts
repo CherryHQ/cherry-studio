@@ -112,6 +112,113 @@ function extractPluginError(error: unknown): PluginError | null {
   return null
 }
 
+/**
+ * Find executable in common paths or PATH environment variable
+ * Based on Claude Code's implementation with security checks
+ */
+function findExecutable(name: string): string | null {
+  const { execSync } = require('child_process')
+
+  // Special handling for git - check common installation paths first
+  if (name === 'git') {
+    const commonGitPaths = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
+    ]
+
+    for (const gitPath of commonGitPaths) {
+      if (fs.existsSync(gitPath)) {
+        logger.debug(`Found ${name} at common path`, { path: gitPath })
+        return gitPath
+      }
+    }
+  }
+
+  // Use where.exe to find executable in PATH
+  try {
+    const result = execSync(`where.exe ${name}`, {
+      stdio: 'pipe',
+      encoding: 'utf8'
+    })
+
+    const paths = result.trim().split('\n').filter(Boolean)
+    const currentDir = process.cwd().toLowerCase()
+
+    // Security check: skip executables in current directory
+    for (const exePath of paths) {
+      const resolvedPath = path.resolve(exePath).toLowerCase()
+      const execDir = path.dirname(resolvedPath).toLowerCase()
+
+      // Skip if in current directory or subdirectory (potential malware)
+      if (execDir === currentDir || resolvedPath.startsWith(currentDir + path.sep)) {
+        logger.warn('Skipping potentially malicious executable in current directory', {
+          path: exePath
+        })
+        continue
+      }
+
+      logger.debug(`Found ${name} via where.exe`, { path: exePath })
+      return exePath
+    }
+
+    return null
+  } catch (error) {
+    logger.debug(`where.exe ${name} failed`, { error })
+    return null
+  }
+}
+
+/**
+ * Find Git Bash executable on Windows
+ * Returns the path to bash.exe or null if not found
+ */
+function findGitBash(): string | null {
+  // 1. Check environment variable override
+  if (process.env.CHERRY_STUDIO_GIT_BASH_PATH) {
+    const customPath = process.env.CHERRY_STUDIO_GIT_BASH_PATH
+    if (fs.existsSync(customPath)) {
+      logger.info('Using custom Git Bash path from environment variable', { path: customPath })
+      return customPath
+    }
+    logger.warn('Custom Git Bash path not found', { path: customPath })
+  }
+
+  // 2. Find git.exe and derive bash.exe path
+  const gitPath = findExecutable('git')
+  if (gitPath) {
+    // Git for Windows structure: Git/cmd/git.exe -> Git/bin/bash.exe
+    const bashPath = path.join(gitPath, '..', '..', 'bin', 'bash.exe')
+    const resolvedBashPath = path.resolve(bashPath)
+
+    if (fs.existsSync(resolvedBashPath)) {
+      logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
+      return resolvedBashPath
+    }
+
+    logger.debug('bash.exe not found at expected location relative to git.exe', {
+      gitPath,
+      expectedBashPath: resolvedBashPath
+    })
+  }
+
+  // 3. Fallback: check common Git Bash paths directly
+  const commonBashPaths = [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe')
+  ]
+
+  for (const bashPath of commonBashPaths) {
+    if (fs.existsSync(bashPath)) {
+      logger.debug('Found bash.exe at common path', { path: bashPath })
+      return bashPath
+    }
+  }
+
+  logger.info('Git Bash not found - checked environment variable, git derivation, and common paths')
+  return null
+}
+
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
   const notificationService = new NotificationService()
@@ -498,38 +605,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return true // Non-Windows systems don't need Git Bash
     }
 
-    try {
-      // Check common Git Bash installation paths
-      const commonPaths = [
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe')
-      ]
+    const bashPath = findGitBash()
 
-      // Check if any of the common paths exist
-      for (const bashPath of commonPaths) {
-        if (fs.existsSync(bashPath)) {
-          logger.debug('Git Bash found', { path: bashPath })
-          return true
-        }
-      }
-
-      // Check if git is in PATH
-      const { execSync } = require('child_process')
-      try {
-        execSync('git --version', { stdio: 'ignore' })
-        logger.debug('Git found in PATH')
-        return true
-      } catch {
-        // Git not in PATH
-      }
-
-      logger.debug('Git Bash not found on Windows system')
-      return false
-    } catch (error) {
-      logger.error('Error checking Git Bash', error as Error)
-      return false
+    if (bashPath) {
+      logger.info('Git Bash is available', { path: bashPath })
+      return true
     }
+
+    logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
+    return false
   })
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
