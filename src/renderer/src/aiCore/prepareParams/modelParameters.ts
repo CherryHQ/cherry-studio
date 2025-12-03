@@ -7,9 +7,10 @@ import {
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
-  isNotSupportTemperatureAndTopP,
   isSupportedFlexServiceTier,
-  isSupportedThinkingTokenClaudeModel
+  isSupportedThinkingTokenClaudeModel,
+  isSupportTemperatureModel,
+  isSupportTopPModel
 } from '@renderer/config/models'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
@@ -30,7 +31,7 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
   if (
-    isNotSupportTemperatureAndTopP(model) ||
+    !isSupportTemperatureModel(model) ||
     (isClaude45ReasoningModel(model) && assistant.settings?.enableTopP && !assistant.settings?.enableTemperature)
   ) {
     return undefined
@@ -50,10 +51,7 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (
-    isNotSupportTemperatureAndTopP(model) ||
-    (isClaude45ReasoningModel(model) && assistant.settings?.enableTemperature)
-  ) {
+  if (!isSupportTopPModel(model) || (isClaude45ReasoningModel(model) && assistant.settings?.enableTemperature)) {
     return undefined
   }
   const assistantSettings = getAssistantSettings(assistant)

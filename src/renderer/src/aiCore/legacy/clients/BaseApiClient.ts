@@ -2,9 +2,10 @@ import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
   isFunctionCallingModel,
-  isNotSupportTemperatureAndTopP,
   isOpenAIModel,
-  isSupportFlexServiceTierModel
+  isSupportFlexServiceTierModel,
+  isSupportTemperatureModel,
+  isSupportTopPModel
 } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
@@ -199,7 +200,7 @@ export abstract class BaseApiClient<
   }
 
   public getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (isNotSupportTemperatureAndTopP(model)) {
+    if (!isSupportTemperatureModel(model)) {
       return undefined
     }
     const assistantSettings = getAssistantSettings(assistant)
@@ -207,7 +208,7 @@ export abstract class BaseApiClient<
   }
 
   public getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (isNotSupportTemperatureAndTopP(model)) {
+    if (!isSupportTopPModel(model)) {
       return undefined
     }
     const assistantSettings = getAssistantSettings(assistant)

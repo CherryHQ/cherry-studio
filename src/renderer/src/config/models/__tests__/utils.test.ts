@@ -30,6 +30,8 @@ import {
   isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportFlexServiceTierModel,
+  isSupportTemperatureModel,
+  isSupportTopPModel,
   isVisionModels,
   isZhipuModel
 } from '../utils'
@@ -269,7 +271,73 @@ describe('model utils', () => {
   })
 
   describe('Temperature and top-p support', () => {
-    describe('isNotSupportTemperatureAndTopP', () => {
+    describe('isSupportTemperatureModel', () => {
+      it('returns false for reasoning models (non-open weight)', () => {
+        const model = createModel({ id: 'o1' })
+        reasoningMock.mockReturnValue(true)
+        expect(isSupportTemperatureModel(model)).toBe(false)
+      })
+
+      it('returns true for open weight models', () => {
+        const openWeight = createModel({ id: 'gpt-oss-debug' })
+        expect(isSupportTemperatureModel(openWeight)).toBe(true)
+      })
+
+      it('returns false for chat-only models', () => {
+        const chatOnly = createModel({ id: 'o1-preview' })
+        expect(isSupportTemperatureModel(chatOnly)).toBe(false)
+      })
+
+      it('returns false for Qwen MT models', () => {
+        const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
+        expect(isSupportTemperatureModel(qwenMt)).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isSupportTemperatureModel(null)).toBe(false)
+        expect(isSupportTemperatureModel(undefined)).toBe(false)
+      })
+
+      it('returns true for regular GPT models', () => {
+        const model = createModel({ id: 'gpt-4' })
+        expect(isSupportTemperatureModel(model)).toBe(true)
+      })
+    })
+
+    describe('isSupportTopPModel', () => {
+      it('returns false for reasoning models (non-open weight)', () => {
+        const model = createModel({ id: 'o1' })
+        reasoningMock.mockReturnValue(true)
+        expect(isSupportTopPModel(model)).toBe(false)
+      })
+
+      it('returns true for open weight models', () => {
+        const openWeight = createModel({ id: 'gpt-oss-debug' })
+        expect(isSupportTopPModel(openWeight)).toBe(true)
+      })
+
+      it('returns false for chat-only models', () => {
+        const chatOnly = createModel({ id: 'o1-preview' })
+        expect(isSupportTopPModel(chatOnly)).toBe(false)
+      })
+
+      it('returns false for Qwen MT models', () => {
+        const qwenMt = createModel({ id: 'qwen-mt-large', provider: 'aliyun' })
+        expect(isSupportTopPModel(qwenMt)).toBe(false)
+      })
+
+      it('returns false for null/undefined models', () => {
+        expect(isSupportTopPModel(null)).toBe(false)
+        expect(isSupportTopPModel(undefined)).toBe(false)
+      })
+
+      it('returns true for regular GPT models', () => {
+        const model = createModel({ id: 'gpt-4' })
+        expect(isSupportTopPModel(model)).toBe(true)
+      })
+    })
+
+    describe('isNotSupportTemperatureAndTopP (deprecated)', () => {
       it('returns true for reasoning models', () => {
         const model = createModel({ id: 'o1' })
         reasoningMock.mockReturnValue(true)

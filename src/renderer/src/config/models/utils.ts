@@ -41,20 +41,68 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   return !NOT_SUPPORTED_REGEX.test(modelId)
 }
 
-export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+/**
+ * Check if the model supports temperature parameter
+ * @param model - The model to check
+ * @returns true if the model supports temperature parameter
+ */
+export function isSupportTemperatureModel(model: Model | undefined | null): boolean {
   if (!model) {
-    return true
+    return false
   }
 
-  if (
-    (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
-    isOpenAIChatCompletionOnlyModel(model) ||
-    isQwenMTModel(model)
-  ) {
-    return true
+  // OpenAI reasoning models (except open weight) don't support temperature
+  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
+    return false
   }
 
-  return false
+  // OpenAI chat completion only models don't support temperature
+  if (isOpenAIChatCompletionOnlyModel(model)) {
+    return false
+  }
+
+  // Qwen MT models don't support temperature
+  if (isQwenMTModel(model)) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * Check if the model supports top_p parameter
+ * @param model - The model to check
+ * @returns true if the model supports top_p parameter
+ */
+export function isSupportTopPModel(model: Model | undefined | null): boolean {
+  if (!model) {
+    return false
+  }
+
+  // OpenAI reasoning models (except open weight) don't support top_p
+  if (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) {
+    return false
+  }
+
+  // OpenAI chat completion only models don't support top_p
+  if (isOpenAIChatCompletionOnlyModel(model)) {
+    return false
+  }
+
+  // Qwen MT models don't support top_p
+  if (isQwenMTModel(model)) {
+    return false
+  }
+
+  return true
+}
+
+/**
+ * @deprecated Use isSupportTemperatureModel and isSupportTopPModel instead
+ * Check if the model doesn't support both temperature and top_p parameters
+ */
+export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+  return !isSupportTemperatureModel(model) && !isSupportTopPModel(model)
 }
 
 export function isGemmaModel(model?: Model): boolean {
