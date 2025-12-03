@@ -3,12 +3,13 @@
  * Provides realistic mock responses for all provider types
  */
 
-import { jsonSchema, type ModelMessage, type Tool } from 'ai'
+import type { ModelMessage, Tool } from 'ai'
+import { jsonSchema } from 'ai'
 
 /**
  * Standard test messages for all scenarios
  */
-export const testMessages = {
+export const testMessages: Record<string, ModelMessage[]> = {
   simple: [{ role: 'user' as const, content: 'Hello, how are you?' }],
 
   conversation: [
@@ -45,7 +46,7 @@ export const testMessages = {
     { role: 'assistant' as const, content: '15 * 23 = 345' },
     { role: 'user' as const, content: 'Now divide that by 5' }
   ]
-} satisfies Record<string, ModelMessage[]>
+}
 
 /**
  * Standard test tools for tool calling scenarios
@@ -139,67 +140,16 @@ export const testTools: Record<string, Tool> = {
 }
 
 /**
- * Mock streaming chunks for different providers
- */
-export const mockStreamingChunks = {
-  text: [
-    { type: 'text-delta' as const, textDelta: 'Hello' },
-    { type: 'text-delta' as const, textDelta: ', ' },
-    { type: 'text-delta' as const, textDelta: 'this ' },
-    { type: 'text-delta' as const, textDelta: 'is ' },
-    { type: 'text-delta' as const, textDelta: 'a ' },
-    { type: 'text-delta' as const, textDelta: 'test.' }
-  ],
-
-  withToolCall: [
-    { type: 'text-delta' as const, textDelta: 'Let me check the weather for you.' },
-    {
-      type: 'tool-call-delta' as const,
-      toolCallType: 'function' as const,
-      toolCallId: 'call_123',
-      toolName: 'getWeather',
-      argsTextDelta: '{"location":'
-    },
-    {
-      type: 'tool-call-delta' as const,
-      toolCallType: 'function' as const,
-      toolCallId: 'call_123',
-      toolName: 'getWeather',
-      argsTextDelta: ' "San Francisco, CA"}'
-    },
-    {
-      type: 'tool-call' as const,
-      toolCallType: 'function' as const,
-      toolCallId: 'call_123',
-      toolName: 'getWeather',
-      args: { location: 'San Francisco, CA' }
-    }
-  ],
-
-  withFinish: [
-    { type: 'text-delta' as const, textDelta: 'Complete response.' },
-    {
-      type: 'finish' as const,
-      finishReason: 'stop' as const,
-      usage: {
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15
-      }
-    }
-  ]
-}
-
-/**
  * Mock complete responses for non-streaming scenarios
+ * Note: AI SDK v5 uses inputTokens/outputTokens instead of promptTokens/completionTokens
  */
 export const mockCompleteResponses = {
   simple: {
     text: 'This is a simple response.',
     finishReason: 'stop' as const,
     usage: {
-      promptTokens: 15,
-      completionTokens: 8,
+      inputTokens: 15,
+      outputTokens: 8,
       totalTokens: 23
     }
   },
@@ -215,8 +165,8 @@ export const mockCompleteResponses = {
     ],
     finishReason: 'tool-calls' as const,
     usage: {
-      promptTokens: 25,
-      completionTokens: 12,
+      inputTokens: 25,
+      outputTokens: 12,
       totalTokens: 37
     }
   },
@@ -225,14 +175,15 @@ export const mockCompleteResponses = {
     text: 'Response with warnings.',
     finishReason: 'stop' as const,
     usage: {
-      promptTokens: 10,
-      completionTokens: 5,
+      inputTokens: 10,
+      outputTokens: 5,
       totalTokens: 15
     },
     warnings: [
       {
         type: 'unsupported-setting' as const,
-        message: 'Temperature parameter not supported for this model'
+        setting: 'temperature',
+        details: 'Temperature parameter not supported for this model'
       }
     ]
   }
@@ -283,49 +234,5 @@ export const mockImageResponses = {
       }
     },
     warnings: []
-  }
-}
-
-/**
- * Mock error responses
- */
-export const mockErrors = {
-  invalidApiKey: {
-    name: 'APIError',
-    message: 'Invalid API key provided',
-    statusCode: 401
-  },
-
-  rateLimitExceeded: {
-    name: 'RateLimitError',
-    message: 'Rate limit exceeded. Please try again later.',
-    statusCode: 429,
-    headers: {
-      'retry-after': '60'
-    }
-  },
-
-  modelNotFound: {
-    name: 'ModelNotFoundError',
-    message: 'The requested model was not found',
-    statusCode: 404
-  },
-
-  contextLengthExceeded: {
-    name: 'ContextLengthError',
-    message: "This model's maximum context length is 4096 tokens",
-    statusCode: 400
-  },
-
-  timeout: {
-    name: 'TimeoutError',
-    message: 'Request timed out after 30000ms',
-    code: 'ETIMEDOUT'
-  },
-
-  networkError: {
-    name: 'NetworkError',
-    message: 'Network connection failed',
-    code: 'ECONNREFUSED'
   }
 }
