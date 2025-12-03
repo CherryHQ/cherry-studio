@@ -64,18 +64,8 @@ const ApiServerSettings: FC = () => {
 
   const buildApiServerUrl = () => {
     const host = apiServerConfig.host || '127.0.0.1'
-    const hasProtocol = host.startsWith('http://') || host.startsWith('https://')
-    const baseHost = hasProtocol ? host : `http://${host}`
-    try {
-      const url = new URL(baseHost)
-      if (!url.port && apiServerConfig.port) {
-        url.port = String(apiServerConfig.port)
-      }
-      return url.origin
-    } catch {
-      const portSegment = apiServerConfig.port ? `:${apiServerConfig.port}` : ''
-      return `${baseHost}${portSegment}`
-    }
+    const port = apiServerConfig.port || 23333
+    return `http://${host}:${port}`
   }
 
   const openApiDocs = () => {
