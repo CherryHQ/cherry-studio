@@ -541,7 +541,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
       const handleMouseMove = (e: MouseEvent) => {
         const deltaY = startDragY.current - e.clientY
-        const newHeight = Math.max(40, Math.min(400, startHeight.current + deltaY))
+        const newHeight = Math.max(40, Math.min(500, startHeight.current + deltaY))
         onHeightChange(newHeight)
       }
 
