@@ -13,6 +13,7 @@ import {
   isOpenAIReasoningModel
 } from './openai'
 import { isQwenMTModel } from './qwen'
+import { isClaude45ReasoningModel } from './reasoning'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
 export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini.*-flash.*$', 'i')
@@ -95,6 +96,17 @@ export function isSupportTopPModel(model: Model | undefined | null): boolean {
   }
 
   return true
+}
+
+/**
+ * Check if the model enforces mutual exclusivity between temperature and top_p parameters.
+ * Currently only Claude 4.5 reasoning models require this constraint.
+ * @param model - The model to check
+ * @returns true if temperature and top_p are mutually exclusive for this model
+ */
+export function isTemperatureTopPMutuallyExclusiveModel(model: Model | undefined | null): boolean {
+  if (!model) return false
+  return isClaude45ReasoningModel(model)
 }
 
 export function isGemmaModel(model?: Model): boolean {

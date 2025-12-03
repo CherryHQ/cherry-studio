@@ -4,13 +4,13 @@
  */
 
 import {
-  isClaude45ReasoningModel,
   isClaudeReasoningModel,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel,
   isSupportTemperatureModel,
-  isSupportTopPModel
+  isSupportTopPModel,
+  isTemperatureTopPMutuallyExclusiveModel
 } from '@renderer/config/models'
 import {
   DEFAULT_ASSISTANT_SETTINGS,
@@ -38,7 +38,11 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
 
-  if (isClaude45ReasoningModel(model) && assistant.settings?.enableTopP && !assistant.settings?.enableTemperature) {
+  if (
+    isTemperatureTopPMutuallyExclusiveModel(model) &&
+    assistant.settings?.enableTopP &&
+    !assistant.settings?.enableTemperature
+  ) {
     return undefined
   }
 
@@ -67,7 +71,7 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   if (!isSupportTopPModel(model)) {
     return undefined
   }
-  if (isClaude45ReasoningModel(model) && assistant.settings?.enableTemperature) {
+  if (isTemperatureTopPMutuallyExclusiveModel(model) && assistant.settings?.enableTemperature) {
     return undefined
   }
 
