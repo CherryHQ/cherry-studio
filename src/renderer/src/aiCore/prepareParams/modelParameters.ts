@@ -12,50 +12,69 @@ import {
   isSupportTemperatureModel,
   isSupportTopPModel
 } from '@renderer/config/models'
-import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
+import {
+  DEFAULT_ASSISTANT_SETTINGS,
+  getAssistantSettings,
+  getProviderByModel
+} from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
 import { defaultTimeout } from '@shared/config/constant'
 
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
 
 /**
- * Claude 4.5 推理模型:
- * - 只启用 temperature → 使用 temperature
- * - 只启用 top_p → 使用 top_p
- * - 同时启用 → temperature 生效,top_p 被忽略
- * - 都不启用 → 都不使用
- * 获取温度参数
+ * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
+ * - Disabled for Claude reasoning models when reasoning effort is set.
+ * - Disabled for models that do not support temperature.
+ * - Disabled for Claude 4.5 reasoning models when TopP is enabled and temperature is disabled.
+ * Otherwise, returns the temperature value if the assistant has temperature enabled.
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (
-    !isSupportTemperatureModel(model) ||
-    (isClaude45ReasoningModel(model) && assistant.settings?.enableTopP && !assistant.settings?.enableTemperature)
-  ) {
+
+  if (!isSupportTemperatureModel(model)) {
     return undefined
   }
+
+  if (isClaude45ReasoningModel(model) && assistant.settings?.enableTopP && !assistant.settings?.enableTemperature) {
+    return undefined
+  }
+
   const assistantSettings = getAssistantSettings(assistant)
   let temperature = assistantSettings?.temperature
   if (temperature && isMaxTemperatureOneModel(model)) {
     temperature = Math.min(1, temperature)
   }
-  return assistantSettings?.enableTemperature ? temperature : undefined
+
+  // FIXME: assistant.settings.enableTemperature should be always a boolean value.
+  const enableTemperature = assistantSettings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
+  return enableTemperature ? temperature : undefined
 }
 
 /**
- * 获取 TopP 参数
+ * Retrieves the TopP parameter, adapting it based on assistant.settings and model capabilities.
+ * - Disabled for Claude reasoning models when reasoning effort is set.
+ * - Disabled for models that do not support TopP.
+ * - Disabled for Claude 4.5 reasoning models when temperature is explicitly enabled.
+ * Otherwise, returns the TopP value if the assistant has TopP enabled.
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
   if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
     return undefined
   }
-  if (!isSupportTopPModel(model) || (isClaude45ReasoningModel(model) && assistant.settings?.enableTemperature)) {
+  if (!isSupportTopPModel(model)) {
     return undefined
   }
+  if (isClaude45ReasoningModel(model) && assistant.settings?.enableTemperature) {
+    return undefined
+  }
+
   const assistantSettings = getAssistantSettings(assistant)
-  return assistantSettings?.enableTopP ? assistantSettings?.topP : undefined
+  // FIXME: assistant.settings.enableTopP should be always a boolean value.
+  const enableTopP = assistantSettings.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
+  return enableTopP ? assistantSettings?.topP : undefined
 }
 
 /**
