@@ -1,4 +1,7 @@
-# Router Architecture & Tab System
+# Architecture: Single Router + Outlet (KeepAlive Required)
+
+> **Status**: Initial Design (需要 KeepAlive 库支持)
+> **Core Idea**: 单个 HashRouter，依赖 `<Outlet />` 渲染，需要 KeepAlive 包装防止组件卸载
 
 ## Overview
 
