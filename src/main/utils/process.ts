@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -68,7 +68,10 @@ export async function isBinaryExists(name: string): Promise<boolean> {
  * @returns Full path to the executable or null if not found
  */
 export function findExecutable(name: string): string | null {
-  const { execFileSync } = require('child_process')
+  // This implementation uses where.exe which is Windows-only
+  if (process.platform !== 'win32') {
+    return null
+  }
 
   // Special handling for git - check common installation paths first
   if (name === 'git') {
@@ -88,7 +91,9 @@ export function findExecutable(name: string): string | null {
   // Use where.exe to find executable in PATH
   // Use execFileSync to prevent command injection
   try {
-    const result = execFileSync('where.exe', [name], {
+    // Add .exe extension for more precise matching on Windows
+    const executableName = `${name}.exe`
+    const result = execFileSync('where.exe', [executableName], {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -99,13 +104,13 @@ export function findExecutable(name: string): string | null {
 
     // Security check: skip executables in current directory
     for (const exePath of paths) {
-      // Trim whitespace and carriage returns from where.exe output
+      // Trim whitespace from where.exe output
       const cleanPath = exePath.trim()
       const resolvedPath = path.resolve(cleanPath).toLowerCase()
       const execDir = path.dirname(resolvedPath).toLowerCase()
 
       // Skip if in current directory or subdirectory (potential malware)
-      if (execDir === currentDir || resolvedPath.startsWith(currentDir + path.sep)) {
+      if (execDir === currentDir || execDir.startsWith(currentDir + path.sep)) {
         logger.warn('Skipping potentially malicious executable in current directory', {
           path: cleanPath
         })
@@ -128,15 +133,20 @@ export function findExecutable(name: string): string | null {
  * @returns Full path to bash.exe or null if not found
  */
 export function findGitBash(): string | null {
+  // Git Bash is Windows-only
+  if (process.platform !== 'win32') {
+    return null
+  }
+
   // 1. Find git.exe and derive bash.exe path
   const gitPath = findExecutable('git')
   if (gitPath) {
     // Try multiple possible locations for bash.exe relative to git.exe
     // Different Git installations have different directory structures
     const possibleBashPaths = [
-      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard: Git/cmd/git.exe -> Git/bin/bash.exe
-      path.join(gitPath, '..', 'bash.exe'), // Portable: Git/bin/git.exe -> Git/bin/bash.exe
-      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // Git for Windows 2.x: Git/cmd/git.exe -> Git/usr/bin/bash.exe
+      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard: Git/cmd/git.exe -> Git/cmd -> Git -> Git/bin/bash.exe
+      path.join(gitPath, '..', 'bash.exe'), // Portable: Git/bin/git.exe -> Git/bin -> Git/bin/bash.exe
+      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // Git for Windows 2.x: Git/cmd/git.exe -> Git/cmd -> Git -> Git/usr/bin/bash.exe
     ]
 
     for (const bashPath of possibleBashPaths) {
