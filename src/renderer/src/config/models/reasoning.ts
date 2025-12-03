@@ -479,7 +479,7 @@ export const isDeepSeekHybridInferenceModel = (model: Model) => {
     return (
       /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(modelId) ||
       modelId.includes('deepseek-chat-v3.1') ||
-      modelId === 'deepseek-chat'
+      modelId.includes('deepseek-chat')
     )
   })
   return idResult || nameResult

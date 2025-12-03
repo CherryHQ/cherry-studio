@@ -130,4 +130,19 @@ describe('isFunctionCallingModel', () => {
     deepSeekHybridMock.mockReturnValueOnce(true)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3-1', provider: 'dashscope' }))).toBe(false)
   })
+
+  it('supports anthropic models through claude regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'claude-3-5-sonnet', provider: 'anthropic' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'claude-3-opus', provider: 'anthropic' }))).toBe(true)
+  })
+
+  it('supports kimi models through kimi-k2 regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k2-0711-preview', provider: 'moonshot' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k2', provider: 'kimi' }))).toBe(true)
+  })
+
+  it('supports deepseek models through deepseek regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-chat', provider: 'deepseek' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-coder', provider: 'deepseek' }))).toBe(true)
+  })
 })

@@ -369,6 +369,37 @@ describe('DeepSeek & Thinking Tokens', () => {
     expect(isSupportedThinkingTokenModel(disallowed)).toBe(false)
   })
 
+  it('supports DeepSeek v3.1+ models from newly added providers', () => {
+    // Test newly added providers for DeepSeek thinking token support
+    const newProviders = ['deepseek', 'cherryin', 'new-api', 'aihubmix', 'sophnet', 'dmxapi']
+
+    newProviders.forEach((provider) => {
+      const model = createModel({ id: 'deepseek-v3.1', provider })
+      expect(
+        isSupportedThinkingTokenModel(model),
+        `Provider ${provider} should support thinking tokens for deepseek-v3.1`
+      ).toBe(true)
+    })
+  })
+
+  it('tests various prefix patterns for isDeepSeekHybridInferenceModel', () => {
+    // Test with custom prefixes
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'custom-deepseek-v3.2' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'prefix-deepseek-v3.1' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'agent/deepseek-v3.2' }))).toBe(true)
+
+    // Test that speciale is properly excluded
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'custom-deepseek-v3.2-speciale' }))).toBe(false)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'agent/deepseek-v3.2-speciale' }))).toBe(false)
+
+    // Test basic deepseek-chat
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-chat' }))).toBe(true)
+
+    // Test version variations
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v3.1.2' }))).toBe(true)
+    expect(isDeepSeekHybridInferenceModel(createModel({ id: 'deepseek-v3-1' }))).toBe(true)
+  })
+
   it('supports Gemini thinking models while filtering image variants', () => {
     expect(isSupportedThinkingTokenModel(createModel({ id: 'gemini-2.5-flash-latest' }))).toBe(true)
     expect(isSupportedThinkingTokenModel(createModel({ id: 'gemini-2.5-flash-image' }))).toBe(false)
@@ -557,6 +588,22 @@ describe('isReasoningModel', () => {
     models.forEach((id) => {
       const model = createModel({ id })
       expect(isFixedReasoningModel(model), `Model ${id} should be reasoning`).toBe(true)
+    })
+  })
+
+  it('excludes non-fixed reasoning models from isFixedReasoningModel', () => {
+    // Models that support thinking tokens or reasoning effort should NOT be fixed reasoning models
+    const nonFixedModels = [
+      { id: 'deepseek-v3.2', provider: 'deepseek' }, // Supports thinking tokens
+      { id: 'deepseek-chat', provider: 'deepseek' }, // Supports thinking tokens
+      { id: 'claude-3-opus-20240229', provider: 'anthropic' }, // Supports thinking tokens via extended_thinking
+      { id: 'gpt-4o', provider: 'openai' }, // Not a reasoning model at all
+      { id: 'gpt-4', provider: 'openai' } // Not a reasoning model at all
+    ]
+
+    nonFixedModels.forEach(({ id, provider }) => {
+      const model = createModel({ id, provider })
+      expect(isFixedReasoningModel(model), `Model ${id} should NOT be fixed reasoning`).toBe(false)
     })
   })
 })

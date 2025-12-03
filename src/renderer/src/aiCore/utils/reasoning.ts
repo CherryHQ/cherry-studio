@@ -290,6 +290,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           logger.warn(
             `Skipping thinking options for provider ${provider.name} as DeepSeek v3.1 thinking control method is unknown`
           )
+        // Fall through to silicon case - silicon is already handled before this switch (lines 230-240)
+        // So this fall-through results in no action, which is correct for unknown providers
         case SystemProviderIds.silicon:
         // specially handled before
       }

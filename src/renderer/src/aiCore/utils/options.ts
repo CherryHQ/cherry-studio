@@ -446,8 +446,10 @@ function buildCherryInProviderOptions(
 
     case 'gemini':
       return buildGeminiProviderOptions(assistant, model, capabilities)
+
+    default:
+      return buildGenericProviderOptions(assistant, model, capabilities)
   }
-  return {}
 }
 
 /**
