@@ -37,7 +37,11 @@ const SlashCommandsButton: FC<Props> = ({ quickPanelController, session, openPan
 
   return (
     <Tooltip placement="top" title={t('chat.input.slash_commands.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={isActive} disabled={!hasCommands}>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={isActive}
+        disabled={!hasCommands}
+        aria-label={t('chat.input.slash_commands.title')}>
         <Terminal size={18} />
       </ActionIconButton>
     </Tooltip>
