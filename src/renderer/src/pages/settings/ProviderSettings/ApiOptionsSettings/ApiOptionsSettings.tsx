@@ -124,7 +124,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
             </label>
             <InfoTooltip content={item.tip}></InfoTooltip>
           </RowFlex>
-          <Switch id={item.key} isSelected={item.checked} onValueChange={item.onChange} />
+          <Switch id={item.key} checked={item.checked} onCheckedChange={item.onChange} />
         </RowFlex>
       ))}
     </ColFlex>

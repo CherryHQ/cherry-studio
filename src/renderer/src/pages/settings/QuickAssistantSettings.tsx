@@ -82,14 +82,14 @@ const QuickAssistantSettings: FC = () => {
               iconProps={{ className: 'cursor-pointer' }}
             />
           </SettingRowTitle>
-          <Switch isSelected={enableQuickAssistant} onValueChange={handleEnableQuickAssistant} />
+          <Switch checked={enableQuickAssistant} onCheckedChange={handleEnableQuickAssistant} />
         </SettingRow>
         {enableQuickAssistant && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
-              <Switch isSelected={clickTrayToShowQuickAssistant} onValueChange={handleClickTrayToShowQuickAssistant} />
+              <Switch checked={clickTrayToShowQuickAssistant} onCheckedChange={handleClickTrayToShowQuickAssistant} />
             </SettingRow>
           </>
         )}
@@ -98,7 +98,7 @@ const QuickAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
-              <Switch isSelected={readClipboardAtStartup} onValueChange={handleClickReadClipboardAtStartup} />
+              <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}

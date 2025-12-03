@@ -938,7 +938,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
           <RowFlex>
-            <Switch isSelected={painting.autoCreate} onValueChange={(checked) => onChangeAutoCreate(checked)} />
+            <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
         </LeftContainer>
         <MainContainer>

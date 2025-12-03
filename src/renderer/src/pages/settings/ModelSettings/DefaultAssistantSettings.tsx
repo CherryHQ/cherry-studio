@@ -174,8 +174,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          isSelected={enableTemperature}
-          onValueChange={(enabled) => {
+          checked={enableTemperature}
+          onCheckedChange={(enabled) => {
             setEnableTemperature(enabled)
             onUpdateAssistantSettings({ enableTemperature: enabled })
           }}
@@ -221,8 +221,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          isSelected={enableTopP}
-          onValueChange={(enabled) => {
+          checked={enableTopP}
+          onCheckedChange={(enabled) => {
             setEnableTopP(enabled)
             onUpdateAssistantSettings({ enableTopP: enabled })
           }}
@@ -298,8 +298,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          isSelected={enableMaxTokens}
-          onValueChange={async (enabled) => {
+          checked={enableMaxTokens}
+          onCheckedChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),

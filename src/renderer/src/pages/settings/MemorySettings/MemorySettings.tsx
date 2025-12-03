@@ -585,7 +585,7 @@ const MemorySettings = () => {
             <TextBadge text="Beta" />
           </RowFlex>
           <RowFlex className="items-center gap-2.5">
-            <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
+            <Switch checked={globalMemoryEnabled} onCheckedChange={handleGlobalMemoryToggle} />
             <Button variant="ghost" onClick={() => setSettingsModalVisible(true)} size="icon">
               <Settings2 size={16} />
             </Button>

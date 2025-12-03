@@ -228,13 +228,13 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-              <Switch isSelected={autoCheckUpdate} onValueChange={(v) => setAutoCheckUpdate(v)} />
+              <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
               <Tooltip content={t('settings.general.test_plan.tooltip')}>
-                <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
+                <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
             {testPlan && (

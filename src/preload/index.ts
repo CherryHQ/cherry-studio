@@ -9,6 +9,7 @@ import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
+  PreferenceMultipleResultType,
   SelectionActionItem
 } from '@shared/data/preference/preferenceTypes'
 import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
@@ -553,8 +554,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Preference_Get, key),
     set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
-    getMultiple: (keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> =>
-      ipcRenderer.invoke(IpcChannel.Preference_GetMultiple, keys),
+    getMultipleRaw: <K extends PreferenceKeyType>(keys: K[]): Promise<PreferenceMultipleResultType<K>> =>
+      ipcRenderer.invoke(IpcChannel.Preference_GetMultipleRaw, keys),
     setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
       ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
     getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),

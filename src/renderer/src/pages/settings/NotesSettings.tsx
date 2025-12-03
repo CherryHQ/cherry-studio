@@ -165,8 +165,8 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
           <Switch
-            isSelected={!settings.isFullWidth}
-            onValueChange={(checked) => updateSettings({ isFullWidth: !checked })}
+            checked={!settings.isFullWidth}
+            onCheckedChange={(checked) => updateSettings({ isFullWidth: !checked })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.compress_content_description')}</SettingHelpText>
@@ -191,8 +191,8 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.show_table_of_contents')}</SettingRowTitle>
           <Switch
-            isSelected={settings.showTableOfContents}
-            onValueChange={(checked) => updateSettings({ showTableOfContents: checked })}
+            checked={settings.showTableOfContents}
+            onCheckedChange={(checked) => updateSettings({ showTableOfContents: checked })}
           />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>

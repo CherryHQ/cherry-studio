@@ -1,12 +1,12 @@
+import { preferenceService } from '@data/PreferenceService'
 import type { NextFunction, Request, Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { config } from '../../config'
 import { authMiddleware } from '../auth'
 
-// Mock the config module
-vi.mock('../../config', () => ({
-  config: {
+// Mock the preferenceService module
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
     get: vi.fn()
   }
 }))
@@ -20,7 +20,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const mockConfig = config as any
+const mockPreferenceService = preferenceService as any
 
 describe('authMiddleware', () => {
   let req: Partial<Request>
@@ -45,24 +45,24 @@ describe('authMiddleware', () => {
   })
 
   describe('Missing credentials', () => {
-    it('should return 401 when both auth headers are missing', async () => {
+    it('should return 401 when both auth headers are missing', () => {
       ;(req.header as any).mockReturnValue('')
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: missing credentials' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should return 401 when both auth headers are empty strings', async () => {
+    it('should return 401 when both auth headers are empty strings', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return ''
         if (header === 'x-api-key') return ''
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: missing credentials' })
@@ -71,30 +71,30 @@ describe('authMiddleware', () => {
   })
 
   describe('Server configuration', () => {
-    it('should return 403 when API key is not configured', async () => {
+    it('should return 403 when API key is not configured', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'some-key'
         return ''
       })
 
-      mockConfig.get.mockResolvedValue({ apiKey: '' })
+      mockPreferenceService.get.mockReturnValue('')
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should return 403 when API key is null', async () => {
+    it('should return 403 when API key is null', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'some-key'
         return ''
       })
 
-      mockConfig.get.mockResolvedValue({ apiKey: null })
+      mockPreferenceService.get.mockReturnValue(null)
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
@@ -106,80 +106,80 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
+      mockPreferenceService.get.mockReturnValue(validApiKey)
     })
 
-    it('should authenticate successfully with valid API key', async () => {
+    it('should authenticate successfully with valid API key', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return validApiKey
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(next).toHaveBeenCalled()
       expect(statusMock).not.toHaveBeenCalled()
     })
 
-    it('should return 403 with invalid API key', async () => {
+    it('should return 403 with invalid API key', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'invalid-key'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should return 401 with empty API key', async () => {
+    it('should return 401 with empty API key', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return '   '
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: empty x-api-key' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should handle API key with whitespace', async () => {
+    it('should handle API key with whitespace', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return `  ${validApiKey}  `
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(next).toHaveBeenCalled()
       expect(statusMock).not.toHaveBeenCalled()
     })
 
-    it('should prioritize API key over Bearer token when both are present', async () => {
+    it('should prioritize API key over Bearer token when both are present', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return validApiKey
         if (header === 'authorization') return 'Bearer invalid-token'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(next).toHaveBeenCalled()
       expect(statusMock).not.toHaveBeenCalled()
     })
 
-    it('should return 403 when API key is invalid even if Bearer token is valid', async () => {
+    it('should return 403 when API key is invalid even if Bearer token is valid', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'invalid-key'
         if (header === 'authorization') return `Bearer ${validApiKey}`
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
@@ -191,92 +191,92 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
+      mockPreferenceService.get.mockReturnValue(validApiKey)
     })
 
-    it('should authenticate successfully with valid Bearer token when no API key', async () => {
+    it('should authenticate successfully with valid Bearer token when no API key', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return `Bearer ${validApiKey}`
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(next).toHaveBeenCalled()
       expect(statusMock).not.toHaveBeenCalled()
     })
 
-    it('should return 403 with invalid Bearer token', async () => {
+    it('should return 403 with invalid Bearer token', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return 'Bearer invalid-token'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should return 401 with malformed authorization header', async () => {
+    it('should return 401 with malformed authorization header', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return 'Basic sometoken'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should return 401 with Bearer without space', async () => {
+    it('should return 401 with Bearer without space', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return 'Bearer'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should handle Bearer token with only trailing spaces (edge case)', async () => {
+    it('should handle Bearer token with only trailing spaces (edge case)', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return 'Bearer    ' // This will be trimmed to "Bearer" and fail format check
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should handle Bearer token with case insensitive prefix', async () => {
+    it('should handle Bearer token with case insensitive prefix', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return `bearer ${validApiKey}`
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(next).toHaveBeenCalled()
       expect(statusMock).not.toHaveBeenCalled()
     })
 
-    it('should handle Bearer token with whitespace', async () => {
+    it('should handle Bearer token with whitespace', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return `  Bearer   ${validApiKey}  `
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(next).toHaveBeenCalled()
       expect(statusMock).not.toHaveBeenCalled()
@@ -287,40 +287,29 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
+      mockPreferenceService.get.mockReturnValue(validApiKey)
     })
 
-    it('should handle config.get() rejection', async () => {
-      ;(req.header as any).mockImplementation((header: string) => {
-        if (header === 'x-api-key') return validApiKey
-        return ''
-      })
-
-      mockConfig.get.mockRejectedValue(new Error('Config error'))
-
-      await expect(authMiddleware(req as Request, res as Response, next)).rejects.toThrow('Config error')
-    })
-
-    it('should use timing-safe comparison for different length tokens', async () => {
+    it('should use timing-safe comparison for different length tokens', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'x-api-key') return 'short'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should return 401 when neither credential format is valid', async () => {
+    it('should return 401 when neither credential format is valid', () => {
       ;(req.header as any).mockImplementation((header: string) => {
         if (header === 'authorization') return 'Invalid format'
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
@@ -332,10 +321,10 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
+      mockPreferenceService.get.mockReturnValue(validApiKey)
     })
 
-    it('should handle similar length but different API keys securely', async () => {
+    it('should handle similar length but different API keys securely', () => {
       const similarKey = 'valid-api-key-124' // Same length, different last char
 
       ;(req.header as any).mockImplementation((header: string) => {
@@ -343,14 +332,14 @@ describe('authMiddleware', () => {
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('should handle similar length but different Bearer tokens securely', async () => {
+    it('should handle similar length but different Bearer tokens securely', () => {
       const similarKey = 'valid-api-key-124' // Same length, different last char
 
       ;(req.header as any).mockImplementation((header: string) => {
@@ -358,7 +347,7 @@ describe('authMiddleware', () => {
         return ''
       })
 
-      await authMiddleware(req as Request, res as Response, next)
+      authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
       expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })

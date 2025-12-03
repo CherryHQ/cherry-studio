@@ -803,8 +803,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <RowFlex>
             <Switch
-              isSelected={(painting[item.key!] || item.initialValue) as boolean}
-              onValueChange={(checked) => updatePaintingState({ [item.key!]: checked })}
+              checked={(painting[item.key!] || item.initialValue) as boolean}
+              onCheckedChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
           </RowFlex>
         )
