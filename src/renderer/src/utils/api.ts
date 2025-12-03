@@ -117,7 +117,7 @@ export function formatOllamaApiHost(host: string): string {
   const normalizedHost = withoutTrailingSlash(host)
     ?.replace(/\/v1$/, '')
     ?.replace(/\/api$/, '')
-    .replace(/\/chat$/, '')
+    ?.replace(/\/chat$/, '')
   return formatApiHost(normalizedHost + '/api', false)
 }
 

@@ -119,7 +119,7 @@ export abstract class OpenAIBaseClient<
 
       if (isOllamaProvider(this.provider)) {
         const baseUrl = withoutTrailingSlash(this.getBaseURL(false))
-          .replace(/\v1$/, '')
+          .replace(/\/v1$/, '')
           .replace(/\/api$/, '')
         const response = await fetch(`${baseUrl}/api/tags`, {
           headers: {
@@ -128,7 +128,17 @@ export abstract class OpenAIBaseClient<
             ...this.provider.extra_headers
           }
         })
-        return (await response.json()).models.map((model) => ({
+
+        if (!response.ok) {
+          throw new Error(`Ollama server returned ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        if (!data?.models || !Array.isArray(data.models)) {
+          throw new Error('Invalid response from Ollama API: missing models array')
+        }
+
+        return data.models.map((model) => ({
           id: model.name,
           object: 'model',
           owned_by: 'ollama'

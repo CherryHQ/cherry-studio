@@ -2909,6 +2909,10 @@ const migrateConfig = {
   },
   '180': (state: RootState) => {
     try {
+      if (!state.llm?.providers) {
+        logger.warn('migrate 180 skipped: state.llm.providers is undefined')
+        return state
+      }
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.ollama) {
           provider.type = 'ollama'
