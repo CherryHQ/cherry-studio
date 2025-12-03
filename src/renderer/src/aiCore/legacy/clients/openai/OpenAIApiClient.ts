@@ -713,7 +713,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...modalities,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
-          // verbosity. getVerbosity ensure the returned value is valid.
+          // verbosity. getVerbosity ensures the returned value is valid.
           verbosity: this.getVerbosity(model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...reasoningEffort,

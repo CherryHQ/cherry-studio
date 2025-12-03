@@ -31,15 +31,25 @@ export type GenerateObjectParams = Omit<Parameters<typeof generateObject>[0], 'm
 
 export type AiSdkModel = LanguageModel | ImageModel
 
-// The original type unite both undefined and null.
-// Parameter would not be passed into request if it's undefined.
+/**
+ * Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses.
+ *
+ * The original type unites both undefined and null.
+ * When undefined, the parameter is omitted from the request.
+ * When null, verbosity is explicitly disabled.
+ */
 export type OpenAIVerbosity = OpenAI.Responses.ResponseTextConfig['verbosity']
 export type ValidOpenAIVerbosity = NotUndefined<OpenAIVerbosity>
 
 export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
 
-// The original type unite both undefined and null.
-// Parameter would not be passed into request if it's undefined.
+/**
+ * A summary of the reasoning performed by the model. This can be useful for debugging and understanding the model's reasoning process.
+ *
+ * The original type unites both undefined and null.
+ * When undefined, the parameter is omitted from the request.
+ * When null, verbosity is explicitly disabled.
+ */
 export type OpenAISummaryText = OpenAI.Reasoning['summary']
 
 const AiSdkParamsSchema = z.enum([
