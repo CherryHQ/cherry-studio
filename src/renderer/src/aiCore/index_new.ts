@@ -27,6 +27,7 @@ import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { createAiSdkProvider } from './provider/factory'
 import {
+  adaptProvider,
   getActualProvider,
   isModernSdkSupported,
   prepareSpecialProviderConfig,
@@ -64,12 +65,11 @@ export default class ModernAiProvider {
    *    - URL will be automatically formatted via `formatProviderApiHost`, adding version suffixes like `/v1`
    *
    * 2. When called with `(model, provider)`:
-   *    - **Directly uses the provided provider WITHOUT going through `getActualProvider`**
-   *    - **URL will NOT be automatically formatted, `/v1` suffix will NOT be added**
-   *    - This is legacy behavior kept for backward compatibility
+   *    - The provided provider will be adapted via `adaptProvider`
+   *    - URL formatting behavior depends on the adapted result
    *
    * 3. When called with `(provider)`:
-   *    - Directly uses the provider without requiring a model
+   *    - The provider will be adapted via `adaptProvider`
    *    - Used for operations that don't need a model (e.g., fetchModels)
    *
    * @example
@@ -77,7 +77,7 @@ export default class ModernAiProvider {
    * // Recommended: Auto-format URL
    * const ai = new ModernAiProvider(model)
    *
-   * // Not recommended: Skip URL formatting (only for special cases)
+   * // Provider will be adapted
    * const ai = new ModernAiProvider(model, customProvider)
    *
    * // For operations that don't need a model
@@ -91,12 +91,12 @@ export default class ModernAiProvider {
     if (this.isModel(modelOrProvider)) {
       // 传入的是 Model
       this.model = modelOrProvider
-      this.actualProvider = provider || getActualProvider(modelOrProvider)
+      this.actualProvider = provider ? adaptProvider({ provider }) : getActualProvider(modelOrProvider)
       // 只保存配置，不预先创建executor
       this.config = providerToAiSdkConfig(this.actualProvider, modelOrProvider)
     } else {
       // 传入的是 Provider
-      this.actualProvider = modelOrProvider
+      this.actualProvider = adaptProvider({ provider: modelOrProvider })
       // model为可选，某些操作（如fetchModels）不需要model
     }
 
@@ -189,7 +189,7 @@ export default class ModernAiProvider {
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     // ai-gateway不是image/generation 端点，所以就先不走legacy了
-    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds['ai-gateway']) {
+    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds.gateway) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
@@ -480,7 +480,7 @@ export default class ModernAiProvider {
 
   // 代理其他方法到原有实现
   public async models() {
-    if (this.actualProvider.id === SystemProviderIds['ai-gateway']) {
+    if (this.actualProvider.id === SystemProviderIds.gateway) {
       const gatewayModels = (await gateway.getAvailableModels()).models
       return normalizeGatewayModels(this.actualProvider, gatewayModels)
     }

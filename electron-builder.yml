@@ -134,9 +134,9 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    A New Era of Intelligence with Cherry Studio 1.7.0
+    A New Era of Intelligence with Cherry Studio 1.7.1
 
-    Today we're releasing Cherry Studio 1.7.0 — our most ambitious update yet, introducing Agent: autonomous AI that thinks, plans, and acts.
+    Today we're releasing Cherry Studio 1.7.1 — our most ambitious update yet, introducing Agent: autonomous AI that thinks, plans, and acts.
 
     For years, AI assistants have been reactive — waiting for your commands, responding to your questions. With Agent, we're changing that. Now, AI can truly work alongside you: understanding complex goals, breaking them into steps, and executing them independently.
 
@@ -187,9 +187,9 @@ releaseInfo:
     The Agent Era is here. We can't wait to see what you'll create.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.7.0：开启智能新纪元
+    Cherry Studio 1.7.1：开启智能新纪元
 
-    今天，我们正式发布 Cherry Studio 1.7.0 —— 迄今最具雄心的版本，带来全新的 Agent：能够自主思考、规划和行动的 AI。
+    今天，我们正式发布 Cherry Studio 1.7.1 —— 迄今最具雄心的版本，带来全新的 Agent：能够自主思考、规划和行动的 AI。
 
     多年来，AI 助手一直是被动的——等待你的指令，回应你的问题。Agent 改变了这一切。现在，AI 能够真正与你并肩工作：理解复杂目标，将其拆解为步骤，并独立执行。
 

@@ -171,7 +171,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
             data-active={isActive}
             disabled={isDisabled}
             onClick={() => handleCommand(command)}
-            data-testid={`toolbar-${command}`}>
+            data-testid={`toolbar-${command}`}
+            aria-label={tooltipText}
+            aria-pressed={isActive}>
             <Icon color={isActive ? 'var(--color-primary)' : 'var(--color-text)'} />
           </ToolbarButton>
         )

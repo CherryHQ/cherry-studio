@@ -2531,7 +2531,7 @@
   },
   "provider": {
     "302ai": "302.AI",
-    "ai-gateway": "AI Gateway",
+    "ai-gateway": "Vercel AI Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
@@ -4372,7 +4372,7 @@
         "url": {
           "preview": "Preview: {{url}}",
           "reset": "Reset",
-          "tip": "ending with # forces use of input address"
+          "tip": "Add # at the end to disable the automatically appended API version."
         }
       },
       "api_host": "API Host",
