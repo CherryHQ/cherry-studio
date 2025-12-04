@@ -9,7 +9,7 @@
 
 ### Core Contradiction
 
-```
+```text
 URL Router Design Philosophy: URL change → Component switch (single active view)
 Tab System Requirement: Multiple views coexist, only switch visibility (preserve state)
 ```
@@ -48,7 +48,7 @@ These two are fundamentally conflicting. The current architecture uses TanStack 
 
 VS Code 1.85 implemented "Auxiliary Window" feature:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  Main Window                                            │
 │  ┌─────────────────────────────────────────────────────┐│
@@ -134,7 +134,7 @@ If not using `<Outlet />`, TSR feature availability:
 
 Each Tab has an independent MemoryRouter instance, achieving state isolation and KeepAlive.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │  AppShell                                               │
 │  ┌─────────────────────────────────────────────────────┐│
@@ -193,9 +193,10 @@ export interface TabsState {
 
 ```typescript
 // src/renderer/src/components/layout/TabRouter.tsx
+import { Activity } from 'react'  // React 19.2+
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { createMemoryHistory } from '@tanstack/react-router'
-import { useMemo, useEffect, useRef } from 'react'
+import { useMemo, useEffect } from 'react'
 import { routeTree } from '../../routeTree.gen'
 
 interface TabRouterProps {
@@ -228,19 +229,28 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     return unsubscribe
   }, [router, tab.url, onUrlChange])
 
+  // Use React 19.2 Activity for visibility control
+  // Benefits over CSS display:none:
+  // - Effects unmount when hidden (timers, subscriptions cleaned up)
+  // - Effects re-mount when visible (fresh state)
+  // - Better React integration and memory optimization
   return (
-    <div
-      style={{
-        display: isActive ? 'block' : 'none',
-        height: '100%',
-        width: '100%'
-      }}
-    >
+    <Activity mode={isActive ? 'visible' : 'hidden'}>
       <RouterProvider router={router} />
-    </div>
+    </Activity>
   )
 }
 ```
+
+> **Why Activity over CSS `display:none`?**
+>
+> | Aspect | CSS `display:none` | React `<Activity>` |
+> |--------|-------------------|-------------------|
+> | DOM preserved | ✅ | ✅ |
+> | State preserved | ✅ | ✅ |
+> | Effects (timers, subscriptions) | ❌ Keep running | ✅ **Cleanup when hidden** |
+> | Memory optimization | ❌ None | ✅ React can optimize |
+> | Suspense integration | ❌ None | ✅ Better boundaries |
 
 #### 4.3.3 AppShell Component
 
@@ -320,47 +330,253 @@ export const AppShell = () => {
 
 ### 4.4 Tab Detach to Window
 
-#### 4.4.1 State Serialization
+#### 4.4.1 Design Decision: Pure MemoryRouter (No HashRouter Needed)
+
+**Question**: Should we use HashRouter for detached windows so the URL can specify the route?
+
+```text
+Option A: HashRouter
+  index.html#/chat/123
+  └── HashRouter reads hash → route matches → loader runs
+
+Option B: Pure MemoryRouter (Recommended)
+  index.html?path=/chat/123
+  └── Read URL query → MemoryRouter initializes → loader runs
+```
+
+**Analysis**:
+
+| Aspect | HashRouter | Pure MemoryRouter |
+|--------|------------|-------------------|
+| Loader execution | ✅ Works | ✅ Works |
+| Route matching | ✅ Works | ✅ Works |
+| Code consistency | Two router types | **Unified** |
+| State passing | Hash only | **URL query (flexible)** |
+
+**Conclusion**: Pure MemoryRouter is simpler. TSR loader runs when MemoryRouter initializes with `initialEntries`, no HashRouter needed.
+
+#### 4.4.2 State Passing: URL Query vs IPC
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  IPC Approach:                                          │
+│    1. Renderer → IPC → Main process                    │
+│    2. Main process → create window → load index.html   │
+│    3. Main process → IPC → New renderer                │
+│    4. New renderer receives state                      │
+│                                                         │
+│  URL Query Approach (Recommended):                      │
+│    1. Renderer → Main process                          │
+│    2. Main process → create window                     │
+│    3. load index.html?path=/chat/123&scroll=500        │
+│    4. New renderer reads window.location.search ✨      │
+└─────────────────────────────────────────────────────────┘
+```
+
+| Aspect | URL Query | IPC |
+|--------|-----------|-----|
+| Complexity | **Simple** | Requires bidirectional communication |
+| Data size | URL length limit (~2KB) | Unlimited |
+| Data types | Strings only | Any serializable |
+| Security | Visible in URL | Process internal |
+
+**Recommendation**: Use URL query for simple state (path, scroll), use shared cache for complex state (long inputDraft).
+
+#### 4.4.3 Architecture Flow
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Main Window - Tab Detach                               │
+│                                                         │
+│  Tab (MemoryRouter)                                     │
+│  router.state.location.pathname = '/chat/123'           │
+│  (Browser URL unchanged, path is in memory)             │
+│                      │                                  │
+│                      │ Drag out                         │
+│                      ▼                                  │
+│  Construct URL: index.html?path=/chat/123&scroll=500   │
+│                      │                                  │
+│                      ▼                                  │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │ New Window                                          ││
+│  │                                                      ││
+│  │ const params = new URLSearchParams(location.search) ││
+│  │ const path = params.get('path') // '/chat/123'      ││
+│  │                                                      ││
+│  │ createMemoryHistory({ initialEntries: [path] })     ││
+│  │              │                                       ││
+│  │              ▼                                       ││
+│  │ TSR matches route → loader() executes → render      ││
+│  └─────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 4.4.4 Implementation
+
+**Router Factory**:
 
 ```typescript
-// On detach: serialize current state
-const serializeTabState = (tab: Tab): SerializedTabState => {
-  return {
-    ...tab,
-    scrollPosition: captureScrollPosition(tab.id),
-    inputDraft: captureInputDraft(tab.id),
+// src/renderer/src/lib/createTabRouter.ts
+import { createRouter, createMemoryHistory } from '@tanstack/react-router'
+import { routeTree } from '../routeTree.gen'
+
+export function createTabRouter(initialPath: string = '/') {
+  const history = createMemoryHistory({
+    initialEntries: [initialPath]
+  })
+  return createRouter({ routeTree, history })
+}
+```
+
+**Main Window - Detach Handler**:
+
+```typescript
+// src/renderer/src/components/layout/AppShell.tsx
+const handleDetachTab = async (tab: Tab) => {
+  const path = tab.router.state.location.pathname
+  const search = tab.router.state.location.search
+  const scroll = captureScrollPosition(tab.id)
+
+  // Construct URL with query params
+  const params = new URLSearchParams({
+    path: path + search,
+    scroll: String(scroll)
+  })
+
+  // For complex state (like inputDraft), save to shared cache
+  if (tab.inputDraft) {
+    await cacheService.set(`detached:${tab.id}:draft`, tab.inputDraft)
+    params.set('tabId', tab.id)
   }
-}
 
-// On new window startup: deserialize to restore state
-const deserializeTabState = (state: SerializedTabState): Tab => {
-  // MemoryRouter will initialize from state.url
-  // Scroll position, etc. restored after component mounts
-  return state
+  // Request main process to create window with URL
+  await window.api.createWindow({
+    url: `index.html?${params.toString()}`
+  })
+
+  closeTab(tab.id)
 }
 ```
 
-#### 4.4.2 IPC Communication
+**App Entry - Detect Detached Window**:
 
 ```typescript
-// Main Process
-ipcMain.handle('create-window', async (_, options) => {
-  const newWindow = new BrowserWindow({
-    // ...
-  })
+// src/renderer/src/App.tsx
+const App = () => {
+  const params = new URLSearchParams(window.location.search)
+  const initialPath = params.get('path')
+  const initialScroll = Number(params.get('scroll')) || 0
+  const tabId = params.get('tabId')
 
-  // Pass initial state to new window
-  newWindow.webContents.once('did-finish-load', () => {
-    newWindow.webContents.send('init-tab', options.initialTab)
-  })
-})
+  // If has path param, this is a detached window
+  if (initialPath) {
+    return (
+      <DetachedTabWindow
+        path={initialPath}
+        scroll={initialScroll}
+        tabId={tabId}
+      />
+    )
+  }
 
-// Renderer Process (new window)
-window.api.onInitTab((serializedTab) => {
-  const tab = deserializeTabState(JSON.parse(serializedTab))
-  tabStore.addTab(tab)
-})
+  // Main window with full tab system
+  return <AppShell />
+}
 ```
+
+**Detached Window Component**:
+
+```typescript
+// src/renderer/src/components/DetachedTabWindow.tsx
+interface Props {
+  path: string
+  scroll: number
+  tabId?: string | null
+}
+
+const DetachedTabWindow = ({ path, scroll, tabId }: Props) => {
+  const router = useMemo(() => createTabRouter(path), [path])
+  const [inputDraft, setInputDraft] = useState<string>()
+
+  // Restore scroll position after mount
+  useEffect(() => {
+    if (scroll) {
+      requestAnimationFrame(() => window.scrollTo(0, scroll))
+    }
+  }, [scroll])
+
+  // Restore complex state from shared cache
+  useEffect(() => {
+    if (tabId) {
+      cacheService.get(`detached:${tabId}:draft`).then(setInputDraft)
+    }
+  }, [tabId])
+
+  // TSR automatically: match route → run loader → render
+  return <RouterProvider router={router} />
+}
+```
+
+#### 4.4.5 TSR Loader Works with MemoryRouter
+
+Key insight: TSR's `loader` runs during route matching, regardless of history type.
+
+```typescript
+// src/renderer/src/routes/chat/$topicId.tsx
+export const Route = createFileRoute('/chat/$topicId')({
+  loader: async ({ params }) => {
+    // Runs for BOTH HashRouter and MemoryRouter
+    const topic = await fetchTopic(params.topicId)
+    const messages = await fetchMessages(params.topicId)
+    return { topic, messages }
+  },
+  component: ChatPage
+})
+
+function ChatPage() {
+  const { topic, messages } = Route.useLoaderData()
+  return <ChatUI topic={topic} messages={messages} />
+}
+```
+
+When `createMemoryHistory({ initialEntries: ['/chat/123'] })` is called:
+
+1. TSR parses path `/chat/123`
+2. Matches route `/chat/$topicId`
+3. Extracts params: `{ topicId: '123' }`
+4. Executes `loader({ params })`
+5. Renders component with loaded data
+
+#### 4.4.6 Tab Attach (Drag Back to Main Window)
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Tab Lifecycle                                          │
+│                                                         │
+│  Main Window                     Detached Window        │
+│  ┌─────────┐                     ┌─────────┐           │
+│  │ Tab 1   │ ──── Drag Out ────► │ Window  │           │
+│  │ Tab 2   │      (URL Query)    │         │           │
+│  │ Tab 3   │ ◄─── Drag Back ──── │         │           │
+│  └─────────┘      (IPC)          └─────────┘           │
+└─────────────────────────────────────────────────────────┘
+```
+
+Drag Out vs Drag Back:
+
+| Aspect | Drag Out | Drag Back |
+|--------|----------|-----------|
+| State passing | URL Query | IPC (reverse direction) |
+| Detection | Simple (user action) | Detect drop on main window tab bar |
+| Window action | Create new window | Close detached window |
+| Complexity | Low | Medium |
+
+**Implementation Key Points**:
+
+1. **Drop Detection**: Detached window monitors drag events, checks if drop position overlaps main window's tab bar bounds
+2. **State Transfer**: Use IPC to send current state (path, scroll, inputDraft) back to main window
+3. **Window Coordination**: Main process coordinates between windows - add tab to main, close detached
+4. **Graceful Fallback**: If drop detection fails, provide "Attach to Main Window" button as alternative
 
 ### 4.5 Memory Management
 
@@ -471,4 +687,7 @@ Reasons for choosing **MemoryHistory Multi-Instance**:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v1.3.0 | 2025-12-04 | Added Tab Attach (drag back) key points |
+| v1.2.0 | 2025-12-04 | Replaced CSS `display:none` with React 19.2 `<Activity>` for better effect management |
+| v1.1.0 | 2025-12-03 | Added detailed Tab Detach implementation (URL Query approach, TSR Loader compatibility) |
 | v1.0.0 | 2025-12-03 | Initial research report |
