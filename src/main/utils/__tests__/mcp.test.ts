@@ -239,7 +239,7 @@ describe('buildFunctionCallToolName', () => {
       expect(result).not.toMatch(/[\u3040-\u309f\u30a0-\u30ff]/)
     })
 
-    it('should handle Korean characters with base36 encoding', () => {
+    it('should handle Korean characters with romanization', () => {
       const result = buildFunctionCallToolName('server', '사용자검색')
       // Should be ASCII-only
       expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
