@@ -66,6 +66,7 @@ export default defineConfig([
       'src/main/integration/cherryai/index.js',
       'src/main/integration/nutstore/sso/lib/**',
       'src/renderer/src/ui/**',
+      'src/renderer/src/routeTree.gen.ts',
       'packages/**/dist'
     ]
   },
