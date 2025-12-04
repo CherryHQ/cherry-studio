@@ -19,7 +19,7 @@ export class OVMSClient extends OpenAIAPIClient {
 
       const chatModelsResponse = await sdk.request({
         method: 'get',
-        path: '../v1/config'
+        path: 'config'
       })
       logger.debug(`Chat models response: ${JSON.stringify(chatModelsResponse)}`)
 
