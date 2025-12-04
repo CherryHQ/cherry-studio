@@ -19,7 +19,6 @@ export function toOptionValue<T extends string>(v: T): T
 export function toOptionValue<T extends string | undefined>(v: T): NonNullable<T> | 'undefined'
 export function toOptionValue<T extends string | null>(v: T): NonNullable<T> | 'null'
 export function toOptionValue<T extends string | boolean>(v: T): T | 'true' | 'false'
-
 export function toOptionValue<T extends string | null | undefined>(v: T): NonNullable<T> | 'null' | 'undefined'
 export function toOptionValue<T extends string | null | boolean>(v: T): NonNullable<T> | 'null' | 'true' | 'false'
 export function toOptionValue<T extends string | undefined | boolean>(
@@ -36,10 +35,12 @@ export function toOptionValue(v: string | undefined | null | boolean) {
  * Convert an option string back to its original value.
  * - The literal string `'undefined'` becomes `undefined`
  * - The literal string `'null'` becomes `null`
+ * - The literal string `'true'` becomes `true`
+ * - The literal string `'false'` becomes `false`
  * - Any other string is returned as-is
  *
  * @param v - The option string to convert
- * @returns The real value (`undefined`, `null`, or the original string)
+ * @returns The real value (`undefined`, `null`, `boolean`, or the original string)
  */
 export function toRealValue(v: 'undefined'): undefined
 export function toRealValue(v: 'null'): null
