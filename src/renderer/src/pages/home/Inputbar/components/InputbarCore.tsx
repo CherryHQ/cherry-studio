@@ -178,10 +178,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     enabled: config.enableDragDrop,
     t
   })
-  // 判断是否可以发送：文本不为空或有文件
-  const cannotSend = isEmpty && files.length === 0
+  // 判断是否有内容：文本不为空或有文件
+  const noContent = isEmpty && files.length === 0
   // 发送入口统一禁用条件：空内容、正在生成、全局搜索态
-  const isSendDisabled = cannotSend || isLoading || searching
+  const isSendDisabled = noContent || isLoading || searching
 
   useEffect(() => {
     setExtensions(supportedExts)
