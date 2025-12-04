@@ -65,8 +65,8 @@ export function buildFunctionCallToolName(serverName: string, toolName: string, 
   }
 
   // Replace invalid characters with underscores
-  // Keep only a-z, A-Z, 0-9, underscores, dashes, dots, colons (AI model compatible)
-  name = name.replace(/[^a-zA-Z0-9_.\-:]/g, '_')
+  // Keep only a-z, 0-9, underscores, dashes, dots, colons (AI model compatible)
+  name = name.replace(/[^a-z0-9_.\-:]/g, '_')
 
   // Ensure name starts with a letter or underscore (AI model requirement)
   if (!/^[a-zA-Z_]/.test(name)) {
