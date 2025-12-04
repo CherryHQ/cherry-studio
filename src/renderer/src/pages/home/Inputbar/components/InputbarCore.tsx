@@ -181,8 +181,10 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     enabled: config.enableDragDrop,
     t
   })
-  // 判断是否可以发送：文本不为空或有文件
-  const cannotSend = isEmpty && files.length === 0
+  // 判断是否有内容：文本不为空或有文件
+  const noContent = isEmpty && files.length === 0
+  // 发送入口统一禁用条件：空内容、正在生成、全局搜索态
+  const isSendDisabled = noContent || isLoading || searching
 
   useEffect(() => {
     setExtensions(supportedExts)
@@ -313,7 +315,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 
       const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
       if (isEnterPressed) {
-        if (isSendMessageKeyPressed(event, sendMessageShortcut) && !cannotSend) {
+        if (isSendMessageKeyPressed(event, sendMessageShortcut) && !isSendDisabled) {
           handleSendMessage()
           event.preventDefault()
           return
@@ -359,7 +361,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
       translate,
       handleToggleExpanded,
       sendMessageShortcut,
-      cannotSend,
+      isSendDisabled,
       handleSendMessage,
       setText,
       setTimeoutTimer,
@@ -620,7 +622,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
   const rightSectionExtras = useMemo(() => {
     const extras: React.ReactNode[] = []
     extras.push(<TranslateButton key="translate" text={text} onTranslated={onTranslated} isLoading={isTranslating} />)
-    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={cannotSend || isLoading || searching} />)
+    extras.push(<SendMessageButton sendMessage={handleSendMessage} disabled={isSendDisabled} />)
 
     if (isLoading) {
       extras.push(
@@ -633,7 +635,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     }
 
     return <>{extras}</>
-  }, [text, onTranslated, isTranslating, handleSendMessage, cannotSend, isLoading, searching, t, onPause])
+  }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause])
 
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
