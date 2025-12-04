@@ -2913,6 +2913,19 @@ const migrateConfig = {
       if (state.settings.apiServer) {
         state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
       }
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
       logger.info('migrate 180 success')
       return state
     } catch (error) {

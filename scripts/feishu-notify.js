@@ -95,23 +95,6 @@ function createIssueCard(issueData) {
         tag: 'div',
         text: {
           tag: 'lark_md',
-          content: `**🐛 New GitHub Issue #${issueNumber}**`
-        }
-      },
-      {
-        tag: 'hr'
-      },
-      {
-        tag: 'div',
-        text: {
-          tag: 'lark_md',
-          content: `**📝 Title:** ${issueTitle}`
-        }
-      },
-      {
-        tag: 'div',
-        text: {
-          tag: 'lark_md',
           content: `**👤 Author:** ${issueAuthor}`
         }
       },
@@ -158,7 +141,7 @@ function createIssueCard(issueData) {
       template: 'blue',
       title: {
         tag: 'plain_text',
-        content: '🆕 Cherry Studio - New Issue'
+        content: `#${issueNumber} - ${issueTitle}`
       }
     }
   }

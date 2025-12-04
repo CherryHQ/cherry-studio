@@ -94,6 +94,13 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     import: () => import('@ai-sdk/cerebras'),
     creatorFunctionName: 'createCerebras',
     supportsImageGeneration: false
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    import: () => import('ollama-ai-provider-v2'),
+    creatorFunctionName: 'createOllama',
+    supportsImageGeneration: false
   }
 ] as const
 
