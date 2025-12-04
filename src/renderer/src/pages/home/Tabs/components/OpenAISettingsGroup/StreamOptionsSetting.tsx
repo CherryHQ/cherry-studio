@@ -1,6 +1,8 @@
 import Selector from '@renderer/components/Selector'
-import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingRow } from '@renderer/pages/settings'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
+import { setOpenAIStreamOptionsIncludeUsage } from '@renderer/store/settings'
 import type { OpenAICompletionsStreamOptions } from '@renderer/types/aiCoreTypes'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import { Tooltip } from 'antd'
@@ -8,6 +10,7 @@ import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
 type IncludeUsageOption = {
   value: 'undefined' | 'false' | 'true'
@@ -15,24 +18,19 @@ type IncludeUsageOption = {
 }
 
 interface Props {
-  providerId: string
   SettingRowTitleSmall: FC<{ children: React.ReactNode }>
 }
 
-const StreamOptionsSetting: FC<Props> = ({ providerId, SettingRowTitleSmall }) => {
+const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
   const { t } = useTranslation()
-  const { provider, updateProvider } = useProvider(providerId)
-  const includeUsage = provider.streamOptions?.includeUsage
+  const includeUsage = useSelector((state: RootState) => state.settings.openAI.streamOptions.includeUsage)
+  const dispatch = useAppDispatch()
 
   const setIncludeUsage = useCallback(
     (value: OpenAICompletionsStreamOptions['include_usage']) => {
-      updateProvider({
-        streamOptions: {
-          includeUsage: value
-        }
-      })
+      dispatch(setOpenAIStreamOptionsIncludeUsage(value))
     },
-    [updateProvider]
+    [dispatch]
   )
 
   const includeUsageOptions = useMemo(() => {

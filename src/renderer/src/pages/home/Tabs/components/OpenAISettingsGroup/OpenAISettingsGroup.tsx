@@ -62,9 +62,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             {showStreamOptionsSetting && <SettingDivider />}
           </>
         )}
-        {showStreamOptionsSetting && (
-          <StreamOptionsSetting providerId={providerId} SettingRowTitleSmall={SettingRowTitleSmall} />
-        )}
+        {showStreamOptionsSetting && <StreamOptionsSetting SettingRowTitleSmall={SettingRowTitleSmall} />}
       </SettingGroup>
       <SettingDivider />
     </CollapsibleSettingGroup>

@@ -1,6 +1,11 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+  DEFAULT_TEMPERATURE,
+  isMac
+} from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import {
   glm45FlashModel,
@@ -2935,17 +2940,13 @@ const migrateConfig = {
   },
   '181': (state: RootState) => {
     try {
-      state.llm.providers.forEach((provider) => {
-        if (isSupportStreamOptionsProvider(provider) && provider.id !== SystemProviderIds.poe) {
-          provider.streamOptions = {
-            includeUsage: true
-          }
-        } else {
-          provider.streamOptions = {
-            includeUsage: false
-          }
+      // Initialize streamOptions in settings.openAI if not exists
+      if (!state.settings.openAI.streamOptions) {
+        state.settings.openAI.streamOptions = {
+          includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
         }
-      })
+      }
+
       logger.info('migrate 181 success')
       return state
     } catch (error) {
