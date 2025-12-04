@@ -608,5 +608,16 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
   return undefined
 }
 
+/**
+ * Determines if a model is a fixed reasoning model.
+ *
+ * A model is considered a fixed reasoning model if it meets all of the following criteria:
+ * - It is a reasoning model
+ * - It does NOT support thinking tokens
+ * - It does NOT support reasoning effort
+ *
+ * @param model - The model to check
+ * @returns `true` if the model is a fixed reasoning model, `false` otherwise
+ */
 export const isFixedReasoningModel = (model: Model) =>
   isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)
