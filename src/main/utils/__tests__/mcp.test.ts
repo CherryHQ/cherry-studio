@@ -274,13 +274,7 @@ describe('buildFunctionCallToolName', () => {
     })
 
     it('should produce AI model compatible tool names', () => {
-      const testCases = [
-        '行驶证OCR',
-        '营业执照识别',
-        'get用户info',
-        '文件@处理',
-        '数据分析_v2'
-      ]
+      const testCases = ['行驶证OCR', '营业执照识别', 'get用户info', '文件@处理', '数据分析_v2']
 
       testCases.forEach((testCase) => {
         const result = buildFunctionCallToolName('server', testCase)
