@@ -1,4 +1,3 @@
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import type { Express } from 'express'
 import swaggerJSDoc from 'swagger-jsdoc'
 import swaggerUi from 'swagger-ui-express'
@@ -21,8 +20,8 @@ const swaggerOptions: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: `http://${API_SERVER_DEFAULTS.HOST}:${API_SERVER_DEFAULTS.PORT}`,
-        description: 'Local development server'
+        url: '/',
+        description: 'Current server'
       }
     ],
     components: {
