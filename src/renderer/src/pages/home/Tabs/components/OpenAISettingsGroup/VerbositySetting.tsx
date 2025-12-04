@@ -64,7 +64,7 @@ const VerbositySetting: FC<Props> = ({ model, SettingRowTitleSmall }) => {
   }, [model, t])
 
   useEffect(() => {
-    if (verbosity && !verbosityOptions.some((option) => option.value === verbosity)) {
+    if (verbosity !== undefined && !verbosityOptions.some((option) => option.value === toOptionValue(verbosity))) {
       const supportedVerbosityLevels = getModelSupportedVerbosity(model)
       // Default to the highest supported verbosity level
       const defaultVerbosity = supportedVerbosityLevels[supportedVerbosityLevels.length - 1]
