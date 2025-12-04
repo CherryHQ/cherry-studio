@@ -2932,6 +2932,26 @@ const migrateConfig = {
       logger.error('migrate 180 error', error as Error)
       return state
     }
+  },
+  '181': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (isSupportStreamOptionsProvider(provider) && provider.id !== SystemProviderIds.poe) {
+          provider.streamOptions = {
+            includeUsage: true
+          }
+        } else {
+          provider.streamOptions = {
+            includeUsage: false
+          }
+        }
+      })
+      logger.info('migrate 181 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 181 error', error as Error)
+      return state
+    }
   }
 }
 

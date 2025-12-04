@@ -1162,6 +1162,7 @@
     "no_results": "无结果",
     "none": "无",
     "off": "关闭",
+    "on": "启用",
     "open": "打开",
     "paste": "粘贴",
     "placeholders": {
@@ -4270,6 +4271,12 @@
         "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否请求 Tokens 用量（仅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
       },
       "summary_text_mode": {
         "auto": "自动",

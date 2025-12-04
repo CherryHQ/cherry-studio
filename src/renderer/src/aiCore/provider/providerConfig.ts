@@ -172,6 +172,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     baseURL: baseURL,
     apiKey: getRotatedApiKey(actualProvider)
   }
+  const includeUsage = actualProvider.streamOptions?.includeUsage
 
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
   if (isCopilotProvider) {
@@ -183,7 +184,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
         ...actualProvider.extra_headers
       },
       name: actualProvider.id,
-      includeUsage: true
+      includeUsage
     })
 
     return {
@@ -286,7 +287,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       ...options,
       name: actualProvider.id,
       ...extraOptions,
-      includeUsage: true
+      includeUsage
     }
   }
 }

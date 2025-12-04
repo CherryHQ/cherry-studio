@@ -4,12 +4,17 @@ import { SettingDivider } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { Model } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
+import {
+  isSupportServiceTierProvider,
+  isSupportStreamOptionsProvider,
+  isSupportVerbosityProvider
+} from '@renderer/utils/provider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ReasoningSummarySetting from './ReasoningSummarySetting'
 import ServiceTierSetting from './ServiceTierSetting'
+import StreamOptionsSetting from './StreamOptionsSetting'
 import VerbositySetting from './VerbositySetting'
 
 interface Props {
@@ -30,8 +35,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const showVerbositySetting = isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)
   const isSupportServiceTier = isSupportServiceTierProvider(provider)
   const showServiceTierSetting = isSupportServiceTier && providerId !== SystemProviderIds.groq
+  const showStreamOptionsSetting = isSupportStreamOptionsProvider(provider)
 
-  if (!showSummarySetting && !showServiceTierSetting && !showVerbositySetting) {
+  if (!showSummarySetting && !showServiceTierSetting && !showVerbositySetting && !showStreamOptionsSetting) {
     return null
   }
 
@@ -41,16 +47,24 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         {showServiceTierSetting && (
           <>
             <ServiceTierSetting model={model} providerId={providerId} SettingRowTitleSmall={SettingRowTitleSmall} />
-            {(showSummarySetting || showVerbositySetting) && <SettingDivider />}
+            {(showSummarySetting || showVerbositySetting || showStreamOptionsSetting) && <SettingDivider />}
           </>
         )}
         {showSummarySetting && (
           <>
             <ReasoningSummarySetting SettingRowTitleSmall={SettingRowTitleSmall} />
-            {showVerbositySetting && <SettingDivider />}
+            {(showVerbositySetting || showStreamOptionsSetting) && <SettingDivider />}
           </>
         )}
-        {showVerbositySetting && <VerbositySetting model={model} SettingRowTitleSmall={SettingRowTitleSmall} />}
+        {showVerbositySetting && (
+          <>
+            <VerbositySetting model={model} SettingRowTitleSmall={SettingRowTitleSmall} />
+            {showStreamOptionsSetting && <SettingDivider />}
+          </>
+        )}
+        {showStreamOptionsSetting && (
+          <StreamOptionsSetting providerId={providerId} SettingRowTitleSmall={SettingRowTitleSmall} />
+        )}
       </SettingGroup>
       <SettingDivider />
     </CollapsibleSettingGroup>

@@ -52,6 +52,8 @@ export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
  */
 export type OpenAIReasoningSummary = OpenAI.Reasoning['summary']
 
+export type OpenAICompletionsStreamOptions = OpenAI.ChatCompletionStreamOptions
+
 const AiSdkParamsSchema = z.enum([
   'maxOutputTokens',
   'temperature',

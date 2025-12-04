@@ -2,7 +2,7 @@ import type OpenAI from '@cherrystudio/openai'
 import type { Model } from '@types'
 import * as z from 'zod'
 
-import type { OpenAIVerbosity } from './aiCoreTypes'
+import type { OpenAICompletionsStreamOptions, OpenAIVerbosity } from './aiCoreTypes'
 
 export const ProviderTypeSchema = z.enum([
   'openai',
@@ -113,6 +113,10 @@ export type Provider = {
   apiOptions?: ProviderApiOptions
   serviceTier?: ServiceTier
   verbosity?: OpenAIVerbosity
+  streamOptions?: {
+    /** Only for OpenAI Chat Completions API.  */
+    includeUsage: OpenAICompletionsStreamOptions['include_usage']
+  }
 
   /** @deprecated */
   isNotSupportArrayContent?: boolean
