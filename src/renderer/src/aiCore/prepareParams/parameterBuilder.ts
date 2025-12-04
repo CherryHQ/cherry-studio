@@ -15,12 +15,12 @@ import type { BaseProviderId } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
   isAnthropicModel,
+  isFixedReasoningModel,
   isGeminiModel,
   isGenerateImageModel,
   isGrokModel,
   isOpenAIModel,
   isOpenRouterBuiltInWebSearchModel,
-  isReasoningModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
@@ -107,7 +107,7 @@ export async function buildStreamTextParams(
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+    isFixedReasoningModel(model)
 
   // 判断是否使用内置搜索
   // 条件：没有外部搜索提供商 && (用户开启了内置搜索 || 模型强制使用内置搜索)

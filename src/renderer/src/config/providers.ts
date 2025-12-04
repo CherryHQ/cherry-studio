@@ -927,7 +927,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://www.dmxapi.cn/register?aff=bwwY',
       apiKey: 'https://www.dmxapi.cn/register?aff=bwwY',
-      docs: 'https://dmxapi.cn/models.html#code-block',
+      docs: 'https://doc.dmxapi.cn/',
       models: 'https://www.dmxapi.cn/pricing'
     }
   },

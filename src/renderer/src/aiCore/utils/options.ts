@@ -512,14 +512,17 @@ function buildCherryInProviderOptions(
 ): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions> {
   switch (actualProvider.type) {
     case 'openai':
+      return buildGenericProviderOptions(assistant, model, capabilities)
     case 'openai-response':
       return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
     case 'anthropic':
       return buildAnthropicProviderOptions(assistant, model, capabilities)
     case 'gemini':
       return buildGeminiProviderOptions(assistant, model, capabilities)
+
+    default:
+      return buildGenericProviderOptions(assistant, model, capabilities)
   }
-  return {}
 }
 
 /**
