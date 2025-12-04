@@ -179,6 +179,11 @@ export const isGeminiModel = (model: Model) => {
   return modelId.includes('gemini')
 }
 
+export const isGrokModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok')
+}
+
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
 
