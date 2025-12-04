@@ -252,18 +252,22 @@ describe('model utils', () => {
 
     describe('getModelSupportedVerbosity', () => {
       it('returns only "high" for GPT-5 Pro models', () => {
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([undefined, 'high'])
-        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro-2025-10-06' }))).toEqual([undefined, 'high'])
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro' }))).toEqual([undefined, null, 'high'])
+        expect(getModelSupportedVerbosity(createModel({ id: 'gpt-5-pro-2025-10-06' }))).toEqual([
+          undefined,
+          null,
+          'high'
+        ])
       })
 
       it('returns all levels for non-Pro GPT-5 models', () => {
         const previewModel = createModel({ id: 'gpt-5-preview' })
-        expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, 'low', 'medium', 'high'])
+        expect(getModelSupportedVerbosity(previewModel)).toEqual([undefined, null, 'low', 'medium', 'high'])
       })
 
       it('returns all levels for GPT-5.1 models', () => {
         const gpt51Model = createModel({ id: 'gpt-5.1-preview' })
-        expect(getModelSupportedVerbosity(gpt51Model)).toEqual([undefined, 'low', 'medium', 'high'])
+        expect(getModelSupportedVerbosity(gpt51Model)).toEqual([undefined, null, 'low', 'medium', 'high'])
       })
 
       it('returns only undefined for non-GPT-5 models', () => {

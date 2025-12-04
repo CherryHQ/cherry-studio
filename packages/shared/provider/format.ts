@@ -9,6 +9,7 @@
 import {
   formatApiHost,
   formatAzureOpenAIApiHost,
+  formatOllamaApiHost,
   formatVertexApiHost,
   routeToEndpoint,
   withoutTrailingSlash
@@ -18,6 +19,7 @@ import {
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
+  isOllamaProvider,
   isPerplexityProvider,
   isVertexProvider
 } from './detection'
@@ -77,6 +79,8 @@ export function formatProviderApiHost<T extends MinimalProvider>(provider: T, co
     }
   } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isOllamaProvider(formatted)) {
+    formatted.apiHost = formatOllamaApiHost(formatted.apiHost)
   } else if (isGeminiProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
   } else if (isAzureOpenAIProvider(formatted)) {

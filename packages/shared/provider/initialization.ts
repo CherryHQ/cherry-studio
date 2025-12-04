@@ -79,18 +79,25 @@ export const SHARED_PROVIDER_CONFIGS: ProviderConfig[] = [
     aliases: ['hf', 'hugging-face']
   },
   {
-    id: 'ai-gateway',
-    name: 'AI Gateway',
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
     import: () => import('@ai-sdk/gateway'),
     creatorFunctionName: 'createGateway',
     supportsImageGeneration: true,
-    aliases: ['gateway']
+    aliases: ['ai-gateway']
   },
   {
     id: 'cerebras',
     name: 'Cerebras',
     import: () => import('@ai-sdk/cerebras'),
     creatorFunctionName: 'createCerebras',
+    supportsImageGeneration: false
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    import: () => import('ollama-ai-provider-v2'),
+    creatorFunctionName: 'createOllama',
     supportsImageGeneration: false
   }
 ] as const

@@ -103,6 +103,17 @@ export function formatVertexApiHost(
 }
 
 /**
+ * 格式化 Ollama 的 API 主机地址。
+ */
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
+}
+
+/**
  * Formats an API host URL by normalizing it and optionally appending an API version.
  *
  * @param host - The API host URL to format. Leading/trailing whitespace will be trimmed and trailing slashes removed.

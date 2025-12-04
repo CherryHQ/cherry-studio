@@ -52,11 +52,12 @@ export function isAwsBedrockProvider<P extends MinimalProvider>(provider: P): bo
   return provider.type === 'aws-bedrock'
 }
 
-/**
- * Check if provider is AI Gateway type
- */
 export function isAIGatewayProvider<P extends MinimalProvider>(provider: P): boolean {
-  return provider.type === 'ai-gateway'
+  return provider.type === 'gateway'
+}
+
+export function isOllamaProvider<P extends MinimalProvider>(provider: P): boolean {
+  return provider.type === 'ollama'
 }
 
 /**

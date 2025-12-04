@@ -6,8 +6,10 @@
  */
 
 import { formatPrivateKey, hasProviderConfig, ProviderConfigFactory } from '@cherrystudio/ai-core/provider'
+import { isEmpty } from 'lodash'
 
 import { routeToEndpoint } from '../api'
+import { isOllamaProvider } from './detection'
 import { getAiSdkProviderId } from './mapping'
 import type { MinimalProvider } from './types'
 import { SystemProviderIds } from './types'
@@ -154,6 +156,19 @@ export function providerToAiSdkConfig(
     return {
       providerId: 'github-copilot-openai-compatible',
       options
+    }
+  }
+
+  if (isOllamaProvider(provider)) {
+    return {
+      providerId: 'ollama',
+      options: {
+        ...baseConfig,
+        headers: {
+          ...provider.extra_headers,
+          Authorization: !isEmpty(baseConfig.apiKey) ? `Bearer ${baseConfig.apiKey}` : undefined
+        }
+      }
     }
   }
 

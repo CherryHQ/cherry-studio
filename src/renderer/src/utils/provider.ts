@@ -10,6 +10,7 @@ export {
   isCherryAIProvider,
   isGeminiProvider,
   isNewApiProvider,
+  isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
   isPerplexityProvider,

@@ -222,6 +222,9 @@ describe('naming', () => {
     it('should remove trailing :free', () => {
       expect(getLowerBaseModelName('gpt-4:free')).toBe('gpt-4')
     })
+    it('should remove trailing (free)', () => {
+      expect(getLowerBaseModelName('agent/gpt-4(free)')).toBe('gpt-4')
+    })
   })
 
   describe('getFirstCharacter', () => {
