@@ -13,7 +13,6 @@ import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/t
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
-import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -424,7 +423,7 @@ export function hasApiKey(provider: Provider) {
 //   return undefined
 // }
 
-export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
+export async function fetchModels(provider: Provider): Promise<Model[]> {
   const AI = new AiProviderNew(provider)
 
   try {

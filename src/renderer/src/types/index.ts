@@ -7,6 +7,8 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
+import * as z from 'zod'
+
 import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
@@ -240,7 +242,15 @@ export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'functio
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
 // "image-generation" is also openai endpoint, but specifically for image generation.
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
+export const EndPointTypeSchema = z.enum([
+  'openai',
+  'openai-response',
+  'anthropic',
+  'gemini',
+  'image-generation',
+  'jina-rerank'
+])
+export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
 export type ModelPricing = {
   input_per_million_tokens: number
