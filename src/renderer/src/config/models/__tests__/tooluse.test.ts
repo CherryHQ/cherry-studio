@@ -117,12 +117,8 @@ describe('isFunctionCallingModel', () => {
 
   it('excludes explicitly blocked ids', () => {
     expect(isFunctionCallingModel(createModel({ id: 'gemini-1.5-flash' }))).toBe(false)
-  })
-
-  it('forces support for trusted providers', () => {
-    for (const provider of ['deepseek', 'anthropic', 'kimi', 'moonshot']) {
-      expect(isFunctionCallingModel(createModel({ provider }))).toBe(true)
-    }
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3.2-speciale' }))).toBe(false)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek/deepseek-v3.2-speciale' }))).toBe(false)
   })
 
   it('returns true when identified as deepseek hybrid inference model', () => {
@@ -133,5 +129,20 @@ describe('isFunctionCallingModel', () => {
   it('returns false for deepseek hybrid models behind restricted system providers', () => {
     deepSeekHybridMock.mockReturnValueOnce(true)
     expect(isFunctionCallingModel(createModel({ id: 'deepseek-v3-1', provider: 'dashscope' }))).toBe(false)
+  })
+
+  it('supports anthropic models through claude regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'claude-3-5-sonnet', provider: 'anthropic' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'claude-3-opus', provider: 'anthropic' }))).toBe(true)
+  })
+
+  it('supports kimi models through kimi-k2 regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k2-0711-preview', provider: 'moonshot' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'kimi-k2', provider: 'kimi' }))).toBe(true)
+  })
+
+  it('supports deepseek models through deepseek regex match', () => {
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-chat', provider: 'deepseek' }))).toBe(true)
+    expect(isFunctionCallingModel(createModel({ id: 'deepseek-coder', provider: 'deepseek' }))).toBe(true)
   })
 })

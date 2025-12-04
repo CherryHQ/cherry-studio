@@ -53,7 +53,10 @@ const visionAllowedModels = [
   'llama-4(?:-[\\w-]+)?',
   'step-1o(?:.*vision)?',
   'step-1v(?:-[\\w-]+)?',
-  'qwen-omni(?:-[\\w-]+)?'
+  'qwen-omni(?:-[\\w-]+)?',
+  'mistral-large-(2512|latest)',
+  'mistral-medium-(2508|latest)',
+  'mistral-small-(2506|latest)'
 ]
 
 const visionExcludedModels = [

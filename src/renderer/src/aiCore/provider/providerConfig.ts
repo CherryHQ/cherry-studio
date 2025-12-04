@@ -26,6 +26,7 @@ import {
   isNewApiProvider,
   isOllamaProvider,
   isPerplexityProvider,
+  isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
 import { cloneDeep, isEmpty } from 'lodash'
@@ -286,7 +287,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       ...options,
       name: actualProvider.id,
       ...extraOptions,
-      includeUsage: true
+      includeUsage: isSupportStreamOptionsProvider(actualProvider)
     }
   }
 }

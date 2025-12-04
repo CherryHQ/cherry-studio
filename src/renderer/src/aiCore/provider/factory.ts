@@ -56,6 +56,7 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 /**
  * 获取AI SDK Provider ID
  * 简化版：减少重复逻辑，利用通用解析函数
+ * TODO: 整理函数逻辑
  */
 export function getAiSdkProviderId(provider: Provider): string {
   // 1. 尝试解析provider.id
