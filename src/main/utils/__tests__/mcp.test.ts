@@ -231,9 +231,9 @@ describe('buildFunctionCallToolName', () => {
       expect(tools[3]).toContain('shen_fen_zheng')
     })
 
-    it('should handle Japanese characters with base36 encoding', () => {
+    it('should handle Japanese characters with Romaji transliteration', () => {
       const result = buildFunctionCallToolName('server', 'ユーザー検索')
-      // Should be ASCII-only
+      // Should be ASCII-only (Japanese characters are transliterated to Romaji)
       expect(result).toMatch(/^[a-zA-Z_][a-zA-Z0-9_.\-:]*$/)
       // Should not contain original Japanese characters
       expect(result).not.toMatch(/[\u3040-\u309f\u30a0-\u30ff]/)
