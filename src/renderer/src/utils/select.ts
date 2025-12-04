@@ -49,7 +49,7 @@ export function toRealValue(v: 'undefined' | 'null'): undefined | null
 export function toRealValue(v: 'undefined' | 'true' | 'false'): undefined | boolean
 export function toRealValue(v: 'null' | 'true' | 'false'): null | boolean
 export function toRealValue(v: 'undefined' | 'null' | 'true' | 'false'): undefined | null | boolean
-export function toRealValue<T extends string>(v: T): Exclude<T, 'undefined' | 'null'>
+export function toRealValue<T extends string>(v: T): Exclude<T, 'undefined' | 'null' | 'true' | 'false'>
 export function toRealValue(v: string) {
   if (v === 'undefined') return undefined
   if (v === 'null') return null
