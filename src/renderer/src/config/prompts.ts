@@ -407,7 +407,7 @@ export const TRANSLATE_PROMPT =
 export const LANG_DETECT_PROMPT = `Your task is to precisely identify the language used in the user's input text and output its corresponding language code from the predefined list {{list_lang}}. It is crucial to focus strictly on the language *of the input text itself*, and not on any language the text might be referencing or describing.
 
 - **Crucially, if the input is 'Chinese', the output MUST be 'en-us', because 'Chinese' is an English word, despite referring to the Chinese language.**
-- Similarly, if the input is '英语', the output should be 'en-us', as 'Français' is a English word.
+- Similarly, if the input is '英语', the output should be 'zh-cn', as '英语' is a Chinese word.
 
 If the detected language is not found in the {{list_lang}} list, output "unknown". The user's input text will be enclosed within <text> and </text> XML tags. Do not output anything except the language code itself.
 
