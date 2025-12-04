@@ -15,7 +15,7 @@ export const ProviderTypeSchema = z.enum([
   'aws-bedrock',
   'vertex-anthropic',
   'new-api',
-  'ai-gateway',
+  'gateway',
   'ollama'
 ])
 
@@ -188,7 +188,7 @@ export const SystemProviderIdSchema = z.enum([
   'longcat',
   'huggingface',
   'sophnet',
-  'ai-gateway',
+  'gateway',
   'cerebras'
 ])
 
@@ -257,7 +257,7 @@ export const SystemProviderIds = {
   aionly: 'aionly',
   longcat: 'longcat',
   huggingface: 'huggingface',
-  'ai-gateway': 'ai-gateway',
+  gateway: 'gateway',
   cerebras: 'cerebras'
 } as const satisfies Record<SystemProviderId, SystemProviderId>
 

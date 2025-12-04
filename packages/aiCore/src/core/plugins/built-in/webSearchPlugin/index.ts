@@ -4,7 +4,6 @@
  */
 
 import { definePlugin } from '../../'
-import type { AiRequestContext } from '../../types'
 import type { WebSearchPluginConfig } from './helper'
 import { DEFAULT_WEB_SEARCH_CONFIG, switchWebSearchTool } from './helper'
 
@@ -18,15 +17,8 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
     name: 'webSearch',
     enforce: 'pre',
 
-    transformParams: async (params: any, context: AiRequestContext) => {
-      const { providerId } = context
-      switchWebSearchTool(providerId, config, params)
-
-      if (providerId === 'cherryin' || providerId === 'cherryin-chat') {
-        // cherryin.gemini
-        const _providerId = params.model.provider.split('.')[1]
-        switchWebSearchTool(_providerId, config, params)
-      }
+    transformParams: async (params: any) => {
+      switchWebSearchTool(config, params)
       return params
     }
   })

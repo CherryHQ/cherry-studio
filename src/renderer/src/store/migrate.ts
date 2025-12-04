@@ -2810,7 +2810,7 @@ const migrateConfig = {
     try {
       addProvider(state, SystemProviderIds.longcat)
 
-      addProvider(state, SystemProviderIds['ai-gateway'])
+      addProvider(state, 'gateway')
       addProvider(state, 'cerebras')
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.minimax) {
@@ -2930,6 +2930,26 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 180 error', error as Error)
+      return state
+    }
+  },
+  '181': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'ai-gateway') {
+          provider.id = SystemProviderIds.gateway
+        }
+        // Also update model.provider references to avoid orphaned models
+        provider.models?.forEach((model) => {
+          if (model.provider === 'ai-gateway') {
+            model.provider = SystemProviderIds.gateway
+          }
+        })
+      })
+      logger.info('migrate 181 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 181 error', error as Error)
       return state
     }
   }

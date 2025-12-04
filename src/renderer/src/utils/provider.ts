@@ -172,7 +172,7 @@ export function isGeminiProvider(provider: Provider): boolean {
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
-  return provider.type === 'ai-gateway'
+  return provider.type === 'gateway'
 }
 
 export function isOllamaProvider(provider: Provider): boolean {

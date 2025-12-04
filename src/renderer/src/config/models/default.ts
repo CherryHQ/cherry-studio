@@ -1853,7 +1853,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   huggingface: [],
-  'ai-gateway': [],
+  gateway: [],
   cerebras: [
     {
       id: 'gpt-oss-120b',
