@@ -66,7 +66,7 @@ describe('ModelAdapter', () => {
   })
 
   it('adapts ai-gateway entries through the same adapter', () => {
-    const provider = createProvider({ id: 'ai-gateway', type: 'ai-gateway' })
+    const provider = createProvider({ id: 'ai-gateway', type: 'gateway' })
     const [model] = normalizeGatewayModels(provider, [
       {
         id: 'openai/gpt-4o',
