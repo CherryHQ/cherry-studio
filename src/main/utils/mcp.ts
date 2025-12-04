@@ -1,13 +1,6 @@
 import { transliterate } from 'transliteration'
 
 /**
- * Transliterate non-ASCII characters to ASCII equivalents
- * - Chinese → Pinyin (e.g., 行驶证 → xingshizheng)
- * - Japanese → Romaji (e.g., ユーザー → yūzā)
- * - Korean → Romanization (e.g., 사용자 → sayongja)
- * - Other special characters → underscores
- */
-/**
  * Transliterates non-ASCII text (including CJK characters) to ASCII-compatible format.
  *
  * Converts input text to lowercase ASCII representation, replacing spaces with underscores
