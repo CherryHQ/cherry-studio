@@ -175,6 +175,10 @@ export function isAIGatewayProvider(provider: Provider): boolean {
   return provider.type === 'gateway'
 }
 
+export function isOllamaProvider(provider: Provider): boolean {
+  return provider.type === 'ollama'
+}
+
 const NOT_SUPPORT_API_VERSION_PROVIDERS = ['github', 'copilot', 'perplexity'] as const satisfies SystemProviderId[]
 
 export const isSupportAPIVersionProvider = (provider: Provider) => {

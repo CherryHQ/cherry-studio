@@ -15,7 +15,8 @@ export const ProviderTypeSchema = z.enum([
   'aws-bedrock',
   'vertex-anthropic',
   'new-api',
-  'gateway'
+  'gateway',
+  'ollama'
 ])
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>

@@ -39,6 +39,7 @@ import { type AiSdkParam, isAiSdkParam, type OpenAIVerbosity } from '@renderer/t
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import type { JSONValue } from 'ai'
 import { t } from 'i18next'
+import type { OllamaCompletionProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
@@ -241,6 +242,9 @@ export function buildProviderOptions(
           break
         case 'huggingface':
           providerSpecificOptions = buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier)
+          break
+        case SystemProviderIds.ollama:
+          providerSpecificOptions = buildOllamaProviderOptions(assistant, capabilities)
           break
         case SystemProviderIds.gateway:
           providerSpecificOptions = buildAIGatewayOptions(assistant, model, capabilities, serviceTier, textVerbosity)
@@ -508,6 +512,25 @@ function buildBedrockProviderOptions(
 
   return {
     bedrock: providerOptions
+  }
+}
+
+function buildOllamaProviderOptions(
+  assistant: Assistant,
+  capabilities: {
+    enableReasoning: boolean
+    enableWebSearch: boolean
+    enableGenerateImage: boolean
+  }
+): Record<string, OllamaCompletionProviderOptions> {
+  const { enableReasoning } = capabilities
+  const providerOptions: OllamaCompletionProviderOptions = {}
+  const reasoningEffort = assistant.settings?.reasoning_effort
+  if (enableReasoning) {
+    providerOptions.think = !['none', undefined].includes(reasoningEffort)
+  }
+  return {
+    ollama: providerOptions
   }
 }
 
