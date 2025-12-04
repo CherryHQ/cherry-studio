@@ -149,23 +149,21 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     }
   }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
 
+  const ariaLabel = isFixedReasoning
+    ? t('chat.input.thinking.label')
+    : isThinkingEnabled && supportedOptions.includes('none')
+      ? t('common.close')
+      : t('assistants.settings.reasoning_effort.label')
+
   return (
-    <Tooltip
-      placement="top"
-      title={
-        isFixedReasoning
-          ? t('chat.input.thinking.label')
-          : isThinkingEnabled && supportedOptions.includes('none')
-            ? t('common.close')
-            : t('assistants.settings.reasoning_effort.label')
-      }
-      mouseLeaveDelay={0}
-      arrow>
+    <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={isFixedReasoning || currentReasoningEffort !== 'none'}
+        aria-label={ariaLabel}
+        aria-pressed={currentReasoningEffort !== 'none'}
         style={isFixedReasoning ? { cursor: 'default' } : undefined}>
-        {ThinkingIcon(isFixedReasoning ? 'high' : currentReasoningEffort)}
+        {ThinkingIcon(currentReasoningEffort)}
       </ActionIconButton>
     </Tooltip>
   )

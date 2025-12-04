@@ -18,7 +18,7 @@ import type {
 import { ThemeMode } from '@renderer/types'
 import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/config/constant'
+import { API_SERVER_DEFAULTS, UpgradeChannel } from '@shared/config/constant'
 
 import type { RemoteSyncState } from './backup'
 
@@ -410,8 +410,8 @@ export const initialState: SettingsState = {
   // API Server
   apiServer: {
     enabled: false,
-    host: 'localhost',
-    port: 23333,
+    host: API_SERVER_DEFAULTS.HOST,
+    port: API_SERVER_DEFAULTS.PORT,
     apiKey: `cs-sk-${uuid()}`
   },
   showMessageOutline: false

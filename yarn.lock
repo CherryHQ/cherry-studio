@@ -10257,6 +10257,7 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
+    ollama-ai-provider-v2: "npm:^1.5.5"
     os-proxy-config: "npm:^1.1.2"
     oxlint: "npm:^1.22.0"
     oxlint-tsgolint: "npm:^0.2.0"
@@ -19956,6 +19957,18 @@ __metadata:
   bin:
     officeparser: officeParser.js
   checksum: 10c0/3cb5277ddd0b9a0ba67713708c6ed743ad9bfcb200ff3da922ba703a5e35684a03fa8fb7c5c9390a75803e79545e4114c759d3efdd8a30d009c318281f9043c6
+  languageName: node
+  linkType: hard
+
+"ollama-ai-provider-v2@npm:^1.5.5":
+  version: 1.5.5
+  resolution: "ollama-ai-provider-v2@npm:1.5.5"
+  dependencies:
+    "@ai-sdk/provider": "npm:^2.0.0"
+    "@ai-sdk/provider-utils": "npm:^3.0.17"
+  peerDependencies:
+    zod: ^4.0.16
+  checksum: 10c0/da40c8097bd8205c46eccfbd13e77c51a6ce97a29b886adfc9e1b8444460b558138d1ed4428491fcc9378d46f649dd0a9b1e5b13cf6bbc8f5385e8b321734e72
   languageName: node
   linkType: hard
 
