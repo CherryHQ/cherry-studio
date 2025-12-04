@@ -201,9 +201,10 @@ export function buildProviderOptions(
       case 'openrouter':
       case 'openai-compatible': {
         // 对于其他 provider，使用通用的构建逻辑
+        const genericOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
         providerSpecificOptions = {
           [rawProviderId]: {
-            ...buildGenericProviderOptions(assistant, model, capabilities),
+            ...genericOptions[rawProviderId],
             serviceTier,
             textVerbosity
           }
@@ -250,9 +251,12 @@ export function buildProviderOptions(
           break
         default:
           // 对于其他 provider，使用通用的构建逻辑
+          providerSpecificOptions = buildGenericProviderOptions(rawProviderId, assistant, model, capabilities)
+          // Merge serviceTier and textVerbosity
           providerSpecificOptions = {
+            ...providerSpecificOptions,
             [rawProviderId]: {
-              ...buildGenericProviderOptions(assistant, model, capabilities),
+              ...providerSpecificOptions[rawProviderId],
               serviceTier,
               textVerbosity
             }
@@ -512,7 +516,7 @@ function buildCherryInProviderOptions(
 ): Record<string, OpenAIResponsesProviderOptions | AnthropicProviderOptions | GoogleGenerativeAIProviderOptions> {
   switch (actualProvider.type) {
     case 'openai':
-      return buildGenericProviderOptions(assistant, model, capabilities)
+      return buildGenericProviderOptions('cherryin', assistant, model, capabilities)
     case 'openai-response':
       return buildOpenAIProviderOptions(assistant, model, capabilities, serviceTier, textVerbosity)
     case 'anthropic':
@@ -521,7 +525,7 @@ function buildCherryInProviderOptions(
       return buildGeminiProviderOptions(assistant, model, capabilities)
 
     default:
-      return buildGenericProviderOptions(assistant, model, capabilities)
+      return buildGenericProviderOptions('cherryin', assistant, model, capabilities)
   }
 }
 
@@ -581,6 +585,7 @@ function buildOllamaProviderOptions(
  * 构建通用的 providerOptions（用于其他 provider）
  */
 function buildGenericProviderOptions(
+  providerId: string,
   assistant: Assistant,
   model: Model,
   capabilities: {
@@ -623,7 +628,9 @@ function buildGenericProviderOptions(
     }
   }
 
-  return providerOptions
+  return {
+    [providerId]: providerOptions
+  }
 }
 
 function buildAIGatewayOptions(
@@ -652,8 +659,6 @@ function buildAIGatewayOptions(
   } else if (isGrokModel(model)) {
     return buildXAIProviderOptions(assistant, model, capabilities)
   } else {
-    return {
-      ['openai-compatible']: buildGenericProviderOptions(assistant, model, capabilities)
-    }
+    return buildGenericProviderOptions('openai-compatible', assistant, model, capabilities)
   }
 }

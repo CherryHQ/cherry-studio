@@ -1079,6 +1079,44 @@ describe('options utils', () => {
       // Note: For proxy providers like aihubmix/newapi, users should write AI SDK provider ID (google/anthropic)
       // instead of the Cherry Studio provider ID for custom parameters to work correctly
 
+      it('should handle cherryin fallback to openai-compatible with custom parameters', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        // Mock cherryin provider that falls back to openai-compatible (default case)
+        const cherryinProvider = {
+          id: 'cherryin',
+          name: 'Cherry In',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://cherryin.com',
+          models: [] as Model[]
+        } as Provider
+
+        const testModel: Model = {
+          id: 'some-model',
+          name: 'Some Model',
+          provider: 'cherryin'
+        } as Model
+
+        // User provides custom parameters with cherryin provider ID
+        vi.mocked(getCustomParameters).mockReturnValue({
+          customCherryinOption: 'cherryin_value'
+        })
+
+        const result = buildProviderOptions(mockAssistant, testModel, cherryinProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // When cherryin falls back to default case, it should use rawProviderId (cherryin)
+        // User's cherryin params should merge with the provider options
+        expect(result.providerOptions).toHaveProperty('cherryin')
+        expect(result.providerOptions.cherryin).toMatchObject({
+          customCherryinOption: 'cherryin_value'
+        })
+      })
+
       it('should handle cross-provider configurations', async () => {
         const { getCustomParameters } = await import('../reasoning')
 
