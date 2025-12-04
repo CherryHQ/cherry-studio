@@ -16,7 +16,7 @@ import {
   isOpenAIReasoningModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
-import { GEMINI_FLASH_MODEL_REGEX, isGemini3Model } from './utils'
+import { GEMINI_FLASH_MODEL_REGEX, isGemini3ThinkingTokenModel } from './utils'
 import { isTextToImageModel } from './vision'
 
 // Reasoning models
@@ -115,7 +115,7 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     } else {
       thinkingModelType = 'gemini_pro'
     }
-    if (isGemini3Model(model)) {
+    if (isGemini3ThinkingTokenModel(model)) {
       thinkingModelType = 'gemini3'
     }
   } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
@@ -201,7 +201,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  const providerId = model.provider.toLowerCase()
+  const providerId = model?.provider?.toLowerCase()
   if (modelId.includes('grok-3-mini')) {
     return true
   }
@@ -271,14 +271,6 @@ export const GEMINI_THINKING_MODEL_REGEX =
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
-    // gemini-3.x 的 image 模型支持思考模式
-    if (isGemini3Model(model)) {
-      if (modelId.includes('tts')) {
-        return false
-      }
-      return true
-    }
-    // gemini-2.x 的 image/tts 模型不支持
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }
@@ -404,7 +396,11 @@ export function isClaude45ReasoningModel(model: Model): boolean {
 
 export function isClaude4SeriesModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:-[\w-]+)?$/i
+  // Supports various formats including:
+  // - Direct API: claude-sonnet-4, claude-opus-4-20250514
+  // - GCP Vertex AI: claude-sonnet-4@20250514
+  // - AWS Bedrock: anthropic.claude-sonnet-4-20250514-v1:0
+  const regex = /claude-(sonnet|opus|haiku)-4(?:[.-]\d+)?(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
 
@@ -464,16 +460,19 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 }
 
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
-  const modelId = getLowerBaseModelName(model.id)
-  // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
-  // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
-  // Matches: "deepseek-v3" followed by ".digit" or "-digit".
-  // Optionally, this can be followed by ".alphanumeric_sequence" or "-alphanumeric_sequence"
-  // until the end of the string.
-  // Examples: deepseek-v3.1, deepseek-v3-1, deepseek-v3.1.2, deepseek-v3.1-alpha
-  // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
-  // TODO: move to utils and add test cases
-  return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
+    const modelId = getLowerBaseModelName(model.id)
+    // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
+    // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
+    // Matches: "deepseek-v3" followed by ".digit" or "-digit".
+    // Optionally, this can be followed by ".alphanumeric_sequence" or "-alphanumeric_sequence"
+    // until the end of the string.
+    // Examples: deepseek-v3.1, deepseek-v3-1, deepseek-v3.1.2, deepseek-v3.1-alpha
+    // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
+    // TODO: move to utils and add test cases
+    return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
+  })
+  return idResult || nameResult
 }
 
 export const isLingReasoningModel = (model?: Model): boolean => {
@@ -527,7 +526,6 @@ export function isReasoningModel(model?: Model): boolean {
       REASONING_REGEX.test(model.name) ||
       isSupportedThinkingTokenDoubaoModel(model) ||
       isDeepSeekHybridInferenceModel(model) ||
-      isDeepSeekHybridInferenceModel({ ...model, id: model.name }) ||
       false
     )
   }
@@ -555,7 +553,7 @@ export function isReasoningModel(model?: Model): boolean {
   return REASONING_REGEX.test(modelId) || false
 }
 
-export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
   'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
@@ -576,10 +574,18 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
-  // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64_000 },
-  'claude-(:?haiku|sonnet)-4.*$': { min: 1024, max: 64_000 },
-  'claude-opus-4-1.*$': { min: 1024, max: 32_000 }
+  // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
+  '(?:anthropic\\.)?claude-3[.-]7.*sonnet.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
+  '(?:anthropic\\.)?claude-opus-4[.-]1.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 32_000 },
+  '(?:anthropic\\.)?claude-sonnet-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 64_000
+  },
+  '(?:anthropic\\.)?claude-opus-4(?:[.-]0)?(?:[@-](?:\\d{4,}|[a-z][\\w-]*))?(?:-v\\d+:\\d+)?$': {
+    min: 1024,
+    max: 32_000
+  }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

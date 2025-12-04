@@ -268,12 +268,12 @@ const GeneralSettings: FC = () => {
               />
             )}
           </RowFlex>
-          <Switch isSelected={enableSpellCheck} onValueChange={handleSpellCheckChange} />
+          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
-          <Switch isSelected={disableHardwareAcceleration} onValueChange={handleHardwareAccelerationChange} />
+          <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -289,24 +289,24 @@ const GeneralSettings: FC = () => {
             />
           </SettingRowTitle>
           <Switch
-            isSelected={notificationSettings.assistant}
-            onValueChange={(v) => handleNotificationChange('assistant', v)}
+            checked={notificationSettings.assistant}
+            onCheckedChange={(v) => handleNotificationChange('assistant', v)}
           />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
           <Switch
-            isSelected={notificationSettings.backup}
-            onValueChange={(v) => handleNotificationChange('backup', v)}
+            checked={notificationSettings.backup}
+            onCheckedChange={(v) => handleNotificationChange('backup', v)}
           />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
           <Switch
-            isSelected={notificationSettings.knowledge}
-            onValueChange={(v) => handleNotificationChange('knowledge', v)}
+            checked={notificationSettings.knowledge}
+            onCheckedChange={(v) => handleNotificationChange('knowledge', v)}
           />
         </SettingRow>
       </SettingGroup>
@@ -315,12 +315,12 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch isSelected={launchOnBoot} onValueChange={(checked) => updateLaunchOnBoot(checked)} />
+          <Switch checked={launchOnBoot} onCheckedChange={(checked) => updateLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch isSelected={launchToTray} onValueChange={(checked) => updateLaunchToTray(checked)} />
+          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -328,12 +328,12 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
-          <Switch isSelected={tray} onValueChange={(checked) => updateTray(checked)} />
+          <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch isSelected={trayOnClose} onValueChange={(checked) => updateTrayOnClose(checked)} />
+          <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -342,8 +342,8 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
           <Switch
-            isSelected={enableDataCollection}
-            onValueChange={(v) => {
+            checked={enableDataCollection}
+            onCheckedChange={(v) => {
               setEnableDataCollection(v)
               window.api.config.set('enableDataCollection', v)
             }}
@@ -358,7 +358,7 @@ const GeneralSettings: FC = () => {
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
-          <Switch isSelected={enableDeveloperMode} onValueChange={setEnableDeveloperMode} />
+          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

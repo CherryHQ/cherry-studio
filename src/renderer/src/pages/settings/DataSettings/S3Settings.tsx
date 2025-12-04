@@ -243,7 +243,7 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.skipBackupFile.label')}</SettingRowTitle>
-        <Switch isSelected={s3SkipBackupFile} onValueChange={onSkipBackupFilesChange} />
+        <Switch checked={s3SkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>

@@ -1,8 +1,9 @@
 import { Box, Button, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { usePreference } from '@renderer/data/hooks/usePreference'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
-import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
+import { selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { Alert, Card, Space, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
@@ -26,7 +27,7 @@ interface Props {
 const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, onClose }) => {
   const { t } = useTranslation()
   const memoryConfig = useSelector(selectMemoryConfig)
-  const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const [globalMemoryEnabled] = usePreference('feature.memory.enabled')
   const [memoryStats, setMemoryStats] = useState<{ count: number; loading: boolean }>({
     count: 0,
     loading: true
@@ -93,8 +94,8 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
                   : ''
             }>
             <Switch
-              isSelected={assistant.enableMemory || false}
-              onValueChange={handleMemoryToggle}
+              checked={assistant.enableMemory || false}
+              onCheckedChange={handleMemoryToggle}
               disabled={!isMemoryEnabled}
             />
           </Tooltip>

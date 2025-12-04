@@ -1,6 +1,7 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 
 import type {
   CanUseTool,
@@ -11,8 +12,8 @@ import type {
   SDKMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
@@ -100,7 +101,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    const apiConfig = await apiConfigService.get()
+    const apiConfig = preferenceService.getMultiple({
+      host: 'feature.csaas.host',
+      port: 'feature.csaas.port',
+      apiKey: 'feature.csaas.api_key'
+    })
     const loginShellEnv = await getLoginShellEnvironment()
     const loginShellEnvWithoutProxies = Object.fromEntries(
       Object.entries(loginShellEnv).filter(([key]) => !key.toLowerCase().endsWith('_proxy'))
@@ -109,9 +114,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     const env = {
       ...loginShellEnvWithoutProxies,
       // TODO: fix the proxy api server
-      // ANTHROPIC_API_KEY: apiConfig.apiKey,
-      // ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
-      // ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      // ANTHROPIC_API_KEY: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_AUTH_TOKEN: apiConfig['feature.csaas.api_key'],
+      // ANTHROPIC_BASE_URL: `http://${apiConfig['feature.csaas.host']}:${apiConfig['feature.csaas.port']}/${modelInfo.provider.id}`,
       ANTHROPIC_API_KEY: modelInfo.provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: modelInfo.provider.apiKey,
       ANTHROPIC_BASE_URL: modelInfo.provider.anthropicApiHost?.trim() || modelInfo.provider.apiHost,
@@ -121,7 +126,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       // TODO: support set small model in UI
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
-      ELECTRON_NO_ATTACH_CONSOLE: '1'
+      ELECTRON_NO_ATTACH_CONSOLE: '1',
+      // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
+      // This prevents the SDK from using the user's home directory which may have encoding problems
+      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude')
     }
 
     const errorChunks: string[] = []

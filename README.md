@@ -34,7 +34,7 @@
   </a>
 </h1>
 
-<p align="center">English | <a href="./docs/README.zh.md">中文</a> | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us">Documents</a> | <a href="./docs/dev.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
+<p align="center">English | <a href="./docs/zh/README.md">中文</a> | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us">Documents</a> | <a href="./docs/en/guides/development.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
 
 <div align="center">
 
@@ -67,7 +67,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 
 👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
-❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/sponsor.md) to support the development!
+❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/zh/guides/sponsor.md) to support the development!
 
 # 🌠 Screenshot
 
@@ -175,7 +175,7 @@ We welcome contributions to Cherry Studio! Here are some ways you can contribute
 6. **Community Engagement**: Join discussions and help users.
 7. **Promote Usage**: Spread the word about Cherry Studio.
 
-Refer to the [Branching Strategy](docs/branching-strategy-en.md) for contribution guidelines
+Refer to the [Branching Strategy](docs/en/guides/branching-strategy.md) for contribution guidelines
 
 ## Getting Started
 

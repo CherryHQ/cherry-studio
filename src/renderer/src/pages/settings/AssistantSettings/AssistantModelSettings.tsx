@@ -134,12 +134,18 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <Input
             value={typeof param.value === 'string' ? param.value : JSON.stringify(param.value, null, 2)}
             onChange={(e) => {
-              try {
-                const jsonValue = JSON.parse(e.target.value)
-                onUpdateCustomParameter(index, 'value', jsonValue)
-              } catch {
-                onUpdateCustomParameter(index, 'value', e.target.value)
-              }
+              // For JSON type parameters, always store the value as a STRING
+              //
+              // Data Flow:
+              // 1. UI stores: { name: "config", value: '{"key":"value"}', type: "json" } ← STRING format
+              // 2. API parses: getCustomParameters() in src/renderer/src/aiCore/utils/reasoning.ts:687-696
+              //                calls JSON.parse() to convert string to object
+              // 3. Request sends: The parsed object is sent to the AI provider
+              //
+              // Previously this code was parsing JSON here and storing
+              // the object directly, which caused getCustomParameters() to fail when trying
+              // to JSON.parse() an already-parsed object.
+              onUpdateCustomParameter(index, 'value', e.target.value)
             }}
           />
         )
@@ -240,8 +246,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           </Label>
         </RowFlex>
         <Switch
-          isSelected={enableTemperature}
-          onValueChange={(enabled) => {
+          checked={enableTemperature}
+          onCheckedChange={(enabled) => {
             setEnableTemperature(enabled)
             updateAssistantSettings({ enableTemperature: enabled })
           }}
@@ -289,8 +295,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           />
         </RowFlex>
         <Switch
-          isSelected={enableTopP}
-          onValueChange={(enabled) => {
+          checked={enableTopP}
+          onCheckedChange={(enabled) => {
             setEnableTopP(enabled)
             updateAssistantSettings({ enableTopP: enabled })
           }}
@@ -381,8 +387,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           />
         </RowFlex>
         <Switch
-          isSelected={enableMaxTokens}
-          onValueChange={async (enabled) => {
+          checked={enableMaxTokens}
+          onCheckedChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),
@@ -424,8 +430,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.stream_output')}</Label>
         <Switch
-          isSelected={streamOutput}
-          onValueChange={(checked) => {
+          checked={streamOutput}
+          onCheckedChange={(checked) => {
             setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
           }}

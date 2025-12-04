@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
+import { convertImageToPng } from '@renderer/utils/image'
 import type { ImageProps as AntImageProps } from 'antd'
 import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
@@ -33,39 +34,38 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
   // 复制图片到剪贴板
   const handleCopyImage = async (src: string) => {
     try {
+      let blob: Blob
+
       if (src.startsWith('data:')) {
         // 处理 base64 格式的图片
         const match = src.match(/^data:(image\/\w+);base64,(.+)$/)
         if (!match) throw new Error('Invalid base64 image format')
         const mimeType = match[1]
         const byteArray = Base64.toUint8Array(match[2])
-        const blob = new Blob([byteArray as unknown as BlobPart], { type: mimeType })
-        await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
+        blob = new Blob([byteArray as unknown as BlobPart], { type: mimeType })
       } else if (src.startsWith('file://')) {
         // 处理本地文件路径
         const bytes = await window.api.fs.read(src)
         const mimeType = mime.getType(src) || 'application/octet-stream'
-        const blob = new Blob([bytes], { type: mimeType })
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            [mimeType]: blob
-          })
-        ])
+        blob = new Blob([bytes], { type: mimeType })
       } else {
         // 处理 URL 格式的图片
         const response = await fetch(src)
-        const blob = await response.blob()
-
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            [blob.type]: blob
-          })
-        ])
+        blob = await response.blob()
       }
+
+      // 统一转换为 PNG 以确保兼容性（剪贴板 API 不支持 JPEG）
+      const pngBlob = await convertImageToPng(blob)
+
+      const item = new ClipboardItem({
+        'image/png': pngBlob
+      })
+      await navigator.clipboard.write([item])
 
       window.toast.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('Failed to copy image:', error as Error)
+      const err = error as Error
+      logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
       window.toast.error(t('message.copy.failed'))
     }
   }

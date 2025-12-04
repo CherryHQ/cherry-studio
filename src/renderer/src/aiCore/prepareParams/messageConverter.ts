@@ -194,20 +194,20 @@ async function convertMessageToAssistantModelMessage(
  * This function processes messages and transforms them into the format required by the SDK.
  * It handles special cases for vision models and image enhancement models.
  *
- * @param messages - Array of messages to convert. Must contain at least 2 messages when using image enhancement models.
+ * @param messages - Array of messages to convert. Must contain at least 3 messages when using image enhancement models for special handling.
  * @param model - The model configuration that determines conversion behavior
  *
  * @returns A promise that resolves to an array of SDK-compatible model messages
  *
  * @remarks
- * For image enhancement models with 2+ messages:
- * - Expects the second-to-last message (index length-2) to be an assistant message containing image blocks
- * - Expects the last message (index length-1) to be a user message
- * - Extracts images from the assistant message and appends them to the user message content
- * - Returns only the last two processed messages [assistantSdkMessage, userSdkMessage]
+ * For image enhancement models with 3+ messages:
+ * - Examines the last 2 messages to find an assistant message containing image blocks
+ * - If found, extracts images from the assistant message and appends them to the last user message content
+ * - Returns all converted messages (not just the last two) with the images merged into the user message
+ * - Typical pattern: [system?, assistant(image), user] -> [system?, assistant, user(image)]
  *
  * For other models:
- * - Returns all converted messages in order
+ * - Returns all converted messages in order without special image handling
  *
  * The function automatically detects vision model capabilities and adjusts conversion accordingly.
  */
@@ -220,29 +220,25 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
     sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
   }
   // Special handling for image enhancement models
-  // Only keep the last two messages and merge images into the user message
-  // [system?, user, assistant, user]
+  // Only merge images into the user message
+  // [system?, assistant(image), user] -> [system?, assistant, user(image)]
   if (isImageEnhancementModel(model) && messages.length >= 3) {
     const needUpdatedMessages = messages.slice(-2)
-    const needUpdatedSdkMessages = sdkMessages.slice(-2)
-    const assistantMessage = needUpdatedMessages.filter((m) => m.role === 'assistant')[0]
-    const assistantSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'assistant')[0]
-    const userSdkMessage = needUpdatedSdkMessages.filter((m) => m.role === 'user')[0]
-    const systemSdkMessages = sdkMessages.filter((m) => m.role === 'system')
-    const imageBlocks = findImageBlocks(assistantMessage)
-    const imageParts = await convertImageBlockToImagePart(imageBlocks)
-    const parts: Array<TextPart | ImagePart | FilePart> = []
-    if (typeof userSdkMessage.content === 'string') {
-      parts.push({ type: 'text', text: userSdkMessage.content })
-      parts.push(...imageParts)
-      userSdkMessage.content = parts
-    } else {
-      userSdkMessage.content.push(...imageParts)
+    const assistantMessage = needUpdatedMessages.find((m) => m.role === 'assistant')
+    const userSdkMessage = sdkMessages[sdkMessages.length - 1]
+
+    if (assistantMessage && userSdkMessage?.role === 'user') {
+      const imageBlocks = findImageBlocks(assistantMessage)
+      const imageParts = await convertImageBlockToImagePart(imageBlocks)
+
+      if (imageParts.length > 0) {
+        if (typeof userSdkMessage.content === 'string') {
+          userSdkMessage.content = [{ type: 'text', text: userSdkMessage.content }, ...imageParts]
+        } else if (Array.isArray(userSdkMessage.content)) {
+          userSdkMessage.content.push(...imageParts)
+        }
+      }
     }
-    if (systemSdkMessages.length > 0) {
-      return [systemSdkMessages[0], assistantSdkMessage, userSdkMessage]
-    }
-    return [assistantSdkMessage, userSdkMessage]
   }
 
   return sdkMessages

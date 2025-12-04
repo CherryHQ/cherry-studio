@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
-interface SelectorOption<V = string | number | undefined | null> {
+interface SelectorOption<V = string | number> {
   label: string | ReactNode
   value: V
   type?: 'group'
@@ -14,7 +14,7 @@ interface SelectorOption<V = string | number | undefined | null> {
   disabled?: boolean
 }
 
-interface BaseSelectorProps<V = string | number | undefined | null> {
+interface BaseSelectorProps<V = string | number> {
   options: SelectorOption<V>[]
   placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
@@ -39,7 +39,7 @@ interface MultipleSelectorProps<V> extends BaseSelectorProps<V> {
 
 export type SelectorProps<V> = SingleSelectorProps<V> | MultipleSelectorProps<V>
 
-const Selector = <V extends string | number | undefined | null>({
+const Selector = <V extends string | number>({
   options,
   value,
   onChange = () => {},

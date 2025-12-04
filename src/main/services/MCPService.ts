@@ -13,6 +13,7 @@ import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
+import type { StdioServerParameters } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
   StreamableHTTPClientTransport,
@@ -43,11 +44,14 @@ import {
   type MCPPrompt,
   type MCPResource,
   type MCPServer,
-  type MCPTool
+  type MCPTool,
+  MCPToolInputSchema,
+  MCPToolOutputSchema
 } from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
@@ -343,7 +347,7 @@ class McpService {
               removeEnvProxy(loginShellEnv)
             }
 
-            const transportOptions: any = {
+            const transportOptions: StdioServerParameters = {
               command: cmd,
               args,
               env: {
@@ -620,7 +624,9 @@ class McpService {
       tools.map((tool: SDKTool) => {
         const serverTool: MCPTool = {
           ...tool,
-          id: buildFunctionCallToolName(server.name, tool.name),
+          inputSchema: z.parse(MCPToolInputSchema, tool.inputSchema),
+          outputSchema: tool.outputSchema ? z.parse(MCPToolOutputSchema, tool.outputSchema) : undefined,
+          id: buildFunctionCallToolName(server.name, tool.name, server.id),
           serverId: server.id,
           serverName: server.name,
           type: 'mcp'

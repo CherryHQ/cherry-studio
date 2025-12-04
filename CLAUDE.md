@@ -11,7 +11,17 @@ This file provides guidance to AI coding assistants when working with code in th
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Always propose before executing**: Before making any changes, clearly explain your planned approach and wait for explicit user approval to ensure alignment and prevent unwanted modifications.
+- **Lint, test, and format before completion**: Coding tasks are only complete after running `yarn lint`, `yarn test`, and `yarn format` successfully.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat:`, `fix:`, `refactor:`, `docs:`).
+
+## Pull Request Workflow (CRITICAL)
+
+When creating a Pull Request, you MUST:
+
+1. **Read the PR template first**: Always read `.github/pull_request_template.md` before creating the PR
+2. **Follow ALL template sections**: Structure the `--body` parameter to include every section from the template
+3. **Never skip sections**: Include all sections even if marking them as N/A or "None"
+4. **Use proper formatting**: Match the template's markdown structure exactly (headings, checkboxes, code blocks)
 
 ## Development Commands
 

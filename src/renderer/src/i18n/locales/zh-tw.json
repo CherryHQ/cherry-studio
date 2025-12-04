@@ -280,6 +280,7 @@
         "denied": "工具請求已被拒絕。",
         "timeout": "工具請求在收到核准前逾時。"
       },
+      "toolPendingFallback": "工具",
       "waiting": "等待工具權限決定..."
     },
     "type": {
@@ -1148,6 +1149,7 @@
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
     "go_to_settings": "前往設定",
     "i_know": "我知道了",
+    "ignore": "忽略",
     "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
@@ -1207,7 +1209,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "圖片生成",
+    "image-generation": "圖像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -1504,6 +1506,7 @@
     "notes_placeholder": "輸入此知識庫的附加資訊或上下文...",
     "provider_not_found": "未找到服務商",
     "quota": "{{name}} 剩餘配額：{{quota}}",
+    "quota_empty": "今日{{name}}額度不足，請前往官網申請",
     "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
     "search": "搜尋知識庫",
@@ -3771,6 +3774,9 @@
       },
       "view_webdav_settings": "檢視 WebDAV 設定"
     },
+    "groq": {
+      "title": "Groq 設定"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "禁用硬件加速需要重新啟動應用程序才能生效。是否立即重新啟動？",
@@ -4357,12 +4363,16 @@
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
+          },
+          "verbosity": {
+            "help": "提供者是否支援詳細程度參數",
+            "label": "支援詳細資訊"
           }
         },
         "url": {
           "preview": "預覽：{{url}}",
           "reset": "重設",
-          "tip": "# 結尾強制使用輸入位址"
+          "tip": "在末尾添加 # 以停用自動附加的 API 版本。"
         }
       },
       "api_host": "API 主機地址",
