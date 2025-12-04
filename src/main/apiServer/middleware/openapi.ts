@@ -20,8 +20,8 @@ const swaggerOptions: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: 'http://localhost:23333',
-        description: 'Local development server'
+        url: '/',
+        description: 'Current server'
       }
     ],
     components: {

@@ -1,4 +1,4 @@
-@host=http://localhost:23333
+@host=http://127.0.0.1:23333
 @token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
 @agent_id=agent_1758092281575_tn9dxio9k
 
@@ -56,4 +56,3 @@ Content-Type: application/json
     "max_turns": 5
   }
 }
-

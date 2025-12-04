@@ -32,6 +32,7 @@ import {
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/utils/provider'
+import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -2032,8 +2033,8 @@ const migrateConfig = {
       if (!state.settings.apiServer) {
         state.settings.apiServer = {
           enabled: false,
-          host: 'localhost',
-          port: 23333,
+          host: API_SERVER_DEFAULTS.HOST,
+          port: API_SERVER_DEFAULTS.PORT,
           apiKey: `cs-sk-${uuid()}`
         }
       }
@@ -2909,6 +2910,9 @@ const migrateConfig = {
   },
   '180': (state: RootState) => {
     try {
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      }
       // @ts-expect-error
       if (state.settings.openAI.summaryText === 'undefined') {
         state.settings.openAI.summaryText = undefined
