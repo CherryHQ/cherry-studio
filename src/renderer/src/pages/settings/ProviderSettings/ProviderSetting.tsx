@@ -29,6 +29,7 @@ import {
   isAzureOpenAIProvider,
   isGeminiProvider,
   isNewApiProvider,
+  isOllamaProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider,
   isVertexProvider
@@ -276,6 +277,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const hostPreview = () => {
     const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
+
+    if (isOllamaProvider(provider)) {
+      return formattedApiHost + '/chat'
+    }
 
     if (isOpenAICompatibleProvider(provider)) {
       return formattedApiHost + '/chat/completions'

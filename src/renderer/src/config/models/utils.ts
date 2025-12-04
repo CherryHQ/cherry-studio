@@ -10,7 +10,8 @@ import {
   isGPT51SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAIOpenWeightModel,
-  isOpenAIReasoningModel
+  isOpenAIReasoningModel,
+  isSupportVerbosityModel
 } from './openai'
 import { isQwenMTModel } from './qwen'
 import { isGenerateImageModel, isTextToImageModel, isVisionModel } from './vision'
@@ -154,10 +155,10 @@ const MODEL_SUPPORTED_VERBOSITY: readonly {
  * For GPT-5-pro, only 'high' is supported; for other GPT-5 models, 'low', 'medium', and 'high' are supported.
  * For GPT-5.1 series models, 'low', 'medium', and 'high' are supported.
  * @param model - The model to check
- * @returns An array of supported verbosity levels, always including `undefined` as the first element
+ * @returns An array of supported verbosity levels, always including `undefined` as the first element and `null` when applicable
  */
 export const getModelSupportedVerbosity = (model: Model | undefined | null): OpenAIVerbosity[] => {
-  if (!model) {
+  if (!model || !isSupportVerbosityModel(model)) {
     return [undefined]
   }
 
@@ -165,7 +166,7 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): Ope
 
   for (const { validator, values } of MODEL_SUPPORTED_VERBOSITY) {
     if (validator(model)) {
-      supportedValues = [...values]
+      supportedValues = [null, ...values]
       break
     }
   }
@@ -176,6 +177,11 @@ export const getModelSupportedVerbosity = (model: Model | undefined | null): Ope
 export const isGeminiModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini')
+}
+
+export const isGrokModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('grok')
 }
 
 // zhipu 视觉推理模型用这组 special token 标记推理结果

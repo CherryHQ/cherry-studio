@@ -250,9 +250,25 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
             enable_thinking: true,
             incremental_output: true
           }
+        // TODO: 支持 new-api类型
+        case SystemProviderIds['new-api']:
+        case SystemProviderIds.cherryin: {
+          return {
+            extra_body: {
+              thinking: {
+                type: 'enabled' // auto is invalid
+              }
+            }
+          }
+        }
         case SystemProviderIds.hunyuan:
         case SystemProviderIds['tencent-cloud-ti']:
         case SystemProviderIds.doubao:
+        case SystemProviderIds.deepseek:
+        case SystemProviderIds.aihubmix:
+        case SystemProviderIds.sophnet:
+        case SystemProviderIds.ppio:
+        case SystemProviderIds.dmxapi:
           return {
             thinking: {
               type: 'enabled' // auto is invalid
@@ -274,8 +290,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           logger.warn(
             `Skipping thinking options for provider ${provider.name} as DeepSeek v3.1 thinking control method is unknown`
           )
-        case SystemProviderIds.silicon:
-        // specially handled before
       }
     }
   }

@@ -11,17 +11,25 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
-import { formatApiHost, formatAzureOpenAIApiHost, formatVertexApiHost, routeToEndpoint } from '@renderer/utils/api'
+import {
+  formatApiHost,
+  formatAzureOpenAIApiHost,
+  formatOllamaApiHost,
+  formatVertexApiHost,
+  routeToEndpoint
+} from '@renderer/utils/api'
 import {
   isAnthropicProvider,
   isAzureOpenAIProvider,
   isCherryAIProvider,
   isGeminiProvider,
   isNewApiProvider,
+  isOllamaProvider,
   isPerplexityProvider,
+  isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { cloneDeep } from 'lodash'
+import { cloneDeep, isEmpty } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
@@ -73,6 +81,8 @@ export function formatProviderApiHost(provider: Provider): Provider {
     }
   } else if (formatted.id === SystemProviderIds.copilot || formatted.id === SystemProviderIds.github) {
     formatted.apiHost = formatApiHost(formatted.apiHost, false)
+  } else if (isOllamaProvider(formatted)) {
+    formatted.apiHost = formatOllamaApiHost(formatted.apiHost)
   } else if (isGeminiProvider(formatted)) {
     formatted.apiHost = formatApiHost(formatted.apiHost, true, 'v1beta')
   } else if (isAzureOpenAIProvider(formatted)) {
@@ -157,6 +167,19 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     }
   }
 
+  if (isOllamaProvider(actualProvider)) {
+    return {
+      providerId: 'ollama',
+      options: {
+        ...baseConfig,
+        headers: {
+          ...actualProvider.extra_headers,
+          Authorization: !isEmpty(baseConfig.apiKey) ? `Bearer ${baseConfig.apiKey}` : undefined
+        }
+      }
+    }
+  }
+
   // 处理OpenAI模式
   const extraOptions: any = {}
   extraOptions.endpoint = endpoint
@@ -238,7 +261,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       ...options,
       name: actualProvider.id,
       ...extraOptions,
-      includeUsage: true
+      includeUsage: isSupportStreamOptionsProvider(actualProvider)
     }
   }
 }
@@ -310,7 +333,6 @@ export async function prepareSpecialProviderConfig(
             ...(config.options.headers ? config.options.headers : {}),
             'Content-Type': 'application/json',
             'anthropic-version': '2023-06-01',
-            'anthropic-beta': 'oauth-2025-04-20',
             Authorization: `Bearer ${oauthToken}`
           },
           baseURL: 'https://api.anthropic.com/v1',

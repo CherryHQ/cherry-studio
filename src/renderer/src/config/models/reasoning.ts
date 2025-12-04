@@ -21,7 +21,7 @@ import { isTextToImageModel } from './vision'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
+  /^(?!.*-non-reasoning\b)(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking|think)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -161,7 +161,13 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
         'nvidia',
         'ppio',
         'hunyuan',
-        'tencent-cloud-ti'
+        'tencent-cloud-ti',
+        'deepseek',
+        'cherryin',
+        'new-api',
+        'aihubmix',
+        'sophnet',
+        'dmxapi'
       ] satisfies SystemProviderId[]
     ).some((id) => id === model.provider)
   }
@@ -462,15 +468,19 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, (model) => {
     const modelId = getLowerBaseModelName(model.id)
-    // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
     // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
+    // 这里假定所有deepseek-chat都是deepseek-v3.2
     // Matches: "deepseek-v3" followed by ".digit" or "-digit".
     // Optionally, this can be followed by ".alphanumeric_sequence" or "-alphanumeric_sequence"
     // until the end of the string.
     // Examples: deepseek-v3.1, deepseek-v3-1, deepseek-v3.1.2, deepseek-v3.1-alpha
     // Does NOT match: deepseek-v3.123 (missing separator after '1'), deepseek-v3.x (x isn't a digit)
     // TODO: move to utils and add test cases
-    return /deepseek-v3(?:\.\d|-\d)(?:(\.|-)\w+)?$/.test(modelId) || modelId.includes('deepseek-chat-v3.1')
+    return (
+      /(\w+-)?deepseek-v3(?:\.\d|-\d)(?:(\.|-)(?!speciale$)\w+)?$/.test(modelId) ||
+      modelId.includes('deepseek-chat-v3.1') ||
+      modelId.includes('deepseek-chat')
+    )
   })
   return idResult || nameResult
 }
@@ -545,7 +555,8 @@ export function isReasoningModel(model?: Model): boolean {
     isMiniMaxReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('pangu-pro-moe') ||
-    modelId.includes('seed-oss')
+    modelId.includes('seed-oss') ||
+    modelId.includes('deepseek-v3.2-speciale')
   ) {
     return true
   }
@@ -596,3 +607,17 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
   }
   return undefined
 }
+
+/**
+ * Determines if a model is a fixed reasoning model.
+ *
+ * A model is considered a fixed reasoning model if it meets all of the following criteria:
+ * - It is a reasoning model
+ * - It does NOT support thinking tokens
+ * - It does NOT support reasoning effort
+ *
+ * @param model - The model to check
+ * @returns `true` if the model is a fixed reasoning model, `false` otherwise
+ */
+export const isFixedReasoningModel = (model: Model) =>
+  isReasoningModel(model) && !isSupportedThinkingTokenModel(model) && !isSupportedReasoningEffortModel(model)

@@ -192,7 +192,7 @@ export default class ModernAiProvider {
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     // ai-gateway不是image/generation 端点，所以就先不走legacy了
-    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds['ai-gateway']) {
+    if (config.isImageGenerationEndpoint && this.getActualProvider().id !== SystemProviderIds.gateway) {
       // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
       if (!config.uiMessages) {
         throw new Error('uiMessages is required for image generation endpoint')
@@ -483,7 +483,7 @@ export default class ModernAiProvider {
 
   // 代理其他方法到原有实现
   public async models() {
-    if (this.actualProvider.id === SystemProviderIds['ai-gateway']) {
+    if (this.actualProvider.id === SystemProviderIds.gateway) {
       const formatModel = function (models: GatewayLanguageModelEntry[]): Model[] {
         return models.map((m) => ({
           id: m.id,
