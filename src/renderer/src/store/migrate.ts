@@ -2810,7 +2810,7 @@ const migrateConfig = {
     try {
       addProvider(state, SystemProviderIds.longcat)
 
-      addProvider(state, 'ai-gateway' as any) // Historical migration - provider was later renamed to 'gateway'
+      addProvider(state, 'gateway')
       addProvider(state, 'cerebras')
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.minimax) {
