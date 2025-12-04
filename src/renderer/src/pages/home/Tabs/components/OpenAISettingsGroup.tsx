@@ -13,7 +13,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
 import type { Model, OpenAIServiceTier, ServiceTier } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import type { OpenAIReasoningSummary, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
 import { Tooltip } from 'antd'
@@ -29,7 +29,7 @@ type VerbosityOption = {
 }
 
 type SummaryTextOption = {
-  value: NonNullable<OpenAISummaryText> | 'undefined' | 'null'
+  value: NonNullable<OpenAIReasoningSummary> | 'undefined' | 'null'
   label: string
 }
 
@@ -60,7 +60,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   const showServiceTierSetting = isSupportServiceTier && providerId !== SystemProviderIds.groq
 
   const setSummaryText = useCallback(
-    (value: OpenAISummaryText) => {
+    (value: OpenAIReasoningSummary) => {
       dispatch(setOpenAISummaryText(value))
     },
     [dispatch]

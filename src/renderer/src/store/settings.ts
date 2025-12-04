@@ -16,7 +16,7 @@ import type {
   TranslateLanguageCode
 } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
-import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import type { OpenAIReasoningSummary, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
 import { API_SERVER_DEFAULTS, UpgradeChannel } from '@shared/config/constant'
 
@@ -193,7 +193,8 @@ export interface SettingsState {
   }
   // OpenAI
   openAI: {
-    summaryText: OpenAISummaryText
+    // TODO: it's a bad naming. rename it to reasoningSummary in v2.
+    summaryText: OpenAIReasoningSummary
     /** @deprecated 现在该设置迁移到Provider对象中 */
     serviceTier: OpenAIServiceTier
     verbosity: OpenAIVerbosity
@@ -791,7 +792,7 @@ const settingsSlice = createSlice({
     setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
       state.disableHardwareAcceleration = action.payload
     },
-    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAIReasoningSummary>) => {
       state.openAI.summaryText = action.payload
     },
     setOpenAIVerbosity: (state, action: PayloadAction<OpenAIVerbosity>) => {

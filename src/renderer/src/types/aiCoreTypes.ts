@@ -50,7 +50,7 @@ export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
  * When undefined, the parameter is omitted from the request.
  * When null, verbosity is explicitly disabled.
  */
-export type OpenAISummaryText = OpenAI.Reasoning['summary']
+export type OpenAIReasoningSummary = OpenAI.Reasoning['summary']
 
 const AiSdkParamsSchema = z.enum([
   'maxOutputTokens',
