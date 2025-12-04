@@ -43,7 +43,6 @@ import type { OllamaCompletionProviderOptions } from 'ollama-ai-provider-v2'
 
 import { addAnthropicHeaders } from '../prepareParams/header'
 import { getAiSdkProviderId } from '../provider/factory'
-import { registeredNewProviderIdSchema } from '../provider/providerInitialization'
 import { buildGeminiGenerateImageParams } from './image'
 import {
   getAnthropicReasoningParams,
@@ -263,22 +262,40 @@ export function buildProviderOptions(
       throw error
     }
   }
-
+  logger.debug('Built providerSpecificOptions', { providerSpecificOptions })
   /**
    * Retrieve custom parameters and separate standard parameters from provider-specific parameters.
    */
   const customParams = getCustomParameters(assistant)
-  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams) // 对于这里提取的providerParams，需要检测key是否是providerId
+  const { standardParams, providerParams } = extractAiSdkStandardParams(customParams)
+  logger.debug('Extracted standardParams and providerParams', { standardParams, providerParams })
 
   /**
-   * {
-   *   gateway: { customOption1: value1, customOption2: value2 },
-   *   customKey: customValue,
-   * }
+   * Get the actual AI SDK provider ID(s) from the already-built providerSpecificOptions.
+   * For proxy providers (cherryin, aihubmix, newapi), this will be the actual SDK provider (e.g., 'google', 'openai', 'anthropic')
+   * For regular providers, this will be the provider itself
+   */
+  const actualAiSdkProviderIds = Object.keys(providerSpecificOptions)
+  const primaryAiSdkProviderId = actualAiSdkProviderIds[0] // Use the first one as primary for non-scoped params
+
+  /**
+   * Merge custom parameters into providerSpecificOptions.
+   * Simple logic:
+   * 1. If key is in actualAiSdkProviderIds → merge directly (user knows the actual AI SDK provider ID)
+   * 2. If key == rawProviderId:
+   *    - If it's gateway/ollama → preserve (they need their own config for routing/options)
+   *    - Otherwise → map to primary (this is a proxy provider like cherryin)
+   * 3. Otherwise → treat as regular parameter, merge to primary provider
+   *
+   * Example:
+   * - User writes `cherryin: { opt: 'val' }` → mapped to `google: { opt: 'val' }` (case 2, proxy)
+   * - User writes `gateway: { order: [...] }` → stays as `gateway: { order: [...] }` (case 2, routing config)
+   * - User writes `google: { opt: 'val' }` → stays as `google: { opt: 'val' }` (case 1)
+   * - User writes `customKey: 'val'` → merged to `google: { customKey: 'val' }` (case 3)
    */
   for (const key of Object.keys(providerParams)) {
-    if (baseProviderIdSchema.safeParse(key).success || registeredNewProviderIdSchema.safeParse(key).success) {
-      // Key is a provider ID, merge provider-specific options
+    if (actualAiSdkProviderIds.includes(key)) {
+      // Case 1: Key is an actual AI SDK provider ID - merge directly
       providerSpecificOptions = {
         ...providerSpecificOptions,
         [key]: {
@@ -286,17 +303,40 @@ export function buildProviderOptions(
           ...providerParams[key]
         }
       }
+    } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
+      // Case 2: Key is the current provider (not in actualAiSdkProviderIds, so it's a proxy or special provider)
+      // Gateway is special: it needs routing config preserved
+      if (key === SystemProviderIds.gateway) {
+        // Preserve gateway config for routing
+        providerSpecificOptions = {
+          ...providerSpecificOptions,
+          [key]: {
+            ...providerSpecificOptions[key],
+            ...providerParams[key]
+          }
+        }
+      } else {
+        // Proxy provider (cherryin, etc.) - map to actual AI SDK provider
+        providerSpecificOptions = {
+          ...providerSpecificOptions,
+          [primaryAiSdkProviderId]: {
+            ...providerSpecificOptions[primaryAiSdkProviderId],
+            ...providerParams[key]
+          }
+        }
+      }
     } else {
-      // Key is a custom parameter, add it to the current provider's options
+      // Case 3: Regular parameter - merge to primary provider
       providerSpecificOptions = {
         ...providerSpecificOptions,
-        [rawProviderId]: {
-          ...providerSpecificOptions[rawProviderId],
+        [primaryAiSdkProviderId]: {
+          ...providerSpecificOptions[primaryAiSdkProviderId],
           [key]: providerParams[key]
         }
       }
     }
   }
+  logger.debug('Final providerSpecificOptions after merging providerParams', { providerSpecificOptions })
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions } 以及提取的标准参数
   return {
