@@ -13,6 +13,7 @@ import {
   addAssistant,
   addTopic,
   insertAssistant,
+  moveAllTopics as moveAllTopicsAction,
   removeAllTopics,
   removeAssistant,
   removeTopic,
@@ -175,6 +176,25 @@ export function useAssistant(id: string) {
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
     removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    moveAllTopics: async (toAssistant: Assistant) => {
+      if (!assistant || assistant.id === toAssistant.id) return
+      const topicsToMove = assistant.topics || []
+
+      dispatch(moveAllTopicsAction({ fromId: assistant.id, toId: toAssistant.id }))
+
+      const topicIds = topicsToMove.map((topic) => topic.id)
+      await db.topics
+        .where('id')
+        .anyOf(topicIds)
+        .modify((dbTopic) => {
+          if (dbTopic.messages) {
+            dbTopic.messages = dbTopic.messages.map((message) => ({
+              ...message,
+              assistantId: toAssistant.id
+            }))
+          }
+        })
+    },
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]

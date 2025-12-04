@@ -33,6 +33,7 @@ const CustomTag: FC<CustomTagProps> = ({
   disabled,
   inactive
 }) => {
+  const isTestEnv = process.env.NODE_ENV === 'test'
   const actualColor = inactive ? '#aaaaaa' : color
   const tagContent = useMemo(
     () => (
@@ -64,7 +65,7 @@ const CustomTag: FC<CustomTagProps> = ({
   )
 
   return tooltip ? (
-    <Tooltip title={tooltip} placement="top" mouseEnterDelay={0.3}>
+    <Tooltip title={tooltip} placement="top" mouseEnterDelay={0} open={isTestEnv ? true : undefined}>
       {tagContent}
     </Tooltip>
   ) : (

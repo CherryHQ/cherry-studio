@@ -777,6 +777,10 @@
       "content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "title": "Clear topics"
     },
+    "move_all": {
+      "title": "Move all topics to",
+      "confirm": "Move all topics from \"{{from}}\" to \"{{to}}\" and merge?"
+    },
     "copy": {
       "title": "Copy Assistant"
     },

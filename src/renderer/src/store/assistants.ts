@@ -185,6 +185,23 @@ const assistantsSlice = createSlice({
         return assistant
       })
     },
+    moveAllTopics: (state, action: PayloadAction<{ fromId: string; toId: string }>) => {
+      const { fromId, toId } = action.payload
+      if (fromId === toId) return
+
+      const fromAssistant = state.assistants.find((assistant) => assistant.id === fromId)
+      const toAssistant = state.assistants.find((assistant) => assistant.id === toId)
+
+      if (!fromAssistant || !toAssistant) return
+
+      const topicsToMove = (fromAssistant.topics || []).map((topic) => ({
+        ...topic,
+        assistantId: toId
+      }))
+
+      toAssistant.topics = uniqBy([...topicsToMove, ...(toAssistant.topics || [])], 'id')
+      fromAssistant.topics = [getDefaultTopic(fromAssistant.id)]
+    },
     updateTopicUpdatedAt: (state, action: PayloadAction<{ topicId: string }>) => {
       outer: for (const assistant of state.assistants) {
         for (const topic of normalizeTopics(assistant.topics)) {
@@ -257,6 +274,7 @@ export const {
   updateTopic,
   updateTopics,
   removeAllTopics,
+  moveAllTopics,
   updateTopicUpdatedAt,
   setModel,
   setTagsOrder,
