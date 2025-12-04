@@ -10,7 +10,7 @@ export const bookExts = ['.epub']
 export const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
   PORT: 23333
-} as const
+}
 
 /**
  * A flat array of all file extensions known by the linguist database.
