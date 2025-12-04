@@ -2,7 +2,6 @@ import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import type { OpenAIProviderSettings } from '@ai-sdk/openai'
 import {
-  OpenAIChatLanguageModel,
   OpenAICompletionLanguageModel,
   OpenAIEmbeddingModel,
   OpenAIImageModel,
@@ -10,6 +9,7 @@ import {
   OpenAISpeechModel,
   OpenAITranscriptionModel
 } from '@ai-sdk/openai/internal'
+import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
 import {
   type EmbeddingModelV2,
   type ImageModelV2,
@@ -118,7 +118,7 @@ const createCustomFetch = (originalFetch?: any) => {
     return originalFetch ? originalFetch(url, options) : fetch(url, options)
   }
 }
-class CherryInOpenAIChatLanguageModel extends OpenAIChatLanguageModel {
+class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel {
   constructor(modelId: string, settings: any) {
     super(modelId, {
       ...settings,

@@ -128,16 +128,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/deepseek@npm:^1.0.29":
-  version: 1.0.29
-  resolution: "@ai-sdk/deepseek@npm:1.0.29"
+"@ai-sdk/deepseek@npm:^1.0.31":
+  version: 1.0.31
+  resolution: "@ai-sdk/deepseek@npm:1.0.31"
   dependencies:
-    "@ai-sdk/openai-compatible": "npm:1.0.27"
     "@ai-sdk/provider": "npm:2.0.0"
-    "@ai-sdk/provider-utils": "npm:3.0.17"
+    "@ai-sdk/provider-utils": "npm:3.0.18"
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
-  checksum: 10c0/f43fba5c72e3f2d8ddc79d68c656cb4fc5fcd488c97b0a5371ad728e2d5c7a8c61fe9125a2a471b7648d99646cd2c78aad2d462c1469942bb4046763c5f13f38
+  checksum: 10c0/851965392ce03c85ffacf74900ec159bccef491b9bf6142ac08bc25f4d2bbf4df1d754e76fe9793403dee4a8da76fb6b7a9ded84491ec309bdea9aa478e6f542
   languageName: node
   linkType: hard
 
@@ -243,6 +242,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/openai-compatible@npm:^1.0.28":
+  version: 1.0.28
+  resolution: "@ai-sdk/openai-compatible@npm:1.0.28"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.18"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/f484774e0094a12674f392d925038a296191723b4c76bd833eabf1b334cf3c84fe77a2e2c5fbac974ec5e18340e113c6a81c86d957c9529a7a60e87cd390ada8
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch":
   version: 1.0.27
   resolution: "@ai-sdk/openai-compatible@patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch::version=1.0.27&hash=c44b76"
@@ -301,6 +312,19 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4.1.8
   checksum: 10c0/1bae6dc4cacd0305b6aa152f9589bbd61c29f150155482c285a77f83d7ed416d52bc2aa7fdaba2e5764530392d9e8f799baea34a63dce6c72ecd3de364dc62d1
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/provider-utils@npm:3.0.18":
+  version: 3.0.18
+  resolution: "@ai-sdk/provider-utils@npm:3.0.18"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@standard-schema/spec": "npm:^1.0.0"
+    eventsource-parser: "npm:^3.0.6"
+  peerDependencies:
+    zod: ^3.25.76 || ^4.1.8
+  checksum: 10c0/209c15b0dceef0ba95a7d3de544be0a417ad4a0bd5143496b3966a35fedf144156d93a42ff8c3d7db56781b9836bafc8c132c98978c49240e55bc1a36e18a67f
   languageName: node
   linkType: hard
 
@@ -1830,7 +1854,7 @@ __metadata:
   dependencies:
     "@ai-sdk/anthropic": "npm:^2.0.49"
     "@ai-sdk/azure": "npm:^2.0.74"
-    "@ai-sdk/deepseek": "npm:^1.0.29"
+    "@ai-sdk/deepseek": "npm:^1.0.31"
     "@ai-sdk/openai-compatible": "patch:@ai-sdk/openai-compatible@npm%3A1.0.27#~/.yarn/patches/@ai-sdk-openai-compatible-npm-1.0.27-06f74278cf.patch"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.17"
@@ -1851,6 +1875,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-sdk-provider@workspace:packages/ai-sdk-provider"
   dependencies:
+    "@ai-sdk/openai-compatible": "npm:^1.0.28"
     "@ai-sdk/provider": "npm:^2.0.0"
     "@ai-sdk/provider-utils": "npm:^3.0.17"
     tsdown: "npm:^0.13.3"

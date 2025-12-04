@@ -11,6 +11,7 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import {
   getThinkModelType,
   isDoubaoThinkingAutoModel,
+  isFixedReasoningModel,
   isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   MODEL_SUPPORTED_OPTIONS
@@ -41,6 +42,8 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
+
+  const isFixedReasoning = isFixedReasoningModel(model)
 
   // 获取当前模型支持的选项
   const supportedOptions: ThinkingOption[] = useMemo(() => {
@@ -111,6 +114,8 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
   }, [quickPanelHook, panelItems, t])
 
   const handleOpenQuickPanel = useCallback(() => {
+    if (isFixedReasoning) return
+
     if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.Thinking) {
       quickPanelHook.close()
       return
@@ -121,9 +126,11 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       return
     }
     openQuickPanel()
-  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking])
+  }, [openQuickPanel, quickPanelHook, isThinkingEnabled, supportedOptions, disableThinking, isFixedReasoning])
 
   useEffect(() => {
+    if (isFixedReasoning) return
+
     const disposeMenu = quickPanel.registerRootMenu([
       {
         label: t('assistants.settings.reasoning_effort.label'),
@@ -140,10 +147,11 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
       disposeMenu()
       disposeTrigger()
     }
-  }, [currentReasoningEffort, openQuickPanel, quickPanel, t])
+  }, [currentReasoningEffort, openQuickPanel, quickPanel, t, isFixedReasoning])
 
-  const ariaLabel =
-    isThinkingEnabled && supportedOptions.includes('none')
+  const ariaLabel = isFixedReasoning
+    ? t('chat.input.thinking.label')
+    : isThinkingEnabled && supportedOptions.includes('none')
       ? t('common.close')
       : t('assistants.settings.reasoning_effort.label')
 
@@ -151,9 +159,10 @@ const ThinkingButton: FC<Props> = ({ quickPanel, model, assistantId }): ReactEle
     <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
-        active={currentReasoningEffort !== 'none'}
+        active={isFixedReasoning || currentReasoningEffort !== 'none'}
         aria-label={ariaLabel}
-        aria-pressed={currentReasoningEffort !== 'none'}>
+        aria-pressed={currentReasoningEffort !== 'none'}
+        style={isFixedReasoning ? { cursor: 'default' } : undefined}>
         {ThinkingIcon(currentReasoningEffort)}
       </ActionIconButton>
     </Tooltip>
