@@ -64,7 +64,11 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
         data-title="code_block.more"
       >
         <div
+          aria-expanded="false"
+          aria-label="code_block.more"
           class="c2"
+          role="button"
+          tabindex="0"
         >
           <div
             class="tool-icon"

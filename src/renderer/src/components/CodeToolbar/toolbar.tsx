@@ -40,7 +40,19 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
         {quickToolButtons}
         {quickTools.length > 1 && (
           <Tooltip title={t('code_block.more')} mouseEnterDelay={0.5}>
-            <ToolWrapper onClick={() => setShowQuickTools(!showQuickTools)} className={showQuickTools ? 'active' : ''}>
+            <ToolWrapper
+              onClick={() => setShowQuickTools(!showQuickTools)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setShowQuickTools(!showQuickTools)
+                }
+              }}
+              className={showQuickTools ? 'active' : ''}
+              role="button"
+              aria-label={t('code_block.more')}
+              aria-expanded={showQuickTools}
+              tabIndex={0}>
               <EllipsisVertical className="tool-icon" />
             </ToolWrapper>
           </Tooltip>
