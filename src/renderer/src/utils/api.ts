@@ -1,6 +1,7 @@
 export {
   formatApiHost,
   formatAzureOpenAIApiHost,
+  formatOllamaApiHost,
   formatVertexApiHost,
   getAiSdkBaseUrl,
   getTrailingApiVersion,
