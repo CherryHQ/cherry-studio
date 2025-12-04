@@ -7,6 +7,11 @@ export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', 
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
 
+export const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+} as const
+
 /**
  * A flat array of all file extensions known by the linguist database.
  * This is the primary source for identifying code files.

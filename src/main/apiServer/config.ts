@@ -1,3 +1,4 @@
+import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import type { ApiServerConfig } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -5,9 +6,6 @@ import { loggerService } from '../services/LoggerService'
 import { reduxService } from '../services/ReduxService'
 
 const logger = loggerService.withContext('ApiServerConfig')
-
-const defaultHost = '127.0.0.1'
-const defaultPort = 23333
 
 class ConfigManager {
   private _config: ApiServerConfig | null = null
@@ -30,8 +28,8 @@ class ConfigManager {
       }
       this._config = {
         enabled: serverSettings?.enabled ?? false,
-        port: serverSettings?.port ?? defaultPort,
-        host: defaultHost,
+        port: serverSettings?.port ?? API_SERVER_DEFAULTS.PORT,
+        host: serverSettings?.host ?? API_SERVER_DEFAULTS.HOST,
         apiKey: apiKey
       }
       return this._config
@@ -39,8 +37,8 @@ class ConfigManager {
       logger.warn('Failed to load config from Redux, using defaults', { error })
       this._config = {
         enabled: false,
-        port: defaultPort,
-        host: defaultHost,
+        port: API_SERVER_DEFAULTS.PORT,
+        host: API_SERVER_DEFAULTS.HOST,
         apiKey: this.generateApiKey()
       }
       return this._config
