@@ -5,6 +5,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
+import { isWin } from '../constant'
 import { getResourcePath } from '.'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -39,7 +40,7 @@ export function runInstallScript(scriptPath: string): Promise<void> {
 }
 
 export async function getBinaryName(name: string): Promise<string> {
-  if (process.platform === 'win32') {
+  if (isWin) {
     return `${name}.exe`
   }
   return name
@@ -69,7 +70,7 @@ export async function isBinaryExists(name: string): Promise<boolean> {
  */
 export function findExecutable(name: string): string | null {
   // This implementation uses where.exe which is Windows-only
-  if (process.platform !== 'win32') {
+  if (!isWin) {
     return null
   }
 
@@ -134,7 +135,7 @@ export function findExecutable(name: string): string | null {
  */
 export function findGitBash(): string | null {
   // Git Bash is Windows-only
-  if (process.platform !== 'win32') {
+  if (!isWin) {
     return null
   }
 
