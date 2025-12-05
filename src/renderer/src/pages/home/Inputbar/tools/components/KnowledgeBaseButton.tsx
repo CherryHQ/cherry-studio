@@ -125,6 +125,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, selectedBases, onSelect, d
         onClick={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}
         disabled={disabled}
+        aria-label={t('chat.input.knowledge_base')}
         icon={<FileSearch size={18} />}
       />
     </Tooltip>

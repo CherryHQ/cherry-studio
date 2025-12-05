@@ -96,6 +96,9 @@ export type ReasoningEffortOptionalParams = {
         include_thoughts?: boolean
       }
     }
+    thinking?: {
+      type: 'enabled' | 'disabled'
+    }
     thinking_budget?: number
     reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'auto'
   }
@@ -127,10 +130,6 @@ export type OpenAIExtraBody = {
   translation_options?: {
     source_lang: 'auto'
     target_lang: string
-  }
-  // for gpt-5 series models verbosity control
-  text?: {
-    verbosity?: 'low' | 'medium' | 'high'
   }
 }
 // image is for openrouter. audio is ignored for now

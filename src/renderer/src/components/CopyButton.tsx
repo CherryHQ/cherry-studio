@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { Copy } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,8 +39,24 @@ const CopyButton: FC<CopyButtonProps> = ({
       })
   }
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleCopy()
+    }
+  }
+
+  const ariaLabel = tooltip || t('common.copy')
+
   const button = (
-    <ButtonContainer $color={color} $hoverColor={hoverColor} onClick={handleCopy}>
+    <ButtonContainer
+      $color={color}
+      $hoverColor={hoverColor}
+      onClick={handleCopy}
+      onKeyDown={handleKeyDown}
+      role="button"
+      aria-label={ariaLabel}
+      tabIndex={0}>
       <Copy size={size} className="copy-icon" />
       {label && <RightText size={size}>{label}</RightText>}
     </ButtonContainer>

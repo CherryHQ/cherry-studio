@@ -31,7 +31,10 @@ const ActivityDirectoryButton: FC<Props> = ({ quickPanel, quickPanelController, 
 
   return (
     <Tooltip placement="top" title={t('chat.input.activity_directory.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} icon={<FolderOpen size={18} />}></ActionIconButton>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        aria-label={t('chat.input.activity_directory.title')}
+        icon={<FolderOpen size={18} />}></ActionIconButton>
     </Tooltip>
   )
 }

@@ -1,5 +1,6 @@
 import { type ProviderConfig, registerMultipleProviderConfigs } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('ProviderConfigs')
 
@@ -81,12 +82,12 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     aliases: ['hf', 'hugging-face']
   },
   {
-    id: 'ai-gateway',
-    name: 'AI Gateway',
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
     import: () => import('@ai-sdk/gateway'),
     creatorFunctionName: 'createGateway',
     supportsImageGeneration: true,
-    aliases: ['gateway']
+    aliases: ['ai-gateway']
   },
   {
     id: 'cerebras',
@@ -94,8 +95,18 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     import: () => import('@ai-sdk/cerebras'),
     creatorFunctionName: 'createCerebras',
     supportsImageGeneration: false
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    import: () => import('ollama-ai-provider-v2'),
+    creatorFunctionName: 'createOllama',
+    supportsImageGeneration: false
   }
 ] as const
+
+export const registeredNewProviderIds = NEW_PROVIDER_CONFIGS.map((config) => config.id)
+export const registeredNewProviderIdSchema = z.enum(registeredNewProviderIds)
 
 /**
  * 初始化新的Providers

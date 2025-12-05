@@ -9,6 +9,7 @@ import {
 } from '@renderer/config/models'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
+import type { RootState } from '@renderer/store'
 import type {
   Assistant,
   GenerateImageParams,
@@ -245,23 +246,20 @@ export abstract class BaseApiClient<
 
   protected getVerbosity(model?: Model): OpenAIVerbosity {
     try {
-      const state = window.store?.getState()
+      const state = window.store?.getState() as RootState
       const verbosity = state?.settings?.openAI?.verbosity
 
-      if (verbosity && ['low', 'medium', 'high'].includes(verbosity)) {
-        // If model is provided, check if the verbosity is supported by the model
-        if (model) {
-          const supportedVerbosity = getModelSupportedVerbosity(model)
-          // Use user's verbosity if supported, otherwise use the first supported option
-          return supportedVerbosity.includes(verbosity) ? verbosity : supportedVerbosity[0]
-        }
-        return verbosity
+      // If model is provided, check if the verbosity is supported by the model
+      if (model) {
+        const supportedVerbosity = getModelSupportedVerbosity(model)
+        // Use user's verbosity if supported, otherwise use the first supported option
+        return supportedVerbosity.includes(verbosity) ? verbosity : supportedVerbosity[0]
       }
+      return verbosity
     } catch (error) {
-      logger.warn('Failed to get verbosity from state:', error as Error)
+      logger.warn('Failed to get verbosity from state. Fallback to undefined.', error as Error)
+      return undefined
     }
-
-    return 'medium'
   }
 
   protected getTimeout(model: Model) {

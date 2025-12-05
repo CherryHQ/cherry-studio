@@ -23,12 +23,12 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
 type VerbosityOption = {
-  value: NonNullable<OpenAIVerbosity> | 'undefined'
+  value: NonNullable<OpenAIVerbosity> | 'undefined' | 'null'
   label: string
 }
 
 type SummaryTextOption = {
-  value: NonNullable<OpenAISummaryText> | 'undefined'
+  value: NonNullable<OpenAISummaryText> | 'undefined' | 'null'
   label: string
 }
 
@@ -85,6 +85,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       label: t('common.ignore')
     },
     {
+      value: 'null',
+      label: t('common.off')
+    },
+    {
       value: 'auto',
       label: t('settings.openai.summary_text_mode.auto')
     },
@@ -103,6 +107,10 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
       {
         value: 'undefined',
         label: t('common.ignore')
+      },
+      {
+        value: 'null',
+        label: t('common.off')
       },
       {
         value: 'low',
@@ -198,9 +206,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
                 <HelpTooltip content={t('settings.openai.summary_text_mode.tip')} />
               </SettingRowTitleSmall>
               <Selector
-                value={summaryText}
+                value={toOptionValue(summaryText)}
                 onChange={(value) => {
-                  setSummaryText(value as OpenAISummaryText)
+                  setSummaryText(toRealValue(value))
                 }}
                 options={summaryTextOptions}
               />
@@ -214,9 +222,9 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
               {t('settings.openai.verbosity.title')} <HelpTooltip content={t('settings.openai.verbosity.tip')} />
             </SettingRowTitleSmall>
             <Selector
-              value={verbosity}
+              value={toOptionValue(verbosity)}
               onChange={(value) => {
-                setVerbosity(value as OpenAIVerbosity)
+                setVerbosity(toRealValue(value))
               }}
               options={verbosityOptions}
             />

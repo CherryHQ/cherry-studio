@@ -71,8 +71,22 @@ const ActionIcons: FC<{
     (action: SelectionActionItem) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
 
+      const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          handleAction(action)
+        }
+      }
+
       return (
-        <ActionButton key={action.id} onClick={() => handleAction(action)} title={isCompact ? displayName : undefined}>
+        <ActionButton
+          key={action.id}
+          onClick={() => handleAction(action)}
+          onKeyDown={handleKeyDown}
+          title={isCompact ? displayName : undefined}
+          role="button"
+          aria-label={displayName}
+          tabIndex={0}>
           <ActionIcon>
             {action.id === 'copy' ? (
               renderCopyIcon()

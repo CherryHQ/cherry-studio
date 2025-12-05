@@ -34,7 +34,6 @@ export interface WebSearchPluginConfig {
   anthropic?: AnthropicSearchConfig
   xai?: ProviderOptionsMap['xai']['searchParameters']
   google?: GoogleSearchConfig
-  'google-vertex'?: GoogleSearchConfig
   openrouter?: OpenRouterSearchConfig
 }
 
@@ -43,7 +42,6 @@ export interface WebSearchPluginConfig {
  */
 export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   google: {},
-  'google-vertex': {},
   openai: {},
   'openai-chat': {},
   xai: {
@@ -96,55 +94,28 @@ export type WebSearchToolInputSchema = {
   'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
 }
 
-export const switchWebSearchTool = (providerId: string, config: WebSearchPluginConfig, params: any) => {
-  switch (providerId) {
-    case 'openai': {
-      if (config.openai) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search = openai.tools.webSearch(config.openai)
-      }
-      break
-    }
-    case 'openai-chat': {
-      if (config['openai-chat']) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search_preview = openai.tools.webSearchPreview(config['openai-chat'])
-      }
-      break
-    }
-
-    case 'anthropic': {
-      if (config.anthropic) {
-        if (!params.tools) params.tools = {}
-        params.tools.web_search = anthropic.tools.webSearch_20250305(config.anthropic)
-      }
-      break
-    }
-
-    case 'google': {
-      // case 'google-vertex':
-      if (!params.tools) params.tools = {}
-      params.tools.web_search = google.tools.googleSearch(config.google || {})
-      break
-    }
-
-    case 'xai': {
-      if (config.xai) {
-        const searchOptions = createXaiOptions({
-          searchParameters: { ...config.xai, mode: 'on' }
-        })
-        params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-      }
-      break
-    }
-
-    case 'openrouter': {
-      if (config.openrouter) {
-        const searchOptions = createOpenRouterOptions(config.openrouter)
-        params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
-      }
-      break
-    }
+export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any) => {
+  if (config.openai) {
+    if (!params.tools) params.tools = {}
+    params.tools.web_search = openai.tools.webSearch(config.openai)
+  } else if (config['openai-chat']) {
+    if (!params.tools) params.tools = {}
+    params.tools.web_search_preview = openai.tools.webSearchPreview(config['openai-chat'])
+  } else if (config.anthropic) {
+    if (!params.tools) params.tools = {}
+    params.tools.web_search = anthropic.tools.webSearch_20250305(config.anthropic)
+  } else if (config.google) {
+    // case 'google-vertex':
+    if (!params.tools) params.tools = {}
+    params.tools.web_search = google.tools.googleSearch(config.google || {})
+  } else if (config.xai) {
+    const searchOptions = createXaiOptions({
+      searchParameters: { ...config.xai, mode: 'on' }
+    })
+    params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+  } else if (config.openrouter) {
+    const searchOptions = createOpenRouterOptions(config.openrouter)
+    params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
   }
   return params
 }
