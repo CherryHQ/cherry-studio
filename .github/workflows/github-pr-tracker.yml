@@ -1,0 +1,285 @@
+name: GitHub PR Tracker with Feishu Notification
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, review_requested, reopened]
+  schedule:
+    # Run every day at 8:30 Beijing Time (00:30 UTC)
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  process-new-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check PR conditions
+        id: check_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            // Check if PR is draft
+            if (pr.draft) {
+              console.log('⏭️  PR is in draft state, skipping notification');
+              core.setOutput('should_notify', 'false');
+              core.setOutput('skip_reason', 'draft');
+              return;
+            }
+
+            // We will notify regardless of whether reviewers/assignees are set
+            console.log('✅ PR meets notification criteria');
+            core.setOutput('should_notify', 'true');
+
+            // Prepare reviewer and assignee lists
+            const reviewers = (pr.requested_reviewers || []).map(r => r.login).join(',');
+            const assignees = (pr.assignees || []).map(a => a.login).join(',');
+
+            core.setOutput('reviewers', reviewers);
+            core.setOutput('assignees', assignees);
+
+      - name: Check Beijing Time
+        if: steps.check_pr.outputs.should_notify == 'true'
+        id: check_time
+        run: |
+          # Get current time in Beijing timezone (UTC+8)
+          BEIJING_HOUR=$(TZ='Asia/Shanghai' date +%H)
+          BEIJING_MINUTE=$(TZ='Asia/Shanghai' date +%M)
+
+          echo "Beijing Time: ${BEIJING_HOUR}:${BEIJING_MINUTE}"
+
+          # Check if time is between 00:00 and 08:30
+          if [ $BEIJING_HOUR -lt 8 ] || ([ $BEIJING_HOUR -eq 8 ] && [ $BEIJING_MINUTE -le 30 ]); then
+            echo "should_delay=true" >> $GITHUB_OUTPUT
+            echo "⏰ PR created during quiet hours (00:00-08:30 Beijing Time)"
+            echo "Will schedule notification for 08:30"
+          else
+            echo "should_delay=false" >> $GITHUB_OUTPUT
+            echo "✅ PR created during active hours, will notify immediately"
+          fi
+
+      - name: Add pending label if in quiet hours
+        if: steps.check_pr.outputs.should_notify == 'true' && steps.check_time.outputs.should_delay == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: ['pending-feishu-pr-notification']
+            });
+
+      - name: Setup Node.js
+        if: steps.check_pr.outputs.should_notify == 'true' && steps.check_time.outputs.should_delay == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Process PR with Claude
+        if: steps.check_pr.outputs.should_notify == 'true' && steps.check_time.outputs.should_delay == 'false'
+        uses: anthropics/claude-code-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: "*"
+          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
+          claude_args: "--allowed-tools Bash(gh pr:*),Bash(node scripts/feishu-pr-notify.js)"
+          prompt: |
+            你是一个GitHub Pull Request自动化处理助手。请完成以下任务：
+
+            ## 当前PR信息
+            - PR编号：#${{ github.event.pull_request.number }}
+            - 标题：${{ github.event.pull_request.title }}
+            - 作者：${{ github.event.pull_request.user.login }}
+            - URL：${{ github.event.pull_request.html_url }}
+            - 内容：${{ github.event.pull_request.body }}
+            - 标签：${{ join(github.event.pull_request.labels.*.name, ', ') }}
+            - 改动文件数：${{ github.event.pull_request.changed_files }}
+            - 增加行数：${{ github.event.pull_request.additions }}
+            - 删除行数：${{ github.event.pull_request.deletions }}
+            - Reviewers：${{ steps.check_pr.outputs.reviewers }}
+            - Assignees：${{ steps.check_pr.outputs.assignees }}
+
+            ## 任务步骤
+
+            1. **分析PR改动内容**
+               首先使用以下命令获取PR的文件变更列表：
+               ```bash
+               gh pr view ${{ github.event.pull_request.number }} --json files --jq '.files[].path'
+               ```
+
+            2. **分类PR内容**
+               根据改动的文件路径和PR标题、描述，判断PR的类型（若命中多个模块则输出 `multiple`，若均未命中则 `other`）：
+               - chat（对话）: src/renderer/src/pages/home/**, src/renderer/src/store/(newMessage|messageBlock|memory).ts
+               - draw（绘图）: src/renderer/src/pages/paintings/**, src/renderer/src/store/paintings.ts
+               - uiux（UI/UX）: src/renderer/src/components/**, src/renderer/src/ui/**, src/renderer/src/assets/styles/**, src/renderer/src/windows/**
+               - knowledge（知识库）: src/main/knowledge/**, src/renderer/src/pages/knowledge/**, src/renderer/src/store/knowledge.ts, src/renderer/src/queue/KnowledgeQueue.ts
+               - minapps（小程序）: src/renderer/src/pages/minapps/**, src/renderer/src/store/minapps.ts, src/renderer/src/config/minapps.ts
+               - backup_export（备份/导出）: src/renderer/src/components/*Backup*, src/renderer/src/components/Webdav*, src/renderer/src/components/ObsidianExportDialog.tsx, src/renderer/src/components/S3*, src/renderer/src/store/(backup|nutstore).ts
+               - data_storage（数据与存储）: src/renderer/src/databases/**, src/renderer/src/services/db/**, src/main/services/agents/database/**, resources/database/drizzle/**, src/renderer/src/store/migrate.ts, src/renderer/src/databases/upgrades.ts
+               - ai_core（AI基础设施）: packages/aiCore/**, src/renderer/src/aiCore/**
+               - backend（后端/平台）: src/main/apiServer/**, src/main/services/**, src/main/*.ts, src/preload/**, src/main/mcpServers/**
+               - agent（Agent）: packages/shared/agents/**, resources/data/agents-*.json, src/renderer/src/api/agent.ts, src/renderer/src/types/agent.ts, src/renderer/src/utils/agentSession.ts, src/renderer/src/services/db/AgentMessageDataSource.ts, src/renderer/src/hooks/agents/**, src/renderer/src/components/Popups/agent/**, src/renderer/src/pages/home/**/Agent*.tsx, src/renderer/src/pages/settings/AgentSettings/**, src/main/services/agents/**, src/main/apiServer/routes/agents/**
+               - provider（Provider）: src/renderer/src/config/(providers|preprocessProviders|webSearchProviders).ts, src/renderer/src/hooks/useWebSearchProviders.ts, src/renderer/src/providers/**, src/renderer/src/pages/settings/ProviderSettings/**, src/renderer/src/pages/settings/WebSearchSettings/**, src/renderer/src/pages/settings/DocProcessSettings/(OcrProviderSettings|PreprocessProviderSettings).tsx, src/renderer/src/pages/settings/MCPSettings/providers/**, src/renderer/src/assets/images/providers/**, src/main/services/urlschema/handle-providers.ts
+               - build-config（构建/配置）: package.json, tsconfig*.json, electron-builder.yml, electron.vite.config.ts, vitest.config.ts, playwright.config.ts, .github/workflows/**, scripts/**
+               - test（测试）: tests/**, src/**/__tests__/**, scripts/__tests__/**
+               - docs（文档）: docs/**, README*.md, SECURITY.md, CODE_OF_CONDUCT.md, AGENTS.md
+
+            2.1 **识别是否“新增供应商”**
+               满足以下任一条件则视为“新增供应商”并设置变量 PR_VENDOR_ADDED=true，否则为 false：
+               - 改动文件包含：
+                 - src/renderer/src/config/providers.ts
+                 - src/renderer/src/providers/**
+                 - packages/aiCore/**/provider/** 或 packages/aiCore/src/provider/**
+                 - resources/data/agents-*.json
+               - 或 PR 标题/描述包含关键词："供应商"、"厂商"、"provider"、"新增"、"集成"
+
+            3. **总结PR**
+               用中文（简体）提供简洁的总结（2-3句话），包括：
+               - PR的主要改动内容
+               - 核心功能或修复
+               - 重要的技术细节或影响范围
+
+            4. **发送飞书通知**
+               使用以下命令发送飞书通知：
+               ```bash
+               PR_URL="${{ github.event.pull_request.html_url }}" \
+               PR_NUMBER="${{ github.event.pull_request.number }}" \
+               PR_TITLE="${{ github.event.pull_request.title }}" \
+               PR_AUTHOR="${{ github.event.pull_request.user.login }}" \
+               PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}" \
+               PR_SUMMARY="<你生成的中文总结>" \
+               PR_REVIEWERS="${{ steps.check_pr.outputs.reviewers }}" \
+               PR_ASSIGNEES="${{ steps.check_pr.outputs.assignees }}" \
+               PR_CATEGORY="<你判断的PR类型>" \
+                PR_VENDOR_ADDED="<true 或 false>" \
+               PR_CHANGED_FILES="${{ github.event.pull_request.changed_files }}" \
+               PR_ADDITIONS="${{ github.event.pull_request.additions }}" \
+               PR_DELETIONS="${{ github.event.pull_request.deletions }}" \
+               node scripts/feishu-pr-notify.js
+               ```
+
+            ## 注意事项
+            - 总结必须使用简体中文
+            - PR_SUMMARY 和其他参数在传递时需要正确转义特殊字符
+            - PR_CATEGORY 必须是上述定义的类型之一
+            - 如果PR内容为空，也要提供一个简短的说明
+
+            请开始执行任务！
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          FEISHU_USER_MAPPING: ${{ secrets.FEISHU_USER_MAPPING }}
+
+  process-pending-prs:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Process pending PRs with Claude
+        uses: anthropics/claude-code-action@main
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_TRANSLATOR_APIKEY }}
+          allowed_non_write_users: "*"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_args: "--allowed-tools Bash(gh pr:*),Bash(gh api:*),Bash(node scripts/feishu-pr-notify.js)"
+          prompt: |
+            你是一个GitHub Pull Request自动化处理助手。请完成以下任务：
+
+            ## 任务说明
+            处理所有待发送飞书通知的GitHub PRs（标记为 `pending-feishu-pr-notification` 的PRs）
+
+            ## 步骤
+
+            1. **获取待处理的PRs**
+               使用以下命令获取所有带 `pending-feishu-pr-notification` 标签的PRs：
+               ```bash
+               gh api repos/${{ github.repository }}/pulls?state=open | jq '.[] | select(.labels[]?.name == "pending-feishu-pr-notification")'
+               ```
+
+            2. **验证PR条件**
+               对于每个PR，检查：
+               - 是否仍然不是draft状态
+               - 是否有reviewers或assignees
+               - 如果不满足条件，移除标签并跳过
+
+            3. **分析和分类PR**
+               获取PR的文件变更：
+               ```bash
+               gh pr view <PR编号> --json files --jq '.files[].path'
+               ```
+
+               根据文件路径判断PR类型（chat/draw/uiux/knowledge/minapps/backup_export/data_storage/ai_core/backend/agent/provider/docs/build-config/test/multiple/other）
+
+            4. **总结每个PR**
+               用中文提供简洁的总结（2-3句话），包括：
+               - PR的主要改动内容
+               - 核心功能或修复
+               - 重要的技术细节
+
+            5. **发送飞书通知**
+               使用以下命令发送通知：
+               ```bash
+               PR_URL="<PR的html_url>" \
+               PR_NUMBER="<PR编号>" \
+               PR_TITLE="<PR标题>" \
+               PR_AUTHOR="<PR作者>" \
+               PR_LABELS="<逗号分隔的标签列表，排除pending-feishu-pr-notification>" \
+               PR_SUMMARY="<你生成的中文总结>" \
+               PR_REVIEWERS="<reviewers列表，逗号分隔>" \
+               PR_ASSIGNEES="<assignees列表，逗号分隔>" \
+               PR_CATEGORY="<PR类型>" \
+                PR_VENDOR_ADDED="<true 或 false>" \
+               PR_CHANGED_FILES="<改动文件数>" \
+               PR_ADDITIONS="<增加行数>" \
+               PR_DELETIONS="<删除行数>" \
+               node scripts/feishu-pr-notify.js
+               ```
+
+            6. **移除标签**
+               成功发送后，移除标签：
+               ```bash
+               gh api -X DELETE repos/${{ github.repository }}/issues/<PR编号>/labels/pending-feishu-pr-notification
+               ```
+
+            ## 环境变量
+            - Repository: ${{ github.repository }}
+            - Feishu webhook URL和密钥已配置
+
+            ## 注意事项
+            - 如果没有待处理的PRs，输出提示后结束
+            - 处理多个PRs时，每个之间等待2-3秒
+            - 某个PR失败不中断整个流程
+            - 所有总结使用简体中文
+
+            请开始执行任务！
+        env:
+          ANTHROPIC_BASE_URL: ${{ secrets.CLAUDE_TRANSLATOR_BASEURL }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+          FEISHU_USER_MAPPING: ${{ secrets.FEISHU_USER_MAPPING }}
+
+
