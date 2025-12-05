@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import Selector from '@renderer/components/Selector'
 import {
   getModelSupportedVerbosity,
@@ -16,8 +17,6 @@ import { SystemProviderIds } from '@renderer/types'
 import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
-import { Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -186,9 +185,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.service_tier.title')}{' '}
-                <Tooltip title={t('settings.openai.service_tier.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
+                <HelpTooltip content={t('settings.openai.service_tier.tip')} />
               </SettingRowTitleSmall>
               <Selector
                 value={toOptionValue(serviceTierMode)}
@@ -206,9 +203,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.summary_text_mode.title')}{' '}
-                <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
+                <HelpTooltip content={t('settings.openai.summary_text_mode.tip')} />
               </SettingRowTitleSmall>
               <Selector
                 value={toOptionValue(summaryText)}
@@ -224,10 +219,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         {showVerbositySetting && (
           <SettingRow>
             <SettingRowTitleSmall>
-              {t('settings.openai.verbosity.title')}{' '}
-              <Tooltip title={t('settings.openai.verbosity.tip')}>
-                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-              </Tooltip>
+              {t('settings.openai.verbosity.title')} <HelpTooltip content={t('settings.openai.verbosity.tip')} />
             </SettingRowTitleSmall>
             <Selector
               value={toOptionValue(verbosity)}

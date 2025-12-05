@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
@@ -7,7 +8,6 @@ import { context, trace } from '@opentelemetry/api'
 import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
 
-import { ConfigKeys, configManager } from './ConfigManager'
 import { spanCacheService } from './SpanCacheService'
 
 export const TRACER_NAME = 'CherryStudio'
@@ -91,8 +91,13 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
   } else {
     traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
   }
+  let unsubscribeLanguage: (() => void) | null = null
+
   traceWin.on('closed', () => {
-    configManager.unsubscribe(ConfigKeys.Language, setLanguageCallback)
+    if (unsubscribeLanguage) {
+      unsubscribeLanguage()
+      unsubscribeLanguage = null
+    }
     try {
       traceWin?.destroy()
     } finally {
@@ -106,13 +111,15 @@ export function openTraceWindow(topicId: string, traceId: string, autoOpen = tru
       topicId,
       modelName
     })
-    traceWin!.webContents.send('set-language', { lang: configManager.get(ConfigKeys.Language) })
-    configManager.subscribe(ConfigKeys.Language, setLanguageCallback)
+    traceWin!.webContents.send('set-language', { lang: preferenceService.get('app.language') })
+    unsubscribeLanguage = preferenceService.subscribeChange('app.language', setLanguageCallback)
   })
 }
 
-const setLanguageCallback = (lang: string) => {
-  traceWin!.webContents.send('set-language', { lang })
+const setLanguageCallback = (lang: string | null) => {
+  if (lang) {
+    traceWin?.webContents.send('set-language', { lang })
+  }
 }
 
 export const setTraceWindowTitle = (title: string) => {

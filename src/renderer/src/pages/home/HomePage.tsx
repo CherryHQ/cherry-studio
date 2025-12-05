@@ -1,8 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -37,7 +38,9 @@ const HomePage: FC = () => {
     state?.assistant || _activeAssistant || assistants[0]
   )
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
-  const { showAssistants, showTopics, topicPosition } = useSettings()
+  const [showAssistants] = usePreference('assistant.tab.show')
+  const [showTopics] = usePreference('topic.tab.show')
+  const [topicPosition] = usePreference('topic.position')
   const dispatch = useDispatch()
   const { chat } = useRuntime()
   const { activeTopicOrSession } = chat

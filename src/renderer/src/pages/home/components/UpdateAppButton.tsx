@@ -1,6 +1,6 @@
 import { SyncOutlined } from '@ant-design/icons'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
 import type { FC } from 'react'
@@ -8,20 +8,20 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
-  const { update } = useRuntime()
+  const { appUpdateState } = useAppUpdateState()
   const { autoCheckUpdate } = useSettings()
   const { t } = useTranslation()
 
-  if (!update) {
+  if (!appUpdateState) {
     return null
   }
 
-  if (!update.downloaded || !autoCheckUpdate) {
+  if (!appUpdateState.downloaded || !autoCheckUpdate) {
     return null
   }
 
   const handleOpenUpdateDialog = () => {
-    UpdateDialogPopup.show({ releaseInfo: update.info || null })
+    UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
   }
 
   return (

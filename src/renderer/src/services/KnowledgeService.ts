@@ -146,7 +146,7 @@ export const searchKnowledgeBase = async (
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
 
     if (topicId) {
-      currentSpan = addSpan({
+      currentSpan = await addSpan({
         topicId,
         name: `${base.name}-search`,
         inputs: {
@@ -243,7 +243,7 @@ export const processKnowledgeSearch = async (
     return []
   }
 
-  const span = addSpan({
+  const span = await addSpan({
     topicId,
     name: 'knowledgeSearch',
     inputs: {

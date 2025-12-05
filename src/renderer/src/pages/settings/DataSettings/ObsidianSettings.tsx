@@ -1,8 +1,6 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setDefaultObsidianVault } from '@renderer/store/settings'
 import { Empty, Select, Spin } from 'antd'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -16,8 +14,8 @@ const { Option } = Select
 
 const ObsidianSettings: FC = () => {
   const { t } = useTranslation()
-  const { defaultObsidianVault } = useSettings()
-  const dispatch = useAppDispatch()
+
+  const [defaultObsidianVault, setDefaultObsidianVault] = usePreference('data.integration.obsidian.default_vault')
 
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -41,7 +39,7 @@ const ObsidianSettings: FC = () => {
 
         // 如果没有设置默认vault，则选择第一个
         if (!defaultObsidianVault && vaultsData.length > 0) {
-          dispatch(setDefaultObsidianVault(vaultsData[0].name))
+          setDefaultObsidianVault(vaultsData[0].name)
         }
       } catch (error) {
         logger.error('获取Obsidian Vault失败:', error as Error)
@@ -52,10 +50,10 @@ const ObsidianSettings: FC = () => {
     }
 
     fetchVaults()
-  }, [dispatch, defaultObsidianVault, t])
+  }, [defaultObsidianVault, setDefaultObsidianVault, t])
 
   const handleChange = (value: string) => {
-    dispatch(setDefaultObsidianVault(value))
+    setDefaultObsidianVault(value)
   }
 
   return (
@@ -64,7 +62,7 @@ const ObsidianSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
-        <HStack gap="5px">
+        <RowFlex className="gap-[5px]">
           <Spin spinning={loading} size="small">
             {vaults.length > 0 ? (
               <Select
@@ -89,7 +87,7 @@ const ObsidianSettings: FC = () => {
               />
             )}
           </Spin>
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

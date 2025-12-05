@@ -1,3 +1,4 @@
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HighlightText from '@renderer/components/HighlightText'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -10,7 +11,6 @@ import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { fetchNoteSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { SearchMatch, SearchResult } from '@renderer/services/NotesSearchService'
-import type { RootState } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -38,7 +38,6 @@ import {
 import type { FC, Ref } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import { useFullTextSearch } from './hooks/useFullTextSearch'
@@ -348,7 +347,16 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { bases } = useKnowledgeBases()
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const [exportMenuOptions] = useMultiplePreferences({
+    docx: 'data.export.menus.docx',
+    image: 'data.export.menus.image',
+    joplin: 'data.export.menus.joplin',
+    markdown: 'data.export.menus.markdown',
+    notion: 'data.export.menus.notion',
+    obsidian: 'data.export.menus.obsidian',
+    siyuan: 'data.export.menus.siyuan',
+    yuque: 'data.export.menus.yuque'
+  })
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [renamingNodeIds, setRenamingNodeIds] = useState<Set<string>>(new Set())
   const [newlyRenamedNodeIds, setNewlyRenamedNodeIds] = useState<Set<string>>(new Set())

@@ -1,5 +1,6 @@
 import { DraggableList } from '@renderer/components/DraggableList'
-import type { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +19,7 @@ interface UnifiedTagGroupsProps {
   groupedItems: GroupedItems[]
   activeAssistantId: string
   activeAgentId: string | null
-  sortBy: AssistantsSortType
+  sortBy: AssistantTabSortType
   collapsedTags: Record<string, boolean>
   onGroupReorder: (tag: string, newList: UnifiedItem[]) => void
   onDragStart: () => void
@@ -31,7 +32,7 @@ interface UnifiedTagGroupsProps {
   addPreset: (assistant: Assistant) => void
   copyAssistant: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
-  handleSortByChange: (sortType: AssistantsSortType) => void
+  handleSortByChange: (sortType: AssistantTabSortType) => void
   sortByPinyinAsc: () => void
   sortByPinyinDesc: () => void
 }

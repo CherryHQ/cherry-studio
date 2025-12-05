@@ -1,6 +1,5 @@
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setApiServerEnabled as setApiServerEnabledAction } from '@renderer/store/settings'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,11 +27,14 @@ const cleanupIpcIfEmpty = () => {
 
 export const useApiServer = () => {
   const { t } = useTranslation()
-  // FIXME: We currently store two copies of the config data in both the renderer and the main processes,
-  // which carries the risk of data inconsistency. This should be modified so that the main process stores
-  // the data, and the renderer retrieves it.
-  const apiServerConfig = useAppSelector((state) => state.settings.apiServer)
-  const dispatch = useAppDispatch()
+
+  // Use new preference system for API server configuration
+  const [apiServerConfig, setApiServerConfig] = useMultiplePreferences({
+    enabled: 'feature.csaas.enabled',
+    host: 'feature.csaas.host',
+    port: 'feature.csaas.port',
+    apiKey: 'feature.csaas.api_key'
+  })
 
   // Initial state - no longer optimistic, wait for actual status
   const [apiServerRunning, setApiServerRunning] = useState(false)
@@ -40,9 +42,9 @@ export const useApiServer = () => {
 
   const setApiServerEnabled = useCallback(
     (enabled: boolean) => {
-      dispatch(setApiServerEnabledAction(enabled))
+      setApiServerConfig({ enabled })
     },
-    [dispatch]
+    [setApiServerConfig]
   )
 
   // API Server functions
@@ -51,15 +53,15 @@ export const useApiServer = () => {
     try {
       const status = await window.api.apiServer.getStatus()
       setApiServerRunning(status.running)
-      if (status.running && !apiServerConfig.enabled) {
-        setApiServerEnabled(true)
-      }
+      // if (status.running && !apiServerConfig.enabled) {
+      //   setApiServerEnabled(true)
+      // }
     } catch (error: any) {
       logger.error('Failed to check API server status:', error)
     } finally {
       setApiServerLoading(false)
     }
-  }, [apiServerConfig.enabled, setApiServerEnabled])
+  }, [])
 
   const startApiServer = useCallback(async () => {
     if (apiServerLoading) return
@@ -153,6 +155,7 @@ export const useApiServer = () => {
     stopApiServer,
     restartApiServer,
     checkApiServerStatus,
-    setApiServerEnabled
+    setApiServerEnabled,
+    setApiServerConfig
   }
 }

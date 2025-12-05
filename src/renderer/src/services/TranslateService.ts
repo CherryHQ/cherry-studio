@@ -36,7 +36,7 @@ export const translateText = async (
   abortKey?: string
 ) => {
   let abortError
-  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+  const assistant = await getDefaultTranslateAssistant(targetLanguage, text)
 
   const signal = abortKey ? readyToAbort(abortKey) : undefined
 

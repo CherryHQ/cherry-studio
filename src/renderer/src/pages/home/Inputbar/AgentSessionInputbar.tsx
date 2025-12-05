@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import type { QuickPanelTriggerInfo } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -9,7 +10,6 @@ import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { CacheService } from '@renderer/services/CacheService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -169,8 +169,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     setText,
     isEmpty: inputEmpty
   } = useInputText({
-    initialValue: CacheService.get<string>(draftCacheKey) ?? '',
-    onChange: (value) => CacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
+    initialValue: cacheService.get<string>(draftCacheKey) ?? '',
+    onChange: (value) => cacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,

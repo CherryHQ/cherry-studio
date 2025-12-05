@@ -12,7 +12,7 @@
   --scrollbar-thumb-radius: 10px;
 }
 
-body[theme-mode='light'] {
+body.light {
   --color-scrollbar-thumb: var(--color-scrollbar-thumb-light);
   --color-scrollbar-thumb-hover: var(--color-scrollbar-thumb-light-hover);
 }

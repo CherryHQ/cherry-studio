@@ -1,4 +1,4 @@
-import { Center } from '@renderer/components/Layout'
+import { Center } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
@@ -70,7 +70,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
     if (isLoading) {
       // TODO: use skeleton for better ux
       return (
-        <Center flex={1}>
+        <Center>
           <Spin />
         </Center>
       )
@@ -78,7 +78,7 @@ const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab
 
     if (error) {
       return (
-        <Center flex={1}>
+        <Center>
           <Alert type="error" message={t('agent.get.error.failed')} />
         </Center>
       )

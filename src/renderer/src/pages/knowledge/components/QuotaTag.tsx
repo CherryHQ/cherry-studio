@@ -1,6 +1,6 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import type { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
 import { Tag } from 'antd'
@@ -31,7 +31,7 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
         return
       }
       if (quota === undefined) {
-        const userId = getStoreSetting('userId')
+        const userId = await preferenceService.get('app.user.id')
         const baseParams = getKnowledgeBaseParams(base)
         try {
           const response = await window.api.knowledgeBase.checkQuota({
