@@ -84,8 +84,8 @@ export default defineConfig({
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
-        routesDirectory: './src/renderer/src/routes',
-        generatedRouteTree: './src/renderer/src/routeTree.gen.ts'
+        routesDirectory: resolve('src/renderer/src/routes'),
+        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts')
       }),
       (async () => (await import('@tailwindcss/vite')).default())(),
       react({

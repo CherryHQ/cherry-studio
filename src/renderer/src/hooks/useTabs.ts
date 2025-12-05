@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useMemo } from 'react'
 
 import { usePersistCache } from '../data/hooks/useCache'
+import { uuid } from '../utils'
 
 // Re-export types from shared schema
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheSchemas'
-import type { Tab } from '@shared/data/cache/cacheSchemas'
+import type { Tab, TabType } from '@shared/data/cache/cacheSchemas'
 
 const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
   url: '/',
   title: 'Home'
+}
+
+/**
+ * Options for opening a tab
+ */
+export interface OpenTabOptions {
+  /** Force open a new tab even if one with the same URL exists */
+  forceNew?: boolean
+  /** Tab title (defaults to URL path) */
+  title?: string
+  /** Tab type (defaults to 'route') */
+  type?: TabType
+  /** Custom tab ID (auto-generated if not provided) */
+  id?: string
 }
 
 export function useTabs() {
@@ -80,14 +95,72 @@ export function useTabs() {
     [tabs, tabsState, setTabsState]
   )
 
+  /**
+   * Open a Tab - reuses existing tab or creates new one
+   *
+   * @example
+   * // Basic usage - reuses existing tab if URL matches
+   * openTab('/settings')
+   *
+   * @example
+   * // With custom title
+   * openTab('/chat/123', { title: 'Chat with Alice' })
+   *
+   * @example
+   * // Force open new tab (e.g., Cmd+Click)
+   * openTab('/settings', { forceNew: true })
+   *
+   * @example
+   * // Open webview tab
+   * openTab('https://example.com', { type: 'webview', title: 'Example' })
+   */
+  const openTab = useCallback(
+    (url: string, options: OpenTabOptions = {}) => {
+      const { forceNew = false, title, type = 'route', id } = options
+
+      // Try to find existing tab with same URL (unless forceNew)
+      if (!forceNew) {
+        const existingTab = tabs.find((t) => t.type === type && t.url === url)
+        if (existingTab) {
+          setActiveTab(existingTab.id)
+          return existingTab.id
+        }
+      }
+
+      // Create new tab
+      const newTab: Tab = {
+        id: id || uuid(),
+        type,
+        url,
+        title: title || url.split('/').pop() || url
+      }
+
+      addTab(newTab)
+      return newTab.id
+    },
+    [tabs, setActiveTab, addTab]
+  )
+
+  /**
+   * Get the currently active tab
+   */
+  const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId), [tabs, activeTabId])
+
   return {
+    // State
     tabs,
     activeTabId,
+    activeTab,
     isLoading: false,
+
+    // Basic operations
     addTab,
     closeTab,
     setActiveTab,
     updateTab,
-    setTabs
+    setTabs,
+
+    // High-level Tab operations
+    openTab
   }
 }

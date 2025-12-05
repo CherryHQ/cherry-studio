@@ -6,9 +6,9 @@ export const Route = createFileRoute('/')({
 
 function Index() {
   return (
-    <div style={{ padding: 20 }}>
-      <h3>Welcome to Cherry Studio!</h3>
-      <p>Select a tab to start.</p>
+    <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+      <h3 className="font-semibold text-xl">Home</h3>
+      <p className="text-muted-foreground text-sm">TODO: Migrate HomePage</p>
     </div>
   )
 }
