@@ -404,7 +404,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         ref={virtualListRef}
                         list={flattenedNodes}
                         estimateSize={() => 28}
-                        itemContainerStyle={{ padding: '0 8px' }}
+                        itemContainerStyle={{ padding: '8px 8px 0 8px' }}
                         overscan={10}
                         isSticky={isSticky}
                         getItemDepth={getItemDepth}>
