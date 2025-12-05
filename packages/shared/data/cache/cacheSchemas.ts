@@ -94,8 +94,11 @@ export const DefaultUseSharedCache: UseSharedCacheSchema = {
 
 /**
  * Tab type for browser-like tabs
+ *
+ * - 'route': Internal app routes rendered via MemoryRouter
+ * - 'webview': External web content rendered via Electron webview
  */
-export type TabType = 'webview' | 'url' | 'browser'
+export type TabType = 'route' | 'webview'
 
 export interface Tab {
   id: string
@@ -103,8 +106,9 @@ export interface Tab {
   url: string
   title: string
   icon?: string
-  isKeepAlive?: boolean
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
+  // TODO: LRU 优化字段，后续添加
+  // lastAccessTime?: number
 }
 
 export interface TabsState {

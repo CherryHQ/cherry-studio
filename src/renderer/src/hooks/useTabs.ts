@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 import { usePersistCache } from '../data/hooks/useCache'
 
@@ -6,11 +6,25 @@ import { usePersistCache } from '../data/hooks/useCache'
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheSchemas'
 import type { Tab } from '@shared/data/cache/cacheSchemas'
 
+const DEFAULT_TAB: Tab = {
+  id: 'home',
+  type: 'route',
+  url: '/',
+  title: 'Home'
+}
+
 export function useTabs() {
   const [tabsState, setTabsState] = usePersistCache('ui.tab.state')
 
-  const tabs = useMemo(() => tabsState.tabs, [tabsState.tabs])
-  const activeTabId = tabsState.activeTabId
+  // Ensure at least one default tab exists
+  useEffect(() => {
+    if (tabsState.tabs.length === 0) {
+      setTabsState({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id })
+    }
+  }, [tabsState.tabs.length, setTabsState])
+
+  const tabs = useMemo(() => (tabsState.tabs.length > 0 ? tabsState.tabs : [DEFAULT_TAB]), [tabsState.tabs])
+  const activeTabId = tabsState.activeTabId || DEFAULT_TAB.id
 
   const addTab = useCallback(
     (tab: Tab) => {
