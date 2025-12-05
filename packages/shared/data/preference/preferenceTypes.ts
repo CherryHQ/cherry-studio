@@ -1,3 +1,5 @@
+import * as z from 'zod'
+
 import type { PreferenceSchemas } from './preferenceSchemas'
 
 export type PreferenceDefaultScopeType = PreferenceSchemas['default']
@@ -43,6 +45,38 @@ export type SelectionActionItem = {
   assistantId?: string
   selectedText?: string
   searchEngine?: string
+}
+
+const SelectionBuiltinActionItemIdSchema = z.enum([
+  'translate',
+  'explain',
+  'summary',
+  'search',
+  'copy',
+  'refine',
+  'quote'
+])
+
+export type SelectionBuiltinActionItemId = z.infer<typeof SelectionBuiltinActionItemIdSchema>
+
+export function isBuiltinActionItemId(id: string): id is SelectionBuiltinActionItemId {
+  return SelectionBuiltinActionItemIdSchema.safeParse(id).success
+}
+
+export interface SelectionBuiltinActionItem extends SelectionActionItem {
+  id: SelectionBuiltinActionItemId
+  isBuiltIn: true
+  assistantId?: never
+}
+
+export function isSelectionBuiltinActionItem(
+  item: SelectionActionItem | null | undefined
+): item is SelectionBuiltinActionItem {
+  if (!item) {
+    return false
+  }
+
+  return isBuiltinActionItemId(item.id)
 }
 
 export enum ThemeMode {

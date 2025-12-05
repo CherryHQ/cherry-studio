@@ -2,14 +2,17 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
+import { getAssistantById, getDefaultModel, getTranslateModel } from '@renderer/services/AssistantService'
+import { getProviderNameById } from '@renderer/services/ProviderService'
+import type { Model } from '@renderer/types'
 import { defaultLanguage } from '@shared/config/constant'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { isSelectionBuiltinActionItem, type SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,6 +25,26 @@ const SelectionActionApp: FC = () => {
   const { t } = useTranslation()
 
   const [action, setAction] = useState<SelectionActionItem | null>(null)
+  const model: Model | undefined = useMemo(() => {
+    if (isSelectionBuiltinActionItem(action)) {
+      switch (action.id) {
+        case 'translate':
+          return getTranslateModel()
+        case 'explain':
+        case 'summary':
+        case 'refine':
+          return getDefaultModel()
+        default:
+          return undefined
+      }
+    }
+    if (action?.assistantId) {
+      const assistant = getAssistantById(action.assistantId)
+      return assistant?.model
+    }
+    return undefined
+  }, [action])
+
   const isActionLoaded = useRef(false)
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -205,6 +228,11 @@ const SelectionActionApp: FC = () => {
           </TitleBarIcon>
         )}
         <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
+        {model !== undefined && (
+          <span className="truncate text-muted-foreground">
+            {getProviderNameById(model.provider)} | {model.name}
+          </span>
+        )}
         <TitleBarButtons>
           <Tooltip
             content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}

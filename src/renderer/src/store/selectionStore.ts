@@ -3,7 +3,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import type { SelectionActionItem, SelectionBuiltinActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
 export interface SelectionState {
@@ -20,7 +20,7 @@ export interface SelectionState {
   actionItems: SelectionActionItem[]
 }
 
-export const defaultActionItems: SelectionActionItem[] = [
+export const defaultActionItems = [
   { id: 'translate', name: 'selection.action.builtin.translate', enabled: true, isBuiltIn: true, icon: 'languages' },
   { id: 'explain', name: 'selection.action.builtin.explain', enabled: true, isBuiltIn: true, icon: 'file-question' },
   { id: 'summary', name: 'selection.action.builtin.summary', enabled: true, isBuiltIn: true, icon: 'scan-text' },
@@ -35,7 +35,7 @@ export const defaultActionItems: SelectionActionItem[] = [
   { id: 'copy', name: 'selection.action.builtin.copy', enabled: true, isBuiltIn: true, icon: 'clipboard-copy' },
   { id: 'refine', name: 'selection.action.builtin.refine', enabled: false, isBuiltIn: true, icon: 'wand-sparkles' },
   { id: 'quote', name: 'selection.action.builtin.quote', enabled: false, isBuiltIn: true, icon: 'quote' }
-]
+] as const satisfies SelectionBuiltinActionItem[]
 
 export const initialState: SelectionState = {
   selectionEnabled: false,
