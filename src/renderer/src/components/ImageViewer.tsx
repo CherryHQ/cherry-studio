@@ -14,7 +14,7 @@ import { convertImageToPng } from '@renderer/utils/image'
 import type { ImageProps as AntImageProps } from 'antd'
 import { Dropdown, Image as AntImage, Space } from 'antd'
 import { Base64 } from 'js-base64'
-import { DownloadIcon, ImageIcon } from 'lucide-react'
+import { DownloadIcon } from 'lucide-react'
 import mime from 'mime'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -73,8 +73,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
   const getContextMenuItems = (src: string, size: number = 14) => {
     return [
       {
-        key: 'copy-url',
+        key: 'copy-image',
         label: t('common.copy'),
+        icon: <CopyIcon size={size} />,
+        onClick: () => handleCopyImage(src)
+      },
+      {
+        key: 'copy-url',
+        label: t('preview.copy.src'),
         icon: <CopyIcon size={size} />,
         onClick: () => {
           navigator.clipboard.writeText(src)
@@ -86,12 +92,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         label: t('common.download'),
         icon: <DownloadIcon size={size} />,
         onClick: () => download(src)
-      },
-      {
-        key: 'copy-image',
-        label: t('preview.copy.image'),
-        icon: <ImageIcon size={size} />,
-        onClick: () => handleCopyImage(src)
       }
     ]
   }
