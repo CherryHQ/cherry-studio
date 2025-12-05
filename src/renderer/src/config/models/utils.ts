@@ -50,7 +50,8 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
   if (
     (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
     isOpenAIChatCompletionOnlyModel(model) ||
-    isQwenMTModel(model)
+    isQwenMTModel(model) ||
+    isAnthropicModel(model)
   ) {
     return true
   }
