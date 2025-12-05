@@ -176,7 +176,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   }
   let includeUsage: OpenAICompletionsStreamOptions['include_usage'] = undefined
   if (isSupportStreamOptionsProvider(actualProvider)) {
-    includeUsage = store.getState().settings.openAI.streamOptions.includeUsage
+    includeUsage = store.getState().settings.openAI?.streamOptions?.includeUsage
   }
 
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
