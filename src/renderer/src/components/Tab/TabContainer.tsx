@@ -19,6 +19,7 @@ import { classNames } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { LRUCache } from 'lru-cache'
 import {
+  Code,
   FileSearch,
   Folder,
   Hammer,
@@ -106,6 +107,8 @@ const getTabIcon = (
     case 'settings':
       return <Settings size={14} />
     case 'code':
+      return <Code size={14} />
+    case 'terminal':
       return <Terminal size={14} />
     default:
       return null
