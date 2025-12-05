@@ -7,10 +7,10 @@
  * 2. 暂时保持接口兼容性
  */
 
-import type { GatewayLanguageModelEntry } from '@ai-sdk/gateway'
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
+import { normalizeGatewayModels, normalizeSdkModels } from '@renderer/services/models/ModelAdapter'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import { type Assistant, type GenerateImageParams, type Model, type Provider, SystemProviderIds } from '@renderer/types'
@@ -484,18 +484,11 @@ export default class ModernAiProvider {
   // 代理其他方法到原有实现
   public async models() {
     if (this.actualProvider.id === SystemProviderIds.gateway) {
-      const formatModel = function (models: GatewayLanguageModelEntry[]): Model[] {
-        return models.map((m) => ({
-          id: m.id,
-          name: m.name,
-          provider: 'gateway',
-          group: m.id.split('/')[0],
-          description: m.description ?? undefined
-        }))
-      }
-      return formatModel((await gateway.getAvailableModels()).models)
+      const gatewayModels = (await gateway.getAvailableModels()).models
+      return normalizeGatewayModels(this.actualProvider, gatewayModels)
     }
-    return this.legacyProvider.models()
+    const sdkModels = await this.legacyProvider.models()
+    return normalizeSdkModels(this.actualProvider, sdkModels)
   }
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {

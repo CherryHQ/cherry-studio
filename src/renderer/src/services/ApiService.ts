@@ -13,7 +13,6 @@ import { type FetchChatCompletionParams, isSystemProvider } from '@renderer/type
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import type { Message, ResponseError } from '@renderer/types/newMessage'
-import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -491,7 +490,7 @@ function getRotatedApiKey(provider: Provider): string {
   return nextKey
 }
 
-export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
+export async function fetchModels(provider: Provider): Promise<Model[]> {
   // Apply API key rotation
   const providerWithRotatedKey = {
     ...cloneDeep(provider),
