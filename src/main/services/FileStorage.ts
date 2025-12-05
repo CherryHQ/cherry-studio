@@ -478,13 +478,16 @@ class FileStorage {
     }
   }
 
-  public readFile = async (
-    _: Electron.IpcMainInvokeEvent,
-    id: string,
-    detectEncoding: boolean = false
-  ): Promise<string> => {
-    const filePath = path.join(this.storageDir, id)
-
+  /**
+   * Core file reading logic that handles both documents and text files.
+   *
+   * @private
+   * @param filePath - Full path to the file
+   * @param detectEncoding - Whether to auto-detect text file encoding
+   * @returns Promise resolving to the extracted text content
+   * @throws Error if file reading fails
+   */
+  private async readFileCore(filePath: string, detectEncoding: boolean = false): Promise<string> {
     const fileExtension = path.extname(filePath)
 
     if (documentExts.includes(fileExtension)) {
@@ -504,7 +507,7 @@ class FileStorage {
         return data
       } catch (error) {
         chdir(originalCwd)
-        logger.error('Failed to read file:', error as Error)
+        logger.error('Failed to read document file:', error as Error)
         throw error
       }
     }
@@ -516,11 +519,72 @@ class FileStorage {
         return fs.readFileSync(filePath, 'utf-8')
       }
     } catch (error) {
-      logger.error('Failed to read file:', error as Error)
+      logger.error('Failed to read text file:', error as Error)
       throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
 
+  /**
+   * Reads and extracts content from a stored file.
+   *
+   * Supports multiple file formats including:
+   * - Complex documents: .pdf, .doc, .docx, .pptx, .xlsx, .odt, .odp, .ods
+   * - Text files: .txt, .md, .json, .csv, etc.
+   * - Code files: .js, .ts, .py, .java, etc.
+   *
+   * For document formats, extracts text content using specialized parsers:
+   * - .doc files: Uses word-extractor library
+   * - Other Office formats: Uses officeparser library
+   *
+   * For text files, can optionally detect encoding automatically.
+   *
+   * @param _ - Electron IPC invoke event (unused)
+   * @param id - File identifier with extension (e.g., "uuid.docx")
+   * @param detectEncoding - Whether to auto-detect text file encoding (default: false)
+   * @returns Promise resolving to the extracted text content of the file
+   * @throws Error if file reading fails or file is not found
+   *
+   * @example
+   * // Read a DOCX file
+   * const content = await readFile(event, "document.docx");
+   *
+   * @example
+   * // Read a text file with encoding detection
+   * const content = await readFile(event, "text.txt", true);
+   *
+   * @example
+   * // Read a PDF file
+   * const content = await readFile(event, "manual.pdf");
+   */
+  public readFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    id: string,
+    detectEncoding: boolean = false
+  ): Promise<string> => {
+    const filePath = path.join(this.storageDir, id)
+    return this.readFileCore(filePath, detectEncoding)
+  }
+
+  /**
+   * Reads and extracts content from an external file path.
+   *
+   * Similar to readFile, but operates on external file paths instead of stored files.
+   * Supports the same file formats including complex documents and text files.
+   *
+   * @param _ - Electron IPC invoke event (unused)
+   * @param filePath - Absolute path to the external file
+   * @param detectEncoding - Whether to auto-detect text file encoding (default: false)
+   * @returns Promise resolving to the extracted text content of the file
+   * @throws Error if file does not exist or reading fails
+   *
+   * @example
+   * // Read an external DOCX file
+   * const content = await readExternalFile(event, "/path/to/document.docx");
+   *
+   * @example
+   * // Read an external text file with encoding detection
+   * const content = await readExternalFile(event, "/path/to/text.txt", true);
+   */
   public readExternalFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,
@@ -530,40 +594,7 @@ class FileStorage {
       throw new Error(`File does not exist: ${filePath}`)
     }
 
-    const fileExtension = path.extname(filePath)
-
-    if (documentExts.includes(fileExtension)) {
-      const originalCwd = process.cwd()
-      try {
-        chdir(this.tempDir)
-
-        if (fileExtension === '.doc') {
-          const extractor = new WordExtractor()
-          const extracted = await extractor.extract(filePath)
-          chdir(originalCwd)
-          return extracted.getBody()
-        }
-
-        const data = await officeParser.parseOfficeAsync(filePath)
-        chdir(originalCwd)
-        return data
-      } catch (error) {
-        chdir(originalCwd)
-        logger.error('Failed to read file:', error as Error)
-        throw error
-      }
-    }
-
-    try {
-      if (detectEncoding) {
-        return readTextFileWithAutoEncoding(filePath)
-      } else {
-        return fs.readFileSync(filePath, 'utf-8')
-      }
-    } catch (error) {
-      logger.error('Failed to read file:', error as Error)
-      throw new Error(`Failed to read file: ${filePath}.`)
-    }
+    return this.readFileCore(filePath, detectEncoding)
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
