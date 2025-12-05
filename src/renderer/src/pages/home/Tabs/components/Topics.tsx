@@ -6,12 +6,14 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
+import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { RootState } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -64,7 +66,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
-  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const { assistant, addTopic, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
 
   const [showTopicTime] = usePreference('topic.tab.show_time')
   const [pinTopicsToTop] = usePreference('topic.tab.pin_to_top')
@@ -145,17 +147,21 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     async (topic: Topic, e: React.MouseEvent) => {
       e.stopPropagation()
       if (assistant.topics.length === 1) {
-        return onClearMessages(topic)
+        const newTopic = getDefaultTopic(assistant.id)
+        await db.topics.add({ id: newTopic.id, messages: [] })
+        addTopic(newTopic)
+        setActiveTopic(newTopic)
+      } else {
+        const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+        if (topic.id === activeTopic.id) {
+          setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+        }
       }
       await modelGenerating()
-      const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      if (topic.id === activeTopic.id) {
-        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
-      }
       removeTopic(topic)
       setDeletingTopicId(null)
     },
-    [activeTopic.id, assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+    [activeTopic.id, addTopic, assistant.id, assistant.topics, removeTopic, setActiveTopic]
   )
 
   const onPinTopic = useCallback(

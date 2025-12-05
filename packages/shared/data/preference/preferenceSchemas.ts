@@ -583,7 +583,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.integration.yuque.url': '',
     'feature.csaas.api_key': null,
     'feature.csaas.enabled': false,
-    'feature.csaas.host': 'localhost',
+    'feature.csaas.host': '127.0.0.1',
     'feature.csaas.port': 23333,
     'feature.memory.auto_dimensions': true,
     'feature.memory.current_user_id': 'default-user',

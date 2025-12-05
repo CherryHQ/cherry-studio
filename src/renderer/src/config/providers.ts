@@ -676,10 +676,10 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  'ai-gateway': {
-    id: 'ai-gateway',
-    name: 'AI Gateway',
-    type: 'ai-gateway',
+  gateway: {
+    id: 'gateway',
+    name: 'Vercel AI Gateway',
+    type: 'gateway',
     apiKey: '',
     apiHost: 'https://ai-gateway.vercel.sh/v1/ai',
     models: [],
@@ -762,7 +762,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   longcat: LongCatProviderLogo,
   huggingface: HuggingfaceProviderLogo,
   sophnet: SophnetProviderLogo,
-  'ai-gateway': AIGatewayProviderLogo,
+  gateway: AIGatewayProviderLogo,
   cerebras: CerebrasProviderLogo
 } as const
 
@@ -927,7 +927,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://www.dmxapi.cn/register?aff=bwwY',
       apiKey: 'https://www.dmxapi.cn/register?aff=bwwY',
-      docs: 'https://dmxapi.cn/models.html#code-block',
+      docs: 'https://doc.dmxapi.cn/',
       models: 'https://www.dmxapi.cn/pricing'
     }
   },
@@ -1413,7 +1413,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://huggingface.co/models'
     }
   },
-  'ai-gateway': {
+  gateway: {
     api: {
       url: 'https://ai-gateway.vercel.sh/v1/ai'
     },

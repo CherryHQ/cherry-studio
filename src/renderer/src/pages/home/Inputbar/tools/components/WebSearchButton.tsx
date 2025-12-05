@@ -25,15 +25,15 @@ const WebSearchButton: FC<Props> = ({ quickPanelController, assistantId }) => {
     }
   }, [enableWebSearch, toggleQuickPanel, updateWebSearchProvider])
 
+  const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
+
   return (
-    <Tooltip
-      placement="top"
-      title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
-      mouseLeaveDelay={0}
-      arrow>
+    <Tooltip placement="top" title={ariaLabel} mouseLeaveDelay={0} arrow>
       <ActionIconButton
         onClick={onClick}
         active={!!enableWebSearch}
+        aria-label={ariaLabel}
+        aria-pressed={!!enableWebSearch}
         icon={<WebSearchProviderIcon pid={selectedProviderId} />}></ActionIconButton>
     </Tooltip>
   )

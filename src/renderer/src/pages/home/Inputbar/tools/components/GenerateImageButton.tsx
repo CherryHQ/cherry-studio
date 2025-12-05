@@ -15,15 +15,18 @@ interface Props {
 const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImage }) => {
   const { t } = useTranslation()
 
+  const ariaLabel = isGenerateImageModel(model)
+    ? t('chat.input.generate_image')
+    : t('chat.input.generate_image_not_supported')
+
   return (
-    <Tooltip
-      content={
-        isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
-      }>
+    <Tooltip placement="top" content={ariaLabel} closeDelay={0}>
       <ActionIconButton
         onClick={onEnableGenerateImage}
         active={assistant.enableGenerateImage}
         disabled={!isGenerateImageModel(model)}
+        aria-label={ariaLabel}
+        aria-pressed={assistant.enableGenerateImage}
         icon={<Image size={18} />}
       />
     </Tooltip>
