@@ -25,38 +25,11 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
 
 /**
- * 获取轮询的API key
- * 复用legacy架构的多key轮询逻辑
- */
-function getRotatedApiKey(provider: Provider): string {
-  const keys = provider.apiKey.split(',').map((key) => key.trim())
-  const keyName = `provider:${provider.id}:last_used_key`
-
-  if (keys.length === 1) {
-    return keys[0]
-  }
-
-  const lastUsedKey = window.keyv.get(keyName)
-  if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
-    return keys[0]
-  }
-
-  const currentIndex = keys.indexOf(lastUsedKey)
-  const nextIndex = (currentIndex + 1) % keys.length
-  const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
-
-  return nextKey
-}
-
-/**
  * Renderer-specific context for providerToAiSdkConfig
  * Provides implementations using browser APIs, store, and hooks
  */
 function createRendererSdkContext(model: Model): AiSdkConfigContext {
   return {
-    getRotatedApiKey: (provider) => getRotatedApiKey(provider as Provider),
     isOpenAIChatCompletionOnlyModel: () => isOpenAIChatCompletionOnlyModel(model),
     getCopilotDefaultHeaders: () => COPILOT_DEFAULT_HEADERS,
     getCopilotStoredHeaders: () => store.getState().copilot.defaultHeaders ?? {},

@@ -27,12 +27,6 @@ export interface AiSdkConfig {
  */
 export interface AiSdkConfigContext {
   /**
-   * Get the rotated API key (for multi-key support)
-   * Default: returns first key
-   */
-  getRotatedApiKey?: (provider: MinimalProvider) => string
-
-  /**
    * Check if a model uses chat completion only (for OpenAI response mode)
    * Default: returns false
    */
@@ -99,14 +93,6 @@ export interface AiSdkConfigContext {
 }
 
 /**
- * Default simple key rotator - returns first key
- */
-function defaultGetRotatedApiKey(provider: MinimalProvider): string {
-  const keys = provider.apiKey.split(',').map((k) => k.trim())
-  return keys[0] || provider.apiKey
-}
-
-/**
  * Convert Cherry Studio Provider to AI SDK configuration
  *
  * @param provider - The formatted provider (after formatProviderApiHost)
@@ -119,7 +105,6 @@ export function providerToAiSdkConfig(
   modelId: string,
   context: AiSdkConfigContext = {}
 ): AiSdkConfig {
-  const getRotatedApiKey = context.getRotatedApiKey || defaultGetRotatedApiKey
   const isOpenAIChatCompletionOnlyModel = context.isOpenAIChatCompletionOnlyModel || (() => false)
 
   const aiSdkProviderId = getAiSdkProviderId(provider)
@@ -128,7 +113,7 @@ export function providerToAiSdkConfig(
   const { baseURL, endpoint } = routeToEndpoint(provider.apiHost)
   const baseConfig = {
     baseURL,
-    apiKey: getRotatedApiKey(provider)
+    apiKey: provider.apiKey
   }
 
   // Handle Copilot specially
