@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { loggerService } from '@logger'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-import { useTimer } from './useTimer'
-
+const logger = loggerService.withContext('useInPlaceEdit')
 export interface UseInPlaceEditOptions {
   onSave: ((value: string) => void) | ((value: string) => Promise<void>)
   onCancel?: () => void
+  onError?: (error: unknown) => void
   autoSelectOnStart?: boolean
   trimOnSave?: boolean
 }
@@ -12,14 +14,10 @@ export interface UseInPlaceEditOptions {
 export interface UseInPlaceEditReturn {
   isEditing: boolean
   isSaving: boolean
-  editValue: string
-  inputRef: React.RefObject<HTMLInputElement | null>
   startEdit: (initialValue: string) => void
   saveEdit: () => void
   cancelEdit: () => void
-  handleKeyDown: (e: React.KeyboardEvent) => void
-  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  handleValueChange: (value: string) => void
+  inputProps: React.InputHTMLAttributes<HTMLInputElement> & { ref: React.RefObject<HTMLInputElement | null> }
 }
 
 /**
@@ -32,63 +30,69 @@ export interface UseInPlaceEditReturn {
  * @returns An object containing the editing state and handler functions
  */
 export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditReturn {
-  const { onSave, onCancel, autoSelectOnStart = true, trimOnSave = true } = options
+  const { onSave, onCancel, onError, autoSelectOnStart = true, trimOnSave = true } = options
+  const { t } = useTranslation()
 
   const [isSaving, setIsSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
-  const [originalValue, setOriginalValue] = useState('')
+  const originalValueRef = useRef('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const { setTimeoutTimer } = useTimer()
 
-  const startEdit = useCallback(
-    (initialValue: string) => {
-      setIsEditing(true)
-      setEditValue(initialValue)
-      setOriginalValue(initialValue)
+  const startEdit = useCallback((initialValue: string) => {
+    setIsEditing(true)
+    setEditValue(initialValue)
+    originalValueRef.current = initialValue
+  }, [])
 
-      setTimeoutTimer(
-        'startEdit',
-        () => {
-          inputRef.current?.focus()
-          if (autoSelectOnStart) {
-            inputRef.current?.select()
-          }
-        },
-        0
-      )
-    },
-    [autoSelectOnStart, setTimeoutTimer]
-  )
+  useLayoutEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus()
+      if (autoSelectOnStart) {
+        inputRef.current?.select()
+      }
+    }
+  }, [autoSelectOnStart, isEditing])
 
   const saveEdit = useCallback(async () => {
     if (isSaving) return
 
+    const finalValue = trimOnSave ? editValue.trim() : editValue
+    if (finalValue === originalValueRef.current) {
+      setIsEditing(false)
+      return
+    }
+
     setIsSaving(true)
 
     try {
-      const finalValue = trimOnSave ? editValue.trim() : editValue
-      if (finalValue !== originalValue) {
-        await onSave(finalValue)
-      }
+      await onSave(finalValue)
       setIsEditing(false)
       setEditValue('')
-      setOriginalValue('')
+    } catch (error) {
+      logger.error('Error saving in-place edit', { error })
+
+      // Call custom error handler if provided, otherwise show default toast
+      if (onError) {
+        onError(error)
+      } else {
+        window.toast.error(t('common.save_failed') || 'Failed to save')
+      }
     } finally {
       setIsSaving(false)
     }
-  }, [isSaving, trimOnSave, editValue, originalValue, onSave])
+  }, [isSaving, trimOnSave, editValue, onSave, onError, t])
 
   const cancelEdit = useCallback(() => {
     setIsEditing(false)
     setEditValue('')
-    setOriginalValue('')
     onCancel?.()
   }, [onCancel])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+      if (e.nativeEvent.isComposing) return
+      if (e.key === 'Enter') {
         e.preventDefault()
         saveEdit()
       } else if (e.key === 'Escape') {
@@ -104,37 +108,29 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
     setEditValue(e.target.value)
   }, [])
 
-  const handleValueChange = useCallback((value: string) => {
-    setEditValue(value)
-  }, [])
-
-  // Handle clicks outside the input to save
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isEditing && inputRef.current && !inputRef.current.contains(event.target as Node)) {
-        saveEdit()
-      }
+  const handleBlur = useCallback(() => {
+    // 这里的逻辑需要注意：
+    // 如果点击了“取消”按钮，可能会先触发 Blur 保存。
+    // 通常 InPlaceEdit 的逻辑是 Blur 即 Save。
+    // 如果不想 Blur 保存，可以去掉这一行，或者判断 relatedTarget。
+    if (!isSaving) {
+      saveEdit()
     }
-
-    if (isEditing) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-    return
-  }, [isEditing, saveEdit])
+  }, [saveEdit, isSaving])
 
   return {
     isEditing,
     isSaving,
-    editValue,
-    inputRef,
     startEdit,
     saveEdit,
     cancelEdit,
-    handleKeyDown,
-    handleInputChange,
-    handleValueChange
+    inputProps: {
+      ref: inputRef,
+      value: editValue,
+      onChange: handleInputChange,
+      onKeyDown: handleKeyDown,
+      onBlur: handleBlur,
+      disabled: isSaving // 保存时禁用输入
+    }
   }
 }

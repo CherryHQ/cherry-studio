@@ -84,6 +84,68 @@ export async function renameNode(node: NotesTreeNode, newName: string): Promise<
 
 export async function uploadNotes(files: File[], targetPath: string): Promise<UploadResult> {
   const basePath = normalizePath(targetPath)
+  const totalFiles = files.length
+
+  if (files.length === 0) {
+    return {
+      uploadedNodes: [],
+      totalFiles: 0,
+      skippedFiles: 0,
+      fileCount: 0,
+      folderCount: 0
+    }
+  }
+
+  try {
+    // Get file paths from File objects
+    // For browser File objects from drag-and-drop, we need to use FileReader to save temporarily
+    // However, for directory uploads, the files already have paths
+    const filePaths: string[] = []
+
+    for (const file of files) {
+      // @ts-ignore - webkitRelativePath exists on File objects from directory uploads
+      if (file.path) {
+        // @ts-ignore - Electron File objects have .path property
+        filePaths.push(file.path)
+      } else {
+        // For browser File API, we'd need to use FileReader and create temp files
+        // For now, fall back to the old method for these cases
+        logger.warn('File without path detected, using fallback method')
+        return uploadNotesLegacy(files, targetPath)
+      }
+    }
+
+    // Pause file watcher to prevent N refresh events
+    await window.api.file.pauseFileWatcher()
+
+    try {
+      // Use the new optimized batch upload API that runs in Main process
+      const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
+
+      return {
+        uploadedNodes: [],
+        totalFiles,
+        skippedFiles: result.skippedFiles,
+        fileCount: result.fileCount,
+        folderCount: result.folderCount
+      }
+    } finally {
+      // Resume watcher and trigger single refresh
+      await window.api.file.resumeFileWatcher()
+    }
+  } catch (error) {
+    logger.error('Batch upload failed, falling back to legacy method:', error as Error)
+    // Fall back to old method if new method fails
+    return uploadNotesLegacy(files, targetPath)
+  }
+}
+
+/**
+ * Legacy upload method using Renderer process
+ * Kept as fallback for browser File API files without paths
+ */
+async function uploadNotesLegacy(files: File[], targetPath: string): Promise<UploadResult> {
+  const basePath = normalizePath(targetPath)
   const markdownFiles = filterMarkdown(files)
   const skippedFiles = files.length - markdownFiles.length
 
@@ -101,18 +163,37 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
   await createFolders(folders)
 
   let fileCount = 0
+  const BATCH_SIZE = 5 // Process 5 files concurrently to balance performance and responsiveness
 
-  for (const file of markdownFiles) {
-    const { dir, name } = resolveFileTarget(file, basePath)
-    const { safeName } = await window.api.file.checkFileName(dir, name, true)
-    const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
+  // Process files in batches to avoid blocking the UI thread
+  for (let i = 0; i < markdownFiles.length; i += BATCH_SIZE) {
+    const batch = markdownFiles.slice(i, i + BATCH_SIZE)
 
-    try {
-      const content = await file.text()
-      await window.api.file.write(finalPath, content)
-      fileCount += 1
-    } catch (error) {
-      logger.error('Failed to write uploaded file:', error as Error)
+    // Process current batch in parallel
+    const results = await Promise.allSettled(
+      batch.map(async (file) => {
+        const { dir, name } = resolveFileTarget(file, basePath)
+        const { safeName } = await window.api.file.checkFileName(dir, name, true)
+        const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
+
+        const content = await file.text()
+        await window.api.file.write(finalPath, content)
+        return true
+      })
+    )
+
+    // Count successful uploads
+    results.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        fileCount += 1
+      } else {
+        logger.error('Failed to write uploaded file:', result.reason)
+      }
+    })
+
+    // Yield to the event loop between batches to keep UI responsive
+    if (i + BATCH_SIZE < markdownFiles.length) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
     }
   }
 
