@@ -431,4 +431,61 @@ describe('Stream options includeUsage configuration', () => {
     // Even though setting is true, provider doesn't support it, so includeUsage should be undefined
     expect(config.options.includeUsage).toBeUndefined()
   })
+
+  it('uses includeUsage from settings for Copilot provider when set to false', () => {
+    mockGetState.mockReturnValue({
+      copilot: { defaultHeaders: {} },
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: false
+          }
+        }
+      }
+    })
+
+    const provider = createCopilotProvider()
+    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
+
+    expect(config.options.includeUsage).toBe(false)
+    expect(config.providerId).toBe('github-copilot-openai-compatible')
+  })
+
+  it('uses includeUsage from settings for Copilot provider when set to true', () => {
+    mockGetState.mockReturnValue({
+      copilot: { defaultHeaders: {} },
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: true
+          }
+        }
+      }
+    })
+
+    const provider = createCopilotProvider()
+    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
+
+    expect(config.options.includeUsage).toBe(true)
+    expect(config.providerId).toBe('github-copilot-openai-compatible')
+  })
+
+  it('uses includeUsage from settings for Copilot provider when undefined', () => {
+    mockGetState.mockReturnValue({
+      copilot: { defaultHeaders: {} },
+      settings: {
+        openAI: {
+          streamOptions: {
+            includeUsage: undefined
+          }
+        }
+      }
+    })
+
+    const provider = createCopilotProvider()
+    const config = providerToAiSdkConfig(provider, createModel('gpt-4', 'GPT-4', 'copilot'))
+
+    expect(config.options.includeUsage).toBeUndefined()
+    expect(config.providerId).toBe('github-copilot-openai-compatible')
+  })
 })
