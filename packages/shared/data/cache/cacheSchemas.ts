@@ -93,15 +93,39 @@ export const DefaultUseSharedCache: UseSharedCacheSchema = {
 }
 
 /**
+ * Tab type for browser-like tabs
+ *
+ * - 'route': Internal app routes rendered via MemoryRouter
+ * - 'webview': External web content rendered via Electron webview
+ */
+export type TabType = 'route' | 'webview'
+
+export interface Tab {
+  id: string
+  type: TabType
+  url: string
+  title: string
+  icon?: string
+  metadata?: Record<string, unknown>
+  // TODO: LRU 优化字段，后续添加
+  // lastAccessTime?: number
+}
+
+export interface TabsState {
+  tabs: Tab[]
+  activeTabId: string
+}
+
+/**
  * Persist cache schema defining allowed keys and their value types
  * This ensures type safety and prevents key conflicts
  */
 export type RendererPersistCacheSchema = {
-  'example_scope.example_key': string
+  'ui.tab.state': TabsState
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
-  'example_scope.example_key': 'example default value'
+  'ui.tab.state': { tabs: [], activeTabId: '' }
 }
 
 /**
