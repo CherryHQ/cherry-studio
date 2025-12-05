@@ -2945,6 +2945,10 @@ const migrateConfig = {
             model.provider = SystemProviderIds.gateway
           }
         })
+        // @ts-ignore
+        if (provider.type === 'ai-gateway') {
+          provider.type = 'gateway'
+        }
       })
       logger.info('migrate 181 success')
       return state
