@@ -16,17 +16,21 @@ export function toOptionValue(v: boolean | undefined): 'true' | 'false' | 'undef
 export function toOptionValue(v: boolean | null): 'true' | 'false' | 'null'
 export function toOptionValue(v: boolean | undefined | null): 'true' | 'false' | 'undefined' | 'null'
 export function toOptionValue<T extends string>(v: T): T
-export function toOptionValue<T extends string | undefined>(v: T): NonNullable<T> | 'undefined'
-export function toOptionValue<T extends string | null>(v: T): NonNullable<T> | 'null'
-export function toOptionValue<T extends string | boolean>(v: T): T | 'true' | 'false'
-export function toOptionValue<T extends string | null | undefined>(v: T): NonNullable<T> | 'null' | 'undefined'
-export function toOptionValue<T extends string | null | boolean>(v: T): NonNullable<T> | 'null' | 'true' | 'false'
-export function toOptionValue<T extends string | undefined | boolean>(
+export function toOptionValue<T extends Exclude<string, 'undefined'> | undefined>(v: T): NonNullable<T> | 'undefined'
+export function toOptionValue<T extends Exclude<string, 'null'> | null>(v: T): NonNullable<T> | 'null'
+export function toOptionValue<T extends Exclude<string, 'boolean'> | boolean>(v: T): T | 'true' | 'false'
+export function toOptionValue<T extends Exclude<string, 'null' | 'undefined'> | null | undefined>(
+  v: T
+): NonNullable<T> | 'null' | 'undefined'
+export function toOptionValue<T extends Exclude<string, 'null' | 'true' | 'false'> | null | boolean>(
+  v: T
+): NonNullable<T> | 'null' | 'true' | 'false'
+export function toOptionValue<T extends Exclude<string, 'undefined' | 'true' | 'false'> | undefined | boolean>(
   v: T
 ): NonNullable<T> | 'undefined' | 'true' | 'false'
-export function toOptionValue<T extends string | null | undefined | boolean>(
-  v: T
-): NonNullable<T> | 'null' | 'undefined' | 'true' | 'false'
+export function toOptionValue<
+  T extends Exclude<string, 'null' | 'undefined' | 'true' | 'false'> | null | undefined | boolean
+>(v: T): NonNullable<T> | 'null' | 'undefined' | 'true' | 'false'
 export function toOptionValue(v: string | undefined | null | boolean) {
   return String(v)
 }
