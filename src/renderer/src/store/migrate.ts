@@ -2956,6 +2956,20 @@ const migrateConfig = {
       logger.error('migrate 181 error', error as Error)
       return state
     }
+  },
+  '182': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ppio) {
+          provider.anthropicApiHost = 'https://api.ppinfra.com/anthropic'
+        }
+      })
+      logger.info('migrate 182 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 182 error', error as Error)
+      return state
+    }
   }
 }
 

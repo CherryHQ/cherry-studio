@@ -1,13 +1,6 @@
-import { isEmpty } from 'lodash'
-
 import type { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
-import {
-  getAvailableProviders,
-  getProviderAnthropicModelChecker,
-  listAllAvailableModels,
-  transformModelToOpenAI
-} from '../utils'
+import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
 
 const logger = loggerService.withContext('ModelsService')
 
@@ -20,11 +13,12 @@ export class ModelsService {
     try {
       logger.debug('Getting available models from providers', { filter })
 
-      let providers = await getAvailableProviders()
+      const providers = await getAvailableProviders()
 
-      if (filter.providerType === 'anthropic') {
-        providers = providers.filter((p) => p.type === 'anthropic' || !isEmpty(p.anthropicApiHost?.trim()))
-      }
+      // Note: When providerType === 'anthropic', we now return ALL available models
+      // because the API Server's unified adapter (AiSdkToAnthropicSSE) can convert
+      // any provider's response to Anthropic SSE format. This enables Claude Code Agent
+      // to work with OpenAI, Gemini, and other providers transparently.
 
       const models = await listAllAvailableModels(providers)
       // Use Map to deduplicate models by their full ID (provider:model_id)
@@ -32,18 +26,9 @@ export class ModelsService {
 
       for (const model of models) {
         const provider = providers.find((p) => p.id === model.provider)
-        // logger.debug(`Processing model ${model.id}`)
         if (!provider) {
           logger.debug(`Skipping model ${model.id} . Reason: Provider not found.`)
           continue
-        }
-
-        if (filter.providerType === 'anthropic') {
-          const checker = getProviderAnthropicModelChecker(provider.id)
-          if (!checker(model)) {
-            logger.debug(`Skipping model ${model.id} from ${model.provider}. Reason: Not an Anthropic model.`)
-            continue
-          }
         }
 
         const openAIModel = transformModelToOpenAI(model, provider)
