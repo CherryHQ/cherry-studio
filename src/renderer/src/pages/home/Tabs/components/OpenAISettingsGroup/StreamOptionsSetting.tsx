@@ -23,7 +23,7 @@ interface Props {
 
 const StreamOptionsSetting: FC<Props> = ({ SettingRowTitleSmall }) => {
   const { t } = useTranslation()
-  const includeUsage = useSelector((state: RootState) => state.settings.openAI.streamOptions.includeUsage)
+  const includeUsage = useSelector((state: RootState) => state.settings.openAI?.streamOptions?.includeUsage)
   const dispatch = useAppDispatch()
 
   const setIncludeUsage = useCallback(
