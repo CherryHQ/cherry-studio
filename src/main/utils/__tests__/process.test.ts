@@ -10,9 +10,8 @@ vi.mock('child_process')
 vi.mock('fs')
 vi.mock('path')
 
-describe('process utilities', () => {
-  const originalPlatform = process.platform
-
+// These tests only run on Windows since the functions have platform guards
+describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -50,23 +49,7 @@ describe('process utilities', () => {
     vi.spyOn(process, 'cwd').mockReturnValue('C:\\cwd')
   })
 
-  afterEach(() => {
-    // Restore original platform
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-      writable: true
-    })
-  })
-
-  // Note: These tests assume Windows platform. The functions have platform guards
-  // that return null on non-Windows systems, but testing platform detection would
-  // require module reloading which adds complexity. The platform guards are simple
-  // and tested via manual testing.
-
   describe('findExecutable', () => {
-    beforeEach(() => {
-      Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
-    })
 
     describe('git common paths', () => {
       it('should find git at Program Files path', () => {
@@ -308,10 +291,6 @@ describe('process utilities', () => {
   })
 
   describe('findGitBash', () => {
-    beforeEach(() => {
-      Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
-    })
-
     describe('git.exe path derivation', () => {
       it('should derive bash.exe from standard Git installation (Git/cmd/git.exe)', () => {
         const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
@@ -413,7 +392,6 @@ describe('process utilities', () => {
 
     describe('common paths fallback', () => {
       beforeEach(() => {
-        Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
         // git.exe not found
         vi.mocked(execFileSync).mockImplementation(() => {
           throw new Error('Not found')
@@ -479,10 +457,6 @@ describe('process utilities', () => {
     })
 
     describe('priority order', () => {
-      beforeEach(() => {
-        Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
-      })
-
       it('should prioritize git.exe derivation over common paths', () => {
         const gitPath = 'C:\\CustomPath\\Git\\cmd\\git.exe'
         const derivedBashPath = 'C:\\CustomPath\\Git\\bin\\bash.exe'
@@ -510,10 +484,6 @@ describe('process utilities', () => {
     })
 
     describe('error scenarios', () => {
-      beforeEach(() => {
-        Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
-      })
-
       it('should return null when Git is not installed anywhere', () => {
         vi.mocked(fs.existsSync).mockReturnValue(false)
         vi.mocked(execFileSync).mockImplementation(() => {
@@ -542,10 +512,6 @@ describe('process utilities', () => {
     })
 
     describe('real-world scenarios', () => {
-      beforeEach(() => {
-        Object.defineProperty(process, 'platform', { value: 'win32', writable: true })
-      })
-
       it('should handle official Git for Windows installer', () => {
         const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
         const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
