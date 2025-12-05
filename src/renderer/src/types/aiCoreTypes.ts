@@ -50,7 +50,12 @@ export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
  * When undefined, the parameter is omitted from the request.
  * When null, verbosity is explicitly disabled.
  */
-export type OpenAISummaryText = OpenAI.Reasoning['summary']
+export type OpenAIReasoningSummary = OpenAI.Reasoning['summary']
+
+/**
+ * Options for streaming response. Only set this when you set `stream: true`.
+ */
+export type OpenAICompletionsStreamOptions = OpenAI.ChatCompletionStreamOptions
 
 const AiSdkParamsSchema = z.enum([
   'maxOutputTokens',

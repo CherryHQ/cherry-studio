@@ -56,7 +56,11 @@ import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from 
 import { isGroqSystemProvider, ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
+import {
+  isOpenAICompatibleProvider,
+  isSupportServiceTierProvider,
+  isSupportVerbosityProvider
+} from '@renderer/utils/provider'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -184,6 +188,7 @@ const SettingsTab: FC<Props> = (props) => {
   const model = assistant.model || getDefaultModel()
 
   const showOpenAiSettings =
+    isOpenAICompatibleProvider(provider) ||
     isOpenAIModel(model) ||
     isSupportServiceTierProvider(provider) ||
     (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))

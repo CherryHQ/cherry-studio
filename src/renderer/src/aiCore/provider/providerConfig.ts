@@ -11,6 +11,7 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider, SystemProviderIds } from '@renderer/types'
+import type { OpenAICompletionsStreamOptions } from '@renderer/types/aiCoreTypes'
 import {
   formatApiHost,
   formatAzureOpenAIApiHost,
@@ -147,6 +148,10 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
     baseURL: baseURL,
     apiKey: actualProvider.apiKey
   }
+  let includeUsage: OpenAICompletionsStreamOptions['include_usage'] = undefined
+  if (isSupportStreamOptionsProvider(actualProvider)) {
+    includeUsage = store.getState().settings.openAI?.streamOptions?.includeUsage
+  }
 
   const isCopilotProvider = actualProvider.id === SystemProviderIds.copilot
   if (isCopilotProvider) {
@@ -158,7 +163,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
         ...actualProvider.extra_headers
       },
       name: actualProvider.id,
-      includeUsage: true
+      includeUsage
     })
 
     return {
@@ -261,7 +266,7 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
       ...options,
       name: actualProvider.id,
       ...extraOptions,
-      includeUsage: isSupportStreamOptionsProvider(actualProvider)
+      includeUsage
     }
   }
 }

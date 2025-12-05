@@ -1162,6 +1162,7 @@
     "no_results": "Aucun résultat",
     "none": "Aucun",
     "off": "Désactivé",
+    "on": "Marche",
     "open": "Ouvrir",
     "paste": "Coller",
     "placeholders": {
@@ -4270,6 +4271,12 @@
         "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Si l'utilisation des jetons est incluse (applicable uniquement à l'API OpenAI Chat Completions)",
+          "title": "Inclure l'utilisation"
+        }
       },
       "summary_text_mode": {
         "auto": "Automatique",
