@@ -522,8 +522,11 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message])
 
   const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens = !isBubbleStyle
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
+  const bubbleAlignment: 'flex-start' | 'flex-end' = isAssistantMessage ? 'flex-start' : 'flex-end'
+  const messageTokensAlignment: 'left' | 'right' = isBubbleStyle || isAssistantMessage ? 'right' : 'left'
+
+  const tokensElement = <MessageTokens message={message} align={messageTokensAlignment} />
 
   const buttonContext: MessageMenubarButtonContext = {
     assistant,
@@ -558,9 +561,40 @@ const MessageMenubar: FC<Props> = (props) => {
     translateLanguages
   }
 
+  if (isBubbleStyle) {
+    return (
+      <div
+        className={classNames(
+          'flex w-full flex-row items-center gap-2',
+          bubbleAlignment === 'flex-start' ? 'justify-start' : 'justify-end'
+        )}>
+        <MenusBar
+          className={classNames({
+            menubar: true,
+            show: isLastMessage,
+            'user-bubble-style': isUserBubbleStyleMessage
+          })}>
+          {buttonIds.map((buttonId) => {
+            const renderFn = buttonRenderers[buttonId]
+            if (!renderFn) {
+              logger.warn(`No renderer registered for MessageMenubar button id: ${buttonId}`)
+              return null
+            }
+            const element = renderFn(buttonContext)
+            if (!element) {
+              return null
+            }
+            return <Fragment key={buttonId}>{element}</Fragment>
+          })}
+        </MenusBar>
+        <div className="ml-auto flex min-w-0 flex-none justify-end">{tokensElement}</div>
+      </div>
+    )
+  }
+
   return (
     <>
-      {showMessageTokens && <MessageTokens message={message} />}
+      {tokensElement}
       <MenusBar
         className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
         {buttonIds.map((buttonId) => {
