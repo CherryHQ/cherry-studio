@@ -145,9 +145,9 @@ export function findGitBash(): string | null {
     // Try multiple possible locations for bash.exe relative to git.exe
     // Different Git installations have different directory structures
     const possibleBashPaths = [
-      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard: Git/cmd/git.exe -> Git/cmd -> Git -> Git/bin/bash.exe
-      path.join(gitPath, '..', 'bash.exe'), // Portable: Git/bin/git.exe -> Git/bin -> Git/bin/bash.exe
-      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // Git for Windows 2.x: Git/cmd/git.exe -> Git/cmd -> Git -> Git/usr/bin/bash.exe
+      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
+      path.join(gitPath, '..', 'bash.exe'), // Portable Git: git.exe at Git/bin/ -> bash.exe in same directory
+      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // Git for Windows 2.x: git.exe at Git/cmd/ -> navigate up 2 levels -> then usr/bin/bash.exe
     ]
 
     for (const bashPath of possibleBashPaths) {
