@@ -12,7 +12,14 @@ vi.mock('@renderer/services/LoggerService', () => ({
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: vi.fn()
+  getProviderByModel: vi.fn(),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
 }))
 
 vi.mock('@renderer/store', () => ({
@@ -34,7 +41,7 @@ vi.mock('@renderer/utils/api', () => ({
   }))
 }))
 
-vi.mock('@renderer/config/providers', async (importOriginal) => {
+vi.mock('@renderer/utils/provider', async (importOriginal) => {
   const actual = (await importOriginal()) as any
   return {
     ...actual,
@@ -53,10 +60,21 @@ vi.mock('@renderer/hooks/useVertexAI', () => ({
   createVertexProvider: vi.fn()
 }))
 
-import { isCherryAIProvider, isPerplexityProvider } from '@renderer/config/providers'
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn(),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import type { Model, Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
+import { isCherryAIProvider, isPerplexityProvider } from '@renderer/utils/provider'
 
 import { COPILOT_DEFAULT_HEADERS, COPILOT_EDITOR_VERSION, isCopilotResponsesModel } from '../constants'
 import { getActualProvider, providerToAiSdkConfig } from '../providerConfig'

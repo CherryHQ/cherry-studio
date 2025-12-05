@@ -9,6 +9,7 @@ import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { CacheService } from '@renderer/services/CacheService'
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -41,19 +42,10 @@ import { getInputbarConfig } from './registry'
 import { TopicType } from './types'
 
 const logger = loggerService.withContext('AgentSessionInputbar')
-const agentSessionDraftCache = new Map<string, string>()
 
-const readDraftFromCache = (key: string): string => {
-  return agentSessionDraftCache.get(key) ?? ''
-}
+const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
-const writeDraftToCache = (key: string, value: string) => {
-  if (!value) {
-    agentSessionDraftCache.delete(key)
-  } else {
-    agentSessionDraftCache.set(key, value)
-  }
-}
+const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
 
 type Props = {
   agentId: string
@@ -170,24 +162,25 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
   const scope = TopicType.Session
   const config = getInputbarConfig(scope)
 
-  // Use shared hooks for text and textarea management
-  const initialDraft = useMemo(() => readDraftFromCache(agentId), [agentId])
-  const persistDraft = useCallback((next: string) => writeDraftToCache(agentId, next), [agentId])
+  // Use shared hooks for text and textarea management with draft persistence
+  const draftCacheKey = getAgentDraftCacheKey(agentId)
   const {
     text,
     setText,
     isEmpty: inputEmpty
   } = useInputText({
-    initialValue: initialDraft,
-    onChange: persistDraft
+    initialValue: CacheService.get<string>(draftCacheKey) ?? '',
+    onChange: (value) => CacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,
     resize: resizeTextArea,
     focus: focusTextarea,
     setExpanded,
-    isExpanded: textareaIsExpanded
-  } = useTextareaResize({ maxHeight: 400, minHeight: 30 })
+    isExpanded: textareaIsExpanded,
+    customHeight,
+    setCustomHeight
+  } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
   const { sendMessageShortcut, apiServer } = useSettings()
 
   const { t } = useTranslation()
@@ -431,6 +424,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
         })
       )
 
+      // Clear text after successful send (draft is cleared automatically via onChange)
       setText('')
       setTimeoutTimer('agentSession_sendMessage', () => setText(''), 500)
     } catch (error) {
@@ -482,6 +476,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
       text={text}
       onTextChange={setText}
       textareaRef={textareaRef}
+      height={customHeight}
+      onHeightChange={setCustomHeight}
       resizeTextArea={resizeTextArea}
       focusTextarea={focusTextarea}
       placeholder={placeholderText}

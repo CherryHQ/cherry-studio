@@ -2,8 +2,10 @@ import { hasProviderConfigByAlias, type ProviderId, resolveProviderConfigId } fr
 import { createProvider as createProviderCore } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import type { Provider } from '@renderer/types'
+import { isAzureOpenAIProvider, isAzureResponsesEndpoint } from '@renderer/utils/provider'
 import type { Provider as AiSdkProvider } from 'ai'
 
+import type { AiSdkConfig } from '../types'
 import { initializeNewProviders } from './providerInitialization'
 
 const logger = loggerService.withContext('ProviderFactory')
@@ -54,10 +56,18 @@ function tryResolveProviderId(identifier: string): ProviderId | null {
 /**
  * 获取AI SDK Provider ID
  * 简化版：减少重复逻辑，利用通用解析函数
+ * TODO: 整理函数逻辑
  */
-export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-compatible' {
+export function getAiSdkProviderId(provider: Provider): string {
   // 1. 尝试解析provider.id
   const resolvedFromId = tryResolveProviderId(provider.id)
+  if (isAzureOpenAIProvider(provider)) {
+    if (isAzureResponsesEndpoint(provider)) {
+      return 'azure-responses'
+    } else {
+      return 'azure'
+    }
+  }
   if (resolvedFromId) {
     return resolvedFromId
   }
@@ -73,11 +83,11 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
   if (provider.apiHost.includes('api.openai.com')) {
     return 'openai-chat'
   }
-  // 3. 最后的fallback（通常会成为openai-compatible）
-  return provider.id as ProviderId
+  // 3. 最后的fallback（使用provider本身的id）
+  return provider.id
 }
 
-export async function createAiSdkProvider(config) {
+export async function createAiSdkProvider(config: AiSdkConfig): Promise<AiSdkProvider | null> {
   let localProvider: Awaited<AiSdkProvider> | null = null
   try {
     if (config.providerId === 'openai' && config.options?.mode === 'chat') {

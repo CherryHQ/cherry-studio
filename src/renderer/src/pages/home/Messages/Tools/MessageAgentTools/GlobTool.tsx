@@ -8,7 +8,7 @@ export function GlobTool({
   input,
   output
 }: {
-  input: GlobToolInputType
+  input?: GlobToolInputType
   output?: GlobToolOutputType
 }): NonNullable<CollapseProps['items']>[number] {
   // 如果有输出，计算文件数量
@@ -20,7 +20,7 @@ export function GlobTool({
       <ToolTitle
         icon={<FolderSearch className="h-4 w-4" />}
         label="Glob"
-        params={input.pattern}
+        params={input?.pattern}
         stats={output ? `${lineCount} ${lineCount === 1 ? 'file' : 'files'}` : undefined}
       />
     ),

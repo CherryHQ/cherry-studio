@@ -7,6 +7,8 @@ import type { CSSProperties } from 'react'
 export * from './file'
 export * from './note'
 
+import * as z from 'zod'
+
 import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
@@ -91,6 +93,7 @@ const ThinkModelTypes = [
   'grok4_fast',
   'gemini',
   'gemini_pro',
+  'gemini3',
   'qwen',
   'qwen_thinking',
   'doubao',
@@ -238,7 +241,16 @@ export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'functio
 
 export type ModelTag = Exclude<ModelType, 'text'> | 'free'
 
-export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
+// "image-generation" is also openai endpoint, but specifically for image generation.
+export const EndPointTypeSchema = z.enum([
+  'openai',
+  'openai-response',
+  'anthropic',
+  'gemini',
+  'image-generation',
+  'jina-rerank'
+])
+export type EndpointType = z.infer<typeof EndPointTypeSchema>
 
 export type ModelPricing = {
   input_per_million_tokens: number
@@ -319,6 +331,7 @@ export interface GeneratePainting extends PaintingParams {
   safetyTolerance?: number
   width?: number
   height?: number
+  imageSize?: string
 }
 
 export interface EditPainting extends PaintingParams {
@@ -871,10 +884,6 @@ export interface StoreSyncAction {
   }
 }
 
-export type OpenAIVerbosity = 'high' | 'medium' | 'low'
-
-export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-
 export type S3Config = {
   endpoint: string
   region: string
@@ -1091,7 +1100,7 @@ export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
 
-export type FetchChatCompletionOptions = {
+export type FetchChatCompletionRequestOptions = {
   signal?: AbortSignal
   timeout?: number
   headers?: Record<string, string>
@@ -1099,7 +1108,7 @@ export type FetchChatCompletionOptions = {
 
 type BaseParams = {
   assistant: Assistant
-  options?: FetchChatCompletionOptions
+  requestOptions?: FetchChatCompletionRequestOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
   uiMessages?: Message[]
@@ -1119,3 +1128,7 @@ type PromptParams = BaseParams & {
 }
 
 export type FetchChatCompletionParams = MessagesParams | PromptParams
+
+// More specific than NonNullable
+export type NotUndefined<T> = Exclude<T, undefined>
+export type NotNull<T> = Exclude<T, null>

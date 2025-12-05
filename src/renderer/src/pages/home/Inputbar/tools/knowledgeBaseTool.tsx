@@ -1,5 +1,4 @@
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import type { KnowledgeBase } from '@renderer/types'
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
@@ -30,7 +29,6 @@ const knowledgeBaseTool = defineTool({
   render: function KnowledgeBaseToolRender(context) {
     const { assistant, state, actions, quickPanel } = context
 
-    const knowledgeSidebarEnabled = useSidebarIconShow('knowledge')
     const { updateAssistant } = useAssistant(assistant.id)
 
     const handleSelect = useCallback(
@@ -40,10 +38,6 @@ const knowledgeBaseTool = defineTool({
       },
       [updateAssistant, actions]
     )
-
-    if (!knowledgeSidebarEnabled) {
-      return null
-    }
 
     return (
       <KnowledgeBaseButton

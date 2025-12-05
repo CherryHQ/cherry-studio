@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { isNotSupportedTextDelta } from '@renderer/config/models'
+import { isNotSupportTextDeltaModel } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
@@ -58,7 +58,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       group: values.group ?? getDefaultGroupName(id)
     }
 
-    addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
+    addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
 
     return true
   }

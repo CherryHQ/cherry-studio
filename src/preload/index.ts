@@ -122,7 +122,8 @@ const api = {
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
-    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
+    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
+    checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash)
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)

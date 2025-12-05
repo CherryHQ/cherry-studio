@@ -79,6 +79,10 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
   if (baseModelName.endsWith(':free')) {
     return baseModelName.replace(':free', '')
   }
+  // for cherryin
+  if (baseModelName.endsWith('(free)')) {
+    return baseModelName.replace('(free)', '')
+  }
   return baseModelName
 }
 

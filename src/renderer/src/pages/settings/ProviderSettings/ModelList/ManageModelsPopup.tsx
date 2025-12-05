@@ -6,21 +6,21 @@ import {
   groupQwenModels,
   isEmbeddingModel,
   isFunctionCallingModel,
-  isNotSupportedTextDelta,
+  isNotSupportTextDeltaModel,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
   isWebSearchModel,
   SYSTEM_MODELS
 } from '@renderer/config/models'
-import { isNewApiProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
-import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
+import { filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -136,13 +136,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             addModel({
               ...model,
               endpoint_type: endpointTypes.includes('image-generation') ? 'image-generation' : endpointTypes[0],
-              supported_text_delta: !isNotSupportedTextDelta(model)
+              supported_text_delta: !isNotSupportTextDeltaModel(model)
             })
           } else {
             NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
-          addModel({ ...model, supported_text_delta: !isNotSupportedTextDelta(model) })
+          addModel({ ...model, supported_text_delta: !isNotSupportTextDeltaModel(model) })
         }
       }
     },
@@ -183,24 +183,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     setLoadingModels(true)
     try {
       const models = await fetchModels(provider)
-      const filteredModels = models
-        .map((model) => ({
-          // @ts-ignore modelId
-          id: model?.id || model?.name,
-          // @ts-ignore name
-          name: model?.display_name || model?.displayName || model?.name || model?.id,
-          provider: provider.id,
-          // @ts-ignore group
-          group: getDefaultGroupName(model?.id || model?.name, provider.id),
-          // @ts-ignore description
-          description: model?.description || '',
-          // @ts-ignore owned_by
-          owned_by: model?.owned_by || '',
-          // @ts-ignore supported_endpoint_types
-          supported_endpoint_types: model?.supported_endpoint_types
-        }))
-        .filter((model) => !isEmpty(model.name))
-
+      const filteredModels = models.filter((model) => !isEmpty(model.name))
       setListModels(filteredModels)
     } catch (error) {
       logger.error(`Failed to load models for provider ${getFancyProviderName(provider)}`, error as Error)

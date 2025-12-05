@@ -10,16 +10,15 @@ import type {
   LanguageVarious,
   MathEngine,
   OpenAIServiceTier,
-  OpenAISummaryText,
   PaintingProvider,
   S3Config,
   SidebarIcon,
   TranslateLanguageCode
 } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
+import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/config/constant'
-import type { OpenAIVerbosity } from '@types'
+import { API_SERVER_DEFAULTS, UpgradeChannel } from '@shared/config/constant'
 
 import type { RemoteSyncState } from './backup'
 
@@ -375,9 +374,9 @@ export const initialState: SettingsState = {
   },
   // OpenAI
   openAI: {
-    summaryText: 'off',
+    summaryText: 'auto',
     serviceTier: 'auto',
-    verbosity: 'medium'
+    verbosity: undefined
   },
   notification: {
     assistant: false,
@@ -411,8 +410,8 @@ export const initialState: SettingsState = {
   // API Server
   apiServer: {
     enabled: false,
-    host: 'localhost',
-    port: 23333,
+    host: API_SERVER_DEFAULTS.HOST,
+    port: API_SERVER_DEFAULTS.PORT,
     apiKey: `cs-sk-${uuid()}`
   },
   showMessageOutline: false
