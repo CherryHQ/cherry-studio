@@ -50,7 +50,6 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
   })
 
   describe('findExecutable', () => {
-
     describe('git common paths', () => {
       it('should find git at Program Files path', () => {
         const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
