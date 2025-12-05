@@ -52,6 +52,9 @@ export type OpenAIReasoningEffort = OpenAI.ReasoningEffort
  */
 export type OpenAIReasoningSummary = OpenAI.Reasoning['summary']
 
+/**
+ * Options for streaming response. Only set this when you set `stream: true`.
+ */
 export type OpenAICompletionsStreamOptions = OpenAI.ChatCompletionStreamOptions
 
 const AiSdkParamsSchema = z.enum([
