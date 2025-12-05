@@ -1984,6 +1984,9 @@
       },
       "remove_custom": {
         "title": "Excluir aplicativo personalizado"
+      },
+      "edit_custom": {
+        "title": "Editar aplicativo personalizado"
       }
     },
     "title": "Pequeno aplicativo"
@@ -4122,6 +4125,7 @@
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
         "save": "Salvar",
+        "edit": "Editar",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
         "save_success": "Aplicativo personalizado salvo com sucesso.",
         "title": "Aplicativo Personalizado",
