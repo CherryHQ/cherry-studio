@@ -1,10 +1,10 @@
 import { Switch } from '@cherrystudio/ui'
 import { InfoTooltip } from '@cherrystudio/ui'
+import { Slider } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
-import { Slider } from 'antd'
 import { t } from 'i18next'
 import type { FC } from 'react'
 
@@ -37,13 +37,20 @@ const BasicSettings: FC = () => {
             )}
           </SettingRowTitle>
           <Slider
-            defaultValue={maxResults}
-            style={{ width: '100%' }}
+            defaultValue={[maxResults]}
+            className="w-60"
             min={1}
             max={100}
             step={1}
-            marks={{ 1: '1', 5: '5', 20: '20', 50: '50', 100: '100' }}
-            onChangeComplete={(value) => dispatch(setMaxResult(value))}
+            marks={[
+              { value: 1, label: '1' },
+              { value: 5, label: '5' },
+              { value: 20, label: '20' },
+              { value: 50, label: '50' },
+              { value: 100, label: '100' }
+            ]}
+            onValueCommit={(values) => dispatch(setMaxResult(values[0]))}
+            showValueLabel
           />
         </SettingRow>
       </SettingGroup>
