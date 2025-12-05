@@ -98,10 +98,6 @@ function getMainProcessFormatContext(): ProviderFormatContext {
 }
 
 const mainProcessSdkContext: AiSdkConfigContext = {
-  getRotatedApiKey: (provider) => {
-    const keys = provider.apiKey.split(',').map((k) => k.trim())
-    return keys[0] || provider.apiKey
-  },
   fetch: net.fetch as typeof globalThis.fetch
 }
 
