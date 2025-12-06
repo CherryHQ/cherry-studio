@@ -190,13 +190,15 @@ export function providerToAiSdkConfig(actualProvider: Provider, model: Model): A
   extraOptions.endpoint = endpoint
   if (actualProvider.type === 'openai-response' && !isOpenAIChatCompletionOnlyModel(model)) {
     extraOptions.mode = 'responses'
-  } else if (aiSdkProviderId === 'openai' || (aiSdkProviderId === 'cherryin' && actualProvider.type === 'openai')) {
+  } else if (aiSdkProviderId === 'openai' ) {
     // OAuth authentication requires using the responses API mode instead of chat mode
     if (actualProvider.authType == 'oauth') {
       extraOptions.mode = 'responses'
     } else {
       extraOptions.mode = 'chat'
     }
+  } else if (aiSdkProviderId === 'cherryin') {
+    extraOptions.mode = 'chat'
   }
 
   // 添加额外headers
