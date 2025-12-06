@@ -7,15 +7,7 @@ import type { Provider } from '@types'
 import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
-const EXCLUDED_FORWARD_HEADERS: ReadonlySet<string> = new Set([
-  'host',
-  'x-api-key',
-  'authorization',
-  'sentry-trace',
-  'baggage',
-  'content-length',
-  'connection'
-])
+const EXCLUDED_FORWARD_HEADERS: ReadonlySet<string> = new Set(['host', 'x-api-key', 'authorization'])
 
 export interface ValidationResult {
   isValid: boolean
