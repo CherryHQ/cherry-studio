@@ -1,22 +1,15 @@
+import { adaptProvider } from '@renderer/aiCore/provider/providerConfig'
+import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import Selector from '@renderer/components/Selector'
+import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import {
-  isAnthropicProvider,
-  isAzureOpenAIProvider,
-  isGeminiProvider,
-  isNewApiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider,
-  isSupportAPIVersionProvider,
-  PROVIDER_URLS
-} from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { isVertexProvider } from '@renderer/hooks/useVertexAI'
 import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
@@ -28,15 +21,19 @@ import type { SystemProviderId } from '@renderer/types'
 import { isSystemProvider, isSystemProviderId, SystemProviderIds } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import {
-  formatApiHost,
-  formatApiKeys,
-  formatAzureOpenAIApiHost,
-  formatVertexApiHost,
-  getFancyProviderName,
-  validateApiHost
-} from '@renderer/utils'
+import { formatApiHost, formatApiKeys, getFancyProviderName, validateApiHost } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import {
+  isAIGatewayProvider,
+  isAnthropicProvider,
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isNewApiProvider,
+  isOllamaProvider,
+  isOpenAICompatibleProvider,
+  isOpenAIProvider,
+  isVertexProvider
+} from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -80,7 +77,11 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.aihubmix,
   SystemProviderIds.grok,
   SystemProviderIds.cherryin,
-  SystemProviderIds.longcat
+  SystemProviderIds.longcat,
+  SystemProviderIds.minimax,
+  SystemProviderIds.silicon,
+  SystemProviderIds.qiniu,
+  SystemProviderIds.dmxapi
 ] as const
 type AnthropicCompatibleProviderId = (typeof ANTHROPIC_COMPATIBLE_PROVIDER_IDS)[number]
 
@@ -276,36 +277,41 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   }, [configuredApiHost, apiHost])
 
   const hostPreview = () => {
-    if (apiHost.endsWith('#')) {
-      return apiHost.replace('#', '')
+    const formattedApiHost = adaptProvider({ provider: { ...provider, apiHost } }).apiHost
+
+    if (isOllamaProvider(provider)) {
+      return formattedApiHost + '/chat'
     }
 
     if (isOpenAICompatibleProvider(provider)) {
-      return formatApiHost(apiHost, isSupportAPIVersionProvider(provider)) + '/chat/completions'
+      return formattedApiHost + '/chat/completions'
     }
 
     if (isAzureOpenAIProvider(provider)) {
-      const apiVersion = provider.apiVersion
+      const apiVersion = provider.apiVersion || ''
       const path = !['preview', 'v1'].includes(apiVersion)
         ? `/v1/chat/completion?apiVersion=v1`
         : `/v1/responses?apiVersion=v1`
-      return formatAzureOpenAIApiHost(apiHost) + path
+      return formattedApiHost + path
     }
 
     if (isAnthropicProvider(provider)) {
-      return formatApiHost(apiHost) + '/messages'
+      return formattedApiHost + '/messages'
     }
 
     if (isGeminiProvider(provider)) {
-      return formatApiHost(apiHost, true, 'v1beta') + '/models'
+      return formattedApiHost + '/models'
     }
     if (isOpenAIProvider(provider)) {
-      return formatApiHost(apiHost) + '/responses'
+      return formattedApiHost + '/responses'
     }
     if (isVertexProvider(provider)) {
-      return formatVertexApiHost(provider) + '/publishers/google'
+      return formattedApiHost + '/publishers/google'
     }
-    return formatApiHost(apiHost)
+    if (isAIGatewayProvider(provider)) {
+      return formattedApiHost + '/language-model'
+    }
+    return formattedApiHost
   }
 
   // API key 连通性检查状态指示器，目前仅在失败时显示
@@ -343,6 +349,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const anthropicHostPreview = useMemo(() => {
     const rawHost = anthropicApiHost ?? provider.anthropicApiHost
+    // AI SDK uses the baseURL with /v1, then appends /messages
     const normalizedHost = formatApiHost(rawHost)
 
     return `${normalizedHost}/messages`
@@ -496,16 +503,21 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           {!isDmxapi && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
-                  <Selector
-                    size={14}
-                    value={activeHostField}
-                    onChange={(value) => setActiveHostField(value as HostField)}
-                    options={hostSelectorOptions}
-                    style={{ paddingLeft: 1, fontWeight: 'bold' }}
-                    placement="bottomLeft"
-                  />
-                </Tooltip>
+                <div className="flex items-center gap-1">
+                  <Tooltip title={hostSelectorTooltip} mouseEnterDelay={0.3}>
+                    <div>
+                      <Selector
+                        size={14}
+                        value={activeHostField}
+                        onChange={(value) => setActiveHostField(value as HostField)}
+                        options={hostSelectorOptions}
+                        style={{ paddingLeft: 1, fontWeight: 'bold' }}
+                        placement="bottomLeft"
+                      />
+                    </div>
+                  </Tooltip>
+                  <HelpTooltip title={t('settings.provider.api.url.tip')}></HelpTooltip>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <Button
                     type="text"
@@ -534,24 +546,17 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>
                     </SettingHelpTextRow>
                   )}
-                  {(isOpenAICompatibleProvider(provider) ||
-                    isAzureOpenAIProvider(provider) ||
-                    isAnthropicProvider(provider) ||
-                    isGeminiProvider(provider) ||
-                    isVertexProvider(provider) ||
-                    isOpenAIProvider(provider)) && (
-                    <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-                      <SettingHelpText
-                        style={{
-                          marginLeft: 6,
-                          marginRight: '1em',
-                          whiteSpace: 'break-spaces',
-                          wordBreak: 'break-all'
-                        }}>
-                        {t('settings.provider.api_host_preview', { url: hostPreview() })}
-                      </SettingHelpText>
-                    </SettingHelpTextRow>
-                  )}
+                  <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                    <SettingHelpText
+                      style={{
+                        marginLeft: 6,
+                        marginRight: '1em',
+                        whiteSpace: 'break-spaces',
+                        wordBreak: 'break-all'
+                      }}>
+                      {t('settings.provider.api_host_preview', { url: hostPreview() })}
+                    </SettingHelpText>
+                  </SettingHelpTextRow>
                 </>
               )}
 
@@ -564,6 +569,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                       onChange={(e) => setAnthropicHost(e.target.value)}
                       onBlur={onUpdateAnthropicHost}
                     />
+                    {/* TODO: Add a reset button here. */}
                   </Space.Compact>
                   <SettingHelpTextRow style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                     <SettingHelpText style={{ marginLeft: 6, whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>

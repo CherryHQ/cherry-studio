@@ -1,17 +1,13 @@
-import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
 import type { AgentType, MCPTool, SlashCommand, Tool } from '@types'
 import { objectKeys } from '@types'
-import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
 
-import { MigrationService } from './database/MigrationService'
-import * as schema from './database/schema'
-import { dbPath } from './drizzle.config'
+import { DatabaseManager } from './database/DatabaseManager'
 import type { AgentModelField } from './errors'
 import { AgentModelValidationError } from './errors'
 import { builtinSlashCommands } from './services/claudecode/commands'
@@ -20,40 +16,24 @@ import { builtinTools } from './services/claudecode/tools'
 const logger = loggerService.withContext('BaseService')
 
 /**
- * Base service class providing shared database connection and utilities
- * for all agent-related services.
+ * Base service class providing shared utilities for all agent-related services.
  *
  * Features:
- * - Programmatic schema management (no CLI dependencies)
- * - Automatic table creation and migration
- * - Schema version tracking and compatibility checks
- * - Transaction-based operations for safety
- * - Development vs production mode handling
- * - Connection retry logic with exponential backoff
+ * - Database access through DatabaseManager singleton
+ * - JSON field serialization/deserialization
+ * - Path validation and creation
+ * - Model validation
+ * - MCP tools and slash commands listing
  */
 export abstract class BaseService {
-  protected static client: Client | null = null
-  protected static db: LibSQLDatabase<typeof schema> | null = null
-  protected static isInitialized = false
-  protected static initializationPromise: Promise<void> | null = null
-  protected jsonFields: string[] = ['tools', 'mcps', 'configuration', 'accessible_paths', 'allowed_tools']
-
-  /**
-   * Initialize database with retry logic and proper error handling
-   */
-  protected static async initialize(): Promise<void> {
-    // Return existing initialization if in progress
-    if (BaseService.initializationPromise) {
-      return BaseService.initializationPromise
-    }
-
-    if (BaseService.isInitialized) {
-      return
-    }
-
-    BaseService.initializationPromise = BaseService.performInitialization()
-    return BaseService.initializationPromise
-  }
+  protected jsonFields: string[] = [
+    'tools',
+    'mcps',
+    'configuration',
+    'accessible_paths',
+    'allowed_tools',
+    'slash_commands'
+  ]
 
   public async listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
     const tools: Tool[] = []
@@ -94,78 +74,13 @@ export abstract class BaseService {
     return []
   }
 
-  private static async performInitialization(): Promise<void> {
-    const maxRetries = 3
-    let lastError: Error
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        logger.info(`Initializing Agent database at: ${dbPath} (attempt ${attempt}/${maxRetries})`)
-
-        // Ensure the database directory exists
-        const dbDir = path.dirname(dbPath)
-        if (!fs.existsSync(dbDir)) {
-          logger.info(`Creating database directory: ${dbDir}`)
-          fs.mkdirSync(dbDir, { recursive: true })
-        }
-
-        BaseService.client = createClient({
-          url: `file:${dbPath}`
-        })
-
-        BaseService.db = drizzle(BaseService.client, { schema })
-
-        // Run database migrations
-        const migrationService = new MigrationService(BaseService.db, BaseService.client)
-        await migrationService.runMigrations()
-
-        BaseService.isInitialized = true
-        logger.info('Agent database initialized successfully')
-        return
-      } catch (error) {
-        lastError = error as Error
-        logger.warn(`Database initialization attempt ${attempt} failed:`, lastError)
-
-        // Clean up on failure
-        if (BaseService.client) {
-          try {
-            BaseService.client.close()
-          } catch (closeError) {
-            logger.warn('Failed to close client during cleanup:', closeError as Error)
-          }
-        }
-        BaseService.client = null
-        BaseService.db = null
-
-        // Wait before retrying (exponential backoff)
-        if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000 // 2s, 4s, 8s
-          logger.info(`Retrying in ${delay}ms...`)
-          await new Promise((resolve) => setTimeout(resolve, delay))
-        }
-      }
-    }
-
-    // All retries failed
-    BaseService.initializationPromise = null
-    logger.error('Failed to initialize Agent database after all retries:', lastError!)
-    throw lastError!
-  }
-
-  protected ensureInitialized(): void {
-    if (!BaseService.isInitialized || !BaseService.db || !BaseService.client) {
-      throw new Error('Database not initialized. Call initialize() first.')
-    }
-  }
-
-  protected get database(): LibSQLDatabase<typeof schema> {
-    this.ensureInitialized()
-    return BaseService.db!
-  }
-
-  protected get rawClient(): Client {
-    this.ensureInitialized()
-    return BaseService.client!
+  /**
+   * Get database instance
+   * Automatically waits for initialization to complete
+   */
+  protected async getDatabase() {
+    const dbManager = await DatabaseManager.getInstance()
+    return dbManager.getDatabase()
   }
 
   protected serializeJsonFields(data: any): any {
@@ -277,7 +192,7 @@ export abstract class BaseService {
   }
 
   /**
-   * Force re-initialization (for development/testing)
+   * Validate agent model configuration
    */
   protected async validateAgentModels(
     agentType: AgentType,
@@ -317,23 +232,5 @@ export abstract class BaseService {
         )
       }
     }
-  }
-
-  static async reinitialize(): Promise<void> {
-    BaseService.isInitialized = false
-    BaseService.initializationPromise = null
-
-    if (BaseService.client) {
-      try {
-        BaseService.client.close()
-      } catch (error) {
-        logger.warn('Failed to close client during reinitialize:', error as Error)
-      }
-    }
-
-    BaseService.client = null
-    BaseService.db = null
-
-    await BaseService.initialize()
   }
 }

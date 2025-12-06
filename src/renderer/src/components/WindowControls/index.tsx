@@ -86,7 +86,7 @@ const WindowControls: React.FC = () => {
   return (
     <WindowControlsContainer>
       <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
-        <ControlButton onClick={handleMinimize} aria-label="Minimize">
+        <ControlButton onClick={handleMinimize} aria-label={t('navbar.window.minimize')}>
           <Minus size={14} />
         </ControlButton>
       </Tooltip>
@@ -94,12 +94,14 @@ const WindowControls: React.FC = () => {
         title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
         placement="bottom"
         mouseEnterDelay={DEFAULT_DELAY}>
-        <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
+        <ControlButton
+          onClick={handleMaximize}
+          aria-label={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
       <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
-        <ControlButton $isClose onClick={handleClose} aria-label="Close">
+        <ControlButton $isClose onClick={handleClose} aria-label={t('navbar.window.close')}>
           <X size={17} />
         </ControlButton>
       </Tooltip>

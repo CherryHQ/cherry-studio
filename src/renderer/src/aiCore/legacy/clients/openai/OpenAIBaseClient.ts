@@ -11,7 +11,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import type { SettingsState } from '@renderer/store/settings'
-import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
+import { type Assistant, type GenerateImageParams, type Model, type Provider } from '@renderer/types'
 import type {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
@@ -25,7 +25,8 @@ import type {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, withoutTrailingSlash } from '@renderer/utils/api'
+import { isOllamaProvider } from '@renderer/utils/provider'
 
 import { BaseApiClient } from '../BaseApiClient'
 
@@ -48,9 +49,8 @@ export abstract class OpenAIBaseClient<
   }
 
   // 仅适用于openai
-  override getBaseURL(): string {
-    const host = this.provider.apiHost
-    return formatApiHost(host)
+  override getBaseURL(isSupportedAPIVerion: boolean = true): string {
+    return formatApiHost(this.provider.apiHost, isSupportedAPIVerion)
   }
 
   override async generateImage({
@@ -116,6 +116,34 @@ export abstract class OpenAIBaseClient<
           }))
           .filter(isSupportedModel)
       }
+
+      if (isOllamaProvider(this.provider)) {
+        const baseUrl = withoutTrailingSlash(this.getBaseURL(false))
+          .replace(/\/v1$/, '')
+          .replace(/\/api$/, '')
+        const response = await fetch(`${baseUrl}/api/tags`, {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            ...this.defaultHeaders(),
+            ...this.provider.extra_headers
+          }
+        })
+
+        if (!response.ok) {
+          throw new Error(`Ollama server returned ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        if (!data?.models || !Array.isArray(data.models)) {
+          throw new Error('Invalid response from Ollama API: missing models array')
+        }
+
+        return data.models.map((model) => ({
+          id: model.name,
+          object: 'model',
+          owned_by: 'ollama'
+        }))
+      }
       const response = await sdk.models.list()
       if (this.provider.id === 'together') {
         // @ts-ignore key is not typed
@@ -144,6 +172,11 @@ export abstract class OpenAIBaseClient<
     }
 
     let apiKeyForSdkInstance = this.apiKey
+    let baseURLForSdkInstance = this.getBaseURL()
+    let headersForSdkInstance = {
+      ...this.defaultHeaders(),
+      ...this.provider.extra_headers
+    }
 
     if (this.provider.id === 'copilot') {
       const defaultHeaders = store.getState().copilot.defaultHeaders
@@ -151,6 +184,11 @@ export abstract class OpenAIBaseClient<
       // this.provider.apiKey不允许修改
       // this.provider.apiKey = token
       apiKeyForSdkInstance = token
+      baseURLForSdkInstance = this.getBaseURL(false)
+      headersForSdkInstance = {
+        ...headersForSdkInstance,
+        ...COPILOT_DEFAULT_HEADERS
+      }
     }
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
@@ -164,12 +202,8 @@ export abstract class OpenAIBaseClient<
       this.sdkInstance = new OpenAI({
         dangerouslyAllowBrowser: true,
         apiKey: apiKeyForSdkInstance,
-        baseURL: this.getBaseURL(),
-        defaultHeaders: {
-          ...this.defaultHeaders(),
-          ...this.provider.extra_headers,
-          ...(this.provider.id === 'copilot' ? COPILOT_DEFAULT_HEADERS : {})
-        }
+        baseURL: baseURLForSdkInstance,
+        defaultHeaders: headersForSdkInstance
       }) as TSdkInstance
     }
     return this.sdkInstance

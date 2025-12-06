@@ -16,6 +16,7 @@ import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
+import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { reset } from '@renderer/services/BackupService'
 import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
@@ -23,7 +24,7 @@ import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,7 +39,6 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '..'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import LocalBackupSettings from './LocalBackupSettings'
@@ -96,7 +96,13 @@ const DataSettings: FC = () => {
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: t('settings.data.nutstore.title'), icon: <NutstoreIcon /> },
     { key: 's3', title: t('settings.data.s3.title.label'), icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
-    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
+    { key: 'divider_2', isDivider: true, text: t('settings.data.divider.import_settings') },
+    {
+      key: 'import_settings',
+      title: t('settings.data.import_settings.title'),
+      icon: <FolderOpen size={16} />
+    },
+    { key: 'divider_3', isDivider: true, text: t('settings.data.divider.export_settings') },
     {
       key: 'export_menu',
       title: t('settings.data.export_menu.title'),
@@ -108,7 +114,7 @@ const DataSettings: FC = () => {
       icon: <FileText size={16} />
     },
 
-    { key: 'divider_3', isDivider: true, text: t('settings.data.divider.third_party') },
+    { key: 'divider_4', isDivider: true, text: t('settings.data.divider.third_party') },
     { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
     {
       key: 'yuque',
@@ -129,11 +135,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'agentssubscribe_url',
-      title: t('assistants.presets.settings.title'),
-      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -697,6 +698,7 @@ const DataSettings: FC = () => {
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
         {menu === 's3' && <S3Settings />}
+        {menu === 'import_settings' && <ImportMenuOptions />}
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'notion' && <NotionSettings />}
@@ -704,7 +706,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>

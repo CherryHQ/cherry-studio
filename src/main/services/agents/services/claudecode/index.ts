@@ -1,8 +1,16 @@
 // src/main/services/agents/services/claudecode/index.ts
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
+import path from 'node:path'
 
-import type { CanUseTool, McpHttpServerConfig, Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  CanUseTool,
+  HookCallback,
+  McpHttpServerConfig,
+  Options,
+  PreToolUseHookInput,
+  SDKMessage
+} from '@anthropic-ai/claude-agent-sdk'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
@@ -12,6 +20,8 @@ import { app } from 'electron'
 
 import type { GetAgentSessionResponse } from '../..'
 import type { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
+import { sessionService } from '../SessionService'
+import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
@@ -19,6 +29,7 @@ const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
 const DEFAULT_AUTO_ALLOW_TOOLS = new Set(['Read', 'Glob', 'Grep'])
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
+const NO_RESUME_COMMANDS = ['/clear']
 
 type UserInputMessage = {
   type: 'user'
@@ -111,7 +122,11 @@ class ClaudeCodeService implements AgentServiceInterface {
       // TODO: support set small model in UI
       ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
-      ELECTRON_NO_ATTACH_CONSOLE: '1'
+      ELECTRON_NO_ATTACH_CONSOLE: '1',
+      // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
+      // on Windows when the username contains non-ASCII characters (e.g., Chinese characters)
+      // This prevents the SDK from using the user's home directory which may have encoding problems
+      CLAUDE_CONFIG_DIR: path.join(app.getPath('userData'), '.claude')
     }
 
     const errorChunks: string[] = []
@@ -148,7 +163,67 @@ class ClaudeCodeService implements AgentServiceInterface {
         return { behavior: 'allow', updatedInput: input }
       }
 
-      return promptForToolApproval(toolName, input, options)
+      return promptForToolApproval(toolName, input, {
+        ...options,
+        toolCallId: buildNamespacedToolCallId(session.id, options.toolUseID)
+      })
+    }
+
+    const preToolUseHook: HookCallback = async (input, toolUseID, options) => {
+      // Type guard to ensure we're handling PreToolUse event
+      if (input.hook_event_name !== 'PreToolUse') {
+        return {}
+      }
+
+      const hookInput = input as PreToolUseHookInput
+      const toolName = hookInput.tool_name
+
+      logger.debug('PreToolUse hook triggered', {
+        session_id: hookInput.session_id,
+        tool_name: hookInput.tool_name,
+        tool_use_id: toolUseID,
+        tool_input: hookInput.tool_input,
+        cwd: hookInput.cwd,
+        permission_mode: hookInput.permission_mode,
+        autoAllowTools: autoAllowTools
+      })
+
+      if (options?.signal?.aborted) {
+        logger.debug('PreToolUse hook signal already aborted; skipping tool use', {
+          tool_name: hookInput.tool_name
+        })
+        return {}
+      }
+
+      // handle auto approved tools since it never triggers canUseTool
+      const normalizedToolName = normalizeToolName(toolName)
+      if (toolUseID) {
+        const bypassAll = input.permission_mode === 'bypassPermissions'
+        const autoAllowed = autoAllowTools.has(toolName) || autoAllowTools.has(normalizedToolName)
+        if (bypassAll || autoAllowed) {
+          const namespacedToolCallId = buildNamespacedToolCallId(session.id, toolUseID)
+          logger.debug('handling auto approved tools', {
+            toolName,
+            normalizedToolName,
+            namespacedToolCallId,
+            permission_mode: input.permission_mode,
+            autoAllowTools
+          })
+          const isRecord = (v: unknown): v is Record<string, unknown> => {
+            return !!v && typeof v === 'object' && !Array.isArray(v)
+          }
+          const toolInput = isRecord(input.tool_input) ? input.tool_input : {}
+
+          await promptForToolApproval(toolName, toolInput, {
+            ...options,
+            toolCallId: namespacedToolCallId,
+            autoApprove: true
+          })
+        }
+      }
+
+      // Return to proceed without modification
+      return {}
     }
 
     // Build SDK options from parameters
@@ -174,7 +249,14 @@ class ClaudeCodeService implements AgentServiceInterface {
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools,
-      canUseTool
+      canUseTool,
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [preToolUseHook]
+          }
+        ]
+      }
     }
 
     if (session.accessible_paths.length > 1) {
@@ -197,7 +279,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    if (lastAgentSessionId) {
+    if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
       options.resume = lastAgentSessionId
       // TODO: use fork session when we support branching sessions
       // options.forkSession = true
@@ -220,7 +302,15 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Start async processing on the next tick so listeners can subscribe first
     setImmediate(() => {
-      this.processSDKQuery(userInputStream, closeUserStream, options, aiStream, errorChunks).catch((error) => {
+      this.processSDKQuery(
+        userInputStream,
+        closeUserStream,
+        options,
+        aiStream,
+        errorChunks,
+        session.agent_id,
+        session.id
+      ).catch((error) => {
         logger.error('Unhandled Claude Code stream error', {
           error: error instanceof Error ? { name: error.name, message: error.message } : String(error)
         })
@@ -329,12 +419,14 @@ class ClaudeCodeService implements AgentServiceInterface {
     closePromptStream: () => void,
     options: Options,
     stream: ClaudeCodeStream,
-    errorChunks: string[]
+    errorChunks: string[],
+    agentId: string,
+    sessionId: string
   ): Promise<void> {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
-    const streamState = new ClaudeStreamState()
+    const streamState = new ClaudeStreamState({ agentSessionId: sessionId })
 
     try {
       for await (const message of query({ prompt: promptStream, options })) {
@@ -342,21 +434,60 @@ class ClaudeCodeService implements AgentServiceInterface {
 
         jsonOutput.push(message)
 
-        if (message.type === 'assistant' || message.type === 'user') {
-          logger.silly('claude response', {
-            message,
-            content: JSON.stringify(message.message.content)
+        // Handle init message - merge builtin and SDK slash_commands
+        if (message.type === 'system' && message.subtype === 'init') {
+          const sdkSlashCommands = message.slash_commands || []
+          logger.info('Received init message with slash commands', {
+            sessionId,
+            commands: sdkSlashCommands
           })
-        } else if (message.type === 'stream_event') {
-          // logger.silly('Claude stream event', {
-          //   message,
-          //   event: JSON.stringify(message.event)
-          // })
-        } else {
-          logger.silly('Claude response', {
-            message,
-            event: JSON.stringify(message)
-          })
+
+          try {
+            // Get builtin + local slash commands from BaseService
+            const existingCommands = await sessionService.listSlashCommands('claude-code', agentId)
+
+            // Convert SDK slash_commands (string[]) to SlashCommand[] format
+            // Ensure all commands start with '/'
+            const sdkCommands = sdkSlashCommands.map((cmd) => {
+              const normalizedCmd = cmd.startsWith('/') ? cmd : `/${cmd}`
+              return {
+                command: normalizedCmd,
+                description: undefined
+              }
+            })
+
+            // Merge: existing commands (builtin + local) + SDK commands, deduplicate by command name
+            const commandMap = new Map<string, { command: string; description?: string }>()
+
+            for (const cmd of existingCommands) {
+              commandMap.set(cmd.command, cmd)
+            }
+
+            for (const cmd of sdkCommands) {
+              if (!commandMap.has(cmd.command)) {
+                commandMap.set(cmd.command, cmd)
+              }
+            }
+
+            const mergedCommands = Array.from(commandMap.values())
+
+            // Update session in database
+            await sessionService.updateSession(agentId, sessionId, {
+              slash_commands: mergedCommands
+            })
+
+            logger.info('Updated session with merged slash commands', {
+              sessionId,
+              existingCount: existingCommands.length,
+              sdkCount: sdkCommands.length,
+              totalCount: mergedCommands.length
+            })
+          } catch (error) {
+            logger.error('Failed to update session slash_commands', {
+              sessionId,
+              error: error instanceof Error ? error.message : String(error)
+            })
+          }
         }
 
         const chunks = transformSDKMessageToStreamParts(message, streamState)
@@ -378,7 +509,6 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
       }
 
-      hasCompleted = true
       const duration = Date.now() - startTime
 
       logger.debug('SDK query completed successfully', {

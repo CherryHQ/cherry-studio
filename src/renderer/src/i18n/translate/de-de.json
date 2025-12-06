@@ -27,6 +27,18 @@
         "null_id": "Agent ID ist leer."
       }
     },
+    "gitBash": {
+      "error": {
+        "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
+        "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "title": "Git Bash erforderlich"
+      },
+      "notFound": "Git Bash nicht gefunden. Bitte installieren Sie es zuerst.",
+      "success": "Git Bash erfolgreich erkannt!"
+    },
+    "input": {
+      "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
+    },
     "list": {
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
@@ -254,6 +266,7 @@
       "error": {
         "sendFailed": "Ihre Entscheidung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
       },
+      "executing": "Ausführen...",
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
@@ -267,6 +280,7 @@
         "denied": "Tool-Anfrage wurde abgelehnt.",
         "timeout": "Tool-Anfrage ist abgelaufen, bevor eine Genehmigung eingegangen ist."
       },
+      "toolPendingFallback": "Werkzeug",
       "waiting": "Warten auf Entscheidung über Tool-Berechtigung..."
     },
     "type": {
@@ -343,36 +357,36 @@
     "about": "Über",
     "close": "Fenster schließen",
     "copy": "Kopieren",
-    "cut": "Ausschneiden",
+    "cut": "Schneiden",
     "delete": "Löschen",
     "documentation": "Dokumentation",
     "edit": "Bearbeiten",
-    "feedback": "Feedback",
+    "feedback": "Rückmeldung",
     "file": "Datei",
     "forceReload": "Neu laden erzwingen",
-    "front": "Alle nach vorne bringen",
+    "front": "Alle in den Vordergrund bringen",
     "help": "Hilfe",
-    "hide": "Ausblenden",
+    "hide": "Verstecken",
     "hideOthers": "Andere ausblenden",
     "minimize": "Minimieren",
     "paste": "Einfügen",
-    "quit": "Beenden",
+    "quit": "Aufhören",
     "redo": "Wiederholen",
     "releases": "Veröffentlichungen",
     "reload": "Neu laden",
-    "resetZoom": "Originalgröße",
-    "selectAll": "Alles auswählen",
-    "services": "Dienste",
-    "toggleDevTools": "Entwicklertools umschalten",
+    "resetZoom": "Tatsächliche Größe",
+    "selectAll": "Alle auswählen",
+    "services": "Dienstleistungen",
+    "toggleDevTools": "Entwicklertools ein-/ausblenden",
     "toggleFullscreen": "Vollbild umschalten",
-    "undo": "Rückgängig",
-    "unhide": "Alle einblenden",
+    "undo": "Rückgängig machen",
+    "unhide": "Alle anzeigen",
     "view": "Ansicht",
     "website": "Website",
     "window": "Fenster",
     "zoom": "Zoom",
-    "zoomIn": "Vergrößern",
-    "zoomOut": "Verkleinern"
+    "zoomIn": "Heranzoomen",
+    "zoomOut": "Herauszoomen"
   },
   "assistants": {
     "abbr": "Assistent",
@@ -631,6 +645,15 @@
       "view_full_content": "Vollständigen Inhalt anzeigen"
     },
     "input": {
+      "activity_directory": {
+        "description": "Datei aus dem Aktivitätsverzeichnis auswählen",
+        "loading": "Dateien werden geladen...",
+        "no_file_found": {
+          "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
+          "label": "Keine Datei gefunden"
+        },
+        "title": "Aktivitätsverzeichnis"
+      },
       "auto_resize": "Höhe automatisch anpassen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
@@ -654,6 +677,7 @@
       "new": {
         "context": "Kontext löschen {{Command}}"
       },
+      "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
       "paste_text_file_confirm": "In Eingabefeld einfügen?",
       "pause": "Pause",
@@ -661,6 +685,10 @@
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "send": "Senden",
       "settings": "Einstellungen",
+      "slash_commands": {
+        "description": "Agent-Session-Slash-Befehle",
+        "title": "Schrägstrich-Befehle"
+      },
       "thinking": {
         "budget_exceeds_max": "Denkbudget übersteigt maximale Token-Anzahl",
         "label": "Denken",
@@ -1121,6 +1149,7 @@
     "fullscreen": "Vollbildmodus aktiviert, F11 zum Beenden",
     "go_to_settings": "Zu Einstellungen",
     "i_know": "Verstanden",
+    "ignore": "Ignorieren",
     "inspect": "Prüfen",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
@@ -1132,6 +1161,8 @@
     "name": "Name",
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
+    "off": "Aus",
+    "on": "An",
     "open": "Öffnen",
     "paste": "Einfügen",
     "placeholders": {
@@ -1179,7 +1210,7 @@
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
-    "image-generation": "Bildgenerierung",
+    "image-generation": "Bilderzeugung (OpenAI)",
     "jina-rerank": "Jina Reranking",
     "openai": "OpenAI",
     "openai-response": "OpenAI-Response"
@@ -1359,6 +1390,36 @@
     "preview": "Vorschau",
     "split": "Geteilte Ansicht"
   },
+  "import": {
+    "chatgpt": {
+      "assistant_name": "ChatGPT-Import",
+      "button": "Datei auswählen",
+      "description": "Importiert nur Gesprächstexte, keine Bilder und Anhänge",
+      "error": {
+        "invalid_json": "Ungültiges JSON-Dateiformat",
+        "no_conversations": "Keine Gespräche in der Datei gefunden",
+        "no_valid_conversations": "Keine gültigen Konversationen zum Importieren",
+        "unknown": "Import fehlgeschlagen, bitte überprüfen Sie das Dateiformat"
+      },
+      "help": {
+        "step1": "1. Melden Sie sich bei ChatGPT an, gehen Sie zu Einstellungen > Dateneinstellungen > Daten exportieren",
+        "step2": "2. Warten Sie auf die Exportdatei per E-Mail",
+        "step3": "3. Extrahiere die heruntergeladene Datei und finde conversations.json",
+        "title": "Wie exportiere ich ChatGPT-Gespräche?"
+      },
+      "importing": "Konversationen werden importiert...",
+      "selecting": "Datei wird ausgewählt...",
+      "success": "Erfolgreich {{topics}} Konversationen mit {{messages}} Nachrichten importiert",
+      "title": "ChatGPT-Unterhaltungen importieren",
+      "untitled_conversation": "Unbenannte Unterhaltung"
+    },
+    "confirm": {
+      "button": "Importdatei auswählen",
+      "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
+    },
+    "content": "Wählen Sie die zu importierende Gesprächsdatei einer externen Anwendung aus; derzeit werden nur ChatGPT-JSON-Formatdateien unterstützt.",
+    "title": "Externe Gespräche importieren"
+  },
   "knowledge": {
     "add": {
       "title": "Wissensdatenbank hinzufügen"
@@ -1446,6 +1507,7 @@
     "notes_placeholder": "Zusätzliche Informationen oder Kontext für diese Wissensdatenbank eingeben...",
     "provider_not_found": "Anbieter nicht gefunden",
     "quota": "{{name}} verbleibendes Kontingent: {{quota}}",
+    "quota_empty": "Das heutige {{name}}-Kontingent ist erschöpft. Bitte beantragen Sie es auf der offiziellen Website",
     "quota_infinity": "{{name}} verbleibendes Kontingent: unbegrenzt",
     "rename": "Umbenennen",
     "search": "Wissensdatenbank durchsuchen",
@@ -1771,6 +1833,9 @@
     },
     "message": {
       "code_style": "Code-Stil",
+      "compact": {
+        "title": "Gespräch komprimiert"
+      },
       "delete": {
         "content": "Möchten Sie diese Nachricht wirklich löschen?",
         "title": "Nachricht löschen"
@@ -2467,6 +2532,7 @@
   },
   "provider": {
     "302ai": "302.AI",
+    "ai-gateway": "KI-Gateway",
     "aihubmix": "AiHubMix",
     "aionly": "Einzige KI (AiOnly)",
     "alayanew": "Alaya NeW",
@@ -2477,6 +2543,7 @@
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cerebras": "Cerebras AI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
@@ -3063,6 +3130,7 @@
         "basic": "Grundlegende Dateneinstellungen",
         "cloud_storage": "Cloud-Backup-Einstellungen",
         "export_settings": "Export-Einstellungen",
+        "import_settings": "Importeinstellungen",
         "third_party": "Drittanbieter-Verbindungen"
       },
       "export_menu": {
@@ -3121,6 +3189,11 @@
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",
+      "import_settings": {
+        "button": "JSON-Datei importieren",
+        "chatgpt": "Import aus ChatGPT",
+        "title": "Importiere Daten von externen Anwendungen"
+      },
       "joplin": {
         "check": {
           "button": "Erkennen",
@@ -3702,6 +3775,9 @@
       },
       "view_webdav_settings": "WebDAV-Einstellungen anzeigen"
     },
+    "groq": {
+      "title": "Groq Einstellungen"
+    },
     "hardware_acceleration": {
       "confirm": {
         "content": "Deaktivierung der Hardwarebeschleunigung erfordert Neustart. Jetzt neu starten?",
@@ -3801,6 +3877,7 @@
         "description": "MCP-Service-Funktion nicht aktivieren",
         "label": "MCP-Server nicht verwenden"
       },
+      "discover": "Entdecken",
       "duplicateName": "Server mit gleichem Namen existiert bereits",
       "editJson": "JSON bearbeiten",
       "editMcpJson": "MCP-Konfiguration bearbeiten",
@@ -3810,6 +3887,10 @@
       "errors": {
         "32000": "MCP-Server starten fehlgeschlagen, bitte überprüfen Sie, ob alle Parameter vollständig ausgefüllt sind",
         "toolNotFound": "Tool {{name}} nicht gefunden"
+      },
+      "fetch": {
+        "button": "Server abrufen",
+        "success": "MCP-Server erfolgreich abgerufen"
       },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
@@ -3826,6 +3907,7 @@
       "logoUrl": "Logo-URL",
       "longRunning": "Lang laufender Modus",
       "longRunningTooltip": "Nach Aktivierung unterstützt der Server lange Aufgaben. Wenn ein Fortschrittsbenachrichtigung empfangen wird, wird der Timeout-Timer zurückgesetzt und die maximale Timeout-Zeit auf 10 Minuten verlängert",
+      "marketplaces": "Marktplätze",
       "missingDependencies": "Abhängigkeiten fehlen, bitte installieren Sie sie, um fortzufahren",
       "more": {
         "awesome": "Kuratierte MCP-Serverliste",
@@ -3857,6 +3939,12 @@
         "usage": "Verwendung",
         "version": "Version"
       },
+      "oauth": {
+        "callback": {
+          "message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
+          "title": "Authentifizierung erfolgreich"
+        }
+      },
       "prompts": {
         "arguments": "Parameter",
         "availablePrompts": "Verfügbare Prompts",
@@ -3874,6 +3962,7 @@
       "provider": "Anbieter",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
+      "providers": "Anbieter",
       "registry": "Paketverwaltungsquelle",
       "registryDefault": "Standard",
       "registryTooltip": "Quelle für Paketinstallation auswählen um Netzwerkprobleme der Standardquelle zu lösen",
@@ -3896,6 +3985,7 @@
       "searchNpx": "MCP durchsuchen",
       "serverPlural": "Server",
       "serverSingular": "Server",
+      "servers": "MCP-Server",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
@@ -4178,10 +4268,15 @@
         "default": "Standard",
         "flex": "Flexibel",
         "on_demand": "Auf Anfrage",
-        "performance": "Leistung",
         "priority": "Priorität",
         "tip": "Latenz-Ebene für Anfrageverarbeitung festlegen",
         "title": "Service-Tier"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Ob die Token-Nutzung enthalten ist (gilt nur für die OpenAI Chat Completions API)",
+          "title": "Nutzung einbeziehen"
+        }
       },
       "summary_text_mode": {
         "auto": "Automatisch",
@@ -4275,12 +4370,16 @@
           "stream_options": {
             "help": "Unterstützt stream_options",
             "label": "Unterstützt stream_options"
+          },
+          "verbosity": {
+            "help": "Ob der Anbieter den Ausführlichkeitsparameter unterstützt",
+            "label": "Unterstützung der Ausführlichkeit"
           }
         },
         "url": {
           "preview": "Vorschau: {{url}}",
           "reset": "Zurücksetzen",
-          "tip": "# am Ende erzwingt die Verwendung der Eingabe-Adresse"
+          "tip": "Fügen Sie am Ende ein # hinzu, um die automatisch angehängte API-Version zu deaktivieren."
         }
       },
       "api_host": "API-Adresse",
@@ -4463,6 +4562,7 @@
       "confirm": "Bestätigen",
       "forward": "Vorwärts",
       "multiple": "Mehrfachauswahl",
+      "noResult": "Keine Ergebnisse gefunden",
       "page": "Seite umblättern",
       "select": "Auswählen",
       "title": "Schnellmenü"

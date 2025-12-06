@@ -1,4 +1,4 @@
-import type { Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 import { getAiSdkProviderId } from '../factory'
@@ -20,6 +20,26 @@ vi.mock('@cherrystudio/ai-core', () => ({
   }),
   AiCore: {
     isSupported: vi.fn(() => true)
+  }
+}))
+
+vi.mock('@renderer/services/AssistantService', () => ({
+  getProviderByModel: vi.fn(),
+  getAssistantSettings: vi.fn(),
+  getDefaultAssistant: vi.fn().mockReturnValue({
+    id: 'default',
+    name: 'Default Assistant',
+    prompt: '',
+    settings: {}
+  })
+}))
+
+vi.mock('@renderer/store/settings', () => ({
+  default: {},
+  settingsSlice: {
+    name: 'settings',
+    reducer: vi.fn(),
+    actions: {}
   }
 }))
 
@@ -46,6 +66,18 @@ function createTestProvider(id: string, type: string): Provider {
     apiKey: 'test-key',
     apiHost: 'test-host'
   } as Provider
+}
+
+function createAzureProvider(id: string, apiVersion?: string, model?: string): Provider {
+  return {
+    id,
+    type: 'azure-openai',
+    name: `Azure Test ${id}`,
+    apiKey: 'azure-test-key',
+    apiHost: 'azure-test-host',
+    apiVersion,
+    models: [{ id: model || 'gpt-4' } as Model]
+  }
 }
 
 describe('Integrated Provider Registry', () => {
@@ -90,6 +122,24 @@ describe('Integrated Provider Registry', () => {
       const unknownProvider = createTestProvider('unknown-provider', 'unknown-type')
       const result = getAiSdkProviderId(unknownProvider)
       expect(result).toBe('unknown-provider')
+    })
+
+    it('should handle Azure OpenAI providers correctly', () => {
+      const azureProvider = createAzureProvider('azure-test', '2024-02-15', 'gpt-4o')
+      const result = getAiSdkProviderId(azureProvider)
+      expect(result).toBe('azure')
+    })
+
+    it('should handle Azure OpenAI providers response endpoint correctly', () => {
+      const azureProvider = createAzureProvider('azure-test', 'v1', 'gpt-4o')
+      const result = getAiSdkProviderId(azureProvider)
+      expect(result).toBe('azure-responses')
+    })
+
+    it('should handle Azure provider Claude Models', () => {
+      const provider = createTestProvider('azure-anthropic', 'anthropic')
+      const result = getAiSdkProviderId(provider)
+      expect(result).toBe('azure-anthropic')
     })
   })
 

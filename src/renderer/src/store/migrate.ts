@@ -1,21 +1,21 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
+import {
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+  DEFAULT_TEMPERATURE,
+  isMac
+} from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import {
   glm45FlashModel,
   isFunctionCallingModel,
-  isNotSupportedTextDelta,
+  isNotSupportTextDeltaModel,
   SYSTEM_MODELS
 } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import {
-  isSupportArrayContentProvider,
-  isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider,
-  SYSTEM_PROVIDERS
-} from '@renderer/config/providers'
+import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -32,12 +32,18 @@ import type {
 } from '@renderer/types'
 import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import {
+  isSupportArrayContentProvider,
+  isSupportDeveloperRoleProvider,
+  isSupportStreamOptionsProvider
+} from '@renderer/utils/provider'
+import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { defaultByPassRules, UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import type { RootState } from '.'
-import { DEFAULT_TOOL_ORDER } from './inputTools'
+import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { initialState as notesInitialState } from './note'
@@ -1499,6 +1505,7 @@ const migrateConfig = {
   '102': (state: RootState) => {
     try {
       state.settings.openAI = {
+        // @ts-expect-error it's a removed type. migrated on 177
         summaryText: 'off',
         serviceTier: 'auto',
         verbosity: 'medium'
@@ -1592,6 +1599,7 @@ const migrateConfig = {
       addMiniApp(state, 'google')
       if (!state.settings.openAI) {
         state.settings.openAI = {
+          // @ts-expect-error it's a removed type. migrated on 177
           summaryText: 'off',
           serviceTier: 'auto',
           verbosity: 'medium'
@@ -1626,6 +1634,7 @@ const migrateConfig = {
   },
   '108': (state: RootState) => {
     try {
+      // @ts-ignore
       state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
       state.inputTools.isCollapsed = false
       return state
@@ -1905,14 +1914,20 @@ const migrateConfig = {
     try {
       const { toolOrder } = state.inputTools
       const urlContextKey = 'url_context'
+      // @ts-ignore
       if (!toolOrder.visible.includes(urlContextKey)) {
+        // @ts-ignore
         const webSearchIndex = toolOrder.visible.indexOf('web_search')
+        // @ts-ignore
         const knowledgeBaseIndex = toolOrder.visible.indexOf('knowledge_base')
         if (webSearchIndex !== -1) {
+          // @ts-ignore
           toolOrder.visible.splice(webSearchIndex, 0, urlContextKey)
         } else if (knowledgeBaseIndex !== -1) {
+          // @ts-ignore
           toolOrder.visible.splice(knowledgeBaseIndex, 0, urlContextKey)
         } else {
+          // @ts-ignore
           toolOrder.visible.push(urlContextKey)
         }
       }
@@ -1979,7 +1994,7 @@ const migrateConfig = {
       const updateModelTextDelta = (model?: Model) => {
         if (model) {
           model.supported_text_delta = true
-          if (isNotSupportedTextDelta(model)) {
+          if (isNotSupportTextDeltaModel(model)) {
             model.supported_text_delta = false
           }
         }
@@ -2023,8 +2038,8 @@ const migrateConfig = {
       if (!state.settings.apiServer) {
         state.settings.apiServer = {
           enabled: false,
-          host: 'localhost',
-          port: 23333,
+          host: API_SERVER_DEFAULTS.HOST,
+          port: API_SERVER_DEFAULTS.PORT,
           apiKey: `cs-sk-${uuid()}`
         }
       }
@@ -2623,132 +2638,6 @@ const migrateConfig = {
       return state
     }
   },
-  '162': (state: RootState) => {
-    try {
-      // @ts-ignore
-      if (state?.agents?.agents) {
-        // @ts-ignore
-        state.assistants.presets = [...state.agents.agents]
-        // @ts-ignore
-        delete state.agents.agents
-      }
-
-      if (state.settings.sidebarIcons) {
-        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
-          // @ts-ignore
-          return icon === 'agents' ? 'store' : icon
-        })
-        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
-          // @ts-ignore
-          return icon === 'agents' ? 'store' : icon
-        })
-      }
-
-      state.llm.providers.forEach((provider) => {
-        if (provider.anthropicApiHost) {
-          return
-        }
-
-        switch (provider.id) {
-          case 'deepseek':
-            provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
-            break
-          case 'moonshot':
-            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
-            break
-          case 'zhipu':
-            provider.anthropicApiHost = 'https://open.bigmodel.cn/api/anthropic'
-            break
-          case 'dashscope':
-            provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
-            break
-          case 'modelscope':
-            provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
-            break
-          case 'aihubmix':
-            provider.anthropicApiHost = 'https://aihubmix.com'
-            break
-          case 'new-api':
-            provider.anthropicApiHost = 'http://localhost:3000'
-            break
-          case 'grok':
-            provider.anthropicApiHost = 'https://api.x.ai'
-        }
-      })
-      return state
-    } catch (error) {
-      logger.error('migrate 162 error', error as Error)
-      return state
-    }
-  },
-  '163': (state: RootState) => {
-    try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === 'cherryin') {
-          provider.anthropicApiHost = 'https://open.cherryin.net'
-        }
-      })
-      state.paintings.ovms_paintings = []
-      return state
-    } catch (error) {
-      logger.error('migrate 163 error', error as Error)
-      return state
-    }
-  },
-  '164': (state: RootState) => {
-    try {
-      addMiniApp(state, 'ling')
-      return state
-    } catch (error) {
-      logger.error('migrate 164 error', error as Error)
-      return state
-    }
-  },
-  '165': (state: RootState) => {
-    try {
-      addMiniApp(state, 'huggingchat')
-      return state
-    } catch (error) {
-      logger.error('migrate 165 error', error as Error)
-      return state
-    }
-  },
-  '166': (state: RootState) => {
-    try {
-      if (state.assistants.presets === undefined) {
-        state.assistants.presets = []
-      }
-      state.assistants.presets.forEach((preset) => {
-        if (!preset.settings) {
-          preset.settings = DEFAULT_ASSISTANT_SETTINGS
-        } else if (!preset.settings.toolUseMode) {
-          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
-        }
-      })
-      // 更新阿里云百炼的 Anthropic API 地址
-      const dashscopeProvider = state.llm.providers.find((provider) => provider.id === 'dashscope')
-      if (dashscopeProvider) {
-        dashscopeProvider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
-      }
-
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
-          provider.type = 'new-api'
-        }
-        if (provider.id === SystemProviderIds.longcat) {
-          // https://longcat.chat/platform/docs/zh/#anthropic-api-%E6%A0%BC%E5%BC%8F
-          if (!provider.anthropicApiHost) {
-            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
-          }
-        }
-      })
-      return state
-    } catch (error) {
-      logger.error('migrate 166 error', error as Error)
-      return state
-    }
-  },
   '167': (state: RootState) => {
     try {
       addProvider(state, 'huggingface')
@@ -2815,6 +2704,276 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 171 error', error as Error)
+      return state
+    }
+  },
+  '172': (state: RootState) => {
+    try {
+      // Add ling and huggingchat mini apps
+      addMiniApp(state, 'ling')
+      addMiniApp(state, 'huggingchat')
+
+      // Add ovocr provider and clear ovms paintings
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.ovocr)
+      if (isEmpty(state.paintings.ovms_paintings)) {
+        state.paintings.ovms_paintings = []
+      }
+
+      // Migrate agents to assistants presets
+      // @ts-ignore
+      if (state?.agents?.agents) {
+        // @ts-ignore
+        state.assistants.presets = [...state.agents.agents]
+        // @ts-ignore
+        delete state.agents.agents
+      }
+
+      // Initialize assistants presets
+      if (state.assistants.presets === undefined) {
+        state.assistants.presets = []
+      }
+
+      // Migrate assistants presets
+      state.assistants.presets.forEach((preset) => {
+        if (!preset.settings) {
+          preset.settings = DEFAULT_ASSISTANT_SETTINGS
+        } else if (!preset.settings.toolUseMode) {
+          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+        }
+      })
+
+      // Migrate sidebar icons
+      if (state.settings.sidebarIcons) {
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+      }
+
+      // Migrate llm providers
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds['new-api'] && provider.type !== 'new-api') {
+          provider.type = 'new-api'
+        }
+
+        switch (provider.id) {
+          case 'deepseek':
+            provider.anthropicApiHost = 'https://api.deepseek.com/anthropic'
+            break
+          case 'moonshot':
+            provider.anthropicApiHost = 'https://api.moonshot.cn/anthropic'
+            break
+          case 'zhipu':
+            provider.anthropicApiHost = 'https://open.bigmodel.cn/api/anthropic'
+            break
+          case 'dashscope':
+            provider.anthropicApiHost = 'https://dashscope.aliyuncs.com/apps/anthropic'
+            break
+          case 'modelscope':
+            provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
+            break
+          case 'aihubmix':
+            provider.anthropicApiHost = 'https://aihubmix.com'
+            break
+          case 'new-api':
+            provider.anthropicApiHost = provider.apiHost
+            break
+          case 'grok':
+            provider.anthropicApiHost = 'https://api.x.ai'
+            break
+          case 'cherryin':
+            provider.anthropicApiHost = 'https://open.cherryin.net'
+            break
+          case 'longcat':
+            provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+            break
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 172 error', error as Error)
+      return state
+    }
+  },
+  '173': (state: RootState) => {
+    try {
+      // Migrate toolOrder from global state to scope-based state
+      if (state.inputTools && !state.inputTools.sessionToolOrder) {
+        state.inputTools.sessionToolOrder = DEFAULT_TOOL_ORDER_BY_SCOPE.session
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 173 error', error as Error)
+      return state
+    }
+  },
+  '174': (state: RootState) => {
+    try {
+      addProvider(state, SystemProviderIds.longcat)
+
+      addProvider(state, 'gateway')
+      addProvider(state, 'cerebras')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.minimax) {
+          provider.anthropicApiHost = 'https://api.minimaxi.com/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 174 error', error as Error)
+      return state
+    }
+  },
+  '175': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        // @ts-ignore
+        if (assistant.settings?.reasoning_effort === 'off') {
+          // @ts-ignore
+          assistant.settings.reasoning_effort = 'none'
+        }
+        // @ts-ignore
+        if (assistant.settings?.reasoning_effort_cache === 'off') {
+          // @ts-ignore
+          assistant.settings.reasoning_effort_cache = 'none'
+        }
+      })
+      logger.info('migrate 175 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 175 error', error as Error)
+      return state
+    }
+  },
+  '176': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.qiniu) {
+          provider.anthropicApiHost = 'https://api.qnaigc.com'
+        }
+        if (provider.id === SystemProviderIds.longcat) {
+          provider.anthropicApiHost = 'https://api.longcat.chat/anthropic'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 176 error', error as Error)
+      return state
+    }
+  },
+  '177': (state: RootState) => {
+    try {
+      // @ts-expect-error it's a removed type
+      if (state.settings.openAI.summaryText === 'off') {
+        state.settings.openAI.summaryText = 'auto'
+      }
+      logger.info('migrate 177 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 177 error', error as Error)
+      return state
+    }
+  },
+  '178': (state: RootState) => {
+    try {
+      const groq = state.llm.providers.find((p) => p.id === SystemProviderIds.groq)
+      if (groq) {
+        groq.verbosity = undefined
+      }
+      logger.info('migrate 178 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 178 error', error as Error)
+      return state
+    }
+  },
+  '179': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        switch (provider.id) {
+          case SystemProviderIds.silicon:
+            provider.anthropicApiHost = 'https://api.siliconflow.cn'
+            break
+          case SystemProviderIds.qiniu:
+            provider.anthropicApiHost = 'https://api.qnaigc.com'
+            break
+          case SystemProviderIds.dmxapi:
+            provider.anthropicApiHost = provider.apiHost
+            break
+        }
+      })
+      logger.info('migrate 179 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 179 error', error as Error)
+      return state
+    }
+  },
+  '180': (state: RootState) => {
+    try {
+      if (state.settings.apiServer) {
+        state.settings.apiServer.host = API_SERVER_DEFAULTS.HOST
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.summaryText === 'undefined') {
+        state.settings.openAI.summaryText = undefined
+      }
+      // @ts-expect-error
+      if (state.settings.openAI.verbosity === 'undefined') {
+        state.settings.openAI.verbosity = undefined
+      }
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.ollama) {
+          provider.type = 'ollama'
+        }
+      })
+      logger.info('migrate 180 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 180 error', error as Error)
+      return state
+    }
+  },
+  '181': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'ai-gateway') {
+          provider.id = SystemProviderIds.gateway
+        }
+        // Also update model.provider references to avoid orphaned models
+        provider.models?.forEach((model) => {
+          if (model.provider === 'ai-gateway') {
+            model.provider = SystemProviderIds.gateway
+          }
+        })
+        // @ts-ignore
+        if (provider.type === 'ai-gateway') {
+          provider.type = 'gateway'
+        }
+      })
+      logger.info('migrate 181 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 181 error', error as Error)
+      return state
+    }
+  },
+  '182': (state: RootState) => {
+    try {
+      // Initialize streamOptions in settings.openAI if not exists
+      if (!state.settings.openAI.streamOptions) {
+        state.settings.openAI.streamOptions = {
+          includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
+        }
+      }
+      logger.info('migrate 182 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 182 error', error as Error)
       return state
     }
   }

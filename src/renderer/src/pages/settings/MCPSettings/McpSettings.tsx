@@ -1,11 +1,13 @@
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMCPServerTrust } from '@renderer/hooks/useMCPServerTrust'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
 import type { TabsProps } from 'antd'
 import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
@@ -61,21 +63,6 @@ const PipRegistry: Registry[] = [
 ]
 
 type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
-
-const parseKeyValueString = (str: string): Record<string, string> => {
-  const result: Record<string, string> = {}
-  str.split('\n').forEach((line) => {
-    if (line.trim()) {
-      const [key, ...value] = line.split('=')
-      const formatValue = value.join('=').trim()
-      const formatKey = key.trim()
-      if (formatKey && formatValue) {
-        result[formatKey] = formatValue
-      }
-    }
-  })
-  return result
-}
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -740,50 +727,56 @@ const McpSettings: React.FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
-      <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
-        <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <Flex align="center" gap={8}>
-              <ServerName className="text-nowrap">{server?.name}</ServerName>
-              {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+    <Container>
+      <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+        <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
+          <SettingTitle>
+            <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
+              <Flex align="center" gap={8}>
+                <ServerName className="text-nowrap">{server?.name}</ServerName>
+                {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+              </Flex>
+              <Button
+                danger
+                icon={<DeleteIcon size={14} className="lucide-custom" />}
+                type="text"
+                onClick={() => onDeleteMcpServer(server)}
+              />
             </Flex>
-            <Button
-              danger
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              type="text"
-              onClick={() => onDeleteMcpServer(server)}
-            />
-          </Flex>
-          <Flex align="center" gap={16}>
-            <Switch
-              value={server.isActive}
-              key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
-            />
-            <Button
-              type="primary"
-              icon={<SaveIcon size={14} />}
-              onClick={onSave}
-              loading={loading}
-              shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}>
-              {t('common.save')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingDivider />
-        <Tabs
-          defaultActiveKey="settings"
-          items={tabs}
-          onChange={(key) => setActiveTab(key as TabKey)}
-          style={{ marginTop: 8, backgroundColor: 'transparent' }}
-        />
-      </SettingGroup>
-    </SettingContainer>
+            <Flex align="center" gap={16}>
+              <Switch
+                value={server.isActive}
+                key={server.id}
+                loading={loadingServer === server.id}
+                onChange={onToggleActive}
+              />
+              <Button
+                type="primary"
+                icon={<SaveIcon size={14} />}
+                onClick={onSave}
+                loading={loading}
+                shape="round"
+                disabled={!isFormChanged || activeTab !== 'settings'}>
+                {t('common.save')}
+              </Button>
+            </Flex>
+          </SettingTitle>
+          <SettingDivider />
+          <Tabs
+            defaultActiveKey="settings"
+            items={tabs}
+            onChange={(key) => setActiveTab(key as TabKey)}
+            style={{ marginTop: 8, backgroundColor: 'transparent' }}
+          />
+        </SettingGroup>
+      </SettingContainer>
+    </Container>
   )
 }
+
+const Container = styled(Scrollbar)`
+  height: calc(100vh - var(--navbar-height));
+`
 
 const ServerName = styled.span`
   font-size: 14px;

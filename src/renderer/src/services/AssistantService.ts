@@ -6,7 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
-import { isQwenMTModel } from '@renderer/config/models'
+import { isQwenMTModel } from '@renderer/config/models/qwen'
 import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
@@ -36,9 +36,10 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   streamOutput: true,
   topP: 1,
   enableTopP: false,
-  toolUseMode: 'prompt',
+  // It would gracefully fallback to prompt if not supported by model.
+  toolUseMode: 'function',
   customParameters: []
-}
+} as const
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -176,7 +177,7 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
-    toolUseMode: assistant?.settings?.toolUseMode ?? 'prompt',
+    toolUseMode: assistant?.settings?.toolUseMode ?? 'function',
     defaultModel: assistant?.defaultModel ?? undefined,
     reasoning_effort: assistant?.settings?.reasoning_effort ?? undefined,
     customParameters: assistant?.settings?.customParameters ?? []

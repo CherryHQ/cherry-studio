@@ -6,7 +6,7 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo, isNewApiProvider, PROVIDER_URLS } from '@renderer/config/providers'
+import { getProviderLogo, PROVIDER_URLS } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -28,6 +28,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { isNewApiProvider } from '@renderer/utils/provider'
 import { Avatar, Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
@@ -472,9 +473,15 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       addPainting(mode, newPainting)
       setPainting(newPainting)
     } else {
-      setPainting(filteredPaintings[0])
+      // 如果当前 painting 存在于 filteredPaintings 中，则优先显示当前 painting
+      const found = filteredPaintings.find((p) => p.id === painting.id)
+      if (found) {
+        setPainting(found)
+      } else {
+        setPainting(filteredPaintings[0])
+      }
     }
-  }, [filteredPaintings, mode, addPainting, getNewPainting])
+  }, [filteredPaintings, mode, addPainting, getNewPainting, painting.id])
 
   useEffect(() => {
     const timer = spaceClickTimer.current

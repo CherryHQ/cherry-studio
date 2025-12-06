@@ -10,7 +10,20 @@
  * Every Claude turn gets its own instance. `resetStep` should be invoked once the finish event has
  * been emitted to avoid leaking state into the next turn.
  */
+import { loggerService } from '@logger'
 import type { FinishReason, LanguageModelUsage, ProviderMetadata } from 'ai'
+
+/**
+ * Builds a namespaced tool call ID by combining session ID with raw tool call ID.
+ * This ensures tool calls from different sessions don't conflict even if they have
+ * the same raw ID from the SDK.
+ *
+ * @param sessionId - The agent session ID
+ * @param rawToolCallId - The raw tool call ID from SDK (e.g., "WebFetch_0")
+ */
+export function buildNamespacedToolCallId(sessionId: string, rawToolCallId: string): string {
+  return `${sessionId}:${rawToolCallId}`
+}
 
 /**
  * Shared fields for every block that Claude can stream (text, reasoning, tool).
@@ -34,6 +47,7 @@ type ReasoningBlockState = BaseBlockState & {
 type ToolBlockState = BaseBlockState & {
   kind: 'tool'
   toolCallId: string
+  rawToolCallId: string
   toolName: string
   inputBuffer: string
   providerMetadata?: ProviderMetadata
@@ -48,10 +62,15 @@ type PendingUsageState = {
 }
 
 type PendingToolCall = {
+  rawToolCallId: string
   toolCallId: string
   toolName: string
   input: unknown
   providerMetadata?: ProviderMetadata
+}
+
+type ClaudeStreamStateOptions = {
+  agentSessionId: string
 }
 
 /**
@@ -61,11 +80,19 @@ type PendingToolCall = {
  * usage/finish metadata once Anthropic closes a message.
  */
 export class ClaudeStreamState {
+  private logger
+  private readonly agentSessionId: string
   private blocksByIndex = new Map<number, BlockState>()
-  private toolIndexById = new Map<string, number>()
+  private toolIndexByNamespacedId = new Map<string, number>()
   private pendingUsage: PendingUsageState = {}
   private pendingToolCalls = new Map<string, PendingToolCall>()
   private stepActive = false
+
+  constructor(options: ClaudeStreamStateOptions) {
+    this.logger = loggerService.withContext('ClaudeStreamState')
+    this.agentSessionId = options.agentSessionId
+    this.logger.silly('ClaudeStreamState', options)
+  }
 
   /** Marks the beginning of a new AiSDK step. */
   beginStep(): void {
@@ -104,19 +131,21 @@ export class ClaudeStreamState {
   /** Caches tool metadata so subsequent input deltas and results can find it. */
   openToolBlock(
     index: number,
-    params: { toolCallId: string; toolName: string; providerMetadata?: ProviderMetadata }
+    params: { rawToolCallId: string; toolName: string; providerMetadata?: ProviderMetadata }
   ): ToolBlockState {
+    const toolCallId = buildNamespacedToolCallId(this.agentSessionId, params.rawToolCallId)
     const block: ToolBlockState = {
       kind: 'tool',
-      id: params.toolCallId,
+      id: toolCallId,
       index,
-      toolCallId: params.toolCallId,
+      toolCallId,
+      rawToolCallId: params.rawToolCallId,
       toolName: params.toolName,
       inputBuffer: '',
       providerMetadata: params.providerMetadata
     }
     this.blocksByIndex.set(index, block)
-    this.toolIndexById.set(params.toolCallId, index)
+    this.toolIndexByNamespacedId.set(toolCallId, index)
     return block
   }
 
@@ -124,12 +153,30 @@ export class ClaudeStreamState {
     return this.blocksByIndex.get(index)
   }
 
+  getFirstOpenTextBlock(): TextBlockState | undefined {
+    const candidates: TextBlockState[] = []
+    for (const block of this.blocksByIndex.values()) {
+      if (block.kind === 'text') {
+        candidates.push(block)
+      }
+    }
+    if (candidates.length === 0) {
+      return undefined
+    }
+    candidates.sort((a, b) => a.index - b.index)
+    return candidates[0]
+  }
+
   getToolBlockById(toolCallId: string): ToolBlockState | undefined {
-    const index = this.toolIndexById.get(toolCallId)
+    const index = this.toolIndexByNamespacedId.get(toolCallId)
     if (index === undefined) return undefined
     const block = this.blocksByIndex.get(index)
     if (!block || block.kind !== 'tool') return undefined
     return block
+  }
+
+  getToolBlockByRawId(rawToolCallId: string): ToolBlockState | undefined {
+    return this.getToolBlockById(buildNamespacedToolCallId(this.agentSessionId, rawToolCallId))
   }
 
   /** Appends streamed text to a text block, returning the updated state when present. */
@@ -158,10 +205,12 @@ export class ClaudeStreamState {
 
   /** Records a tool call to be consumed once its result arrives from the user. */
   registerToolCall(
-    toolCallId: string,
+    rawToolCallId: string,
     payload: { toolName: string; input: unknown; providerMetadata?: ProviderMetadata }
   ): void {
-    this.pendingToolCalls.set(toolCallId, {
+    const toolCallId = buildNamespacedToolCallId(this.agentSessionId, rawToolCallId)
+    this.pendingToolCalls.set(rawToolCallId, {
+      rawToolCallId,
       toolCallId,
       toolName: payload.toolName,
       input: payload.input,
@@ -170,10 +219,10 @@ export class ClaudeStreamState {
   }
 
   /** Retrieves and clears the buffered tool call metadata for the given id. */
-  consumePendingToolCall(toolCallId: string): PendingToolCall | undefined {
-    const entry = this.pendingToolCalls.get(toolCallId)
+  consumePendingToolCall(rawToolCallId: string): PendingToolCall | undefined {
+    const entry = this.pendingToolCalls.get(rawToolCallId)
     if (entry) {
-      this.pendingToolCalls.delete(toolCallId)
+      this.pendingToolCalls.delete(rawToolCallId)
     }
     return entry
   }
@@ -182,13 +231,13 @@ export class ClaudeStreamState {
    * Persists the final input payload for a tool block once the provider signals
    * completion so that downstream tool results can reference the original call.
    */
-  completeToolBlock(toolCallId: string, input: unknown, providerMetadata?: ProviderMetadata): void {
+  completeToolBlock(toolCallId: string, toolName: string, input: unknown, providerMetadata?: ProviderMetadata): void {
+    const block = this.getToolBlockByRawId(toolCallId)
     this.registerToolCall(toolCallId, {
-      toolName: this.getToolBlockById(toolCallId)?.toolName ?? 'unknown',
+      toolName,
       input,
       providerMetadata
     })
-    const block = this.getToolBlockById(toolCallId)
     if (block) {
       block.resolvedInput = input
     }
@@ -200,7 +249,7 @@ export class ClaudeStreamState {
     if (!block) return undefined
     this.blocksByIndex.delete(index)
     if (block.kind === 'tool') {
-      this.toolIndexById.delete(block.toolCallId)
+      this.toolIndexByNamespacedId.delete(block.toolCallId)
     }
     return block
   }
@@ -227,7 +276,7 @@ export class ClaudeStreamState {
   /** Drops cached block metadata for the currently active message. */
   resetBlocks(): void {
     this.blocksByIndex.clear()
-    this.toolIndexById.clear()
+    this.toolIndexByNamespacedId.clear()
   }
 
   /** Resets the entire step lifecycle after emitting a terminal frame. */
@@ -235,6 +284,10 @@ export class ClaudeStreamState {
     this.resetBlocks()
     this.resetPendingUsage()
     this.stepActive = false
+  }
+
+  getNamespacedToolCallId(rawToolCallId: string): string {
+    return buildNamespacedToolCallId(this.agentSessionId, rawToolCallId)
   }
 }
 

@@ -1,15 +1,16 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
-    "src/renderer/src/**/*",
-    "src/preload/*.d.ts",
     "local/src/renderer/**/*",
-    "packages/shared/**/*",
-    "tests/__mocks__/**/*",
-    "packages/mcp-trace/**/*",
-    "packages/aiCore/src/**/*",
+    "src/renderer/src/**/*",
     "src/main/integration/cherryai/index.js",
-    "packages/extension-table-plus/**/*"
+    "src/preload/*.d.ts",
+    "tests/__mocks__/**/*",
+    "packages/aiCore/src/**/*",
+    "packages/ai-sdk-provider/**/*",
+    "packages/extension-table-plus/**/*",
+    "packages/mcp-trace/**/*",
+    "packages/shared/**/*",
   ],
   "compilerOptions": {
     "composite": true,
@@ -27,7 +28,8 @@
       "@cherrystudio/ai-core/built-in/plugins": ["./packages/aiCore/src/core/plugins/built-in/index.ts"],
       "@cherrystudio/ai-core/*": ["./packages/aiCore/src/*"],
       "@cherrystudio/ai-core": ["./packages/aiCore/src/index.ts"],
-      "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"]
+      "@cherrystudio/extension-table-plus": ["./packages/extension-table-plus/src/index.ts"],
+      "@cherrystudio/ai-sdk-provider": ["./packages/ai-sdk-provider/src/index.ts"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

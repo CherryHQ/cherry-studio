@@ -34,7 +34,7 @@
   </a>
 </h1>
 
-<p align="center">English | <a href="./docs/README.zh.md">中文</a> | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us">Documents</a> | <a href="./docs/dev.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
+<p align="center">English | <a href="./docs/zh/README.md">中文</a> | <a href="https://cherry-ai.com">Official Site</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us">Documents</a> | <a href="./docs/en/guides/development.md">Development</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">Feedback</a><br></p>
 
 <div align="center">
 
@@ -67,7 +67,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 
 👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
-❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/sponsor.md) to support the development!
+❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/zh/guides/sponsor.md) to support the development!
 
 # 🌠 Screenshot
 
@@ -82,7 +82,7 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 1. **Diverse LLM Provider Support**:
 
 - ☁️ Major LLM Cloud Services: OpenAI, Gemini, Anthropic, and more
-- 🔗 AI Web Service Integration: Claude, Perplexity, Poe, and others
+- 🔗 AI Web Service Integration: Claude, Perplexity, [Poe](https://poe.com/), and others
 - 💻 Local Model Support with Ollama, LM Studio
 
 2. **AI Assistants & Conversations**:
@@ -175,7 +175,7 @@ We welcome contributions to Cherry Studio! Here are some ways you can contribute
 6. **Community Engagement**: Join discussions and help users.
 7. **Promote Usage**: Spread the word about Cherry Studio.
 
-Refer to the [Branching Strategy](docs/branching-strategy-en.md) for contribution guidelines
+Refer to the [Branching Strategy](docs/en/guides/branching-strategy.md) for contribution guidelines
 
 ## Getting Started
 
@@ -238,10 +238,6 @@ The Enterprise Edition addresses core challenges in team collaboration by centra
 
 ## ✨ Online Demo
 
-> 🚧 **Public Beta Notice**
->
-> The Enterprise Edition is currently in its early public beta stage, and we are actively iterating and optimizing its features. We are aware that it may not be perfectly stable yet. If you encounter any issues or have valuable suggestions during your trial, we would be very grateful if you could contact us via email to provide feedback.
-
 **🔗 [Cherry Studio Enterprise](https://www.cherry-ai.com/enterprise)**
 
 ## Version Comparison
@@ -249,7 +245,7 @@ The Enterprise Edition addresses core challenges in team collaboration by centra
 | Feature           | Community Edition                          | Enterprise Edition                                                                                                                      |
 | :---------------- | :----------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
 | **Open Source**   | ✅ Yes                                      | ⭕️ Partially released to customers                                                                                                       |
-| **Cost**          | Free for Personal Use / Commercial License | Buyout / Subscription Fee                                                                                                               |
+| **Cost**          | [AGPL-3.0 License](https://github.com/CherryHQ/cherry-studio?tab=AGPL-3.0-1-ov-file) | Buyout / Subscription Fee                                                                                                               |
 | **Admin Backend** | —                                          | ● Centralized **Model** Access<br>● **Employee** Management<br>● Shared **Knowledge Base**<br>● **Access** Control<br>● **Data** Backup |
 | **Server**        | —                                          | ✅ Dedicated Private Deployment                                                                                                          |
 
@@ -262,7 +258,11 @@ We believe the Enterprise Edition will become your team's AI productivity engine
 
 # 🔗 Related Projects
 
+- [new-api](https://github.com/QuantumNous/new-api): The next-generation LLM gateway and AI asset management system supports multiple languages.
+
 - [one-api](https://github.com/songquanpeng/one-api): LLM API management and distribution system supporting mainstream models like OpenAI, Azure, and Anthropic. Features a unified API interface, suitable for key management and secondary distribution.
+
+- [Poe](https://poe.com/): Poe gives you access to the best AI, all in one place. Explore GPT-5, Claude Opus 4.1, DeepSeek-R1, Veo 3, ElevenLabs, and millions of others.
 
 - [ublacklist](https://github.com/iorate/ublacklist): Blocks specific sites from appearing in Google search results
 

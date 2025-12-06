@@ -90,7 +90,8 @@ export function openAIToolsToMcpTool(
     return undefined
   }
   const tools = mcpTools.filter((mcpTool) => {
-    return mcpTool.id === toolName || mcpTool.name === toolName
+    // toolName is mcpTool.id (registered with id as function name)
+    return mcpTool.id === toolName
   })
   if (tools.length > 1) {
     logger.warn(`Multiple MCP Tools found for tool call: ${toolName}`)
@@ -135,7 +136,10 @@ export async function callMCPTool(
   topicId?: string,
   modelName?: string
 ): Promise<MCPCallToolResponse> {
-  logger.info(`Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+  logger.info(
+    `Calling Tool: ${toolResponse.id} ${toolResponse.tool.serverName} ${toolResponse.tool.name}`,
+    toolResponse.tool
+  )
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 

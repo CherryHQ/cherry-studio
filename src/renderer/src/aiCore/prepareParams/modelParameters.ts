@@ -6,14 +6,23 @@
 import {
   isClaude45ReasoningModel,
   isClaudeReasoningModel,
+  isMaxTemperatureOneModel,
   isNotSupportTemperatureAndTopP,
-  isSupportedFlexServiceTier
+  isSupportedFlexServiceTier,
+  isSupportedThinkingTokenClaudeModel
 } from '@renderer/config/models'
-import { getAssistantSettings } from '@renderer/services/AssistantService'
+import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
 import { defaultTimeout } from '@shared/config/constant'
 
+import { getAnthropicThinkingBudget } from '../utils/reasoning'
+
 /**
+ * Claude 4.5 推理模型:
+ * - 只启用 temperature → 使用 temperature
+ * - 只启用 top_p → 使用 top_p
+ * - 同时启用 → temperature 生效,top_p 被忽略
+ * - 都不启用 → 都不使用
  * 获取温度参数
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
@@ -27,7 +36,11 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
     return undefined
   }
   const assistantSettings = getAssistantSettings(assistant)
-  return assistantSettings?.enableTemperature ? assistantSettings?.temperature : undefined
+  let temperature = assistantSettings?.temperature
+  if (temperature && isMaxTemperatureOneModel(model)) {
+    temperature = Math.min(1, temperature)
+  }
+  return assistantSettings?.enableTemperature ? temperature : undefined
 }
 
 /**
@@ -55,4 +68,27 @@ export function getTimeout(model: Model): number {
     return 15 * 1000 * 60
   }
   return defaultTimeout
+}
+
+export function getMaxTokens(assistant: Assistant, model: Model): number | undefined {
+  // NOTE: ai-sdk会把maxToken和budgetToken加起来
+  const assistantSettings = getAssistantSettings(assistant)
+  const enabledMaxTokens = assistantSettings.enableMaxTokens ?? false
+  let maxTokens = assistantSettings.maxTokens
+
+  // If user hasn't enabled enableMaxTokens, return undefined to let the API use its default value.
+  // Note: Anthropic API requires max_tokens, but that's handled by the Anthropic client with a fallback.
+  if (!enabledMaxTokens || maxTokens === undefined) {
+    return undefined
+  }
+
+  const provider = getProviderByModel(model)
+  if (isSupportedThinkingTokenClaudeModel(model) && ['anthropic', 'aws-bedrock'].includes(provider.type)) {
+    const { reasoning_effort: reasoningEffort } = assistantSettings
+    const budget = getAnthropicThinkingBudget(maxTokens, reasoningEffort, model.id)
+    if (budget) {
+      maxTokens -= budget
+    }
+  }
+  return maxTokens
 }

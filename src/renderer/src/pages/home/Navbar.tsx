@@ -98,7 +98,7 @@ const HeaderNavbar: FC<Props> = ({
             paddingRight: 0,
             minWidth: 'auto'
           }}>
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
             </NavbarIcon>

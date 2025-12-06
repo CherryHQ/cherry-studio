@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
 import type { Provider } from '@renderer/types'
 import { objectKeys } from '@renderer/types'
+import { formatApiHost, withoutTrailingApiVersion } from '@renderer/utils'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
@@ -16,11 +17,8 @@ export class OVMSClient extends OpenAIAPIClient {
   override async listModels(): Promise<OpenAI.Models.Model[]> {
     try {
       const sdk = await this.getSdkInstance()
-
-      const chatModelsResponse = await sdk.request({
-        method: 'get',
-        path: '../v1/config'
-      })
+      const url = formatApiHost(withoutTrailingApiVersion(this.getBaseURL()), true, 'v1')
+      const chatModelsResponse = await sdk.withOptions({ baseURL: url }).get('/config')
       logger.debug(`Chat models response: ${JSON.stringify(chatModelsResponse)}`)
 
       // Parse the config response to extract model information

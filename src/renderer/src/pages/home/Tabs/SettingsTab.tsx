@@ -9,7 +9,7 @@ import {
   DEFAULT_TEMPERATURE,
   MAX_CONTEXT_COUNT
 } from '@renderer/config/constant'
-import { isOpenAIModel } from '@renderer/config/models'
+import { isOpenAIModel, isSupportVerbosityModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -53,9 +53,14 @@ import {
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
-import { ThemeMode } from '@renderer/types'
+import { isGroqSystemProvider, ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import {
+  isOpenAICompatibleProvider,
+  isSupportServiceTierProvider,
+  isSupportVerbosityProvider
+} from '@renderer/utils/provider'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -63,6 +68,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import GroqSettingsGroup from './components/GroqSettingsGroup'
 import OpenAISettingsGroup from './components/OpenAISettingsGroup'
 
 interface Props {
@@ -181,7 +187,11 @@ const SettingsTab: FC<Props> = (props) => {
 
   const model = assistant.model || getDefaultModel()
 
-  const isOpenAI = isOpenAIModel(model)
+  const showOpenAiSettings =
+    isOpenAICompatibleProvider(provider) ||
+    isOpenAIModel(model) ||
+    isSupportServiceTierProvider(provider) ||
+    (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
 
   return (
     <Container className="settings-tab">
@@ -332,13 +342,16 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingGroup>
         </CollapsibleSettingGroup>
       )}
-      {isOpenAI && (
+      {showOpenAiSettings && (
         <OpenAISettingsGroup
           model={model}
           providerId={provider.id}
           SettingGroup={SettingGroup}
           SettingRowTitleSmall={SettingRowTitleSmall}
         />
+      )}
+      {isGroqSystemProvider(provider) && (
+        <GroqSettingsGroup SettingGroup={SettingGroup} SettingRowTitleSmall={SettingRowTitleSmall} />
       )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>

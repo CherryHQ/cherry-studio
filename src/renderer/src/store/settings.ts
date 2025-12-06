@@ -1,6 +1,6 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import type {
@@ -10,16 +10,19 @@ import type {
   LanguageVarious,
   MathEngine,
   OpenAIServiceTier,
-  OpenAISummaryText,
   PaintingProvider,
   S3Config,
   SidebarIcon,
   TranslateLanguageCode
 } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
+import type {
+  OpenAICompletionsStreamOptions,
+  OpenAIReasoningSummary,
+  OpenAIVerbosity
+} from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
-import { UpgradeChannel } from '@shared/config/constant'
-import type { OpenAIVerbosity } from '@types'
+import { API_SERVER_DEFAULTS, UpgradeChannel } from '@shared/config/constant'
 
 import type { RemoteSyncState } from './backup'
 
@@ -194,10 +197,14 @@ export interface SettingsState {
   }
   // OpenAI
   openAI: {
-    summaryText: OpenAISummaryText
+    // TODO: it's a bad naming. rename it to reasoningSummary in v2.
+    summaryText: OpenAIReasoningSummary
     /** @deprecated 现在该设置迁移到Provider对象中 */
     serviceTier: OpenAIServiceTier
     verbosity: OpenAIVerbosity
+    streamOptions: {
+      includeUsage: OpenAICompletionsStreamOptions['include_usage']
+    }
   }
   // Notification
   notification: {
@@ -375,9 +382,12 @@ export const initialState: SettingsState = {
   },
   // OpenAI
   openAI: {
-    summaryText: 'off',
+    summaryText: 'auto',
     serviceTier: 'auto',
-    verbosity: 'medium'
+    verbosity: undefined,
+    streamOptions: {
+      includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
+    }
   },
   notification: {
     assistant: false,
@@ -411,8 +421,8 @@ export const initialState: SettingsState = {
   // API Server
   apiServer: {
     enabled: false,
-    host: 'localhost',
-    port: 23333,
+    host: API_SERVER_DEFAULTS.HOST,
+    port: API_SERVER_DEFAULTS.PORT,
     apiKey: `cs-sk-${uuid()}`
   },
   showMessageOutline: false
@@ -792,11 +802,17 @@ const settingsSlice = createSlice({
     setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
       state.disableHardwareAcceleration = action.payload
     },
-    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAIReasoningSummary>) => {
       state.openAI.summaryText = action.payload
     },
     setOpenAIVerbosity: (state, action: PayloadAction<OpenAIVerbosity>) => {
       state.openAI.verbosity = action.payload
+    },
+    setOpenAIStreamOptionsIncludeUsage: (
+      state,
+      action: PayloadAction<OpenAICompletionsStreamOptions['include_usage']>
+    ) => {
+      state.openAI.streamOptions.includeUsage = action.payload
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
@@ -968,6 +984,7 @@ export const {
   setDisableHardwareAcceleration,
   setOpenAISummaryText,
   setOpenAIVerbosity,
+  setOpenAIStreamOptionsIncludeUsage,
   setNotificationSettings,
   // Local backup settings
   setLocalBackupDir,

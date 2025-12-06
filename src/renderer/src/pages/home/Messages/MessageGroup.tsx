@@ -10,8 +10,10 @@ import type { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { scrollIntoView } from '@renderer/utils/dom'
 import { Popover } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
 import { useChatMaxWidth } from '../Chat'
@@ -43,9 +45,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   )
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
-  // Refs
-  const prevMessageLengthRef = useRef(messageLength)
-
   // 对于单模型消息，采用简单的样式，避免 overflow 影响内部的 sticky 效果
   const multiModelMessageStyle = useMemo(
     () => (messageLength < 2 ? 'fold' : _multiModelMessageStyle),
@@ -75,7 +74,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         () => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
           }
         },
         200
@@ -83,24 +82,6 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     },
     [editMessage, selectedMessageId, setTimeoutTimer]
   )
-
-  useEffect(() => {
-    if (messageLength > prevMessageLengthRef.current) {
-      setSelectedIndex(messageLength - 1)
-      const lastMessage = messages[messageLength - 1]
-      if (lastMessage) {
-        setSelectedMessage(lastMessage)
-      }
-    } else {
-      const newIndex = messages.findIndex((msg) => msg.id === selectedMessageId)
-      if (newIndex !== -1) {
-        setSelectedIndex(newIndex)
-      }
-    }
-    prevMessageLengthRef.current = messageLength
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageLength])
-
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
     // 只在组件挂载和消息数组变化时添加监听器
@@ -152,7 +133,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             setSelectedMessage(message)
           } else {
             // 直接滚动
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
           }
         }
       }
@@ -223,7 +204,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         message,
         topic,
         index: message.index
-      }
+      } satisfies ComponentProps<typeof MessageItem>
 
       const messageContent = (
         <MessageWrapper
@@ -277,7 +258,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       isGrouped,
       topic,
       multiModelMessageStyle,
-      messages.length,
+      messages,
       selectedMessageId,
       onUpdateUseful,
       groupContextMessageId,

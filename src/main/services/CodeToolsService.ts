@@ -10,6 +10,7 @@ import { getBinaryName } from '@main/utils/process'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeTools,
+  HOME_CHERRY_DIR,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
   terminalApps,
@@ -66,7 +67,7 @@ class CodeToolsService {
   }
 
   public async getBunPath() {
-    const dir = path.join(os.homedir(), '.cherrystudio', 'bin')
+    const dir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
     const bunName = await getBinaryName('bun')
     const bunPath = path.join(dir, bunName)
     return bunPath
@@ -362,7 +363,7 @@ class CodeToolsService {
 
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
     const executableName = await this.getCliExecutableName(cliTool)
-    const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
     const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
     // Ensure bin directory exists
@@ -389,7 +390,7 @@ class CodeToolsService {
       logger.info(`${cliTool} is installed, getting current version`)
       try {
         const executableName = await this.getCliExecutableName(cliTool)
-        const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
+        const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
         const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
         const { stdout } = await execAsync(`"${executablePath}" --version`, {
@@ -500,7 +501,7 @@ class CodeToolsService {
     try {
       const packageName = await this.getPackageName(cliTool)
       const bunPath = await this.getBunPath()
-      const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
+      const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
       const registryUrl = await this.getNpmRegistryUrl()
 
       const installEnvPrefix = isWin
@@ -547,10 +548,21 @@ class CodeToolsService {
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
 
+    // Validate directory exists before proceeding
+    if (!directory || !fs.existsSync(directory)) {
+      const errorMessage = `Directory does not exist: ${directory}`
+      logger.error(errorMessage)
+      return {
+        success: false,
+        message: errorMessage,
+        command: ''
+      }
+    }
+
     const packageName = await this.getPackageName(cliTool)
     const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
-    const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
     const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
     logger.debug(`Package name: ${packageName}`)
@@ -652,7 +664,7 @@ class CodeToolsService {
       baseCommand = `${baseCommand} ${configParams}`
     }
 
-    const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
+    const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
 
     if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
@@ -708,6 +720,7 @@ class CodeToolsService {
         // Build bat file content, including debug information
         const batContent = [
           '@echo off',
+          'chcp 65001 >nul 2>&1', // Switch to UTF-8 code page for international path support
           `title ${cliTool} - Cherry Studio`, // Set window title in bat file
           'echo ================================================',
           'echo Cherry Studio CLI Tool Launcher',

@@ -1,9 +1,10 @@
-import type { anthropic } from '@ai-sdk/anthropic'
-import type { google } from '@ai-sdk/google'
-import type { openai } from '@ai-sdk/openai'
+import { anthropic } from '@ai-sdk/anthropic'
+import { google } from '@ai-sdk/google'
+import { openai } from '@ai-sdk/openai'
 import type { InferToolInput, InferToolOutput } from 'ai'
 import { type Tool } from 'ai'
 
+import { createOpenRouterOptions, createXaiOptions, mergeProviderOptions } from '../../../options'
 import type { ProviderOptionsMap } from '../../../options/types'
 import type { OpenRouterSearchConfig } from './openrouter'
 
@@ -34,7 +35,6 @@ export interface WebSearchPluginConfig {
   anthropic?: AnthropicSearchConfig
   xai?: ProviderOptionsMap['xai']['searchParameters']
   google?: GoogleSearchConfig
-  'google-vertex'?: GoogleSearchConfig
   openrouter?: OpenRouterSearchConfig
 }
 
@@ -43,7 +43,6 @@ export interface WebSearchPluginConfig {
  */
 export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   google: {},
-  'google-vertex': {},
   openai: {},
   'openai-chat': {},
   xai: {
@@ -94,4 +93,30 @@ export type WebSearchToolInputSchema = {
   openai: InferToolInput<OpenAIWebSearchTool>
   google: InferToolInput<GoogleWebSearchTool>
   'openai-chat': InferToolInput<OpenAIChatWebSearchTool>
+}
+
+export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any) => {
+  if (config.openai) {
+    if (!params.tools) params.tools = {}
+    params.tools.web_search = openai.tools.webSearch(config.openai)
+  } else if (config['openai-chat']) {
+    if (!params.tools) params.tools = {}
+    params.tools.web_search_preview = openai.tools.webSearchPreview(config['openai-chat'])
+  } else if (config.anthropic) {
+    if (!params.tools) params.tools = {}
+    params.tools.web_search = anthropic.tools.webSearch_20250305(config.anthropic)
+  } else if (config.google) {
+    // case 'google-vertex':
+    if (!params.tools) params.tools = {}
+    params.tools.web_search = google.tools.googleSearch(config.google || {})
+  } else if (config.xai) {
+    const searchOptions = createXaiOptions({
+      searchParameters: { ...config.xai, mode: 'on' }
+    })
+    params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+  } else if (config.openrouter) {
+    const searchOptions = createOpenRouterOptions(config.openrouter)
+    params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+  }
+  return params
 }

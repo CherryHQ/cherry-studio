@@ -47,6 +47,7 @@ export function buildProviderBuiltinWebSearchConfig(
   model?: Model
 ): WebSearchPluginConfig | undefined {
   switch (providerId) {
+    case 'azure-responses':
     case 'openai': {
       const searchContextSize = isOpenAIDeepResearchModel(model)
         ? 'medium'
@@ -106,6 +107,11 @@ export function buildProviderBuiltinWebSearchConfig(
           ]
         }
       }
+    }
+    case 'cherryin': {
+      const _providerId =
+        { 'openai-response': 'openai', openai: 'openai-chat' }[model?.endpoint_type ?? ''] ?? model?.endpoint_type
+      return buildProviderBuiltinWebSearchConfig(_providerId, webSearchConfig, model)
     }
     default: {
       return {}

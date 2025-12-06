@@ -128,9 +128,9 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
 function getSorter(sortType: NotesSortType): (a: NotesTreeNode, b: NotesTreeNode) => number {
   switch (sortType) {
     case 'sort_a2z':
-      return (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'accent' })
+      return (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'accent' })
     case 'sort_z2a':
-      return (a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'accent' })
+      return (a, b) => b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'accent' })
     case 'sort_updated_desc':
       return (a, b) => getTime(b.updatedAt) - getTime(a.updatedAt)
     case 'sort_updated_asc':
@@ -140,7 +140,7 @@ function getSorter(sortType: NotesSortType): (a: NotesTreeNode, b: NotesTreeNode
     case 'sort_created_asc':
       return (a, b) => getTime(a.createdAt) - getTime(b.createdAt)
     default:
-      return (a, b) => a.name.localeCompare(b.name)
+      return (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'accent' })
   }
 }
 
