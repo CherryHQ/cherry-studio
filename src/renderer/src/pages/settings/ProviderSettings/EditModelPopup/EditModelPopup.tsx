@@ -2,7 +2,6 @@ import { TopView } from '@renderer/components/TopView'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
-import { useAppDispatch } from '@renderer/store'
 import type { Model, Provider } from '@renderer/types'
 import React, { useCallback, useState } from 'react'
 
@@ -20,7 +19,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }
   const { provider, updateProvider, models } = useProvider(_provider.id)
   const { assistants, updateAssistants } = useAssistants()
   const { defaultModel, setDefaultModel } = useDefaultModel()
-  const dispatch = useAppDispatch()
 
   const onOk = () => {
     setOpen(false)
