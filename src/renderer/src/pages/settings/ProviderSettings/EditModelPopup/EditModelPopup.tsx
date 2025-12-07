@@ -19,7 +19,7 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }) => {
   const [open, setOpen] = useState(true)
   const { provider, updateProvider, models } = useProvider(_provider.id)
-  const { assistants } = useAssistants()
+  const { assistants, updateAssistants } = useAssistants()
   const { defaultModel, setDefaultModel } = useDefaultModel()
   const dispatch = useAppDispatch()
 
@@ -51,13 +51,27 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }
             })
           )
         }
+        if (assistant?.defaultModel?.id === updatedModel.id && assistant?.defaultModel?.provider === provider.id) {
+          const newAssistant = { ...assistant, defaultModel: updatedModel }
+          updateAssistants(assistants.map((a) => (a.id === assistant.id ? newAssistant : a)))
+        }
       })
 
       if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
         setDefaultModel(updatedModel)
       }
     },
-    [models, updateProvider, provider.id, assistants, defaultModel, dispatch, setDefaultModel]
+    [
+      models,
+      updateProvider,
+      assistants,
+      defaultModel?.id,
+      defaultModel?.provider,
+      provider.id,
+      dispatch,
+      updateAssistants,
+      setDefaultModel
+    ]
   )
 
   return (
