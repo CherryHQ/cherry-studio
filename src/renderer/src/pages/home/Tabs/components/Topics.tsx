@@ -81,7 +81,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
 
-  const topicEdit = useInPlaceEdit({
+  const { startEdit, isEditing, inputProps } = useInPlaceEdit({
     onSave: (name: string) => {
       const topic = assistant.topics.find((t) => t.id === editingTopicId)
       if (topic && name !== topic.name) {
@@ -526,29 +526,23 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             <TopicListItem
               onContextMenu={() => setTargetTopic(topic)}
               className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-              onClick={editingTopicId === topic.id && topicEdit.isEditing ? undefined : () => onSwitchTopic(topic)}
+              onClick={editingTopicId === topic.id && isEditing ? undefined : () => onSwitchTopic(topic)}
               style={{
                 borderRadius,
-                cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
+                cursor: editingTopicId === topic.id && isEditing ? 'default' : 'pointer'
               }}>
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
-                {editingTopicId === topic.id && topicEdit.isEditing ? (
-                  <TopicEditInput
-                    ref={topicEdit.inputRef}
-                    value={topicEdit.editValue}
-                    onChange={topicEdit.handleInputChange}
-                    onKeyDown={topicEdit.handleKeyDown}
-                    onClick={(e) => e.stopPropagation()}
-                  />
+                {editingTopicId === topic.id && isEditing ? (
+                  <TopicEditInput {...inputProps} onClick={(e) => e.stopPropagation()} />
                 ) : (
                   <TopicName
                     className={getTopicNameClassName()}
                     title={topicName}
                     onDoubleClick={() => {
                       setEditingTopicId(topic.id)
-                      topicEdit.startEdit(topic.name)
+                      startEdit(topic.name)
                     }}>
                     {topicName}
                   </TopicName>
