@@ -2069,14 +2069,8 @@ class FileStorage {
                       return { status: 'skipped' as const, reason: 'extension not allowed' }
                     }
                   } else {
-                    // Fallback to default filter if no options provided (backward compatibility)
-                    const lowerPath = entryData.fullPath.toLowerCase()
-                    const isMarkdown = lowerPath.endsWith('.md') || lowerPath.endsWith('.markdown')
-                    const isImage = imageExts.some((ext) => lowerPath.endsWith(ext))
-
-                    if (!isMarkdown && !isImage) {
-                      return { status: 'skipped' as const, reason: 'not markdown or image' }
-                    }
+                    // Fallback: allow all files if no allowedExtensions specified (consistent with line 1679)
+                    // No filtering; all files are allowed
                   }
                 }
 
