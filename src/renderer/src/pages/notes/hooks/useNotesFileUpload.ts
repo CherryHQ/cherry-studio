@@ -5,7 +5,10 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('useNotesFileUpload')
 
 interface UseNotesFileUploadProps {
-  onUploadFiles: (files: File[]) => void
+  onUploadFiles: (
+    files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
+    targetFolderPath?: string
+  ) => void
   setIsDragOverSidebar: (isDragOver: boolean) => void
   getTargetFolderPath?: () => string | null
   refreshTree?: () => Promise<void>
@@ -25,7 +28,7 @@ export const useNotesFileUpload = ({
    * This ensures dragging ~/Users/me/tmp/xxx creates target/tmp/xxx
    */
   const handleDropFiles = useCallback(
-    async (e: React.DragEvent) => {
+    async (e: React.DragEvent, overrideTargetFolderPath?: string) => {
       e.preventDefault()
       setIsDragOverSidebar(false)
 
@@ -113,14 +116,14 @@ export const useNotesFileUpload = ({
         await Promise.all(promises)
 
         if (entryDataList.length > 0) {
-          // Pass entry data list to parent for recursive upload
-          onUploadFiles(entryDataList as any)
+          // Pass entry data list to parent for recursive upload with optional target override
+          onUploadFiles(entryDataList as any, overrideTargetFolderPath)
         }
       } else {
         // Fallback for browsers without FileSystemEntry API
         const regularFiles = Array.from(e.dataTransfer.files)
         if (regularFiles.length > 0) {
-          onUploadFiles(regularFiles)
+          onUploadFiles(regularFiles, overrideTargetFolderPath)
         }
       }
     },

@@ -574,12 +574,6 @@ const NotesPage: FC = () => {
     [dispatch, handleToggleExpanded, invalidateFileContent]
   )
 
-  // 选中根（清空选择）
-  const handleSelectRoot = useCallback(() => {
-    dispatch(setActiveFilePath(undefined))
-    setSelectedFolderId(null)
-  }, [dispatch])
-
   // 删除节点
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
@@ -658,14 +652,19 @@ const NotesPage: FC = () => {
 
   // 处理文件上传
   const handleUploadFiles = useCallback(
-    async (files: File[]) => {
+    async (
+      files:
+        | File[]
+        | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
+      overrideTargetFolderPath?: string
+    ) => {
       try {
         if (!files || files.length === 0) {
           window.toast.warning(t('notes.no_file_selected'))
           return
         }
 
-        const targetFolderPath = getTargetFolderPath()
+        const targetFolderPath = overrideTargetFolderPath || getTargetFolderPath()
         if (!targetFolderPath) {
           throw new Error('No folder path selected')
         }
@@ -937,7 +936,6 @@ const NotesPage: FC = () => {
                 notesTree={notesTree}
                 selectedFolderId={selectedFolderId}
                 onSelectNode={handleSelectNode}
-                onSelectRoot={handleSelectRoot}
                 onCreateFolder={handleCreateFolder}
                 onCreateNote={handleCreateNote}
                 onDeleteNode={handleDeleteNode}
