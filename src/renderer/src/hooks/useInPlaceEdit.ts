@@ -109,13 +109,12 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   }, [])
 
   const handleBlur = useCallback(() => {
-    // 这里的逻辑需要注意：
-    // 如果点击了“取消”按钮，可能会先触发 Blur 保存。
-    // 通常 InPlaceEdit 的逻辑是 Blur 即 Save。
-    // 如果不想 Blur 保存，可以去掉这一行，或者判断 relatedTarget。
-    if (!isSaving) {
-      saveEdit()
-    }
+    // Note: The logic here requires attention:
+    // If the "Cancel" button is clicked, a blur event may trigger a save first.
+    // Typically, InPlaceEdit saves on blur.
+    // If you do not want to save on blur, you can remove this line or check relatedTarget.
+    if (isSaving) return
+    saveEdit()
   }, [saveEdit, isSaving])
 
   return {
@@ -130,7 +129,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       onChange: handleInputChange,
       onKeyDown: handleKeyDown,
       onBlur: handleBlur,
-      disabled: isSaving // 保存时禁用输入
+      disabled: isSaving // Disable input while saving
     }
   }
 }

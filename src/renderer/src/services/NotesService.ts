@@ -127,6 +127,10 @@ export async function uploadNotes(
     }
 
     if (filePaths.length === 0) {
+      // If all files failed to get system paths, show an error toast
+      if (totalFiles > 0) {
+        window.toast.error('Failed to access any of the selected files. Please try selecting the files again.')
+      }
       return {
         uploadedNodes: [],
         totalFiles,
@@ -136,7 +140,7 @@ export async function uploadNotes(
       }
     }
 
-    // Pause file watcher to prevent N refresh events
+    // Pause file watcher to prevent multiple refresh events
     await window.api.file.pauseFileWatcher()
 
     // Use simplified batchUpload for File objects
@@ -174,7 +178,7 @@ async function uploadNotesRecursive(
   const basePath = normalizePath(targetPath)
 
   try {
-    // Pause file watcher to prevent N refresh events
+    // Pause file watcher to prevent multiple refresh events
     await window.api.file.pauseFileWatcher()
 
     try {
