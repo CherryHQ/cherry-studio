@@ -579,14 +579,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_PauseWatcher, fileManager.pauseFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ResumeWatcher, fileManager.resumeFileWatcher.bind(fileManager))
-<<<<<<< HEAD
   ipcMain.handle(IpcChannel.File_BatchUpload, fileManager.batchUpload.bind(fileManager))
   ipcMain.handle(IpcChannel.File_UploadFolder, fileManager.uploadFolder.bind(fileManager))
   ipcMain.handle(IpcChannel.File_UploadEntry, fileManager.uploadFileEntry.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadEntries, fileManager.batchUploadEntries.bind(fileManager))
-=======
-  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
->>>>>>> origin/main
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // file service
