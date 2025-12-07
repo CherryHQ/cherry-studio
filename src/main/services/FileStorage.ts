@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import {
   checkName,
+  findCommonRoot,
   getFilesDir,
   getFileType,
   getName,
@@ -23,6 +24,7 @@ import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
+import PQueue from 'p-queue'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { chdir } from 'process'
@@ -1645,13 +1647,23 @@ class FileStorage {
   }
 
   /**
-   * Batch upload markdown files from native File objects
-   * This handles all I/O operations in the Main process to avoid blocking Renderer
+   * Generic batch upload files with structure preservation (VS Code-inspired)
+   * Handles all I/O operations in Main process to avoid blocking Renderer
+   *
+   * @param filePaths - Array of source file paths to upload
+   * @param targetPath - Destination directory
+   * @param options - Upload options
+   * @param options.fileFilter - Filter function (path => boolean).
+   * @param options.fileNameTransform - Transform function (basename => newBasename).
    */
-  public batchUploadMarkdownFiles = async (
+  public batchUpload = async (
     _: Electron.IpcMainInvokeEvent,
     filePaths: string[],
-    targetPath: string
+    targetPath: string,
+    options?: {
+      allowedExtensions?: string[]
+      fileNameTransform?: (fileName: string) => string
+    }
   ): Promise<{
     fileCount: number
     folderCount: number
@@ -1661,64 +1673,67 @@ class FileStorage {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 
       const basePath = path.resolve(targetPath)
-      const MARKDOWN_EXTS = ['.md', '.markdown']
 
-      // Filter markdown files
-      const markdownFiles = filePaths.filter((filePath) => {
-        const ext = path.extname(filePath).toLowerCase()
-        return MARKDOWN_EXTS.includes(ext)
-      })
+      const allowedExtensions = options?.allowedExtensions
+      const fileFilter = (filePath: string): boolean => {
+        if (!allowedExtensions || allowedExtensions.length === 0) return true
+        const lowerPath = filePath.toLowerCase()
+        return allowedExtensions.some((ext) => lowerPath.endsWith(ext.toLowerCase()))
+      }
 
-      const skippedFiles = filePaths.length - markdownFiles.length
+      const fileNameTransform = options?.fileNameTransform || ((name) => name)
 
-      if (markdownFiles.length === 0) {
+      // Filter files using custom or default filter
+      const validFiles = filePaths.filter(fileFilter)
+      const skippedFiles = filePaths.length - validFiles.length
+
+      if (validFiles.length === 0) {
         return { fileCount: 0, folderCount: 0, skippedFiles }
       }
+
+      // Find common root for file paths to preserve relative structure
+      const commonRoot = findCommonRoot(validFiles)
+      logger.debug('Calculated common root:', { commonRoot })
 
       // Collect unique folders needed
       const foldersSet = new Set<string>()
       const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
 
-      for (const filePath of markdownFiles) {
+      for (const filePath of validFiles) {
         try {
-          // Get relative path if file is from a directory upload
-          const fileName = path.basename(filePath)
-          const relativePath = path.dirname(filePath)
+          // Calculate relative path from common root
+          const relativePath = path.relative(commonRoot, filePath)
+          const fileName = path.basename(relativePath)
+          const relativeDir = path.dirname(relativePath)
 
-          // Determine target directory structure
+          // Build target directory path preserving structure
           let targetDir = basePath
-          const folderParts: string[] = []
+          if (relativeDir && relativeDir !== '.') {
+            targetDir = path.join(basePath, relativeDir)
 
-          // Extract folder structure from file path for nested uploads
-          // This is a simplified version - in real scenario we'd need the original directory structure
-          if (relativePath && relativePath !== '.') {
-            const parts = relativePath.split(path.sep)
-            // Get the last few parts that represent the folder structure within upload
-            const relevantParts = parts.slice(Math.max(0, parts.length - 3))
-            folderParts.push(...relevantParts)
+            // Collect all parent directories
+            let currentDir = basePath
+            const dirParts = relativeDir.split(path.sep)
+            for (const part of dirParts) {
+              currentDir = path.join(currentDir, part)
+              foldersSet.add(currentDir)
+            }
           }
 
-          // Build target directory path
-          for (const part of folderParts) {
-            targetDir = path.join(targetDir, part)
-            foldersSet.add(targetDir)
-          }
-
-          // Determine final file name
-          const nameWithoutExt = fileName.endsWith('.md')
-            ? fileName.slice(0, -3)
-            : fileName.endsWith('.markdown')
-              ? fileName.slice(0, -9)
-              : fileName
+          const transformedFileName = fileNameTransform(fileName)
+          const nameWithoutExt = path.parse(transformedFileName).name
 
           const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
-          const finalPath = path.join(targetDir, safeName + '.md')
+          const finalExt = path.extname(transformedFileName) || '.md'
+          const finalPath = path.join(targetDir, safeName + finalExt)
 
           fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
         } catch (error) {
           logger.error('Failed to prepare file operation:', error as Error, { filePath })
         }
       }
+
+      // No special folder root handling needed for simplified batchUpload
 
       // Create folders in order (shallow to deep)
       const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
@@ -1800,6 +1815,320 @@ class FileStorage {
       this.isPaused = false
       // Send a synthetic refresh event to trigger tree reload
       this.notifyChange('refresh', this.currentWatchPath)
+    }
+  }
+
+  /**
+   * This method handles drag-and-drop file uploads by preserving the directory structure
+   * using the FileSystemEntry.fullPath property, which contains the relative path from
+   * the drag operation root.
+   *
+   * @param _ - IPC event (unused)
+   * @param entryData - File entry information from FileSystemEntry API
+   * @param entryData.fullPath - Relative path from drag root (e.g., "/tmp/xxx/file.md")
+   * @param entryData.isFile - Whether this is a file
+   * @param entryData.isDirectory - Whether this is a directory
+   * @param entryData.systemPath - Absolute file system path (from webUtils.getPathForFile)
+   * @param targetBasePath - Target directory where files should be uploaded
+   * @returns Promise resolving to upload result with created path
+   *
+   * @example
+   * // Drag ~/Users/me/tmp/xxx to Notes
+   * // Entry: { fullPath: "/tmp/xxx/file.md", systemPath: "/Users/me/tmp/xxx/file.md" }
+   * // Target: "/notes"
+   * // Result: Creates /notes/tmp/xxx/file.md
+   */
+  public uploadFileEntry = async (
+    _: Electron.IpcMainInvokeEvent,
+    entryData: {
+      fullPath: string
+      isFile: boolean
+      isDirectory: boolean
+      systemPath: string
+    },
+    targetBasePath: string
+  ): Promise<{ success: boolean; targetPath: string }> => {
+    try {
+      // Normalize target base path
+      const normalizedBasePath = targetBasePath.replace(/\\/g, '/')
+
+      // Build target path by joining base path with entry's relative fullPath
+      // Remove leading slash from fullPath to avoid path.join issues
+      const relativeFullPath = entryData.fullPath.startsWith('/') ? entryData.fullPath.slice(1) : entryData.fullPath
+
+      const targetPath = path.join(normalizedBasePath, relativeFullPath)
+
+      logger.debug('Uploading file entry:', {
+        fullPath: entryData.fullPath,
+        systemPath: entryData.systemPath,
+        targetBasePath: normalizedBasePath,
+        targetPath,
+        isFile: entryData.isFile,
+        isDirectory: entryData.isDirectory
+      })
+
+      if (entryData.isFile) {
+        // Ensure parent directory exists
+        const targetDir = path.dirname(targetPath)
+        if (!fs.existsSync(targetDir)) {
+          await fs.promises.mkdir(targetDir, { recursive: true })
+        }
+
+        // Use fileNameGuard to ensure unique filename
+        const originalFileName = path.basename(targetPath)
+        const nameWithoutExt = path.parse(originalFileName).name
+        const originalExt = path.parse(originalFileName).ext
+        const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
+        const finalExt = originalExt || '.md' // Only default to .md if no extension
+        const finalPath = path.join(targetDir, safeName + finalExt)
+
+        // Copy file directly (works for both text and binary files)
+        await fs.promises.copyFile(entryData.systemPath, finalPath)
+
+        logger.info('File uploaded successfully:', { source: entryData.systemPath, target: finalPath })
+
+        return { success: true, targetPath: finalPath }
+      } else if (entryData.isDirectory) {
+        // Create directory
+        if (!fs.existsSync(targetPath)) {
+          await fs.promises.mkdir(targetPath, { recursive: true })
+          logger.info('Directory created:', { targetPath })
+        }
+
+        return { success: true, targetPath }
+      } else {
+        throw new Error('Entry is neither a file nor a directory')
+      }
+    } catch (error) {
+      logger.error('Failed to upload file entry:', error as Error, {
+        fullPath: entryData.fullPath,
+        systemPath: entryData.systemPath
+      })
+      throw error
+    }
+  }
+
+  /**
+   * Upload entire folder with recursive structure preservation
+   *
+   * This is a VS Code-inspired approach that handles all recursion in the Main process,
+   * providing better performance and cleaner architecture than the Renderer-based approach.
+   *
+   * @param _ - IPC event (unused)
+   * @param folderPath - Source folder path to upload
+   * @param targetPath - Destination directory
+   * @param options - Upload options
+   * @returns Promise resolving to upload result with statistics
+   */
+  public uploadFolder = async (
+    _: Electron.IpcMainInvokeEvent,
+    folderPath: string,
+    targetPath: string,
+    options?: {
+      allowedExtensions?: string[]
+    }
+  ): Promise<{
+    fileCount: number
+    folderCount: number
+    skippedFiles: number
+  }> => {
+    try {
+      logger.info('Starting folder upload', { folderPath, targetPath })
+
+      // Use existing listDirectory to get all files recursively
+      const allFiles = await this.listDirectory(_, folderPath, {
+        recursive: true,
+        includeFiles: true,
+        includeDirectories: false,
+        includeHidden: false
+      })
+
+      const allowedExtensions = options?.allowedExtensions || ['.md', '.markdown']
+
+      // Filter by allowed extensions
+      const validFiles = allFiles.filter((filePath: string) => {
+        const ext = path.extname(filePath).toLowerCase()
+        return allowedExtensions.includes(ext)
+      })
+
+      const skippedFiles = allFiles.length - validFiles.length
+
+      if (validFiles.length === 0) {
+        logger.warn('No valid files found in folder', { folderPath, allowedExtensions })
+        return { fileCount: 0, folderCount: 0, skippedFiles: allFiles.length }
+      }
+
+      logger.info('Found valid files in folder', {
+        folderPath,
+        totalFiles: allFiles.length,
+        validFiles: validFiles.length,
+        skippedFiles
+      })
+
+      // Upload files with folder name preservation (VS Code behavior)
+      // Example: /User/tmp → target/tmp/...
+      const folderName = path.basename(folderPath)
+      const targetFolderRoot = path.join(targetPath, folderName)
+
+      // Create target root folder
+      if (!fs.existsSync(targetFolderRoot)) {
+        await fs.promises.mkdir(targetFolderRoot, { recursive: true })
+      }
+
+      const result = await this.batchUpload(_, validFiles, targetFolderRoot, {
+        allowedExtensions
+      })
+
+      logger.info('Folder upload completed', {
+        folderPath,
+        targetPath,
+        result
+      })
+
+      return result
+    } catch (error) {
+      logger.error('Folder upload failed:', error as Error, { folderPath, targetPath })
+      throw error
+    }
+  }
+
+  /**
+   * Batch upload file entries with dynamic parallel processing (p-queue optimized)
+   *
+   * This method uses p-queue for dynamic task scheduling, ensuring maximum throughput
+   * by maintaining a constant level of concurrency. Unlike static batching, tasks are
+   * processed as soon as a slot becomes available, preventing blocking by slow files.
+   *
+   * @param _ - IPC event (unused)
+   * @param entryDataList - Array of file entry information from FileSystemEntry API
+   * @param targetBasePath - Target directory where files should be uploaded
+   * @returns Promise resolving to batch upload result with statistics
+   *
+   * @example
+   * // Upload 100 files with dynamic scheduling (up to 20 concurrent)
+   * const result = await batchUploadEntries(_, entries, '/notes')
+   * // Result: { fileCount: 95, folderCount: 5, skippedFiles: 0 }
+   */
+  public batchUploadEntries = async (
+    _: Electron.IpcMainInvokeEvent,
+    entryDataList: Array<{
+      fullPath: string
+      isFile: boolean
+      isDirectory: boolean
+      systemPath: string
+    }>,
+    targetBasePath: string,
+    options?: {
+      allowedExtensions?: string[]
+    }
+  ): Promise<{
+    fileCount: number
+    folderCount: number
+    skippedFiles: number
+  }> => {
+    const CONCURRENCY = 20 // Maximum concurrent uploads (matching VS Code's approach)
+    let fileCount = 0
+    let folderCount = 0
+    let skippedFiles = 0
+
+    logger.info('Starting batch upload of entries with p-queue:', {
+      totalEntries: entryDataList.length,
+      targetBasePath,
+      concurrency: CONCURRENCY
+    })
+
+    try {
+      // Create queue with dynamic scheduling
+      const queue = new PQueue({ concurrency: CONCURRENCY })
+
+      // Track progress
+      let completed = 0
+      const total = entryDataList.length
+
+      const results = await Promise.allSettled(
+        entryDataList.map((entryData) =>
+          queue.add(
+            async (): Promise<
+              | { status: 'skipped'; reason: string }
+              | { status: 'success'; isFile: boolean; isDirectory: boolean; targetPath: string }
+            > => {
+              try {
+                // Filter: only upload allowed files
+                if (entryData.isFile) {
+                  const allowedExtensions = options?.allowedExtensions
+                  if (allowedExtensions && allowedExtensions.length > 0) {
+                    const lowerPath = entryData.fullPath.toLowerCase()
+                    const isAllowed = allowedExtensions.some((ext) => lowerPath.endsWith(ext.toLowerCase()))
+                    if (!isAllowed) {
+                      return { status: 'skipped' as const, reason: 'extension not allowed' }
+                    }
+                  } else {
+                    // Fallback to default filter if no options provided (backward compatibility)
+                    const lowerPath = entryData.fullPath.toLowerCase()
+                    const isMarkdown = lowerPath.endsWith('.md') || lowerPath.endsWith('.markdown')
+                    const isImage = imageExts.some((ext) => lowerPath.endsWith(ext))
+
+                    if (!isMarkdown && !isImage) {
+                      return { status: 'skipped' as const, reason: 'not markdown or image' }
+                    }
+                  }
+                }
+
+                // Upload the entry using the existing single-entry method
+                const result = await this.uploadFileEntry(_, entryData, targetBasePath)
+
+                return {
+                  status: 'success' as const,
+                  isFile: entryData.isFile,
+                  isDirectory: entryData.isDirectory,
+                  targetPath: result.targetPath
+                }
+              } finally {
+                // Send progress update (throttled to avoid flooding)
+                completed++
+                if (completed % 5 === 0 || completed === total) {
+                  _.sender.send('file-upload-progress', {
+                    completed,
+                    total,
+                    percentage: Math.round((completed / total) * 100)
+                  })
+                }
+              }
+            }
+          )
+        )
+      )
+
+      // Count results
+      results.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value) {
+          const value = result.value
+          if (value.status === 'skipped') {
+            skippedFiles++
+          } else if (value.status === 'success') {
+            if (value.isFile) {
+              fileCount++
+            } else if (value.isDirectory) {
+              folderCount++
+            }
+          }
+        } else if (result.status === 'rejected') {
+          logger.error('Failed to upload entry:', result.reason)
+          skippedFiles++
+        }
+      })
+
+      logger.info('Batch upload completed:', {
+        totalProcessed: entryDataList.length,
+        fileCount,
+        folderCount,
+        skippedFiles
+      })
+
+      return { fileCount, folderCount, skippedFiles }
+    } catch (error) {
+      logger.error('Batch upload entries failed:', error as Error)
+      throw error
     }
   }
 }

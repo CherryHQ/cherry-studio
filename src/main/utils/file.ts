@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { audioExts, documentExts, HOME_CHERRY_DIR, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
 import type { FileMetadata, NotesTreeNode } from '@types'
 import { FileTypes } from '@types'
@@ -436,4 +437,50 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
   }
 
   return sanitized
+}
+
+/**
+ * Find the common root directory of multiple file paths
+ *
+ * Examples:
+ * - [/a/b/c/1.md, /a/b/c/2.md] => /a/b/c
+ * - [/a/b/c/1.md, /a/b/d/2.md] => /a/b
+ * - [/a/b/c/sub/1.md, /a/b/c/2.md] => /a/b/c
+ */
+export function findCommonRoot(filePaths: string[]): string {
+  if (filePaths.length === 0) {
+    return ''
+  }
+
+  if (filePaths.length === 1) {
+    // Single file: use its parent directory
+    return path.dirname(filePaths[0])
+  }
+
+  // Get all parent directories
+  const allDirs = filePaths.map((p) => path.dirname(p))
+
+  // Split into path components
+  const pathComponents = allDirs.map((dir) => dir.split(path.sep))
+
+  // Find common prefix
+  const commonParts: string[] = []
+  const minLength = Math.min(...pathComponents.map((parts) => parts.length))
+
+  for (let i = 0; i < minLength; i++) {
+    const part = pathComponents[0][i]
+    const allMatch = pathComponents.every((parts) => parts[i] === part)
+
+    if (allMatch) {
+      commonParts.push(part)
+    } else {
+      break
+    }
+  }
+
+  // Join back to path
+  const commonRoot = commonParts.join(path.sep)
+
+  // Ensure we return at least the root directory
+  return commonRoot || (isWin ? pathComponents[0][0] : '/')
 }

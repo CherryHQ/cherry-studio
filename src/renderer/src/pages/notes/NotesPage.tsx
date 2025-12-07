@@ -75,7 +75,11 @@ const NotesPage: FC = () => {
 
   const [tokenCount, setTokenCount] = useState(0)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<{ completed: number; total: number; percentage: number } | null>(
+    null
+  )
   const watcherRef = useRef<(() => void) | null>(null)
+  const uploadProgressListenerRef = useRef<(() => void) | null>(null)
   const lastContentRef = useRef<string>('')
   const lastFilePathRef = useRef<string | undefined>(undefined)
   const isRenamingRef = useRef(false)
@@ -163,6 +167,34 @@ const NotesPage: FC = () => {
   useEffect(() => {
     refreshTree()
   }, [refreshTree])
+
+  // Setup upload progress listener
+  useEffect(() => {
+    // Clean up previous listener
+    if (uploadProgressListenerRef.current) {
+      uploadProgressListenerRef.current()
+      uploadProgressListenerRef.current = null
+    }
+
+    // Set up new listener
+    uploadProgressListenerRef.current = window.api.file.onUploadProgress((data) => {
+      setUploadProgress(data)
+
+      // Auto-hide progress after completion
+      if (data.completed === data.total) {
+        setTimeout(() => {
+          setUploadProgress(null)
+        }, 1500)
+      }
+    })
+
+    return () => {
+      if (uploadProgressListenerRef.current) {
+        uploadProgressListenerRef.current()
+        uploadProgressListenerRef.current = null
+      }
+    }
+  }, [])
 
   // Re-merge tree state when starred or expanded paths change
   useEffect(() => {
@@ -534,12 +566,19 @@ const NotesPage: FC = () => {
           logger.error('Failed to load note:', error as Error)
         }
       } else if (node.type === 'folder') {
+        // 点击文件夹时不切换/清空当前笔记，仅折叠/展开并记录所选文件夹
         setSelectedFolderId(node.id)
         handleToggleExpanded(node.id)
       }
     },
     [dispatch, handleToggleExpanded, invalidateFileContent]
   )
+
+  // 选中根（清空选择）
+  const handleSelectRoot = useCallback(() => {
+    dispatch(setActiveFilePath(undefined))
+    setSelectedFolderId(null)
+  }, [dispatch])
 
   // 删除节点
   const handleDeleteNode = useCallback(
@@ -875,7 +914,17 @@ const NotesPage: FC = () => {
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('notes.title')}</NavbarCenter>
       </Navbar>
-      <ContentContainer id="content-container">
+      {uploadProgress && (
+        <UploadProgressBar>
+          <ProgressText>
+            {t('notes.uploading')} {uploadProgress.completed} / {uploadProgress.total} ({uploadProgress.percentage}%)
+          </ProgressText>
+          <ProgressBarContainer>
+            <ProgressBarFill style={{ width: `${uploadProgress.percentage}%` }} />
+          </ProgressBarContainer>
+        </UploadProgressBar>
+      )}
+      <ContentContainer id="content-container" style={{ background: 'var(--color-background-mute)' }}>
         <AnimatePresence initial={false}>
           {showWorkspace && (
             <motion.div
@@ -883,11 +932,12 @@ const NotesPage: FC = () => {
               animate={{ width: 250, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
+              style={{ overflow: 'hidden', marginRight: 8, borderRadius: 10 }}>
               <NotesSidebar
                 notesTree={notesTree}
                 selectedFolderId={selectedFolderId}
                 onSelectNode={handleSelectNode}
+                onSelectRoot={handleSelectRoot}
                 onCreateFolder={handleCreateFolder}
                 onCreateNote={handleCreateNote}
                 onDeleteNode={handleDeleteNode}
@@ -897,6 +947,8 @@ const NotesPage: FC = () => {
                 onMoveNode={handleMoveNode}
                 onSortNodes={handleSortNodes}
                 onUploadFiles={handleUploadFiles}
+                notesPath={notesPath}
+                refreshTree={refreshTree}
               />
             </motion.div>
           )}
@@ -916,6 +968,7 @@ const NotesPage: FC = () => {
             onMarkdownChange={handleMarkdownChange}
             editorRef={editorRef}
             codeEditorRef={codeEditorRef}
+            currentFilePath={activeFilePath}
           />
         </EditorWrapper>
       </ContentContainer>
@@ -928,6 +981,35 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
+`
+
+const UploadProgressBar = styled.div`
+  background: var(--color-background-soft);
+  border-bottom: 1px solid var(--color-border);
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+const ProgressText = styled.div`
+  font-size: 12px;
+  color: var(--color-text-2);
+`
+
+const ProgressBarContainer = styled.div`
+  width: 100%;
+  height: 4px;
+  background: var(--color-background-mute);
+  border-radius: 2px;
+  overflow: hidden;
+`
+
+const ProgressBarFill = styled.div`
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+  border-radius: 2px;
 `
 
 const ContentContainer = styled.div`
@@ -948,6 +1030,8 @@ const EditorWrapper = styled.div`
   overflow: hidden;
   min-height: 0;
   min-width: 0;
+  border-radius: 10px;
+  background: var(--color-background);
 `
 
 export default NotesPage

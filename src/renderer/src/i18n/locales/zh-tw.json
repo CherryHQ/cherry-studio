@@ -2134,11 +2134,14 @@
     "export_failed": "匯出至知識庫失敗",
     "export_knowledge": "匯出筆記至知識庫",
     "export_success": "成功匯出至知識庫",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "選擇資料夾失敗",
     "folder": "文件夹",
     "new_folder": "新建文件夾",
     "new_note": "新建筆記",
     "no_content_to_copy": "沒有內容可複制",
     "no_file_selected": "請選擇要上傳的文件",
+    "no_markdown_files_in_folder": "所選資料夾中沒有 Markdown 檔案",
     "no_valid_files": "沒有上傳有效的檔案",
     "open_folder": "打開外部文件夾",
     "open_outside": "從外部打開",
@@ -2153,6 +2156,8 @@
       "searching": "搜索中...",
       "show_less": "收起"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "選擇要上傳的資料夾",
     "settings": {
       "data": {
         "apply": "應用",
@@ -2218,10 +2223,12 @@
     "unstar": "取消收藏",
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
+    "upload": "上傳",
     "upload_failed": "筆記上傳失敗",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "上傳文件",
+    "upload_folder": "上傳資料夾",
     "upload_success": "筆記上傳成功",
+    "uploading": "正在上傳",
     "uploading_files": "正在上傳 {{count}} 個檔案..."
   },
   "notification": {

@@ -2134,11 +2134,14 @@
     "export_failed": "Exportación a la base de conocimientos fallida",
     "export_knowledge": "exportar notas a la base de conocimientos",
     "export_success": "Exportado con éxito a la base de conocimientos",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "[to be translated]:Failed to select folder",
     "folder": "carpeta",
     "new_folder": "Nueva carpeta",
     "new_note": "Crear nota nueva",
     "no_content_to_copy": "No hay contenido para copiar",
     "no_file_selected": "Por favor, seleccione el archivo a subir",
+    "no_markdown_files_in_folder": "[to be translated]:No Markdown files in the selected folder",
     "no_valid_files": "No se ha cargado un archivo válido",
     "open_folder": "abrir carpeta externa",
     "open_outside": "Abrir desde el exterior",
@@ -2153,6 +2156,8 @@
       "searching": "Buscando...",
       "show_less": "Recoger"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "[to be translated]:Select folder to upload",
     "settings": {
       "data": {
         "apply": "aplicación",
@@ -2218,10 +2223,12 @@
     "unstar": "Quitar de favoritos",
     "untitled_folder": "Nueva carpeta",
     "untitled_note": "Nota sin título",
+    "upload": "[to be translated]:Upload",
     "upload_failed": "Error al cargar la nota",
     "upload_files": "[to be translated]:Upload Files",
     "upload_folder": "[to be translated]:Upload Folder",
     "upload_success": "Nota cargada con éxito",
+    "uploading": "[to be translated]:Uploading",
     "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {

@@ -5,6 +5,7 @@ import { getFileDirectory } from '@renderer/utils'
 const logger = loggerService.withContext('NotesService')
 
 const MARKDOWN_EXT = '.md'
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']
 
 export interface UploadResult {
   uploadedNodes: NotesTreeNode[]
@@ -82,9 +83,11 @@ export async function renameNode(node: NotesTreeNode, newName: string): Promise<
   return { path: `${parentDir}/${safeName}`, name: safeName }
 }
 
-export async function uploadNotes(files: File[], targetPath: string): Promise<UploadResult> {
+export async function uploadNotes(
+  files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
+  targetPath: string
+): Promise<UploadResult> {
   const basePath = normalizePath(targetPath)
-  const totalFiles = files.length
 
   if (files.length === 0) {
     return {
@@ -96,35 +99,93 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
     }
   }
 
+  const firstItem = files[0]
+  const isEntryDataList =
+    typeof firstItem === 'object' && 'fullPath' in firstItem && 'systemPath' in firstItem && 'isFile' in firstItem
+
+  if (isEntryDataList) {
+    const entries = files as Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>
+    return uploadNotesRecursive(entries, targetPath)
+  }
+
+  // Legacy approach: File objects (for browser File API compatibility)
+  const fileList = files as File[]
+  const totalFiles = fileList.length
+
   try {
-    // Get file paths from File objects
-    // For browser File objects from drag-and-drop, we need to use FileReader to save temporarily
-    // However, for directory uploads, the files already have paths
     const filePaths: string[] = []
 
-    for (const file of files) {
-      // @ts-ignore - webkitRelativePath exists on File objects from directory uploads
-      if (file.path) {
-        // @ts-ignore - Electron File objects have .path property
-        filePaths.push(file.path)
+    for (const file of fileList) {
+      const filePath = window.api.file.getPathForFile(file)
+
+      if (filePath) {
+        filePaths.push(filePath)
       } else {
-        // For browser File API, we'd need to use FileReader and create temp files
-        // For now, fall back to the old method for these cases
-        logger.warn('File without path detected, using fallback method')
-        return uploadNotesLegacy(files, targetPath)
+        logger.warn('Failed to get system path for uploaded file:', { fileName: file.name })
+        window.toast.warning(`Failed to get system path for file: ${file.name}`)
+      }
+    }
+
+    if (filePaths.length === 0) {
+      return {
+        uploadedNodes: [],
+        totalFiles,
+        skippedFiles: totalFiles,
+        fileCount: 0,
+        folderCount: 0
       }
     }
 
     // Pause file watcher to prevent N refresh events
     await window.api.file.pauseFileWatcher()
 
+    // Use simplified batchUpload for File objects
+    const result = await window.api.file.batchUpload(filePaths, basePath, {
+      allowedExtensions: [MARKDOWN_EXT, ...IMAGE_EXTS]
+    })
+
+    return {
+      uploadedNodes: [],
+      totalFiles,
+      skippedFiles: result.skippedFiles,
+      fileCount: result.fileCount,
+      folderCount: result.folderCount
+    }
+  } catch (error) {
+    logger.error('Legacy file upload failed:', error as Error)
+    return {
+      uploadedNodes: [],
+      totalFiles,
+      skippedFiles: totalFiles,
+      fileCount: 0,
+      folderCount: 0
+    }
+  }
+}
+
+/**
+ * Recursive upload for drag-and-drop with fullPath preserved (VS Code approach)
+ * Uses batch processing for better performance
+ */
+async function uploadNotesRecursive(
+  entryDataList: Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
+  targetPath: string
+): Promise<UploadResult> {
+  const basePath = normalizePath(targetPath)
+
+  try {
+    // Pause file watcher to prevent N refresh events
+    await window.api.file.pauseFileWatcher()
+
     try {
-      // Use the new optimized batch upload API that runs in Main process
-      const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
+      // Use batch upload API for better performance (parallel processing in Main process)
+      const result = await window.api.file.batchUploadEntries(entryDataList, basePath, {
+        allowedExtensions: [MARKDOWN_EXT, ...IMAGE_EXTS]
+      })
 
       return {
         uploadedNodes: [],
-        totalFiles,
+        totalFiles: result.fileCount + result.skippedFiles,
         skippedFiles: result.skippedFiles,
         fileCount: result.fileCount,
         folderCount: result.folderCount
@@ -134,75 +195,8 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       await window.api.file.resumeFileWatcher()
     }
   } catch (error) {
-    logger.error('Batch upload failed, falling back to legacy method:', error as Error)
-    // Fall back to old method if new method fails
-    return uploadNotesLegacy(files, targetPath)
-  }
-}
-
-/**
- * Legacy upload method using Renderer process
- * Kept as fallback for browser File API files without paths
- */
-async function uploadNotesLegacy(files: File[], targetPath: string): Promise<UploadResult> {
-  const basePath = normalizePath(targetPath)
-  const markdownFiles = filterMarkdown(files)
-  const skippedFiles = files.length - markdownFiles.length
-
-  if (markdownFiles.length === 0) {
-    return {
-      uploadedNodes: [],
-      totalFiles: files.length,
-      skippedFiles,
-      fileCount: 0,
-      folderCount: 0
-    }
-  }
-
-  const folders = collectFolders(markdownFiles, basePath)
-  await createFolders(folders)
-
-  let fileCount = 0
-  const BATCH_SIZE = 5 // Process 5 files concurrently to balance performance and responsiveness
-
-  // Process files in batches to avoid blocking the UI thread
-  for (let i = 0; i < markdownFiles.length; i += BATCH_SIZE) {
-    const batch = markdownFiles.slice(i, i + BATCH_SIZE)
-
-    // Process current batch in parallel
-    const results = await Promise.allSettled(
-      batch.map(async (file) => {
-        const { dir, name } = resolveFileTarget(file, basePath)
-        const { safeName } = await window.api.file.checkFileName(dir, name, true)
-        const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
-
-        const content = await file.text()
-        await window.api.file.write(finalPath, content)
-        return true
-      })
-    )
-
-    // Count successful uploads
-    results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        fileCount += 1
-      } else {
-        logger.error('Failed to write uploaded file:', result.reason)
-      }
-    })
-
-    // Yield to the event loop between batches to keep UI responsive
-    if (i + BATCH_SIZE < markdownFiles.length) {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-  }
-
-  return {
-    uploadedNodes: [],
-    totalFiles: files.length,
-    skippedFiles,
-    fileCount,
-    folderCount: folders.size
+    logger.error('Recursive upload failed:', error as Error)
+    throw error
   }
 }
 
@@ -233,57 +227,15 @@ function normalizePath(value: string): string {
   return value.replace(/\\/g, '/')
 }
 
-function filterMarkdown(files: File[]): File[] {
-  return files.filter((file) => file.name.toLowerCase().endsWith(MARKDOWN_EXT))
-}
-
-function collectFolders(files: File[], basePath: string): Set<string> {
-  const folders = new Set<string>()
-
-  files.forEach((file) => {
-    const relativePath = file.webkitRelativePath || ''
-    if (!relativePath.includes('/')) {
-      return
+export const findNode = (nodes: NotesTreeNode[], nodeId: string): NotesTreeNode | null => {
+  for (const node of nodes) {
+    if (node.id === nodeId) {
+      return node
     }
-
-    const parts = relativePath.split('/')
-    parts.pop()
-
-    let current = basePath
-    for (const part of parts) {
-      current = `${current}/${part}`
-      folders.add(current)
-    }
-  })
-
-  return folders
-}
-
-async function createFolders(folders: Set<string>): Promise<void> {
-  const ordered = Array.from(folders).sort((a, b) => a.length - b.length)
-
-  for (const folder of ordered) {
-    try {
-      await window.api.file.mkdir(folder)
-    } catch (error) {
-      logger.debug('Skip existing folder while uploading notes', {
-        folder,
-        error: (error as Error).message
-      })
+    if (node.children) {
+      const found = findNode(node.children, nodeId)
+      if (found) return found
     }
   }
-}
-
-function resolveFileTarget(file: File, basePath: string): { dir: string; name: string } {
-  if (!file.webkitRelativePath || !file.webkitRelativePath.includes('/')) {
-    const nameWithoutExt = file.name.endsWith(MARKDOWN_EXT) ? file.name.slice(0, -MARKDOWN_EXT.length) : file.name
-    return { dir: basePath, name: nameWithoutExt }
-  }
-
-  const parts = file.webkitRelativePath.split('/')
-  const fileName = parts.pop() || file.name
-  const dirPath = `${basePath}/${parts.join('/')}`
-  const nameWithoutExt = fileName.endsWith(MARKDOWN_EXT) ? fileName.slice(0, -MARKDOWN_EXT.length) : fileName
-
-  return { dir: dirPath, name: nameWithoutExt }
+  return null
 }

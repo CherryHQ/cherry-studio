@@ -2134,11 +2134,14 @@
     "export_failed": "Экспорт в базу знаний не выполнен",
     "export_knowledge": "Экспортировать заметки в базу знаний",
     "export_success": "Успешно экспортировано в базу знаний",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "[to be translated]:Failed to select folder",
     "folder": "папка",
     "new_folder": "Новая папка",
     "new_note": "Создать заметку",
     "no_content_to_copy": "Нет контента для копирования",
     "no_file_selected": "Пожалуйста, выберите файл для загрузки",
+    "no_markdown_files_in_folder": "[to be translated]:No Markdown files in the selected folder",
     "no_valid_files": "Не загружен действительный файл",
     "open_folder": "Откройте внешнюю папку",
     "open_outside": "открыть снаружи",
@@ -2153,6 +2156,8 @@
       "searching": "Идет поиск...",
       "show_less": "Свернуть"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "[to be translated]:Select folder to upload",
     "settings": {
       "data": {
         "apply": "приложение",
@@ -2218,10 +2223,12 @@
     "unstar": "отменить избранное",
     "untitled_folder": "Новая папка",
     "untitled_note": "Незаглавленная заметка",
+    "upload": "[to be translated]:Upload",
     "upload_failed": "Не удалось загрузить заметку",
     "upload_files": "[to be translated]:Upload Files",
     "upload_folder": "[to be translated]:Upload Folder",
     "upload_success": "Заметка успешно загружена",
+    "uploading": "[to be translated]:Uploading",
     "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {

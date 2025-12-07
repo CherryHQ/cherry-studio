@@ -2134,11 +2134,14 @@
     "export_failed": "Εξαγωγή στη βάση γνώσης απέτυχε",
     "export_knowledge": "εξαγωγή σημειώσεων στη βάση γνώσης",
     "export_success": "Επιτυχής εξαγωγή στην βάση γνώσης",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "[to be translated]:Failed to select folder",
     "folder": "φάκελος",
     "new_folder": "Νέος φάκελος",
     "new_note": "Δημιουργία νέας σημείωσης",
     "no_content_to_copy": "Δεν υπάρχει περιεχόμενο προς αντιγραφή",
     "no_file_selected": "Επιλέξτε το αρχείο για μεταφόρτωση",
+    "no_markdown_files_in_folder": "[to be translated]:No Markdown files in the selected folder",
     "no_valid_files": "Δεν ανέβηκε έγκυρο αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "open_outside": "Από το εξωτερικό",
@@ -2153,6 +2156,8 @@
       "searching": "Αναζήτηση...",
       "show_less": "Κλείσιμο"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "[to be translated]:Select folder to upload",
     "settings": {
       "data": {
         "apply": "εφαρμογή",
@@ -2218,10 +2223,12 @@
     "unstar": "Αποσπάστε το αγαπημένο",
     "untitled_folder": "Νέος φάκελος",
     "untitled_note": "σημείωση χωρίς τίτλο",
+    "upload": "[to be translated]:Upload",
     "upload_failed": "Η σημείωση δεν ανέβηκε",
     "upload_files": "[to be translated]:Upload Files",
     "upload_folder": "[to be translated]:Upload Folder",
     "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία",
+    "uploading": "[to be translated]:Uploading",
     "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {

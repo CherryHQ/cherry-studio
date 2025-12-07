@@ -198,7 +198,10 @@ export enum IpcChannel {
   File_StopWatcher = 'file:stopWatcher',
   File_PauseWatcher = 'file:pauseWatcher',
   File_ResumeWatcher = 'file:resumeWatcher',
-  File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
+  File_BatchUpload = 'file:batchUpload',
+  File_UploadFolder = 'file:uploadFolder', // Upload entire folder with recursive structure
+  File_UploadEntry = 'file:uploadEntry', // Single entry upload for drag-and-drop
+  File_BatchUploadEntries = 'file:batchUploadEntries', // Batch entry upload (performance-optimized)
   File_ShowInFolder = 'file:showInFolder',
 
   // file service

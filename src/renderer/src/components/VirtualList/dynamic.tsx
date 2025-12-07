@@ -97,6 +97,12 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
    * Additional CSS class name for the container
    */
   className?: string
+
+  /**
+   * Additional DOM attributes/handlers for the scroll container
+   * e.g. onClick, onContextMenu for parent wrappers like antd Dropdown
+   */
+  containerProps?: React.HTMLAttributes<HTMLDivElement>
 }
 
 function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
@@ -114,8 +120,12 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     autoHideScrollbar = false,
     header,
     className,
+    containerProps,
     ...restOptions
   } = props
+
+  // Forward provided container props to the scroll container
+  const domEventHandlers = containerProps ?? ({} as React.DOMAttributes<HTMLDivElement>)
 
   const [showScrollbar, setShowScrollbar] = useState(!autoHideScrollbar)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -240,6 +250,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   return (
     <ScrollContainer
+      {...domEventHandlers}
       ref={scrollerRef}
       className={className ? `dynamic-virtual-list ${className}` : 'dynamic-virtual-list'}
       role="region"

@@ -2134,12 +2134,15 @@
     "export_failed": "Failed to export to knowledge base",
     "export_knowledge": "Export notes to knowledge base",
     "export_success": "Successfully exported to the knowledge base",
+    "failed_to_select_files": "Failed to select files",
+    "failed_to_select_folder": "Failed to select folder",
     "folder": "folder",
     "new_folder": "New Folder",
     "new_note": "Create a new note",
     "no_content_to_copy": "No content to copy",
     "no_file_selected": "Please select the file to upload",
-    "no_valid_files": "No valid file was uploaded",
+    "no_markdown_files_in_folder": "No Markdown files in the selected folder",
+    "no_valid_files": "No valid files found",
     "open_folder": "Open an external folder",
     "open_outside": "Open from external",
     "rename": "Rename",
@@ -2153,6 +2156,8 @@
       "searching": "Searching...",
       "show_less": "Show less"
     },
+    "select_files_to_upload": "Select files to upload",
+    "select_folder_to_upload": "Select folder to upload",
     "settings": {
       "data": {
         "apply": "Apply",
@@ -2218,10 +2223,12 @@
     "unstar": "Unfavorite",
     "untitled_folder": "New Folder",
     "untitled_note": "Untitled Note",
+    "upload": "Upload",
     "upload_failed": "Note upload failed",
     "upload_files": "Upload Files",
     "upload_folder": "Upload Folder",
     "upload_success": "Note uploaded success",
+    "uploading": "Uploading",
     "uploading_files": "Uploading {{count}} files..."
   },
   "notification": {

@@ -24,10 +24,11 @@ interface NotesEditorProps {
   editorRef: RefObject<RichEditorRef | null>
   codeEditorRef: RefObject<CodeEditorHandles | null>
   onMarkdownChange: (content: string) => void
+  currentFilePath?: string
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
+  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef, codeEditorRef, currentFilePath }) => {
     const { t } = useTranslation()
     const dispatch = useAppDispatch()
     const { settings } = useNotesSettings()
@@ -90,6 +91,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
+              currentFilePath={currentFilePath}
             />
           )}
         </RichEditorContainer>
@@ -156,6 +158,8 @@ const RichEditorContainer = styled.div`
   transition: opacity 0.2s ease-in-out;
 
   .notes-rich-editor {
+    /* Set RichEditor toolbar background for Notes context */
+    --rich-editor-toolbar-bg: var(--color-background);
     border: none;
     border-radius: 0;
     flex: 1;

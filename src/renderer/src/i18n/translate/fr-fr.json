@@ -2134,11 +2134,14 @@
     "export_failed": "Échec de l'exportation vers la base de connaissances",
     "export_knowledge": "exporter la note vers la base de connaissances",
     "export_success": "Exporté avec succès vers la base de connaissances",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "[to be translated]:Failed to select folder",
     "folder": "dossier",
     "new_folder": "Nouveau dossier",
     "new_note": "Nouvelle note",
     "no_content_to_copy": "Aucun contenu à copier",
     "no_file_selected": "Veuillez sélectionner le fichier à télécharger",
+    "no_markdown_files_in_folder": "[to be translated]:No Markdown files in the selected folder",
     "no_valid_files": "Aucun fichier valide n’a été téléversé",
     "open_folder": "ouvrir le dossier externe",
     "open_outside": "Ouvrir depuis l'extérieur",
@@ -2153,6 +2156,8 @@
       "searching": "Recherche en cours...",
       "show_less": "Replier"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "[to be translated]:Select folder to upload",
     "settings": {
       "data": {
         "apply": "application",
@@ -2218,10 +2223,12 @@
     "unstar": "annuler la mise en favori",
     "untitled_folder": "nouveau dossier",
     "untitled_note": "Note sans titre",
+    "upload": "[to be translated]:Upload",
     "upload_failed": "Échec du téléchargement de la note",
     "upload_files": "[to be translated]:Upload Files",
     "upload_folder": "[to be translated]:Upload Folder",
     "upload_success": "Note téléchargée avec succès",
+    "uploading": "[to be translated]:Uploading",
     "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {

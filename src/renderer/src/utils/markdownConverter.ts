@@ -843,7 +843,6 @@ export const htmlToMarkdown = (html: string | null | undefined): string => {
 /**
  * Converts Markdown content to HTML
  * @param markdown - Markdown string to convert
- * @param options - Task list options
  * @returns HTML string
  */
 export const markdownToHtml = (markdown: string | null | undefined): string => {
@@ -951,3 +950,7 @@ export const isMarkdownContent = (content: string): boolean => {
 
   return markdownPatterns.some((pattern) => pattern.test(content))
 }
+
+/**
+
+*/

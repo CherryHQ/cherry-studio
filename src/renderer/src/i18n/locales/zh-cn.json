@@ -2134,12 +2134,15 @@
     "export_failed": "导出到知识库失败",
     "export_knowledge": "导出笔记到知识库",
     "export_success": "成功导出到知识库",
+    "failed_to_select_files": "选择文件失败",
+    "failed_to_select_folder": "选择文件夹失败",
     "folder": "文件夹",
     "new_folder": "新建文件夹",
     "new_note": "新建笔记",
     "no_content_to_copy": "没有内容可复制",
     "no_file_selected": "请选择要上传的文件",
-    "no_valid_files": "没有上传有效的文件",
+    "no_markdown_files_in_folder": "所选文件夹中没有 Markdown 文件",
+    "no_valid_files": "没有找到有效文件",
     "open_folder": "打开外部文件夹",
     "open_outside": "从外部打开",
     "rename": "重命名",
@@ -2153,6 +2156,8 @@
       "searching": "搜索中...",
       "show_less": "收起"
     },
+    "select_files_to_upload": "选择要上传的文件",
+    "select_folder_to_upload": "选择要上传的文件夹",
     "settings": {
       "data": {
         "apply": "应用",
@@ -2218,10 +2223,12 @@
     "unstar": "取消收藏",
     "untitled_folder": "新文件夹",
     "untitled_note": "无标题笔记",
+    "upload": "上传",
     "upload_failed": "笔记上传失败",
     "upload_files": "上传文件",
     "upload_folder": "上传文件夹",
     "upload_success": "笔记上传成功",
+    "uploading": "正在上传",
     "uploading_files": "正在上传 {{count}} 个文件..."
   },
   "notification": {

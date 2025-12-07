@@ -2134,11 +2134,14 @@
     "export_failed": "Export in Wissensdatenbank fehlgeschlagen",
     "export_knowledge": "Notiz in Wissensdatenbank exportieren",
     "export_success": "Erfolgreich in Wissensdatenbank exportiert",
+    "failed_to_select_files": "[to be translated]:Failed to select files",
+    "failed_to_select_folder": "[to be translated]:Failed to select folder",
     "folder": "Ordner",
     "new_folder": "Neuer Ordner",
     "new_note": "Neue Notiz",
     "no_content_to_copy": "Kein Inhalt zum Kopieren",
     "no_file_selected": "Bitte Datei zum Hochladen auswählen",
+    "no_markdown_files_in_folder": "[to be translated]:No Markdown files in the selected folder",
     "no_valid_files": "Keine gültigen Dateien hochgeladen",
     "open_folder": "Externen Ordner öffnen",
     "open_outside": "Extern öffnen",
@@ -2153,6 +2156,8 @@
       "searching": "Searching...",
       "show_less": "Weniger anzeigen"
     },
+    "select_files_to_upload": "[to be translated]:Select files to upload",
+    "select_folder_to_upload": "[to be translated]:Select folder to upload",
     "settings": {
       "data": {
         "apply": "Anwenden",
@@ -2218,10 +2223,12 @@
     "unstar": "Markierung aufheben",
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
+    "upload": "[to be translated]:Upload",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
     "upload_files": "[to be translated]:Upload Files",
     "upload_folder": "[to be translated]:Upload Folder",
     "upload_success": "Notizen erfolgreich hochgeladen",
+    "uploading": "[to be translated]:Uploading",
     "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {

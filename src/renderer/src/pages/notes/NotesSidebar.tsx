@@ -1,6 +1,7 @@
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import { findNode } from '@renderer/services/NotesService'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -31,6 +32,7 @@ interface NotesSidebarProps {
   onCreateFolder: (name: string, targetFolderId?: string) => void
   onCreateNote: (name: string, targetFolderId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
+  onSelectRoot: () => void
   onDeleteNode: (nodeId: string) => void
   onRenameNode: (nodeId: string, newName: string) => void
   onToggleExpanded: (nodeId: string) => void
@@ -40,12 +42,15 @@ interface NotesSidebarProps {
   onUploadFiles: (files: File[]) => void
   notesTree: NotesTreeNode[]
   selectedFolderId?: string | null
+  notesPath?: string
+  refreshTree?: () => Promise<void>
 }
 
 const NotesSidebar: FC<NotesSidebarProps> = ({
   onCreateFolder,
   onCreateNote,
   onSelectNode,
+  onSelectRoot,
   onDeleteNode,
   onRenameNode,
   onToggleExpanded,
@@ -54,10 +59,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onSortNodes,
   onUploadFiles,
   notesTree,
-  selectedFolderId
+  selectedFolderId,
+  notesPath,
+  refreshTree
 }) => {
   const { t } = useTranslation()
   const { activeNode } = useActiveNode(notesTree)
+  const isRootSelected = !selectedFolderId && !activeNode?.id
   const sortType = useAppSelector(selectSortType)
 
   const [isShowStarred, setIsShowStarred] = useState(false)
@@ -87,7 +95,17 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const { handleDropFiles, handleSelectFiles, handleSelectFolder } = useNotesFileUpload({
     onUploadFiles,
-    setIsDragOverSidebar
+    setIsDragOverSidebar,
+    getTargetFolderPath: () => {
+      if (selectedFolderId) {
+        const selectedNode = findNode(notesTree, selectedFolderId)
+        if (selectedNode && selectedNode.type === 'folder') {
+          return selectedNode.externalPath
+        }
+      }
+      return notesPath || ''
+    },
+    refreshTree
   })
 
   const { getMenuItems } = useNotesMenu({
@@ -243,7 +261,24 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       return filteredNodes.map((node) => ({ node, depth: 0 }))
     }
 
-    return flattenForVirtualization(notesTree)
+    const normalNodes = flattenForVirtualization(notesTree)
+
+    // Add hint-node to the end
+    return [
+      ...normalNodes,
+      {
+        node: {
+          id: 'hint-node',
+          name: '',
+          type: 'hint' as const,
+          treePath: '',
+          externalPath: '',
+          createdAt: '',
+          updatedAt: ''
+        },
+        depth: 0
+      }
+    ]
   }, [notesTree, isShowStarred, isShowSearch, hasSearchKeyword, searchResults])
 
   // Scroll to active node
@@ -349,6 +384,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             <NotesSearchContext value={searchValue}>
               <NotesUIContext value={{ openDropdownKey }}>
                 <SidebarContainer
+                  $rootSelected={isRootSelected}
                   onDragOver={(e) => {
                     e.preventDefault()
                     if (!draggedNodeId) {
@@ -403,32 +439,38 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                       <DynamicVirtualList
                         ref={virtualListRef}
                         list={flattenedNodes}
+                        size={0}
                         estimateSize={() => 28}
+                        scrollerStyle={{ flex: 1, minHeight: 0, height: 'auto' }}
                         itemContainerStyle={{ padding: '8px 8px 0 8px' }}
                         overscan={10}
                         isSticky={isSticky}
-                        getItemDepth={getItemDepth}>
-                        {({ node, depth }) => <TreeNode node={node} depth={depth} renderChildren={false} />}
+                        getItemDepth={getItemDepth}
+                        containerProps={{
+                          onContextMenu: (e) => {
+                            const target = e.target as HTMLElement
+                            if (!target.closest('[data-index]')) {
+                              onSelectRoot()
+                              setOpenDropdownKey('empty-area')
+                            }
+                          },
+                          onClick: (e) => {
+                            const target = e.target as HTMLElement
+                            if (!target.closest('[data-index]')) {
+                              onSelectRoot()
+                            }
+                          }
+                        }}>
+                        {({ node, depth }) => (
+                          <TreeNode
+                            node={node}
+                            depth={depth}
+                            renderChildren={false}
+                            onHintClick={node.type === 'hint' ? handleSelectFolder : undefined}
+                          />
+                        )}
                       </DynamicVirtualList>
                     </Dropdown>
-                    {!isShowStarred && !isShowSearch && (
-                      <div style={{ padding: '0 8px', marginTop: '6px', marginBottom: '20px' }}>
-                        <TreeNode
-                          node={{
-                            id: 'hint-node',
-                            name: '',
-                            type: 'hint',
-                            treePath: '',
-                            externalPath: '',
-                            createdAt: '',
-                            updatedAt: ''
-                          }}
-                          depth={0}
-                          renderChildren={false}
-                          onHintClick={handleSelectFolder}
-                        />
-                      </div>
-                    )}
                   </NotesTreeContainer>
 
                   {isDragOverSidebar && <DragOverIndicator />}
@@ -442,16 +484,19 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   )
 }
 
-export const SidebarContainer = styled.div`
+export const SidebarContainer = styled.div<{ $rootSelected?: boolean }>`
   width: 250px;
   min-width: 250px;
-  height: calc(100vh - var(--navbar-height));
+  height: 100%;
   background-color: var(--color-background);
   border-right: 0.5px solid var(--color-border);
-  border-top-left-radius: 10px;
+  border-bottom: 0.5px solid var(--color-border);
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   position: relative;
+  box-shadow: ${({ $rootSelected }) => ($rootSelected ? '0 0 0 2px var(--color-primary) inset' : 'none')};
+  transition: box-shadow 0.15s ease;
 `
 
 export const NotesTreeContainer = styled.div`
@@ -459,7 +504,7 @@ export const NotesTreeContainer = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height) - 45px);
+  min-height: 0;
 `
 
 export const DragOverIndicator = styled.div`
