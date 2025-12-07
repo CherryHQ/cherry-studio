@@ -653,9 +653,7 @@ const NotesPage: FC = () => {
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (
-      files:
-        | File[]
-        | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
+      files: File[] | Array<{ fullPath: string; isFile: boolean; isDirectory: boolean; systemPath: string }>,
       overrideTargetFolderPath?: string
     ) => {
       try {
