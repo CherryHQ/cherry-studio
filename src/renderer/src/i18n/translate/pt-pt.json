@@ -3718,6 +3718,7 @@
         },
         "visible": "Ícones visíveis"
       },
+      "remember_window_state": "Lembrar posição e tamanho da janela",
       "title": "Configurações de exibição",
       "topic": {
         "title": "Configurações de tópico"

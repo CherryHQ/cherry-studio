@@ -3718,6 +3718,7 @@
         },
         "visible": "Icônes affichées"
       },
+      "remember_window_state": "Mémoriser la position et la taille de la fenêtre",
       "title": "Paramètres d'affichage",
       "topic": {
         "title": "Paramètres de sujet"

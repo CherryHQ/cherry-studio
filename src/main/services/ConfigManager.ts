@@ -31,7 +31,8 @@ export enum ConfigKeys {
   DisableHardwareAcceleration = 'disableHardwareAcceleration',
   Proxy = 'proxy',
   EnableDeveloperMode = 'enableDeveloperMode',
-  ClientId = 'clientId'
+  ClientId = 'clientId',
+  RememberWindowState = 'rememberWindowState'
 }
 
 export class ConfigManager {
@@ -254,6 +255,14 @@ export class ConfigManager {
     }
 
     return clientId
+  }
+
+  getRememberWindowState(): boolean {
+    return this.get<boolean>(ConfigKeys.RememberWindowState, true)
+  }
+
+  setRememberWindowState(value: boolean) {
+    this.set(ConfigKeys.RememberWindowState, value)
   }
 
   set(key: string, value: unknown, isNotify: boolean = false) {

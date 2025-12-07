@@ -3718,6 +3718,7 @@
         },
         "visible": "アイコンを表示"
       },
+      "remember_window_state": "ウィンドウの位置とサイズを記憶",
       "title": "表示設定",
       "topic": {
         "title": "トピック設定"

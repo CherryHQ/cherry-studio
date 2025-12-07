@@ -68,7 +68,9 @@ const DisplaySettings: FC = () => {
     sidebarIcons,
     setTheme,
     assistantIconType,
-    userTheme
+    userTheme,
+    rememberWindowState,
+    setRememberWindowState
   } = useSettings()
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme } = useTheme()
@@ -245,6 +247,11 @@ const DisplaySettings: FC = () => {
             </SettingRow>
           </>
         )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.remember_window_state')}</SettingRowTitle>
+          <Switch checked={rememberWindowState} onChange={setRememberWindowState} />
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
