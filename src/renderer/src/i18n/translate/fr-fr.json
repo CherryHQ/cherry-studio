@@ -1162,6 +1162,7 @@
     "no_results": "Aucun résultat",
     "none": "Aucun",
     "off": "Désactivé",
+    "on": "Marche",
     "open": "Ouvrir",
     "paste": "Coller",
     "placeholders": {
@@ -2219,7 +2220,10 @@
     "untitled_folder": "nouveau dossier",
     "untitled_note": "Note sans titre",
     "upload_failed": "Échec du téléchargement de la note",
-    "upload_success": "Note téléchargée avec succès"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Note téléchargée avec succès",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
@@ -4270,6 +4274,12 @@
         "priority": "priorité",
         "tip": "Spécifie le niveau de latence utilisé pour traiter la demande",
         "title": "Niveau de service"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Si l'utilisation des jetons est incluse (applicable uniquement à l'API OpenAI Chat Completions)",
+          "title": "Inclure l'utilisation"
+        }
       },
       "summary_text_mode": {
         "auto": "Automatique",

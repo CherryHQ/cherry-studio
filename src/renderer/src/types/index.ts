@@ -440,6 +440,7 @@ export type MinAppType = {
   name: string
   logo?: string
   url: string
+  // FIXME: It should be `bordered`
   bodered?: boolean
   background?: string
   style?: CSSProperties

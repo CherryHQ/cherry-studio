@@ -1162,6 +1162,7 @@
     "no_results": "Результатов не найдено",
     "none": "без",
     "off": "Выкл",
+    "on": "Вкл",
     "open": "Открыть",
     "paste": "Вставить",
     "placeholders": {
@@ -2219,7 +2220,10 @@
     "untitled_folder": "Новая папка",
     "untitled_note": "Незаглавленная заметка",
     "upload_failed": "Не удалось загрузить заметку",
-    "upload_success": "Заметка успешно загружена"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "Заметка успешно загружена",
+    "uploading_files": "[to be translated]:Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Ответ ассистента",
@@ -4270,6 +4274,12 @@
         "priority": "приоритет",
         "tip": "Указывает уровень задержки, который следует использовать для обработки запроса",
         "title": "Уровень сервиса"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Включено ли использование токенов (применимо только к API завершения чата OpenAI)",
+          "title": "Включить использование"
+        }
       },
       "summary_text_mode": {
         "auto": "Авто",

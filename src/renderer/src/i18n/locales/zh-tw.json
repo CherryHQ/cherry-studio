@@ -1162,6 +1162,7 @@
     "no_results": "沒有結果",
     "none": "無",
     "off": "關閉",
+    "on": "開啟",
     "open": "開啟",
     "paste": "貼上",
     "placeholders": {
@@ -2219,7 +2220,10 @@
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
     "upload_failed": "筆記上傳失敗",
-    "upload_success": "筆記上傳成功"
+    "upload_files": "[to be translated]:Upload Files",
+    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_success": "筆記上傳成功",
+    "uploading_files": "正在上傳 {{count}} 個檔案..."
   },
   "notification": {
     "assistant": "助手回應",
@@ -4270,6 +4274,12 @@
         "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否請求 Tokens 用量（僅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
       },
       "summary_text_mode": {
         "auto": "自動",

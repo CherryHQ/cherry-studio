@@ -11,6 +11,7 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { isSystemProvider, type Model, type Provider } from '@renderer/types'
+import { isSupportStreamOptionsProvider } from '@renderer/utils/provider'
 import {
   type AiSdkConfigContext,
   formatProviderApiHost as sharedFormatProviderApiHost,
@@ -31,6 +32,8 @@ import { getAiSdkProviderId } from './factory'
 function createRendererSdkContext(model: Model): AiSdkConfigContext {
   return {
     isOpenAIChatCompletionOnlyModel: () => isOpenAIChatCompletionOnlyModel(model),
+    isSupportStreamOptionsProvider: (provider) => isSupportStreamOptionsProvider(provider as Provider),
+    getIncludeUsageSetting: () => store.getState().settings.openAI?.streamOptions?.includeUsage,
     getCopilotDefaultHeaders: () => COPILOT_DEFAULT_HEADERS,
     getCopilotStoredHeaders: () => store.getState().copilot.defaultHeaders ?? {},
     getAwsBedrockConfig: () => {

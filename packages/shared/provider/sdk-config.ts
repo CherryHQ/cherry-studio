@@ -33,6 +33,18 @@ export interface AiSdkConfigContext {
   isOpenAIChatCompletionOnlyModel?: (modelId: string) => boolean
 
   /**
+   * Check if provider supports stream options
+   * Default: returns true
+   */
+  isSupportStreamOptionsProvider?: (provider: MinimalProvider) => boolean
+
+  /**
+   * Get includeUsage setting for stream options
+   * Default: returns undefined
+   */
+  getIncludeUsageSetting?: () => boolean | undefined | Promise<boolean | undefined>
+
+  /**
    * Get Copilot default headers (constants)
    * Default: returns empty object
    */
@@ -106,6 +118,8 @@ export function providerToAiSdkConfig(
   context: AiSdkConfigContext = {}
 ): AiSdkConfig {
   const isOpenAIChatCompletionOnlyModel = context.isOpenAIChatCompletionOnlyModel || (() => false)
+  const isSupportStreamOptionsProvider = context.isSupportStreamOptionsProvider || (() => true)
+  const getIncludeUsageSetting = context.getIncludeUsageSetting || (() => undefined)
 
   const aiSdkProviderId = getAiSdkProviderId(provider)
 
@@ -114,6 +128,12 @@ export function providerToAiSdkConfig(
   const baseConfig = {
     baseURL,
     apiKey: provider.apiKey
+  }
+
+  let includeUsage: boolean | undefined = undefined
+  if (isSupportStreamOptionsProvider(provider)) {
+    const setting = getIncludeUsageSetting()
+    includeUsage = setting instanceof Promise ? undefined : setting
   }
 
   // Handle Copilot specially
@@ -127,7 +147,7 @@ export function providerToAiSdkConfig(
         ...provider.extra_headers
       },
       name: provider.id,
-      includeUsage: true
+      includeUsage
     }
     if (context.fetch) {
       copilotExtraOptions.fetch = context.fetch
@@ -253,7 +273,7 @@ export function providerToAiSdkConfig(
       ...options,
       name: provider.id,
       ...extraOptions,
-      includeUsage: true
+      includeUsage
     }
   }
 }

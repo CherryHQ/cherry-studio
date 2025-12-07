@@ -1162,6 +1162,7 @@
     "no_results": "No results",
     "none": "None",
     "off": "Off",
+    "on": "On",
     "open": "Open",
     "paste": "Paste",
     "placeholders": {
@@ -2219,7 +2220,10 @@
     "untitled_folder": "New Folder",
     "untitled_note": "Untitled Note",
     "upload_failed": "Note upload failed",
-    "upload_success": "Note uploaded success"
+    "upload_files": "Upload Files",
+    "upload_folder": "Upload Folder",
+    "upload_success": "Note uploaded success",
+    "uploading_files": "Uploading {{count}} files..."
   },
   "notification": {
     "assistant": "Assistant Response",
@@ -4270,6 +4274,12 @@
         "priority": "priority",
         "tip": "Specifies the latency tier to use for processing the request",
         "title": "Service Tier"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Whether token usage is included (applicable only to the OpenAI Chat Completions API)",
+          "title": "Include usage"
+        }
       },
       "summary_text_mode": {
         "auto": "auto",

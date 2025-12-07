@@ -27,6 +27,7 @@ import {
   isAnthropicProvider,
   isGeminiProvider,
   isOpenAIProvider,
+  type MinimalProvider,
   type ProviderFormatContext,
   providerToAiSdkConfig as sharedProviderToAiSdkConfig,
   resolveActualProvider,
@@ -97,7 +98,15 @@ function getMainProcessFormatContext(): ProviderFormatContext {
   }
 }
 
+function isSupportStreamOptionsProvider(provider: MinimalProvider): boolean {
+  const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral'] as const
+  return !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.some((pid) => pid === provider.id)
+}
+
 const mainProcessSdkContext: AiSdkConfigContext = {
+  isSupportStreamOptionsProvider,
+  getIncludeUsageSetting: () =>
+    reduxService.selectSync<boolean | undefined>('state.settings.openAI?.streamOptions?.includeUsage'),
   fetch: net.fetch as typeof globalThis.fetch
 }
 
