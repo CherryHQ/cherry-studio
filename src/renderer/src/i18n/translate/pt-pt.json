@@ -1162,6 +1162,7 @@
     "no_results": "Nenhum resultado",
     "none": "Nenhum",
     "off": "Desligado",
+    "on": "Ligado",
     "open": "Abrir",
     "paste": "Colar",
     "placeholders": {
@@ -4280,6 +4281,12 @@
         "priority": "prioridade",
         "tip": "Especifique o nível de latência usado para processar a solicitação",
         "title": "Nível de Serviço"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Se o uso de tokens está incluído (aplicável apenas à API de Conclusões de Chat da OpenAI)",
+          "title": "Incluir uso"
+        }
       },
       "summary_text_mode": {
         "auto": "Automático",

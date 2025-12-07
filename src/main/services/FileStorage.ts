@@ -1488,6 +1488,12 @@ class FileStorage {
         return
       }
 
+      // Skip processing if watcher is paused
+      if (this.isPaused) {
+        logger.debug('File change ignored (watcher paused)', { eventType, filePath })
+        return
+      }
+
       if (!this.shouldWatchFile(filePath, eventType)) {
         return
       }

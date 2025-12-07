@@ -37,7 +37,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings, getProviderByModel } from '@renderer/services/AssistantService'
 import type { Assistant, Model } from '@renderer/types'
 import { EFFORT_RATIO, isSystemProvider, SystemProviderIds } from '@renderer/types'
-import type { OpenAISummaryText } from '@renderer/types/aiCoreTypes'
+import type { OpenAIReasoningSummary } from '@renderer/types/aiCoreTypes'
 import type { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
 import { isSupportEnableThinkingProvider } from '@renderer/utils/provider'
 import { toInteger } from 'lodash'
@@ -448,7 +448,7 @@ export function getOpenAIReasoningParams(
   const openAI = getStoreSetting('openAI')
   const summaryText = openAI.summaryText
 
-  let reasoningSummary: OpenAISummaryText = undefined
+  let reasoningSummary: OpenAIReasoningSummary = undefined
 
   if (model.id.includes('o1-pro')) {
     reasoningSummary = undefined

@@ -1162,6 +1162,7 @@
     "no_results": "Sin resultados",
     "none": "无",
     "off": "Apagado",
+    "on": "En",
     "open": "Abrir",
     "paste": "Pegar",
     "placeholders": {
@@ -4280,6 +4281,12 @@
         "priority": "prioridad",
         "tip": "Especifica el nivel de latencia utilizado para procesar la solicitud",
         "title": "Nivel de servicio"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Si se incluye el uso de tokens (aplicable solo a la API de Completions de chat de OpenAI)",
+          "title": "Incluir uso"
+        }
       },
       "summary_text_mode": {
         "auto": "Automático",
