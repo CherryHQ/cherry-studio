@@ -950,7 +950,3 @@ export const isMarkdownContent = (content: string): boolean => {
 
   return markdownPatterns.some((pattern) => pattern.test(content))
 }
-
-/**
-
-*/
