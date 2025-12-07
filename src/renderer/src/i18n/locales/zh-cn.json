@@ -3694,6 +3694,7 @@
         },
         "title": "导航栏设置"
       },
+      "remember_window_state": "记住窗口位置和大小",
       "sidebar": {
         "chat": {
           "hiddenMessage": "助手是基础功能，不支持隐藏"
@@ -3718,7 +3719,6 @@
         },
         "visible": "显示的图标"
       },
-      "remember_window_state": "记住窗口位置和大小",
       "title": "显示设置",
       "topic": {
         "title": "话题设置"

@@ -3694,6 +3694,7 @@
         },
         "title": "Configurações da Barra de Navegação"
       },
+      "remember_window_state": "Lembrar posição e tamanho da janela",
       "sidebar": {
         "chat": {
           "hiddenMessage": "O assistente é uma funcionalidade básica e não pode ser ocultada"
@@ -3718,7 +3719,6 @@
         },
         "visible": "Ícones visíveis"
       },
-      "remember_window_state": "Lembrar posição e tamanho da janela",
       "title": "Configurações de exibição",
       "topic": {
         "title": "Configurações de tópico"

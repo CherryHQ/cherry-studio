@@ -3694,6 +3694,7 @@
         },
         "title": "Paramètres de la barre de navigation"
       },
+      "remember_window_state": "Mémoriser la position et la taille de la fenêtre",
       "sidebar": {
         "chat": {
           "hiddenMessage": "L'assistant est une fonction de base et ne peut pas être masquée"
@@ -3718,7 +3719,6 @@
         },
         "visible": "Icônes affichées"
       },
-      "remember_window_state": "Mémoriser la position et la taille de la fenêtre",
       "title": "Paramètres d'affichage",
       "topic": {
         "title": "Paramètres de sujet"

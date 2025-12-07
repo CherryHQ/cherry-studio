@@ -3694,6 +3694,7 @@
         },
         "title": "ナビゲーションバー設定"
       },
+      "remember_window_state": "ウィンドウの位置とサイズを記憶",
       "sidebar": {
         "chat": {
           "hiddenMessage": "アシスタントは基本的な機能であり、非表示はサポートされていません"
@@ -3718,7 +3719,6 @@
         },
         "visible": "アイコンを表示"
       },
-      "remember_window_state": "ウィンドウの位置とサイズを記憶",
       "title": "表示設定",
       "topic": {
         "title": "トピック設定"
