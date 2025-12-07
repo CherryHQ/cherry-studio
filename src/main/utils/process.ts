@@ -147,7 +147,7 @@ export function findGitBash(): string | null {
     const possibleBashPaths = [
       path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
       path.join(gitPath, '..', 'bash.exe'), // Portable Git: git.exe at Git/bin/ -> bash.exe in same directory
-      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // Git for Windows 2.x: git.exe at Git/cmd/ -> navigate up 2 levels -> then usr/bin/bash.exe
+      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // MSYS2 Git: git.exe at msys64/usr/bin/ -> navigate up 2 levels -> then usr/bin/bash.exe
     ]
 
     for (const bashPath of possibleBashPaths) {
@@ -178,6 +178,6 @@ export function findGitBash(): string | null {
     }
   }
 
-  logger.info('Git Bash not found - checked git derivation and common paths')
+  logger.debug('Git Bash not found - checked git derivation and common paths')
   return null
 }

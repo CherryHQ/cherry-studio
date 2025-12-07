@@ -498,15 +498,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       return true // Non-Windows systems don't need Git Bash
     }
 
-    const bashPath = findGitBash()
+    try {
+      const bashPath = findGitBash()
 
-    if (bashPath) {
-      logger.info('Git Bash is available', { path: bashPath })
-      return true
+      if (bashPath) {
+        logger.info('Git Bash is available', { path: bashPath })
+        return true
+      }
+
+      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
+      return false
+    } catch (error) {
+      logger.error('Unexpected error checking Git Bash', error as Error)
+      return false
     }
-
-    logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
-    return false
   })
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
