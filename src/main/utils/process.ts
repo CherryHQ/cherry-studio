@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
-import { spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
+import { isWin } from '../constant'
 import { getResourcePath } from '.'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -39,7 +40,7 @@ export function runInstallScript(scriptPath: string): Promise<void> {
 }
 
 export async function getBinaryName(name: string): Promise<string> {
-  if (process.platform === 'win32') {
+  if (isWin) {
     return `${name}.exe`
   }
   return name
@@ -59,4 +60,124 @@ export async function getBinaryPath(name?: string): Promise<string> {
 export async function isBinaryExists(name: string): Promise<boolean> {
   const cmd = await getBinaryPath(name)
   return await fs.existsSync(cmd)
+}
+
+/**
+ * Find executable in common paths or PATH environment variable
+ * Based on Claude Code's implementation with security checks
+ * @param name - Name of the executable to find (without .exe extension)
+ * @returns Full path to the executable or null if not found
+ */
+export function findExecutable(name: string): string | null {
+  // This implementation uses where.exe which is Windows-only
+  if (!isWin) {
+    return null
+  }
+
+  // Special handling for git - check common installation paths first
+  if (name === 'git') {
+    const commonGitPaths = [
+      path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'cmd', 'git.exe'),
+      path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'cmd', 'git.exe')
+    ]
+
+    for (const gitPath of commonGitPaths) {
+      if (fs.existsSync(gitPath)) {
+        logger.debug(`Found ${name} at common path`, { path: gitPath })
+        return gitPath
+      }
+    }
+  }
+
+  // Use where.exe to find executable in PATH
+  // Use execFileSync to prevent command injection
+  try {
+    // Add .exe extension for more precise matching on Windows
+    const executableName = `${name}.exe`
+    const result = execFileSync('where.exe', [executableName], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    // Handle both Windows (\r\n) and Unix (\n) line endings
+    const paths = result.trim().split(/\r?\n/).filter(Boolean)
+    const currentDir = process.cwd().toLowerCase()
+
+    // Security check: skip executables in current directory
+    for (const exePath of paths) {
+      // Trim whitespace from where.exe output
+      const cleanPath = exePath.trim()
+      const resolvedPath = path.resolve(cleanPath).toLowerCase()
+      const execDir = path.dirname(resolvedPath).toLowerCase()
+
+      // Skip if in current directory or subdirectory (potential malware)
+      if (execDir === currentDir || execDir.startsWith(currentDir + path.sep)) {
+        logger.warn('Skipping potentially malicious executable in current directory', {
+          path: cleanPath
+        })
+        continue
+      }
+
+      logger.debug(`Found ${name} via where.exe`, { path: cleanPath })
+      return cleanPath
+    }
+
+    return null
+  } catch (error) {
+    logger.debug(`where.exe ${name} failed`, { error })
+    return null
+  }
+}
+
+/**
+ * Find Git Bash executable on Windows
+ * @returns Full path to bash.exe or null if not found
+ */
+export function findGitBash(): string | null {
+  // Git Bash is Windows-only
+  if (!isWin) {
+    return null
+  }
+
+  // 1. Find git.exe and derive bash.exe path
+  const gitPath = findExecutable('git')
+  if (gitPath) {
+    // Try multiple possible locations for bash.exe relative to git.exe
+    // Different Git installations have different directory structures
+    const possibleBashPaths = [
+      path.join(gitPath, '..', '..', 'bin', 'bash.exe'), // Standard Git: git.exe at Git/cmd/ -> navigate up 2 levels -> then bin/bash.exe
+      path.join(gitPath, '..', 'bash.exe'), // Portable Git: git.exe at Git/bin/ -> bash.exe in same directory
+      path.join(gitPath, '..', '..', 'usr', 'bin', 'bash.exe') // MSYS2 Git: git.exe at msys64/usr/bin/ -> navigate up 2 levels -> then usr/bin/bash.exe
+    ]
+
+    for (const bashPath of possibleBashPaths) {
+      const resolvedBashPath = path.resolve(bashPath)
+      if (fs.existsSync(resolvedBashPath)) {
+        logger.debug('Found bash.exe via git.exe path derivation', { path: resolvedBashPath })
+        return resolvedBashPath
+      }
+    }
+
+    logger.debug('bash.exe not found at expected locations relative to git.exe', {
+      gitPath,
+      checkedPaths: possibleBashPaths.map((p) => path.resolve(p))
+    })
+  }
+
+  // 2. Fallback: check common Git Bash paths directly
+  const commonBashPaths = [
+    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
+    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
+    ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')] : [])
+  ]
+
+  for (const bashPath of commonBashPaths) {
+    if (fs.existsSync(bashPath)) {
+      logger.debug('Found bash.exe at common path', { path: bashPath })
+      return bashPath
+    }
+  }
+
+  logger.debug('Git Bash not found - checked git derivation and common paths')
+  return null
 }
