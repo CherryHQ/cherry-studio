@@ -163,6 +163,7 @@ import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import type { Model } from '@renderer/types'
 
 export function getModelLogoById(modelId: string): string | undefined {
+  // FIXME: This is always true. Either remove it or fetch it.
   const isLight = true
 
   if (!modelId) {

@@ -101,7 +101,8 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'gemini',
     name: 'Gemini',
     url: 'https://gemini.google.com/',
-    logo: GeminiAppLogo
+    logo: GeminiAppLogo,
+    bodered: true
   },
   {
     id: 'silicon',
