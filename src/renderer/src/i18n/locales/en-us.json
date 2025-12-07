@@ -6,6 +6,9 @@
         "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
       },
+      "model": {
+        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature."
+      },
       "title": "Add Agent",
       "type": {
         "placeholder": "Select an agent type"
