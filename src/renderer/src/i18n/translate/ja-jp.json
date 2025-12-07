@@ -6,6 +6,9 @@
         "failed": "エージェントの追加に失敗しました",
         "invalid_agent": "無効なエージェント"
       },
+      "model": {
+        "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。"
+      },
       "title": "エージェントを追加",
       "type": {
         "placeholder": "エージェントタイプを選択"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "新ファイル夹",
     "untitled_note": "無題のメモ",
     "upload_failed": "ノートのアップロードに失敗しました",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "ファイルをアップロード",
+    "upload_folder": "アップロードフォルダ",
     "upload_success": "ノートのアップロードが成功しました",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "{{count}} 個のファイルをアップロード中..."
   },
   "notification": {
     "assistant": "助手回應",

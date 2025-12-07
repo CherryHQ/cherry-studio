@@ -6,6 +6,9 @@
         "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+      },
       "title": "添加 Agent",
       "type": {
         "placeholder": "选择 Agent 类型"

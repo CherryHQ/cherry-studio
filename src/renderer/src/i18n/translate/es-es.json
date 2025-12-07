@@ -6,6 +6,9 @@
         "failed": "Error al añadir agente",
         "invalid_agent": "Agent inválido"
       },
+      "model": {
+        "tooltip": "Actualmente, solo los modelos que admiten puntos finales de Anthropic están disponibles para la función Agente."
+      },
       "title": "Agregar Agente",
       "type": {
         "placeholder": "Seleccionar tipo de Agente"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Nueva carpeta",
     "untitled_note": "Nota sin título",
     "upload_failed": "Error al cargar la nota",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Subir archivos",
+    "upload_folder": "Carpeta de subida",
     "upload_success": "Nota cargada con éxito",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Subiendo {{count}} archivos..."
   },
   "notification": {
     "assistant": "Respuesta del asistente",

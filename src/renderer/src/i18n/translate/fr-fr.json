@@ -6,6 +6,9 @@
         "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
       },
+      "model": {
+        "tooltip": "Actuellement, seuls les modèles qui prennent en charge les points de terminaison Anthropic sont disponibles pour la fonctionnalité Agent."
+      },
       "title": "Ajouter un agent",
       "type": {
         "placeholder": "Sélectionner le type d'Agent"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "nouveau dossier",
     "untitled_note": "Note sans titre",
     "upload_failed": "Échec du téléchargement de la note",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Télécharger des fichiers",
+    "upload_folder": "Puis dossier de téléchargement",
     "upload_success": "Note téléchargée avec succès",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Téléchargement de {{count}} fichiers..."
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
