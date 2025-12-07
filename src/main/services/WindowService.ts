@@ -527,7 +527,9 @@ export class WindowService {
       }
 
       this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
-      this.miniWindow?.center()
+      // Don't call center() - electron-window-state handles position:
+      // - First use: x/y are undefined, Electron auto-centers the window
+      // - Subsequent uses: x/y have saved values, window opens at saved position
       this.miniWindow?.show()
     })
 
