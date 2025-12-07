@@ -55,13 +55,13 @@ export const ToolbarWrapper = styled.div`
   gap: 4px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-background-soft);
+  background: var(--rich-editor-toolbar-bg, var(--color-background-soft));
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
 
   &::-webkit-scrollbar-track {
-    background: var(--color-background-soft);
+    background: var(--rich-editor-toolbar-bg, var(--color-background-soft));
   }
 
   &::-webkit-scrollbar-thumb {

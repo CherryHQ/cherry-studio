@@ -223,8 +223,44 @@ const api = {
     stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
     pauseFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_PauseWatcher),
     resumeFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_ResumeWatcher),
-    batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
-      ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
+    batchUpload: (
+      filePaths: string[],
+      targetPath: string,
+      options?: {
+        allowedExtensions?: string[]
+        fileNameTransform?: (fileName: string) => string
+      }
+    ) => ipcRenderer.invoke(IpcChannel.File_BatchUpload, filePaths, targetPath, options),
+    uploadFolder: (
+      folderPath: string,
+      targetPath: string,
+      options?: {
+        allowedExtensions?: string[]
+      }
+    ) => ipcRenderer.invoke(IpcChannel.File_UploadFolder, folderPath, targetPath, options),
+    uploadEntry: (
+      entryData: {
+        fullPath: string
+        isFile: boolean
+        isDirectory: boolean
+        systemPath: string
+      },
+      targetBasePath: string
+    ): Promise<{ success: boolean; targetPath: string }> =>
+      ipcRenderer.invoke(IpcChannel.File_UploadEntry, entryData, targetBasePath),
+    batchUploadEntries: (
+      entryDataList: Array<{
+        fullPath: string
+        isFile: boolean
+        isDirectory: boolean
+        systemPath: string
+      }>,
+      targetBasePath: string,
+      options?: {
+        allowedExtensions?: string[]
+      }
+    ): Promise<{ fileCount: number; folderCount: number; skippedFiles: number }> =>
+      ipcRenderer.invoke(IpcChannel.File_BatchUploadEntries, entryDataList, targetBasePath, options),
     onFileChange: (callback: (data: FileChangeEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: any) => {
         if (data && typeof data === 'object') {
@@ -233,6 +269,15 @@ const api = {
       }
       ipcRenderer.on('file-change', listener)
       return () => ipcRenderer.off('file-change', listener)
+    },
+    onUploadProgress: (callback: (data: { completed: number; total: number; percentage: number }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: any) => {
+        if (data && typeof data === 'object') {
+          callback(data)
+        }
+      }
+      ipcRenderer.on('file-upload-progress', listener)
+      return () => ipcRenderer.off('file-upload-progress', listener)
     },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
   },

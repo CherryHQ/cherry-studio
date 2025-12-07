@@ -33,6 +33,7 @@ import { EnhancedImage } from './extensions/enhanced-image'
 import { EnhancedLink } from './extensions/enhanced-link'
 import { EnhancedMath } from './extensions/enhanced-math'
 import { Placeholder } from './extensions/placeholder'
+import { RelativeImageResolver } from './extensions/relative-image-resolver'
 import { YamlFrontMatter } from './extensions/yaml-front-matter'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
@@ -94,6 +95,8 @@ export interface UseRichEditorOptions {
     actions: { id: string; label: string; action: () => void }[]
   }) => void
   scrollParent?: () => HTMLElement | null
+  /** Current markdown file path for resolving relative image paths */
+  currentFilePath?: string
 }
 
 export interface UseRichEditorReturn {
@@ -157,7 +160,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     editable = true,
     enableSpellCheck = false,
     onShowTableActionMenu,
-    scrollParent
+    scrollParent,
+    currentFilePath
   } = options
 
   const [markdown, setMarkdownState] = useState<string>(initialContent)
@@ -235,6 +239,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         onLinkHover: handleLinkHover,
         onLinkHoverEnd: handleLinkHoverEnd,
         editable: editable
+      }),
+      RelativeImageResolver.configure({
+        currentFilePath
       }),
       TableOfContents.configure({
         getIndex: getHierarchicalIndexes,
@@ -383,7 +390,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd, currentFilePath]
   )
 
   const editor = useEditor({
