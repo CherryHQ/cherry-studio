@@ -3,7 +3,6 @@ import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
 import { useAppDispatch } from '@renderer/store'
-import { setModel } from '@renderer/store/assistants'
 import type { Model, Provider } from '@renderer/types'
 import React, { useCallback, useState } from 'react'
 
@@ -42,20 +41,19 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }
 
       updateProvider({ models: updatedModels })
 
-      assistants.forEach((assistant) => {
-        if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-          dispatch(
-            setModel({
-              assistantId: assistant.id,
-              model: updatedModel
-            })
-          )
-        }
-        if (assistant?.defaultModel?.id === updatedModel.id && assistant?.defaultModel?.provider === provider.id) {
-          const newAssistant = { ...assistant, defaultModel: updatedModel }
-          updateAssistants(assistants.map((a) => (a.id === assistant.id ? newAssistant : a)))
-        }
-      })
+      updateAssistants(
+        assistants.map((a) => {
+          let model = a.model
+          let defaultModel = a.defaultModel
+          if (a.model?.id === updatedModel.id && a.model.provider === provider.id) {
+            model = updatedModel
+          }
+          if (a.defaultModel?.id === updatedModel.id && a.defaultModel?.provider === provider.id) {
+            defaultModel = updatedModel
+          }
+          return { ...a, model, defaultModel }
+        })
+      )
 
       if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
         setDefaultModel(updatedModel)
@@ -68,7 +66,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, model, resolve }
       defaultModel?.id,
       defaultModel?.provider,
       provider.id,
-      dispatch,
       updateAssistants,
       setDefaultModel
     ]
