@@ -1696,34 +1696,58 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   aionly: [
     {
-      id: 'claude-opus-4.1',
-      name: 'claude-opus-4.1',
+      id: 'claude-opus-4-5-20251101',
+      name: 'Claude Opus 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'claude-sonnet4',
-      name: 'claude-sonnet4',
+      id: 'claude-haiku-4-5-20251001',
+      name: 'Claude Haiku 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'claude-3.5-sonnet-v2',
-      name: 'claude-3.5-sonnet-v2',
+      id: 'claude-sonnet-4-5-20250929',
+      name: 'Claude Sonnet 4.5',
       provider: 'aionly',
-      group: 'claude'
+      group: 'Anthropic'
     },
     {
-      id: 'gpt-4.1',
-      name: 'gpt-4.1',
+      id: 'gpt-5.1',
+      name: 'GPT-5.1',
       provider: 'aionly',
-      group: 'gpt'
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5.1-chat',
+      name: 'GPT-5.1 Chat',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5-pro',
+      name: 'GPT 5 Pro',
+      provider: 'aionly',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gemini-3-pro-preview',
+      name: 'Gemini 3 Pro Preview',
+      provider: 'aionly',
+      group: 'Google'
+    },
+    {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      provider: 'aionly',
+      group: 'Google'
     },
     {
       id: 'gemini-2.5-flash',
-      name: 'gemini-2.5-flash',
+      name: 'Gemini 2.5 Flash',
       provider: 'aionly',
-      group: 'gemini'
+      group: 'Google'
     }
   ],
   longcat: [
