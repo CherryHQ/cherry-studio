@@ -26,8 +26,9 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
           const _providerId = provider.split('.')[1]
           switchWebSearchTool(config, params, { ...context, providerId: _providerId })
         }
+      } else {
+        switchWebSearchTool(config, params, context)
       }
-      switchWebSearchTool(config, params, context)
       return params
     }
   })
