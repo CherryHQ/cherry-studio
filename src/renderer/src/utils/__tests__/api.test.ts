@@ -10,6 +10,7 @@ import {
   formatVertexApiHost,
   getTrailingApiVersion,
   hasAPIVersion,
+  isWithTrailingSharp,
   maskApiKey,
   routeToEndpoint,
   splitApiKeyString,
@@ -492,6 +493,70 @@ describe('api', () => {
 
     it('returns empty string unchanged', () => {
       expect(withoutTrailingApiVersion('')).toBe('')
+    })
+  })
+
+  describe('isWithTrailingSharp', () => {
+    it('returns true when URL ends with #', () => {
+      expect(isWithTrailingSharp('https://api.example.com#')).toBe(true)
+      expect(isWithTrailingSharp('http://localhost:3000#')).toBe(true)
+      expect(isWithTrailingSharp('#')).toBe(true)
+    })
+
+    it('returns false when URL does not end with #', () => {
+      expect(isWithTrailingSharp('https://api.example.com')).toBe(false)
+      expect(isWithTrailingSharp('http://localhost:3000')).toBe(false)
+      expect(isWithTrailingSharp('')).toBe(false)
+    })
+
+    it('returns false when URL has # in the middle but not at the end', () => {
+      expect(isWithTrailingSharp('https://api.example.com#path')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#section/path')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#path#other')).toBe(false)
+    })
+
+    it('handles URLs with multiple # characters', () => {
+      expect(isWithTrailingSharp('https://api.example.com##')).toBe(true)
+      expect(isWithTrailingSharp('https://api.example.com#path#')).toBe(true)
+      expect(isWithTrailingSharp('https://api.example.com###')).toBe(true)
+    })
+
+    it('handles URLs with trailing whitespace after #', () => {
+      expect(isWithTrailingSharp('https://api.example.com# ')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#\t')).toBe(false)
+      expect(isWithTrailingSharp('https://api.example.com#\n')).toBe(false)
+    })
+
+    it('handles URLs with whitespace before trailing #', () => {
+      expect(isWithTrailingSharp('  https://api.example.com#')).toBe(true)
+      expect(isWithTrailingSharp('\thttps://localhost:3000#')).toBe(true)
+    })
+
+    it('preserves type safety with generic parameter', () => {
+      const url1: string = 'https://api.example.com#'
+      const url2 = 'https://example.com' as const
+
+      expect(isWithTrailingSharp(url1)).toBe(true)
+      expect(isWithTrailingSharp(url2)).toBe(false)
+    })
+
+    it('handles complex real-world URLs', () => {
+      expect(isWithTrailingSharp('https://open.cherryin.net/v1/chat/completions#')).toBe(true)
+      expect(isWithTrailingSharp('https://api.openai.com/v1/engines/gpt-4#')).toBe(true)
+      expect(isWithTrailingSharp('https://gateway.ai.cloudflare.com/v1/xxx/v1beta#')).toBe(true)
+
+      expect(isWithTrailingSharp('https://open.cherryin.net/v1/chat/completions')).toBe(false)
+      expect(isWithTrailingSharp('https://api.openai.com/v1/engines/gpt-4')).toBe(false)
+      expect(isWithTrailingSharp('https://gateway.ai.cloudflare.com/v1/xxx/v1beta')).toBe(false)
+    })
+
+    it('handles edge cases', () => {
+      expect(isWithTrailingSharp('#')).toBe(true)
+      expect(isWithTrailingSharp(' #')).toBe(true)
+      expect(isWithTrailingSharp('# ')).toBe(false)
+      expect(isWithTrailingSharp('path#')).toBe(true)
+      expect(isWithTrailingSharp('/path/with/trailing/#')).toBe(true)
+      expect(isWithTrailingSharp('/path/without/trailing/')).toBe(false)
     })
   })
 
