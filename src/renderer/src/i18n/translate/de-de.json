@@ -6,6 +6,9 @@
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"
       },
+      "model": {
+        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen."
+      },
       "title": "Agent hinzufügen",
       "type": {
         "placeholder": "Agent-Typ auswählen"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Dateien hochladen",
+    "upload_folder": "Ordner hochladen",
     "upload_success": "Notizen erfolgreich hochgeladen",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Lade {{count}} Dateien hoch..."
   },
   "notification": {
     "assistant": "Assistenten-Antwort",

@@ -6,6 +6,9 @@
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+      },
       "title": "新增代理",
       "type": {
         "placeholder": "選擇 Agent 類型"
@@ -2220,8 +2223,8 @@
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
     "upload_failed": "筆記上傳失敗",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "上傳檔案",
+    "upload_folder": "上傳資料夾",
     "upload_success": "筆記上傳成功",
     "uploading_files": "正在上傳 {{count}} 個檔案..."
   },

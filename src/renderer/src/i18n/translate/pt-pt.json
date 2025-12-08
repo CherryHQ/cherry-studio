@@ -6,6 +6,9 @@
         "failed": "Falha ao adicionar agente",
         "invalid_agent": "Agent inválido"
       },
+      "model": {
+        "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente."
+      },
       "title": "Adicionar Agente",
       "type": {
         "placeholder": "Selecionar tipo de Agente"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Nova pasta",
     "untitled_note": "Nota sem título",
     "upload_failed": "Falha ao carregar a nota",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Carregar Ficheiros",
+    "upload_folder": "Carregar Pasta",
     "upload_success": "Nota carregada com sucesso",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "A enviar {{count}} ficheiros..."
   },
   "notification": {
     "assistant": "Resposta do assistente",

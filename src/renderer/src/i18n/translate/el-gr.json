@@ -6,6 +6,9 @@
         "failed": "Αποτυχία προσθήκης πράκτορα",
         "invalid_agent": "Μη έγκυρος Agent"
       },
+      "model": {
+        "tooltip": "Προς το παρόν, μόνο μοντέλα που υποστηρίζουν τελικά σημεία Anthropic είναι διαθέσιμα για τη λειτουργία Agent."
+      },
       "title": "Προσθήκη Agent",
       "type": {
         "placeholder": "Επιλέξτε τύπο Agent"
@@ -2220,10 +2223,10 @@
     "untitled_folder": "Νέος φάκελος",
     "untitled_note": "σημείωση χωρίς τίτλο",
     "upload_failed": "Η σημείωση δεν ανέβηκε",
-    "upload_files": "[to be translated]:Upload Files",
-    "upload_folder": "[to be translated]:Upload Folder",
+    "upload_files": "Ανέβασμα Αρχείων",
+    "upload_folder": "Ανέβασμα Φακέλου",
     "upload_success": "Οι σημειώσεις μεταφορτώθηκαν με επιτυχία",
-    "uploading_files": "[to be translated]:Uploading {{count}} files..."
+    "uploading_files": "Ανεβάζονται {{count}} αρχεία..."
   },
   "notification": {
     "assistant": "Απάντηση Βοηθού",
