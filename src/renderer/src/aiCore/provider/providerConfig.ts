@@ -30,7 +30,7 @@ import {
   isSupportStreamOptionsProvider,
   isVertexProvider
 } from '@renderer/utils/provider'
-import { cloneDeep, isEmpty } from 'lodash'
+import { isEmpty } from 'lodash'
 
 import type { AiSdkConfig } from '../types'
 import { aihubmixProviderCreator, newApiResolverCreator, vertexAnthropicProviderCreator } from './config'
@@ -122,9 +122,14 @@ export function getActualProvider(model: Model): Provider {
  * @param provider - The base provider configuration to transform.
  * @param model - The model associated with the provider; optional but required for special-provider handling.
  * @returns A new Provider instance with all transformations applied.
+ *
+ * @remarks
+ * Uses shallow copy to avoid maximum call stack errors when Provider contains large base64 image data.
+ * All transformations use shallow copy patterns, so deep cloning is not necessary.
  */
 export function adaptProvider({ provider, model }: { provider: Provider; model?: Model }): Provider {
-  let adaptedProvider = cloneDeep(provider)
+  // Use shallow copy instead of cloneDeep to avoid stack overflow with large base64 images
+  let adaptedProvider = { ...provider }
 
   // Apply transformations in order
   if (model) {
