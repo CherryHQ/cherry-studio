@@ -108,9 +108,7 @@ export abstract class OpenAIBaseClient<
         const embedModelPromise = embedSdk.models.list()
         const [modelResponse, embedModelResponse] = await Promise.all([modelPromise, embedModelPromise])
         const models = [...modelResponse.data, ...embedModelResponse.data]
-        const uniqueModels = Array.from(
-          new Map(models.map(model => [model.id, model])).values()
-        )
+        const uniqueModels = Array.from(new Map(models.map((model) => [model.id, model])).values())
         return uniqueModels.filter(isSupportedModel)
       }
       if (this.provider.id === 'github') {
