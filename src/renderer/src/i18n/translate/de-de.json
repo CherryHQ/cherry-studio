@@ -2517,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Als Bild kopieren"
+      "image": "Als Bild kopieren",
+      "src": "Bildquelle kopieren"
     },
     "dialog": "Vorschaufenster öffnen",
     "label": "Vorschau",
