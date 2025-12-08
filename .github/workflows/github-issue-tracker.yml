@@ -42,7 +42,7 @@ jobs:
 
       - name: Add pending label if in quiet hours
         if: steps.check_time.outputs.should_delay == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.addLabels({
