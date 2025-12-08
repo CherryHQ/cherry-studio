@@ -4,21 +4,21 @@
     {
       "id": "test-model",
       "name": "Test Model",
-      "ownedBy": "TestProvider",
+      "owned_by": "TestProvider",
       "description": "A test model for unit testing",
       "capabilities": ["FUNCTION_CALL", "REASONING"],
-      "inputModalities": ["TEXT"],
-      "outputModalities": ["TEXT"],
-      "contextWindow": 128000,
-      "maxOutputTokens": 4096,
-      "maxInputTokens": 124000,
+      "input_modalities": ["TEXT"],
+      "output_modalities": ["TEXT"],
+      "context_window": 128000,
+      "max_output_tokens": 4096,
+      "max_input_tokens": 124000,
       "pricing": {
         "input": {
-          "perMillionTokens": 1,
+          "per_million_tokens": 1,
           "currency": "USD"
         },
         "output": {
-          "perMillionTokens": 2,
+          "per_million_tokens": 2,
           "currency": "USD"
         }
       },

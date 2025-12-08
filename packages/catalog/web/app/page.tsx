@@ -270,23 +270,23 @@ export default function CatalogReview() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1 max-w-xs">
-                          {model.capabilities.slice(0, 3).map((cap) => (
+                          {model.capabilities?.slice(0, 3).map((cap) => (
                             <Badge key={cap} variant="secondary" className="text-xs">
                               {cap.replace('_', ' ')}
                             </Badge>
                           ))}
-                          {model.capabilities.length > 3 && (
+                          {model.capabilities && model.capabilities.length > 3 && (
                             <Badge variant="secondary" className="text-xs">
                               +{model.capabilities.length - 3}
                             </Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{model.context_window.toLocaleString()}</TableCell>
+                      <TableCell>{model.context_window?.toLocaleString() || 'N/A'}</TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div>In: {model.input_modalities?.join(', ')}</div>
-                          <div>Out: {model.output_modalities?.join(', ')}</div>
+                          <div>In: {model.input_modalities?.join(', ') || 'N/A'}</div>
+                          <div>Out: {model.output_modalities?.join(', ') || 'N/A'}</div>
                         </div>
                       </TableCell>
                       <TableCell>

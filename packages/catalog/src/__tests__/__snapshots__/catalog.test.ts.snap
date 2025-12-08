@@ -15,17 +15,14 @@ exports[`Config & Schema > Snapshot Tests > should snapshot model configurations
       "FUNCTION_CALL",
       "REASONING",
     ],
-    "contextWindow": 128000,
+    "context_window": 128000,
     "description": "A test model for unit testing",
-    "endpointTypes": [
-      "CHAT_COMPLETIONS",
-    ],
     "id": "test-model",
-    "inputModalities": [
+    "input_modalities": [
       "TEXT",
     ],
-    "maxInputTokens": 124000,
-    "maxOutputTokens": 4096,
+    "max_input_tokens": 124000,
+    "max_output_tokens": 4096,
     "metadata": {
       "architecture": "transformer",
       "category": "language-model",
@@ -41,10 +38,10 @@ exports[`Config & Schema > Snapshot Tests > should snapshot model configurations
       "trainingData": "synthetic",
     },
     "name": "Test Model",
-    "outputModalities": [
+    "output_modalities": [
       "TEXT",
     ],
-    "ownedBy": "TestProvider",
+    "owned_by": "TestProvider",
     "parameters": {
       "maxTokens": true,
       "systemMessage": true,
@@ -64,11 +61,11 @@ exports[`Config & Schema > Snapshot Tests > should snapshot model configurations
     "pricing": {
       "input": {
         "currency": "USD",
-        "perMillionTokens": 1,
+        "per_million_tokens": 1,
       },
       "output": {
         "currency": "USD",
-        "perMillionTokens": 2,
+        "per_million_tokens": 2,
       },
     },
   },
@@ -87,22 +84,20 @@ exports[`Config & Schema > Snapshot Tests > should snapshot override configurati
       ],
     },
     "disabled": false,
-    "lastUpdated": "2025-11-24T07:08:00Z",
     "limits": {
-      "contextWindow": 256000,
-      "maxOutputTokens": 8192,
+      "context_window": 256000,
+      "max_output_tokens": 8192,
     },
-    "modelId": "test-model",
+    "model_id": "test-model",
     "pricing": {
       "input": {
         "currency": "USD",
-        "perMillionTokens": 0.5,
+        "per_million_tokens": 0.5,
       },
     },
     "priority": 100,
-    "providerId": "test-provider",
+    "provider_id": "test-provider",
     "reason": "Test override for enhanced capabilities and limits",
-    "updatedBy": "test-suite",
   },
 ]
 `;
@@ -110,40 +105,40 @@ exports[`Config & Schema > Snapshot Tests > should snapshot override configurati
 exports[`Config & Schema > Snapshot Tests > should snapshot provider configurations 1`] = `
 [
   {
-    "apiCompatibility": {
-      "supportsApiVersion": false,
-      "supportsArrayContent": true,
-      "supportsDeveloperRole": false,
-      "supportsMultimodal": false,
-      "supportsParallelTools": false,
-      "supportsServiceTier": false,
-      "supportsStreamOptions": false,
-      "supportsThinkingControl": false,
+    "api_compatibility": {
+      "supports_api_version": false,
+      "supports_array_content": true,
+      "supports_developer_role": false,
+      "supports_multimodal": false,
+      "supports_parallel_tools": false,
+      "supports_service_tier": false,
+      "supports_stream_options": false,
+      "supports_thinking_control": false,
     },
     "authentication": "API_KEY",
     "behaviors": {
-      "hasAutoRetry": false,
-      "hasRealTimeMetrics": false,
-      "providesFallbackRouting": false,
-      "providesModelMapping": false,
-      "providesUsageAnalytics": false,
-      "providesUsageLimits": false,
-      "requiresApiKeyValidation": true,
-      "supportsBatchProcessing": false,
-      "supportsCustomModels": false,
-      "supportsHealthCheck": false,
-      "supportsModelFineTuning": false,
-      "supportsModelVersioning": false,
-      "supportsRateLimiting": false,
-      "supportsStreaming": true,
-      "supportsWebhookEvents": false,
+      "has_auto_retry": false,
+      "has_real_time_metrics": false,
+      "provides_fallback_routing": false,
+      "provides_model_mapping": false,
+      "provides_usage_analytics": false,
+      "provides_usage_limits": false,
+      "requires_api_key_validation": true,
+      "supports_batch_processing": false,
+      "supports_custom_models": false,
+      "supports_health_check": false,
+      "supports_model_fine_tuning": false,
+      "supports_model_versioning": false,
+      "supports_rate_limiting": false,
+      "supports_streaming": true,
+      "supports_webhook_events": false,
     },
-    "configVersion": "1.0.0",
+    "config_version": "1.0.0",
     "deprecated": false,
     "description": "A test provider for unit testing",
     "documentation": "https://docs.test.com",
     "id": "test-provider",
-    "maintenanceMode": false,
+    "maintenance_mode": false,
     "metadata": {
       "category": "ai-provider",
       "reliability": "high",
@@ -155,11 +150,11 @@ exports[`Config & Schema > Snapshot Tests > should snapshot provider configurati
         "test",
       ],
     },
-    "modelRouting": "DIRECT",
+    "model_routing": "DIRECT",
     "name": "Test Provider",
-    "pricingModel": "PER_MODEL",
-    "specialConfig": {},
-    "supportedEndpoints": [
+    "pricing_model": "PER_MODEL",
+    "special_config": {},
+    "supported_endpoints": [
       "CHAT_COMPLETIONS",
     ],
     "website": "https://test.com",
@@ -174,17 +169,14 @@ exports[`Config & Schema > Snapshot Tests > should snapshot validation results 1
       "FUNCTION_CALL",
       "REASONING",
     ],
-    "contextWindow": 128000,
+    "context_window": 128000,
     "description": "A test model for unit testing",
-    "endpointTypes": [
-      "CHAT_COMPLETIONS",
-    ],
     "id": "test-model",
-    "inputModalities": [
+    "input_modalities": [
       "TEXT",
     ],
-    "maxInputTokens": 124000,
-    "maxOutputTokens": 4096,
+    "max_input_tokens": 124000,
+    "max_output_tokens": 4096,
     "metadata": {
       "architecture": "transformer",
       "category": "language-model",
@@ -200,10 +192,10 @@ exports[`Config & Schema > Snapshot Tests > should snapshot validation results 1
       "trainingData": "synthetic",
     },
     "name": "Test Model",
-    "outputModalities": [
+    "output_modalities": [
       "TEXT",
     ],
-    "ownedBy": "TestProvider",
+    "owned_by": "TestProvider",
     "parameters": {
       "maxTokens": true,
       "systemMessage": true,
@@ -223,11 +215,11 @@ exports[`Config & Schema > Snapshot Tests > should snapshot validation results 1
     "pricing": {
       "input": {
         "currency": "USD",
-        "perMillionTokens": 1,
+        "per_million_tokens": 1,
       },
       "output": {
         "currency": "USD",
-        "perMillionTokens": 2,
+        "per_million_tokens": 2,
       },
     },
   },

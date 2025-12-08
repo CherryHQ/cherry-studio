@@ -117,7 +117,12 @@ export const ProviderConfigSchema = z.object({
   behaviors: ProviderBehaviorsSchema,
 
   // Feature support
-  supported_endpoints: z.array(EndpointTypeSchema),
+  supported_endpoints: z
+    .array(EndpointTypeSchema)
+    .min(1, 'At least one endpoint must be supported')
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: 'Supported endpoints must be unique'
+    }),
   mcp_support: McpSupportSchema.optional(),
   api_compatibility: ApiCompatibilitySchema.optional(),
 

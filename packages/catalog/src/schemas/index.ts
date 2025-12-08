@@ -25,8 +25,6 @@ export type {
   Reasoning
 } from './model'
 export type {
-  OverrideResult,
-  OverrideValidation,
   ProviderModelOverride
 } from './override'
 export type {

@@ -33,9 +33,9 @@ export const StringRangeSchema = z.object({
   max: z.string()
 })
 
-// Price per token schema
+// Price per token schema (snake_case)
 export const PricePerTokenSchema = z.object({
-  perMillionTokens: z.number().nonnegative(),
+  per_million_tokens: z.number().nonnegative(),
   currency: CurrencySchema.default('USD')
 })
 

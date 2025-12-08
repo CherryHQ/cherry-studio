@@ -93,7 +93,19 @@
         },
         "responses": {
           "200": {
-            "description": "Models updated successfully"
+            "description": "Models updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -148,7 +160,22 @@
         },
         "responses": {
           "200": {
-            "description": "Model updated successfully"
+            "description": "Model updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "model": {
+                      "$ref": "#/components/schemas/Model"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -221,7 +248,19 @@
         },
         "responses": {
           "200": {
-            "description": "Providers updated successfully"
+            "description": "Providers updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -250,31 +289,44 @@
               }
             }
           }
-        }
-      }
-    },
-    "/catalog/models/{modelId}/overrides": {
-      "get": {
-        "summary": "Get provider-specific overrides for a model",
-        "parameters": [
-          {
-            "name": "modelId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
+        },
+        "put": {
+          "summary": "Update specific provider",
+          "parameters": [
+            {
+              "name": "providerId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string"
+              }
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Provider overrides for the model",
+          ],
+          "requestBody": {
+            "required": true,
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": {
-                    "$ref": "#/components/schemas/Model"
+                  "$ref": "#/components/schemas/Provider"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Provider updated successfully",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "success": {
+                        "type": "boolean"
+                      },
+                      "provider": {
+                        "$ref": "#/components/schemas/Provider"
+                      }
+                    }
                   }
                 }
               }
@@ -283,7 +335,7 @@
         }
       }
     },
-    "/catalog/models/{modelId}/providers/{providerId}": {
+        "/catalog/models/{modelId}/providers/{providerId}": {
       "get": {
         "summary": "Get model configuration as seen by specific provider",
         "parameters": [
@@ -357,7 +409,7 @@
                   "properties": {
                     "updated": {
                       "type": "string",
-                      "enum": ["base_model", "override", "both"]
+                      "enum": ["base_model", "override", "override_updated", "override_removed"]
                     },
                     "model": {
                       "$ref": "#/components/schemas/Model"
@@ -387,24 +439,6 @@
         }
       }
     },
-    "/catalog/validate": {
-      "post": {
-        "summary": "Validate catalog configuration",
-        "responses": {
-          "200": {
-            "description": "Validation results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ValidationResult"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "components": {
     "schemas": {
       "Model": {
@@ -558,7 +592,9 @@
           "page": { "type": "integer" },
           "limit": { "type": "integer" },
           "total": { "type": "integer" },
-          "totalPages": { "type": "integer" }
+          "totalPages": { "type": "integer" },
+          "hasNext": { "type": "boolean" },
+          "hasPrev": { "type": "boolean" }
         }
       },
       "ModelsConfig": {
@@ -603,22 +639,11 @@
           "total_models": { "type": "integer" },
           "total_providers": { "type": "integer" },
           "total_overrides": { "type": "integer" },
-          "models_by_provider": { "type": "object" },
-          "overrides_by_provider": { "type": "object" },
-          "last_updated": { "type": "string" }
-        }
-      },
-      "ValidationResult": {
-        "type": "object",
-        "properties": {
-          "valid": { "type": "boolean" },
-          "errors": {
-            "type": "array",
-            "items": { "type": "string" }
-          },
-          "warnings": {
-            "type": "array",
-            "items": { "type": "string" }
+          "last_updated": { "type": "string" },
+          "version": { "type": "string" },
+          "migration_status": {
+            "type": "string",
+            "enum": ["completed", "in_progress", "failed"]
           }
         }
       }

@@ -25,17 +25,17 @@ describe('Config & Schema', () => {
       expect(model).toStrictEqual({
         id: 'test-model',
         name: 'Test Model',
-        ownedBy: 'TestProvider',
+        owned_by: 'TestProvider',
         description: 'A test model for unit testing',
         capabilities: ['FUNCTION_CALL', 'REASONING'],
-        inputModalities: ['TEXT'],
-        outputModalities: ['TEXT'],
-        contextWindow: 128000,
-        maxOutputTokens: 4096,
-        maxInputTokens: 124000,
+        input_modalities: ['TEXT'],
+        output_modalities: ['TEXT'],
+        context_window: 128000,
+        max_output_tokens: 4096,
+        max_input_tokens: 124000,
         pricing: {
-          input: { perMillionTokens: 1, currency: 'USD' },
-          output: { perMillionTokens: 2, currency: 'USD' }
+          input: { per_million_tokens: 1, currency: 'USD' },
+          output: { per_million_tokens: 2, currency: 'USD' }
         },
         parameters: {
           temperature: { supported: true, min: 0, max: 2, default: 1 },
@@ -43,7 +43,6 @@ describe('Config & Schema', () => {
           systemMessage: true,
           topP: { supported: true, min: 0, max: 1, default: 1 }
         },
-        endpointTypes: ['CHAT_COMPLETIONS'],
         metadata: {
           tags: ['test', 'fast', 'reliable'],
           category: 'language-model',
@@ -75,42 +74,42 @@ describe('Config & Schema', () => {
         name: 'Test Provider',
         description: 'A test provider for unit testing',
         authentication: 'API_KEY',
-        pricingModel: 'PER_MODEL',
-        modelRouting: 'DIRECT',
+        pricing_model: 'PER_MODEL',
+        model_routing: 'DIRECT',
         behaviors: {
-          supportsCustomModels: false,
-          providesModelMapping: false,
-          supportsModelVersioning: false,
-          providesFallbackRouting: false,
-          hasAutoRetry: false,
-          supportsHealthCheck: false,
-          hasRealTimeMetrics: false,
-          providesUsageAnalytics: false,
-          supportsWebhookEvents: false,
-          requiresApiKeyValidation: true,
-          supportsRateLimiting: false,
-          providesUsageLimits: false,
-          supportsStreaming: true,
-          supportsBatchProcessing: false,
-          supportsModelFineTuning: false
+          supports_custom_models: false,
+          provides_model_mapping: false,
+          supports_model_versioning: false,
+          provides_fallback_routing: false,
+          has_auto_retry: false,
+          supports_health_check: false,
+          has_real_time_metrics: false,
+          provides_usage_analytics: false,
+          supports_webhook_events: false,
+          requires_api_key_validation: true,
+          supports_rate_limiting: false,
+          provides_usage_limits: false,
+          supports_streaming: true,
+          supports_batch_processing: false,
+          supports_model_fine_tuning: false
         },
-        supportedEndpoints: ['CHAT_COMPLETIONS'],
-        apiCompatibility: {
-          supportsArrayContent: true,
-          supportsStreamOptions: false,
-          supportsDeveloperRole: false,
-          supportsThinkingControl: false,
-          supportsApiVersion: false,
-          supportsParallelTools: false,
-          supportsMultimodal: false,
-          supportsServiceTier: false
+        supported_endpoints: ['CHAT_COMPLETIONS'],
+        api_compatibility: {
+          supports_array_content: true,
+          supports_stream_options: false,
+          supports_developer_role: false,
+          supports_thinking_control: false,
+          supports_api_version: false,
+          supports_parallel_tools: false,
+          supports_multimodal: false,
+          supports_service_tier: false
         },
-        specialConfig: {},
+        special_config: {},
         documentation: 'https://docs.test.com',
         website: 'https://test.com',
         deprecated: false,
-        maintenanceMode: false,
-        configVersion: '1.0.0',
+        maintenance_mode: false,
+        config_version: '1.0.0',
         metadata: {
           tags: ['test'],
           category: 'ai-provider',
@@ -135,8 +134,8 @@ describe('Config & Schema', () => {
 
       const override = overrides[0]
       expect(override).toMatchObject({
-        providerId: 'test-provider',
-        modelId: 'test-model',
+        provider_id: 'test-provider',
+        model_id: 'test-model',
         disabled: false,
         reason: 'Test override for enhanced capabilities and limits',
         priority: 100
@@ -144,8 +143,8 @@ describe('Config & Schema', () => {
 
       expect(override.capabilities?.add).toContain('FUNCTION_CALL')
       expect(override.capabilities?.remove).toContain('REASONING')
-      expect(override.limits?.contextWindow).toBe(256000)
-      expect(override.limits?.maxOutputTokens).toBe(8192)
+      expect(override.limits?.context_window).toBe(256000)
+      expect(override.limits?.max_output_tokens).toBe(8192)
     })
 
     it('should load all configs simultaneously', async () => {
@@ -185,10 +184,10 @@ describe('Config & Schema', () => {
       const validModel = {
         id: 'test-model',
         capabilities: ['FUNCTION_CALL', 'REASONING'],
-        inputModalities: ['TEXT'],
-        outputModalities: ['TEXT'],
-        contextWindow: 128000,
-        maxOutputTokens: 4096,
+        input_modalities: ['TEXT'],
+        output_modalities: ['TEXT'],
+        context_window: 128000,
+        max_output_tokens: 4096,
         metadata: {
           tags: ['test'],
           category: 'language-model',
@@ -222,11 +221,11 @@ describe('Config & Schema', () => {
 
       const modelWithIssues = {
         id: 'test-model',
-        capabilities: [], // Empty capabilities
-        inputModalities: ['TEXT'],
-        outputModalities: ['TEXT'],
-        contextWindow: 200000, // Large context window
-        maxOutputTokens: 4096,
+        capabilities: ['FUNCTION_CALL'], // At least one required now
+        input_modalities: ['TEXT'],
+        output_modalities: ['TEXT'],
+        context_window: 200000, // Large context window
+        max_output_tokens: 4096,
         // Missing pricing and description
         metadata: {
           tags: ['test'],
@@ -247,10 +246,10 @@ describe('Config & Schema', () => {
       const model = {
         id: 'test-model',
         capabilities: ['FUNCTION_CALL'],
-        inputModalities: ['TEXT'],
-        outputModalities: ['TEXT'],
-        contextWindow: 1000,
-        maxOutputTokens: 500,
+        input_modalities: ['TEXT'],
+        output_modalities: ['TEXT'],
+        context_window: 1000,
+        max_output_tokens: 500,
         metadata: {
           tags: ['test'],
           category: 'language-model',

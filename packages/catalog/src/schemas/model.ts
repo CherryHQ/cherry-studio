@@ -170,6 +170,10 @@ export const ModelPricingSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
 
+  // Cache pricing (optional) - for providers like AIHubMix, Anthropic, OpenAI
+  cache_read: PricePerTokenSchema.optional(),
+  cache_write: PricePerTokenSchema.optional(),
+
   // Image pricing (optional)
   per_image: z
     .object({
@@ -197,15 +201,33 @@ export const ModelConfigSchema = z.object({
   description: z.string().optional(),
 
   // Capabilities (core)
-  capabilities: z.array(ModelCapabilityTypeSchema),
+  capabilities: z
+    .array(ModelCapabilityTypeSchema)
+    .min(1, 'At least one capability is required')
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: 'Capabilities must be unique'
+    })
+    .optional(),
 
   // Modalities
-  input_modalities: z.array(ModalitySchema),
-  output_modalities: z.array(ModalitySchema),
+  input_modalities: z
+    .array(ModalitySchema)
+    .min(1, 'At least one input modality is required')
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: 'Input modalities must be unique'
+    })
+    .optional(),
+  output_modalities: z
+    .array(ModalitySchema)
+    .min(1, 'At least one output modality is required')
+    .refine((arr) => new Set(arr).size === arr.length, {
+      message: 'Output modalities must be unique'
+    })
+    .optional(),
 
   // Limits
-  context_window: z.number(),
-  max_output_tokens: z.number(),
+  context_window: z.number().optional(),
+  max_output_tokens: z.number().optional(),
   max_input_tokens: z.number().optional(),
 
   // Pricing

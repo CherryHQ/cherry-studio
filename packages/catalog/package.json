@@ -11,7 +11,8 @@
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "import:aihubmix": "tsx scripts/import-aihubmix.ts"
   },
   "author": "Cherry Studio",
   "license": "MIT",

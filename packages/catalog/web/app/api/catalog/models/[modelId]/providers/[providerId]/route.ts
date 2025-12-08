@@ -15,20 +15,6 @@ import { safeParseWithValidation, validateString, ValidationError, createErrorRe
 
 const DATA_DIR = path.join(process.cwd(), '../data')
 
-// Type-safe helper function to apply overrides to base model
-function applyOverrides(baseModel: Model, override: ProviderModelOverride | null): Model {
-  if (!override) return baseModel
-
-  return {
-    ...baseModel,
-    ...(override.limits && {
-      context_window: override.limits.context_window ?? baseModel.context_window,
-      max_output_tokens: override.limits.max_output_tokens ?? baseModel.max_output_tokens
-    }),
-    ...(override.pricing && { pricing: override.pricing })
-  }
-}
-
 // Type-safe helper function to detect model modifications
 function detectModifications(
   baseModel: Model,
@@ -86,27 +72,25 @@ export async function GET(request: NextRequest, { params }: { params: { modelId:
     const validProviderId = validateString(providerId, 'providerId')
 
     // Read and validate all data files
-    const [modelsDataRaw, providersDataRaw, overridesDataRaw] = await Promise.all([
-      fs.readFile(path.join(DATA_DIR, 'models.json'), 'utf-8'),
-      fs.readFile(path.join(DATA_DIR, 'providers.json'), 'utf-8'),
-      fs.readFile(path.join(DATA_DIR, 'overrides.json'), 'utf-8')
-    ])
+    const [modelsDataRaw] = await fs.readFile(path.join(DATA_DIR, 'models.json'), 'utf-8')
+      // fs.readFile(path.join(DATA_DIR, 'overrides.json'), 'utf-8')
+
 
     const modelsData = await safeParseWithValidation(
       modelsDataRaw,
       ModelsDataFileSchema,
       'Invalid models data format in file'
     )
-    const providersData = await safeParseWithValidation(
-      providersDataRaw,
-      ProvidersDataFileSchema,
-      'Invalid providers data format in file'
-    )
-    const overridesData = await safeParseWithValidation(
-      overridesDataRaw,
-      OverridesDataFileSchema,
-      'Invalid overrides data format in file'
-    )
+    // const providersData = await safeParseWithValidation(
+    //   providersDataRaw,
+    //   ProvidersDataFileSchema,
+    //   'Invalid providers data format in file'
+    // )
+    // const overridesData = await safeParseWithValidation(
+    //   overridesDataRaw,
+    //   OverridesDataFileSchema,
+    //   'Invalid overrides data format in file'
+    // )
 
     // Find base model
     const baseModel = modelsData.models.find((m) => m.id === validModelId)
@@ -115,14 +99,23 @@ export async function GET(request: NextRequest, { params }: { params: { modelId:
     }
 
     // Find provider override for this model
-    const override = overridesData.overrides.find(
-      (o) => o.model_id === validModelId && o.provider_id === validProviderId
-    )
+    // const override = overridesData.overrides.find(
+    //   (o) => o.model_id === validModelId && o.provider_id === validProviderId
+    // )
 
-    // Apply override if exists
-    const finalModel = applyOverrides(baseModel, override || null)
-
-    return NextResponse.json(ModelSchema.parse(finalModel))
+    // // Apply override if exists - may throw if model is disabled
+    // try {
+    //   const finalModel = applyOverrides(baseModel, override || null)
+    //   return NextResponse.json(ModelSchema.parse(finalModel))
+    // } catch (error) {
+    //   if (error instanceof OverrideApplicationError) {
+    //     return NextResponse.json(
+    //       createErrorResponse(error.message, 403),
+    //       { status: 403 }
+    //     )
+    //   }
+    //   throw error
+    // }
   } catch (error) {
     if (error instanceof ValidationError) {
       console.error('Validation error:', error.message, error.details)
@@ -211,8 +204,6 @@ export async function PUT(request: NextRequest, { params }: { params: { modelId:
         model_id: validModelId,
         disabled: false,
         reason: 'Manual configuration update',
-        last_updated: new Date().toISOString().split('T')[0],
-        updated_by: 'web-interface',
         priority: 100,
         ...modifications
       }
@@ -222,8 +213,7 @@ export async function PUT(request: NextRequest, { params }: { params: { modelId:
       if (existingOverrideIndex >= 0) {
         updatedOverrides[existingOverrideIndex] = {
           ...updatedOverrides[existingOverrideIndex],
-          ...override,
-          last_updated: new Date().toISOString().split('T')[0]
+          ...override
         }
       } else {
         updatedOverrides.push(override)

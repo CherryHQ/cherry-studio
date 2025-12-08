@@ -3,9 +3,12 @@
  * Replaces manual validation with strict type-safe schemas
  */
 
-//TODO: 从catalog导入
-
 import * as z from 'zod'
+// Import schemas from catalog package
+import {
+  ModelConfigSchema,
+  ModelListSchema
+} from '../../src/schemas'
 
 // Base parameter schemas
 const ParameterRangeSchema = z.object({
@@ -25,21 +28,6 @@ const ParameterUnsupportedSchema = z.object({
 
 const ParameterValueSchema = z.union([ParameterRangeSchema, ParameterBooleanSchema, ParameterUnsupportedSchema])
 
-// Model parameters schema
-const ModelParametersSchema = z
-  .object({
-    temperature: ParameterValueSchema.optional(),
-    max_tokens: z.union([
-      z.boolean(), // Simple boolean support indicator
-      z.object({
-        supported: z.literal(true),
-        default: z.number().positive().optional()
-      })
-    ]).optional(),
-    system_message: z.boolean().optional(), // Simple boolean support indicator
-    top_p: z.union([ParameterValueSchema, ParameterUnsupportedSchema]).optional()
-  })
-  .loose() // Allow additional parameter types
 
 // Pricing schema
 const PricingInfoSchema = z.object({
@@ -53,31 +41,9 @@ const PricingInfoSchema = z.object({
   })
 })
 
-// Model metadata schema
-const ModelMetadataSchema = z
-  .object({
-    source: z.string().optional(),
-    original_provider: z.string().optional(),
-    supports_caching: z.boolean().optional()
-  })
-  .loose() // Allow additional metadata
 
-// Complete Model schema
-export const ModelSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().optional(),
-  owned_by: z.string().optional(),
-  capabilities: z.array(z.string()),
-  input_modalities: z.array(z.string()),
-  output_modalities: z.array(z.string()),
-  context_window: z.number().positive(),
-  max_output_tokens: z.number().positive(),
-  max_input_tokens: z.number().positive().optional(),
-  pricing: PricingInfoSchema.optional(),
-  parameters: ModelParametersSchema.optional(),
-  endpoint_types: z.array(z.string()).optional(),
-  metadata: ModelMetadataSchema.optional()
-})
+// Complete Model schema - use from catalog package
+export const ModelSchema = ModelConfigSchema
 
 // Provider behaviors schema
 const ProviderBehaviorsSchema = z
@@ -150,11 +116,8 @@ export const ProviderSchema = z.object({
   metadata: ProviderMetadataSchema.optional()
 })
 
-// Data file schemas
-export const ModelsDataFileSchema = z.object({
-  version: z.string().min(1),
-  models: z.array(ModelSchema)
-})
+// Data file schemas - use from catalog package
+export const ModelsDataFileSchema = ModelListSchema
 
 export const ProvidersDataFileSchema = z.object({
   version: z.string().min(1),
