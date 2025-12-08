@@ -100,6 +100,16 @@ export abstract class OpenAIBaseClient<
   override async listModels(): Promise<OpenAI.Models.Model[]> {
     try {
       const sdk = await this.getSdkInstance()
+      if (this.provider.id === 'openrouter') {
+        // https://openrouter.ai/docs/api/api-reference/embeddings/list-embeddings
+        const embedBaseUrl = 'https://openrouter.ai/api/v1/embeddings'
+        const embedSdk = sdk.withOptions({ baseURL: embedBaseUrl })
+        const modelPromise = sdk.models.list()
+        const embedModelPromise = embedSdk.models.list()
+        const [modelResponse, embedModelResponse] = await Promise.all([modelPromise, embedModelPromise])
+        const models = [...modelResponse.data, ...embedModelResponse.data]
+        return models.filter(isSupportedModel)
+      }
       if (this.provider.id === 'github') {
         // GitHub Models 其 models 和 chat completions 两个接口的 baseUrl 不一样
         const baseUrl = 'https://models.github.ai/catalog/'
