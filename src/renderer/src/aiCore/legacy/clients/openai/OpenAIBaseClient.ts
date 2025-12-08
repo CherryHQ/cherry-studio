@@ -108,7 +108,10 @@ export abstract class OpenAIBaseClient<
         const embedModelPromise = embedSdk.models.list()
         const [modelResponse, embedModelResponse] = await Promise.all([modelPromise, embedModelPromise])
         const models = [...modelResponse.data, ...embedModelResponse.data]
-        return models.filter(isSupportedModel)
+        const uniqueModels = Array.from(
+          new Map(models.map(model => [model.id, model])).values()
+        )
+        return uniqueModels.filter(isSupportedModel)
       }
       if (this.provider.id === 'github') {
         // GitHub Models 其 models 和 chat completions 两个接口的 baseUrl 不一样
