@@ -147,7 +147,9 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
         params.tools.web_search = openai.tools.webSearch(config.openai)
       } else if (config['openai-chat']) {
         if (!params.tools) params.tools = {}
-        params.tools.web_search_preview = openai.tools.webSearchPreview(config['openai-chat'] as OpenAISearchPreviewConfig)
+        params.tools.web_search_preview = openai.tools.webSearchPreview(
+          config['openai-chat'] as OpenAISearchPreviewConfig
+        )
       } else if (config.anthropic) {
         if (!params.tools) params.tools = {}
         params.tools.web_search = anthropic.tools.webSearch_20250305(config.anthropic)
