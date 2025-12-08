@@ -101,7 +101,7 @@ export abstract class OpenAIBaseClient<
     try {
       const sdk = await this.getSdkInstance()
       if (this.provider.id === 'openrouter') {
-        // https://openrouter.ai/docs/api/api-reference/embeddings/list-embeddings
+        // https://openrouter.ai/docs/api/api-reference/embeddings/list-embeddings-models
         const embedBaseUrl = 'https://openrouter.ai/api/v1/embeddings'
         const embedSdk = sdk.withOptions({ baseURL: embedBaseUrl })
         const modelPromise = sdk.models.list()
