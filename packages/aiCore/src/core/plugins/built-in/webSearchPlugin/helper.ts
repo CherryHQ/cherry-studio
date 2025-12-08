@@ -138,7 +138,8 @@ export const switchWebSearchTool = (config: WebSearchPluginConfig, params: any, 
       return params
     }
     default: {
-      // No-op for providers handled elsewhere (azure, azure-responses, google-vertex, etc.)
+      // Providers not listed above either don't support web search or handle it through other mechanisms
+      // Falls through to the config-based fallback logic below
       break
     }
   }
