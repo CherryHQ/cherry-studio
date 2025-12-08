@@ -21,8 +21,11 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
       const { providerId } = context
       if (providerId === 'cherryin' || providerId === 'cherryin-chat') {
         // cherryin.gemini
-        const _providerId = params.model.provider.split('.')[1]
-        switchWebSearchTool(config, params, { ...context, providerId: _providerId })
+        const provider = params.model?.provider
+        if (provider && typeof provider === 'string' && provider.includes('.')) {
+          const _providerId = provider.split('.')[1]
+          switchWebSearchTool(config, params, { ...context, providerId: _providerId })
+        }
       }
       switchWebSearchTool(config, params, context)
       return params
