@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { isImageEnhancementModel, isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
 import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import { parseDataUrlMediaType } from '@renderer/utils/image'
 import {
   findFileBlocks,
   findImageBlocks,
@@ -62,20 +63,14 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
         logger.warn('Failed to load image:', error as Error)
       }
     } else if (imageBlock.url) {
-      const isBase64 = imageBlock.url.startsWith('data:')
-      if (isBase64) {
-        const base64 = imageBlock.url.match(/^data:[^;]*;base64,(.+)$/)![1]
-        const mimeMatch = imageBlock.url.match(/^data:([^;]+)/)
-        parts.push({
-          type: 'image',
-          image: base64,
-          mediaType: mimeMatch ? mimeMatch[1] : 'image/png'
-        })
+      const url = imageBlock.url
+      const isDataUrl = url.startsWith('data:')
+      if (isDataUrl) {
+        const { mediaType } = parseDataUrlMediaType(url)
+        parts.push({ type: 'image', image: url, ...(mediaType ? { mediaType } : {}) })
       } else {
-        parts.push({
-          type: 'image',
-          image: imageBlock.url
-        })
+        // For remote URLs we keep payload minimal to match existing expectations.
+        parts.push({ type: 'image', image: url })
       }
     }
   }

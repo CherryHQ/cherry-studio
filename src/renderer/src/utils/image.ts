@@ -617,3 +617,75 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
     img.src = url
   })
 }
+
+/**
+ * Parse media type from a data URL without using heavy regular expressions.
+ *
+ * data:[<mediatype>][;base64],<data>
+ * - mediatype may be empty (defaults to text/plain;charset=US-ASCII per spec)
+ * - we only care about extracting media type and whether it's base64
+ */
+export function parseDataUrlMediaType(url: string): { mediaType?: string; isBase64: boolean } {
+  if (!url.startsWith('data:')) return { isBase64: false }
+  const comma = url.indexOf(',')
+  if (comma === -1) return { isBase64: false }
+  // strip leading 'data:' and take header portion only
+  const header = url.slice(5, comma)
+  const semi = header.indexOf(';')
+  const mediaType = (semi === -1 ? header : header.slice(0, semi)).trim() || undefined
+  // base64 flag may appear anywhere after mediatype in the header
+  const isBase64 = header.indexOf(';base64') !== -1
+  return { mediaType, isBase64 }
+}
+
+/**
+ * Guess image media type from URL/extension with no regex.
+ * Only used as a heuristic when not a data URL.
+ */
+export function guessMediaTypeFromUrl(url: string): string | undefined {
+  let pathname = url
+  try {
+    const u = new URL(url)
+    pathname = u.pathname
+  } catch {
+    // not a standard URL; fall back to raw string parsing
+  }
+  const lastSlash = pathname.lastIndexOf('/')
+  const fileName = lastSlash >= 0 ? pathname.slice(lastSlash + 1) : pathname
+  const lastDot = fileName.lastIndexOf('.')
+  if (lastDot < 0) return undefined
+  const ext = fileName.slice(lastDot + 1).toLowerCase()
+  switch (ext) {
+    case 'png':
+      return 'image/png'
+    case 'jpg':
+    case 'jpeg':
+    case 'jfif':
+    case 'pjpeg':
+      return 'image/jpeg'
+    case 'webp':
+      return 'image/webp'
+    case 'gif':
+      return 'image/gif'
+    case 'bmp':
+      return 'image/bmp'
+    case 'svg':
+      return 'image/svg+xml'
+    case 'svgz':
+      return 'image/svg+xml'
+    case 'ico':
+      return 'image/x-icon'
+    case 'tif':
+    case 'tiff':
+      return 'image/tiff'
+    case 'avif':
+      return 'image/avif'
+    case 'heic':
+      return 'image/heic'
+    case 'heif':
+      return 'image/heif'
+    default:
+      if (ext) return `image/${ext}`
+      return undefined
+  }
+}
