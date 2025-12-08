@@ -22,7 +22,7 @@ import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import { NOT_SUPPORT_API_KEY_PROVIDER_TYPES, NOT_SUPPORT_API_KEY_PROVIDERS } from '@renderer/utils/provider'
-import { cloneDeep, isEmpty, takeRight } from 'lodash'
+import { isEmpty, takeRight } from 'lodash'
 
 import type { ModernAiProviderConfig } from '../aiCore/index_new'
 import AiProviderNew from '../aiCore/index_new'
@@ -101,7 +101,7 @@ export async function fetchChatCompletion({
   // Get base provider and apply API key rotation
   const baseProvider = getProviderByModel(assistant.model || getDefaultModel())
   const providerWithRotatedKey = {
-    ...cloneDeep(baseProvider),
+    ...baseProvider,
     apiKey: getRotatedApiKey(baseProvider)
   }
 
@@ -184,7 +184,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   // Apply API key rotation
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
@@ -289,7 +289,7 @@ export async function fetchNoteSummary({ content, assistant }: { content: string
 
   // Apply API key rotation
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
@@ -383,7 +383,7 @@ export async function fetchGenerate({
 
   // Apply API key rotation
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
@@ -493,7 +493,7 @@ function getRotatedApiKey(provider: Provider): string {
 export async function fetchModels(provider: Provider): Promise<Model[]> {
   // Apply API key rotation
   const providerWithRotatedKey = {
-    ...cloneDeep(provider),
+    ...provider,
     apiKey: getRotatedApiKey(provider)
   }
 
