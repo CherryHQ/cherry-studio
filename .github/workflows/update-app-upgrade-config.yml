@@ -135,7 +135,7 @@ jobs:
 
       - name: Checkout default branch
         if: steps.check.outputs.should_run == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: main
@@ -143,7 +143,7 @@ jobs:
 
       - name: Checkout x-files/app-upgrade-config branch
         if: steps.check.outputs.should_run == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: x-files/app-upgrade-config
           path: cs
