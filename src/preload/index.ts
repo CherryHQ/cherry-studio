@@ -456,7 +456,10 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
-    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
+    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
+    // [Windows only] Electron bug workaround - can be removed once https://github.com/electron/electron/issues/48554 is fixed
+    resizeActionWindow: (deltaX: number, deltaY: number, direction: string) =>
+      ipcRenderer.invoke(IpcChannel.Selection_ActionWindowResize, deltaX, deltaY, direction)
   },
   agentTools: {
     respondToPermission: (payload: {
