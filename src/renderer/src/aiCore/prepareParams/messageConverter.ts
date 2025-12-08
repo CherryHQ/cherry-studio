@@ -67,7 +67,9 @@ async function convertImageBlockToImagePart(imageBlocks: ImageMessageBlock[]): P
       const isDataUrl = url.startsWith('data:')
       if (isDataUrl) {
         const { mediaType } = parseDataUrlMediaType(url)
-        parts.push({ type: 'image', image: url, ...(mediaType ? { mediaType } : {}) })
+        const commaIndex = url.indexOf(',')
+        const base64Data = commaIndex !== -1 ? url.slice(commaIndex + 1) : url
+        parts.push({ type: 'image', image: base64Data, ...(mediaType ? { mediaType } : {}) })
       } else {
         // For remote URLs we keep payload minimal to match existing expectations.
         parts.push({ type: 'image', image: url })
