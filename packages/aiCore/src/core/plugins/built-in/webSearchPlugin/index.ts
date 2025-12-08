@@ -17,8 +17,14 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
     name: 'webSearch',
     enforce: 'pre',
 
-    transformParams: async (params: any) => {
-      switchWebSearchTool(config, params)
+    transformParams: async (params: any, context) => {
+      const { providerId } = context
+      if (providerId === 'cherryin' || providerId === 'cherryin-chat') {
+        // cherryin.gemini
+        const _providerId = params.model.provider.split('.')[1]
+        switchWebSearchTool(config, params, { ...context, providerId: _providerId })
+      }
+      switchWebSearchTool(config, params, context)
       return params
     }
   })
