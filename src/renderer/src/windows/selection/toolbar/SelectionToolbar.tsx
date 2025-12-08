@@ -259,7 +259,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 
       actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
     }
-    
+
     window.api?.openWebsite(actionString)
     window.api?.selection.hideToolbar()
   }, [])
