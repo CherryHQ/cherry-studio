@@ -20,7 +20,8 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
     transformParams: async (params: any, context) => {
       const { providerId } = context
       if (providerId === 'cherryin' || providerId === 'cherryin-chat') {
-        // cherryin.gemini
+        // For cherryin providers, extract the actual provider from the model's provider string
+        // Expected format: "cherryin.{actualProvider}" (e.g., "cherryin.gemini")
         const provider = params.model?.provider
         if (provider && typeof provider === 'string' && provider.includes('.')) {
           const _providerId = provider.split('.')[1]
