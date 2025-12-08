@@ -165,7 +165,7 @@ describe('messageConverter', () => {
   })
 
   describe('convertMessagesToSdkMessages', () => {
-    it('appends assistant images to the final user message for image enhancement models', async () => {
+    it('collapses to [system?, user(image)] for image enhancement models', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const initialUser = createMessage('user')
       initialUser.__mockContent = 'Start editing'
@@ -182,14 +182,6 @@ describe('messageConverter', () => {
       expect(result).toEqual([
         {
           role: 'user',
-          content: [{ type: 'text', text: 'Start editing' }]
-        },
-        {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Here is the current preview' }]
-        },
-        {
-          role: 'user',
           content: [
             { type: 'text', text: 'Increase the brightness' },
             { type: 'image', image: 'https://example.com/preview.png' }
@@ -198,7 +190,7 @@ describe('messageConverter', () => {
       ])
     })
 
-    it('preserves preceding system instructions when building enhancement payloads', async () => {
+    it('preserves system messages and collapses others for enhancement payloads', async () => {
       const model = createModel({ id: 'qwen-image-edit', name: 'Qwen Image Edit', provider: 'qwen', group: 'qwen' })
       const fileUser = createMessage('user')
       fileUser.__mockContent = 'Use this document as inspiration'
@@ -221,11 +213,6 @@ describe('messageConverter', () => {
 
       expect(result).toEqual([
         { role: 'system', content: 'fileid://reference' },
-        { role: 'user', content: [{ type: 'text', text: 'Use this document as inspiration' }] },
-        {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'Generated previews ready' }]
-        },
         {
           role: 'user',
           content: [
