@@ -1,39 +1,11 @@
 import { cn, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { Activity } from 'react'
 import { v4 as uuid } from 'uuid'
 
 import { useTabs } from '../../hooks/useTabs'
+import Sidebar from '../app/Sidebar'
 import { TabRouter } from './TabRouter'
-
-// Mock Sidebar component (TODO: Replace with actual Sidebar)
-const Sidebar = ({ onNavigate }: { onNavigate: (path: string, title: string) => void }) => {
-  const menuItems = [
-    { path: '/', title: 'Home', icon: 'H' },
-    { path: '/settings', title: 'Settings', icon: 'S' }
-  ]
-
-  return (
-    <aside className="flex h-full w-16 flex-col items-center gap-4 border-r bg-muted/10 py-4">
-      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/20 font-bold text-xs">Logo</div>
-
-      {menuItems.map((item) => (
-        <button
-          key={item.path}
-          type="button"
-          onClick={() => onNavigate(item.path, item.title)}
-          className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent">
-          {item.icon}
-        </button>
-      ))}
-
-      <div className="flex-1" />
-      <button type="button" className="flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent">
-        U
-      </button>
-    </aside>
-  )
-}
 
 // Mock Webview component (TODO: Replace with actual MinApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
@@ -46,33 +18,27 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const AppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, addTab, updateTab } = useTabs()
-
-  // Sidebar navigation: find existing tab or create new one
-  const handleSidebarNavigate = (path: string, title: string) => {
-    const existingTab = tabs.find((t) => t.type === 'route' && t.url === path)
-
-    if (existingTab) {
-      setActiveTab(existingTab.id)
-    } else {
-      addTab({
-        id: uuid(),
-        type: 'route',
-        url: path,
-        title
-      })
-    }
-  }
+  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab } = useTabs()
 
   // Sync internal navigation back to tab state
   const handleUrlChange = (tabId: string, url: string) => {
     updateTab(tabId, { url })
   }
 
+  // 新增 Tab（默认打开首页）
+  const handleAddTab = () => {
+    addTab({
+      id: uuid(),
+      type: 'route',
+      url: '/',
+      title: 'New Tab',
+    })
+  }
+
   return (
     <div className="flex h-screen w-screen flex-row overflow-hidden bg-background text-foreground">
       {/* Zone 1: Sidebar */}
-      <Sidebar onNavigate={handleSidebarNavigate} />
+      <Sidebar />
 
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {/* Zone 2: Tab Bar */}
@@ -101,6 +67,14 @@ export const AppShell = () => {
                   )}
                 </TabsTrigger>
               ))}
+              {/* 新增 Tab 按钮 - 跟随最后一个 Tab */}
+              <button
+                type="button"
+                onClick={handleAddTab}
+                className="flex h-full shrink-0 items-center justify-center px-3 hover:bg-muted/50"
+                title="New Tab">
+                <Plus className="size-4" />
+              </button>
             </TabsList>
           </header>
         </Tabs>

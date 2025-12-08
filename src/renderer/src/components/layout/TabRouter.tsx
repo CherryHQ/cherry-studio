@@ -34,6 +34,14 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     })
   }, [router, tab.url, onUrlChange])
 
+  // Navigate when tab.url changes externally (e.g., from Sidebar)
+  useEffect(() => {
+    const currentPath = router.state.location.pathname
+    if (tab.url !== currentPath) {
+      router.navigate({ to: tab.url })
+    }
+  }, [router, tab.url])
+
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
       <div className="h-full w-full">
