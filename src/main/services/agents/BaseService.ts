@@ -78,7 +78,7 @@ export abstract class BaseService {
    * Get database instance
    * Automatically waits for initialization to complete
    */
-  protected async getDatabase() {
+  public async getDatabase() {
     const dbManager = await DatabaseManager.getInstance()
     return dbManager.getDatabase()
   }

@@ -7,7 +7,6 @@ import {
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
 import { isQwenMTModel } from '@renderer/config/models/qwen'
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { UNKNOWN } from '@renderer/config/translate'
 import { getStoreProviders } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
@@ -142,7 +141,7 @@ export function getProviderByModel(model?: Model): Provider {
 
   if (!provider) {
     const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
-    return defaultProvider || CHERRYAI_PROVIDER || providers[0]
+    return defaultProvider || providers[0]
   }
 
   return provider
