@@ -1,8 +1,8 @@
-import { useRuntime } from '../useRuntime'
+import { useCache } from '@renderer/data/hooks/useCache'
+
 import { useAgent } from './useAgent'
 
 export const useActiveAgent = () => {
-  const { chat } = useRuntime()
-  const { activeAgentId } = chat
+  const [activeAgentId] = useCache('agent.active_id')
   return useAgent(activeAgentId)
 }

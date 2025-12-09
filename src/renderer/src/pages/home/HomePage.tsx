@@ -1,13 +1,13 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { cacheService } from '@renderer/data/CacheService'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
@@ -42,8 +42,7 @@ const HomePage: FC = () => {
   const [showTopics] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
   const dispatch = useDispatch()
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
+  const [activeTopicOrSession, setActiveTopicOrSession] = useCache('chat.active_view')
 
   _activeAssistant = activeAssistant
 
@@ -54,14 +53,14 @@ const HomePage: FC = () => {
       startTransition(() => {
         _setActiveAssistant(newAssistant)
         if (newAssistant.id !== 'fake') {
-          dispatch(setActiveAgentId(null))
+          cacheService.set('agent.active_id', null)
         }
         // 同步更新 active topic，避免不必要的重新渲染
         const newTopic = newAssistant.topics[0]
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
       })
     },
-    [_setActiveTopic, activeAssistant?.id, dispatch]
+    [_setActiveTopic, activeAssistant?.id]
   )
 
   const setActiveTopic = useCallback(
@@ -69,10 +68,10 @@ const HomePage: FC = () => {
       startTransition(() => {
         _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
         dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
-        dispatch(setActiveTopicOrSessionAction('topic'))
+        setActiveTopicOrSession('topic')
       })
     },
-    [_setActiveTopic, dispatch]
+    [_setActiveTopic, dispatch, setActiveTopicOrSession]
   )
 
   useEffect(() => {

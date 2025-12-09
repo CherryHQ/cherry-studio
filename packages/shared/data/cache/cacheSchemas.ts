@@ -40,6 +40,7 @@ export type UseCacheSchema = {
   'chat.generating': boolean
   'chat.websearch.searching': boolean
   'chat.websearch.active_searches': CacheValueTypes.CacheActiveSearches
+  'chat.active_view': 'topic' | 'session'
 
   // Minapp management
   'minapp.opened_keep_alive': CacheValueTypes.CacheMinAppType[]
@@ -51,6 +52,11 @@ export type UseCacheSchema = {
   'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
+
+  // Agent management
+  'agent.active_id': string | null
+  'agent.session.active_id_map': Record<string, string | null>
+  'agent.session.waiting_id_map': Record<string, boolean>
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -73,6 +79,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.generating': false,
   'chat.websearch.searching': false,
   'chat.websearch.active_searches': {},
+  'chat.active_view': 'topic',
 
   // Minapp management
   'minapp.opened_keep_alive': [],
@@ -83,7 +90,12 @@ export const DefaultUseCache: UseCacheSchema = {
   // Topic management
   'topic.active': null,
   'topic.renaming': [],
-  'topic.newly_renamed': []
+  'topic.newly_renamed': [],
+
+  // Agent management
+  'agent.active_id': null,
+  'agent.session.active_id_map': {},
+  'agent.session.waiting_id_map': {}
 }
 
 /**

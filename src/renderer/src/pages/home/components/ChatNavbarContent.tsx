@@ -1,8 +1,8 @@
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import type { AgentEntity, AgentSessionEntity, ApiModel, Assistant } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { t } from 'i18next'
@@ -23,8 +23,7 @@ interface Props {
 }
 
 const ChatNavbarContent: FC<Props> = ({ assistant }) => {
-  const { chat } = useRuntime()
-  const { activeTopicOrSession } = chat
+  const [activeTopicOrSession] = useCache('chat.active_view')
   const { agent: activeAgent } = useActiveAgent()
   const { session: activeSession } = useActiveSession()
   const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
