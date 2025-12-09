@@ -295,6 +295,16 @@ const NotesPage: FC = () => {
               break
             }
 
+            case 'refresh': {
+              // 批量操作完成后的单次刷新
+              logger.debug('Received refresh event, triggering tree refresh')
+              const refresh = refreshTreeRef.current
+              if (refresh) {
+                await refresh()
+              }
+              break
+            }
+
             case 'add':
             case 'addDir':
             case 'unlink':
@@ -621,7 +631,27 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
 
-        const result = await uploadNotes(files, targetFolderPath)
+        // Validate uploadNotes function is available
+        if (typeof uploadNotes !== 'function') {
+          logger.error('uploadNotes function is not available', { uploadNotes })
+          window.toast.error(t('notes.upload_failed'))
+          return
+        }
+
+        let result: Awaited<ReturnType<typeof uploadNotes>>
+        try {
+          result = await uploadNotes(files, targetFolderPath)
+        } catch (uploadError) {
+          logger.error('Upload operation failed:', uploadError as Error)
+          throw uploadError
+        }
+
+        // Validate result object
+        if (!result || typeof result !== 'object') {
+          logger.error('Invalid upload result:', { result })
+          window.toast.error(t('notes.upload_failed'))
+          return
+        }
 
         // 检查上传结果
         if (result.fileCount === 0) {

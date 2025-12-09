@@ -6,6 +6,9 @@
         "failed": "Agent hinzufügen fehlgeschlagen",
         "invalid_agent": "Ungültiger Agent"
       },
+      "model": {
+        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen."
+      },
       "title": "Agent hinzufügen",
       "type": {
         "placeholder": "Agent-Typ auswählen"
@@ -1162,6 +1165,7 @@
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
     "off": "Aus",
+    "on": "An",
     "open": "Öffnen",
     "paste": "Einfügen",
     "placeholders": {
@@ -2219,7 +2223,10 @@
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
-    "upload_success": "Notizen erfolgreich hochgeladen"
+    "upload_files": "Dateien hochladen",
+    "upload_folder": "Ordner hochladen",
+    "upload_success": "Notizen erfolgreich hochgeladen",
+    "uploading_files": "Lade {{count}} Dateien hoch..."
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
@@ -2510,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Als Bild kopieren"
+      "image": "Als Bild kopieren",
+      "src": "Bildquelle kopieren"
     },
     "dialog": "Vorschaufenster öffnen",
     "label": "Vorschau",
@@ -4270,6 +4278,12 @@
         "priority": "Priorität",
         "tip": "Latenz-Ebene für Anfrageverarbeitung festlegen",
         "title": "Service-Tier"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Ob die Token-Nutzung enthalten ist (gilt nur für die OpenAI Chat Completions API)",
+          "title": "Nutzung einbeziehen"
+        }
       },
       "summary_text_mode": {
         "auto": "Automatisch",

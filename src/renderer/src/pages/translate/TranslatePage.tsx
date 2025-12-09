@@ -40,6 +40,7 @@ import {
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
+import { documentExts } from '@shared/config/constant'
 import { imageExts, MB, textExts } from '@shared/config/constant'
 import { FloatButton, Popover, Typography } from 'antd'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
@@ -67,7 +68,7 @@ const TranslatePage: FC = () => {
   const { prompt, getLanguageByLangcode, settings } = useTranslate()
   const { autoCopy } = settings
   const { shikiMarkdownIt } = useCodeStyle()
-  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts] })
+  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { ocr } = useOcr()
   const { setTimeoutTimer } = useTimer()
 
@@ -486,33 +487,56 @@ const TranslatePage: FC = () => {
   const readFile = useCallback(
     async (file: FileMetadata) => {
       const _readFile = async () => {
-        let isText: boolean
         try {
-          // 检查文件是否为文本文件
-          isText = await isTextFile(file.path)
-        } catch (e) {
-          logger.error('Failed to check if file is text.', e as Error)
-          window.toast.error(t('translate.files.error.check_type') + ': ' + formatErrorMessage(e))
-          return
-        }
+          const fileExtension = getFileExtension(file.path)
 
-        if (!isText) {
-          window.toast.error(t('common.file.not_supported', { type: getFileExtension(file.path) }))
-          logger.error('Unsupported file type.')
-          return
-        }
+          // Check if file is supported format (text file or document file)
+          let isText: boolean
+          const isDocument: boolean = documentExts.includes(fileExtension)
 
-        // the threshold may be too large
-        if (file.size > 5 * MB) {
-          window.toast.error(t('translate.files.error.too_large') + ' (0 ~ 5 MB)')
-        } else {
+          if (!isDocument) {
+            try {
+              // For non-document files, check if it's a text file
+              isText = await isTextFile(file.path)
+            } catch (e) {
+              logger.error('Failed to check file type.', e as Error)
+              window.toast.error(t('translate.files.error.check_type') + ': ' + formatErrorMessage(e))
+              return
+            }
+          } else {
+            isText = false
+          }
+
+          if (!isText && !isDocument) {
+            window.toast.error(t('common.file.not_supported', { type: fileExtension }))
+            logger.error('Unsupported file type.')
+            return
+          }
+
+          // File size check - document files allowed to be larger
+          const maxSize = isDocument ? 20 * MB : 5 * MB
+          if (file.size > maxSize) {
+            window.toast.error(t('translate.files.error.too_large') + ` (0 ~ ${maxSize / MB} MB)`)
+            return
+          }
+
+          let result: string
           try {
-            const result = await window.api.fs.readText(file.path)
+            if (isDocument) {
+              // Use the new document reading API
+              result = await window.api.file.readExternal(file.path, true)
+            } else {
+              // Read text file
+              result = await window.api.fs.readText(file.path)
+            }
             setText(text + result)
           } catch (e) {
-            logger.error('Failed to read text file.', e as Error)
+            logger.error('Failed to read file.', e as Error)
             window.toast.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
           }
+        } catch (e) {
+          logger.error('Failed to read file.', e as Error)
+          window.toast.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
         }
       }
       const promise = _readFile()

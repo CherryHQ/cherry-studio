@@ -63,6 +63,12 @@ export interface DynamicVirtualListProps<T> extends InheritedVirtualizerOptions 
   isSticky?: (index: number) => boolean
 
   /**
+   * Get the depth/level of an item for hierarchical sticky positioning
+   * Used with isSticky to determine ancestor relationships
+   */
+  getItemDepth?: (index: number) => number
+
+  /**
    * Range extractor function, cannot be used with isSticky
    */
   rangeExtractor?: (range: Range) => number[]
@@ -101,6 +107,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
     size,
     estimateSize,
     isSticky,
+    getItemDepth,
     rangeExtractor: customRangeExtractor,
     itemContainerStyle,
     scrollerStyle,
@@ -115,7 +122,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const internalScrollerRef = useRef<HTMLDivElement>(null)
   const scrollerRef = internalScrollerRef
 
-  const activeStickyIndexRef = useRef(0)
+  const activeStickyIndexesRef = useRef<number[]>([])
 
   const stickyIndexes = useMemo(() => {
     if (!isSticky) return []
@@ -124,21 +131,54 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
 
   const internalStickyRangeExtractor = useCallback(
     (range: Range) => {
-      // The active sticky index is the last one that is before or at the start of the visible range
-      const newActiveStickyIndex =
-        [...stickyIndexes].reverse().find((index) => range.startIndex >= index) ?? stickyIndexes[0] ?? 0
+      const activeStickies: number[] = []
 
-      if (newActiveStickyIndex !== activeStickyIndexRef.current) {
-        activeStickyIndexRef.current = newActiveStickyIndex
+      if (getItemDepth) {
+        // With depth information, we can build a proper ancestor chain
+        // Find all sticky items before the visible range
+        const stickiesBeforeRange = stickyIndexes.filter((index) => index < range.startIndex)
+
+        if (stickiesBeforeRange.length > 0) {
+          // Find the depth of the first visible item (or last sticky before it)
+          const firstVisibleIndex = range.startIndex
+          const referenceDepth = getItemDepth(firstVisibleIndex)
+
+          // Build ancestor chain: include all sticky parents
+          const ancestorChain: number[] = []
+          let minDepth = referenceDepth
+
+          // Walk backwards from the last sticky before visible range
+          for (let i = stickiesBeforeRange.length - 1; i >= 0; i--) {
+            const stickyIndex = stickiesBeforeRange[i]
+            const stickyDepth = getItemDepth(stickyIndex)
+
+            // Include this sticky if it's a parent (smaller depth) of our reference
+            if (stickyDepth < minDepth) {
+              ancestorChain.unshift(stickyIndex)
+              minDepth = stickyDepth
+            }
+          }
+
+          activeStickies.push(...ancestorChain)
+        }
+      } else {
+        // Fallback: without depth info, just use the last sticky before range
+        const lastStickyBeforeRange = [...stickyIndexes].reverse().find((index) => index < range.startIndex)
+        if (lastStickyBeforeRange !== undefined) {
+          activeStickies.push(lastStickyBeforeRange)
+        }
       }
 
-      // Merge the active sticky index and the default range extractor
-      const next = new Set([activeStickyIndexRef.current, ...defaultRangeExtractor(range)])
+      // Update the ref with current active stickies
+      activeStickyIndexesRef.current = activeStickies
+
+      // Merge the active sticky indexes and the default range extractor
+      const next = new Set([...activeStickyIndexesRef.current, ...defaultRangeExtractor(range)])
 
       // Sort the set to maintain proper order
       return [...next].sort((a, b) => a - b)
     },
-    [stickyIndexes]
+    [stickyIndexes, getItemDepth]
   )
 
   const rangeExtractor = customRangeExtractor ?? (isSticky ? internalStickyRangeExtractor : undefined)
@@ -221,14 +261,47 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
         }}>
         {virtualItems.map((virtualItem) => {
           const isItemSticky = stickyIndexes.includes(virtualItem.index)
-          const isItemActiveSticky = isItemSticky && activeStickyIndexRef.current === virtualItem.index
+          const isItemActiveSticky = isItemSticky && activeStickyIndexesRef.current.includes(virtualItem.index)
+
+          // Calculate the sticky offset for multi-level sticky headers
+          const activeStickyIndex = isItemActiveSticky ? activeStickyIndexesRef.current.indexOf(virtualItem.index) : -1
+
+          // Calculate cumulative offset based on actual sizes of previous sticky items
+          let stickyOffset = 0
+          if (activeStickyIndex >= 0) {
+            for (let i = 0; i < activeStickyIndex; i++) {
+              const prevStickyIndex = activeStickyIndexesRef.current[i]
+              stickyOffset += estimateSize(prevStickyIndex)
+            }
+          }
+
+          // Check if this item is visually covered by sticky items
+          // If covered, disable pointer events to prevent hover/click bleeding through
+          const isCoveredBySticky = (() => {
+            if (!activeStickyIndexesRef.current.length) return false
+            if (isItemActiveSticky) return false // Sticky items themselves are not covered
+
+            // Calculate if this item's visual position is under any sticky header
+            const itemVisualTop = virtualItem.start
+            let totalStickyHeight = 0
+            for (const stickyIdx of activeStickyIndexesRef.current) {
+              totalStickyHeight += estimateSize(stickyIdx)
+            }
+
+            // If item starts within the sticky area, it's covered
+            return itemVisualTop < totalStickyHeight
+          })()
 
           const style: React.CSSProperties = {
             ...itemContainerStyle,
             position: isItemActiveSticky ? 'sticky' : 'absolute',
-            top: 0,
+            top: isItemActiveSticky ? stickyOffset : 0,
             left: 0,
-            zIndex: isItemSticky ? 1 : undefined,
+            zIndex: isItemActiveSticky ? 1000 + (100 - activeStickyIndex) : isItemSticky ? 999 : 0,
+            pointerEvents: isCoveredBySticky ? 'none' : 'auto',
+            ...(isItemActiveSticky && {
+              backgroundColor: 'var(--color-background)'
+            }),
             ...(horizontal
               ? {
                   transform: isItemActiveSticky ? undefined : `translateX(${virtualItem.start}px)`,

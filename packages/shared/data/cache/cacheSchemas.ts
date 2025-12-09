@@ -58,7 +58,8 @@ export const DefaultUseCache: UseCacheSchema = {
     downloading: false,
     downloaded: false,
     downloadProgress: 0,
-    available: false
+    available: false,
+    ignore: false
   },
   'app.user.avatar': '',
 

@@ -3,7 +3,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
 import type {
   ApiServerConfig,
   CodeStyleVarious,
@@ -13,7 +13,11 @@ import type {
   S3Config,
   TranslateLanguageCode
 } from '@renderer/types'
-import type { OpenAISummaryText, OpenAIVerbosity } from '@renderer/types/aiCoreTypes'
+import type {
+  OpenAICompletionsStreamOptions,
+  OpenAIReasoningSummary,
+  OpenAIVerbosity
+} from '@renderer/types/aiCoreTypes'
 import { uuid } from '@renderer/utils'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -201,10 +205,14 @@ export interface SettingsState {
   }
   // OpenAI
   openAI: {
-    summaryText: OpenAISummaryText
+    // TODO: it's a bad naming. rename it to reasoningSummary in v2.
+    summaryText: OpenAIReasoningSummary
     /** @deprecated 现在该设置迁移到Provider对象中 */
     serviceTier: OpenAIServiceTier
     verbosity: OpenAIVerbosity
+    streamOptions: {
+      includeUsage: OpenAICompletionsStreamOptions['include_usage']
+    }
   }
   // Notification
   notification: {
@@ -384,7 +392,10 @@ export const initialState: SettingsState = {
   openAI: {
     summaryText: 'auto',
     serviceTier: 'auto',
-    verbosity: undefined
+    verbosity: undefined,
+    streamOptions: {
+      includeUsage: DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE
+    }
   },
   notification: {
     assistant: false,
@@ -799,11 +810,17 @@ const settingsSlice = createSlice({
     // // setDisableHardwareAcceleration: (state, action: PayloadAction<boolean>) => {
     // //   state.disableHardwareAcceleration = action.payload
     // // },
-    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAIReasoningSummary>) => {
       state.openAI.summaryText = action.payload
     },
     setOpenAIVerbosity: (state, action: PayloadAction<OpenAIVerbosity>) => {
       state.openAI.verbosity = action.payload
+    },
+    setOpenAIStreamOptionsIncludeUsage: (
+      state,
+      action: PayloadAction<OpenAICompletionsStreamOptions['include_usage']>
+    ) => {
+      state.openAI.streamOptions.includeUsage = action.payload
     },
     // setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
     //   state.notification = action.payload
@@ -975,6 +992,7 @@ export const {
   // setDisableHardwareAcceleration,
   setOpenAISummaryText,
   setOpenAIVerbosity,
+  setOpenAIStreamOptionsIncludeUsage,
   // setNotificationSettings,
   // Local backup settings
   // setLocalBackupDir,

@@ -62,7 +62,7 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
   const CODE_TOOLS_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
-        api_base_url: 'https://api.aihubmix.com/gemini'
+        api_base_url: 'https://aihubmix.com/gemini'
       }
     },
     deepseek: {

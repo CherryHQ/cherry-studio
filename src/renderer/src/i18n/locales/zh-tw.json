@@ -6,6 +6,9 @@
         "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，僅支援 Anthropic 端點的模型可供代理功能使用。"
+      },
       "title": "新增代理",
       "type": {
         "placeholder": "選擇 Agent 類型"
@@ -1162,6 +1165,7 @@
     "no_results": "沒有結果",
     "none": "無",
     "off": "關閉",
+    "on": "開啟",
     "open": "開啟",
     "paste": "貼上",
     "placeholders": {
@@ -2219,7 +2223,10 @@
     "untitled_folder": "新資料夾",
     "untitled_note": "無標題筆記",
     "upload_failed": "筆記上傳失敗",
-    "upload_success": "筆記上傳成功"
+    "upload_files": "上傳檔案",
+    "upload_folder": "上傳資料夾",
+    "upload_success": "筆記上傳成功",
+    "uploading_files": "正在上傳 {{count}} 個檔案..."
   },
   "notification": {
     "assistant": "助手回應",
@@ -2510,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "複製為圖片"
+      "image": "複製為圖片",
+      "src": "複製圖片來源"
     },
     "dialog": "開啟預覽窗口",
     "label": "預覽",
@@ -4270,6 +4278,12 @@
         "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否請求 Tokens 用量（僅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
       },
       "summary_text_mode": {
         "auto": "自動",

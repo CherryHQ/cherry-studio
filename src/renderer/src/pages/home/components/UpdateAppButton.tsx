@@ -20,6 +20,10 @@ const UpdateAppButton: FC = () => {
     return null
   }
 
+  if (update.ignore) {
+    return null
+  }
+
   const handleOpenUpdateDialog = () => {
     UpdateDialogPopup.show({ releaseInfo: appUpdateState.info || null })
   }
@@ -30,7 +34,7 @@ const UpdateAppButton: FC = () => {
         className="nodrag"
         onClick={handleOpenUpdateDialog}
         icon={<SyncOutlined />}
-        color="orange"
+        color="primary"
         variant="outlined"
         size="small">
         {t('button.update_available')}

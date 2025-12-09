@@ -6,6 +6,9 @@
         "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
       },
+      "model": {
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。"
+      },
       "title": "添加 Agent",
       "type": {
         "placeholder": "选择 Agent 类型"
@@ -1162,6 +1165,7 @@
     "no_results": "无结果",
     "none": "无",
     "off": "关闭",
+    "on": "启用",
     "open": "打开",
     "paste": "粘贴",
     "placeholders": {
@@ -2219,7 +2223,10 @@
     "untitled_folder": "新文件夹",
     "untitled_note": "无标题笔记",
     "upload_failed": "笔记上传失败",
-    "upload_success": "笔记上传成功"
+    "upload_files": "上传文件",
+    "upload_folder": "上传文件夹",
+    "upload_success": "笔记上传成功",
+    "uploading_files": "正在上传 {{count}} 个文件..."
   },
   "notification": {
     "assistant": "助手响应",
@@ -2510,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "复制为图片"
+      "image": "复制为图片",
+      "src": "复制图片源"
     },
     "dialog": "打开预览窗口",
     "label": "预览",
@@ -4270,6 +4278,12 @@
         "priority": "优先",
         "tip": "指定用于处理请求的延迟层级",
         "title": "服务层级"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "是否请求 Tokens 用量（仅 OpenAI Chat Completions API 可用）",
+          "title": "包含用量"
+        }
       },
       "summary_text_mode": {
         "auto": "自动",

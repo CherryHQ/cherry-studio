@@ -9,14 +9,14 @@ import styled from 'styled-components'
 import { SettingDivider } from '..'
 
 export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
-  actions?: ReactNode
+  contentAfter?: ReactNode
 }
 
-export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, actions }) => {
+export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, contentAfter }) => {
   return (
-    <div className={cn(actions ? 'justify-between' : undefined, 'mb-1 flex items-center gap-2')}>
+    <div className={cn(contentAfter ? 'justify-between' : undefined, 'mb-1 flex items-center gap-2')}>
       <span className="flex items-center gap-1 font-bold">{children}</span>
-      {actions !== undefined && actions}
+      {contentAfter !== undefined && contentAfter}
     </div>
   )
 }
