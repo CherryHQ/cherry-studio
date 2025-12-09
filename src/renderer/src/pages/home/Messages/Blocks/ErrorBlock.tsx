@@ -3,7 +3,6 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
-import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
@@ -33,10 +32,10 @@ import {
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
+import { Link } from '@tanstack/react-router'
 import { Alert as AntdAlert, Modal } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
@@ -71,8 +70,8 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
             provider: (
               <Link
                 style={{ color: 'var(--color-link)' }}
-                to={`/settings/provider`}
-                state={{ provider: getProviderById(providerId) }}
+                to="/settings/provider"
+                search={{ id: providerId }}
               />
             )
           }}

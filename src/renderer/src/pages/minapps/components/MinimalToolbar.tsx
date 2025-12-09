@@ -15,11 +15,11 @@ import { isDev } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MinAppType } from '@renderer/types'
+import { useNavigate } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('MinimalToolbar')
@@ -213,7 +213,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app.id, webviewRef, scheduleNavigationUpdate])
 
   const handleMinimize = useCallback(() => {
-    navigate('/apps')
+    navigate({ to: '/apps' })
   }, [navigate])
 
   const handleTogglePin = useCallback(() => {

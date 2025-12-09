@@ -15,13 +15,13 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Avatar, Input, InputNumber, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -330,7 +330,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 

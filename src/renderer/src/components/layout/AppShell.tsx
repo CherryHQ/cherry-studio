@@ -1,3 +1,5 @@
+import '@renderer/databases'
+
 import { cn, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { Plus, X } from 'lucide-react'
 import { Activity } from 'react'
@@ -31,7 +33,7 @@ export const AppShell = () => {
       id: uuid(),
       type: 'route',
       url: '/',
-      title: 'New Tab',
+      title: 'New Tab'
     })
   }
 

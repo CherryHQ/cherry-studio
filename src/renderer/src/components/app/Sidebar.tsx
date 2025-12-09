@@ -30,9 +30,9 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import { useTabs } from '../../hooks/useTabs'
 import UserPopup from '../Popups/UserPopup'
 import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
@@ -40,9 +40,11 @@ const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { pinned, minappShow } = useMinapps()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const { tabs, activeTabId, updateTab } = useTabs()
 
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
+  // 获取当前 Tab 的 URL 作为 pathname
+  const activeTab = tabs.find((t) => t.id === activeTabId)
+  const pathname = activeTab?.url || '/'
 
   const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
@@ -54,9 +56,12 @@ const Sidebar: FC = () => {
 
   const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
 
+  // 在当前 Tab 内跳转
   const to = async (path: string) => {
     await modelGenerating()
-    navigate(path)
+    if (activeTabId) {
+      updateTab(activeTabId, { url: path })
+    }
   }
 
   const isFullscreen = useFullscreen()
@@ -121,14 +126,16 @@ const Sidebar: FC = () => {
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { minappShow } = useMinapps()
+  const { tabs, activeTabId, updateTab } = useTabs()
 
-  const { pathname } = useLocation()
+  // 获取当前 Tab 的 URL 作为 pathname
+  const activeTab = tabs.find((t) => t.id === activeTabId)
+  const pathname = activeTab?.url || '/'
+
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { defaultPaintingProvider } = useSettings()
-  const navigate = useNavigate()
   const { theme } = useTheme()
 
-  const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
@@ -144,7 +151,7 @@ const MainMenus: FC = () => {
   }
 
   const pathMap = {
-    assistants: '/',
+    assistants: '/chat',
     store: '/store',
     paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
@@ -155,17 +162,24 @@ const MainMenus: FC = () => {
     notes: '/notes'
   }
 
+  // 在当前 Tab 内跳转
+  const to = async (path: string) => {
+    await modelGenerating()
+    if (activeTabId) {
+      updateTab(activeTabId, { url: path })
+    }
+  }
+
   return visibleSidebarIcons.map((icon) => {
     const path = pathMap[icon]
-    const isActive = path === '/' ? isRoute(path) : isRoutes(path)
+    const isActive = isRoutes(path)
 
     return (
       <Tooltip key={icon} placement="right" content={getSidebarIconLabel(icon)} delay={800}>
         <StyledLink
           onClick={async () => {
             hideMinappPopup()
-            await modelGenerating()
-            navigate(path)
+            await to(path)
           }}>
           <Icon theme={theme} className={isActive}>
             {iconMap[icon]}

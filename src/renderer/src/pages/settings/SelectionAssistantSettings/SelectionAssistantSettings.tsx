@@ -6,12 +6,12 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
+import { Link } from '@tanstack/react-router'
 import { Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {

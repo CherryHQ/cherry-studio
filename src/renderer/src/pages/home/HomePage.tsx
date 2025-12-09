@@ -10,11 +10,11 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import Chat from './Chat'
@@ -31,13 +31,23 @@ const HomePage: FC = () => {
   // Initialize agent session hook
   useAgentSessionInitializer()
 
-  const location = useLocation()
-  const state = location.state
+  const search = useSearch({ strict: false }) as { assistantId?: string; topicId?: string }
+
+  // 根据 search params 中的 ID 查找对应的 assistant
+  const assistantFromSearch = search.assistantId
+    ? assistants.find((a) => a.id === search.assistantId)
+    : undefined
 
   const [activeAssistant, _setActiveAssistant] = useState<Assistant>(
-    state?.assistant || _activeAssistant || assistants[0]
+    assistantFromSearch || _activeAssistant || assistants[0]
   )
-  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', state?.topic)
+
+  // 根据 search params 中的 topicId 查找对应的 topic
+  const topicFromSearch = search.topicId
+    ? activeAssistant?.topics?.find((t) => t.id === search.topicId)
+    : undefined
+
+  const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id ?? '', topicFromSearch)
   const [showAssistants] = usePreference('assistant.tab.show')
   const [showTopics] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
@@ -80,10 +90,10 @@ const HomePage: FC = () => {
   }, [navigate])
 
   useEffect(() => {
-    state?.assistant && setActiveAssistant(state?.assistant)
-    state?.topic && setActiveTopic(state?.topic)
+    assistantFromSearch && setActiveAssistant(assistantFromSearch)
+    topicFromSearch && setActiveTopic(topicFromSearch)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state])
+  }, [search.assistantId, search.topicId])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics

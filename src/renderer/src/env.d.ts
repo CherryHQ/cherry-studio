@@ -2,8 +2,8 @@
 
 import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { ToastUtilities } from '@cherrystudio/ui'
+import type { UseNavigateResult } from '@tanstack/react-router'
 import type { HookAPI } from 'antd/es/modal/useModal'
-import type { NavigateFunction } from 'react-router-dom'
 
 interface ImportMetaEnv {
   VITE_RENDERER_INTEGRATED_MODEL: string
@@ -18,7 +18,7 @@ declare global {
     root: HTMLElement
     modal: HookAPI
     store: any
-    navigate: NavigateFunction
+    navigate: UseNavigateResult<string>
     toast: ToastUtilities
     agentTools: {
       respondToPermission: (payload: {

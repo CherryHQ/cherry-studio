@@ -16,6 +16,7 @@ import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
 import UpdateAppButton from './components/UpdateAppButton'
+
 interface Props {
   activeAssistant: Assistant
   activeTopic: Topic

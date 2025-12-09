@@ -29,13 +29,13 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -436,7 +436,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 
@@ -463,7 +463,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // 当 modelOptions 为空时，引导用户跳转到 Provider 设置页面，新增 image-generation 端点模型
   const handleShowAddModelPopup = () => {
-    navigate(`/settings/provider?id=${newApiProvider.id}`)
+    navigate({ to: `/settings/provider?id=${newApiProvider.id}` })
   }
 
   useEffect(() => {

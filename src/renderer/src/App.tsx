@@ -7,15 +7,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
-// TODO: 新路由系统入口，迁移完成后启用
-// import { AppShell } from './components/layout/AppShell'
+import { AppShell } from './components/layout/AppShell'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
-import Router from './Router'
 
 const logger = loggerService.withContext('App.tsx')
 
@@ -44,8 +42,7 @@ function App(): React.ReactElement {
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
                     <TopViewContainer>
-                      {/* TODO: 迁移完成后切换到 <AppShell /> */}
-                      <Router />
+                      <AppShell />
                     </TopViewContainer>
                   </PersistGate>
                 </CodeStyleProvider>

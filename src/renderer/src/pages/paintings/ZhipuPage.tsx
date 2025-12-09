@@ -12,12 +12,12 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { useLocation, useNavigate } from '@tanstack/react-router'
 import { InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -260,7 +260,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
     if (providerId !== routeName) {
-      navigate('../' + providerId, { replace: true })
+      navigate({ to: '../' + providerId, replace: true })
     }
   }
 

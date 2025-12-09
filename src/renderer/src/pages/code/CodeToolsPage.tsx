@@ -19,12 +19,12 @@ import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { Link } from '@tanstack/react-router'
 import { Alert, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {

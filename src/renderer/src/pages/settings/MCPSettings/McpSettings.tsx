@@ -11,13 +11,13 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
+import { useNavigate, useParams } from '@tanstack/react-router'
 import type { TabsProps } from 'antd'
 import { Badge, Form, Input, Radio, Select, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate, useParams } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
@@ -68,7 +68,8 @@ type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const { serverId } = useParams<{ serverId: string }>()
+  const params = useParams({ strict: false }) as { serverId?: string }
+  const serverId = params.serverId
   const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
   const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
@@ -376,7 +377,7 @@ const McpSettings: React.FC = () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
             window.toast.success(t('settings.mcp.deleteSuccess'))
-            navigate('/settings/mcp')
+            navigate({ to: '/settings/mcp' })
           }
         })
       } catch (error: any) {
