@@ -12,6 +12,7 @@ import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
   Code,
@@ -60,7 +61,7 @@ const Sidebar: FC = () => {
   const to = async (path: string) => {
     await modelGenerating()
     if (activeTabId) {
-      updateTab(activeTabId, { url: path })
+      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
     }
   }
 
@@ -166,7 +167,7 @@ const MainMenus: FC = () => {
   const to = async (path: string) => {
     await modelGenerating()
     if (activeTabId) {
-      updateTab(activeTabId, { url: path })
+      updateTab(activeTabId, { url: path, title: getDefaultRouteTitle(path) })
     }
   }
 

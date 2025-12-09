@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
 import { cn, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { Plus, X } from 'lucide-react'
 import { Activity } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -22,9 +23,9 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 export const AppShell = () => {
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab } = useTabs()
 
-  // Sync internal navigation back to tab state
+  // Sync internal navigation back to tab state with default title
   const handleUrlChange = (tabId: string, url: string) => {
-    updateTab(tabId, { url })
+    updateTab(tabId, { url, title: getDefaultRouteTitle(url) })
   }
 
   // 新增 Tab（默认打开首页）
@@ -33,7 +34,7 @@ export const AppShell = () => {
       id: uuid(),
       type: 'route',
       url: '/',
-      title: 'New Tab'
+      title: getDefaultRouteTitle('/')
     })
   }
 

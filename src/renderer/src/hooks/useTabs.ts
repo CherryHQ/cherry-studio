@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 
 import { usePersistCache } from '../data/hooks/useCache'
 import { uuid } from '../utils'
+import { getDefaultRouteTitle } from '../utils/routeTitle'
 
 // Re-export types from shared schema
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheSchemas'
@@ -11,7 +12,7 @@ const DEFAULT_TAB: Tab = {
   id: 'home',
   type: 'route',
   url: '/',
-  title: 'Home'
+  title: getDefaultRouteTitle('/')
 }
 
 /**
@@ -127,12 +128,12 @@ export function useTabs() {
         }
       }
 
-      // Create new tab
+      // Create new tab with default route title
       const newTab: Tab = {
         id: id || uuid(),
         type,
         url,
-        title: title || url.split('/').pop() || url
+        title: title || getDefaultRouteTitle(url)
       }
 
       addTab(newTab)
