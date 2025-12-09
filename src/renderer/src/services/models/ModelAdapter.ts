@@ -45,7 +45,7 @@ function normalizeModels<T>(models: T[], transformer: (entry: T) => Model | null
 }
 
 function adaptSdkModel(provider: Provider, model: SdkModel): Model | null {
-  const id = pickPreferredString([(model as any)?.id, (model as any)?.modelId])
+  const id = pickPreferredString([(model as any)?.id, (model as any)?.modelId, (model as any)?.name])
   const name = pickPreferredString([
     (model as any)?.display_name,
     (model as any)?.displayName,
