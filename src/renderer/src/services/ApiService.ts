@@ -1,6 +1,7 @@
 /**
  * 职责：提供原子化的、无状态的API调用函数
  */
+import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
@@ -467,9 +468,9 @@ function getRotatedApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = window.keyv.get(keyName)
+  const lastUsedKey = cacheService.get(keyName) as string
   if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
+    cacheService.set(keyName, keys[0])
     return keys[0]
   }
 
@@ -485,7 +486,7 @@ function getRotatedApiKey(provider: Provider): string {
 
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
+  cacheService.set(keyName, nextKey)
 
   return nextKey
 }

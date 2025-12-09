@@ -20,7 +20,7 @@ const UpdateAppButton: FC = () => {
     return null
   }
 
-  if (update.ignore) {
+  if (appUpdateState.ignore) {
     return null
   }
 
