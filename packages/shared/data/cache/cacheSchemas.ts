@@ -31,6 +31,9 @@ export type UseCacheSchema = {
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
   'app.user.avatar': string
 
+  'app.path.files': string
+  'app.path.resources': string
+
   // Chat context
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
@@ -58,10 +61,12 @@ export const DefaultUseCache: UseCacheSchema = {
     downloading: false,
     downloaded: false,
     downloadProgress: 0,
-    available: false
+    available: false,
+    ignore: false
   },
   'app.user.avatar': '',
-
+  'app.path.files': '',
+  'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],

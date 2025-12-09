@@ -93,13 +93,27 @@ export class CacheService {
   // ============ Memory Cache (Cross-component) ============
 
   /**
-   * Get value from memory cache with TTL validation
-   * @param key - Cache key to retrieve
+   * Get value from memory cache with TTL validation (type-safe)
+   * @param key - Schema-defined cache key
    * @returns Cached value or undefined if not found or expired
    */
-  get<K extends UseCacheKey>(key: K): UseCacheSchema[K]
-  get<T>(key: Exclude<string, UseCacheKey>): T | undefined
-  get(key: string): any {
+  get<K extends UseCacheKey>(key: K): UseCacheSchema[K] {
+    return this.getInternal(key)
+  }
+
+  /**
+   * Get value from memory cache with TTL validation (casual, dynamic key)
+   * @param key - Dynamic cache key (e.g., `topic:${id}`)
+   * @returns Cached value or undefined if not found or expired
+   */
+  getCasual<T>(key: Exclude<string, UseCacheKey>): T | undefined {
+    return this.getInternal(key)
+  }
+
+  /**
+   * Internal implementation for memory cache get
+   */
+  private getInternal(key: string): any {
     const entry = this.memoryCache.get(key)
     if (entry === undefined) {
       return undefined
@@ -115,14 +129,29 @@ export class CacheService {
   }
 
   /**
-   * Set value in memory cache with optional TTL
-   * @param key - Cache key to store
+   * Set value in memory cache with optional TTL (type-safe)
+   * @param key - Schema-defined cache key
+   * @param value - Value to cache (type inferred from schema)
+   * @param ttl - Time to live in milliseconds (optional)
+   */
+  set<K extends UseCacheKey>(key: K, value: UseCacheSchema[K], ttl?: number): void {
+    this.setInternal(key, value, ttl)
+  }
+
+  /**
+   * Set value in memory cache with optional TTL (casual, dynamic key)
+   * @param key - Dynamic cache key (e.g., `topic:${id}`)
    * @param value - Value to cache
    * @param ttl - Time to live in milliseconds (optional)
    */
-  set<K extends UseCacheKey>(key: K, value: UseCacheSchema[K]): void
-  set<T>(key: Exclude<string, UseCacheKey>, value: T, ttl?: number): void
-  set(key: string, value: any, ttl?: number): void {
+  setCasual<T>(key: Exclude<string, UseCacheKey>, value: T, ttl?: number): void {
+    this.setInternal(key, value, ttl)
+  }
+
+  /**
+   * Internal implementation for memory cache set
+   */
+  private setInternal(key: string, value: any, ttl?: number): void {
     const existingEntry = this.memoryCache.get(key)
 
     // Value comparison optimization
@@ -149,14 +178,27 @@ export class CacheService {
   }
 
   /**
-   * Check if key exists in memory cache and is not expired
-   * @param key - Cache key to check
+   * Check if key exists in memory cache and is not expired (type-safe)
+   * @param key - Schema-defined cache key
    * @returns True if key exists and is valid, false otherwise
    */
+  has<K extends UseCacheKey>(key: K): boolean {
+    return this.hasInternal(key)
+  }
 
-  has<K extends UseCacheKey>(key: K): boolean
-  has(key: Exclude<string, UseCacheKey>): boolean
-  has(key: string): boolean {
+  /**
+   * Check if key exists in memory cache and is not expired (casual, dynamic key)
+   * @param key - Dynamic cache key
+   * @returns True if key exists and is valid, false otherwise
+   */
+  hasCasual(key: Exclude<string, UseCacheKey>): boolean {
+    return this.hasInternal(key)
+  }
+
+  /**
+   * Internal implementation for memory cache has
+   */
+  private hasInternal(key: string): boolean {
     const entry = this.memoryCache.get(key)
     if (entry === undefined) {
       return false
@@ -173,13 +215,27 @@ export class CacheService {
   }
 
   /**
-   * Delete from memory cache with hook protection
-   * @param key - Cache key to delete
+   * Delete from memory cache with hook protection (type-safe)
+   * @param key - Schema-defined cache key
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
-  delete<K extends UseCacheKey>(key: K): boolean
-  delete(key: Exclude<string, UseCacheKey>): boolean
-  delete(key: string): boolean {
+  delete<K extends UseCacheKey>(key: K): boolean {
+    return this.deleteInternal(key)
+  }
+
+  /**
+   * Delete from memory cache with hook protection (casual, dynamic key)
+   * @param key - Dynamic cache key
+   * @returns True if deletion succeeded, false if key is protected by active hooks
+   */
+  deleteCasual(key: Exclude<string, UseCacheKey>): boolean {
+    return this.deleteInternal(key)
+  }
+
+  /**
+   * Internal implementation for memory cache delete
+   */
+  private deleteInternal(key: string): boolean {
     // Check if key is being used by hooks
     if (this.activeHooks.has(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useCache hook`)
@@ -199,25 +255,41 @@ export class CacheService {
   }
 
   /**
-   * Check if a key has TTL set in memory cache
-   * @param key - Cache key to check
+   * Check if a key has TTL set in memory cache (type-safe)
+   * @param key - Schema-defined cache key
    * @returns True if key has TTL configured
    */
-  hasTTL<K extends UseCacheKey>(key: K): boolean
-  hasTTL(key: Exclude<string, UseCacheKey>): boolean
-  hasTTL(key: string): boolean {
+  hasTTL<K extends UseCacheKey>(key: K): boolean {
     const entry = this.memoryCache.get(key)
     return entry?.expireAt !== undefined
   }
 
   /**
-   * Check if a shared cache key has TTL set
-   * @param key - Shared cache key to check
+   * Check if a key has TTL set in memory cache (casual, dynamic key)
+   * @param key - Dynamic cache key
    * @returns True if key has TTL configured
    */
-  hasSharedTTL<K extends UseSharedCacheKey>(key: K): boolean
-  hasSharedTTL(key: Exclude<string, UseSharedCacheKey>): boolean
-  hasSharedTTL(key: string): boolean {
+  hasTTLCasual(key: Exclude<string, UseCacheKey>): boolean {
+    const entry = this.memoryCache.get(key)
+    return entry?.expireAt !== undefined
+  }
+
+  /**
+   * Check if a shared cache key has TTL set (type-safe)
+   * @param key - Schema-defined shared cache key
+   * @returns True if key has TTL configured
+   */
+  hasSharedTTL<K extends UseSharedCacheKey>(key: K): boolean {
+    const entry = this.sharedCache.get(key)
+    return entry?.expireAt !== undefined
+  }
+
+  /**
+   * Check if a shared cache key has TTL set (casual, dynamic key)
+   * @param key - Dynamic shared cache key
+   * @returns True if key has TTL configured
+   */
+  hasSharedTTLCasual(key: Exclude<string, UseSharedCacheKey>): boolean {
     const entry = this.sharedCache.get(key)
     return entry?.expireAt !== undefined
   }
@@ -225,13 +297,27 @@ export class CacheService {
   // ============ Shared Cache (Cross-window) ============
 
   /**
-   * Get value from shared cache with TTL validation
-   * @param key - Shared cache key to retrieve
+   * Get value from shared cache with TTL validation (type-safe)
+   * @param key - Schema-defined shared cache key
    * @returns Cached value or undefined if not found or expired
    */
-  getShared<K extends UseSharedCacheKey>(key: K): UseSharedCacheSchema[K]
-  getShared<T>(key: Exclude<string, UseSharedCacheKey>): T | undefined
-  getShared(key: string): any {
+  getShared<K extends UseSharedCacheKey>(key: K): UseSharedCacheSchema[K] | undefined {
+    return this.getSharedInternal(key)
+  }
+
+  /**
+   * Get value from shared cache with TTL validation (casual, dynamic key)
+   * @param key - Dynamic shared cache key (e.g., `window:${id}`)
+   * @returns Cached value or undefined if not found or expired
+   */
+  getSharedCasual<T>(key: Exclude<string, UseSharedCacheKey>): T | undefined {
+    return this.getSharedInternal(key)
+  }
+
+  /**
+   * Internal implementation for shared cache get
+   */
+  private getSharedInternal(key: string): any {
     const entry = this.sharedCache.get(key)
     if (!entry) return undefined
 
@@ -246,14 +332,29 @@ export class CacheService {
   }
 
   /**
-   * Set value in shared cache with cross-window synchronization
-   * @param key - Shared cache key to store
+   * Set value in shared cache with cross-window synchronization (type-safe)
+   * @param key - Schema-defined shared cache key
+   * @param value - Value to cache (type inferred from schema)
+   * @param ttl - Time to live in milliseconds (optional)
+   */
+  setShared<K extends UseSharedCacheKey>(key: K, value: UseSharedCacheSchema[K], ttl?: number): void {
+    this.setSharedInternal(key, value, ttl)
+  }
+
+  /**
+   * Set value in shared cache with cross-window synchronization (casual, dynamic key)
+   * @param key - Dynamic shared cache key (e.g., `window:${id}`)
    * @param value - Value to cache
    * @param ttl - Time to live in milliseconds (optional)
    */
-  setShared<K extends UseSharedCacheKey>(key: K, value: UseSharedCacheSchema[K]): void
-  setShared<T>(key: Exclude<string, UseSharedCacheKey>, value: T, ttl?: number): void
-  setShared(key: string, value: any, ttl?: number): void {
+  setSharedCasual<T>(key: Exclude<string, UseSharedCacheKey>, value: T, ttl?: number): void {
+    this.setSharedInternal(key, value, ttl)
+  }
+
+  /**
+   * Internal implementation for shared cache set
+   */
+  private setSharedInternal(key: string, value: any, ttl?: number): void {
     const existingEntry = this.sharedCache.get(key)
 
     // Value comparison optimization
@@ -296,13 +397,27 @@ export class CacheService {
   }
 
   /**
-   * Check if key exists in shared cache and is not expired
-   * @param key - Shared cache key to check
+   * Check if key exists in shared cache and is not expired (type-safe)
+   * @param key - Schema-defined shared cache key
    * @returns True if key exists and is valid, false otherwise
    */
-  hasShared<K extends UseSharedCacheKey>(key: K): boolean
-  hasShared(key: Exclude<string, UseSharedCacheKey>): boolean
-  hasShared(key: string): boolean {
+  hasShared<K extends UseSharedCacheKey>(key: K): boolean {
+    return this.hasSharedInternal(key)
+  }
+
+  /**
+   * Check if key exists in shared cache and is not expired (casual, dynamic key)
+   * @param key - Dynamic shared cache key
+   * @returns True if key exists and is valid, false otherwise
+   */
+  hasSharedCasual(key: Exclude<string, UseSharedCacheKey>): boolean {
+    return this.hasSharedInternal(key)
+  }
+
+  /**
+   * Internal implementation for shared cache has
+   */
+  private hasSharedInternal(key: string): boolean {
     const entry = this.sharedCache.get(key)
     if (!entry) return false
 
@@ -317,13 +432,27 @@ export class CacheService {
   }
 
   /**
-   * Delete from shared cache with cross-window synchronization and hook protection
-   * @param key - Shared cache key to delete
+   * Delete from shared cache with cross-window synchronization and hook protection (type-safe)
+   * @param key - Schema-defined shared cache key
    * @returns True if deletion succeeded, false if key is protected by active hooks
    */
-  deleteShared<K extends UseSharedCacheKey>(key: K): boolean
-  deleteShared(key: Exclude<string, UseSharedCacheKey>): boolean
-  deleteShared(key: string): boolean {
+  deleteShared<K extends UseSharedCacheKey>(key: K): boolean {
+    return this.deleteSharedInternal(key)
+  }
+
+  /**
+   * Delete from shared cache with cross-window synchronization and hook protection (casual, dynamic key)
+   * @param key - Dynamic shared cache key
+   * @returns True if deletion succeeded, false if key is protected by active hooks
+   */
+  deleteSharedCasual(key: Exclude<string, UseSharedCacheKey>): boolean {
+    return this.deleteSharedInternal(key)
+  }
+
+  /**
+   * Internal implementation for shared cache delete
+   */
+  private deleteSharedInternal(key: string): boolean {
     // Check if key is being used by hooks
     if (this.activeHooks.has(key)) {
       logger.error(`Cannot delete key "${key}" as it's being used by useSharedCache hook`)

@@ -29,7 +29,7 @@ export function getModel(id?: string, providerId?: string) {
 }
 
 export function modelGenerating() {
-  const generating = cacheService.get<boolean>('generating') ?? false
+  const generating = cacheService.get('chat.generating') ?? false
 
   if (generating) {
     window.toast.warning(i18n.t('message.switch.disabled'))

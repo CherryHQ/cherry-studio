@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
-import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { findGitBash, getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -500,35 +500,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
 
     try {
-      // Check common Git Bash installation paths
-      const commonPaths = [
-        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'bin', 'bash.exe'),
-        path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'bin', 'bash.exe'),
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe')
-      ]
+      const bashPath = findGitBash()
 
-      // Check if any of the common paths exist
-      for (const bashPath of commonPaths) {
-        if (fs.existsSync(bashPath)) {
-          logger.debug('Git Bash found', { path: bashPath })
-          return true
-        }
-      }
-
-      // Check if git is in PATH
-      const { execSync } = require('child_process')
-      try {
-        execSync('git --version', { stdio: 'ignore' })
-        logger.debug('Git found in PATH')
+      if (bashPath) {
+        logger.info('Git Bash is available', { path: bashPath })
         return true
-      } catch {
-        // Git not in PATH
       }
 
-      logger.debug('Git Bash not found on Windows system')
+      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
       return false
     } catch (error) {
-      logger.error('Error checking Git Bash', error as Error)
+      logger.error('Unexpected error checking Git Bash', error as Error)
       return false
     }
   })
@@ -596,6 +578,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StartWatcher, fileManager.startFileWatcher.bind(fileManager))
   ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_PauseWatcher, fileManager.pauseFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ResumeWatcher, fileManager.resumeFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // file service

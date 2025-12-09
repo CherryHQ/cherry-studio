@@ -151,6 +151,7 @@ class FileStorage {
   private currentWatchPath?: string
   private debounceTimer?: NodeJS.Timeout
   private watcherConfig: Required<FileWatcherConfig> = DEFAULT_WATCHER_CONFIG
+  private isPaused = false
 
   constructor() {
     this.initStorageDir()
@@ -478,13 +479,16 @@ class FileStorage {
     }
   }
 
-  public readFile = async (
-    _: Electron.IpcMainInvokeEvent,
-    id: string,
-    detectEncoding: boolean = false
-  ): Promise<string> => {
-    const filePath = path.join(this.storageDir, id)
-
+  /**
+   * Core file reading logic that handles both documents and text files.
+   *
+   * @private
+   * @param filePath - Full path to the file
+   * @param detectEncoding - Whether to auto-detect text file encoding
+   * @returns Promise resolving to the extracted text content
+   * @throws Error if file reading fails
+   */
+  private async readFileCore(filePath: string, detectEncoding: boolean = false): Promise<string> {
     const fileExtension = path.extname(filePath)
 
     if (documentExts.includes(fileExtension)) {
@@ -504,7 +508,7 @@ class FileStorage {
         return data
       } catch (error) {
         chdir(originalCwd)
-        logger.error('Failed to read file:', error as Error)
+        logger.error('Failed to read document file:', error as Error)
         throw error
       }
     }
@@ -516,11 +520,72 @@ class FileStorage {
         return fs.readFileSync(filePath, 'utf-8')
       }
     } catch (error) {
-      logger.error('Failed to read file:', error as Error)
+      logger.error('Failed to read text file:', error as Error)
       throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
 
+  /**
+   * Reads and extracts content from a stored file.
+   *
+   * Supports multiple file formats including:
+   * - Complex documents: .pdf, .doc, .docx, .pptx, .xlsx, .odt, .odp, .ods
+   * - Text files: .txt, .md, .json, .csv, etc.
+   * - Code files: .js, .ts, .py, .java, etc.
+   *
+   * For document formats, extracts text content using specialized parsers:
+   * - .doc files: Uses word-extractor library
+   * - Other Office formats: Uses officeparser library
+   *
+   * For text files, can optionally detect encoding automatically.
+   *
+   * @param _ - Electron IPC invoke event (unused)
+   * @param id - File identifier with extension (e.g., "uuid.docx")
+   * @param detectEncoding - Whether to auto-detect text file encoding (default: false)
+   * @returns Promise resolving to the extracted text content of the file
+   * @throws Error if file reading fails or file is not found
+   *
+   * @example
+   * // Read a DOCX file
+   * const content = await readFile(event, "document.docx");
+   *
+   * @example
+   * // Read a text file with encoding detection
+   * const content = await readFile(event, "text.txt", true);
+   *
+   * @example
+   * // Read a PDF file
+   * const content = await readFile(event, "manual.pdf");
+   */
+  public readFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    id: string,
+    detectEncoding: boolean = false
+  ): Promise<string> => {
+    const filePath = path.join(this.storageDir, id)
+    return this.readFileCore(filePath, detectEncoding)
+  }
+
+  /**
+   * Reads and extracts content from an external file path.
+   *
+   * Similar to readFile, but operates on external file paths instead of stored files.
+   * Supports the same file formats including complex documents and text files.
+   *
+   * @param _ - Electron IPC invoke event (unused)
+   * @param filePath - Absolute path to the external file
+   * @param detectEncoding - Whether to auto-detect text file encoding (default: false)
+   * @returns Promise resolving to the extracted text content of the file
+   * @throws Error if file does not exist or reading fails
+   *
+   * @example
+   * // Read an external DOCX file
+   * const content = await readExternalFile(event, "/path/to/document.docx");
+   *
+   * @example
+   * // Read an external text file with encoding detection
+   * const content = await readExternalFile(event, "/path/to/text.txt", true);
+   */
   public readExternalFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,
@@ -530,40 +595,7 @@ class FileStorage {
       throw new Error(`File does not exist: ${filePath}`)
     }
 
-    const fileExtension = path.extname(filePath)
-
-    if (documentExts.includes(fileExtension)) {
-      const originalCwd = process.cwd()
-      try {
-        chdir(this.tempDir)
-
-        if (fileExtension === '.doc') {
-          const extractor = new WordExtractor()
-          const extracted = await extractor.extract(filePath)
-          chdir(originalCwd)
-          return extracted.getBody()
-        }
-
-        const data = await officeParser.parseOfficeAsync(filePath)
-        chdir(originalCwd)
-        return data
-      } catch (error) {
-        chdir(originalCwd)
-        logger.error('Failed to read file:', error as Error)
-        throw error
-      }
-    }
-
-    try {
-      if (detectEncoding) {
-        return readTextFileWithAutoEncoding(filePath)
-      } else {
-        return fs.readFileSync(filePath, 'utf-8')
-      }
-    } catch (error) {
-      logger.error('Failed to read file:', error as Error)
-      throw new Error(`Failed to read file: ${filePath}.`)
-    }
+    return this.readFileCore(filePath, detectEncoding)
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
@@ -1448,6 +1480,12 @@ class FileStorage {
 
   private createChangeHandler() {
     return (eventType: string, filePath: string) => {
+      // Skip processing if watcher is paused
+      if (this.isPaused) {
+        logger.debug('File change ignored (watcher paused)', { eventType, filePath })
+        return
+      }
+
       if (!this.shouldWatchFile(filePath, eventType)) {
         return
       }
@@ -1603,6 +1641,165 @@ class FileStorage {
       shell.showItemInFolder(path)
     } catch (error) {
       logger.error('Failed to show item in folder:', error as Error)
+    }
+  }
+
+  /**
+   * Batch upload markdown files from native File objects
+   * This handles all I/O operations in the Main process to avoid blocking Renderer
+   */
+  public batchUploadMarkdownFiles = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePaths: string[],
+    targetPath: string
+  ): Promise<{
+    fileCount: number
+    folderCount: number
+    skippedFiles: number
+  }> => {
+    try {
+      logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
+
+      const basePath = path.resolve(targetPath)
+      const MARKDOWN_EXTS = ['.md', '.markdown']
+
+      // Filter markdown files
+      const markdownFiles = filePaths.filter((filePath) => {
+        const ext = path.extname(filePath).toLowerCase()
+        return MARKDOWN_EXTS.includes(ext)
+      })
+
+      const skippedFiles = filePaths.length - markdownFiles.length
+
+      if (markdownFiles.length === 0) {
+        return { fileCount: 0, folderCount: 0, skippedFiles }
+      }
+
+      // Collect unique folders needed
+      const foldersSet = new Set<string>()
+      const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
+
+      for (const filePath of markdownFiles) {
+        try {
+          // Get relative path if file is from a directory upload
+          const fileName = path.basename(filePath)
+          const relativePath = path.dirname(filePath)
+
+          // Determine target directory structure
+          let targetDir = basePath
+          const folderParts: string[] = []
+
+          // Extract folder structure from file path for nested uploads
+          // This is a simplified version - in real scenario we'd need the original directory structure
+          if (relativePath && relativePath !== '.') {
+            const parts = relativePath.split(path.sep)
+            // Get the last few parts that represent the folder structure within upload
+            const relevantParts = parts.slice(Math.max(0, parts.length - 3))
+            folderParts.push(...relevantParts)
+          }
+
+          // Build target directory path
+          for (const part of folderParts) {
+            targetDir = path.join(targetDir, part)
+            foldersSet.add(targetDir)
+          }
+
+          // Determine final file name
+          const nameWithoutExt = fileName.endsWith('.md')
+            ? fileName.slice(0, -3)
+            : fileName.endsWith('.markdown')
+              ? fileName.slice(0, -9)
+              : fileName
+
+          const { safeName } = await this.fileNameGuard(_, targetDir, nameWithoutExt, true)
+          const finalPath = path.join(targetDir, safeName + '.md')
+
+          fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
+        } catch (error) {
+          logger.error('Failed to prepare file operation:', error as Error, { filePath })
+        }
+      }
+
+      // Create folders in order (shallow to deep)
+      const sortedFolders = Array.from(foldersSet).sort((a, b) => a.length - b.length)
+      for (const folder of sortedFolders) {
+        try {
+          if (!fs.existsSync(folder)) {
+            await fs.promises.mkdir(folder, { recursive: true })
+          }
+        } catch (error) {
+          logger.debug('Folder already exists or creation failed', { folder, error: (error as Error).message })
+        }
+      }
+
+      // Process files in batches
+      const BATCH_SIZE = 10 // Higher batch size since we're in Main process
+      let successCount = 0
+
+      for (let i = 0; i < fileOperations.length; i += BATCH_SIZE) {
+        const batch = fileOperations.slice(i, i + BATCH_SIZE)
+
+        const results = await Promise.allSettled(
+          batch.map(async (op) => {
+            // Read from source and write to target in Main process
+            const content = await fs.promises.readFile(op.sourcePath, 'utf-8')
+            await fs.promises.writeFile(op.targetPath, content, 'utf-8')
+            return true
+          })
+        )
+
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            successCount++
+          } else {
+            logger.error('Failed to upload file:', result.reason, {
+              file: batch[index].sourcePath
+            })
+          }
+        })
+      }
+
+      logger.info('Batch upload completed', {
+        successCount,
+        folderCount: foldersSet.size,
+        skippedFiles
+      })
+
+      return {
+        fileCount: successCount,
+        folderCount: foldersSet.size,
+        skippedFiles
+      }
+    } catch (error) {
+      logger.error('Batch upload failed:', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Pause file watcher to prevent events during batch operations
+   */
+  public pauseFileWatcher = async (): Promise<void> => {
+    if (this.watcher) {
+      logger.debug('Pausing file watcher')
+      this.isPaused = true
+      // Clear any pending debounced notifications
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer)
+        this.debounceTimer = undefined
+      }
+    }
+  }
+
+  /**
+   * Resume file watcher and trigger a refresh
+   */
+  public resumeFileWatcher = async (): Promise<void> => {
+    if (this.watcher && this.currentWatchPath) {
+      logger.debug('Resuming file watcher')
+      this.isPaused = false
+      // Send a synthetic refresh event to trigger tree reload
+      this.notifyChange('refresh', this.currentWatchPath)
     }
   }
 }

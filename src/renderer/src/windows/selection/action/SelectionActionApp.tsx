@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { isMac } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -8,10 +8,13 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import type { FC } from 'react'
+import type { FC, MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+// [Windows only] Electron bug workaround type - can be removed once https://github.com/electron/electron/issues/48554 is fixed
+type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
@@ -188,11 +191,62 @@ const SelectionActionApp: FC = () => {
     }
   }
 
+  /**
+   * [Windows only] Manual window resize handler
+   *
+   * ELECTRON BUG WORKAROUND:
+   * In Electron, when using `frame: false` + `transparent: true`, the native window
+   * resize functionality is broken on Windows. This is a known Electron bug.
+   * See: https://github.com/electron/electron/issues/48554
+   *
+   * This custom resize implementation can be removed once the Electron bug is fixed.
+   */
+  const handleResizeStart = useCallback((e: ReactMouseEvent, direction: ResizeDirection) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    let lastX = e.screenX
+    let lastY = e.screenY
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.screenX - lastX
+      const deltaY = moveEvent.screenY - lastY
+
+      if (deltaX !== 0 || deltaY !== 0) {
+        window.api.selection.resizeActionWindow(deltaX, deltaY, direction)
+        lastX = moveEvent.screenX
+        lastY = moveEvent.screenY
+      }
+    }
+
+    const handleMouseUp = () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }, [])
+
   //we don't need to render the component if action is not set
   if (!action) return null
 
   return (
     <WindowFrame $opacity={opacity / 100}>
+      {/* [Windows only] Custom resize handles - Electron bug workaround, can be removed once fixed */}
+      {isWin && (
+        <>
+          <ResizeHandle $direction="n" onMouseDown={(e) => handleResizeStart(e, 'n')} />
+          <ResizeHandle $direction="s" onMouseDown={(e) => handleResizeStart(e, 's')} />
+          <ResizeHandle $direction="e" onMouseDown={(e) => handleResizeStart(e, 'e')} />
+          <ResizeHandle $direction="w" onMouseDown={(e) => handleResizeStart(e, 'w')} />
+          <ResizeHandle $direction="ne" onMouseDown={(e) => handleResizeStart(e, 'ne')} />
+          <ResizeHandle $direction="nw" onMouseDown={(e) => handleResizeStart(e, 'nw')} />
+          <ResizeHandle $direction="se" onMouseDown={(e) => handleResizeStart(e, 'se')} />
+          <ResizeHandle $direction="sw" onMouseDown={(e) => handleResizeStart(e, 'sw')} />
+        </>
+      )}
+
       <TitleBar $isWindowFocus={isWindowFocus} style={isMac ? { paddingLeft: '70px' } : {}}>
         {action.icon && (
           <TitleBarIcon>
@@ -433,6 +487,92 @@ const OpacitySlider = styled.div`
       box-shadow: 0 0 0 2px var(--color-primary-mute);
     }
   }
+`
+
+/**
+ * [Windows only] Custom resize handle styled component
+ *
+ * ELECTRON BUG WORKAROUND:
+ * This component can be removed once https://github.com/electron/electron/issues/48554 is fixed.
+ */
+const ResizeHandle = styled.div<{ $direction: ResizeDirection }>`
+  position: absolute;
+  -webkit-app-region: no-drag;
+  z-index: 10;
+
+  ${({ $direction }) => {
+    const edgeSize = '6px'
+    const cornerSize = '12px'
+
+    switch ($direction) {
+      case 'n':
+        return `
+          top: 0;
+          left: ${cornerSize};
+          right: ${cornerSize};
+          height: ${edgeSize};
+          cursor: ns-resize;
+        `
+      case 's':
+        return `
+          bottom: 0;
+          left: ${cornerSize};
+          right: ${cornerSize};
+          height: ${edgeSize};
+          cursor: ns-resize;
+        `
+      case 'e':
+        return `
+          right: 0;
+          top: ${cornerSize};
+          bottom: ${cornerSize};
+          width: ${edgeSize};
+          cursor: ew-resize;
+        `
+      case 'w':
+        return `
+          left: 0;
+          top: ${cornerSize};
+          bottom: ${cornerSize};
+          width: ${edgeSize};
+          cursor: ew-resize;
+        `
+      case 'ne':
+        return `
+          top: 0;
+          right: 0;
+          width: ${cornerSize};
+          height: ${cornerSize};
+          cursor: nesw-resize;
+        `
+      case 'nw':
+        return `
+          top: 0;
+          left: 0;
+          width: ${cornerSize};
+          height: ${cornerSize};
+          cursor: nwse-resize;
+        `
+      case 'se':
+        return `
+          bottom: 0;
+          right: 0;
+          width: ${cornerSize};
+          height: ${cornerSize};
+          cursor: nwse-resize;
+        `
+      case 'sw':
+        return `
+          bottom: 0;
+          left: 0;
+          width: ${cornerSize};
+          height: ${cornerSize};
+          cursor: nesw-resize;
+        `
+      default:
+        return ''
+    }
+  }}
 `
 
 export default SelectionActionApp

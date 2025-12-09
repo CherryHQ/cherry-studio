@@ -61,7 +61,7 @@ export class TokenFluxService {
     const cacheKey = `tokenflux_models_${this.apiHost}`
 
     // Check cache first
-    const cachedModels = cacheService.get<TokenFluxModel[]>(cacheKey)
+    const cachedModels = cacheService.getCasual<TokenFluxModel[]>(cacheKey)
     if (cachedModels) {
       return cachedModels
     }
@@ -79,7 +79,7 @@ export class TokenFluxService {
     }
 
     // Cache for 60 minutes (3,600,000 milliseconds)
-    cacheService.set(cacheKey, data.data, 60 * 60 * 1000)
+    cacheService.setCasual(cacheKey, data.data, 60 * 60 * 1000)
 
     return data.data
   }

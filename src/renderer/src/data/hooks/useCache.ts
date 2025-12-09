@@ -44,8 +44,8 @@ export function useCache<K extends UseCacheKey>(
    */
   const value = useSyncExternalStore(
     useCallback((callback) => cacheService.subscribe(key, callback), [key]),
-    useCallback(() => cacheService.get<UseCacheSchema[K]>(key), [key]),
-    useCallback(() => cacheService.get<UseCacheSchema[K]>(key), [key]) // SSR snapshot
+    useCallback(() => cacheService.get(key), [key]),
+    useCallback(() => cacheService.get(key), [key]) // SSR snapshot
   )
 
   /**
@@ -131,8 +131,8 @@ export function useSharedCache<K extends UseSharedCacheKey>(
    */
   const value = useSyncExternalStore(
     useCallback((callback) => cacheService.subscribe(key, callback), [key]),
-    useCallback(() => cacheService.getShared<UseSharedCacheSchema[K]>(key), [key]),
-    useCallback(() => cacheService.getShared<UseSharedCacheSchema[K]>(key), [key]) // SSR snapshot
+    useCallback(() => cacheService.getShared(key), [key]),
+    useCallback(() => cacheService.getShared(key), [key]) // SSR snapshot
   )
 
   /**

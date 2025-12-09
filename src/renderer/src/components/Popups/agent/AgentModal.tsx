@@ -1,3 +1,4 @@
+import { HelpTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TopView } from '@renderer/components/TopView'
@@ -340,9 +341,12 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
             </FormRow>
 
             <FormItem>
-              <Label>
-                {t('common.model')} <RequiredMark>*</RequiredMark>
-              </Label>
+              <div className="flex items-center gap-2">
+                <Label>
+                  {t('common.model')} <RequiredMark>*</RequiredMark>
+                </Label>
+                <HelpTooltip title={t('agent.add.model.tooltip')} />
+              </div>
               <SelectAgentBaseModelButton
                 agentBase={tempAgentBase}
                 onSelect={handleModelSelect}

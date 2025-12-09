@@ -6,6 +6,9 @@
         "failed": "Falha ao adicionar agente",
         "invalid_agent": "Agent inválido"
       },
+      "model": {
+        "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente."
+      },
       "title": "Adicionar Agente",
       "type": {
         "placeholder": "Selecionar tipo de Agente"
@@ -1162,6 +1165,7 @@
     "no_results": "Nenhum resultado",
     "none": "Nenhum",
     "off": "Desligado",
+    "on": "Ligado",
     "open": "Abrir",
     "paste": "Colar",
     "placeholders": {
@@ -2219,7 +2223,10 @@
     "untitled_folder": "Nova pasta",
     "untitled_note": "Nota sem título",
     "upload_failed": "Falha ao carregar a nota",
-    "upload_success": "Nota carregada com sucesso"
+    "upload_files": "Carregar Ficheiros",
+    "upload_folder": "Carregar Pasta",
+    "upload_success": "Nota carregada com sucesso",
+    "uploading_files": "A enviar {{count}} ficheiros..."
   },
   "notification": {
     "assistant": "Resposta do assistente",
@@ -2510,7 +2517,8 @@
   },
   "preview": {
     "copy": {
-      "image": "Copiar como imagem"
+      "image": "Copiar como imagem",
+      "src": "Copiar Origem da Imagem"
     },
     "dialog": "Abrir janela de pré-visualização",
     "label": "Pré-visualização",
@@ -4270,6 +4278,12 @@
         "priority": "prioridade",
         "tip": "Especifique o nível de latência usado para processar a solicitação",
         "title": "Nível de Serviço"
+      },
+      "stream_options": {
+        "include_usage": {
+          "tip": "Se o uso de tokens está incluído (aplicável apenas à API de Conclusões de Chat da OpenAI)",
+          "title": "Incluir uso"
+        }
       },
       "summary_text_mode": {
         "auto": "Automático",

@@ -8,6 +8,7 @@ export type CacheAppUpdateState = {
   downloaded: boolean
   downloadProgress: number
   available: boolean
+  ignore: boolean
 }
 
 export type CacheActiveSearches = Record<string, WebSearchStatus>

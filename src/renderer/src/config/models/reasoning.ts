@@ -277,6 +277,10 @@ export const GEMINI_THINKING_MODEL_REGEX =
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   if (GEMINI_THINKING_MODEL_REGEX.test(modelId)) {
+    // ref: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-pro-image
+    if (modelId.includes('gemini-3-pro-image')) {
+      return true
+    }
     if (modelId.includes('image') || modelId.includes('tts')) {
       return false
     }

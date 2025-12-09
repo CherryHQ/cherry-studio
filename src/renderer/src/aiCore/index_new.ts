@@ -120,9 +120,12 @@ export default class ModernAiProvider {
       throw new Error('Model is required for completions. Please use constructor with model parameter.')
     }
 
-    // 每次请求时重新生成配置以确保API key轮换生效
-    this.config = providerToAiSdkConfig(this.actualProvider, this.model)
-    logger.debug('Generated provider config for completions', this.config)
+    // Config is now set in constructor, ApiService handles key rotation before passing provider
+    if (!this.config) {
+      // If config wasn't set in constructor (when provider only), generate it now
+      this.config = providerToAiSdkConfig(this.actualProvider, this.model!)
+    }
+    logger.debug('Using provider config for completions', this.config)
 
     // 检查 config 是否存在
     if (!this.config) {

@@ -82,9 +82,9 @@ export async function getTopicById(topicId: string) {
  * 开始重命名指定话题
  */
 export const startTopicRenaming = (topicId: string) => {
-  const currentIds = cacheService.get<string[]>('renamingTopics') ?? []
+  const currentIds = cacheService.get('topic.renaming') ?? []
   if (!currentIds.includes(topicId)) {
-    cacheService.set('renamingTopics', [...currentIds, topicId])
+    cacheService.set('topic.renaming', [...currentIds, topicId])
   }
 }
 
@@ -93,23 +93,23 @@ export const startTopicRenaming = (topicId: string) => {
  */
 export const finishTopicRenaming = (topicId: string) => {
   // 1. 立即从 renamingTopics 移除
-  const renamingTopics = cacheService.get<string[]>('renamingTopics')
+  const renamingTopics = cacheService.get('topic.renaming')
   if (renamingTopics && renamingTopics.includes(topicId)) {
     cacheService.set(
-      'renamingTopics',
+      'topic.renaming',
       renamingTopics.filter((id) => id !== topicId)
     )
   }
 
   // 2. 立即添加到 newlyRenamedTopics
-  const currentNewlyRenamed = cacheService.get<string[]>('newlyRenamedTopics') ?? []
-  cacheService.set('newlyRenamedTopics', [...currentNewlyRenamed, topicId])
+  const currentNewlyRenamed = cacheService.get('topic.newly_renamed') ?? []
+  cacheService.set('topic.newly_renamed', [...currentNewlyRenamed, topicId])
 
   // 3. 延迟从 newlyRenamedTopics 移除
   setTimeout(() => {
-    const current = cacheService.get<string[]>('newlyRenamedTopics') ?? []
+    const current = cacheService.get('topic.newly_renamed') ?? []
     cacheService.set(
-      'newlyRenamedTopics',
+      'topic.newly_renamed',
       current.filter((id) => id !== topicId)
     )
   }, 700)

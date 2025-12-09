@@ -10,7 +10,7 @@ export type LoaderReturn = {
   messageSource?: 'preprocess' | 'embedding' | 'validation'
 }
 
-export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir'
+export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' | 'refresh'
 
 export type FileChangeEvent = {
   eventType: FileChangeEventType

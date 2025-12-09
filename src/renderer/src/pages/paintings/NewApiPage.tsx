@@ -32,6 +32,8 @@ import { isNewApiProvider } from '@renderer/utils/provider'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import type { RcFile } from 'antd/es/upload'
+import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
 import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -553,7 +555,31 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     maxCount={16}
                     showUploadList={true}
                     listType="picture"
-                    beforeUpload={handleImageUpload}>
+                    beforeUpload={handleImageUpload}
+                    fileList={editImageFiles.map((file, idx): UploadFile<any> => {
+                      const rcFile: RcFile = {
+                        ...file,
+                        uid: String(idx),
+                        lastModifiedDate: file.lastModified ? new Date(file.lastModified) : new Date()
+                      }
+                      return {
+                        uid: rcFile.uid,
+                        name: rcFile.name || `image_${idx + 1}.png`,
+                        status: 'done',
+                        url: URL.createObjectURL(file),
+                        originFileObj: rcFile,
+                        lastModifiedDate: rcFile.lastModifiedDate
+                      }
+                    })}
+                    onRemove={(file) => {
+                      setEditImageFiles((prev) =>
+                        prev.filter((f) => {
+                          const idx = prev.indexOf(f)
+                          return String(idx) !== file.uid
+                        })
+                      )
+                      return true
+                    }}>
                     <ImagePlaceholder>
                       <ImageSizeImage src={IcImageUp} theme={theme} />
                     </ImagePlaceholder>

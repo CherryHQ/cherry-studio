@@ -43,7 +43,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
   const targetSession = useDeferredValue(_targetSession)
   const dispatch = useAppDispatch()
 
-  const { isEditing, isSaving, editValue, inputRef, startEdit, handleKeyDown, handleValueChange } = useInPlaceEdit({
+  const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
       if (value !== session.name) {
         await updateSession({ id: session.id, name: value })
@@ -180,14 +180,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
         {isFulfilled && !isActive && <FulfilledIndicator />}
         <SessionNameContainer>
           {isEditing ? (
-            <SessionEditInput
-              ref={inputRef}
-              value={editValue}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleValueChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              style={{ opacity: isSaving ? 0.5 : 1 }}
-            />
+            <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
           ) : (
             <>
               <SessionName>

@@ -169,8 +169,8 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     setText,
     isEmpty: inputEmpty
   } = useInputText({
-    initialValue: cacheService.get<string>(draftCacheKey) ?? '',
-    onChange: (value) => cacheService.set(draftCacheKey, value, DRAFT_CACHE_TTL)
+    initialValue: cacheService.getCasual<string>(draftCacheKey) ?? '',
+    onChange: (value) => cacheService.setCasual(draftCacheKey, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,

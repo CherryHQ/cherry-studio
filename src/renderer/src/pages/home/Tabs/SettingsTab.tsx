@@ -34,7 +34,11 @@ import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from 
 import { isGroqSystemProvider } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@renderer/utils/provider'
+import {
+  isOpenAICompatibleProvider,
+  isSupportServiceTierProvider,
+  isSupportVerbosityProvider
+} from '@renderer/utils/provider'
 import type { MultiModelMessageStyle, SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Col, InputNumber, Row, Slider } from 'antd'
@@ -244,6 +248,7 @@ const SettingsTab: FC<Props> = (props) => {
   const model = assistant.model || getDefaultModel()
 
   const showOpenAiSettings =
+    isOpenAICompatibleProvider(provider) ||
     isOpenAIModel(model) ||
     isSupportServiceTierProvider(provider) ||
     (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider))
