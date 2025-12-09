@@ -47,6 +47,7 @@
     "agents:push": "NODE_ENV='development' drizzle-kit push --config src/main/services/agents/drizzle.config.ts",
     "agents:studio": "NODE_ENV='development' drizzle-kit studio --config src/main/services/agents/drizzle.config.ts",
     "agents:drop": "NODE_ENV='development' drizzle-kit drop --config src/main/services/agents/drizzle.config.ts",
+    "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
