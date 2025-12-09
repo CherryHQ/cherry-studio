@@ -1097,8 +1097,8 @@ export const resendMessageThunk =
       // Clear cached search results for the user message being resent
       // This ensures that the regenerated responses will not use stale search results
       try {
-        cacheService.delete(`web-search-${userMessageToResend.id}`)
-        cacheService.delete(`knowledge-search-${userMessageToResend.id}`)
+        cacheService.deleteCasual(`web-search-${userMessageToResend.id}`)
+        cacheService.deleteCasual(`knowledge-search-${userMessageToResend.id}`)
       } catch (error) {
         logger.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error as Error)
       }

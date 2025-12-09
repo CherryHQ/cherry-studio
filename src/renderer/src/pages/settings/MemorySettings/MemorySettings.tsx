@@ -475,8 +475,8 @@ const MemorySettings = () => {
   const handleSettingsSubmit = async () => {
     setSettingsModalVisible(false)
     await memoryService.updateConfig()
-    if (cacheService.get('memory.wait.settings')) {
-      cacheService.delete('memory.wait.settings')
+    if (cacheService.getCasual<boolean>('memory.wait.settings')) {
+      cacheService.deleteCasual('memory.wait.settings')
       setGlobalMemoryEnabled(true)
     }
   }
@@ -484,7 +484,7 @@ const MemorySettings = () => {
   const handleSettingsCancel = () => {
     setSettingsModalVisible(false)
     form.resetFields()
-    cacheService.delete('memory.wait.settings')
+    cacheService.deleteCasual('memory.wait.settings')
   }
 
   const handleResetMemories = async (userId: string) => {
@@ -550,7 +550,7 @@ const MemorySettings = () => {
 
   const handleGlobalMemoryToggle = async (enabled: boolean) => {
     if (enabled && !embedderModel) {
-      cacheService.set('memory.wait.settings', true)
+      cacheService.setCasual('memory.wait.settings', true)
       return setSettingsModalVisible(true)
     }
 

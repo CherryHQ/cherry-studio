@@ -30,7 +30,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
   }, [formattedCitations, block.knowledge, block.memories, hasGeminiBlock])
 
   const getWebSearchStatusText = (requestId: string) => {
-    const status = cacheService.get('activeSearches')?.[requestId] ?? { phase: 'default' }
+    const status = cacheService.getCasual('activeSearches')?.[requestId] ?? { phase: 'default' }
 
     switch (status.phase) {
       case 'fetch_complete':

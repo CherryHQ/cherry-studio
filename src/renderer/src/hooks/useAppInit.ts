@@ -79,7 +79,7 @@ export function useAppInit() {
   useFullScreenNotice()
 
   useEffect(() => {
-    savedAvatar?.value && cacheService.set('avatar', savedAvatar.value)
+    savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)
   }, [savedAvatar])
 
   useEffect(() => {
@@ -149,8 +149,8 @@ export function useAppInit() {
   useEffect(() => {
     // set files path
     window.api.getAppInfo().then((info) => {
-      cacheService.set('filesPath', info.filesPath)
-      cacheService.set('resourcesPath', info.resourcesPath)
+      cacheService.set('app.path.files', info.filesPath)
+      cacheService.set('app.path.resources', info.resourcesPath)
     })
   }, [])
 

@@ -57,7 +57,7 @@ const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 const getMentionedModelsCacheKey = (assistantId: string) => `inputbar-mentioned-models-${assistantId}`
 
 const getValidatedCachedModels = (assistantId: string): Model[] => {
-  const cached = cacheService.get<Model[]>(getMentionedModelsCacheKey(assistantId))
+  const cached = cacheService.getCasual<Model[]>(getMentionedModelsCacheKey(assistantId))
   if (!Array.isArray(cached)) return []
   return cached.filter((model) => model?.id && model?.name)
 }
@@ -135,8 +135,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
-    initialValue: cacheService.get<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
-    onChange: (value) => cacheService.set(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
+    initialValue: cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '',
+    onChange: (value) => cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, value, DRAFT_CACHE_TTL)
   })
   const {
     textareaRef,
@@ -210,7 +210,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, se
   }, [canAddImageFile, setCouldAddImageFile])
 
   const onUnmount = useEffectEvent((id: string) => {
-    cacheService.set(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
+    cacheService.setCasual(getMentionedModelsCacheKey(id), mentionedModels, DRAFT_CACHE_TTL)
   })
 
   useEffect(() => {

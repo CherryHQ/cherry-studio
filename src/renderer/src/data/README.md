@@ -156,18 +156,31 @@ await preferenceService.setMultiple({
 ```typescript
 import { cacheService } from '@data/CacheService'
 
-// Memory cache (component-level)
+// Memory cache - Type-safe (schema key, with auto-completion)
 cacheService.set('temp.calculation', result, 30000) // 30s TTL
 const result = cacheService.get('temp.calculation')
 
-// Shared cache (cross-window)
+// Memory cache - Casual (dynamic key, requires manual type)
+cacheService.setCasual<TopicCache>(`topic:${id}`, topicData)
+const topic = cacheService.getCasual<TopicCache>(`topic:${id}`)
+
+// Shared cache - Type-safe (schema key)
 cacheService.setShared('window.layout', layoutConfig)
 const layout = cacheService.getShared('window.layout')
 
-// Persist cache (survives restarts)
+// Shared cache - Casual (dynamic key)
+cacheService.setSharedCasual<WindowState>(`window:${windowId}`, state)
+const state = cacheService.getSharedCasual<WindowState>(`window:${windowId}`)
+
+// Persist cache (survives restarts, schema keys only)
 cacheService.setPersist('app.recent_files', recentFiles)
 const files = cacheService.getPersist('app.recent_files')
 ```
+
+**When to Use Type-safe vs Casual Methods**:
+- **Type-safe** (`get`, `set`, `getShared`, `setShared`): Use when the key is predefined in the cache schema. Provides auto-completion and type inference.
+- **Casual** (`getCasual`, `setCasual`, `getSharedCasual`, `setSharedCasual`): Use when the key is dynamically constructed (e.g., `topic:${id}`). Requires manual type specification via generics.
+- **Persist Cache**: Only supports schema keys (no Casual methods) to ensure data integrity.
 
 ## React Hooks
 

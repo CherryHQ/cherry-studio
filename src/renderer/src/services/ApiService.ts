@@ -468,9 +468,9 @@ function getRotatedApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = cacheService.get(keyName) as string
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
   if (!lastUsedKey) {
-    cacheService.set(keyName, keys[0])
+    cacheService.setCasual(keyName, keys[0])
     return keys[0]
   }
 
@@ -486,7 +486,7 @@ function getRotatedApiKey(provider: Provider): string {
 
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  cacheService.set(keyName, nextKey)
+  cacheService.setCasual(keyName, nextKey)
 
   return nextKey
 }

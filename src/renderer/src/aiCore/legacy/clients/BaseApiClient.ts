@@ -175,16 +175,16 @@ export abstract class BaseApiClient<
       return keys[0]
     }
 
-    const lastUsedKey = cacheService.getShared(keyName) as string | undefined
+    const lastUsedKey = cacheService.getSharedCasual<string>(keyName)
     if (lastUsedKey === undefined) {
-      cacheService.setShared(keyName, keys[0])
+      cacheService.setSharedCasual(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    cacheService.setShared(keyName, nextKey)
+    cacheService.setSharedCasual(keyName, nextKey)
 
     return nextKey
   }
@@ -343,7 +343,7 @@ export abstract class BaseApiClient<
   }
 
   private getMemoryReferencesFromCache(message: Message) {
-    const memories = cacheService.get(`memory-search-${message.id}`) as MemoryItem[] | undefined
+    const memories = cacheService.getCasual<MemoryItem[]>(`memory-search-${message.id}`)
     if (memories) {
       const memoryReferences: KnowledgeReference[] = memories.map((mem, index) => ({
         id: index + 1,
@@ -361,10 +361,10 @@ export abstract class BaseApiClient<
     if (isEmpty(content)) {
       return []
     }
-    const webSearch: WebSearchResponse | undefined = cacheService.get(`web-search-${message.id}`)
+    const webSearch = cacheService.getCasual<WebSearchResponse>(`web-search-${message.id}`)
 
     if (webSearch) {
-      cacheService.delete(`web-search-${message.id}`)
+      cacheService.deleteCasual(`web-search-${message.id}`)
       return (webSearch.results as WebSearchProviderResponse).results.map(
         (result, index) =>
           ({
@@ -387,10 +387,10 @@ export abstract class BaseApiClient<
     if (isEmpty(content)) {
       return []
     }
-    const knowledgeReferences: KnowledgeReference[] | undefined = cacheService.get(`knowledge-search-${message.id}`)
+    const knowledgeReferences = cacheService.getCasual<KnowledgeReference[]>(`knowledge-search-${message.id}`)
 
     if (knowledgeReferences && !isEmpty(knowledgeReferences)) {
-      cacheService.delete(`knowledge-search-${message.id}`)
+      cacheService.deleteCasual(`knowledge-search-${message.id}`)
       logger.debug(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
