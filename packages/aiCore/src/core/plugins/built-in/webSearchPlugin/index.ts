@@ -25,7 +25,15 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
         const provider = params.model?.provider
         if (provider && typeof provider === 'string' && provider.includes('.')) {
           const _providerId = provider.split('.')[1]
-          switchWebSearchTool(config, params, { ...context, providerId: _providerId })
+          if (_providerId) {
+            switchWebSearchTool(config, params, { ...context, providerId: _providerId })
+          } else {
+            // Fall back to original context when extraction results in empty string
+            switchWebSearchTool(config, params, context)
+          }
+        } else {
+          // Fall back to original context when extraction fails
+          switchWebSearchTool(config, params, context)
         }
       } else {
         switchWebSearchTool(config, params, context)
