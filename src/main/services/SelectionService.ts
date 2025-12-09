@@ -1394,6 +1394,50 @@ export class SelectionService {
   }
 
   /**
+   * [Windows only] Manual window resize handler
+   *
+   * ELECTRON BUG WORKAROUND:
+   * In Electron, when using `frame: false` + `transparent: true`, the native window
+   * resize functionality is broken on Windows. This is a known Electron bug.
+   * See: https://github.com/electron/electron/issues/48554
+   *
+   * This method can be removed once the Electron bug is fixed.
+   */
+  public resizeActionWindow(actionWindow: BrowserWindow, deltaX: number, deltaY: number, direction: string): void {
+    const bounds = actionWindow.getBounds()
+    const minWidth = 300
+    const minHeight = 200
+
+    let { x, y, width, height } = bounds
+
+    // Handle horizontal resize
+    if (direction.includes('e')) {
+      width = Math.max(minWidth, width + deltaX)
+    }
+    if (direction.includes('w')) {
+      const newWidth = Math.max(minWidth, width - deltaX)
+      if (newWidth !== width) {
+        x = x + (width - newWidth)
+        width = newWidth
+      }
+    }
+
+    // Handle vertical resize
+    if (direction.includes('s')) {
+      height = Math.max(minHeight, height + deltaY)
+    }
+    if (direction.includes('n')) {
+      const newHeight = Math.max(minHeight, height - deltaY)
+      if (newHeight !== height) {
+        y = y + (height - newHeight)
+        height = newHeight
+      }
+    }
+
+    actionWindow.setBounds({ x, y, width, height })
+  }
+
+  /**
    * Update trigger mode behavior
    * Switches between selection-based and alt-key based triggering
    * Manages appropriate event listeners for each mode
@@ -1509,6 +1553,18 @@ export class SelectionService {
         selectionService?.pinActionWindow(actionWindow, isPinned)
       }
     })
+
+    // [Windows only] Electron bug workaround - can be removed once fixed
+    // See: https://github.com/electron/electron/issues/48554
+    ipcMain.handle(
+      IpcChannel.Selection_ActionWindowResize,
+      (event, deltaX: number, deltaY: number, direction: string) => {
+        const actionWindow = BrowserWindow.fromWebContents(event.sender)
+        if (actionWindow) {
+          selectionService?.resizeActionWindow(actionWindow, deltaX, deltaY, direction)
+        }
+      }
+    )
 
     this.isIpcHandlerRegistered = true
   }
