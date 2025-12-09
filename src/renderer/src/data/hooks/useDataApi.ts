@@ -2,6 +2,7 @@ import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/d
 import type { ConcreteApiPaths } from '@shared/data/api/apiSchemas'
 import type { PaginatedResponse } from '@shared/data/api/apiTypes'
 import { useState } from 'react'
+import type { KeyedMutator } from 'swr'
 import useSWR, { useSWRConfig } from 'swr'
 import useSWRMutation from 'swr/mutation'
 
@@ -118,6 +119,18 @@ function getFetcher<TPath extends ConcreteApiPaths>([path, query]: [TPath, Recor
  *     revalidateOnFocus: true
  *   }
  * })
+ *
+ * // Optimistic updates with mutate (bound to current key, no key needed)
+ * const { data, mutate } = useQuery(`/topics/${id}`)
+ *
+ * // Update cache immediately without revalidation
+ * await mutate({ ...data, title: 'New Title' }, false)
+ *
+ * // Update cache with function and revalidate
+ * await mutate(prev => ({ ...prev, count: prev.count + 1 }))
+ *
+ * // Just revalidate (refetch from server)
+ * await mutate()
  * ```
  */
 export function useQuery<TPath extends ConcreteApiPaths>(
@@ -139,6 +152,8 @@ export function useQuery<TPath extends ConcreteApiPaths>(
   error?: Error
   /** Function to manually refetch data */
   refetch: () => void
+  /** SWR mutate function for optimistic updates */
+  mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>>
 } {
   // Internal type conversion for SWR compatibility
   const key = options?.enabled !== false ? buildSWRKey(path, options?.query as Record<string, any>) : null
@@ -160,7 +175,8 @@ export function useQuery<TPath extends ConcreteApiPaths>(
     data,
     loading: isLoading || isValidating,
     error: error as Error | undefined,
-    refetch
+    refetch,
+    mutate
   }
 }
 
