@@ -8,7 +8,7 @@ import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
-import { Bot } from 'lucide-react'
+import { Bot, MoreVertical } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +24,7 @@ interface AgentItemProps {
 
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
-  const { sessions } = useSessions(agent.id)
+  useSessions(agent.id)
   const { clickAssistantToShowTopic, topicPosition } = useSettings()
 
   const handlePress = useCallback(() => {
@@ -36,6 +36,14 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
     }
     onPress()
   }, [clickAssistantToShowTopic, topicPosition, onPress])
+
+  const handleMoreClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      AgentSettingsPopup.show({ agentId: agent.id })
+    },
+    [agent.id]
+  )
 
   const menuItems: MenuProps['items'] = useMemo(
     () => [
@@ -75,8 +83,8 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
             <AgentLabel agent={agent} />
           </AgentNameWrapper>
           {isActive && (
-            <MenuButton>
-              <SessionCount>{sessions.length}</SessionCount>
+            <MenuButton onClick={handleMoreClick}>
+              <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
             </MenuButton>
           )}
           {!isActive && <BotIcon />}
@@ -116,7 +124,7 @@ export const AgentNameWrapper: React.FC<React.HTMLAttributes<HTMLDivElement>> = 
 export const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
     className={cn(
-      'flex h-5 min-h-5 w-5 flex-row items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-background)]',
+      'flex h-[22px] min-h-[22px] min-w-[22px] flex-row items-center justify-center rounded-[11px] border-[0.5px] border-[var(--color-border)] bg-[var(--color-background)] px-[5px]',
       className
     )}
     {...props}

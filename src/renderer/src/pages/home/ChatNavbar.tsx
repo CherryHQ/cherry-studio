@@ -2,7 +2,7 @@ import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
+import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -19,6 +19,7 @@ import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
 import ChatNavbarContent from './components/ChatNavbarContent'
+import SettingsButton from './components/SettingsButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {
@@ -35,6 +36,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const { isTopNavbar } = useNavbarPosition()
+  const { chat } = useRuntime()
   const dispatch = useAppDispatch()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
@@ -64,14 +66,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       setActiveTopic
     })
   }
-
-  // const handleUpdateModel = useCallback(
-  //   async (model: ApiModel) => {
-  //     if (!activeSession || !activeAgent) return
-  //     return updateModel(activeSession.id, model.id, { showSuccessToast: false })
-  //   },
-  //   [activeAgent, activeSession, updateModel]
-  // )
 
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
@@ -107,6 +101,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </div>
       <HStack alignItems="center" gap={8}>
         {isTopNavbar && <UpdateAppButton />}
+        {chat.activeTopicOrSession === 'topic' && <SettingsButton assistant={assistant} />}
         {isTopNavbar && (
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={handleNarrowModeToggle}>

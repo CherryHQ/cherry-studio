@@ -83,7 +83,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model?.provider, showMinappIcon])
 
-  const hideHeader = isBubbleStyle ? isUserMessage && !isMultiSelectMode : false
+  const hideHeader = isMultiSelectMode
 
   if (hideHeader) {
     return null
@@ -121,7 +121,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
         </>
       )}
       <UserWrap>
-        <HStack alignItems="center">
+        <HStack
+          alignItems="center"
+          justifyContent={isBubbleStyle ? (isUserMessage ? 'flex-end' : 'flex-start') : 'flex-start'}>
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
@@ -161,7 +163,6 @@ const UserWrap = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  flex: 1;
 `
 
 const InfoWrap = styled.div`
