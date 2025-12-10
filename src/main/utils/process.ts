@@ -5,11 +5,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 
-import { loggerService } from '@logger'
 import { isWin } from '../constant'
 import { getResourcePath } from '.'
-
-const logger = loggerService.withContext('Utils:Process')
 
 const logger = loggerService.withContext('Utils:Process')
 
