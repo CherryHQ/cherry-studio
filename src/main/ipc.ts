@@ -523,6 +523,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
+    if (!isWin) {
+      return null
+    }
+
     const customPath = configManager.get(ConfigKeys.GitBashPath) as string | undefined
     return customPath ?? null
   })
