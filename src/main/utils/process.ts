@@ -141,12 +141,12 @@ export function findGitBash(): string | null {
 
   const envOverride = process.env.CLAUDE_CODE_GIT_BASH_PATH
   if (envOverride) {
-    const resolvedEnv = path.resolve(envOverride)
-    if (fs.existsSync(resolvedEnv)) {
-      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: resolvedEnv })
-      return resolvedEnv
+    const validated = validateGitBashPath(envOverride)
+    if (validated) {
+      logger.debug('Using CLAUDE_CODE_GIT_BASH_PATH override for bash.exe', { path: validated })
+      return validated
     }
-    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path does not exist', { path: envOverride })
+    logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
   // 1. Find git.exe and derive bash.exe path
