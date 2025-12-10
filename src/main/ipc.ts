@@ -507,12 +507,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
         return true
       }
 
-      const envOverride = validateGitBashPath(process.env.CLAUDE_CODE_GIT_BASH_PATH)
-      if (envOverride) {
-        logger.info('Git Bash available via env override', { path: envOverride })
-        return true
-      }
-
       const bashPath = findGitBash()
 
       if (bashPath) {
