@@ -69,6 +69,12 @@ Cherry Studio is a desktop client that supports multiple LLM providers, availabl
 
 ❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/zh/guides/sponsor.md) to support the development!
 
+# 🔀 二开版本（atoz03）核心改动
+
+- 话题多选与批量操作：右键开启多选、顶部操作条展示已选数，可全选/清空，批量移动/删除，并支持导出符合 ChatGPT 导入格式的 JSON（按助手名+时间戳命名），移动时按目标助手话题时间排序并自动处理激活话题补位。
+- 助手间一键迁移全部话题：新增 moveAllTopics 流程（Redux/数据库/i18n/确认弹窗），同时完善单元测试与相关工具提示。
+- 测试与兼容性修复：补充 i18n 与工具方法的测试环境 mock，修复 tooltip 等细节问题，保证 Node 20+ 环境下依赖可用。
+
 # 🌠 Screenshot
 
 ![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
