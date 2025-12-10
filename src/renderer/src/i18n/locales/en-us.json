@@ -777,10 +777,6 @@
       "content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
       "title": "Clear topics"
     },
-    "move_all": {
-      "title": "Move all topics to",
-      "confirm": "Move all topics from \"{{from}}\" to \"{{to}}\" and merge?"
-    },
     "copy": {
       "title": "Copy Assistant"
     },
@@ -800,6 +796,10 @@
     "list": {
       "showByList": "List View",
       "showByTags": "Tag View"
+    },
+    "move_all": {
+      "confirm": "Move all topics from \"{{from}}\" to \"{{to}}\" and merge?",
+      "title": "Move all topics to"
     },
     "presets": {
       "add": {
@@ -1393,19 +1393,6 @@
         "plain_text": "Copy as plain text (remove Markdown)",
         "title": "Copy"
       },
-      "multi_select": {
-        "label": "Multi-select",
-        "exit": "Exit Multi-select",
-        "select": "Select",
-        "unselect": "Unselect",
-        "select_all": "Select All",
-        "clear": "Clear",
-        "move": "Move Selected",
-        "delete": "Delete Selected",
-        "export": "Export as ChatGPT JSON",
-        "selected_count": "{{count}} selected",
-        "empty": "Please select topics first"
-      },
       "delete": {
         "shortcut": "Hold {{key}} to delete directly"
       },
@@ -1490,6 +1477,19 @@
         "unpinned": "Unpinned Topics"
       },
       "move_to": "Move to",
+      "multi_select": {
+        "clear": "Clear",
+        "delete": "Delete Selected",
+        "empty": "Please select topics first",
+        "exit": "Exit Multi-select",
+        "export": "Export as ChatGPT JSON",
+        "label": "Multi-select",
+        "move": "Move Selected",
+        "select": "Select",
+        "select_all": "Select All",
+        "selected_count": "{{count}} selected",
+        "unselect": "Unselect"
+      },
       "new": "New Topic",
       "pin": "Pin Topic",
       "prompt": {

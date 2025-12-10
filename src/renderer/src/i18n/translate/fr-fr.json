@@ -797,6 +797,10 @@
       "showByList": "Affichage sous forme de liste",
       "showByTags": "Affichage par balises"
     },
+    "move_all": {
+      "confirm": "[to be translated]:Move all topics from \"{{from}}\" to \"{{to}}\" and merge?",
+      "title": "[to be translated]:Move all topics to"
+    },
     "presets": {
       "add": {
         "button": "Ajouter à l'assistant",
@@ -1473,6 +1477,19 @@
         "unpinned": "Sujets non épinglés"
       },
       "move_to": "Déplacer vers",
+      "multi_select": {
+        "clear": "[to be translated]:Clear",
+        "delete": "[to be translated]:Delete Selected",
+        "empty": "[to be translated]:Please select topics first",
+        "exit": "[to be translated]:Exit Multi-select",
+        "export": "[to be translated]:Export as ChatGPT JSON",
+        "label": "[to be translated]:Multi-select",
+        "move": "[to be translated]:Move Selected",
+        "select": "[to be translated]:Select",
+        "select_all": "[to be translated]:Select All",
+        "selected_count": "[to be translated]:{{count}} selected",
+        "unselect": "[to be translated]:Unselect"
+      },
       "new": "Commencer une nouvelle conversation",
       "pin": "Fixer le sujet",
       "prompt": {

@@ -777,10 +777,6 @@
       "content": "清空話題會刪除助手下所有主題和檔案，確定要繼續嗎？",
       "title": "清空話題"
     },
-    "move_all": {
-      "title": "移動所有話題到",
-      "confirm": "要將「{{from}}」的所有話題移動到「{{to}}」並合併嗎？"
-    },
     "copy": {
       "title": "複製助手"
     },
@@ -800,6 +796,10 @@
     "list": {
       "showByList": "列表顯示",
       "showByTags": "標籤顯示"
+    },
+    "move_all": {
+      "confirm": "要將「{{from}}」的所有話題移動到「{{to}}」並合併嗎？",
+      "title": "移動所有話題到"
     },
     "presets": {
       "add": {
@@ -1393,19 +1393,6 @@
         "plain_text": "複製為純文字（移除 Markdown）",
         "title": "複製"
       },
-      "multi_select": {
-        "label": "多選",
-        "exit": "退出多選",
-        "select": "選中",
-        "unselect": "取消選中",
-        "select_all": "全選",
-        "clear": "清空選擇",
-        "move": "批次移動",
-        "delete": "批次刪除",
-        "export": "匯出為 ChatGPT JSON",
-        "selected_count": "已選 {{count}} 條",
-        "empty": "請先選擇話題"
-      },
       "delete": {
         "shortcut": "按住 {{key}} 可直接刪除"
       },
@@ -1490,6 +1477,19 @@
         "unpinned": "未固定的話題"
       },
       "move_to": "移動到",
+      "multi_select": {
+        "clear": "清空選擇",
+        "delete": "批次刪除",
+        "empty": "請先選擇話題",
+        "exit": "退出多選",
+        "export": "匯出為 ChatGPT JSON",
+        "label": "多選",
+        "move": "批次移動",
+        "select": "選中",
+        "select_all": "全選",
+        "selected_count": "已選 {{count}} 條",
+        "unselect": "取消選中"
+      },
       "new": "開始新對話",
       "pin": "固定話題",
       "prompt": {
