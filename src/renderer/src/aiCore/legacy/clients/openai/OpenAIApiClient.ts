@@ -529,7 +529,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
     const assistantMessage: OpenAISdkMessageParam = {
       role: 'assistant',
-      content: output,
+      ...(output ? { content: output } : {}),
       tool_calls: toolCalls.length > 0 ? toolCalls : undefined
     }
     const newReqMessages = [...currentReqMessages, assistantMessage, ...toolResults]
