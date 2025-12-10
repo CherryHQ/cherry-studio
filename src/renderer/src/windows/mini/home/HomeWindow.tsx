@@ -7,12 +7,14 @@ import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { ConversationService } from '@renderer/services/ConversationService'
+import FileManager from '@renderer/services/FileManager'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
+import PasteService from '@renderer/services/PasteService'
 import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import type { Topic } from '@renderer/types'
+import type { FileMetadata, Topic } from '@renderer/types'
 import { ThemeMode } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
@@ -39,6 +41,7 @@ import type { FeatureMenusRef } from './components/FeatureMenus'
 import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import PastedFilesPreview from './components/PastedFilesPreview'
 
 const logger = loggerService.withContext('HomeWindow')
 
@@ -51,6 +54,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [isFirstMessage, setIsFirstMessage] = useState(true)
 
   const [userInputText, setUserInputText] = useState('')
+  const [files, setFiles] = useState<FileMetadata[]>([])
 
   const [clipboardText, setClipboardText] = useState('')
   const lastClipboardTextRef = useRef<string | null>(null)
@@ -73,6 +77,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
+  const supportedImageExts = useMemo(() => ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'], [])
+
   const referenceText = useMemo(() => clipboardText || userInputText, [clipboardText, userInputText])
 
   const userContent = useMemo(() => {
@@ -81,6 +87,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
+
+  const hasChatInput = useMemo(() => Boolean(userContent) || files.length > 0, [files.length, userContent])
 
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
@@ -166,7 +174,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           if (isLoading) return
 
           e.preventDefault()
-          if (userContent) {
+          if (userContent || files.length > 0) {
             if (route === 'home') {
               featureMenusRef.current?.useFeature()
             } else {
@@ -213,6 +221,23 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setUserInputText(e.target.value)
   }
 
+  const handlePaste = useCallback(
+    async (event: React.ClipboardEvent<HTMLInputElement>) => {
+      await PasteService.handlePaste(
+        event.nativeEvent,
+        supportedImageExts,
+        setFiles,
+        setUserInputText,
+        false,
+        undefined,
+        userInputText,
+        undefined,
+        t
+      )
+    },
+    [supportedImageExts, t, userInputText]
+  )
+
   const handleError = (error: Error) => {
     setIsLoading(false)
     setError(error.message)
@@ -220,17 +245,22 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
-      if (isEmpty(userContent) || !currentTopic.current) {
+      if ((isEmpty(userContent) && files.length === 0) || !currentTopic.current) {
         return
       }
 
       try {
         const topicId = currentTopic.current.id
 
+        const uploadedFiles = files.length ? await FileManager.uploadFiles(files) : []
+
+        const content = [prompt, userContent].filter(Boolean).join('\n\n') || undefined
+
         const { message: userMessage, blocks } = getUserMessage({
-          content: [prompt, userContent].filter(Boolean).join('\n\n'),
+          content,
           assistant: currentAssistant,
-          topic: currentTopic.current
+          topic: currentTopic.current,
+          files: uploadedFiles
         })
 
         store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
@@ -272,6 +302,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
         setIsFirstMessage(false)
         setUserInputText('')
+        setFiles([])
 
         const newAssistant = cloneDeep(currentAssistant)
         if (!newAssistant.settings) {
@@ -452,8 +483,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         currentAskId.current = ''
       }
     },
-    [userContent, currentAssistant]
+    [files, userContent, currentAssistant]
   )
+
+  const handleRemoveFile = useCallback((filePath: string) => {
+    setFiles((prevFiles) => prevFiles.filter((file) => file.path !== filePath))
+  }, [])
 
   const handlePause = useCallback(() => {
     if (currentAskId.current) {
@@ -546,8 +581,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 loading={isLoading}
                 handleKeyDown={handleKeyDown}
                 handleChange={handleChange}
+                handlePaste={handlePaste}
                 ref={inputBarRef}
               />
+              <PastedFilesPreview files={files} onRemove={handleRemoveFile} />
               <Divider style={{ margin: '10px 0' }} />
             </>
           )}
@@ -590,8 +627,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             loading={isLoading}
             handleKeyDown={handleKeyDown}
             handleChange={handleChange}
+            handlePaste={handlePaste}
             ref={inputBarRef}
           />
+          <PastedFilesPreview files={files} onRemove={handleRemoveFile} />
           <Divider style={{ margin: '10px 0' }} />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           <Main>
@@ -599,6 +638,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               setRoute={setRoute}
               onSendMessage={handleSendMessage}
               text={userContent}
+              hasChatInput={hasChatInput}
               ref={featureMenusRef}
             />
           </Main>
