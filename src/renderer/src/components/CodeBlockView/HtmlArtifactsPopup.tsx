@@ -78,7 +78,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderLeft>
 
       <HeaderCenter>
-        <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
+        <ViewControls onDoubleClick={(e) => e.stopPropagation()} className="nodrag">
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
