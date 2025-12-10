@@ -3997,6 +3997,8 @@
       "startError": "启动失败",
       "stdio": "标准输入 / 输出 (stdio)",
       "streamableHttp": "可流式传输的 HTTP (streamableHttp)",
+      "viewLogs": "查看日志",
+      "noLogs": "暂无日志",
       "sync": {
         "button": "同步",
         "discoverMcpServers": "发现 MCP 服务器",

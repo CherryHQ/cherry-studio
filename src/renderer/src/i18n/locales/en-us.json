@@ -4058,7 +4058,9 @@
       "updateError": "Failed to update server",
       "updateSuccess": "Server updated successfully",
       "url": "URL",
-      "user": "User"
+      "user": "User",
+      "viewLogs": "View Logs",
+      "noLogs": "No logs yet"
     },
     "messages": {
       "divider": {

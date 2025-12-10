@@ -9,8 +9,9 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
+import type { MCPServerLogEntry } from '@shared/config/types'
 import type { TabsProps } from 'antd'
-import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs, Modal, Tag, Typography } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -88,8 +89,11 @@ const McpSettings: React.FC = () => {
 
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [serverVersion, setServerVersion] = useState<string | null>(null)
+  const [logModalOpen, setLogModalOpen] = useState(false)
+  const [logs, setLogs] = useState<(MCPServerLogEntry & { serverId?: string })[]>([])
 
   const { theme } = useTheme()
+  const { Text } = Typography
 
   const navigate = useNavigate()
 
@@ -234,12 +238,43 @@ const McpSettings: React.FC = () => {
     }
   }
 
+  const fetchServerLogs = async () => {
+    try {
+      const history = await window.api.mcp.getServerLogs(server)
+      setLogs(history)
+    } catch (error) {
+      logger.warn('Failed to load server logs', error as Error)
+    }
+  }
+
+  useEffect(() => {
+    const unsubscribe = window.api.mcp.onServerLog((log) => {
+      if (log.serverId && log.serverId !== server.id) return
+      setLogs((prev) => {
+        const merged = [...prev, log]
+        if (merged.length > 200) {
+          return merged.slice(merged.length - 200)
+        }
+        return merged
+      })
+    })
+
+    return () => {
+      unsubscribe?.()
+    }
+  }, [server.id])
+
+  useEffect(() => {
+    setLogs([])
+  }, [server.id])
+
   useEffect(() => {
     if (server.isActive) {
       fetchTools()
       fetchPrompts()
       fetchResources()
       fetchServerVersion()
+      fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server.id, server.isActive])
@@ -736,6 +771,9 @@ const McpSettings: React.FC = () => {
                 <ServerName className="text-nowrap">{server?.name}</ServerName>
                 {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
               </Flex>
+              <Button size="small" onClick={() => setLogModalOpen(true)}>
+                {t('settings.mcp.viewLogs', 'View Logs')}
+              </Button>
               <Button
                 danger
                 icon={<DeleteIcon size={14} className="lucide-custom" />}
@@ -770,6 +808,37 @@ const McpSettings: React.FC = () => {
           />
         </SettingGroup>
       </SettingContainer>
+
+      <Modal
+        title={t('settings.mcp.viewLogs', 'Server Logs')}
+        open={logModalOpen}
+        onCancel={() => setLogModalOpen(false)}
+        footer={null}
+        width={720}
+        bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
+        afterOpenChange={(open) => {
+          if (open) {
+            fetchServerLogs()
+          }
+        }}>
+        <LogList>
+          {logs.length === 0 && <Text type="secondary">{t('settings.mcp.noLogs', 'No logs yet')}</Text>}
+          {logs.map((log, idx) => (
+            <LogItem key={`${log.timestamp}-${idx}`}>
+              <Flex gap={8} align="baseline">
+                <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
+                <Tag color={mapLogLevelColor(log.level)}>{log.level}</Tag>
+                <Text>{log.message}</Text>
+              </Flex>
+              {log.data && (
+                <PreBlock>
+                  {typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}
+                </PreBlock>
+              )}
+            </LogItem>
+          ))}
+        </LogList>
+      </Modal>
     </Container>
   )
 }
@@ -791,6 +860,50 @@ const AdvancedSettingsButton = styled.div`
   display: flex;
   align-items: center;
 `
+
+const LogList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const LogItem = styled.div`
+  background: var(--color-bg-secondary, #f7f8fa);
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border, #e6e8eb);
+`
+
+const Timestamp = styled.span`
+  color: var(--color-text-3);
+  font-size: 12px;
+`
+
+const PreBlock = styled.pre`
+  margin: 6px 0 0;
+  padding: 8px;
+  background: #0d1117;
+  color: #c9d1d9;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+`
+
+function mapLogLevelColor(level: MCPServerLogEntry['level']) {
+  switch (level) {
+    case 'error':
+    case 'stderr':
+      return 'red'
+    case 'warn':
+      return 'orange'
+    case 'info':
+    case 'stdout':
+      return 'blue'
+    default:
+      return 'default'
+  }
+}
 
 const VersionBadge = styled(Badge)`
   .ant-badge-count {

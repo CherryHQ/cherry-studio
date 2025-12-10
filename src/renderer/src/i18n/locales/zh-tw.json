@@ -3997,6 +3997,8 @@
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
       "streamableHttp": "可串流的 HTTP (streamableHttp)",
+      "viewLogs": "查看日誌",
+      "noLogs": "暫無日誌",
       "sync": {
         "button": "同步",
         "discoverMcpServers": "發現 MCP 伺服器",
