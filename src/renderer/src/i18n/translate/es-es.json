@@ -3701,6 +3701,7 @@
         },
         "title": "Configuración de la barra de navegación"
       },
+      "remember_window_state": "Recordar posición y tamaño de ventana",
       "sidebar": {
         "chat": {
           "hiddenMessage": "El asistente es una función básica y no se puede ocultar"

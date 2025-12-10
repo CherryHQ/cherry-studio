@@ -3701,6 +3701,7 @@
         },
         "title": "導航欄設定"
       },
+      "remember_window_state": "記住視窗位置和大小",
       "sidebar": {
         "chat": {
           "hiddenMessage": "助手是基礎功能，不支援隱藏"

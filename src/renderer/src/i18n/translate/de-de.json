@@ -3701,6 +3701,7 @@
         },
         "title": "Navigationsleisten-Einstellungen"
       },
+      "remember_window_state": "Fensterposition und -größe merken",
       "sidebar": {
         "chat": {
           "hiddenMessage": "Assistent ist Basisfunktion, kann nicht ausgeblendet werden"

@@ -3701,6 +3701,7 @@
         },
         "title": "Navbar Settings"
       },
+      "remember_window_state": "Remember Window Position and Size",
       "sidebar": {
         "chat": {
           "hiddenMessage": "Assistants are basic functions, not supported for hiding"

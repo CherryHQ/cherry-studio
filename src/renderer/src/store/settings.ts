@@ -227,6 +227,8 @@ export interface SettingsState {
   // API Server
   apiServer: ApiServerConfig
   showMessageOutline: boolean
+  // Window state
+  rememberWindowState: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -425,7 +427,8 @@ export const initialState: SettingsState = {
     port: API_SERVER_DEFAULTS.PORT,
     apiKey: `cs-sk-${uuid()}`
   },
-  showMessageOutline: false
+  showMessageOutline: false,
+  rememberWindowState: true
 }
 
 const settingsSlice = createSlice({
@@ -869,6 +872,9 @@ const settingsSlice = createSlice({
     },
     setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
       state.showMessageOutline = action.payload
+    },
+    setRememberWindowState: (state, action: PayloadAction<boolean>) => {
+      state.rememberWindowState = action.payload
     }
   }
 })
@@ -1001,7 +1007,9 @@ export const {
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,
-  setApiServerApiKey
+  setApiServerApiKey,
+  // Window state
+  setRememberWindowState
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

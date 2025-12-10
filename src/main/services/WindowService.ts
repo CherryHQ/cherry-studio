@@ -26,6 +26,7 @@ const logger = loggerService.withContext('WindowService')
 export class WindowService {
   private static instance: WindowService | null = null
   private mainWindow: BrowserWindow | null = null
+  private mainWindowState: ReturnType<typeof windowStateKeeper> | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
@@ -47,18 +48,21 @@ export class WindowService {
       return this.mainWindow
     }
 
-    const mainWindowState = windowStateKeeper({
+    this.mainWindowState = windowStateKeeper({
       defaultWidth: MIN_WINDOW_WIDTH,
       defaultHeight: MIN_WINDOW_HEIGHT,
       fullScreen: false,
       maximize: false
     })
 
+    // 检查是否启用记住窗口状态
+    const rememberState = configManager.getRememberWindowState()
+
     this.mainWindow = new BrowserWindow({
-      x: mainWindowState.x,
-      y: mainWindowState.y,
-      width: mainWindowState.width,
-      height: mainWindowState.height,
+      x: rememberState ? this.mainWindowState.x : undefined,
+      y: rememberState ? this.mainWindowState.y : undefined,
+      width: rememberState ? this.mainWindowState.width : MIN_WINDOW_WIDTH,
+      height: rememberState ? this.mainWindowState.height : MIN_WINDOW_HEIGHT,
       minWidth: MIN_WINDOW_WIDTH,
       minHeight: MIN_WINDOW_HEIGHT,
       show: false,
@@ -91,7 +95,7 @@ export class WindowService {
       }
     })
 
-    this.setupMainWindow(this.mainWindow, mainWindowState)
+    this.setupMainWindow(this.mainWindow, this.mainWindowState)
 
     //preload miniWindow to resolve series of issues about miniWindow in Mac
     const enableQuickAssistant = configManager.getEnableQuickAssistant()
@@ -230,6 +234,17 @@ export class WindowService {
     mainWindow.on('maximize', () => {
       mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
+
+    // 窗口状态改变时（大小、位置、最大化），实时保存
+    const saveStateIfEnabled = () => {
+      if (configManager.getRememberWindowState()) {
+        this.mainWindowState?.saveState(mainWindow)
+      }
+    }
+    mainWindow.on('resized', saveStateIfEnabled)
+    mainWindow.on('moved', saveStateIfEnabled)
+    mainWindow.on('maximize', saveStateIfEnabled)
+    mainWindow.on('unmaximize', saveStateIfEnabled)
 
     // 添加Escape键退出全屏的支持
     // mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -527,7 +542,9 @@ export class WindowService {
       }
 
       this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
-      this.miniWindow?.center()
+      // Don't call center() - electron-window-state handles position:
+      // - First use: x/y are undefined, Electron auto-centers the window
+      // - Subsequent uses: x/y have saved values, window opens at saved position
       this.miniWindow?.show()
     })
 

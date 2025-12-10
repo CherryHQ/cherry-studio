@@ -854,6 +854,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
     configManager.setDisableHardwareAcceleration(isDisable)
   })
+
+  ipcMain.handle(IpcChannel.App_SetRememberWindowState, (_, value: boolean) => {
+    configManager.setRememberWindowState(value)
+  })
+
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
   ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
     getSpans(topicId, traceId, modelName)

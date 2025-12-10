@@ -48,6 +48,7 @@ export enum IpcChannel {
 
   App_QuoteToMain = 'app:quote-to-main',
   App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
+  App_SetRememberWindowState = 'app:set-remember-window-state',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',

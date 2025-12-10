@@ -9,6 +9,7 @@ import {
   setLaunchToTray,
   setNavbarPosition,
   setPinTopicsToTop,
+  setRememberWindowState as _setRememberWindowState,
   setSendMessageShortcut as _setSendMessageShortcut,
   setSidebarIcons,
   setTargetLanguage,
@@ -101,6 +102,11 @@ export function useSettings() {
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    },
+
+    setRememberWindowState(rememberWindowState: boolean) {
+      dispatch(_setRememberWindowState(rememberWindowState))
+      window.api.setRememberWindowState(rememberWindowState)
     }
   }
 }
