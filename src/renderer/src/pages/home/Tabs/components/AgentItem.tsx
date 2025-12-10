@@ -25,7 +25,7 @@ interface AgentItemProps {
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
   useSessions(agent.id)
-  const { clickAssistantToShowTopic, topicPosition } = useSettings()
+  const { clickAssistantToShowTopic, topicPosition, assistantIconType } = useSettings()
 
   const handlePress = useCallback(() => {
     // Show session sidebar if setting is enabled (reusing the assistant setting for consistency)
@@ -80,14 +80,14 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
       <Container onClick={handlePress} isActive={isActive}>
         <AssistantNameRow className="name" title={agent.name ?? agent.id}>
           <AgentNameWrapper>
-            <AgentLabel agent={agent} />
+            <AgentLabel agent={agent} hideIcon={assistantIconType === 'none'} />
           </AgentNameWrapper>
           {isActive && (
             <MenuButton onClick={handleMoreClick}>
               <MoreVertical size={14} className="text-[var(--color-text-secondary)]" />
             </MenuButton>
           )}
-          {!isActive && <BotIcon />}
+          {!isActive && assistantIconType !== 'none' && <BotIcon />}
         </AssistantNameRow>
       </Container>
     </Dropdown>
