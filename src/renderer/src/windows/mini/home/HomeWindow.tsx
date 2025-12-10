@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
+import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -77,7 +78,18 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const supportedImageExts = useMemo(() => ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'], [])
+  // 检查当前助手的模型是否支持图片（复用主窗口逻辑）
+  const isVisionSupported = useMemo(() => isVisionModel(currentAssistant.model), [currentAssistant.model])
+  const isGenerateImageSupported = useMemo(() => isGenerateImageModel(currentAssistant.model), [currentAssistant.model])
+  const canAddImageFile = useMemo(
+    () => isVisionSupported || isGenerateImageSupported,
+    [isVisionSupported, isGenerateImageSupported]
+  )
+
+  const supportedImageExts = useMemo(
+    () => (canAddImageFile ? ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'] : []),
+    [canAddImageFile]
+  )
 
   const referenceText = useMemo(() => clipboardText || userInputText, [clipboardText, userInputText])
 
@@ -223,6 +235,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const handlePaste = useCallback(
     async (event: React.ClipboardEvent<HTMLInputElement>) => {
+      // 复用 PasteService，根据 supportedImageExts 自动过滤不支持的文件类型
+      // 当模型不支持图片时，supportedImageExts 为空数组，PasteService 会显示提示
       await PasteService.handlePaste(
         event.nativeEvent,
         supportedImageExts,
